@@ -1,0 +1,17 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="TrayAppDotNETCommon/src/TrayAppDotNETCommon.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FanControlTrayAppDotNET/LibreHardwareMonitor/LibreHardwareMonitorLib/LibreHardwareMonitorLib.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="FanControlTrayAppDotNET/src/FanControlTrayAppDotNET.csproj">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

@@ -1,0 +1,12 @@
+[submodule "BrightnessTrayAppDotNET"]
+	path = BrightnessTrayAppDotNET
+	url = ../BrightnessTrayAppDotNET
+	branch = main
+[submodule "FanControlTrayAppDotNET"]
+	path = FanControlTrayAppDotNET
+	url = ../FanControlTrayAppDotNET
+	branch = main
+[submodule "TrayAppDotNETCommon"]
+	path = TrayAppDotNETCommon
+	url = ../TrayAppDotNETCommon
+	branch = main

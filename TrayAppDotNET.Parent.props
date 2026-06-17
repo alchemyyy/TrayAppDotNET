@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <TrayAppDotNETCommonRoot>$(MSBuildThisFileDirectory)TrayAppDotNETCommon</TrayAppDotNETCommonRoot>
+    <TrayAppDotNETCommonProject>$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <SkipTrayAppDotNETCommonUpdate>true</SkipTrayAppDotNETCommonUpdate>
+  </PropertyGroup>
+</Project>
