@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup Condition="'$(TrayAppDotNETUseRootOutput)' != 'false'">
+    <TrayAppDotNETOutputRoot Condition="'$(TrayAppDotNETOutputRoot)' == ''">$(TrayAppDotNETRoot)bin\</TrayAppDotNETOutputRoot>
+    <OutDir>$(TrayAppDotNETOutputRoot)$(Configuration)\</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+    <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+  </PropertyGroup>
+</Project>

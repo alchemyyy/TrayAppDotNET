@@ -1,7 +1,9 @@
 <Project>
   <PropertyGroup>
+    <TrayAppDotNETRoot>$(MSBuildThisFileDirectory)</TrayAppDotNETRoot>
     <TrayAppDotNETCommonRoot>$(MSBuildThisFileDirectory)TrayAppDotNETCommon</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject>$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
     <SkipTrayAppDotNETCommonUpdate>true</SkipTrayAppDotNETCommonUpdate>
+    <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>
 </Project>
