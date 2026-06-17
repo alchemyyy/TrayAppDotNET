@@ -9,5 +9,6 @@
     <CopyRetryDelayMilliseconds>250</CopyRetryDelayMilliseconds>
     <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+    <NativeOutputPath Condition="'$(RuntimeIdentifier)' != '' and '$(NativeOutputPath)' == ''">$(IntermediateOutputPath)native-aot\</NativeOutputPath>
   </PropertyGroup>
 </Project>
