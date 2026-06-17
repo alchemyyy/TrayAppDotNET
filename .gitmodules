@@ -2,19 +2,24 @@
 	path = BrightnessTrayAppDotNET
 	url = ../BrightnessTrayAppDotNET
 	branch = main
+	update = merge
 [submodule "FanControlTrayAppDotNET"]
 	path = FanControlTrayAppDotNET
 	url = ../FanControlTrayAppDotNET
 	branch = main
+	update = merge
 [submodule "TrayAppDotNETCommon"]
 	path = TrayAppDotNETCommon
 	url = ../TrayAppDotNETCommon
 	branch = main
+	update = merge
 [submodule "NetworkTrayAppDotNET"]
 	path = NetworkTrayAppDotNET
 	url = ../NetworkTrayAppDotNET
 	branch = main
+	update = merge
 [submodule "VolumeTrayAppDotNET"]
 	path = VolumeTrayAppDotNET
 	url = ../VolumeTrayAppDotNET
 	branch = main
+	update = merge
