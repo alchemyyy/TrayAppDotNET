@@ -10,3 +10,11 @@
 	path = TrayAppDotNETCommon
 	url = ../TrayAppDotNETCommon
 	branch = main
+[submodule "NetworkTrayAppDotNET"]
+	path = NetworkTrayAppDotNET
+	url = ../NetworkTrayAppDotNET
+	branch = main
+[submodule "VolumeTrayAppDotNET"]
+	path = VolumeTrayAppDotNET
+	url = ../VolumeTrayAppDotNET
+	branch = main
