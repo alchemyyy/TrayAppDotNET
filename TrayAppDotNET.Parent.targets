@@ -4,5 +4,10 @@
     <OutDir>$(TrayAppDotNETOutputRoot)$(Configuration)\</OutDir>
     <OutputPath>$(OutDir)</OutputPath>
     <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+    <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
+    <CopyRetryCount>20</CopyRetryCount>
+    <CopyRetryDelayMilliseconds>250</CopyRetryDelayMilliseconds>
+    <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
 </Project>
