@@ -12,37 +12,16 @@
     <NativeOutputPath Condition="'$(RuntimeIdentifier)' != '' and '$(NativeOutputPath)' == ''">$(IntermediateOutputPath)native-aot\</NativeOutputPath>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <TrayAppDotNETWatcherProject Condition="'$(TrayAppDotNETWatcherProject)' == '' and '$(TrayAppDotNETCommonRoot)' != ''">$(TrayAppDotNETCommonRoot)\TrayAppDotNETWatcher\TrayAppDotNETWatcher.vcxproj</TrayAppDotNETWatcherProject>
-    <TrayAppDotNETWatcherConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</TrayAppDotNETWatcherConfiguration>
-    <TrayAppDotNETWatcherConfiguration Condition="'$(TrayAppDotNETWatcherConfiguration)' == ''">Release</TrayAppDotNETWatcherConfiguration>
-    <TrayAppDotNETWatcherBuildRoot Condition="'$(TrayAppDotNETWatcherBuildRoot)' == ''">$(IntermediateOutputPath)native-watcher\</TrayAppDotNETWatcherBuildRoot>
-    <TrayAppDotNETWatcherOutDir Condition="'$(TrayAppDotNETWatcherOutDir)' == ''">$(TrayAppDotNETOutputRoot)$(Configuration)</TrayAppDotNETWatcherOutDir>
-    <TrayAppDotNETWatcherIntDir Condition="'$(TrayAppDotNETWatcherIntDir)' == ''">$(TrayAppDotNETWatcherBuildRoot)obj</TrayAppDotNETWatcherIntDir>
-    <TrayAppDotNETWatcherTargetName>$(AssemblyName)_Watcher</TrayAppDotNETWatcherTargetName>
-    <TrayAppDotNETWatcherOutputName>$(TrayAppDotNETWatcherTargetName).exe</TrayAppDotNETWatcherOutputName>
-    <TrayAppDotNETWatcherBuiltExe>$([MSBuild]::EnsureTrailingSlash('$(TrayAppDotNETWatcherOutDir)'))$(TrayAppDotNETWatcherOutputName)</TrayAppDotNETWatcherBuiltExe>
+  <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TrayAppDotNETDefaultGCHeapHardLimitBytes>104857600</TrayAppDotNETDefaultGCHeapHardLimitBytes>
+    <TrayAppDotNETDefaultGCHeapHardLimitBytes Condition="'$(MSBuildProjectName)' == 'FanControlTrayAppDotNET'">157286400</TrayAppDotNETDefaultGCHeapHardLimitBytes>
+    <TrayAppDotNETGCHeapHardLimitBytes Condition="'$(TrayAppDotNETGCHeapHardLimitBytes)' == ''">$(TrayAppDotNETDefaultGCHeapHardLimitBytes)</TrayAppDotNETGCHeapHardLimitBytes>
   </PropertyGroup>
 
-  <Target Name="BuildTrayAppDotNETWatcher"
-          BeforeTargets="Build"
-          Condition="'$(OutputType)' == 'WinExe'
-                     and '$(SkipTrayAppDotNETWatcher)' != 'true'
-                     and Exists('$(TrayAppDotNETWatcherProject)')">
-    <MakeDir Directories="$(TrayAppDotNETWatcherOutDir);$(TrayAppDotNETWatcherIntDir)" />
-    <Exec Command="MSBuild.exe &quot;$(TrayAppDotNETWatcherProject)&quot; /t:Build /p:Configuration=$(TrayAppDotNETWatcherConfiguration) /p:Platform=x64 /p:WatcherOutDir=&quot;$(TrayAppDotNETWatcherOutDir)&quot; /p:WatcherIntDir=&quot;$(TrayAppDotNETWatcherIntDir)&quot; /p:WatcherTargetName=&quot;$(TrayAppDotNETWatcherTargetName)&quot; /p:TrayAppDotNETUseRootOutput=false /nologo /v:minimal" />
-  </Target>
-
-  <Target Name="PublishTrayAppDotNETWatcher"
-          AfterTargets="ComputeFilesToPublish"
-          Condition="'$(OutputType)' == 'WinExe'
-                     and '$(SkipTrayAppDotNETWatcher)' != 'true'
-                     and Exists('$(TrayAppDotNETWatcherBuiltExe)')">
-    <ItemGroup>
-      <ResolvedFileToPublish Include="$(TrayAppDotNETWatcherBuiltExe)"
-                             RelativePath="$(TrayAppDotNETWatcherOutputName)"
-                             CopyToPublishDirectory="PreserveNewest"
-                             ExcludeFromSingleFile="true" />
-    </ItemGroup>
-  </Target>
+  <ItemGroup Condition="'$(OutputType)' == 'WinExe'">
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="$(TrayAppDotNETGCHeapHardLimitBytes)" />
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
 </Project>
