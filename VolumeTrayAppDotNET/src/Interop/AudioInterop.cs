@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 // Windows Core Audio common types, enums, property keys, and IPropertyStore.
 // Signatures verified against the Windows SDK headers

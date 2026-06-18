@@ -1,7 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Threading;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
 
 namespace VolumeTrayAppDotNET.Audio;
 
@@ -23,7 +24,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     private readonly Dictionary<string, Guid> _idToContainer = new(StringComparer.Ordinal);
 
     // Current battery cache by physical-device container id.
-    private readonly Dictionary<Guid, int> _batteries = new();
+    private readonly Dictionary<Guid, int> _batteries = [];
 
     // Current, present Bluetooth containers from the latest successful reconciliation pass.
     private readonly HashSet<Guid> _activeBluetoothContainers = [];
@@ -253,7 +254,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     {
         uint size = 0;
         int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, null, ref size, 0);
-        if (cr != CfgMgr32.CR_BUFFER_SMALL && cr != CfgMgr32.CR_SUCCESS) return null;
+        if (cr is not CfgMgr32.CR_BUFFER_SMALL and not CfgMgr32.CR_SUCCESS) return null;
         if (propType != CfgMgr32.DEVPROP_TYPE_BYTE || size < 1) return null;
 
         byte[] buf = new byte[size];
@@ -269,7 +270,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     {
         uint size = 0;
         int cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, ref key, out uint propType, null, ref size, 0);
-        if (cr != CfgMgr32.CR_BUFFER_SMALL && cr != CfgMgr32.CR_SUCCESS) return null;
+        if (cr is not CfgMgr32.CR_BUFFER_SMALL and not CfgMgr32.CR_SUCCESS) return null;
         if (propType != CfgMgr32.DEVPROP_TYPE_GUID || size != 16) return null;
 
         byte[] buf = new byte[16];

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
 
 namespace VolumeTrayAppDotNET.Audio;
 

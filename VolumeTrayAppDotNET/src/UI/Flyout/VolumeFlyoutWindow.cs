@@ -12,7 +12,8 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using VolumeTrayAppDotNET.Audio;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
 
 namespace VolumeTrayAppDotNET.UI.Flyout;
 

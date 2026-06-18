@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 /// <summary>
 /// Minimal cfgmgr32 P/Invoke surface for reading Bluetooth-related devnode properties.

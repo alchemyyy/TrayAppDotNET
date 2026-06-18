@@ -2,7 +2,8 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Media;
 using Avalonia.Threading;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
 
 namespace VolumeTrayAppDotNET.Audio;
 

@@ -6,7 +6,14 @@ using System.Runtime.InteropServices.Marshalling;
 using System.Timers;
 using Avalonia.Threading;
 using Microsoft.Win32;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
+using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
+using IMMDeviceCollection = VolumeTrayAppDotNET.Interop.IMMDeviceCollection;
+using IMMDeviceEnumerator = VolumeTrayAppDotNET.Interop.IMMDeviceEnumerator;
+using IMMEndpoint = VolumeTrayAppDotNET.Interop.IMMEndpoint;
+using IMMNotificationClient = VolumeTrayAppDotNET.Interop.IMMNotificationClient;
+using MMDeviceEnumeratorFactory = VolumeTrayAppDotNET.Interop.MMDeviceEnumeratorFactory;
 
 namespace VolumeTrayAppDotNET.Audio;
 
@@ -480,7 +487,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             EDataFlow flow = ResolveDataFlow(device);
             // Sanity check: ResolveDataFlow returns eAll on failure - drop those rather than wrap a
             // device with no usable flow.
-            if (flow != EDataFlow.eRender && flow != EDataFlow.eCapture)
+            if (flow is not EDataFlow.eRender and not EDataFlow.eCapture)
             {
                 Safe.Release(device);
                 return;

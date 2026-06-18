@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 internal static class Kernel32Wait
 {

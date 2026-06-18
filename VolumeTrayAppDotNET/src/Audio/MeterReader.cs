@@ -1,4 +1,5 @@
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
 
 namespace VolumeTrayAppDotNET.Audio;
 

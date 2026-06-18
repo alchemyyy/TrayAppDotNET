@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 // Endpoint volume + meter interfaces. Verified against Windows SDK endpointvolume.h:
 //   IAudioEndpointVolumeCallback   657804fa-d6ad-4496-8a60-352752af4f89

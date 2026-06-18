@@ -362,8 +362,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             || !_settings.AllowFlyoutUndock)
             return;
 
-        if (_brightnessFlyout == null)
-            _brightnessFlyout = BrightnessFlyoutWarmSlot.TakeOrCreate(CreateManagedBrightnessFlyout);
+        _brightnessFlyout ??= BrightnessFlyoutWarmSlot.TakeOrCreate(CreateManagedBrightnessFlyout);
 
         _brightnessFlyout.Show();
         _brightnessFlyout.Activate();
@@ -741,15 +740,14 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_settings == null || _monitorService == null || _trayIcon == null) return;
 
-        if (_brightnessFlyout == null)
-            _brightnessFlyout = BrightnessFlyoutWarmSlot.TakeOrCreate(CreateManagedBrightnessFlyout);
+        _brightnessFlyout ??= BrightnessFlyoutWarmSlot.TakeOrCreate(CreateManagedBrightnessFlyout);
 
         _brightnessFlyout.Redock();
         _brightnessFlyout.ShowAt(_trayIcon, activate);
     }
 
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
-        _settingsFlyoutKeepOpen ??= new(
+        _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
             () => _brightnessFlyout,
             () => ShowBrightnessFlyout(activate: false));

@@ -1,5 +1,11 @@
 using System.Runtime.InteropServices;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
+using IAudioClient = VolumeTrayAppDotNET.Interop.IAudioClient;
+using IAudioRenderClient = VolumeTrayAppDotNET.Interop.IAudioRenderClient;
+using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
+using IMMDeviceEnumerator = VolumeTrayAppDotNET.Interop.IMMDeviceEnumerator;
+using MMDeviceEnumeratorFactory = VolumeTrayAppDotNET.Interop.MMDeviceEnumeratorFactory;
 
 namespace VolumeTrayAppDotNET.Audio;
 

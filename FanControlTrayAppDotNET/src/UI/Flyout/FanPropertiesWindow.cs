@@ -502,9 +502,8 @@ public sealed partial class FanPropertiesWindow : Window
             Height = Layout.CaptionButtonHeight,
             CornerRadius = Layout.ZeroCornerRadius,
             Padding = Layout.CaptionButtonPadding,
+            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.CaptionButtonFontSize }
         };
-        button.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        button.Label.FontSize = Layout.CaptionButtonFontSize;
         return button;
     }
 

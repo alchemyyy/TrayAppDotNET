@@ -104,8 +104,7 @@ public class DataSource : INotifyPropertyChanged
 
         try
         {
-            Expression expression = new(TransformString);
-            expression.Parameters["x"] = (double)rawValue;
+            Expression expression = new(TransformString) { Parameters = { ["x"] = (double)rawValue } };
             object? result = expression.Evaluate();
             if (result is IConvertible convertible)
             {

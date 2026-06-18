@@ -125,7 +125,7 @@ public sealed partial class EnvironmentalCurveEditor
         catch
         {
             _sunOverlayCacheFailed = true;
-            sun = default!;
+            sun = null!;
             return false;
         }
     }

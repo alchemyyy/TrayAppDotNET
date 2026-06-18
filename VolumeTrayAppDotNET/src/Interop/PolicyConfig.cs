@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 // IPolicyConfig is an undocumented Windows interface used by mmsys.cpl to set the system default
 // audio endpoint and rewrite per-device engine settings. Slot indices are load-bearing - each

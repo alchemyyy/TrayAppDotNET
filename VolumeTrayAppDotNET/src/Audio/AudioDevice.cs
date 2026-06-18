@@ -4,7 +4,19 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using Avalonia.Threading;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
+using IAudioEndpointVolume = VolumeTrayAppDotNET.Interop.IAudioEndpointVolume;
+using IAudioEndpointVolumeCallback = VolumeTrayAppDotNET.Interop.IAudioEndpointVolumeCallback;
+using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
+using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
+using IAudioSessionEnumerator = VolumeTrayAppDotNET.Interop.IAudioSessionEnumerator;
+using IAudioSessionManager2 = VolumeTrayAppDotNET.Interop.IAudioSessionManager2;
+using IAudioSessionNotification = VolumeTrayAppDotNET.Interop.IAudioSessionNotification;
+using IMMDevice = VolumeTrayAppDotNET.Interop.IMMDevice;
+using IPolicyConfig = VolumeTrayAppDotNET.Interop.IPolicyConfig;
+using IPropertyStore = VolumeTrayAppDotNET.Interop.IPropertyStore;
+using PolicyConfigFactory = VolumeTrayAppDotNET.Interop.PolicyConfigFactory;
 
 namespace VolumeTrayAppDotNET.Audio;
 
@@ -539,7 +551,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         if (string.IsNullOrEmpty(id)) return null;
         int separator = id.IndexOf("}.{", StringComparison.Ordinal);
         if (separator < 0) return null;
-        return id.Substring(separator + 2);
+        return id[(separator + 2)..];
     }
 
     private void OnEqualizerAPOAvailabilityChanged()

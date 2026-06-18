@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 // Per the mmsys.cpl decompile, the Default Format dropdown is populated by activating
 // IID_AudioEnginePartFilter on the IMMDevice, walking the returned IPart enumeration, and

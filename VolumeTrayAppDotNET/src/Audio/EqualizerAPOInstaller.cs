@@ -4,7 +4,8 @@ using System.Security;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using Microsoft.Win32;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
 
 namespace VolumeTrayAppDotNET.Audio;
 
@@ -181,8 +182,7 @@ internal static class EqualizerAPOInstaller
 
                     for (int i = 0; i < FxSlotCount; i++)
                     {
-                        string? raw = fxProps.GetValue(FxSlotValueNames[i]) as string;
-                        if (raw == null)
+                        if (fxProps.GetValue(FxSlotValueNames[i]) is not string raw)
                         {
                             originalApoGuids[i] = APOGUID_NOVALUE;
                             continue;

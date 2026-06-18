@@ -86,11 +86,10 @@ public sealed class EnvironmentalMapPickerWindow : Window
         title.Margin = new Thickness(16, 0, 0, 0);
         titleBar.Children.Add(title);
 
-        SettingsButton close = new(GlyphCatalog.CHROME_CLOSE, _palette, transparentBase: true);
-        close.Width = CloseButtonWidth;
-        close.Height = TitleBarHeight;
-        close.Padding = new Thickness(0);
-        close.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        SettingsButton close = new(GlyphCatalog.CHROME_CLOSE, _palette, transparentBase: true)
+        {
+            Width = CloseButtonWidth, Height = TitleBarHeight, Padding = new Thickness(0), Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
+        };
         close.Click += (_, _) => Close();
         TrayAppDotNETToolTip.SetTip(close, L("Common_Close", "Close"));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);

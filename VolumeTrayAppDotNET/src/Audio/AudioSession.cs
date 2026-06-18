@@ -3,7 +3,13 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.Marshalling;
 using Avalonia.Media;
 using Avalonia.Threading;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+
+using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
+using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
+using IAudioSessionControl2 = VolumeTrayAppDotNET.Interop.IAudioSessionControl2;
+using IAudioSessionEvents = VolumeTrayAppDotNET.Interop.IAudioSessionEvents;
+using ISimpleAudioVolume = VolumeTrayAppDotNET.Interop.ISimpleAudioVolume;
 
 namespace VolumeTrayAppDotNET.Audio;
 

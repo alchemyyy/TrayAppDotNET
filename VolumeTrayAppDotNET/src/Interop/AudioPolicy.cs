@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 // Audio session interfaces (per-app sessions on a device endpoint).
 // Verified against Windows SDK audiopolicy.h and audioclient.h:

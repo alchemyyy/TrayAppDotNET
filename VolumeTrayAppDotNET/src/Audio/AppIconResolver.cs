@@ -4,7 +4,8 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using VolumeTrayAppDotNET.Audio.Interop;
+using VolumeTrayAppDotNET.Interop;
+using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
 
 namespace VolumeTrayAppDotNET.Audio;
 
@@ -31,7 +32,7 @@ internal static class AppIconResolver
 
     private static readonly Lock s_cacheLock = new();
     private static readonly Dictionary<string, CacheEntry> s_byIdentity = new(StringComparer.Ordinal);
-    private static readonly Dictionary<long, CacheEntry> s_byContent = new();
+    private static readonly Dictionary<long, CacheEntry> s_byContent = [];
     private static readonly LinkedList<CacheEntry> s_lru = [];
 
     public sealed class IconHandle : IDisposable
@@ -127,7 +128,7 @@ internal static class AppIconResolver
 
         string shellPath = path;
         if (shellPath.Contains(InvalidOrdinalMarker, StringComparison.Ordinal))
-            shellPath = shellPath.Remove(shellPath.LastIndexOf(InvalidOrdinalMarker, StringComparison.Ordinal));
+            shellPath = shellPath[..shellPath.LastIndexOf(InvalidOrdinalMarker, StringComparison.Ordinal)];
 
         string shellKey = KeyShellDesktop + "|" + NormalizePath(shellPath);
         IconHandle? shellHit = TryAcquireIdentity(shellKey);

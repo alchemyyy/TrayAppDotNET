@@ -678,8 +678,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         Grid.SetColumnSpan(sliderRow, 4);
         grid.Children.Add(sliderRow);
 
-        Border row = new() { Background = Brushes.Transparent, Margin = Layout.RowMargin, Child = grid, };
-        row.Opacity = RowOpacity(monitor);
+        Border row = new()
+        {
+            Background = Brushes.Transparent, Margin = Layout.RowMargin, Child = grid, Opacity = RowOpacity(monitor)
+        };
         _profilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value);
         return row;
     }

@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 
-namespace VolumeTrayAppDotNET.Audio.Interop;
+namespace VolumeTrayAppDotNET.Interop;
 
 // IMMDeviceEnumerator / IMMDevice / IMMDeviceCollection / IMMEndpoint / IMMNotificationClient.
 // Verified against Windows SDK mmdeviceapi.h:
