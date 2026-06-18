@@ -1,14 +1,17 @@
 <Project>
-  <PropertyGroup Condition="'$(TrayAppDotNETUseRootOutput)' != 'false'">
+  <PropertyGroup>
+    <CopyRetryCount Condition="'$(CopyRetryCount)' == ''">20</CopyRetryCount>
+    <CopyRetryDelayMilliseconds Condition="'$(CopyRetryDelayMilliseconds)' == ''">250</CopyRetryDelayMilliseconds>
+    <OverwriteReadOnlyFiles Condition="'$(OverwriteReadOnlyFiles)' == ''">true</OverwriteReadOnlyFiles>
+    <ErrorOnDuplicatePublishOutputFiles Condition="'$(ErrorOnDuplicatePublishOutputFiles)' == ''">false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TrayAppDotNETUseRootOutput)' == 'true'">
     <TrayAppDotNETOutputRoot Condition="'$(TrayAppDotNETOutputRoot)' == ''">$(TrayAppDotNETRoot)bin\</TrayAppDotNETOutputRoot>
     <OutDir>$(TrayAppDotNETOutputRoot)$(Configuration)\</OutDir>
     <OutputPath>$(OutDir)</OutputPath>
     <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
     <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
-    <CopyRetryCount>20</CopyRetryCount>
-    <CopyRetryDelayMilliseconds>250</CopyRetryDelayMilliseconds>
-    <OverwriteReadOnlyFiles>true</OverwriteReadOnlyFiles>
-    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <NativeOutputPath Condition="'$(RuntimeIdentifier)' != '' and '$(NativeOutputPath)' == ''">$(IntermediateOutputPath)native-aot\</NativeOutputPath>
   </PropertyGroup>
 
