@@ -13,33 +13,34 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <TrayAppDotNETCrashHandlerProject Condition="'$(TrayAppDotNETCrashHandlerProject)' == '' and '$(TrayAppDotNETCommonRoot)' != ''">$(TrayAppDotNETCommonRoot)\TrayAppDotNETCrashHandler\TrayAppDotNETCrashHandler.vcxproj</TrayAppDotNETCrashHandlerProject>
-    <TrayAppDotNETCrashHandlerConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</TrayAppDotNETCrashHandlerConfiguration>
-    <TrayAppDotNETCrashHandlerConfiguration Condition="'$(TrayAppDotNETCrashHandlerConfiguration)' == ''">Release</TrayAppDotNETCrashHandlerConfiguration>
-    <TrayAppDotNETCrashHandlerBuildRoot Condition="'$(TrayAppDotNETCrashHandlerBuildRoot)' == ''">$(IntermediateOutputPath)native-crash-handler\</TrayAppDotNETCrashHandlerBuildRoot>
-    <TrayAppDotNETCrashHandlerOutDir Condition="'$(TrayAppDotNETCrashHandlerOutDir)' == ''">$(TrayAppDotNETOutputRoot)$(Configuration)</TrayAppDotNETCrashHandlerOutDir>
-    <TrayAppDotNETCrashHandlerIntDir Condition="'$(TrayAppDotNETCrashHandlerIntDir)' == ''">$(TrayAppDotNETCrashHandlerBuildRoot)obj</TrayAppDotNETCrashHandlerIntDir>
-    <TrayAppDotNETCrashHandlerBuiltExe>$([MSBuild]::EnsureTrailingSlash('$(TrayAppDotNETCrashHandlerOutDir)'))_crashhandler.exe</TrayAppDotNETCrashHandlerBuiltExe>
-    <TrayAppDotNETCrashHandlerOutputName>_crashhandler.exe</TrayAppDotNETCrashHandlerOutputName>
+    <TrayAppDotNETWatcherProject Condition="'$(TrayAppDotNETWatcherProject)' == '' and '$(TrayAppDotNETCommonRoot)' != ''">$(TrayAppDotNETCommonRoot)\TrayAppDotNETWatcher\TrayAppDotNETWatcher.vcxproj</TrayAppDotNETWatcherProject>
+    <TrayAppDotNETWatcherConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</TrayAppDotNETWatcherConfiguration>
+    <TrayAppDotNETWatcherConfiguration Condition="'$(TrayAppDotNETWatcherConfiguration)' == ''">Release</TrayAppDotNETWatcherConfiguration>
+    <TrayAppDotNETWatcherBuildRoot Condition="'$(TrayAppDotNETWatcherBuildRoot)' == ''">$(IntermediateOutputPath)native-watcher\</TrayAppDotNETWatcherBuildRoot>
+    <TrayAppDotNETWatcherOutDir Condition="'$(TrayAppDotNETWatcherOutDir)' == ''">$(TrayAppDotNETOutputRoot)$(Configuration)</TrayAppDotNETWatcherOutDir>
+    <TrayAppDotNETWatcherIntDir Condition="'$(TrayAppDotNETWatcherIntDir)' == ''">$(TrayAppDotNETWatcherBuildRoot)obj</TrayAppDotNETWatcherIntDir>
+    <TrayAppDotNETWatcherTargetName>$(AssemblyName)_Watcher</TrayAppDotNETWatcherTargetName>
+    <TrayAppDotNETWatcherOutputName>$(TrayAppDotNETWatcherTargetName).exe</TrayAppDotNETWatcherOutputName>
+    <TrayAppDotNETWatcherBuiltExe>$([MSBuild]::EnsureTrailingSlash('$(TrayAppDotNETWatcherOutDir)'))$(TrayAppDotNETWatcherOutputName)</TrayAppDotNETWatcherBuiltExe>
   </PropertyGroup>
 
-  <Target Name="BuildTrayAppDotNETCrashHandler"
+  <Target Name="BuildTrayAppDotNETWatcher"
           BeforeTargets="Build"
-          Condition="'$(AssemblyName)' == 'TrayAppDotNETCommon'
-                     and '$(SkipTrayAppDotNETCrashHandler)' != 'true'
-                     and Exists('$(TrayAppDotNETCrashHandlerProject)')">
-    <MakeDir Directories="$(TrayAppDotNETCrashHandlerOutDir);$(TrayAppDotNETCrashHandlerIntDir)" />
-    <Exec Command="MSBuild.exe &quot;$(TrayAppDotNETCrashHandlerProject)&quot; /t:Build /p:Configuration=$(TrayAppDotNETCrashHandlerConfiguration) /p:Platform=x64 /p:CrashHandlerOutDir=&quot;$(TrayAppDotNETCrashHandlerOutDir)&quot; /p:CrashHandlerIntDir=&quot;$(TrayAppDotNETCrashHandlerIntDir)&quot; /p:TrayAppDotNETUseRootOutput=false /nologo /v:minimal" />
+          Condition="'$(OutputType)' == 'WinExe'
+                     and '$(SkipTrayAppDotNETWatcher)' != 'true'
+                     and Exists('$(TrayAppDotNETWatcherProject)')">
+    <MakeDir Directories="$(TrayAppDotNETWatcherOutDir);$(TrayAppDotNETWatcherIntDir)" />
+    <Exec Command="MSBuild.exe &quot;$(TrayAppDotNETWatcherProject)&quot; /t:Build /p:Configuration=$(TrayAppDotNETWatcherConfiguration) /p:Platform=x64 /p:WatcherOutDir=&quot;$(TrayAppDotNETWatcherOutDir)&quot; /p:WatcherIntDir=&quot;$(TrayAppDotNETWatcherIntDir)&quot; /p:WatcherTargetName=&quot;$(TrayAppDotNETWatcherTargetName)&quot; /p:TrayAppDotNETUseRootOutput=false /nologo /v:minimal" />
   </Target>
 
-  <Target Name="PublishTrayAppDotNETCrashHandler"
+  <Target Name="PublishTrayAppDotNETWatcher"
           AfterTargets="ComputeFilesToPublish"
           Condition="'$(OutputType)' == 'WinExe'
-                     and '$(SkipTrayAppDotNETCrashHandler)' != 'true'
-                     and Exists('$(TrayAppDotNETCrashHandlerBuiltExe)')">
+                     and '$(SkipTrayAppDotNETWatcher)' != 'true'
+                     and Exists('$(TrayAppDotNETWatcherBuiltExe)')">
     <ItemGroup>
-      <ResolvedFileToPublish Include="$(TrayAppDotNETCrashHandlerBuiltExe)"
-                             RelativePath="$(TrayAppDotNETCrashHandlerOutputName)"
+      <ResolvedFileToPublish Include="$(TrayAppDotNETWatcherBuiltExe)"
+                             RelativePath="$(TrayAppDotNETWatcherOutputName)"
                              CopyToPublishDirectory="PreserveNewest"
                              ExcludeFromSingleFile="true" />
     </ItemGroup>
