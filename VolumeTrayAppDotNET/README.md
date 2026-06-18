@@ -1,17 +1,17 @@
 ﻿# VolumeTrayAppDotNET
 
-A starter scaffold for Windows tray apps in WPF: single-file portable exe, settings window, tray icon, hotkeys, theming, localization, single-instance coordination, crash handler, and install/update/uninstall plumbing.
+A starter scaffold for Windows tray apps in Avalonia: single-file portable exe, settings window, tray icon, hotkeys, theming, localization, single-instance coordination, crash handler, and install/update/uninstall plumbing.
 
 ## What's included
 
-* WPF host with a custom entry point (`Program.cs`) that wires up the crash handler before the main app spins up.
+* Avalonia host with a custom entry point (`Program.cs`) that wires up the crash handler before the main app spins up.
 * Tray icon manager with rendered glyph icons and a settings window shell.
 * Single-instance coordinator (named-pipe handoff so a second launch wakes the running instance).
 * Crash handler that captures unhandled exceptions and writes a diagnostics report.
 * Theming primitives (light/dark, accent colors, glyph catalog).
 * Localization via standard .NET strongly-typed ResX (`Localization\Strings.resx`).
 * Build-number embedding (`buildnumber.txt` is bumped once per Release publish and baked into the assembly as a `const int`).
-* Single-file Release publish profile (self-contained, partial-trim, ReadyToRun, single-file) with WPF/DirectWrite preserved via `TrimmerRoots.xml`.
+* Single-file Release publish profile (self-contained, Native AOT, single-file).
 * Auto-generated app icon (`_AppIconGenerator.cs`, run with the `generate-icon` CLI flag).
 
 ## What you provide
@@ -28,7 +28,7 @@ dotnet build -c Debug
 dotnet publish -r win-x64 -c Release
 ```
 
-Debug is the default workflow; Release runs the full publish chain (single-file, trimmed, ReadyToRun) and bumps `buildnumber.txt`.
+Debug is the default workflow; Release runs the full publish chain (single-file, Native AOT) and bumps `buildnumber.txt`.
 
 ## Credit
 
