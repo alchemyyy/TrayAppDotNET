@@ -322,12 +322,12 @@ internal sealed class BrightnessAvaloniaApp : Application
     }
 
     private TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow> BrightnessFlyoutWarmSlot =>
-        _brightnessFlyoutWarmSlot ??= new(
+        _brightnessFlyoutWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow>(
             () => _settings?.KeepFlyoutWarm ?? true,
             ex => WPFLog.Log($"BrightnessFlyout keep-warm: {ex.Message}"));
 
     private TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new(
+        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow>(
             () => _settings?.KeepTrayContextMenuWarm ?? true,
             ex => WPFLog.Log($"Brightness tray menu keep-warm: {ex.Message}"));
 

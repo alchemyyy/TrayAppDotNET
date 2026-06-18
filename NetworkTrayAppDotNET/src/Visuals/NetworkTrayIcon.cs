@@ -125,21 +125,21 @@ internal sealed class NetworkTrayIcon : IDisposable
     private TrayIconGlyphLayer ResolveGlyphs(NetworkIconState state) =>
         state switch
         {
-            NetworkIconState.Wifi0Bars or NetworkIconState.Wifi0BarsNoInternet => new(_theme.GlyphNetworkWifi4,
+            NetworkIconState.Wifi0Bars or NetworkIconState.Wifi0BarsNoInternet => new TrayIconGlyphLayer(_theme.GlyphNetworkWifi4,
                 _theme.GlyphNetworkWifi0),
-            NetworkIconState.Wifi1Bar or NetworkIconState.Wifi1BarNoInternet => new(_theme.GlyphNetworkWifi4,
+            NetworkIconState.Wifi1Bar or NetworkIconState.Wifi1BarNoInternet => new TrayIconGlyphLayer(_theme.GlyphNetworkWifi4,
                 _theme.GlyphNetworkWifi1),
-            NetworkIconState.Wifi2Bars or NetworkIconState.Wifi2BarsNoInternet => new(_theme.GlyphNetworkWifi4,
+            NetworkIconState.Wifi2Bars or NetworkIconState.Wifi2BarsNoInternet => new TrayIconGlyphLayer(_theme.GlyphNetworkWifi4,
                 _theme.GlyphNetworkWifi2),
-            NetworkIconState.Wifi3Bars or NetworkIconState.Wifi3BarsNoInternet => new(_theme.GlyphNetworkWifi4,
+            NetworkIconState.Wifi3Bars or NetworkIconState.Wifi3BarsNoInternet => new TrayIconGlyphLayer(_theme.GlyphNetworkWifi4,
                 _theme.GlyphNetworkWifi3),
-            NetworkIconState.Wifi4Bars or NetworkIconState.Wifi4BarsNoInternet => new(null, _theme.GlyphNetworkWifi4),
-            NetworkIconState.WifiDisconnected => new(_theme.GlyphNetworkWifi4, _theme.GlyphNetworkWifi0),
-            NetworkIconState.WifiConnecting => new(_theme.GlyphNetworkWifi4, _theme.GlyphNetworkWifi1),
+            NetworkIconState.Wifi4Bars or NetworkIconState.Wifi4BarsNoInternet => new TrayIconGlyphLayer(null, _theme.GlyphNetworkWifi4),
+            NetworkIconState.WifiDisconnected => new TrayIconGlyphLayer(_theme.GlyphNetworkWifi4, _theme.GlyphNetworkWifi0),
+            NetworkIconState.WifiConnecting => new TrayIconGlyphLayer(_theme.GlyphNetworkWifi4, _theme.GlyphNetworkWifi1),
             NetworkIconState.EthernetConnected or
                 NetworkIconState.EthernetNoInternet or
-                NetworkIconState.EthernetDisconnected => new(null, _theme.GlyphNetworkEthernet),
-            _ => new(null, _theme.GlyphNetworkNone),
+                NetworkIconState.EthernetDisconnected => new TrayIconGlyphLayer(null, _theme.GlyphNetworkEthernet),
+            _ => new TrayIconGlyphLayer(null, _theme.GlyphNetworkNone),
         };
 
     private Color ResolveColor(NetworkIconState state)

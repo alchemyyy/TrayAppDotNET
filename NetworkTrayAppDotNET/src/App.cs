@@ -426,7 +426,7 @@ internal sealed class NetworkAvaloniaApp : Application
     }
 
     private TrayAppDotNETWarmWindowSlot<NetworkTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new(
+        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<NetworkTrayMenuWindow>(
             () => _settings?.KeepTrayContextMenuWarm ?? true,
             ex => TADNLog.Log($"Network tray menu keep-warm: {ex.Message}"));
 

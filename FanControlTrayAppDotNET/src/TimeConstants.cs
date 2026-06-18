@@ -6,7 +6,7 @@ namespace FanControlTrayAppDotNET;
 // is genuinely user-configurable lives on AppSettings instead -- this file is
 // for fixed constants only. Units are part of each constant name; millisecond
 // values are wrapped with TimeSpan.FromMilliseconds(...) when APIs require TimeSpan.
-public abstract class TimeConstants : TrayAppDotNETCommon.TimeConstants
+public abstract class TimeConstants : CommonTimeConstants
 {
     // Settings UI
     public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;

@@ -113,7 +113,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmOk!.Text = confirmText;
         _confirmCancel!.Text = cancelText;
         _confirmOverlay!.IsVisible = true;
-        _confirmTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         return _confirmTcs.Task;
     }
 

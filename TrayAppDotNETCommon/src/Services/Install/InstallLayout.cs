@@ -95,10 +95,10 @@ public sealed record TrayAppDotNETInstallPayload(
         TrayAppDotNETInstallFile[] symbolFiles = includePdb
             ?
             [
-                new(applicationName + ".pdb"),
-                new("TrayAppDotNETCommon.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
-                new("libHarfBuzzSharp.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
-                new("libSkiaSharp.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
+                new TrayAppDotNETInstallFile(applicationName + ".pdb"),
+                new TrayAppDotNETInstallFile("TrayAppDotNETCommon.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
+                new TrayAppDotNETInstallFile("libHarfBuzzSharp.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
+                new TrayAppDotNETInstallFile("libSkiaSharp.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
             ]
             : [];
 

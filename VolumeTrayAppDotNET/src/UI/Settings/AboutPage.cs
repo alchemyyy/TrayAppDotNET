@@ -31,7 +31,7 @@ public sealed partial class VolumeSettingsWindow
             UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
             KnownIssues =
             [
-                new(
+                new TrayAppDotNETKnownIssue(
                     Loc("Settings_About_BluetoothCodecNotDisplaying_Title"),
                     Loc("Settings_About_BluetoothCodecNotDisplaying_Description")),
             ],

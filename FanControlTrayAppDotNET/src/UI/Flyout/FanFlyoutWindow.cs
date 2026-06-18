@@ -939,7 +939,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _confirmOK!.Text = confirmText;
         _confirmCancel!.Text = cancelText;
         _confirmOverlay!.IsVisible = true;
-        _confirmTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         return _confirmTcs.Task;
     }
 

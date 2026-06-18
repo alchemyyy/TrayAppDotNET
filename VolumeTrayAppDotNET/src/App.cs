@@ -56,10 +56,7 @@ internal sealed class VolumeAvaloniaApp : Application
     private int _lastNotifiedUpdateVersion;
     private bool _shuttingDown;
 
-    public override void Initialize()
-    {
-        TrayAppDotNETAvalonia.InitializeDefaults(this);
-    }
+    public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -481,8 +478,7 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         if (_audioManager == null || _settings == null || _trayIcon == null) return;
 
-        if (_volumeFlyout == null)
-            _volumeFlyout = VolumeFlyoutWarmSlot.TakeOrCreate(CreateManagedVolumeFlyout);
+        _volumeFlyout ??= VolumeFlyoutWarmSlot.TakeOrCreate(CreateManagedVolumeFlyout);
 
         _volumeFlyout.Redock();
         _volumeFlyout.ShowAt(_trayIcon, activate);
@@ -500,12 +496,12 @@ internal sealed class VolumeAvaloniaApp : Application
     }
 
     private TrayAppDotNETWarmWindowSlot<VolumeFlyoutWindow> VolumeFlyoutWarmSlot =>
-        _volumeFlyoutWarmSlot ??= new(
+        _volumeFlyoutWarmSlot ??= new TrayAppDotNETWarmWindowSlot<VolumeFlyoutWindow>(
             () => _settings?.KeepFlyoutWarm ?? true,
             ex => TADNLog.Log($"Volume flyout keep-warm: {ex.Message}"));
 
     private TrayAppDotNETWarmWindowSlot<VolumeTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new(
+        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<VolumeTrayMenuWindow>(
             () => _settings?.KeepTrayContextMenuWarm ?? true,
             ex => TADNLog.Log($"Volume tray menu keep-warm: {ex.Message}"));
 
@@ -516,8 +512,11 @@ internal sealed class VolumeAvaloniaApp : Application
             try
             {
                 if (_settings?.PurgeMemoryOnStartup == true)
+                {
                     await TrayAppDotNETWarmWindowResourcePurger.PurgeAsync(ex =>
                         TADNLog.Log($"Volume startup memory purge: {ex.Message}"));
+                }
+
                 if (_settings?.KeepFlyoutWarm == true && _audioManager != null)
                     await VolumeFlyoutWarmSlot.PrimeAsync(CreateManagedVolumeFlyout);
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
@@ -531,18 +530,16 @@ internal sealed class VolumeAvaloniaApp : Application
     }
 
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
-        _settingsFlyoutKeepOpen ??= new(
+        _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
             () => _volumeFlyout,
             () => ShowVolumeFlyout(activate: false));
 
     private void OnVolumeFlyoutClosed(object? sender, EventArgs e)
     {
-        if (_volumeFlyout != null)
-        {
-            _volumeFlyout.Closed -= OnVolumeFlyoutClosed;
-            _volumeFlyout = null;
-        }
+        if (_volumeFlyout == null) return;
+        _volumeFlyout.Closed -= OnVolumeFlyoutClosed;
+        _volumeFlyout = null;
     }
 
     private void OpenSettings()

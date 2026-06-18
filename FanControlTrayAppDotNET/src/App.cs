@@ -503,12 +503,12 @@ internal sealed class FanAvaloniaApp : Application
     }
 
     private TrayAppDotNETWarmWindowSlot<FanFlyoutWindow> FanFlyoutWarmSlot =>
-        _fanFlyoutWarmSlot ??= new(
+        _fanFlyoutWarmSlot ??= new TrayAppDotNETWarmWindowSlot<FanFlyoutWindow>(
             () => _settings?.KeepFlyoutWarm ?? true,
             ex => TADNLog.Log($"Fan flyout keep-warm: {ex.Message}"));
 
     private TrayAppDotNETWarmWindowSlot<FanTrayMenuWindow> TrayMenuWarmSlot =>
-        _trayMenuWarmSlot ??= new(
+        _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<FanTrayMenuWindow>(
             () => _settings?.KeepTrayContextMenuWarm ?? true,
             ex => TADNLog.Log($"Fan tray menu keep-warm: {ex.Message}"));
 
@@ -534,7 +534,7 @@ internal sealed class FanAvaloniaApp : Application
     }
 
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
-        _settingsFlyoutKeepOpen ??= new(
+        _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
             () => _fanFlyout,
             () => ShowFanFlyout(activate: false));
