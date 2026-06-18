@@ -35,11 +35,12 @@ public static class WindowsUninstallRegistry
         InstallScope scope,
         string installDir,
         int buildNumber,
-        TrayAppDotNETInstallIdentity identity)
+        TrayAppDotNETInstallIdentity identity,
+        string installedExecutableFileName)
     {
         try
         {
-            string installExecutable = Path.Combine(installDir, identity.InstalledExecutableFileName);
+            string installExecutable = Path.Combine(installDir, installedExecutableFileName);
             using RegistryKey key = OpenRoot(scope).CreateSubKey(identity.UninstallRegistrySubKeyPath, writable: true);
 
             key.SetValue("DisplayName", identity.ApplicationName, RegistryValueKind.String);

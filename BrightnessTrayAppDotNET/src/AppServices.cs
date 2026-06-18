@@ -29,7 +29,6 @@ internal static class AppServices
         Program.ApplicationName,
         Constants.Publisher,
         Constants.HelpLink,
-        InstallLayout.InstalledExecutableFileName,
         AppSettings.GetDefaultDirectory(),
         Startup.ShortcutPath,
         Startup.LegacyRunKeyRegistryPath,

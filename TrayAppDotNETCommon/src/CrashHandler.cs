@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Collections;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime;
 using System.Runtime.InteropServices;
@@ -222,7 +222,7 @@ public static class CrashHandler
         SortedDictionary<string, string> environment = new(StringComparer.OrdinalIgnoreCase);
         foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
         {
-            if (entry.Key is string key && entry.Value is string value)
+            if (entry is { Key: string key, Value: string value })
                 environment[key] = value;
         }
 
@@ -244,9 +244,7 @@ public static class CrashHandler
             }
         }
 
-        string[] helperKeys = environment.Keys
-            .Where(key => key.StartsWith(WatcherOriginalEnvironmentPrefix, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        string[] helperKeys = [.. environment.Keys.Where(key => key.StartsWith(WatcherOriginalEnvironmentPrefix, StringComparison.OrdinalIgnoreCase))];
         foreach (string helperKey in helperKeys)
             environment.Remove(helperKey);
 

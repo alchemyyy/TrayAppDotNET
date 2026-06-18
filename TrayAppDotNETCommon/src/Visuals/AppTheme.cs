@@ -4,7 +4,7 @@ using Avalonia.Media;
 using Microsoft.Win32;
 using TrayAppDotNETCommon.Models;
 
-namespace TrayAppDotNETCommon.Theming;
+namespace TrayAppDotNETCommon.Visuals;
 
 /// <summary>
 /// XML-serializable light/dark color pair.

@@ -2,8 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using TrayAppDotNETCommon.Theming;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI;
 

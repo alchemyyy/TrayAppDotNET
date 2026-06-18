@@ -1,5 +1,3 @@
-using TrayAppDotNETCommon.Timing;
-
 namespace TrayAppDotNETCommon.Services;
 
 /// <summary>

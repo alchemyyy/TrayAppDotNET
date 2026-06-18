@@ -3,12 +3,12 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
 using NetworkTrayAppDotNET.Models;
-using TrayAppDotNETCommon.Theming;
-using CommonAppTheme = TrayAppDotNETCommon.Theming.AppTheme;
+using TrayAppDotNETCommon.Visuals;
+using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 
 namespace NetworkTrayAppDotNET.Visuals;
 
-public sealed class AppTheme : CommonAppTheme
+public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 

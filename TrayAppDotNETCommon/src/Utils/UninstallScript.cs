@@ -23,6 +23,8 @@ public static class UninstallScript
         InstallScope scope,
         bool deleteSettings,
         TrayAppDotNETInstallIdentity identity,
+        string installedExecutableFileName,
+        TrayAppDotNETInstallPayload payload,
         out bool userCancelled)
     {
         userCancelled = false;
@@ -32,7 +34,7 @@ public static class UninstallScript
                 Path.GetTempPath(),
                 $"{identity.ApplicationName}-uninstall-{Guid.NewGuid():N}.bat");
 
-            string content = BuildScript(installDir, scope, deleteSettings, identity);
+            string content = BuildScript(installDir, scope, deleteSettings, identity, installedExecutableFileName, payload);
             File.WriteAllText(batPath, content, Encoding.ASCII);
 
             ProcessStartInfo psi = new()
@@ -66,9 +68,11 @@ public static class UninstallScript
         string installDir,
         InstallScope scope,
         bool deleteSettings,
-        TrayAppDotNETInstallIdentity identity)
+        TrayAppDotNETInstallIdentity identity,
+        string installedExecutableFileName,
+        TrayAppDotNETInstallPayload payload)
     {
-        string installExecutable = Path.Combine(installDir, identity.InstalledExecutableFileName);
+        string installExecutable = Path.Combine(installDir, installedExecutableFileName);
         string regKeyFullPath = (scope == InstallScope.ProgramFiles ? "HKLM\\" : "HKCU\\")
                                 + identity.UninstallRegistrySubKeyPath;
         string startupLnk = identity.StartupShortcutPath;
@@ -113,10 +117,32 @@ public static class UninstallScript
                       + "Start-Sleep -Milliseconds 500 }\" >nul 2>&1");
         sb.AppendLine();
         sb.AppendLine("rem Shared install root: remove only this app's files and leave sibling apps alone.");
-        foreach (string fileName in identity.InstalledAppFileNames)
-            sb.AppendLine($"del /f /q \"{EscBat(Path.Combine(installDir, fileName))}\" >nul 2>&1");
+        foreach (TrayAppDotNETInstallFile file in payload.InstalledFiles(installedExecutableFileName))
+        {
+            string target = Path.Combine(installDir, file.Name);
+            if (file.RemoveOnlyWhenInstallRootHasNoExe)
+            {
+                string targetForPs = PsSingleQuoted(target);
+                sb.AppendLine($"rem The {file.Name} file may be shared by sibling TrayAppDotNET apps. Remove it only");
+                sb.AppendLine("rem after this app is gone and no other apphost exe remains in the install root.");
+                sb.AppendLine("powershell -NoProfile -ExecutionPolicy Bypass -Command "
+                              + "\"$dir = '" + installDirForPs + "'; "
+                              + "$target = '" + targetForPs + "'; "
+                              + "if (Test-Path -LiteralPath $target) { "
+                              + "$remaining = @(Get-ChildItem -LiteralPath $dir -Filter '*.exe' -File -ErrorAction SilentlyContinue); "
+                              + "if ($remaining.Count -eq 0) { "
+                              + "Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue; "
+                              + "if (Test-Path -LiteralPath $target) { exit 1 } "
+                              + "} }\" >nul 2>&1");
+                sb.AppendLine("if errorlevel 1 set ERR=1");
+                continue;
+            }
+
+            sb.AppendLine($"del /f /q \"{EscBat(target)}\" >nul 2>&1");
+        }
+
         sb.AppendLine($"if exist \"{EscBat(installExecutable)}\" set ERR=1");
-        foreach (TrayAppDotNETInstallDirectory directory in identity.InstalledPayloadDirectories)
+        foreach (TrayAppDotNETInstallDirectory directory in payload.InstalledDirectories)
         {
             string targetForPs = PsSingleQuoted(Path.Combine(installDir, directory.Name));
             if (directory.RemoveOnlyWhenInstallRootHasNoExe)

@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
-using TrayAppDotNETCommon.Timing;
 
 namespace TrayAppDotNETCommon.UI.WarmWindows;
 

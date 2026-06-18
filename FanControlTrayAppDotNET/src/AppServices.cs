@@ -39,7 +39,6 @@ internal static class AppServices
         Program.ApplicationName,
         Constants.Publisher,
         Constants.HelpLink,
-        InstallLayout.InstalledExecutableFileName,
         AppSettings.GetDefaultDirectory(),
         Startup.ShortcutPath,
         Startup.LegacyRunKeyRegistryPath,
@@ -72,7 +71,12 @@ internal static class AppServices
         TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName);
         return payload with
         {
-            RequiredFileNames = [.. payload.RequiredFileNames, LibreHardwareMonitorFileName, PawnIoSetupFileName],
+            RequiredFiles =
+            [
+                .. payload.RequiredFiles,
+                new TrayAppDotNETInstallFile(LibreHardwareMonitorFileName),
+                new TrayAppDotNETInstallFile(PawnIoSetupFileName),
+            ],
         };
     }
 }

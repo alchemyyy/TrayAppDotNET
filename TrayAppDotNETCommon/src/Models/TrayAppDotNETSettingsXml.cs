@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Xml;
 using System.Xml.Linq;
-using TrayAppDotNETCommon.Theming;
 using TrayAppDotNETCommon.UI.Models;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.Models;
 

@@ -128,7 +128,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 InstallScope.LocalAppData,
                 Layout.LocalAppDataInstallDirectory,
                 options.CurrentBuildNumber,
-                Identity);
+                Identity,
+                Layout.InstalledExecutableFileName);
 
             options.SyncStartMenu?.Invoke(null, false);
             return new TrayAppDotNETInstallResult(true);
@@ -171,7 +172,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 InstallScope.ProgramFiles,
                 Layout.ProgramFilesInstallDirectory,
                 buildNumber,
-                Identity);
+                Identity,
+                Layout.InstalledExecutableFileName);
 
             options.SyncStartMenu?.Invoke(null, true);
             return new TrayAppDotNETInstallResult(true);
@@ -204,9 +206,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                     return new TrayAppDotNETInstallResult(false, $"Required install folder not found: {sourcePath}");
             }
 
-            foreach (string fileName in Payload.RequiredFileNames)
+            foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
             {
-                string sourceFile = Path.Combine(sourceDirectory, fileName);
+                string sourceFile = Path.Combine(sourceDirectory, file.Name);
                 if (!File.Exists(sourceFile))
                     return new TrayAppDotNETInstallResult(false, $"Required install file not found: {sourceFile}");
             }
@@ -214,15 +216,15 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             Directory.CreateDirectory(destinationDirectory);
             CopyFileIfDifferent(sourceExe, destinationExe);
 
-            foreach (string fileName in Payload.RequiredFileNames)
-                CopyFileIfDifferent(Path.Combine(sourceDirectory, fileName),
-                    Path.Combine(destinationDirectory, fileName));
+            foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
+                CopyFileIfDifferent(Path.Combine(sourceDirectory, file.Name),
+                    Path.Combine(destinationDirectory, file.Name));
 
-            foreach (string fileName in Payload.OptionalFileNames)
+            foreach (TrayAppDotNETInstallFile file in Payload.OptionalFiles)
             {
-                string sourceFile = Path.Combine(sourceDirectory, fileName);
+                string sourceFile = Path.Combine(sourceDirectory, file.Name);
                 if (File.Exists(sourceFile))
-                    CopyFileIfDifferent(sourceFile, Path.Combine(destinationDirectory, fileName));
+                    CopyFileIfDifferent(sourceFile, Path.Combine(destinationDirectory, file.Name));
             }
 
             foreach (TrayAppDotNETInstallDirectory directory in Payload.RequiredDirectories)
@@ -265,6 +267,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             scope,
             deleteSettings,
             Identity,
+            Layout.InstalledExecutableFileName,
+            Payload,
             out bool userCancelled);
 
         if (userCancelled) return null;

@@ -2,7 +2,7 @@ using System.Xml.Linq;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
-using TrayAppDotNETCommon.Theming;
+using TrayAppDotNETCommon.Visuals;
 using FanSettings = FanControlTrayAppDotNET.Models.AppSettings;
 
 namespace FanControlTrayAppDotNET.Visuals;
@@ -10,7 +10,7 @@ namespace FanControlTrayAppDotNET.Visuals;
 /// <summary>
 /// Fan-specific theme defaults layered on top of the shared TrayAppDotNET theme.
 /// </summary>
-public sealed class AppTheme : TrayAppDotNETCommon.Theming.AppTheme
+public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 

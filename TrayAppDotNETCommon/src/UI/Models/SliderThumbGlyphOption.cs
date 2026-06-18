@@ -1,4 +1,4 @@
-using TrayAppDotNETCommon.Theming;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Models;
 

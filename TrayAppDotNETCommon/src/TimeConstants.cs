@@ -1,4 +1,4 @@
-namespace TrayAppDotNETCommon.Timing;
+namespace TrayAppDotNETCommon;
 
 public static class TrayAppDotNETTimeConstants
 {

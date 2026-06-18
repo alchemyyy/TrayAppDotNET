@@ -13,6 +13,12 @@
     <PlatformTarget>x64</PlatformTarget>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
   </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaXaml Remove="Theming\**" />
+    <Compile Remove="Theming\**" />
+    <EmbeddedResource Remove="Theming\**" />
+    <None Remove="Theming\**" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.4" />

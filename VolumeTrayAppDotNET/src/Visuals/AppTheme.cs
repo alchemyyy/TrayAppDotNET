@@ -1,10 +1,10 @@
 using Avalonia.Controls;
 using Avalonia.Platform;
-using CommonAppTheme = TrayAppDotNETCommon.Theming.AppTheme;
+using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 
 namespace VolumeTrayAppDotNET.Visuals;
 
-public sealed class AppTheme : CommonAppTheme
+public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 

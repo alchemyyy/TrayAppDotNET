@@ -1,17 +1,22 @@
+using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
+
 namespace VolumeTrayAppDotNET.Visuals;
 
 /// <summary>
 /// Segoe Fluent Icons codepoint strings shared by renderers, XAML, and theme defaults.
 /// </summary>
-internal abstract class GlyphCatalog : TrayAppDotNETCommon.Theming.GlyphCatalog
+internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
 {
     // ===========================================================================
     // Generic UI glyphs
     // ===========================================================================
 
-    public new const string SETTINGS = "\uE713"; // Setting (gear)
-    public new const string EXIT = "\uE8BB"; // ChromeClose
-    public new const string WARNING = "\uE7BA"; // Warning (used by hotkey-conflict status badge)
+    public new const string SEGOE_FLUENT_ICONS = CommonGlyphCatalog.SEGOE_FLUENT_ICONS;
+    public new const string SEGOE_MDL2_ASSETS = CommonGlyphCatalog.SEGOE_MDL2_ASSETS;
+
+    public new const string SETTINGS = CommonGlyphCatalog.SETTINGS;
+    public new const string EXIT = CommonGlyphCatalog.EXIT;
+    public new const string WARNING = CommonGlyphCatalog.WARNING;
 
     // Window-chrome / spinner / combobox chevrons.
     public new const string CHEVRON_UP = "\uE96D"; // ChevronUp (spinner up)
@@ -21,8 +26,8 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Theming.GlyphCatalog
 
     // Flyout dock / undock toggle. The semantic alias reads as the action a click performs,
     // since the button glyph flips with the IsUndocked state.
-    public new const string FLYOUT_UNDOCK_ACTION = "\uE75B"; // Dock (shown docked - click undocks)
-    public new const string FLYOUT_REDOCK_ACTION = "\uE75A"; // Undock (shown undocked - click redocks)
+    public new const string FLYOUT_UNDOCK_ACTION = CommonGlyphCatalog.FLYOUT_UNDOCK_ACTION;
+    public new const string FLYOUT_REDOCK_ACTION = CommonGlyphCatalog.FLYOUT_REDOCK_ACTION;
 
     // ===========================================================================
     // Volume tier glyphs (speaker icons; tier selection lives in GetVolumeTier)
@@ -108,17 +113,17 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Theming.GlyphCatalog
     // Window-chrome caption glyphs
     // ===========================================================================
 
-    public new const string CHROME_MINIMIZE = "\uE921"; // ChromeMinimize
-    public new const string CHROME_MAXIMIZE = "\uE922"; // ChromeMaximize
-    public new const string CHROME_RESTORE = "\uE923"; // ChromeRestore
+    public new const string CHROME_MINIMIZE = CommonGlyphCatalog.CHROME_MINIMIZE;
+    public new const string CHROME_MAXIMIZE = CommonGlyphCatalog.CHROME_MAXIMIZE;
+    public new const string CHROME_RESTORE = CommonGlyphCatalog.CHROME_RESTORE;
 
     // ===========================================================================
     // Decorative shapes (slider-thumb default options)
     // ===========================================================================
 
-    public const string CIRCLE = "\uE91F"; // CircleFill
-    public const string DIAMOND = "\uEA3B"; // DiamondSolid
-    public const string STAR = "\uE734"; // FavoriteStarFill
-    public const string SQUARE = "\uE73B"; // CheckboxFill
-    public const string HEART = "\uEB51"; // HeartFill
+    public const string CIRCLE = CommonGlyphCatalog.SLIDER_THUMB_CIRCLE;
+    public const string DIAMOND = CommonGlyphCatalog.SLIDER_THUMB_DIAMOND;
+    public const string STAR = CommonGlyphCatalog.SLIDER_THUMB_STAR;
+    public const string SQUARE = CommonGlyphCatalog.SLIDER_THUMB_SQUARE;
+    public const string HEART = CommonGlyphCatalog.SLIDER_THUMB_HEART;
 }

@@ -3,8 +3,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using TrayAppDotNETCommon.Theming;
 using TrayAppDotNETCommon.UI.Models;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 

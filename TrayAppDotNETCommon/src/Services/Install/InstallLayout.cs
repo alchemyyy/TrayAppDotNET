@@ -39,29 +39,42 @@ public sealed record TrayAppDotNETInstallLayout(
 }
 
 public sealed record TrayAppDotNETInstallPayload(
-    IReadOnlyList<string> RequiredFileNames,
-    IReadOnlyList<string> OptionalFileNames,
+    IReadOnlyList<TrayAppDotNETInstallFile> RequiredFiles,
+    IReadOnlyList<TrayAppDotNETInstallFile> OptionalFiles,
     IReadOnlyList<TrayAppDotNETInstallDirectory> RequiredDirectories,
     IReadOnlyList<TrayAppDotNETInstallDirectory> OptionalDirectories)
 {
+    public IReadOnlyList<TrayAppDotNETInstallFile> InstalledFiles(string installedExecutableFileName) =>
+    [
+        new TrayAppDotNETInstallFile(installedExecutableFileName),
+        .. RequiredFiles,
+        .. OptionalFiles,
+    ];
+
+    public IReadOnlyList<TrayAppDotNETInstallDirectory> InstalledDirectories =>
+    [
+        .. RequiredDirectories,
+        .. OptionalDirectories,
+    ];
+
     public static TrayAppDotNETInstallPayload ManagedApp(
         string applicationName,
         IEnumerable<string>? requiredDirectories = null,
         IEnumerable<string>? optionalDirectories = null,
         bool includePdb = true)
     {
-        string[] requiredFiles =
+        string[] requiredFileNames =
         [
             applicationName + ".dll",
             applicationName + ".deps.json",
             applicationName + ".runtimeconfig.json",
         ];
 
-        string[] optionalFiles = includePdb ? [applicationName + ".pdb"] : [];
+        string[] optionalFileNames = includePdb ? [applicationName + ".pdb"] : [];
 
         return new TrayAppDotNETInstallPayload(
-            requiredFiles,
-            optionalFiles,
+            ToFiles(requiredFileNames),
+            ToFiles(optionalFileNames),
             ToDirectories(requiredDirectories ?? ["runtime"]),
             ToDirectories(optionalDirectories ?? []));
     }
@@ -72,28 +85,29 @@ public sealed record TrayAppDotNETInstallPayload(
         IEnumerable<string>? optionalDirectories = null,
         bool includePdb = true)
     {
-        string[] requiredFiles =
+        TrayAppDotNETInstallFile[] requiredFiles =
         [
-            "av_libglesv2.dll",
-            "libHarfBuzzSharp.dll",
-            "libSkiaSharp.dll",
+            new("av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new("libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new("libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
         ];
 
-        string[] optionalFiles = includePdb
+        TrayAppDotNETInstallFile[] symbolFiles = includePdb
             ?
             [
-                applicationName + ".pdb",
-                "TrayAppDotNETCommon.pdb",
-                "libHarfBuzzSharp.pdb",
-                "libSkiaSharp.pdb",
-                "libMonoPosixHelper.dll",
-                "MonoPosixHelper.dll",
+                new(applicationName + ".pdb"),
+                new("TrayAppDotNETCommon.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
+                new("libHarfBuzzSharp.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
+                new("libSkiaSharp.pdb", RemoveOnlyWhenInstallRootHasNoExe: true),
             ]
-            :
-            [
-                "libMonoPosixHelper.dll",
-                "MonoPosixHelper.dll",
-            ];
+            : [];
+
+        TrayAppDotNETInstallFile[] optionalFiles =
+        [
+            .. symbolFiles,
+            new("libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new("MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+        ];
 
         return new TrayAppDotNETInstallPayload(
             requiredFiles,
@@ -102,9 +116,16 @@ public sealed record TrayAppDotNETInstallPayload(
             ToDirectories(optionalDirectories ?? []));
     }
 
+    private static TrayAppDotNETInstallFile[] ToFiles(IEnumerable<string> names) =>
+        names.Select(name => new TrayAppDotNETInstallFile(name)).ToArray();
+
     private static TrayAppDotNETInstallDirectory[] ToDirectories(IEnumerable<string> names) =>
         names.Select(name => new TrayAppDotNETInstallDirectory(name)).ToArray();
 }
+
+public sealed record TrayAppDotNETInstallFile(
+    string Name,
+    bool RemoveOnlyWhenInstallRootHasNoExe = false);
 
 public sealed record TrayAppDotNETInstallDirectory(
     string Name,

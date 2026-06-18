@@ -1,6 +1,6 @@
 using TrayAppDotNETCommon.Models;
-using TrayAppDotNETCommon.Theming;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI;
 

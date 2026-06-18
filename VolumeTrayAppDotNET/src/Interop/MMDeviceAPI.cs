@@ -119,7 +119,7 @@ internal static class MMDeviceExtensions
 
         try
         {
-            instance = ComActivation.GetObjectForComInstance<object>(ptr);
+            instance = COMActivation.GetObjectForComInstance<object>(ptr);
             return hr;
         }
         finally

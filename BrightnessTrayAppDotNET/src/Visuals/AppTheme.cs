@@ -2,10 +2,10 @@ using System.Xml.Linq;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
-using TrayAppDotNETCommon.Theming;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Tray;
-using CommonAppTheme = TrayAppDotNETCommon.Theming.AppTheme;
+using TrayAppDotNETCommon.Visuals;
+using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
@@ -26,7 +26,7 @@ public sealed class ProfileButtonSettings
     }
 }
 
-public sealed class AppTheme : CommonAppTheme
+public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 

@@ -3,7 +3,7 @@ using System.Runtime.InteropServices.Marshalling;
 
 namespace TrayAppDotNETCommon.Interop;
 
-public static class ComActivation
+public static class COMActivation
 {
     private static readonly StrategyBasedComWrappers ComWrappers = new();
     private static int _registeredForMarshalling;

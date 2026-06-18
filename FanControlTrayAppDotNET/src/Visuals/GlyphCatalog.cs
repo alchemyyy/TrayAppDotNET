@@ -1,19 +1,21 @@
+using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
+
 namespace FanControlTrayAppDotNET.Visuals;
 
 /// <summary>
 /// Segoe Fluent Icons codepoint strings shared by renderers, XAML, and theme defaults.
 /// </summary>
-internal abstract class GlyphCatalog : TrayAppDotNETCommon.Theming.GlyphCatalog
+internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
 {
     // ===========================================================================
     // Generic UI glyphs
     // ===========================================================================
 
-    public new const string SETTINGS = "\uE713"; // Setting (gear)
-    public new const string POWER = "\uE7E8"; // Power
-    public new const string INFO = "\uE946"; // Info
-    public new const string EXIT = "\uE8BB"; // ChromeClose
-    public new const string WARNING = "\uE7BA"; // Warning
+    public new const string SETTINGS = CommonGlyphCatalog.SETTINGS;
+    public new const string POWER = CommonGlyphCatalog.POWER;
+    public new const string INFO = CommonGlyphCatalog.INFO;
+    public new const string EXIT = CommonGlyphCatalog.EXIT;
+    public new const string WARNING = CommonGlyphCatalog.WARNING;
     public const string FAN = "\U000F1111"; // FanFont.ttf U+F1111
 
     public const string CURVE_WINDOW = "\uE9E9"; // Equalizer
@@ -42,14 +44,14 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Theming.GlyphCatalog
     // undock), UNDOCK is shown when it is currently undocked (click to redock). The aliases below
     // are what the XAML DataTrigger toggles between, so the codepoints can be swapped without
     // touching markup.
-    public const string DOCK = "\uE75B";
-    public const string UNDOCK = "\uE75A";
+    public const string DOCK = CommonGlyphCatalog.FLYOUT_UNDOCK_ACTION;
+    public const string UNDOCK = CommonGlyphCatalog.FLYOUT_REDOCK_ACTION;
     public new const string FLYOUT_UNDOCK_ACTION = DOCK;
     public new const string FLYOUT_REDOCK_ACTION = UNDOCK;
 
     // Slider-thumb glyph defaults. Picked from Segoe Fluent Icons so we ship a working catalog
     // without an external font asset.
-    public const string CIRCLE = "\uE91F"; // FullCircleMask
+    public const string CIRCLE = CommonGlyphCatalog.SLIDER_THUMB_CIRCLE;
     public const string DIAMOND = "\uEB4B"; // Diamond
     public const string STAR = "\uE735"; // FavoriteStarFill
     public const string SQUARE = "\uE003"; // CheckboxFill (square)

@@ -5,8 +5,8 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
-using TrayAppDotNETCommon.Theming;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI;
 
