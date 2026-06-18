@@ -11,4 +11,37 @@
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
     <NativeOutputPath Condition="'$(RuntimeIdentifier)' != '' and '$(NativeOutputPath)' == ''">$(IntermediateOutputPath)native-aot\</NativeOutputPath>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <TrayAppDotNETCrashHandlerProject Condition="'$(TrayAppDotNETCrashHandlerProject)' == '' and '$(TrayAppDotNETCommonRoot)' != ''">$(TrayAppDotNETCommonRoot)\watcher\TrayAppDotNETCrashHandler.vcxproj</TrayAppDotNETCrashHandlerProject>
+    <TrayAppDotNETCrashHandlerConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</TrayAppDotNETCrashHandlerConfiguration>
+    <TrayAppDotNETCrashHandlerConfiguration Condition="'$(TrayAppDotNETCrashHandlerConfiguration)' == ''">Release</TrayAppDotNETCrashHandlerConfiguration>
+    <TrayAppDotNETCrashHandlerBuildRoot Condition="'$(TrayAppDotNETCrashHandlerBuildRoot)' == ''">$(IntermediateOutputPath)native-crash-handler\</TrayAppDotNETCrashHandlerBuildRoot>
+    <TrayAppDotNETCrashHandlerOutDir Condition="'$(TrayAppDotNETCrashHandlerOutDir)' == ''">$(TrayAppDotNETOutputRoot)$(Configuration)</TrayAppDotNETCrashHandlerOutDir>
+    <TrayAppDotNETCrashHandlerIntDir Condition="'$(TrayAppDotNETCrashHandlerIntDir)' == ''">$(TrayAppDotNETCrashHandlerBuildRoot)obj</TrayAppDotNETCrashHandlerIntDir>
+    <TrayAppDotNETCrashHandlerBuiltExe>$([MSBuild]::EnsureTrailingSlash('$(TrayAppDotNETCrashHandlerOutDir)'))_crashhandler.exe</TrayAppDotNETCrashHandlerBuiltExe>
+    <TrayAppDotNETCrashHandlerOutputName>_crashhandler.exe</TrayAppDotNETCrashHandlerOutputName>
+  </PropertyGroup>
+
+  <Target Name="BuildTrayAppDotNETCrashHandler"
+          BeforeTargets="Build"
+          Condition="'$(AssemblyName)' == 'TrayAppDotNETCommon'
+                     and '$(SkipTrayAppDotNETCrashHandler)' != 'true'
+                     and Exists('$(TrayAppDotNETCrashHandlerProject)')">
+    <MakeDir Directories="$(TrayAppDotNETCrashHandlerOutDir);$(TrayAppDotNETCrashHandlerIntDir)" />
+    <Exec Command="MSBuild.exe &quot;$(TrayAppDotNETCrashHandlerProject)&quot; /t:Build /p:Configuration=$(TrayAppDotNETCrashHandlerConfiguration) /p:Platform=x64 /p:CrashHandlerOutDir=&quot;$(TrayAppDotNETCrashHandlerOutDir)&quot; /p:CrashHandlerIntDir=&quot;$(TrayAppDotNETCrashHandlerIntDir)&quot; /p:TrayAppDotNETUseRootOutput=false /nologo /v:minimal" />
+  </Target>
+
+  <Target Name="PublishTrayAppDotNETCrashHandler"
+          AfterTargets="ComputeFilesToPublish"
+          Condition="'$(OutputType)' == 'WinExe'
+                     and '$(SkipTrayAppDotNETCrashHandler)' != 'true'
+                     and Exists('$(TrayAppDotNETCrashHandlerBuiltExe)')">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(TrayAppDotNETCrashHandlerBuiltExe)"
+                             RelativePath="$(TrayAppDotNETCrashHandlerOutputName)"
+                             CopyToPublishDirectory="PreserveNewest"
+                             ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
 </Project>
