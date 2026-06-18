@@ -9,8 +9,6 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     private const string AppFeedbackWavName = "Windows Background.wav";
     private const string DeviceDingThrottleKey = "device";
     private const string AppDingThrottleKey = "app";
-    private const int DingDwellPollSliceMs = 10;
-    private const int DingMeterBypassGraceMs = 250;
 
     private readonly AsyncThrottler<string> _feedbackThrottler = new(0, StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, long> _dingActiveUntilTicks = new(StringComparer.Ordinal);
@@ -37,7 +35,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
         if (wav == null) return;
 
         string throttleKey = DeviceDingThrottleKey + ":" + device.Id;
-        int dingWindowMs = wav.DurationMs + DingMeterBypassGraceMs;
+        int dingWindowMs = wav.DurationMs + TimeConstants.VolumeFeedbackDingMeterBypassGraceMs;
         _ = _feedbackThrottler.RunAsync(throttleKey, async ctx =>
         {
             if (!immediate)
@@ -139,7 +137,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
         {
             if (ctx.HasReplacement) return false;
             if (shouldCancel?.Invoke() == true) return false;
-            int slice = Math.Min(DingDwellPollSliceMs, totalMs - waited);
+            int slice = Math.Min(TimeConstants.VolumeFeedbackDingDwellPollSliceMs, totalMs - waited);
             try { await Task.Delay(slice, ctx.CancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) { return false; }
 

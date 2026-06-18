@@ -869,7 +869,8 @@ internal sealed class BrightnessAvaloniaApp : Application
             bool important = string.IsNullOrWhiteSpace(tooltip) || monitors.Count == 0 || brightness <= 1;
             if (!important
                 && snapshot == _lastTrayValueDiagnostic
-                && now - _lastTrayValueDiagnosticUtc < TimeSpan.FromSeconds(30))
+                && now - _lastTrayValueDiagnosticUtc
+                < TimeSpan.FromMilliseconds(TimeConstants.TrayValueDiagnosticCooldownMs))
                 return;
 
             _lastTrayValueDiagnostic = snapshot;

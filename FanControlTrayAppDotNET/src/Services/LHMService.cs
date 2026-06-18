@@ -88,7 +88,7 @@ public sealed class LHMService : IDisposable
     {
         if (_pollingCancellationToken == null) return;
         _pollingCancellationToken.Cancel();
-        try { _pollTask?.Wait(2000); }
+        try { _pollTask?.Wait(TimeConstants.BackgroundPollShutdownWaitMs); }
         catch (AggregateException) { /* poll loop already exited */ }
         _pollingCancellationToken.Dispose();
         _pollingCancellationToken = null;

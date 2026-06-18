@@ -20,9 +20,6 @@ namespace TrayAppDotNETCommon;
 public static class TADNLog
 {
     private const long MaxBytes = 10L * 1024 * 1024;
-    private const int LogMaxAgeMs = 604_800_000;
-    private const int LogFlushIntervalMs = 2_000;
-    private const int LogShutdownTimerWaitMs = 1_000;
     private const string ActiveName = "active.log";
     private const string OldName = "old.log";
     private const string TimestampFmt = "yyyy-MM-dd HH:mm:ss.fff";
@@ -53,7 +50,7 @@ public static class TADNLog
                 _activePath = Path.Combine(folder, ActiveName);
                 _oldPath = Path.Combine(folder, OldName);
                 _timer = new Timer(
-                    OnTimerTick, null, LogFlushIntervalMs, LogFlushIntervalMs);
+                    OnTimerTick, null, TimeConstants.LogFlushIntervalMs, TimeConstants.LogFlushIntervalMs);
                 _initialized = true;
             }
             catch
@@ -129,7 +126,7 @@ public static class TADNLog
             if (timerToDispose != null)
             {
                 using ManualResetEvent done = new(false);
-                if (timerToDispose.Dispose(done)) done.WaitOne(LogShutdownTimerWaitMs);
+                if (timerToDispose.Dispose(done)) done.WaitOne(TimeConstants.LogShutdownTimerWaitMs);
             }
         }
         catch
@@ -200,7 +197,7 @@ public static class TADNLog
 
         FileInfo fi = new(_activePath);
         bool sizeOver = fi.Length >= MaxBytes;
-        bool ageOver = (DateTime.UtcNow - fi.CreationTimeUtc).TotalMilliseconds >= LogMaxAgeMs;
+        bool ageOver = (DateTime.UtcNow - fi.CreationTimeUtc).TotalMilliseconds >= TimeConstants.LogMaxAgeMs;
         if (!sizeOver && !ageOver) return;
 
         try

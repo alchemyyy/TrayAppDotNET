@@ -646,13 +646,11 @@ internal static class NightLightRegistry
     // ("existing+1" can never catch up to real time - observed in the wild when a stray inflation pinned the
     // timestamp to year ~49,000), reset to "now" instead. Without this clamp, every subsequent write keeps
     // re-poisoning the blob and Windows ignores live strength changes.
-    private const ulong MaxFutureSkewSeconds = 24 * 60 * 60;
-
     private static byte[] EncodeFreshTimestamp(byte[] blob, OuterLayout layout)
     {
         ulong existing = DecodeVarint(blob, layout.TimestampStart, layout.TimestampLength);
         ulong now = (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        if (existing > now + MaxFutureSkewSeconds) existing = now - 1;
+        if (existing > now + TimeConstants.NightLightMaxFutureSkewSeconds) existing = now - 1;
 
         return EncodeVarint(Math.Max(existing + 1, now));
     }

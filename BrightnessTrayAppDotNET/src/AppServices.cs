@@ -1,7 +1,9 @@
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.UI.Flyout;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
+using BrightnessHotkeyBinding = BrightnessTrayAppDotNET.Models.HotkeyBinding;
 
 namespace BrightnessTrayAppDotNET;
 
@@ -50,6 +52,6 @@ internal static class AppServices
     public static DisplayEventManager? DisplayEventManager { get; set; }
     public static DDCRecoveryService? DDCRecoveryService { get; set; }
     public static MonitorBrightnessRangeProvider? MonitorBrightnessRangeProvider { get; set; }
-    public static GlobalHotkeyService<BrightnessHotkeyAction, HotkeyBinding>? HotkeyService { get; set; }
+    public static GlobalHotkeyService<BrightnessHotkeyAction, BrightnessHotkeyBinding>? HotkeyService { get; set; }
     public static UpdateCheckService? UpdateCheckService { get; set; }
 }

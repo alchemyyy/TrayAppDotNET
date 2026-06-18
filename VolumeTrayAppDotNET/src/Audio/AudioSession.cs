@@ -312,7 +312,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             // attempt 2 waits 1*interval, attempt 3 waits 2*interval, attempt 4 waits 3*interval.
             if (icon != null || isSystemSounds) return;
 
-            int interval = AppServices.Settings?.IconRetryIntervalMs ?? AppSettings.IconRetryIntervalMsDefault;
+            int interval = AppServices.Settings?.IconRetryIntervalMs ?? TimeConstants.IconRetryIntervalMsDefault;
             int wait = 0;
             for (int attempt = 2; attempt <= AppSettings.IconRetryAttempts; attempt++)
             {

@@ -20,15 +20,8 @@ internal static class EndpointSoundPlayback
 {
     // Engine buffer hint to IAudioClient.Initialize, in 100-ns ticks. Long enough to hold our short
     // feedback wav comfortably; the audio service may round to its own period internally.
-    private const long BufferDurationHns = 2_000_000;
-
     // Padding-poll slice during the drain loop. Tens-of-ms scale is fine - the wav is ~1 second
     // and the user can't perceive sub-frame timing on a confirmation ding.
-    private const int PollSliceMs = 30;
-
-    // Hard ceiling on the drain loop. Default Windows feedback wavs are well under a second; this
-    // covers worst-case engine latency on a slow / contested system without ever stranding a worker.
-    private const int MaxDrainMs = 5000;
 
     /// <summary>
     /// Fires the playback on a threadpool worker and returns immediately. We take the endpoint id
@@ -88,7 +81,7 @@ internal static class EndpointSoundPlayback
                                | AudioClientStreamFlags.AutoConvertPcm
                                | AudioClientStreamFlags.SrcDefaultQuality;
             hr = client.Initialize(AudioClientShareMode.Shared, streamFlags,
-                BufferDurationHns, 0, formatPtr, IntPtr.Zero);
+                TimeConstants.EndpointSoundPlaybackBufferDurationHns, 0, formatPtr, IntPtr.Zero);
             if (hr < 0)
             {
                 TADNLog.Log($"EndpointSoundPlayback.Initialize: hr=0x{hr:X8}");
@@ -112,10 +105,10 @@ internal static class EndpointSoundPlayback
             if (hr < 0) return;
 
             int waited = 0;
-            while (waited < MaxDrainMs)
+            while (waited < TimeConstants.EndpointSoundPlaybackMaxDrainMs)
             {
-                Thread.Sleep(PollSliceMs);
-                waited += PollSliceMs;
+                Thread.Sleep(TimeConstants.EndpointSoundPlaybackPollSliceMs);
+                waited += TimeConstants.EndpointSoundPlaybackPollSliceMs;
 
                 if (client.GetCurrentPadding(out uint padding) < 0) break;
                 if (byteCursor >= totalBytes && padding == 0) break;

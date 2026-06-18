@@ -8,8 +8,6 @@ namespace TrayAppDotNETCommon.UI.WarmWindows;
 
 public static class TrayAppDotNETWarmWindowResourcePurger
 {
-    private const int FirstRenderDrainDelayMs = 150;
-    private const int SecondCollectionDelayMs = 150;
     private static int _purgeQueued;
 
     public static async Task PurgeAsync(Action<Exception>? logError = null)
@@ -33,12 +31,12 @@ public static class TrayAppDotNETWarmWindowResourcePurger
         try
         {
             await DrainUiAsync();
-            await Task.Delay(FirstRenderDrainDelayMs).ConfigureAwait(false);
+            await Task.Delay(TimeConstants.WarmWindowFirstRenderDrainDelayMs).ConfigureAwait(false);
             await DrainUiAsync();
             await Dispatcher.UIThread.InvokeAsync(TryPurgeSkiaCaches, DispatcherPriority.ContextIdle);
 
             ForceFullManagedCleanup();
-            await Task.Delay(SecondCollectionDelayMs).ConfigureAwait(false);
+            await Task.Delay(TimeConstants.WarmWindowSecondCollectionDelayMs).ConfigureAwait(false);
             ForceFullManagedCleanup();
             TryTrimWorkingSet();
         }

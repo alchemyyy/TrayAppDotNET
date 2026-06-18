@@ -19,8 +19,8 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_General_IconRetryInterval_Title"),
             Loc("Settings_General_IconRetryInterval_Description"),
             _settings.IconRetryIntervalMs,
-            AppSettings.IconRetryIntervalMsMin,
-            AppSettings.IconRetryIntervalMsMax,
+            TimeConstants.IconRetryIntervalMsMin,
+            TimeConstants.IconRetryIntervalMsMax,
             v => _settings.IconRetryIntervalMs = v,
             p));
 

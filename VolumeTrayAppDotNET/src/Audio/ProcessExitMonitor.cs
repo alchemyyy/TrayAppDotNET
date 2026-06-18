@@ -167,7 +167,7 @@ internal sealed class ProcessExitMonitor : IDisposable
             if (result == Kernel32Wait.WAIT_FAILED)
             {
                 // Most commonly fires when a handle was just closed by Unwatch. Re-snapshot.
-                Thread.Sleep(10);
+                Thread.Sleep(TimeConstants.ProcessExitWatchRetryDelayMs);
                 continue;
             }
 

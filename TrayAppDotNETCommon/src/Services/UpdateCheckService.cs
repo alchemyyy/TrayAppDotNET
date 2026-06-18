@@ -38,12 +38,17 @@ public sealed class UpdateCheckOptions
     public Func<string?> CurrentExecutablePath { get; init; } =
         () => Process.GetCurrentProcess().MainModule?.FileName ?? Environment.ProcessPath;
 
-    public TimeSpan StartupDelay { get; init; } = TimeSpan.FromSeconds(5);
-    public TimeSpan MinPollInterval { get; init; } = TimeSpan.FromMinutes(1);
-    public TimeSpan MaxPollInterval { get; init; } = TimeSpan.FromDays(1);
-    public TimeSpan NetworkTimeout { get; init; } = TimeSpan.FromSeconds(30);
-    public int AssetDownloadMaxAttempts { get; init; } = 3;
-    public TimeSpan AssetDownloadInitialBackoff { get; init; } = TimeSpan.FromSeconds(1);
+    public TimeSpan StartupDelay { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckStartupDelayMs);
+    public TimeSpan MinPollInterval { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckIntervalMinMs);
+    public TimeSpan MaxPollInterval { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckIntervalMaxMs);
+    public TimeSpan NetworkTimeout { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateNetworkTimeoutMs);
+    public int AssetDownloadMaxAttempts { get; init; } = TimeConstants.UpdateAssetDownloadMaxAttempts;
+    public TimeSpan AssetDownloadInitialBackoff { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
 }
 
 public sealed class UpdateCheckService : IDisposable

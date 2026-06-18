@@ -6,7 +6,7 @@ namespace TrayAppDotNETCommon.Services;
 public sealed class AsyncThrottler<TKey>(
     int cooldownMs,
     IEqualityComparer<TKey>? comparer = null,
-    int drainPollIntervalMs = TrayAppDotNETTimeConstants.DrainPollIntervalMs) : IDisposable
+    int drainPollIntervalMs = TimeConstants.DrainPollIntervalMs) : IDisposable
     where TKey : notnull
 {
     private readonly Dictionary<TKey, Slot> _slots = new(comparer ?? EqualityComparer<TKey>.Default);

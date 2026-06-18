@@ -87,8 +87,8 @@ public sealed partial class VolumeSettingsWindow
             L("Settings_Theme_ToolTipShowDelay_Title", "Tooltip delay"),
             L("Settings_Theme_ToolTipShowDelay_Description", "Milliseconds to wait before showing a tooltip."),
             _settings.ToolTipShowDelayMs,
-            AppSettingsCommon.ToolTipShowDelayMinMs,
-            AppSettingsCommon.ToolTipShowDelayMaxMs,
+            TimeConstants.ToolTipShowDelayMinMs,
+            TimeConstants.ToolTipShowDelayMaxMs,
             v =>
             {
                 _settings.ToolTipShowDelayMs = v;

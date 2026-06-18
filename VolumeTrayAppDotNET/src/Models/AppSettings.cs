@@ -415,9 +415,6 @@ public partial class AppSettings : AppSettingsCommon
     // IconRetryAttempts times after the initial resolution; the wait between attempts grows
     // linearly: wait_n = n * IconRetryIntervalMs. With the default (250ms, 4 attempts) the worst-
     // case schedule is 0ms, +250ms, +500ms, +750ms - total ~1.5s before giving up.
-    public const int IconRetryIntervalMsDefault = 250;
-    public const int IconRetryIntervalMsMin = 50;
-    public const int IconRetryIntervalMsMax = 5000;
     public const int IconRetryAttempts = 4;
 
     public int IconRetryIntervalMs
@@ -425,13 +422,16 @@ public partial class AppSettings : AppSettingsCommon
         get;
         set
         {
-            int clamped = Math.Clamp(value, IconRetryIntervalMsMin, IconRetryIntervalMsMax);
+            int clamped = Math.Clamp(
+                value,
+                TimeConstants.IconRetryIntervalMsMin,
+                TimeConstants.IconRetryIntervalMsMax);
             if (field == clamped) return;
             field = clamped;
             OnPropertyChanged();
             RaiseChanged();
         }
-    } = IconRetryIntervalMsDefault;
+    } = TimeConstants.IconRetryIntervalMsDefault;
 
     // Bound for the icon-resolver's LRU "limbo" queue. When a cached icon's refcount drops to zero
     // (its last AudioSession is disposed) it sits in this queue and can be revived on the next
@@ -978,10 +978,8 @@ public partial class AppSettings : AppSettingsCommon
 
     // Single per-process throttler keyed by the AppSettings instance. Coalesces a burst of setters into
     // one disk write after the quiet period; latest-pending-wins so the last-fired RequestSave runs.
-    private const int SaveDebounceMs = 400;
-
     private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
-        SaveDebounceMs,
+        TimeConstants.SettingsSaveDebounceMs,
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
 
     /// <summary>

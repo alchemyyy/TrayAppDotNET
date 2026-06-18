@@ -145,7 +145,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow> : IDisposable
 
         _evictionTimer ??= new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(TrayAppDotNETTimeConstants.WarmWindowIdleEvictionDelayMs),
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.WarmWindowIdleEvictionDelayMs),
         };
         _evictionTimer.Tick -= OnEvictionTimerTick;
         _evictionTimer.Tick += OnEvictionTimerTick;

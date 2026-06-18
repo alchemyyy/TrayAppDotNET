@@ -1,67 +1,29 @@
+using CommonTimeConstants = TrayAppDotNETCommon.TimeConstants;
+
 namespace BrightnessTrayAppDotNET;
 
 // Central registry of hardcoded time values used across the app. Anything that
 // is genuinely user-configurable lives on AppSettings instead -- this file is
-// for fixed constants only. All values are in milliseconds; call sites wrap
-// with TimeSpan.FromMilliseconds(...) when the consuming API requires TimeSpan.
-public static class TimeConstants
+// for fixed constants only. Units are part of each constant name; millisecond
+// values are wrapped with TimeSpan.FromMilliseconds(...) when APIs require TimeSpan.
+public abstract class TimeConstants : TrayAppDotNETCommon.TimeConstants
 {
     // Crash & shutdown drain
-    public const int CrashHandlerDrainTimeoutMs = 500;
     public const int ProcessExitDrainTimeoutMs = 200;
-    public const int SessionEndingDrainTimeoutMs = 2_000;
     public const int NormalShutdownDrainTimeoutMs = 3_000;
     public const int DrainAdditionalMarginMs = 250;
-    public const int DrainPollIntervalMs = 50;
-
-    // Crash recovery & watcher
-    public const int CrashRestartDelayMs = 1_000;
-    public const int RapidRestartDetectionWindowMs = 30_000;
-    public const int WatcherLivenessPollIntervalMs = 1_000;
-
-    // Single instance
-    public const int SingleInstanceMutexAcquireTimeoutMs = 5_000;
-
-    // Tray / Shell
-    public const int TaskbarRecreateCheckIntervalMs = 500;
+    public new const int DrainPollIntervalMs = CommonTimeConstants.DrainPollIntervalMs;
 
     // Settings UI
-    public const int SettingsDragAnimationDurationMs = 150;
-    public const int PostSettingsCloseGCDelayMs = 10_000;
-    public const int AboutStaleCheckTimerIntervalMs = 1_000;
-
-    // Color picker
-    public const int ColorPickerChangeCooldownMs = 50;
-
-    // Logging
-    // 7 days in ms = 7 * 24 * 60 * 60 * 1000 = 604_800_000.
-    public const int LogMaxAgeMs = 604_800_000;
-    public const int LogFlushIntervalMs = 2_000;
-    public const int LogShutdownTimerWaitMs = 1_000;
+    public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;
+    public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
 
     // Auto-update
-    // Default cadence the background UpdateCheckService polls GitHub at. 1 hour is a low-traffic compromise:
-    // recent enough to surface a fresh release the same workday, infrequent enough to stay well clear of
-    // GitHub's unauthenticated 60/hr rate limit even across the per-IP shared quota.
-    public const int UpdateCheckIntervalDefaultMs = 3_600_000;
-    public const int UpdateCheckIntervalMinMs = 60_000;
-
-    public const int UpdateCheckIntervalMaxMs = 86_400_000;
-
-    // Extra grace beyond the configured interval before the UI flips "Install update" to "Version stale".
-    public const int UpdateStaleGraceMs = 5_000;
-
-    // Per-request HTTP timeout for both the release-metadata GET and the asset download GET.
-    public const int UpdateNetworkTimeoutMs = 30_000;
-
-    // Short delay before kicking the very first check on startup so it doesn't compete with monitor enumeration
-    // and other startup work for the first few seconds of process life.
-    public const int UpdateCheckStartupDelayMs = 5_000;
+    public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
+    public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // DDC recovery
     public const int DDCRecoveryRetryIntervalMs = 2_000;
-
-    public const int DDCRecoveryAcquisitionPassTimeoutMs = 15_000;
 
     // Settle window before the first VCP read on any monitor after a topology event.
     // Covers cold hot-plug, monitor power-on, and cascade refreshes triggered when an unrelated
@@ -86,10 +48,9 @@ public static class TimeConstants
 
     // Brightness flyout
     public const int BrightnessFlyoutPreviewSweepDurationMs = 10_000;
-
-    // ToolTipService.ShowDuration is typed Int32 (milliseconds).
-    public const int HardPowerOffTooltipShowDurationMs = 8_000;
-    public const int RecoveryTooltipAutoCloseDurationMs = 8_000;
+    public const int CurveStopwatchDefaultMinutes = 60;
+    public const int CurveStopwatchRefreshIntervalMs = 1_000;
+    public const int TrayValueDiagnosticCooldownMs = 30_000;
 
     // Environmental curve editor
     public const int EnvironmentalCurveSaveDebounceMs = 250;
@@ -102,6 +63,7 @@ public static class TimeConstants
     public const int NightLightInterWriteDelayMs = 15;
 
     public const int NightLightUIHandleryRegistryEnforceDelayMs = 500;
+    public const ulong NightLightMaxFutureSkewSeconds = 24 * 60 * 60;
 
     // CloudStore path's broker-wait dwell is longer than the registry path's
     // because the broker-mediated Save round-trip is genuinely slower than a raw key write.
@@ -115,7 +77,18 @@ public static class TimeConstants
     // so all initial timings sit in one file)
     public const int BrightnessUpdateRateDefaultMs = 50;
     public const int BrightnessUpdateRateMinMs = 10;
+    public const int BrightnessUpdateRateMaxMs = 10_000;
     public const int ValidationDwellDefaultMs = 500;
+    public const int ValidationDwellMinMs = 0;
+    public const int ValidationDwellMaxMs = 10_000;
     public const int DDCOperationTimeoutDefaultMs = 3_000;
+    public const int DDCOperationTimeoutMinMs = 0;
+    public const int DDCOperationTimeoutMaxMs = 60_000;
     public const int EnvironmentalCurveTickIntervalDefaultMs = 5_000;
+
+    // Known display persistence
+    public const int KnownDisplayStampDebounceMs = 500;
+
+    // DDC write retry
+    public const int MonitorWriteRetryBaseMs = 25;
 }

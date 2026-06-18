@@ -2459,9 +2459,8 @@ public sealed class MonitorService : IDisposable
         if (attemptIndex >= totalAttempts - 1) return finalDwellMs;
 
         // Write-path retry base: cheap exponential ramp 25, 50, 100, 200...
-        const int WriteRetryBaseMs = 25;
-        int ramped = WriteRetryBaseMs << (attemptIndex - 1);
-        int cap = Math.Max(WriteRetryBaseMs, finalDwellMs / 2);
+        int ramped = TimeConstants.MonitorWriteRetryBaseMs << (attemptIndex - 1);
+        int cap = Math.Max(TimeConstants.MonitorWriteRetryBaseMs, finalDwellMs / 2);
         return Math.Min(ramped, cap);
     }
 

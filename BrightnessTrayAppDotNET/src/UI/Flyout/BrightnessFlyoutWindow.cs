@@ -2167,7 +2167,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private const string MasterCurveStopwatchKey = "master";
     private const string NightLightCurveStopwatchKey = "nightlight";
-    private const int DefaultCurveStopwatchMinutes = 60;
 
     private static string CurveStopwatchKeyFor(MonitorInfo monitor)
     {
@@ -2193,7 +2192,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _settings.CurveStopwatches.FirstOrDefault(e => string.Equals(e.SliderKey, key, StringComparison.Ordinal));
         if (entry != null) return entry;
 
-        entry = new CurveStopwatchEntry { SliderKey = key, Minutes = DefaultCurveStopwatchMinutes, };
+        entry = new CurveStopwatchEntry { SliderKey = key, Minutes = TimeConstants.CurveStopwatchDefaultMinutes, };
         _settings.CurveStopwatches.Add(entry);
         return entry;
     }
@@ -2232,7 +2231,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void RestoreCurveStopwatchForMonitor(MonitorInfo monitor, bool saveExpired)
     {
         CurveStopwatchEntry? entry = FindCurveStopwatchEntry(monitor);
-        monitor.CurveStopwatchMinutes = Math.Max(1, entry?.Minutes ?? DefaultCurveStopwatchMinutes);
+        monitor.CurveStopwatchMinutes = Math.Max(1, entry?.Minutes ?? TimeConstants.CurveStopwatchDefaultMinutes);
         if (entry is not { IsEnabled: true })
         {
             monitor.IsCurveStopwatchEnabled = false;
@@ -2318,7 +2317,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (_curveStopwatchTimer == null)
         {
             _curveStopwatchTimer =
-                new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+                new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveStopwatchRefreshIntervalMs),
+                };
             _curveStopwatchTimer.Tick += OnCurveStopwatchTimerTick;
         }
 

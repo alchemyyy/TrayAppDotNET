@@ -69,10 +69,8 @@ public class AppSettings : AppSettingsCommon
         : base(updateCheckIntervalDefaultMs: 0) =>
         WireColorCallbacks();
 
-    private const int SaveDebounceMs = 400;
-
     private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
-        SaveDebounceMs,
+        TimeConstants.SettingsSaveDebounceMs,
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
 
     protected override void RequestSave()

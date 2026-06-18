@@ -1,43 +1,23 @@
+using CommonTimeConstants = TrayAppDotNETCommon.TimeConstants;
+
 namespace NetworkTrayAppDotNET;
 
 // Central registry of hardcoded time values used across the app. Anything that
 // is genuinely user-configurable lives on AppSettings instead -- this file is
-// for fixed constants only. All values are in milliseconds; call sites wrap
-// with TimeSpan.FromMilliseconds(...) when the consuming API requires TimeSpan.
-public static class TimeConstants
+// for fixed constants only. Units are part of each constant name; millisecond
+// values are wrapped with TimeSpan.FromMilliseconds(...) when APIs require TimeSpan.
+public abstract class TimeConstants : TrayAppDotNETCommon.TimeConstants
 {
-    // Crash & shutdown drain
-    public const int CrashHandlerDrainTimeoutMs = 500;
-    public const int ProcessExitDrainTimeoutMs = 200;
-    public const int SessionEndingDrainTimeoutMs = 2_000;
-    public const int NormalShutdownDrainTimeoutMs = 3_000;
-    public const int DrainAdditionalMarginMs = 250;
-    public const int DrainPollIntervalMs = 50;
-
-    // Crash recovery & watcher
-    public const int CrashRestartDelayMs = 1_000;
-    public const int RapidRestartDetectionWindowMs = 30_000;
-    public const int WatcherLivenessPollIntervalMs = 1_000;
-
-    // Single instance
-    public const int SingleInstanceMutexAcquireTimeoutMs = 5_000;
-
-    // Tray / Shell
-    public const int TaskbarRecreateCheckIntervalMs = 500;
+    // Async throttling / settings persistence
+    public new const int DrainPollIntervalMs = CommonTimeConstants.DrainPollIntervalMs;
+    public new const int SettingsSaveDebounceMs = CommonTimeConstants.SettingsSaveDebounceMs;
 
     // Settings UI
-    public const int SettingsDragAnimationDurationMs = 150;
-    public const int PostSettingsCloseGCDelayMs = 10_000;
+    public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;
+    public new const int ToolTipShowDelayDefaultMs = CommonTimeConstants.ToolTipShowDelayDefaultMs;
+    public new const int ToolTipShowDelayMinMs = CommonTimeConstants.ToolTipShowDelayMinMs;
+    public new const int ToolTipShowDelayMaxMs = CommonTimeConstants.ToolTipShowDelayMaxMs;
 
-    // Color picker
-    public const int ColorPickerChangeCooldownMs = 50;
-
-    // Tray icon update throttle default; the host app may override per instance.
-    public const int TrayIconUpdateRateDefaultMs = 50;
-
-    // Logging
-    // 7 days in ms = 7 * 24 * 60 * 60 * 1000 = 604_800_000.
-    public const int LogMaxAgeMs = 604_800_000;
-    public const int LogFlushIntervalMs = 2_000;
-    public const int LogShutdownTimerWaitMs = 1_000;
+    // Network polling
+    public const int NetworkPollIntervalMs = 3_000;
 }

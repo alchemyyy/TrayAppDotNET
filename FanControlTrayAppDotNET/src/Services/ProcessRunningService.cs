@@ -57,7 +57,7 @@ public sealed class ProcessRunningService : IDisposable
         if (_pollCts != null)
         {
             _pollCts.Cancel();
-            try { _pollTask?.Wait(2000); }
+            try { _pollTask?.Wait(TimeConstants.BackgroundPollShutdownWaitMs); }
             catch (AggregateException)
             {
                 /* poll loop already exited */

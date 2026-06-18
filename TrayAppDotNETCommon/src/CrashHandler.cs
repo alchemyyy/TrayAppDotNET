@@ -14,8 +14,8 @@ public sealed record CrashHandlerOptions(
     Action<string> Log,
     Action FlushLog)
 {
-    public int CrashRestartDelayMs { get; init; } = 1_000;
-    public int RapidRestartDetectionWindowMs { get; init; } = 30_000;
+    public int CrashRestartDelayMs { get; init; } = TimeConstants.CrashRestartDelayMs;
+    public int RapidRestartDetectionWindowMs { get; init; } = TimeConstants.RapidRestartDetectionWindowMs;
 }
 
 /// <summary>

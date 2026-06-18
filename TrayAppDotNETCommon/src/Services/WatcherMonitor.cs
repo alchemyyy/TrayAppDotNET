@@ -9,13 +9,12 @@ public sealed class WatcherMonitor(
     TimeSpan? pollInterval = null)
     : IDisposable
 {
-    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(1);
-
     private readonly Func<Action, Task> _postToUIThread =
         postToUiThread ?? throw new ArgumentNullException(nameof(postToUiThread));
 
     private readonly Action _onWatcherDied = onWatcherDied ?? throw new ArgumentNullException(nameof(onWatcherDied));
-    private readonly TimeSpan _pollInterval = pollInterval ?? DefaultPollInterval;
+    private readonly TimeSpan _pollInterval =
+        pollInterval ?? TimeSpan.FromMilliseconds(TimeConstants.WatcherLivenessPollIntervalMs);
     private CancellationTokenSource? _cts;
     private bool _disposed;
 

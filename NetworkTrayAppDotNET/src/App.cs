@@ -41,8 +41,6 @@ internal static class NetworkAvaloniaRunner
 
 internal sealed class NetworkAvaloniaApp : Application
 {
-    private static readonly TimeSpan NetworkPollInterval = TimeSpan.FromSeconds(3);
-
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private NetworkTrayMenuWindow? _trayMenuWindow;
     private NetworkSettingsWindow? _settingsWindow;
@@ -60,7 +58,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         TrayAppDotNETAvalonia.InitializeDefaults(
             this,
-            toolTipShowDelayMs: AppSettingsCommon.ToolTipShowDelayDefaultMs);
+            toolTipShowDelayMs: TimeConstants.ToolTipShowDelayDefaultMs);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -146,7 +144,10 @@ internal sealed class NetworkAvaloniaApp : Application
 
         try
         {
-            _refreshTimer = new DispatcherTimer { Interval = NetworkPollInterval };
+            _refreshTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(TimeConstants.NetworkPollIntervalMs),
+            };
             _refreshTimer.Tick += OnRefreshTimerTick;
             _refreshTimer.Start();
         }

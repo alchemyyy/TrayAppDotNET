@@ -38,8 +38,8 @@ public sealed class TrayAppDotNETAboutPageOptions
     public Action Shutdown { get; init; } = ShutdownDesktopApp;
     public Action<string> Log { get; init; } = static _ => { };
     public Action? RebuildAboutPage { get; init; }
-    public int StaleCheckTimerIntervalMs { get; init; } = 1_000;
-    public int UpdateStaleGraceMs { get; init; } = 5_000;
+    public int StaleCheckTimerIntervalMs { get; init; } = TimeConstants.AboutStaleCheckTimerIntervalMs;
+    public int UpdateStaleGraceMs { get; init; } = TimeConstants.UpdateStaleGraceMs;
 
     private static void ShutdownDesktopApp()
     {
@@ -322,12 +322,12 @@ public sealed class TrayAppDotNETAboutPage
     private string FormatRelativeTimestamp(DateTime utc)
     {
         TimeSpan diff = DateTime.UtcNow - utc;
-        if (diff < TimeSpan.FromSeconds(60))
+        if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampJustNowThresholdMs))
             return L("Settings_About_RelativeTime_JustNow", "just now");
-        if (diff < TimeSpan.FromMinutes(60))
+        if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampMinutesThresholdMs))
             return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_MinutesFormat", "{0}m ago"),
                 Math.Max(1, (int)diff.TotalMinutes));
-        if (diff < TimeSpan.FromHours(24))
+        if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampHoursThresholdMs))
             return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_HoursFormat", "{0}h ago"),
                 Math.Max(1, (int)diff.TotalHours));
         return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_DaysFormat", "{0}d ago"),

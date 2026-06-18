@@ -21,8 +21,6 @@ public sealed class KnownDisplaysStore : IDisposable
     // displays.json on every integer transition; this coalesces a burst into one save once
     // the drag settles. Single timer for the whole store - fine because saves serialize the
     // entire list anyway, so per-key debouncing wouldn't reduce I/O.
-    private const int StampDebounceMs = 500;
-
     private readonly string _path;
     private readonly Timer _stampDebounceTimer;
     private int _disposed;
@@ -356,7 +354,7 @@ public sealed class KnownDisplaysStore : IDisposable
 
     /// <summary>
     /// Force any pending debounced save to flush now. Call on app shutdown so a stamp that
-    /// arrived in the last <see cref="StampDebounceMs"/> isn't lost when the process exits.
+    /// arrived in the last <see cref="TimeConstants.KnownDisplayStampDebounceMs"/> isn't lost when the process exits.
     /// </summary>
     public void Flush()
     {
@@ -367,10 +365,10 @@ public sealed class KnownDisplaysStore : IDisposable
 
     private void ScheduleDebouncedSave()
     {
-        // Change resets the timer's due time - successive stamps within StampDebounceMs collapse
+        // Change resets the timer's due time - successive stamps within KnownDisplayStampDebounceMs collapse
         // into one trailing-edge fire.
         if (Volatile.Read(ref _disposed) != 0) return;
-        try { _stampDebounceTimer.Change(StampDebounceMs, Timeout.Infinite); }
+        try { _stampDebounceTimer.Change(TimeConstants.KnownDisplayStampDebounceMs, Timeout.Infinite); }
         catch (ObjectDisposedException)
         {
             /* racing dispose; safe to drop */

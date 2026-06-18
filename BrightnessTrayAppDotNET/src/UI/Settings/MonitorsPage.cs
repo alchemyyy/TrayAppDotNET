@@ -16,15 +16,23 @@ public sealed partial class BrightnessSettingsWindow
 
         stack.Children.Add(IntCard(L("Settings_Monitors_BrightnessRate_Title", "Brightness update rate"),
             L("Settings_Monitors_BrightnessRate_Description", "Dwell between brightness writes."),
-            _settings.BrightnessUpdateRateMs, TimeConstants.BrightnessUpdateRateMinMs, 10_000,
+            _settings.BrightnessUpdateRateMs,
+            TimeConstants.BrightnessUpdateRateMinMs,
+            TimeConstants.BrightnessUpdateRateMaxMs,
             v => _settings.BrightnessUpdateRateMs = v, p, Loc("Common_MillisecondsSuffix")));
         stack.Children.Add(IntCard(L("Settings_Monitors_ValidationDwell_Title", "Validation dwell"), "",
-            _settings.ValidationDwellMs, 0, 10_000, v => _settings.ValidationDwellMs = v, p,
+            _settings.ValidationDwellMs,
+            TimeConstants.ValidationDwellMinMs,
+            TimeConstants.ValidationDwellMaxMs,
+            v => _settings.ValidationDwellMs = v, p,
             Loc("Common_MillisecondsSuffix")));
         stack.Children.Add(IntCard(L("Settings_Monitors_ValidationAttempts_Title", "Validation attempts"), "",
             _settings.ValidationAttempts, 1, 20, v => _settings.ValidationAttempts = v, p));
         stack.Children.Add(IntCard(L("Settings_Monitors_DDCOperationTimeout_Title", "DDC operation timeout"), "",
-            _settings.DDCOperationTimeoutMs, 0, 60_000, v => _settings.DDCOperationTimeoutMs = v, p,
+            _settings.DDCOperationTimeoutMs,
+            TimeConstants.DDCOperationTimeoutMinMs,
+            TimeConstants.DDCOperationTimeoutMaxMs,
+            v => _settings.DDCOperationTimeoutMs = v, p,
             Loc("Common_MillisecondsSuffix")));
         stack.Children.Add(StringComboCard(L("Settings_Monitors_PowerOffMode_Title", "Power-off mode"),
             L("Settings_Monitors_PowerOffMode_Description", "VCP command used by monitor power buttons."),

@@ -18,9 +18,6 @@ public sealed class SingleInstanceCoordinator : IDisposable
     private const int OffsetGeneration = 0;
     private const int OffsetWatcherPID = 4;
     private const int OffsetMonitoredPID = 8;
-    private const int MutexAcquireTimeoutMs = 5_000;
-    private const int PidBulletinReadTimeoutMs = 1_000;
-    private const int PidBulletinReadRetryMs = 25;
 
     private readonly Mutex _mutex;
     private readonly MemoryMappedFile _mmf;
@@ -122,7 +119,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
 
         try
         {
-            if (!mutex.WaitOne(MutexAcquireTimeoutMs))
+            if (!mutex.WaitOne(TimeConstants.SingleInstanceMutexAcquireTimeoutMs))
                 throw new InvalidOperationException("Timed out waiting for single-instance mutex.");
         }
         catch (AbandonedMutexException)
@@ -160,7 +157,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
         out int oldWatcherPID,
         out int oldMonitoredPID)
     {
-        long deadline = Environment.TickCount64 + PidBulletinReadTimeoutMs;
+        long deadline = Environment.TickCount64 + TimeConstants.SingleInstancePidBulletinReadTimeoutMs;
 
         do
         {
@@ -184,7 +181,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
                 // The owner may still be publishing its PID bulletin, or it may be exiting.
             }
 
-            Thread.Sleep(PidBulletinReadRetryMs);
+            Thread.Sleep(TimeConstants.SingleInstancePidBulletinReadRetryMs);
         } while (Environment.TickCount64 < deadline);
 
         oldWatcherPID = 0;

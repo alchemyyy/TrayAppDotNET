@@ -26,7 +26,6 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 {
     private const double PickerPlaneWidth = 160;
     private const double ChannelBandHeight = 120;
-    private const int NotifyCooldownMs = 50;
 
     private readonly SettingsPalette _palette;
     private readonly TrayAppDotNETColorPickerStrings _strings;
@@ -119,7 +118,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         _rgbaBox = HexBox();
         _argbBox = HexBox();
 
-        _notifyTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(NotifyCooldownMs) };
+        _notifyTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.ColorPickerChangeCooldownMs),
+        };
         _notifyTimer.Tick += OnNotifyTimerTick;
 
         Content = BuildContent(Title);

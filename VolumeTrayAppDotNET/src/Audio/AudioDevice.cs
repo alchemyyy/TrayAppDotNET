@@ -672,7 +672,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             if (!wasDefault && !wasDefaultComms)
             {
                 client.SetEndpointVisibility(id, 0);
-                Thread.Sleep(250);
+                Thread.Sleep(TimeConstants.DeviceVisibilityToggleSettleDelayMs);
                 client.SetEndpointVisibility(id, 1);
                 return Task.CompletedTask;
             }
@@ -693,7 +693,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             try
             {
                 client.SetEndpointVisibility(id, 0);
-                if (!promotionDone.Wait(2000))
+                if (!promotionDone.Wait(TimeConstants.DefaultDeviceRoleChangeTimeoutMs))
                     TADNLog.Log($"AudioDevice.{callDescription}: timed out waiting for default-promotion fanout");
             }
             finally { AudioDeviceManager.DefaultDeviceChangedRaw -= OnPromotion; }
@@ -719,7 +719,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
                 if (wasDefaultComms) client.SetDefaultEndpoint(id, ERole.eCommunications);
 
-                if (!restoreDone.Wait(2000))
+                if (!restoreDone.Wait(TimeConstants.DefaultDeviceRoleChangeTimeoutMs))
                     TADNLog.Log($"AudioDevice.{callDescription}: timed out waiting for default-restore confirmation");
             }
             finally { AudioDeviceManager.DefaultDeviceChangedRaw -= OnRestore; }

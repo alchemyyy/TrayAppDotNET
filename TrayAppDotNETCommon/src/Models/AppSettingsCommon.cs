@@ -40,10 +40,6 @@ public interface ITrayAppDotNETStartupMemorySettings
 public abstract class AppSettingsCommon(int updateCheckIntervalDefaultMs) : INotifyPropertyChanged,
     ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings, ITrayAppDotNETStartupMemorySettings
 {
-    public const int ToolTipShowDelayDefaultMs = 750;
-    public const int ToolTipShowDelayMinMs = 0;
-    public const int ToolTipShowDelayMaxMs = 10_000;
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>Raised when any setting is changed through the settings window.</summary>
@@ -104,8 +100,8 @@ public abstract class AppSettingsCommon(int updateCheckIntervalDefaultMs) : INot
         get;
         set => SetField(
             ref field,
-            Math.Clamp(value, ToolTipShowDelayMinMs, ToolTipShowDelayMaxMs));
-    } = ToolTipShowDelayDefaultMs;
+            Math.Clamp(value, TimeConstants.ToolTipShowDelayMinMs, TimeConstants.ToolTipShowDelayMaxMs));
+    } = TimeConstants.ToolTipShowDelayDefaultMs;
 
     public bool CheckForUpdatesEnabled
     {

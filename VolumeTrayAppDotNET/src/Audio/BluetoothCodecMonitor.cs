@@ -328,7 +328,7 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
 
         if (worker != null)
         {
-            try { worker.Join(TimeSpan.FromSeconds(2)); }
+            try { worker.Join(TimeSpan.FromMilliseconds(TimeConstants.BluetoothCodecWorkerJoinTimeoutMs)); }
             catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Dispose: join: {ex.Message}"); }
         }
     }

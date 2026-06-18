@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
-using TrayAppDotNETCommon.Models;
 
 namespace TrayAppDotNETCommon.UI;
 
@@ -12,9 +11,9 @@ public static class TrayAppDotNETToolTip
         get;
         set => field = Math.Clamp(
             value,
-            AppSettingsCommon.ToolTipShowDelayMinMs,
-            AppSettingsCommon.ToolTipShowDelayMaxMs);
-    } = AppSettingsCommon.ToolTipShowDelayDefaultMs;
+            TimeConstants.ToolTipShowDelayMinMs,
+            TimeConstants.ToolTipShowDelayMaxMs);
+    } = TimeConstants.ToolTipShowDelayDefaultMs;
 
     public static void SetTip(Control control, object? tip)
     {
