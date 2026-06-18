@@ -35,9 +35,7 @@ internal static class BrightnessAvaloniaRunner
             args,
             builder =>
             {
-#if DEBUG
                 builder = builder.UseHotReload();
-#endif
 
                 return builder;
             });
@@ -333,7 +331,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void ScheduleKeepWarmPriming()
     {
-        Dispatcher.UIThread.Post(async () =>
+        Dispatcher.UIThread.Post(async void () =>
         {
             try
             {

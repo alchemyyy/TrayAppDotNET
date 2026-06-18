@@ -11,7 +11,7 @@ public static class TrayAppDotNETWindowPrimer
         if (!Dispatcher.UIThread.CheckAccess())
         {
             TaskCompletionSource completion = new();
-            Dispatcher.UIThread.Post(async () =>
+            Dispatcher.UIThread.Post(async void () =>
             {
                 try
                 {
@@ -37,7 +37,7 @@ public static class TrayAppDotNETWindowPrimer
 
         try
         {
-            if (warmWindow != null) warmWindow.IsWarmPriming = true;
+            warmWindow?.IsWarmPriming = true;
             window.ShowActivated = false;
             window.ShowInTaskbar = false;
             window.Opacity = 0;

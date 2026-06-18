@@ -101,8 +101,11 @@ public static class HotkeyDefaults
         int bindingID)
     {
         foreach (HotkeyBinding d in defaults)
+        {
             if (d.Matches(action, parameter, bindingID))
                 return true;
+        }
+
         return false;
     }
 
@@ -117,7 +120,7 @@ public static class HotkeyDefaults
         for (int readIndex = 0; readIndex < hotkeys.Count; readIndex++)
         {
             HotkeyBinding b = hotkeys[readIndex];
-            (HotkeyAction, string, int) key = (b.Action, b.Parameter ?? string.Empty, b.BindingID);
+            (HotkeyAction, string, int) key = (b.Action, b.Parameter, b.BindingID);
             if (!seen.Add(key)) continue;
 
             if (writeIndex != readIndex) hotkeys[writeIndex] = b;

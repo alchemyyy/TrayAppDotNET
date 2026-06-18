@@ -30,9 +30,7 @@ internal static class NetworkAvaloniaRunner
                     CompositionMode = [Win32CompositionMode.RedirectionSurface],
                 });
 
-#if DEBUG
                 builder = builder.UseHotReload();
-#endif
 
                 return builder;
             });
@@ -432,7 +430,7 @@ internal sealed class NetworkAvaloniaApp : Application
 
     private void ScheduleKeepWarmPriming()
     {
-        Dispatcher.UIThread.Post(async () =>
+        Dispatcher.UIThread.Post(async void () =>
         {
             try
             {

@@ -22,13 +22,13 @@ internal static class AppServices
     public static TrayAppDotNETStartupManager Startup { get; } = new(new TrayAppDotNETStartupOptions(
         Program.ApplicationName,
         InstallLayout,
-        () => Installation!.DetectAll(),
+        () => Installation.DetectAll(),
         TADNLog.Log));
 
     public static TrayAppDotNETStartMenuShortcut StartMenu { get; } = new(new TrayAppDotNETStartMenuShortcutOptions(
         Program.ApplicationName,
         InstallLayout,
-        () => Installation!.DetectAll(),
+        () => Installation.DetectAll(),
         TADNLog.Log));
 
     public static TrayAppDotNETInstallIdentity InstallIdentity { get; } = new(

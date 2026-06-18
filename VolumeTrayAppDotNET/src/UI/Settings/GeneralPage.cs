@@ -188,7 +188,7 @@ public sealed partial class VolumeSettingsWindow
             bat.Dispose();
         }
 
-        Dispatcher.UIThread.Post(async () =>
+        Dispatcher.UIThread.Post(async void () =>
         {
             refreshAfterInstallChange();
             if (exitCode != 0)

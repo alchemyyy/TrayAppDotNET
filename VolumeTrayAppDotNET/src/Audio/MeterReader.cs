@@ -1,4 +1,3 @@
-using VolumeTrayAppDotNET.Interop;
 using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
 
 namespace VolumeTrayAppDotNET.Audio;
@@ -35,28 +34,26 @@ internal static class MeterReader
         try
         {
             meter.GetMeteringChannelCount(out uint chanCount);
-            if (chanCount == 0) return;
-
-            if (chanCount == 1)
+            switch (chanCount)
             {
-                // Mono: GetPeakValue avoids the buffer entirely, and the matching min/max keeps
-                // the stereo overlay coincident with the base bar. Unified mode is a no-op here
-                // since both values are already equal.
-                meter.GetPeakValue(out float p);
-                min = p;
-                max = p;
-                return;
-            }
-
-            // Exotic > MaxStackChannels endpoints fall back to GetPeakValue (single max-over-all)
-            // so we never put a 100ch+ buffer on the stack. The peak meter only visualizes the
-            // first two channels anyway, so the mono fallback is a graceful degradation.
-            if (chanCount > MaxStackChannels)
-            {
-                meter.GetPeakValue(out float fp);
-                min = fp;
-                max = fp;
-                return;
+                case 0:
+                    return;
+                case 1:
+                    // Mono: GetPeakValue avoids the buffer entirely, and the matching min/max keeps
+                    // the stereo overlay coincident with the base bar. Unified mode is a no-op here
+                    // since both values are already equal.
+                    meter.GetPeakValue(out float p);
+                    min = p;
+                    max = p;
+                    return;
+                // Exotic > MaxStackChannels endpoints fall back to GetPeakValue (single max-over-all)
+                // so we never put a 100ch+ buffer on the stack. The peak meter only visualizes the
+                // first two channels anyway, so the mono fallback is a graceful degradation.
+                case > MaxStackChannels:
+                    meter.GetPeakValue(out float fp);
+                    min = fp;
+                    max = fp;
+                    return;
             }
 
             // COM contract requires u32ChannelCount to match GetMeteringChannelCount. Stack buffer

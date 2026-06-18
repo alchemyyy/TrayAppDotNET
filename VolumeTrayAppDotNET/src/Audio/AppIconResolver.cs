@@ -4,7 +4,6 @@ using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
-using VolumeTrayAppDotNET.Interop;
 using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
 
 namespace VolumeTrayAppDotNET.Audio;

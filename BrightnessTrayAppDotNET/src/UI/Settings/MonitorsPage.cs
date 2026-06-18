@@ -173,16 +173,14 @@ public sealed partial class BrightnessSettingsWindow
     private List<MonitorSettingsRow> BuildMonitorRows()
     {
         Dictionary<string, MonitorInfo> live = (_monitorService?.Monitors ?? [])
-            .Where<MonitorInfo>(static m => !m.IsMaster && !string.IsNullOrWhiteSpace(m.EDIDKey))
+            .Where(static m => !m.IsMaster && !string.IsNullOrWhiteSpace(m.EDIDKey))
             .GroupBy(static m => m.EDIDKey, StringComparer.Ordinal)
             .ToDictionary(static g => g.Key, static g => g.First(), StringComparer.Ordinal);
         HashSet<string> keys = new(live.Keys, StringComparer.Ordinal);
-        foreach (KnownDisplayEntry known in _settings.KnownDisplays)
-            if (!string.IsNullOrWhiteSpace(known.EDIDKey))
-                keys.Add(known.EDIDKey);
-        foreach (MonitorOverrideEntry ov in _settings.MonitorOverrides)
-            if (!string.IsNullOrWhiteSpace(ov.ID))
-                keys.Add(ov.ID);
+        foreach (KnownDisplayEntry known in _settings.KnownDisplays.Where(known => !string.IsNullOrWhiteSpace(known.EDIDKey)))
+            keys.Add(known.EDIDKey);
+        foreach (MonitorOverrideEntry monitorOverrideEntry in _settings.MonitorOverrides.Where(ov => !string.IsNullOrWhiteSpace(ov.ID)))
+            keys.Add(monitorOverrideEntry.ID);
         List<MonitorSettingsRow> rows = [];
         foreach (string EDIDKey in keys.OrderBy(static k => k, StringComparer.OrdinalIgnoreCase))
         {

@@ -149,8 +149,7 @@ public static class TADNLog
 
         string applicationName =
             Path.GetFileNameWithoutExtension(Environment.ProcessPath)
-            ?? AppDomain.CurrentDomain.FriendlyName
-            ?? "TrayAppDotNET";
+            ?? AppDomain.CurrentDomain.FriendlyName;
 
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

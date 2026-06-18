@@ -72,7 +72,7 @@ internal sealed class WAVTemplate
     /// Parses an already-loaded byte buffer. Returns null if the buffer isn't a well-formed RIFF /
     /// WAVE with a fmt chunk before its data chunk and all four format fields populated.
     /// </summary>
-    public static WAVTemplate? FromBytes(byte[] data)
+    public static WAVTemplate? FromBytes(byte[]? data)
     {
         if (data == null || data.Length < 12) return null;
         if (data[0] != 'R' || data[1] != 'I' || data[2] != 'F' || data[3] != 'F') return null;

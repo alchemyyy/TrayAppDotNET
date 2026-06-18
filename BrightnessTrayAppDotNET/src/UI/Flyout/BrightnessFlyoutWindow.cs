@@ -15,6 +15,7 @@ using Avalonia.Threading;
 using BrightnessTrayAppDotNET.Interop.NightLight;
 using BrightnessTrayAppDotNET.Utils;
 using TrayAppDotNETCommon.Localization;
+using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
@@ -160,8 +161,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         _layout = FlyoutLayout.From(this);
 
-        if (_session != null)
-            RebuildVisual();
+        RebuildVisual();
     }
 
     private FlyoutLayout Layout =>
@@ -1103,7 +1103,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ShowUpdateConfirmation()
     {
         if (_isUpdateDownloadInFlight) return;
-        var update = AppServices.UpdateCheckService?.AvailableUpdate;
+        UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
         if (update == null) return;
 
         ShowConfirmOverlay(
@@ -1121,8 +1121,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void StartUpdateDownload()
     {
         if (_isUpdateDownloadInFlight) return;
-        var service = AppServices.UpdateCheckService;
-        var info = service?.AvailableUpdate;
+        UpdateCheckService? service = AppServices.UpdateCheckService;
+        UpdateInfo? info = service?.AvailableUpdate;
         if (service == null || info == null) return;
 
         _isUpdateDownloadInFlight = true;

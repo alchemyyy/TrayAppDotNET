@@ -31,7 +31,7 @@ internal static class EndpointSoundPlayback
     /// Takes a parsed <see cref="WAVTemplate"/> so the caller (which already holds one) doesn't
     /// re-parse the RIFF chunks on every ding.
     /// </summary>
-    public static void PlayAsync(string deviceId, WAVTemplate wav)
+    public static void PlayAsync(string deviceId, WAVTemplate? wav)
     {
         if (string.IsNullOrEmpty(deviceId) || wav == null) return;
         Task.Run(() => Play(deviceId, wav));
@@ -58,7 +58,6 @@ internal static class EndpointSoundPlayback
             // apartment we'll be calling from. Re-acquiring is cheap (in-proc, microseconds).
             enumerator = MMDeviceEnumeratorFactory.Create();
             enumerator.GetDevice(deviceId, out device);
-            if (device == null) return;
 
             int hr = device.Activate(typeof(IAudioClient).GUID, ClsCtx.ALL, IntPtr.Zero, out client);
             if (hr < 0 || client == null) return;
@@ -77,9 +76,9 @@ internal static class EndpointSoundPlayback
             formatPtr = Marshal.AllocHGlobal(format.Length);
             Marshal.Copy(format, 0, formatPtr, format.Length);
 
-            uint streamFlags = AudioClientStreamFlags.NoPersist
-                               | AudioClientStreamFlags.AutoConvertPcm
-                               | AudioClientStreamFlags.SrcDefaultQuality;
+            const uint streamFlags = AudioClientStreamFlags.NoPersist
+                                     | AudioClientStreamFlags.AutoConvertPcm
+                                     | AudioClientStreamFlags.SrcDefaultQuality;
             hr = client.Initialize(AudioClientShareMode.Shared, streamFlags,
                 TimeConstants.EndpointSoundPlaybackBufferDurationHns, 0, formatPtr, IntPtr.Zero);
             if (hr < 0)
@@ -94,12 +93,11 @@ internal static class EndpointSoundPlayback
             hr = client.GetService(typeof(IAudioRenderClient).GUID, out render);
             if (hr < 0 || render == null) return;
 
-            int byteCursor = 0;
-            int totalBytes = dataLength;
+
 
             // Initial fill before Start so the engine never plays a glitch of silence.
-            byteCursor += FillBuffer(render, bufferFrames, wavBytes, dataOffset + byteCursor,
-                totalBytes - byteCursor, blockAlign);
+             int byteCursor = FillBuffer(render, bufferFrames, wavBytes, dataOffset,
+                dataLength, blockAlign);
 
             hr = client.Start();
             if (hr < 0) return;
@@ -111,15 +109,13 @@ internal static class EndpointSoundPlayback
                 waited += TimeConstants.EndpointSoundPlaybackPollSliceMs;
 
                 if (client.GetCurrentPadding(out uint padding) < 0) break;
-                if (byteCursor >= totalBytes && padding == 0) break;
-                if (byteCursor < totalBytes)
+                if (byteCursor >= dataLength && padding == 0) break;
+                if (byteCursor >= dataLength) continue;
+                uint freeFrames = bufferFrames > padding ? bufferFrames - padding : 0;
+                if (freeFrames > 0)
                 {
-                    uint freeFrames = bufferFrames > padding ? bufferFrames - padding : 0;
-                    if (freeFrames > 0)
-                    {
-                        byteCursor += FillBuffer(render, freeFrames, wavBytes, dataOffset + byteCursor,
-                            totalBytes - byteCursor, blockAlign);
-                    }
+                    byteCursor += FillBuffer(render, freeFrames, wavBytes, dataOffset + byteCursor,
+                        dataLength - byteCursor, blockAlign);
                 }
             }
 

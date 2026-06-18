@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
-using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 
 namespace TrayAppDotNETCommon.Utils;
@@ -49,7 +48,7 @@ public static class UninstallScript
             if (scope == InstallScope.ProgramFiles) psi.Verb = "runas";
 
             Process? p = Process.Start(psi);
-            if (p != null) p.EnableRaisingEvents = true;
+            p?.EnableRaisingEvents = true;
             return p;
         }
         catch (Win32Exception ex) when ((uint)ex.NativeErrorCode == 0x800704C7 || ex.NativeErrorCode == 1223)

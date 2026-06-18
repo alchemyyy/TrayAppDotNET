@@ -26,9 +26,7 @@ internal static class VolumeAvaloniaRunner
             args,
             builder =>
             {
-#if DEBUG
                 builder = builder.UseHotReload();
-#endif
 
                 return builder;
             });
@@ -86,10 +84,7 @@ internal sealed class VolumeAvaloniaApp : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void WireCrashHandlers()
-    {
-        TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
-    }
+    private static void WireCrashHandlers() => TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
 
     private void LoadSettingsAndTheme()
     {
@@ -507,7 +502,7 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void ScheduleKeepWarmPriming()
     {
-        Dispatcher.UIThread.Post(async () =>
+        Dispatcher.UIThread.Post(async void () =>
         {
             try
             {

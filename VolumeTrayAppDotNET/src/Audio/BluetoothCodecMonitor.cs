@@ -282,11 +282,11 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
             StringBuilder sb = new("BluetoothCodecMonitor: A2dpStreaming schema -");
             for (int i = 0; i < names.Length; i++)
             {
-                object? value = null;
+                object? value;
                 try { value = evt.PayloadValue(i); }
                 catch { value = "<unreadable>"; }
 
-                sb.Append(' ').Append('[').Append(i).Append(']').Append(names[i] ?? "?").Append('=').Append(value);
+                sb.Append(' ').Append('[').Append(i).Append(']').Append(names[i]).Append('=').Append(value);
             }
 
             TADNLog.LogDebug(sb.ToString());

@@ -231,7 +231,7 @@ public sealed class GlobalHotkeyService<TAction, TBinding>(
 
     public HotkeyApplyResult<TAction, TBinding> Apply(IEnumerable<TBinding> bindings)
     {
-        ObjectDisposedException.ThrowIf(_disposed, nameof(GlobalHotkeyService<TAction, TBinding>));
+        ObjectDisposedException.ThrowIf(_disposed, nameof(GlobalHotkeyService<,>));
 
         if (_window == null) throw new InvalidOperationException("Initialize must be called before Apply.");
 

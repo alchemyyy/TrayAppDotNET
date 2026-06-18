@@ -398,7 +398,7 @@ public sealed class UpdateCheckService : IDisposable
         if (string.IsNullOrEmpty(assetUrl)) return null;
 
         string displayName = string.IsNullOrWhiteSpace(name) ? tag : name;
-        return new UpdateInfo(version, tag, displayName, body, assetUrl!, assetSize);
+        return new UpdateInfo(version, tag, displayName, body, assetUrl, assetSize);
     }
 
     private async Task<bool> DownloadAssetWithRetryAsync(

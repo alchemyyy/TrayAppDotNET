@@ -122,7 +122,7 @@ public static class TrayAppDotNETSettingsXml
         {
             element.Add(new XElement("Binding",
                 new XAttribute(nameof(HotkeyBinding.Action), hotkey.Action.ToString()),
-                new XAttribute(nameof(HotkeyBinding.Parameter), hotkey.Parameter ?? string.Empty),
+                new XAttribute(nameof(HotkeyBinding.Parameter), hotkey.Parameter),
                 new XAttribute(nameof(HotkeyBinding.Modifiers), XmlConvert.ToString(hotkey.Modifiers)),
                 new XAttribute(nameof(HotkeyBinding.VirtualKey), XmlConvert.ToString(hotkey.VirtualKey)),
                 new XAttribute(nameof(HotkeyBinding.Enabled), XmlConvert.ToString(hotkey.Enabled)),

@@ -1,6 +1,5 @@
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.UI.Flyout;
-using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
 using BrightnessHotkeyBinding = BrightnessTrayAppDotNET.Models.HotkeyBinding;
@@ -18,13 +17,13 @@ internal static class AppServices
     public static TrayAppDotNETStartupManager Startup { get; } = new(new TrayAppDotNETStartupOptions(
         Program.ApplicationName,
         InstallLayout,
-        () => Installation!.DetectAll(),
+        () => Installation.DetectAll(),
         WPFLog.Log));
 
     public static TrayAppDotNETStartMenuShortcut StartMenu { get; } = new(new TrayAppDotNETStartMenuShortcutOptions(
         Program.ApplicationName,
         InstallLayout,
-        () => Installation!.DetectAll(),
+        () => Installation.DetectAll(),
         WPFLog.Log));
 
     public static TrayAppDotNETInstallIdentity InstallIdentity { get; } = new(

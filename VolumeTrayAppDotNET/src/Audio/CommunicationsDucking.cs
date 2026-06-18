@@ -164,14 +164,14 @@ internal static class CommunicationsDucking
         }
 
         if (hWake != IntPtr.Zero) Kernel32Wait.SetEvent(hWake);
-        try { toJoin?.Join(500); }
+        try { toJoin.Join(500); }
         catch { }
 
         lock (Gate)
         {
             if (_hRegEvent != IntPtr.Zero) Kernel32.CloseHandle(_hRegEvent);
             if (_hWakeEvent != IntPtr.Zero) Kernel32.CloseHandle(_hWakeEvent);
-            if (_hKey != IntPtr.Zero) Advapi32.RegCloseKey(_hKey);
+            if (_hKey != IntPtr.Zero) _ = Advapi32.RegCloseKey(_hKey);
             _hRegEvent = IntPtr.Zero;
             _hWakeEvent = IntPtr.Zero;
             _hKey = IntPtr.Zero;

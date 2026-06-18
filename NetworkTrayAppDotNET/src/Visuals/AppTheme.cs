@@ -4,7 +4,6 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.Visuals;
-using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 
 namespace NetworkTrayAppDotNET.Visuals;
 
