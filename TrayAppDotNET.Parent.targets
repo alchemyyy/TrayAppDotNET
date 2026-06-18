@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <TrayAppDotNETCrashHandlerProject Condition="'$(TrayAppDotNETCrashHandlerProject)' == '' and '$(TrayAppDotNETCommonRoot)' != ''">$(TrayAppDotNETCommonRoot)\watcher\TrayAppDotNETCrashHandler.vcxproj</TrayAppDotNETCrashHandlerProject>
+    <TrayAppDotNETCrashHandlerProject Condition="'$(TrayAppDotNETCrashHandlerProject)' == '' and '$(TrayAppDotNETCommonRoot)' != ''">$(TrayAppDotNETCommonRoot)\TrayAppDotNETCrashHandler\TrayAppDotNETCrashHandler.vcxproj</TrayAppDotNETCrashHandlerProject>
     <TrayAppDotNETCrashHandlerConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</TrayAppDotNETCrashHandlerConfiguration>
     <TrayAppDotNETCrashHandlerConfiguration Condition="'$(TrayAppDotNETCrashHandlerConfiguration)' == ''">Release</TrayAppDotNETCrashHandlerConfiguration>
     <TrayAppDotNETCrashHandlerBuildRoot Condition="'$(TrayAppDotNETCrashHandlerBuildRoot)' == ''">$(IntermediateOutputPath)native-crash-handler\</TrayAppDotNETCrashHandlerBuildRoot>
