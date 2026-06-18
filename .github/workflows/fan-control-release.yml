@@ -1,0 +1,55 @@
+name: Fan Control Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version used for package naming. Defaults to 0.0.<run_number>.
+        required: false
+        type: string
+      runtime:
+        description: Runtime identifier.
+        required: true
+        default: win-x64
+        type: choice
+        options:
+          - win-x64
+          - win-arm64
+          - win-x86
+      publish_github_release:
+        description: Upload assets to a GitHub Release.
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: Release tag to create/update. Defaults to trayapp-v<version>.
+        required: false
+        type: string
+      draft:
+        description: Create the GitHub Release as a draft when publishing.
+        required: true
+        default: true
+        type: boolean
+      prerelease:
+        description: Mark the GitHub Release as a prerelease when publishing.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    uses: ./.github/workflows/_trayapp-release.yml
+    with:
+      app_name: FanControlTrayAppDotNET
+      project_path: FanControlTrayAppDotNET/src/FanControlTrayAppDotNET.csproj
+      artifact_slug: fan-control-tray-app
+      version: ${{ inputs.version }}
+      runtime: ${{ inputs.runtime }}
+      publish_github_release: ${{ inputs.publish_github_release }}
+      release_tag: ${{ inputs.release_tag }}
+      draft: ${{ inputs.draft }}
+      prerelease: ${{ inputs.prerelease }}
+

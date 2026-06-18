@@ -1,0 +1,65 @@
+name: TrayApp Debug Build
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        required: true
+        type: string
+      project_path:
+        required: true
+        type: string
+      artifact_slug:
+        required: true
+        type: string
+      dotnet_version:
+        required: false
+        type: string
+        default: 10.0.x
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: ${{ inputs.app_name }} Debug
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+
+      - name: Show .NET info
+        shell: pwsh
+        run: dotnet --info
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore "${{ inputs.project_path }}"
+
+      - name: Build Debug
+        shell: pwsh
+        run: >
+          dotnet build "${{ inputs.project_path }}"
+          --configuration Debug
+          --no-restore
+          -p:SkipKillRunningInstance=true
+          -p:SkipPublishAfterBuild=true
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_slug }}-debug-${{ github.sha }}
+          path: ${{ inputs.app_name }}/bin/Debug/**
+          if-no-files-found: error
+          retention-days: 14
+

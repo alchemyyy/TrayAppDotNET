@@ -1,0 +1,35 @@
+name: Volume Debug
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - VolumeTrayAppDotNET/**
+      - TrayAppDotNETCommon/**
+      - Directory.Build.props
+      - TrayAppDotNET.Parent.props
+      - TrayAppDotNET.Parent.targets
+      - .github/workflows/volume-debug.yml
+      - .github/workflows/_trayapp-debug.yml
+  pull_request:
+    paths:
+      - VolumeTrayAppDotNET/**
+      - TrayAppDotNETCommon/**
+      - Directory.Build.props
+      - TrayAppDotNET.Parent.props
+      - TrayAppDotNET.Parent.targets
+      - .github/workflows/volume-debug.yml
+      - .github/workflows/_trayapp-debug.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    uses: ./.github/workflows/_trayapp-debug.yml
+    with:
+      app_name: VolumeTrayAppDotNET
+      project_path: VolumeTrayAppDotNET/src/VolumeTrayAppDotNET.csproj
+      artifact_slug: volume-tray-app
+
