@@ -120,7 +120,7 @@
         <Thickness x:Key="Flyout.EqualizerBadgeMargin">0,0,-2,-1</Thickness>
         <sys:Double x:Key="Flyout.DeviceStateFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.DeviceStateDisabledFontSize">34</sys:Double>
-        <TranslateTransform x:Key="Flyout.DeviceStateDisabledTransform" X="-2" Y="-4" />
+        <TranslateTransform x:Key="Flyout.DeviceStateDisabledTransform" X="-1.5" Y="-0.5" />
 
         <sys:Double x:Key="Flyout.TextButtonFontSize">13</sys:Double>
         <Thickness x:Key="Flyout.TextButtonBorderThickness">1</Thickness>
