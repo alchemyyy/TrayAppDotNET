@@ -1,0 +1,197 @@
+@startuml state_ownership
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+!include dark-theme.puml
+title State / source-of-truth audit - every fact and where it lives
+
+' Forward-declare so notes can reference it from inside the package below.
+' (PlantUML chokes on `note bottom of X` when X is declared later.)
+component NightLightProvider as NLP
+
+' ----- "Current brightness" - 4 places per monitor -----
+package "Current brightness per monitor" $TINT_RED {
+  [DDC monitor (HW)\n*authoritative source*]                        as DDCHW
+  [MonitorInfo.Brightness\n(0-100)\nUI mirror / user intent]        as MIB
+  [MonitorInfo.CurveTargetBrightness\n(curve-driven indicator;\nactive iff IsCurveDriven;\nmaster gated on IsCurveDriven - H-29)] as MICT
+  [MonitorInfo.VirtualBrightness\nmaster slider unclamped]          as MIV
+  [MonitorInfo.IsReadDegraded\n(orthogonal to SliderState;\nslider stays operable while\nreads fail - cf2e77e)] as MIRD
+  [MonitorInfo.IsDragging\n(curve-apply skip flag - H-10;\nset by BFL on slider thumb drag)] as MIDR
+  component "MonitorEntry.NormCurveXs/Ys +\nFloorPercent / CeilingPercent\n(per-monitor norm curve\nconsumed by DoBrightnessWriteAsync)" as MENC
+  component "KnownDisplayEntry.LastBusBrightness\n(percent; stamped in MonitorService\nat write-success site;\nseed on cold-start +\nrecovery promote)" as KDLB
+  component "BrightnessProfile.MonitorStates[]\n(persisted in profiles.xml)" as BPM
+  DDCHW <-> MIB  : EnqueueDirectBrightness\n(throttled write -> retry -> verify)
+  MICT  ..> DDCHW : drained by EnvironmentalCurveService\nthrough MonitorService throttler\n(skip when IsDragging - H-10)
+  MIB   ..> MIV   : master / individual sync
+  MIB   ..> BPM   : on profile Save
+  MENC  ..> DDCHW : per-monitor floor/ceiling\nand norm curve gating
+  KDLB  ..> MIB  : cold-start seed for new-monitor\nbranch + recovery promote
+}
+
+note as N_THROTTLE $TINT_RED
+  Latest-pending-wins lives in
+  MonitorService._writeThrottler (AsyncThrottler<string>,
+  per-DeviceID key). MonitorEntry only carries
+  LastEnqueuedPercentage (dedupe across completed
+  writes) - the queue itself is on the throttler.
+end note
+N_THROTTLE .. MICT
+
+' ----- "Night-light" - now backend-cached, not 4-place -----
+package "Night-light state" $TINT_BLUE {
+  [Windows BlueLightReduction\n(CloudStore / SettingsHandler\n*OS SoT*)]                  as NLOS
+  [AppSettings.NightLightFallbackMode\n(backend selector: Auto /\nRegistry / GammaRamp /\nSettingsHandler)]  as ASNLM
+  [AppSettings.NightLightLastNonZeroStrength\n(restore-on-toggle memo, 0-100)]            as ASNLR
+  [AppSettings.TurnOffNightLightAtZeroStrength\nAppSettings.NightLightPDBDownloadTimeoutSeconds] as ASNLT
+  [BrightnessFlyout._isNightLightActive\n+ NightLightMonitor.Brightness\n(UI mirror, polled from NLP)] as BFNL
+  [NightLightMonitor.CurveTargetBrightness\n(curve indicator)]                            as NLCT
+  [BrightnessProfile.NightLight\n(0-100, persisted)]                                      as BPN
+  ASNLM ..> NLP : settings-Changed -> InvalidateBackendCache
+  ASNLR <.. NLP : SetStrength persists\nlast non-zero
+  BFNL  ..> NLP : SetStrength on slider release\n+ slider zero-trap toggle
+  NLCT  ..> NLP : SetStrength per curve tick\n(persistAsLastUserValue=false)
+  BPN   ..> NLP : on profile activate
+  NLP   <-> NLOS
+}
+
+note bottom of NLP
+  NightLightProvider is a static facade with
+  _backendCached / _lastResolvedBackend /
+  _lastResolvedFallbackMode under _gate.
+  Resolves once to Registry or SettingsHandler;
+  Auto/GammaRamp currently fall through to Registry.
+  AppSettings.Changed re-probes only when the
+  fallback-mode field actually moved.
+end note
+
+' ----- Active profile / curve -----
+package "Active profile / curve" $TINT_GREEN {
+  [ProfileManager._selectedIndex]                      as PMI
+  component "ProfileManager.Profiles\n(ProfileCollection,\npersisted to profiles.xml)" as PPI
+  [ProfileManager.HasUnsavedChanges]                   as HUC
+  [BrightnessFlyout.IsBrightnessCurveEnabled\nBrightnessFlyout.IsNightLightCurveEnabled\n(mirrored to EnvironmentalCurveService\n+ persisted on AppSettings)] as FCEN
+  [EnvironmentalCurveService\n._cachedShiftedCurve\n(sun-shifted clone;\nkey = (sourceCurveRef,\nVersion, Date, Lat, Lon, DST) - H-28)] as ECS_CACHE
+  [EnvironmentalCurveService\n._isInDisabledPeriod\n+ _isSuspended (preview sweep)] as ECS_FLAGS
+  [IsBrightnessCurveEnabledQuery + IsInDisabledPeriodQuery\n(live closures passed to MonitorService\nso physical brightness recovery consults real-time\nengagement / disabled-period - H-03)] as CFCQ
+  PMI -> PPI
+  PPI ..> ECS_CACHE : cached lazily;\nkeyed by source-curve identity\nplus date / location / DST / Version
+  FCEN ..> ECS_CACHE : engages timer\n+ tick apply
+  FCEN ..> CFCQ : live read by recovery /\nharmonize call sites
+  ECS_FLAGS ..> CFCQ
+}
+
+' ----- Slider visible state (single enum) -----
+package "Slider visible / behavioural state" $TINT_BLUE {
+  [MonitorInfo.SliderState\n(enum: Enabled / Disabled /\nFailed / CurveActive /\nCurveSleeping / CurveReleased)] as SS
+  [SliderStateMachine\n(pure transition fns)]                      as SSM
+  [MonitorInfo._preFailureSliderState\n-> WasCurveDrivenBeforeFailure] as SSPRE
+  component "BrightnessProfile.MonitorStates[i]\n.IsSliderEnabled\n(persisted: 'user excluded?')" as BPMS
+  SSM ..> SS  : caller writes result back\n(setter raises one PropertyChanged)
+  SS  ..> SSPRE : stash on transition into Failed
+  SS  ..> BPMS : on profile Save\n(SliderState != Disabled)
+}
+
+' ----- Monitor connection list -----
+package "Monitor connection list" $TINT_AMBER {
+  [MonitorService.Monitors\n(ObservableCollection,\nflyout binds direct)]              as MSM
+  component "KnownDisplaysStore\n(displays.json,\nEDID-keyed history)"                 as KDS
+  [KnownDisplayEntry\n.WasEverDDCCapable\n(sticky)]                                    as ASKD
+  component "AppSettings.KnownDisplays[]\n(legacy, migrated to KDS\non first load)"     as ASK
+  component "AppSettings.MonitorOrder[]\nAppSettings.MonitorOverrides[]"               as ASO
+  MSM ..> KDS : on Refresh()\n(DDC-capability promotion)
+  KDS ..> ASKD
+  ASK ..> KDS : one-shot first-run migration
+  MSM ..> ASO : reads ordering / per-monitor overrides
+}
+
+' ----- Sun position -----
+package "Sun / time-of-day" $TINT_PURPLE {
+  [DateTime.Now\nsampled fresh per tick]                              as DTN
+  [SPACalculator output\n(via SunShifter, src/Utils)]                 as SPA
+  [EnvironmentalCurve.BrightnessAnchor\nEnvironmentalCurve.DisabledPeriodAnchor\n(2x SunAnchor record:\nDate, Lat, Lon, UseDaylightSavings)] as ECA
+  [AppSettings.EnvironmentalLatitude\n/EnvironmentalLongitude\n(global geo SoT)]       as ASGEO
+  DTN -> SPA
+  ASGEO -> SPA
+  SPA -> ECA : invalidates clone\nif date / lat / lon / DST differ
+}
+
+' ----- Hotkeys -----
+package "Hotkey registrations" $TINT_TEAL {
+  component "AppSettings.Hotkeys\n(List<HotkeyBinding>,\npersisted SoT)"               as ASH
+  [GlobalHotkeyService._byId\n(live RegisterHotKey IDs;\nrebuilt on Apply)]            as GHS
+  ASH ..> GHS : Apply diff-and-replace\n(on settings save\n+ MonitorsRefreshed)
+}
+
+' ----- Tray icon -----
+package "Tray icon state" $TINT_AMBER {
+  [TrayIconManager._iconStyle\n+ _isOnCooldown / _updatePending]                       as TIM
+  [AppSettings.TrayIconStyle\nAppSettings.DynamicIconBrightnessTracking\nAppSettings.TrayIcon{,Bright,Dim}Color] as ASTI
+  ASTI ..> TIM : settings-Changed -> reapply
+}
+
+' ----- Theme -----
+package "Theme" $TINT_PINK {
+  component "AppTheme\n(theme.xml; ThemeColor pairs,\nglyphs, profile-button defaults)" as APT
+  [AppTheme.IsLightTheme\n(runtime; SystemEvents.UserPreferenceChanged\nfiltered to UserPreferenceCategory.General;\nregkey read on-demand inside handler)] as APTL
+  [AppSettings.ThemeMode\n(System / Light / Dark)]            as ASTM
+  [AppSettings NullableThemeColor overrides\n(Text, Background, TrayIcon*, Environmental*Curve, etc.)] as ASCOL
+  APTL ..> APT
+  ASTM ..> APT : ResolveEffectiveIsLightTheme
+  ASCOL ..> APT : per-color override wins\nover ThemeColor default
+}
+
+note as N_REFRESH $TINT_GREEN
+  **Refresh reentrancy guard (Wave 2 fix - H-01):**
+  MonitorService.Refresh captures snapshots
+  (latestByID, edidKeyByID, nameOverridesByEDID,
+  strategyChanged) in Phase A and consumes them
+  in deferred Phase B at +1500 ms. A new
+  _refreshGen Volatile counter bumps on every
+  Refresh entry; the deferred Phase B closure
+  compares its captured gen against the current
+  value and bails when superseded. Sweep at
+  +2 s / +5 s no longer races the initial
+  Phase B.
+end note
+
+note as N_SEED $TINT_AMBER
+  **MasterMonitor.Brightness seed:**
+  BrightnessFlyout ctor seeds from
+  AppSettings.LastMasterBrightness ?? 100.
+  After acquisition, the master is recomputed from
+  connected hardware-functional display values using
+  AppSettings.MasterSliderMode (lowest / average / highest).
+  This recompute is UI-only and does not replay DDC writes.
+end note
+
+note as N1
+  **Multiple sources of truth still flagged:**
+  - Brightness mirrored across 4 places
+    (HW, MonitorInfo.Brightness,
+    CurveTargetBrightness, profile state).
+    Curve target intentionally separated from
+    user-driven Brightness.
+  - Night-light SoT is the OS (CloudStore or
+    SettingsHandler); we cache the resolved
+    backend in NightLightProvider, mirror live
+    state on _isNightLightActive and on the
+    NightLightMonitor pseudo-row.
+  - Curve-engagement flag has 3 mirrors:
+    BrightnessFlyout.IsBrightnessCurveEnabled,
+    EnvironmentalCurveService.Is*CurveEnabled,
+    AppSettings.Environmental*CurveEnabled
+    (persistence). Flyout setter writes all three.
+  - KnownDisplays now lives in displays.json
+    (KnownDisplaysStore). AppSettings.KnownDisplays
+    survives only as the one-shot migration source.
+  - SunAnchor record collapses what used to be 8
+    flat anchor fields into 2 structs (curve +
+    disabled-period); XML shape preserved by flat
+    Last*SunShift{Date,Lat,Lon,UseDaylightSavings}
+    properties that route through the struct.
+  - Persisted IsSliderEnabled bool is a lossy
+    projection of SliderState (only Disabled vs
+    not-Disabled survives Save / Apply). Curve /
+    sleep / failed states reconstitute on load
+    from curve flags + DDC capability instead.
+end note
+
+@enduml

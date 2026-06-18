@@ -1,0 +1,56 @@
+<Window
+    x:Class="FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    Title="Fan Properties"
+    Width="{DynamicResource FanProperties.WindowWidth}"
+    Height="{DynamicResource FanProperties.WindowHeight}"
+    MinWidth="{DynamicResource FanProperties.WindowWidth}"
+    MinHeight="{DynamicResource FanProperties.WindowHeight}"
+    MaxWidth="{DynamicResource FanProperties.WindowWidth}"
+    MaxHeight="{DynamicResource FanProperties.WindowHeight}"
+    WindowDecorations="None"
+    CanResize="False"
+    Background="Transparent"
+    ShowInTaskbar="False"
+    Topmost="True"
+    ShowActivated="False">
+
+    <Window.Resources>
+        <sys:Double x:Key="FanProperties.WindowWidth">400</sys:Double>
+        <sys:Double x:Key="FanProperties.WindowHeight">300</sys:Double>
+        <sys:Double x:Key="FanProperties.TitleBarHeight">32</sys:Double>
+        <sys:Double x:Key="FanProperties.FooterHeight">42</sys:Double>
+        <sys:Double x:Key="FanProperties.BodyLeftColumnWidth">226</sys:Double>
+        <sys:Double x:Key="FanProperties.RightPreviewHeight">112</sys:Double>
+        <sys:Double x:Key="FanProperties.TextBoxWidth">130</sys:Double>
+        <sys:Double x:Key="FanProperties.CurveComboWidth">112</sys:Double>
+        <sys:Double x:Key="FanProperties.NumberBoxWidth">82</sys:Double>
+        <sys:Double x:Key="FanProperties.RowLabelColumnWidth">82</sys:Double>
+
+        <Thickness x:Key="FanProperties.RootBorderThickness">1</Thickness>
+        <CornerRadius x:Key="FanProperties.RootCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="FanProperties.InnerCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="FanProperties.ZeroCornerRadius">0</CornerRadius>
+        <Thickness x:Key="FanProperties.TitleMargin">12,0,8,0</Thickness>
+        <Thickness x:Key="FanProperties.BodyMargin">10,8,10,0</Thickness>
+        <Thickness x:Key="FanProperties.LeftMargin">0,0,6,0</Thickness>
+        <Thickness x:Key="FanProperties.RightMargin">10,0,0,0</Thickness>
+        <Thickness x:Key="FanProperties.CurveComboMargin">0,8,0,0</Thickness>
+        <Thickness x:Key="FanProperties.FooterMargin">10,6,10,10</Thickness>
+        <Thickness x:Key="FanProperties.ResetMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="FanProperties.RadioMargin">0,0,6,0</Thickness>
+        <Thickness x:Key="FanProperties.ZeroThickness">0</Thickness>
+
+        <sys:Double x:Key="FanProperties.ValueFontSize">11</sys:Double>
+        <sys:Double x:Key="FanProperties.RadioFontSize">11</sys:Double>
+        <sys:Double x:Key="FanProperties.RowLabelFontSize">11</sys:Double>
+        <sys:Double x:Key="FanProperties.RowBottomMargin">5</sys:Double>
+        <sys:Double x:Key="FanProperties.OffsetRowBottomMargin">2</sys:Double>
+        <sys:Double x:Key="FanProperties.CaptionButtonWidth">46</sys:Double>
+        <sys:Double x:Key="FanProperties.CaptionButtonHeight">32</sys:Double>
+        <sys:Double x:Key="FanProperties.CaptionButtonFontSize">10</sys:Double>
+        <Thickness x:Key="FanProperties.CaptionButtonPadding">0</Thickness>
+    </Window.Resources>
+</Window>

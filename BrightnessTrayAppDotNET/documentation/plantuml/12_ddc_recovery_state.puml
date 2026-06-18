@@ -1,0 +1,50 @@
+@startuml ddc_recovery_state
+' Created 2026-05-13: per claudeit/_diagram_amendments.md
+!include dark-theme.puml
+title DDC recovery state machine\nEvent-triggered fallback worker re-enters acquisition
+
+' Per-monitor recovery state lives on MonitorInfo (SliderState + IsReadDegraded)
+state Healthy : SliderState != Failed\n!IsReadDegraded
+state Failed : SliderState == Failed\nLastDDCError set\n_entries.Remove, _writeThrottler.Drop
+state ReadDegraded : SliderState != Failed\nIsReadDegraded == true\nSlider operable, reads fail
+
+[*] --> Healthy
+
+Healthy --> Failed : DoBrightnessWriteAsync exhausted (:1769-1784)\nOR VerifyAppliedAsync exhausted (:1822-1882)\nOR Refresh re-probe failure (:603-612)\nOR WasEverDDCCapable monitor disappeared (:475-491)
+
+Failed --> Healthy : fallback Refresh acquisition succeeds\n(PromoteRecovered / Refresh promotion)
+Failed --> Failed : fallback Refresh acquisition still fails
+
+ReadDegraded --> Healthy : fallback Refresh read succeeds\n(IsReadDegraded=false)
+ReadDegraded --> Failed : writes start failing\n(BeginInvoke at :1295-1312)
+
+note bottom of Failed
+  MonitorsRefreshed sets one global DDC recovery-needed flag
+  when GetStuckRecoveryCandidateIds returns any Failed or
+  ReadDegraded known-DDC rows.
+
+  DDCRecoveryService starts one worker, waits 2 seconds, then
+  calls MonitorService.Refresh. That reuses the same read-only
+  acquisition path as startup/topology. No per-monitor workers,
+  no terminal abandonment, and no brightness writes inside acquisition.
+end note
+
+note bottom of ReadDegraded
+  ReadDegraded monitors STAY candidates.
+  A successful fallback Refresh read clears IsReadDegraded.
+  A write failure demotes to Failed so the same fallback worker
+  keeps trying acquisition.
+end note
+
+' Primitives explicitly NOT present (verified absent at commit 4b5600b)
+note as N_ABSENT
+  Primitives the project does NOT have today:
+  - CCD soft-replug (SetDisplayConfig deactivate/reactivate). CCD.cs has
+    only the read-only trio.
+  - PnPCycle (SetupDi disable/enable). No PnPDeviceService.cs.
+  - ElevationService / AllowPnPRecovery setting / install-elevation-task.
+  - VCP 0x04 factory reset (user-excluded per feedback memory).
+  Hard power-off VCP 0xD6 is user-initiated only (Ctrl+click).
+end note
+
+@enduml

@@ -1,0 +1,72 @@
+@startuml ddc_acquisition_activity
+!include dark-theme.puml
+title DDC acquisition lifecycle - read first, write only by mode
+
+start
+
+:Acquisition trigger;
+note right
+  Startup, topology event, startup sweep,
+  or DDC recovery can all enter here.
+end note
+
+:Enumerate displays without VCP writes;
+:Reconcile identity and park missing known-DDC rows as Failed;
+
+if (Recent topology event?) then (yes)
+  :Wait remaining post-detection settle window;
+else (no)
+endif
+
+:Phase B probe each enumerated display;
+:Read resolved brightness VCP\n(profile/user override) with retry\nand final handle refresh;
+
+if (Read succeeds?) then (yes)
+  if (Existing MonitorInfo?) then (yes)
+    :Install fresh DDC entry/handle;
+    if (Has explicit user/profile slider value?) then (yes)
+      :Preserve manual slider baseline;
+    else (no)
+      :Sync slider baseline from current DDC read\nwithout claiming user intent;
+    endif
+    :Recover SliderState using current curve flags;
+  else (no)
+    :Create MonitorInfo from current DDC read;
+    :Saved profile may later restore manual UI state;
+  endif
+  :Mark row acquired;
+else (no)
+  :Add or keep row as Failed;
+  :No automatic brightness write;
+  stop
+endif
+
+:Apply bounds and norm-curve metadata\nwithout replaying hardware;
+:Record DDC-capable observation;
+:Raise MonitorsAcquired(acquired rows);
+
+if (Brightness curve enabled?) then (yes)
+  :EnvironmentalCurveService evaluates;
+  if (Offset mode?) then (yes)
+    :Write per-monitor LastUserBrightness + offset;
+  else (no)
+    :Write absolute curve value to each curve-owned row;
+  endif
+elseif (Row disabled by user?) then (yes)
+  :Write nothing;
+elseif (Acquired row has explicit user/profile manual value?) then (yes)
+  :Write that row's manual slider value to DDC\nscaled by the row's last known VCP max;
+else (no)
+  :Write nothing\n(current DDC read is already the UI baseline);
+endif
+
+:Raise MonitorsRefreshed;
+:Recompute master slider from connected\nhardware-functional displays using MasterSliderMode;
+note right
+  Master recompute is UI state only.
+  Adding a display must not replay writes
+  to already-connected displays.
+end note
+
+stop
+@enduml

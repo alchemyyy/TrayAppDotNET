@@ -1,0 +1,327 @@
+###############################################################################
+# TrayAppDotNET -- .editorconfig
+#
+# Conventions enforced for this project. See bottom of file for rule references.
+###############################################################################
+
+root = true
+
+#==============================================================================
+# All files
+#==============================================================================
+[*]
+charset                  = utf-8
+end_of_line              = crlf
+insert_final_newline     = true
+trim_trailing_whitespace = true
+indent_style             = space
+indent_size              = 4
+max_line_length          = 120
+
+[*.{xml,xaml,csproj,props,targets,config,manifest,resx}]
+indent_size = 2
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+#==============================================================================
+# C#
+#==============================================================================
+[*.cs]
+max_line_length = 120
+guidelines      = 120
+
+#------------------------------------------------------------------------------
+# Usings
+#------------------------------------------------------------------------------
+dotnet_sort_system_directives_first         = true
+dotnet_separate_import_directive_groups     = false
+csharp_using_directive_placement            = outside_namespace:silent
+
+#------------------------------------------------------------------------------
+# Namespace layout
+#------------------------------------------------------------------------------
+dotnet_style_namespace_match_folder         = true:suggestion
+dotnet_diagnostic.IDE0130.severity          = suggestion    # Namespace does not match folder structure
+
+#------------------------------------------------------------------------------
+# Explicit types -- never `var`
+#------------------------------------------------------------------------------
+csharp_style_var_for_built_in_types         = false:error
+csharp_style_var_when_type_is_apparent      = false:error
+csharp_style_var_elsewhere                  = false:error
+dotnet_diagnostic.IDE0007.severity          = error    # Use explicit type
+dotnet_diagnostic.IDE0008.severity          = none     # Use 'var' (the inverse -- disabled)
+
+#------------------------------------------------------------------------------
+# `static` where possible
+#------------------------------------------------------------------------------
+dotnet_diagnostic.CA1822.severity           = error    # Mark members as static
+csharp_prefer_static_local_function         = true:error
+csharp_prefer_static_anonymous_function     = true:error
+dotnet_diagnostic.IDE0062.severity          = error    # Make local function static
+dotnet_diagnostic.IDE0320.severity          = error    # Make anonymous function static
+
+#------------------------------------------------------------------------------
+# Collection expressions
+#------------------------------------------------------------------------------
+dotnet_style_prefer_collection_expression   = true:error
+dotnet_diagnostic.IDE0028.severity          = error    # Use collection initializers
+dotnet_diagnostic.IDE0300.severity          = error    # Use collection expression for array
+dotnet_diagnostic.IDE0301.severity          = error    # Use collection expression for empty
+dotnet_diagnostic.IDE0302.severity          = error    # Use collection expression for stackalloc
+dotnet_diagnostic.IDE0303.severity          = error    # Use collection expression for Create()
+dotnet_diagnostic.IDE0304.severity          = error    # Use collection expression for builder
+dotnet_diagnostic.IDE0305.severity          = error    # Use collection expression for fluent
+
+#------------------------------------------------------------------------------
+# Primary constructors
+#------------------------------------------------------------------------------
+csharp_style_prefer_primary_constructors    = true:error
+dotnet_diagnostic.IDE0290.severity          = error    # Use primary constructor
+
+#------------------------------------------------------------------------------
+# Range / index operators
+#------------------------------------------------------------------------------
+csharp_style_prefer_range_operator          = true:error
+csharp_style_prefer_index_operator          = true:error
+dotnet_diagnostic.IDE0056.severity          = error    # Use index operator
+dotnet_diagnostic.IDE0057.severity          = error    # Use range operator
+
+#------------------------------------------------------------------------------
+# Pattern matching -- always merge into pattern
+#------------------------------------------------------------------------------
+csharp_style_prefer_pattern_matching                            = true:error
+csharp_style_pattern_matching_over_is_with_cast_check           = true:error
+csharp_style_pattern_matching_over_as_with_null_check           = true:error
+csharp_style_prefer_not_pattern                                 = true:error
+csharp_style_prefer_extended_property_pattern                   = true:error
+csharp_style_prefer_switch_expression                           = true:error
+dotnet_diagnostic.IDE0078.severity                              = error    # Use pattern matching
+dotnet_diagnostic.IDE0019.severity                              = error    # Use pattern matching (as / null)
+dotnet_diagnostic.IDE0020.severity                              = error    # Use pattern matching (is / cast)
+dotnet_diagnostic.IDE0066.severity                              = error    # Use switch expression
+dotnet_diagnostic.IDE0083.severity                              = error    # Use 'not' pattern
+dotnet_diagnostic.IDE0260.severity                              = error    # Use pattern matching
+
+#------------------------------------------------------------------------------
+# Unreachable code -> error. Unused functions are allowed.
+#------------------------------------------------------------------------------
+dotnet_diagnostic.CS0162.severity           = error    # Unreachable code detected
+dotnet_diagnostic.CS8763.severity           = error    # Method marked [DoesNotReturn] returns
+dotnet_diagnostic.IDE0035.severity          = error    # Remove unreachable code
+
+# Unused private members / methods are *allowed* (do not flag them).
+dotnet_diagnostic.IDE0051.severity          = none     # Remove unused private members
+dotnet_diagnostic.IDE0052.severity          = none     # Remove unread private members
+dotnet_diagnostic.CA1812.severity           = none     # Avoid uninstantiated internal classes
+
+#------------------------------------------------------------------------------
+# DllImportAttribute -- keep it. Never auto-migrate to LibraryImportAttribute.
+#------------------------------------------------------------------------------
+dotnet_diagnostic.SYSLIB1054.severity       = none     # Use 'LibraryImportAttribute' (suppressed)
+
+#------------------------------------------------------------------------------
+# Accessibility -- don't care. No "make this private" / "add modifier" nags.
+#------------------------------------------------------------------------------
+dotnet_style_require_accessibility_modifiers      = never:silent
+dotnet_diagnostic.IDE0040.severity                = none     # Add accessibility modifiers
+dotnet_diagnostic.CA1051.severity                 = none     # Do not declare visible instance fields
+dotnet_diagnostic.CA1052.severity                 = none     # Static holder types should be Static or NotInheritable
+dotnet_diagnostic.CA1707.severity                 = none     # Identifiers should not contain underscores
+dotnet_diagnostic.CA1708.severity                 = none     # Identifiers should differ by more than case
+dotnet_diagnostic.CA1815.severity                 = none     # Override equals on value types
+dotnet_diagnostic.CA1822.severity                 = error    # (kept; relisted for clarity -- static)
+dotnet_diagnostic.CA2211.severity                 = none     # Non-constant fields should not be visible
+dotnet_diagnostic.CA1024.severity                 = none     # Use properties where appropriate
+dotnet_diagnostic.CA1031.severity                 = none     # Do not catch general exception types
+
+###############################################################################
+# LINQ / IEnumerable -- minimize allocations and materialization
+#
+#------------------------------------------------------------------------------
+# Bug-level / mechanical (error)
+dotnet_diagnostic.CA1826.severity                 = error    # Use indexer instead of Enumerable.First/Last/etc on indexable collections
+dotnet_diagnostic.CA1827.severity                 = error    # Don't use Count() when Any() suffices
+dotnet_diagnostic.CA1828.severity                 = error    # Don't use CountAsync() when AnyAsync() suffices
+dotnet_diagnostic.CA1829.severity                 = error    # Use Length/Count property instead of Count()
+dotnet_diagnostic.CA1836.severity                 = error    # Prefer IsEmpty over Count when available
+dotnet_diagnostic.CA1841.severity                 = error    # Prefer Dictionary.Contains methods over .Keys.Contains()
+dotnet_diagnostic.CA1845.severity                 = error    # Use span-based string.Concat
+dotnet_diagnostic.CA1846.severity                 = error    # Prefer AsSpan over Substring
+dotnet_diagnostic.CA1851.severity                 = error    # Possible multiple enumerations of IEnumerable
+dotnet_diagnostic.CA1860.severity                 = error    # Avoid Enumerable.Any() -- prefer Length/Count check
+dotnet_diagnostic.CA1864.severity                 = error    # Prefer Dictionary.TryAdd over ContainsKey + Add
+dotnet_diagnostic.CA1865.severity                 = error    # Use char overload for single-char string ops
+dotnet_diagnostic.CA1866.severity                 = error    # Use char overload (StartsWith/EndsWith)
+dotnet_diagnostic.CA1867.severity                 = error    # Use char overload (IndexOf/Contains)
+
+# Opinionated / volume (warning -- graduate to error after a sweep)
+dotnet_diagnostic.CA1825.severity                 = warning  # Avoid zero-length array allocations (use Array.Empty<T>())
+dotnet_diagnostic.CA1859.severity                 = warning  # Use concrete return types instead of IEnumerable<T>/interface
+dotnet_diagnostic.CA1870.severity                 = warning  # Use FrozenDictionary for static lookups
+dotnet_diagnostic.CA1832.severity                 = warning  # Use AsSpan/AsMemory over Range indexers (avoids array copy)
+dotnet_diagnostic.CA1833.severity                 = warning  # Same for arrays
+
+###############################################################################
+# Brace style -- classic Allman:
+#   - Opening brace is on its own line when the closing brace will be on its own line.
+#   - One-liner braced statements (e.g. `if (x) { Foo(); }`) are still allowed.
+###############################################################################
+csharp_new_line_before_open_brace                       = all
+csharp_new_line_before_else                             = true
+csharp_new_line_before_catch                            = true
+csharp_new_line_before_finally                          = true
+csharp_new_line_before_members_in_object_initializers   = true
+csharp_new_line_before_members_in_anonymous_types       = true
+csharp_new_line_between_query_expression_clauses        = true
+
+# Braces required only when the body would span multiple lines -- single-line bodies
+# may keep `if (x) { y(); }` form (or no braces at all if the team chooses).
+csharp_prefer_braces                = when_multiline:suggestion
+csharp_preserve_single_line_blocks  = true
+csharp_preserve_single_line_statements = true
+
+#------------------------------------------------------------------------------
+# Indentation
+#------------------------------------------------------------------------------
+csharp_indent_block_contents             = true
+csharp_indent_braces                     = false
+csharp_indent_case_contents              = true
+csharp_indent_case_contents_when_block   = false
+csharp_indent_switch_labels              = true
+csharp_indent_labels                     = flush_left
+
+#------------------------------------------------------------------------------
+# Spacing
+#------------------------------------------------------------------------------
+csharp_space_after_cast                                          = false
+csharp_space_after_keywords_in_control_flow_statements           = true
+csharp_space_after_colon_in_inheritance_clause                   = true
+csharp_space_before_colon_in_inheritance_clause                  = true
+csharp_space_around_binary_operators                             = before_and_after
+csharp_space_between_method_call_name_and_opening_parenthesis    = false
+csharp_space_between_method_call_parameter_list_parentheses      = false
+csharp_space_between_method_call_empty_parameter_list_parentheses = false
+csharp_space_between_method_declaration_name_and_open_parenthesis = false
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_method_declaration_empty_parameter_list_parentheses = false
+csharp_space_between_parentheses                                 = false
+csharp_space_after_comma                                         = true
+csharp_space_before_comma                                        = false
+csharp_space_after_dot                                           = false
+csharp_space_before_dot                                          = false
+csharp_space_after_semicolon_in_for_statement                    = true
+csharp_space_before_semicolon_in_for_statement                   = false
+csharp_space_around_declaration_statements                       = false
+csharp_space_before_open_square_brackets                         = false
+csharp_space_between_empty_square_brackets                       = false
+csharp_space_between_square_brackets                             = false
+
+#------------------------------------------------------------------------------
+# Wrapping
+#------------------------------------------------------------------------------
+csharp_preserve_single_line_blocks       = true
+csharp_preserve_single_line_statements   = true
+
+#------------------------------------------------------------------------------
+# Expression-bodied members -- encourage when the body fits on a single line.
+# (Block-bodied form is still permitted for multi-statement bodies.)
+#------------------------------------------------------------------------------
+csharp_style_expression_bodied_methods         = when_on_single_line:warning
+csharp_style_expression_bodied_constructors    = when_on_single_line:warning
+csharp_style_expression_bodied_operators       = when_on_single_line:warning
+csharp_style_expression_bodied_properties      = when_on_single_line:warning
+csharp_style_expression_bodied_indexers        = when_on_single_line:warning
+csharp_style_expression_bodied_accessors       = when_on_single_line:warning
+csharp_style_expression_bodied_lambdas         = when_on_single_line:warning
+csharp_style_expression_bodied_local_functions = when_on_single_line:warning
+
+#------------------------------------------------------------------------------
+# Misc modern-C# preferences
+#------------------------------------------------------------------------------
+csharp_style_namespace_declarations                       = file_scoped:suggestion
+csharp_prefer_simple_using_statement                      = true:suggestion
+dotnet_diagnostic.IDE0063.severity                        = suggestion    # Use simple 'using' statement
+csharp_style_prefer_top_level_statements                  = false:silent
+csharp_style_prefer_method_group_conversion               = true:suggestion
+csharp_style_prefer_tuple_swap                            = true:suggestion
+csharp_style_prefer_utf8_string_literals                  = true:suggestion
+csharp_style_prefer_readonly_struct                       = true:suggestion
+csharp_style_prefer_readonly_struct_member                = true:suggestion
+csharp_style_throw_expression                             = true:warning
+csharp_style_conditional_delegate_call                    = true:warning
+csharp_style_inlined_variable_declaration                 = true:warning
+csharp_style_deconstructed_variable_declaration           = true:warning
+csharp_prefer_simple_default_expression                   = true:warning
+csharp_style_pattern_local_over_anonymous_function        = true:warning
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+dotnet_style_object_initializer                           = true:suggestion
+dotnet_style_collection_initializer                       = true:error
+dotnet_style_prefer_auto_properties                       = true:suggestion
+
+#------------------------------------------------------------------------------
+# Guard clauses are preferred over collapsing if/return into a conditional
+# expression. Disable the rules that would push us the other way.
+#------------------------------------------------------------------------------
+dotnet_style_prefer_conditional_expression_over_assignment = false:silent
+dotnet_style_prefer_conditional_expression_over_return     = false:silent
+dotnet_diagnostic.IDE0045.severity                = none     # Use conditional expression for assignment
+dotnet_diagnostic.IDE0046.severity                = none     # Use conditional expression for return
+
+dotnet_style_null_propagation                    = true:suggestion
+dotnet_style_coalesce_expression                 = true:suggestion
+
+###############################################################################
+# Convention (not auto-enforceable):
+#   Local functions ("callback functions") in a method body should appear AFTER
+#   the method's terminal `return` statement, grouped at the bottom -- not
+#   interleaved with the linear flow above the return.
+#
+# Example:
+#     int Compute(int x)
+#     {
+#         var prepared = Prep(x);
+#         return Run(prepared, Cb);
+#
+#         static int Cb(int v) => v * 2;
+#     }
+###############################################################################
+
+###############################################################################
+# Rule reference (for grep'ability):
+#   IDE0007  -- Use explicit type
+#   IDE0028  -- Use collection initializers
+#   IDE0035  -- Remove unreachable code
+#   IDE0040  -- Add accessibility modifiers
+#   IDE0051  -- Remove unused private members
+#   IDE0052  -- Remove unread private members
+#   IDE0056  -- Use index operator
+#   IDE0057  -- Use range operator
+#   IDE0062  -- Make local function static
+#   IDE0066  -- Use switch expression
+#   IDE0078  -- Use pattern matching
+#   IDE0083  -- Use 'not' pattern
+#   IDE0290  -- Use primary constructor
+#   IDE0300-0305 -- Collection expression family
+#   IDE0320  -- Make anonymous function static
+#   CA1822   -- Mark members as static
+#   CA1825   -- Avoid zero-length array allocations
+#   CA1826   -- Use indexer (not LINQ) on indexable collections
+#   CA1827   -- Don't use Count() when Any() suffices
+#   CA1828   -- async version of CA1827
+#   CA1829   -- Use Length/Count instead of Count()
+#   CA1832/3 -- AsSpan/AsMemory over Range indexers (no array copy)
+#   CA1836   -- IsEmpty over Count when available
+#   CA1841   -- Dictionary.Contains over .Keys.Contains()
+#   CA1845   -- Span-based string.Concat
+#   CA1846   -- AsSpan over Substring
+#   CA1851   -- Multiple enumeration of IEnumerable
+#   CA1859   -- Concrete return types (not IEnumerable/interface)
+#   CA1860   -- Length/Count over Any()
+#   CA1864   -- Dictionary.TryAdd
+#   CA1865-7 -- char overloads for string ops
+#   CA1870   -- FrozenDictionary for static lookups
+#   CS0162   -- Unreachable code detected
+#   SYSLIB1054 -- Migrate DllImport -> LibraryImport (intentionally OFF)
+###############################################################################

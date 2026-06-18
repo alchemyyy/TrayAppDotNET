@@ -1,0 +1,150 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RootNamespace>BrightnessTrayAppDotNET</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>BrightnessTrayAppDotNET.Program</StartupObject>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AvaloniaVersion>12.0.4</AvaloniaVersion>
+    <HotAvaloniaPackageVersion>3.1.1</HotAvaloniaPackageVersion>
+    <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
+    <HotAvaloniaMode>Balanced</HotAvaloniaMode>
+    <ApplicationIcon Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')">..\app.ico</ApplicationIcon>
+    <_DefaultTrayAppDotNETCommonRoot>$(MSBuildProjectDirectory)\..\..\TrayAppDotNETCommon</_DefaultTrayAppDotNETCommonRoot>
+    <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
+    <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
+    <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishAot>true</PublishAot>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Visuals\map_fla-shop.com_ccby4.0.svg" />
+    <None Remove="nul" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="TrayAppDotNETCommon.TADNLog" Alias="WPFLog" />
+    <Using Include="TrayAppDotNETCommon" />
+    <Using Include="TrayAppDotNETCommon.Interop" />
+    <Using Include="BrightnessTrayAppDotNET" />
+    <Using Include="BrightnessTrayAppDotNET.Models" />
+    <Using Include="BrightnessTrayAppDotNET.Services" />
+    <Using Include="BrightnessTrayAppDotNET.Visuals" />
+    <Using Include="BrightnessTrayAppDotNET.Models.ContextMenuPosition" Alias="ContextMenuPosition" />
+    <ProjectReference Include="$(TrayAppDotNETCommonProject)" />
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.1.16" />
+    <PackageReference Include="Microsoft.Win32.SystemEvents" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\app.ico" Link="Assets/app.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')" />
+    <AvaloniaResource Include="Visuals\map_fla-shop.com_ccby4.0.svg" Link="Visuals/map_fla-shop.com_ccby4.0.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="DDCCI\monitor-database.json">
+      <LogicalName>BrightnessTrayAppDotNET.DDCCI.monitor-database.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="NightLightTester" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Localization\Strings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Localization\Strings.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Strings.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <Target Name="KillRunningInstance" BeforeTargets="BeforeBuild;BeforeClean">
+    <Exec Command="taskkill /F /IM $(AssemblyName).exe /T" ContinueOnError="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="low" StandardErrorImportance="low" Condition="'$(SkipKillRunningInstance)' != 'true'" />
+  </Target>
+
+  <Target Name="CopyHotAvaloniaRuntimeAssemblies"
+          AfterTargets="Build"
+          Condition="'$(HotAvalonia)' == 'true' and '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <_HotAvaloniaCorePath>$(NuGetPackageRoot)hotavalonia.core\$(HotAvaloniaPackageVersion)\lib\netstandard2.1\HotAvalonia.Core.dll</_HotAvaloniaCorePath>
+      <_HotAvaloniaXamlLoaderPath>$(NuGetPackageRoot)avalonia.markup.xaml.loader\$(AvaloniaVersion)\lib\net10.0\Avalonia.Markup.Xaml.Loader.dll</_HotAvaloniaXamlLoaderPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_HotAvaloniaCorePath)')"
+           Text="HotAvalonia.Core.dll was not found at $(_HotAvaloniaCorePath)." />
+    <Error Condition="!Exists('$(_HotAvaloniaXamlLoaderPath)')"
+           Text="Avalonia.Markup.Xaml.Loader.dll was not found at $(_HotAvaloniaXamlLoaderPath)." />
+    <ItemGroup>
+      <_HotAvaloniaRuntimeAssembly Include="$(_HotAvaloniaCorePath)" />
+      <_HotAvaloniaRuntimeAssembly Include="$(_HotAvaloniaXamlLoaderPath)" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_HotAvaloniaRuntimeAssembly)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true"
+          Retries="$(CopyRetryCount)"
+          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" />
+  </Target>
+
+  <Target Name="PublishAfterBuild" AfterTargets="Build" Condition="'$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
+    <PropertyGroup>
+      <_OldBuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_OldBuildNumber>
+      <_OldBuildNumber Condition="'$(_OldBuildNumber)' == ''">0</_OldBuildNumber>
+      <_NewBuildNumber>$([MSBuild]::Add($(_OldBuildNumber), 1))</_NewBuildNumber>
+      <_PublishOutputPath>$(OutputPath)</_PublishOutputPath>
+      <_PublishOutputPath Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(BuildNumberFile)" Lines="$(_NewBuildNumber)" Overwrite="true" />
+    <Message Importance="High" Text="Build number: $(_NewBuildNumber)" />
+    <Message Importance="High" Text="Publishing Native AOT release..." />
+    <RemoveDir Directories="$(_PublishOutputPath)" Condition="Exists('$(_PublishOutputPath)')" ContinueOnError="WarnAndContinue" />
+    <MakeDir Directories="$(_PublishOutputPath)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
+    <RemoveDir Directories="$(_PublishOutputPath)win-x64" Condition="Exists('$(_PublishOutputPath)win-x64')" ContinueOnError="WarnAndContinue" />
+    <ItemGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
+      <_AggregatePublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_AggregatePublishedFile)"
+          DestinationFiles="@(_AggregatePublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Retries="$(CopyRetryCount)"
+          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
+          ContinueOnError="WarnAndContinue"
+          Condition="'$(TrayAppDotNETAggregateBuild)' == 'true' and '@(_AggregatePublishedFile)' != ''" />
+    <ItemGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
+      <_AggregateManagedProjectDll Include="$(OutputPath)$(AssemblyName).dll" />
+      <_AggregateManagedProjectDll Include="$(OutputPath)TrayAppDotNETCommon.dll" />
+    </ItemGroup>
+    <Delete Files="@(_AggregateManagedProjectDll)"
+            ContinueOnError="WarnAndContinue"
+            Condition="'$(TrayAppDotNETAggregateBuild)' == 'true' and '@(_AggregateManagedProjectDll)' != ''" />
+    <Message Importance="High" Text="Published to $(OutputPath)" />
+  </Target>
+</Project>

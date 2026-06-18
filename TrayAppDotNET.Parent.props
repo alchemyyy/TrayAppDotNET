@@ -3,7 +3,6 @@
     <TrayAppDotNETRoot>$(MSBuildThisFileDirectory)</TrayAppDotNETRoot>
     <TrayAppDotNETCommonRoot>$(MSBuildThisFileDirectory)TrayAppDotNETCommon</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject>$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
-    <SkipTrayAppDotNETCommonUpdate>true</SkipTrayAppDotNETCommonUpdate>
     <TrayAppDotNETAggregateBuild>true</TrayAppDotNETAggregateBuild>
     <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>

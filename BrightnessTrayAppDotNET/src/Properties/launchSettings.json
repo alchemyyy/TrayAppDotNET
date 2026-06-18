@@ -1,0 +1,20 @@
+{
+  "profiles": {
+    "BrightnessTrayAppDotNET (Debug, no watcher)": {
+      "commandName": "Project",
+      "commandLineArgs": "--monitored",
+      "environmentVariables": {
+        "BTAWPF_NO_WATCHER": "1"
+      },
+      "nativeDebugging": false
+    },
+    "BrightnessTrayAppDotNET (Debug with native)": {
+      "commandName": "Project",
+      "commandLineArgs": "--monitored",
+      "environmentVariables": {
+        "BTAWPF_NO_WATCHER": "1"
+      },
+      "nativeDebugging": true
+    }
+  }
+}

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Match the main project's TFM exactly so referencing it doesn't trigger
+         downlevel-compatibility shims. The cloned NightLightSettingsHandler in
+         this project pokes at WinRT activation, so the Windows-versioned TFM
+         is required regardless. -->
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RootNamespace>BrightnessTrayAppDotNET.Tests.NightLight</RootNamespace>
+    <AssemblyName>NightLightTester</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Skip the repo-root Directory.Build.props BuildInfo codegen. The main project
+         already emits its own BuildInfo class; a duplicate from this project would
+         mostly waste a build-counter increment on Release. -->
+    <EmitBuildInfo>false</EmitBuildInfo>
+
+    <!-- Suppress the "WindowsBase" version-conflict warning that surfaces because the
+         main project ships a WPF reference assembly while the SDK provides a runtime
+         one. The chosen primary reference is correct; the warning is noise. -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reference the main project to pick up PDBSymbolResolver and NightLightRegistry.
+         Both are internal; the main csproj grants InternalsVisibleTo to this assembly. -->
+    <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj" />
+  </ItemGroup>
+</Project>

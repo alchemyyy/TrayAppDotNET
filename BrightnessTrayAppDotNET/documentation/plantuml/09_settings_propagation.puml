@@ -1,0 +1,146 @@
+@startuml settings_propagation
+!include dark-theme.puml
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+title Settings change propagation - who reacts to AppSettings.Changed
+
+actor User
+participant "Page.xaml.cs\n(General/Flyout/TrayIcon/Monitors/\nHotkeys/Environmental/Theme)" as PG
+participant "AppSettings\n(model + event)" as AS
+participant "AppSettings.Save\n(XML on disk)" as ASD
+participant "App.OnSettingsChanged\n(central funnel)" as AOC
+participant "MonitorService\n.OnSettingsChanged" as MS
+participant "NightLightProvider\n.OnSettingsChanged" as NLP
+participant "BrightnessFlyout\n.OnAppSettingsChanged" as BF
+participant "EnvironmentalCurveService" as ECS
+participant "SettingsWindow\n.OnAppSettingsChanged" as SW
+participant "TAWPFColorPicker\n.OnAppSettingsChanged" as CP
+participant "TrayIconManager" as TIM
+participant "GlobalHotkeyService" as GHS
+participant "PDBSymbolResolver" as PDB
+participant "UpdateCheckService\n(GitHub poller; cf410f7)" as UCS
+
+== Edit on a settings page ==
+
+User -> PG : edit any setting
+PG -> AS  : property setter
+PG -> ASD : _settings.Save()  (synchronous XML write)
+PG -> AS  : _settings.RaiseChanged()
+note right of PG $TINT_NEUTRAL
+  Pages call SaveAndNotify():
+  Save() then RaiseChanged().
+  ThemePage.ColorChanged
+  bypasses RaiseChanged - the
+  NullableThemeColor multicast
+  already raises Changed via
+  AppSettings.WireColorCallbacks.
+end note
+
+== Multicast to subscribers ==
+
+AS -> AOC : Changed
+AS -> MS  : Changed
+AS -> NLP : Changed
+AS -> BF  : Changed
+AS -> SW  : Changed (when open)
+AS -> CP  : Changed (when picker open)
+
+== App.OnSettingsChanged - central funnel ==
+
+AOC -> AOC : UpdateThemeResources(effective)\n  (rebuilds Theme*/Environmental* brushes,\n   CornerRadius*, SliderThumbGlyph*)
+AOC -> TIM : IsLightTheme, IconStyle,\nUpdateCooldownMs (= BrightnessUpdateRateMs),\nIsScrollEnabled, ApplyTrayIconColors\n  -> RequestTrayRefresh()
+AOC -> MS  : WriteCooldownMs (= BrightnessUpdateRateMs)\nValidationDwellMs
+AOC -> PDB : ApplyPDBDownloadTimeout\n  (NightLightPDBDownloadTimeoutSeconds)
+AOC -> GHS : Apply(_appSettings.Hotkeys)\n  (re-register WM_HOTKEY bindings)
+AOC -> AOC : _contextMenu = CreateContextMenu()\n  (rebuild tray right-click menu)
+AOC -> BF  : _activeFlyout.NotifyUpdateStateChanged()\n  (pull live ShowUpdateNotificationsEnabled +\n   CheckForUpdatesEnabled)
+
+== MonitorService side reactions ==
+
+MS -> MS : _display.OperationTimeoutMs\n  = DDCOperationTimeoutMs
+alt MonitorIdentityStrategy changed
+    MS -> MS : Refresh()  (re-key every MonitorInfo)
+else strategy unchanged
+    MS -> MS : ApplyNameOverridesToExisting()\nResortMonitors()
+end
+
+== NightLightProvider side reactions ==
+
+alt NightLightFallbackMode changed
+    NLP -> NLP : InvalidateBackendCache()\nGetCachedBackend()  (re-probe Registry vs SettingsHandler)
+else mode unchanged
+    NLP -> NLP : skip (only fallback mode matters)
+end
+
+== BrightnessFlyout side reactions ==
+
+BF -> BF : UpdateMasterFromEnabledIndividuals()\n  (DynamicIconBrightnessTracking, MasterSliderMode)
+BF -> NLP : GetStrength() / IsEnabled() readback\n  -> sync NightLightMonitor.Brightness\n  (handles InvertNightLightSlider flip)
+BF -> BF : Redock() if AllowFlyoutUndock turned off
+BF -> BF : raise PropertyChanged for\nShowFlyout*, AllowFlyoutUndock,\nShowMaster/IndividualSliders,\nShowNightLightKelvinLabel,\nInvertNightLightSlider,\nIsCurveAbsoluteMode, ...
+BF -> ECS : _curveService.Start() + Evaluate()\n  (pull EnvironmentalCurveTickIntervalMs,\n   EnvironmentalOffsetMode, smoothness, location)
+
+== UpdateCheckService side reactions ==
+
+AS  -> UCS : Changed
+UCS -> UCS : if AutoCheckForUpdates flipped\n  -> Start / Stop loop;\n  if UpdateCheckIntervalMinutes changed\n  -> Restart (cancel current Delay);\n  if UpdateChannel changed\n  -> next poll uses new feed
+
+== SettingsWindow / color picker chrome ==
+
+SW -> SW : ApplyOuterCornerRadius\n  (EnableRoundedCorners)
+CP -> CP : ApplyOuterCornerRadius\nUpdateChannelSliderThumbs
+
+== Out-of-band saves (no RaiseChanged) ==
+
+note over NLP $TINT_AMBER
+  NightLightProvider.SetStrength
+  may persist NightLightLastNonZeroStrength
+  by calling AppSettings.Save() directly -
+  no RaiseChanged, so subscribers don't fan
+  out for what is effectively a sticky cache
+  field used only by the next toggle-on.
+end note
+
+note over AS $TINT_BLUE
+  Save() runs on every page edit (Page.SaveAndNotify
+  calls Save first, then RaiseChanged).
+  Heavy lists (KnownDisplays, MonitorOrder) still ride
+  on AppSettings, so a MonitorService.Refresh that
+  rewrites them costs one XML write.
+
+  AppSettings.Save now uses atomic temp+rename
+  (M-04 fix). IOExceptions are logged rather than
+  swallowed silently.
+end note
+
+note over ECS $TINT_AMBER
+  ECS does NOT subscribe to AppSettings.Changed.
+  Setting edits made during a closed-flyout window
+  (e.g. EnvironmentalCurveTickIntervalMs, smoothness,
+  lat/lon) won't take effect on the curve service
+  until the flyout reopens and OnAppSettingsChanged
+  there pulls the live values into the service via
+  Start() + Evaluate().
+
+  ECS DOES subscribe to SystemEvents.TimeChanged
+  for DST / clock changes - those reset the curve's
+  date-keyed cache (_cachedShifted*) so the next
+  Evaluate observes the new wall-clock anchor.
+end note
+
+note over BF $TINT_AMBER
+  BrightnessFlyout.OnAppSettingsChanged does NOT
+  re-read the curve enable flags from AppSettings.
+  The flyout setter is the canonical writer (steps
+  1..9 sync on UI dispatcher). Any out-of-band
+  AppSettings writer (none today) would not
+  propagate to the service / flyout mirrors.
+end note
+
+note over AOC $TINT_RESOLVED
+  Hotkey edits take effect immediately:
+  AOC calls GHS.Apply on every settings
+  change, so users don't need a hotplug or
+  app restart for new bindings to register.
+end note
+
+@enduml

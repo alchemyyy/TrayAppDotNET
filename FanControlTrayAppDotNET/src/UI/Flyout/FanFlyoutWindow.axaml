@@ -1,0 +1,130 @@
+<ui:FlyoutWindowCommon
+    x:Class="FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    xmlns:ui="clr-namespace:TrayAppDotNETCommon.UI;assembly=TrayAppDotNETCommon"
+    Width="{DynamicResource Flyout.WindowWidth}"
+    SizeToContent="Height"
+    WindowDecorations="None"
+    Background="Transparent"
+    ShowInTaskbar="False"
+    CanResize="False"
+    Topmost="True"
+    FontFamily="Segoe UI">
+
+    <ui:FlyoutWindowCommon.Resources>
+        <sys:Double x:Key="Flyout.WindowWidth">350</sys:Double>
+        <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
+        <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
+        <sys:Double x:Key="Flyout.SnapTolerancePercent">0.02</sys:Double>
+        <sys:Double x:Key="Flyout.WorkAreaMinHeight">220</sys:Double>
+        <sys:Double x:Key="Flyout.PixelMinSize">1</sys:Double>
+        <sys:Int32 x:Key="Flyout.OffscreenPosition">-32000</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaX">0</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaY">0</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaWidth">1920</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FanPropertiesRowsPerColumn">2</sys:Int32>
+        <sys:Double x:Key="Flyout.FanPropertiesGap">2</sys:Double>
+        <sys:Double x:Key="Flyout.MaxSettingSpacing">48</sys:Double>
+
+        <Thickness x:Key="Flyout.ZeroThickness">0</Thickness>
+        <CornerRadius x:Key="Flyout.ZeroCornerRadius">0</CornerRadius>
+        <Thickness x:Key="Flyout.RootBorderThickness">1</Thickness>
+        <CornerRadius x:Key="Flyout.RootCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="Flyout.RootInnerCornerRadius">7</CornerRadius>
+        <Thickness x:Key="Flyout.RootInnerMargin">1</Thickness>
+        <sys:Double x:Key="Flyout.RootShadowOffsetY">4</sys:Double>
+        <sys:Double x:Key="Flyout.RootShadowBlur">30</sys:Double>
+
+        <sys:Double x:Key="Flyout.HeaderHeight">38</sys:Double>
+        <Thickness x:Key="Flyout.HeaderMargin">4,0,4,0</Thickness>
+        <sys:Double x:Key="Flyout.HeaderWideColumnWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderNarrowColumnWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderButtonWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderButtonFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderManagerButtonFontSize">17</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderAddGroupIconSize">22</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderAddGroupFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderAddGlyphFontSize">9</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileLabelFontSize">14</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileUnderlineWidth">16</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileUnderlineHeight">2</sys:Double>
+        <CornerRadius x:Key="Flyout.ProfileUnderlineCornerRadius">1</CornerRadius>
+        <Thickness x:Key="Flyout.ProfileUnderlineMargin">0,0,0,3</Thickness>
+        <sys:Double x:Key="Flyout.ProfileButtonWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.UndockFontSize">18</sys:Double>
+        <CornerRadius x:Key="Flyout.HeaderButtonCornerRadius">4</CornerRadius>
+
+        <sys:Double x:Key="Flyout.EmptyTextFontSize">13</sys:Double>
+        <sys:Double x:Key="Flyout.EmptyTextOpacity">0.7</sys:Double>
+        <Thickness x:Key="Flyout.CardBorderThickness">1.5</Thickness>
+        <CornerRadius x:Key="Flyout.CardCornerRadius">8</CornerRadius>
+        <Thickness x:Key="Flyout.CardPadding">8,6,8,4</Thickness>
+        <Thickness x:Key="Flyout.FanRowGroupedMarginBase">4,0,4,0</Thickness>
+
+        <sys:Double x:Key="Flyout.FanButtonWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.FanButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.FanButtonFontSize">18</sys:Double>
+        <Thickness x:Key="Flyout.FanButtonGroupedMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="Flyout.FanButtonUngroupedMargin">-4,0,12,0</Thickness>
+        <sys:Double x:Key="Flyout.FanNameFontSize">14</sys:Double>
+        <sys:Double x:Key="Flyout.FanSubtitleFontSize">10</sys:Double>
+        <Thickness x:Key="Flyout.SubtitleMargin">0,-2,0,0</Thickness>
+        <Thickness x:Key="Flyout.FanNameStackGroupedMargin">-2,0,10,0</Thickness>
+        <Thickness x:Key="Flyout.FanNameStackUngroupedMargin">-6,0,10,0</Thickness>
+        <Thickness x:Key="Flyout.TelemetryMargin">6,0,0,0</Thickness>
+        <sys:Double x:Key="Flyout.RpmFontSize">14</sys:Double>
+        <sys:Double x:Key="Flyout.ControllerFontSize">9</sys:Double>
+        <Thickness x:Key="Flyout.ControllerMargin">0,-2,0,0</Thickness>
+        <sys:Double x:Key="Flyout.ModeButtonWidth">24</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonHeight">24</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonFontSize">16</sys:Double>
+        <Thickness x:Key="Flyout.ModeButtonGroupedMargin">4,-4,10,2</Thickness>
+        <Thickness x:Key="Flyout.ModeButtonUngroupedMargin">0,-4,10,2</Thickness>
+        <sys:Double x:Key="Flyout.SliderRowHeight">24</sys:Double>
+        <Thickness x:Key="Flyout.SliderRowMargin">0,2,0,0</Thickness>
+        <Thickness x:Key="Flyout.ValueGridMargin">4,-4,0,0</Thickness>
+        <sys:Double x:Key="Flyout.ValueFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">10</sys:Double>
+
+        <sys:Double x:Key="Flyout.GroupIconWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.GroupIconHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.GroupIconFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.GroupHeaderButtonWidth">28</sys:Double>
+        <sys:Double x:Key="Flyout.GroupHeaderButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.GroupExpandFontSize">13</sys:Double>
+        <Thickness x:Key="Flyout.GroupHeaderButtonMargin">0,-6,0,0</Thickness>
+        <sys:Double x:Key="Flyout.GroupNameFontSize">13</sys:Double>
+        <Thickness x:Key="Flyout.GroupTitleMargin">-6,0,10,0</Thickness>
+        <sys:Double x:Key="Flyout.GroupDeleteFontSize">11</sys:Double>
+        <Thickness x:Key="Flyout.GroupModeMargin">-3,-2,10,2</Thickness>
+        <Thickness x:Key="Flyout.GroupSliderRowMargin">3,2,0,2</Thickness>
+        <Thickness x:Key="Flyout.GroupValueGridMargin">8,-4,0,0</Thickness>
+
+        <sys:Double x:Key="Flyout.ConfirmTitleFontSize">14</sys:Double>
+        <Thickness x:Key="Flyout.ConfirmTitleMargin">0,0,0,8</Thickness>
+        <Thickness x:Key="Flyout.ConfirmMessageMargin">0,0,0,14</Thickness>
+        <Thickness x:Key="Flyout.ConfirmCancelMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="Flyout.ConfirmBorderThickness">1</Thickness>
+        <CornerRadius x:Key="Flyout.ConfirmCornerRadius">4</CornerRadius>
+        <Thickness x:Key="Flyout.ConfirmPadding">16</Thickness>
+        <sys:Double x:Key="Flyout.ConfirmMinWidth">260</sys:Double>
+        <sys:Double x:Key="Flyout.ConfirmMaxWidth">300</sys:Double>
+
+        <sys:Double x:Key="Flyout.DragGhostOpacity">0.84</sys:Double>
+        <sys:Double x:Key="Flyout.DragGhostShadowOffsetY">2</sys:Double>
+        <sys:Double x:Key="Flyout.DragGhostShadowBlur">18</sys:Double>
+        <sys:Double x:Key="Flyout.DropMarkerHeight">3</sys:Double>
+        <CornerRadius x:Key="Flyout.DropMarkerCornerRadius">2</CornerRadius>
+        <sys:Double x:Key="Flyout.DragSourceOpacity">0.24</sys:Double>
+
+        <sys:Double x:Key="Flyout.InlineEditorFontSize">14</sys:Double>
+        <Thickness x:Key="Flyout.InlineEditorBorderThickness">0</Thickness>
+        <Thickness x:Key="Flyout.InlineEditorPadding">2,0</Thickness>
+    </ui:FlyoutWindowCommon.Resources>
+
+</ui:FlyoutWindowCommon>
