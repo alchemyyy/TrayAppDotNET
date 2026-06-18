@@ -71,10 +71,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     private bool _suppressNextTrayClick;
     private bool _shuttingDown;
 
-    public override void Initialize()
-    {
-        TrayAppDotNETAvalonia.InitializeDefaults(this);
-    }
+    public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
