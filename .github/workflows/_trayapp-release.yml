@@ -12,10 +12,6 @@ on:
       artifact_slug:
         required: true
         type: string
-      dotnet_version:
-        required: false
-        type: string
-        default: 10.0.x
       runtime:
         required: false
         type: string
@@ -57,44 +53,46 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ inputs.dotnet_version }}
-
-      - name: Show .NET info
-        shell: pwsh
-        run: dotnet --info
+      - name: Verify .NET SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v dotnet
+          dotnet --info
+          dotnet --list-sdks | grep -E '^10\.'
 
       - name: Resolve Release Metadata
         id: meta
-        shell: pwsh
+        shell: bash
         run: |
-          $version = "${{ inputs.version }}".Trim()
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            $version = "0.0.$env:GITHUB_RUN_NUMBER"
-          }
+          set -euo pipefail
 
-          $tag = "${{ inputs.release_tag }}".Trim()
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            $tag = "trayapp-v$version"
-          }
+          version="$(printf '%s' "${{ inputs.version }}" | xargs)"
+          if [[ -z "$version" ]]; then
+            version="0.0.${GITHUB_RUN_NUMBER}"
+          fi
 
-          $runtime = "${{ inputs.runtime }}".Trim()
-          $appName = "${{ inputs.app_name }}".Trim()
-          $artifactSlug = "${{ inputs.artifact_slug }}".Trim()
+          tag="$(printf '%s' "${{ inputs.release_tag }}" | xargs)"
+          if [[ -z "$tag" ]]; then
+            tag="trayapp-v$version"
+          fi
 
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "release_tag=$tag" >> $env:GITHUB_OUTPUT
-          "release_title=TrayAppDotNET $version" >> $env:GITHUB_OUTPUT
-          "package_name=$artifactSlug-$version-$runtime.zip" >> $env:GITHUB_OUTPUT
+          runtime="$(printf '%s' "${{ inputs.runtime }}" | xargs)"
+          artifact_slug="$(printf '%s' "${{ inputs.artifact_slug }}" | xargs)"
+
+          {
+            echo "version=$version"
+            echo "release_tag=$tag"
+            echo "release_title=TrayAppDotNET $version"
+            echo "package_name=$artifact_slug-$version-$runtime.zip"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Restore
-        shell: pwsh
+        shell: bash
         run: dotnet restore "${{ inputs.project_path }}"
 
       - name: Publish Release
-        shell: pwsh
+        shell: bash
         run: >
           dotnet publish "${{ inputs.project_path }}"
           --configuration Release
@@ -106,50 +104,69 @@ jobs:
 
       - name: Package Release
         id: package
-        shell: pwsh
+        shell: bash
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          $appName = "${{ inputs.app_name }}"
-          $runtime = "${{ inputs.runtime }}"
-          $version = "${{ steps.meta.outputs.version }}"
-          $packageName = "${{ steps.meta.outputs.package_name }}"
+          app_name="${{ inputs.app_name }}"
+          runtime="${{ inputs.runtime }}"
+          version="${{ steps.meta.outputs.version }}"
+          package_name="${{ steps.meta.outputs.package_name }}"
 
-          $publishDir = Join-Path $env:GITHUB_WORKSPACE ".artifacts\publish\$appName\$runtime"
-          $packageDir = Join-Path $env:GITHUB_WORKSPACE ".artifacts\package"
-          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          publish_dir=".artifacts/publish/$app_name/$runtime"
+          package_dir=".artifacts/package"
+          zip_path="$package_dir/$package_name"
+          sha_path="$zip_path.sha256"
+          manifest_path="$package_dir/$package_name.manifest.json"
 
-          $zipPath = Join-Path $packageDir $packageName
-          $shaPath = "$zipPath.sha256"
-          $manifestPath = Join-Path $packageDir "$packageName.manifest.json"
+          if [[ ! -d "$publish_dir" ]]; then
+            echo "Publish directory not found: $publish_dir" >&2
+            exit 1
+          fi
 
-          if (Test-Path $zipPath) {
-            Remove-Item -LiteralPath $zipPath -Force
+          mkdir -p "$package_dir"
+          rm -f "$zip_path" "$sha_path" "$manifest_path"
+          zip_abs="$(cd "$package_dir" && pwd)/$package_name"
+          windows_tar="${WINDIR:-C:\\Windows}"
+          windows_tar="${windows_tar//\\//}/System32/tar.exe"
+
+          if [[ -x "$windows_tar" ]]; then
+            "$windows_tar" -a -cf "$zip_path" -C "$publish_dir" .
+          elif command -v 7z >/dev/null 2>&1; then
+            (cd "$publish_dir" && 7z a -tzip "$zip_abs" .)
+          else
+            echo "Neither Windows tar.exe nor 7z is available for zip packaging." >&2
+            exit 1
+          fi
+
+          hash="$(sha256sum "$zip_path" | awk '{print tolower($1)}')"
+          printf '%s  %s\n' "$hash" "$package_name" > "$sha_path"
+
+          json_escape() {
+            printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
           }
 
-          Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
-
-          $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $packageName" | Set-Content -LiteralPath $shaPath -Encoding UTF8
-
-          $manifest = [ordered]@{
-            appId = $appName
-            version = $version
-            runtime = $runtime
-            fileName = $packageName
-            sha256 = $hash
-            repository = $env:GITHUB_REPOSITORY
-            commit = $env:GITHUB_SHA
-            runId = $env:GITHUB_RUN_ID
-            releaseTag = "${{ steps.meta.outputs.release_tag }}"
-            createdAt = (Get-Date).ToUniversalTime().ToString("o")
+          created_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          cat > "$manifest_path" <<JSON
+          {
+            "appId": "$(json_escape "$app_name")",
+            "version": "$(json_escape "$version")",
+            "runtime": "$(json_escape "$runtime")",
+            "fileName": "$(json_escape "$package_name")",
+            "sha256": "$hash",
+            "repository": "$(json_escape "$GITHUB_REPOSITORY")",
+            "commit": "$(json_escape "$GITHUB_SHA")",
+            "runId": "$(json_escape "$GITHUB_RUN_ID")",
+            "releaseTag": "$(json_escape "${{ steps.meta.outputs.release_tag }}")",
+            "createdAt": "$created_at"
           }
+          JSON
 
-          $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
-
-          "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
-          "sha256_path=$shaPath" >> $env:GITHUB_OUTPUT
-          "manifest_path=$manifestPath" >> $env:GITHUB_OUTPUT
+          {
+            echo "zip_path=$zip_path"
+            echo "sha256_path=$sha_path"
+            echo "manifest_path=$manifest_path"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4
@@ -164,58 +181,46 @@ jobs:
 
       - name: Publish GitHub Release Assets
         if: ${{ inputs.publish_github_release }}
-        shell: pwsh
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-            throw "GitHub CLI is not installed on this runner. Install gh or run with publish_github_release=false."
-          }
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "GitHub CLI is not installed on this runner. Install gh or run with publish_github_release=false." >&2
+            exit 1
+          fi
 
-          $tag = "${{ steps.meta.outputs.release_tag }}"
-          $title = "${{ steps.meta.outputs.release_title }}"
-          $notes = "Automated release assets for ${{ inputs.app_name }}."
+          tag="${{ steps.meta.outputs.release_tag }}"
+          title="${{ steps.meta.outputs.release_title }}"
+          notes="Automated release assets for ${{ inputs.app_name }}."
 
-          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -ne 0) {
-            $createArgs = @(
-              "release",
-              "create",
-              $tag,
-              "--repo",
-              $env:GITHUB_REPOSITORY,
-              "--target",
-              $env:GITHUB_SHA,
-              "--title",
-              $title,
-              "--notes",
-              $notes
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            create_args=(
+              release
+              create
+              "$tag"
+              --repo "$GITHUB_REPOSITORY"
+              --target "$GITHUB_SHA"
+              --title "$title"
+              --notes "$notes"
             )
 
-            if ("${{ inputs.draft }}" -eq "true") {
-              $createArgs += "--draft"
-            }
+            if [[ "${{ inputs.draft }}" == "true" ]]; then
+              create_args+=(--draft)
+            fi
 
-            if ("${{ inputs.prerelease }}" -eq "true") {
-              $createArgs += "--prerelease"
-            }
+            if [[ "${{ inputs.prerelease }}" == "true" ]]; then
+              create_args+=(--prerelease)
+            fi
 
-            gh @createArgs
-          }
+            gh "${create_args[@]}"
+          fi
 
-          $uploadArgs = @(
-            "release",
-            "upload",
-            $tag,
-            "${{ steps.package.outputs.zip_path }}",
-            "${{ steps.package.outputs.sha256_path }}",
-            "${{ steps.package.outputs.manifest_path }}",
-            "--repo",
-            $env:GITHUB_REPOSITORY,
-            "--clobber"
-          )
-
-          gh @uploadArgs
-
+          gh release upload "$tag" \
+            "${{ steps.package.outputs.zip_path }}" \
+            "${{ steps.package.outputs.sha256_path }}" \
+            "${{ steps.package.outputs.manifest_path }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber

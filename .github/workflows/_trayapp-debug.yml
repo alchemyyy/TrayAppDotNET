@@ -12,10 +12,6 @@ on:
       artifact_slug:
         required: true
         type: string
-      dotnet_version:
-        required: false
-        type: string
-        default: 10.0.x
 
 permissions:
   contents: read
@@ -32,21 +28,20 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ inputs.dotnet_version }}
-
-      - name: Show .NET info
-        shell: pwsh
-        run: dotnet --info
+      - name: Verify .NET SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v dotnet
+          dotnet --info
+          dotnet --list-sdks | grep -E '^10\.'
 
       - name: Restore
-        shell: pwsh
+        shell: bash
         run: dotnet restore "${{ inputs.project_path }}"
 
       - name: Build Debug
-        shell: pwsh
+        shell: bash
         run: >
           dotnet build "${{ inputs.project_path }}"
           --configuration Debug
@@ -62,4 +57,3 @@ jobs:
           path: ${{ inputs.app_name }}/bin/Debug/**
           if-no-files-found: error
           retention-days: 14
-
