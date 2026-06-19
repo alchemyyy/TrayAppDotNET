@@ -214,6 +214,7 @@ def publish_command(app: App, publish_dir: Path, profile: Profile) -> list[str]:
         str(profile.self_contained).lower(),
         "--output",
         str(publish_dir),
+        "-m:1",
         f"-p:PublishAot={str(profile.publish_aot).lower()}",
         "-p:PublishSingleFile=false",
         f"-p:SelfContained={str(profile.self_contained).lower()}",
@@ -274,7 +275,7 @@ def build_app(app: App, version: int, output_root: Path, profile: Profile) -> Pa
         shutil.rmtree(publish_dir)
     publish_dir.mkdir(parents=True, exist_ok=True)
 
-    run(["dotnet", "restore", app.project, "-p:EnableWindowsTargeting=true"])
+    run(["dotnet", "restore", app.project, "--disable-parallel", "-p:EnableWindowsTargeting=true"])
     run(publish_command(app, publish_dir, profile))
     validate_publish_dir(app, publish_dir, profile)
     zip_directory(publish_dir, zip_path)
