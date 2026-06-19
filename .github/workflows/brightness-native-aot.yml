@@ -1,0 +1,15 @@
+name: Brightness Native AOT
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-aot:
+    uses: ./.github/workflows/_trayapp-native-aot.yml
+    with:
+      app_name: BrightnessTrayAppDotNET
+      project_path: BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj
+      artifact_slug: brightness-tray-app

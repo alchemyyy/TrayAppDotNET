@@ -1,0 +1,15 @@
+name: Fan Control Native AOT
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-aot:
+    uses: ./.github/workflows/_trayapp-native-aot.yml
+    with:
+      app_name: FanControlTrayAppDotNET
+      project_path: FanControlTrayAppDotNET/src/FanControlTrayAppDotNET.csproj
+      artifact_slug: fan-control-tray-app

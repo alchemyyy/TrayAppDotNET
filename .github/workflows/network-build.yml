@@ -1,4 +1,4 @@
-name: Network Debug
+name: Network Build
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - Directory.Build.props
       - TrayAppDotNET.Parent.props
       - TrayAppDotNET.Parent.targets
-      - .github/workflows/network-debug.yml
-      - .github/workflows/_trayapp-debug.yml
+      - .github/workflows/network-build.yml
+      - .github/workflows/_trayapp-build.yml
   pull_request:
     paths:
       - NetworkTrayAppDotNET/**
@@ -18,18 +18,17 @@ on:
       - Directory.Build.props
       - TrayAppDotNET.Parent.props
       - TrayAppDotNET.Parent.targets
-      - .github/workflows/network-debug.yml
-      - .github/workflows/_trayapp-debug.yml
+      - .github/workflows/network-build.yml
+      - .github/workflows/_trayapp-build.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  debug:
-    uses: ./.github/workflows/_trayapp-debug.yml
+  build:
+    uses: ./.github/workflows/_trayapp-build.yml
     with:
       app_name: NetworkTrayAppDotNET
       project_path: NetworkTrayAppDotNET/src/NetworkTrayAppDotNET.csproj
       artifact_slug: network-tray-app
-

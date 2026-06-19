@@ -1,0 +1,63 @@
+name: TrayApp Native AOT
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        required: true
+        type: string
+      project_path:
+        required: true
+        type: string
+      artifact_slug:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native-aot:
+    name: ${{ inputs.app_name }} Native AOT
+    runs-on: [self-hosted]
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify .NET SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v dotnet
+          dotnet --info
+          dotnet --list-sdks | grep -E '^10\.'
+
+      - name: Restore
+        shell: bash
+        run: dotnet restore "${{ inputs.project_path }}" -p:EnableWindowsTargeting=true
+
+      - name: Publish Native AOT
+        shell: bash
+        run: >
+          dotnet publish "${{ inputs.project_path }}"
+          --configuration Release
+          --runtime win-x64
+          --output ".artifacts/native-aot/${{ inputs.app_name }}"
+          -p:EnableWindowsTargeting=true
+          -p:PublishAot=true
+          -p:SelfContained=true
+          -p:SkipKillRunningInstance=true
+          -p:SkipPublishAfterBuild=true
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Upload Native AOT Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_slug }}-native-aot-${{ github.sha }}
+          path: .artifacts/native-aot/${{ inputs.app_name }}/**
+          if-no-files-found: error
+          retention-days: 14

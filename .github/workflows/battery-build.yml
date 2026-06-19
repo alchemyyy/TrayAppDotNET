@@ -1,4 +1,4 @@
-name: Battery Debug
+name: Battery Build
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - Directory.Build.props
       - TrayAppDotNET.Parent.props
       - TrayAppDotNET.Parent.targets
-      - .github/workflows/battery-debug.yml
-      - .github/workflows/_trayapp-debug.yml
+      - .github/workflows/battery-build.yml
+      - .github/workflows/_trayapp-build.yml
   pull_request:
     paths:
       - BatteryTrayAppDotNET/**
@@ -18,18 +18,17 @@ on:
       - Directory.Build.props
       - TrayAppDotNET.Parent.props
       - TrayAppDotNET.Parent.targets
-      - .github/workflows/battery-debug.yml
-      - .github/workflows/_trayapp-debug.yml
+      - .github/workflows/battery-build.yml
+      - .github/workflows/_trayapp-build.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  debug:
-    uses: ./.github/workflows/_trayapp-debug.yml
+  build:
+    uses: ./.github/workflows/_trayapp-build.yml
     with:
       app_name: BatteryTrayAppDotNET
       project_path: BatteryTrayAppDotNET/src/BatteryTrayAppDotNET.csproj
       artifact_slug: battery-tray-app
-

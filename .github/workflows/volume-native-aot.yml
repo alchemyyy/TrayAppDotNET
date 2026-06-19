@@ -1,0 +1,15 @@
+name: Volume Native AOT
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-aot:
+    uses: ./.github/workflows/_trayapp-native-aot.yml
+    with:
+      app_name: VolumeTrayAppDotNET
+      project_path: VolumeTrayAppDotNET/src/VolumeTrayAppDotNET.csproj
+      artifact_slug: volume-tray-app

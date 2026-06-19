@@ -1,0 +1,15 @@
+name: Network Native AOT
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-aot:
+    uses: ./.github/workflows/_trayapp-native-aot.yml
+    with:
+      app_name: NetworkTrayAppDotNET
+      project_path: NetworkTrayAppDotNET/src/NetworkTrayAppDotNET.csproj
+      artifact_slug: network-tray-app

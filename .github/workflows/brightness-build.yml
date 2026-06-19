@@ -1,4 +1,4 @@
-name: Brightness Debug
+name: Brightness Build
 
 on:
   push:
@@ -9,8 +9,8 @@ on:
       - Directory.Build.props
       - TrayAppDotNET.Parent.props
       - TrayAppDotNET.Parent.targets
-      - .github/workflows/brightness-debug.yml
-      - .github/workflows/_trayapp-debug.yml
+      - .github/workflows/brightness-build.yml
+      - .github/workflows/_trayapp-build.yml
   pull_request:
     paths:
       - BrightnessTrayAppDotNET/**
@@ -18,18 +18,17 @@ on:
       - Directory.Build.props
       - TrayAppDotNET.Parent.props
       - TrayAppDotNET.Parent.targets
-      - .github/workflows/brightness-debug.yml
-      - .github/workflows/_trayapp-debug.yml
+      - .github/workflows/brightness-build.yml
+      - .github/workflows/_trayapp-build.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  debug:
-    uses: ./.github/workflows/_trayapp-debug.yml
+  build:
+    uses: ./.github/workflows/_trayapp-build.yml
     with:
       app_name: BrightnessTrayAppDotNET
       project_path: BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj
       artifact_slug: brightness-tray-app
-
