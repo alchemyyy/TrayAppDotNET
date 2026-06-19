@@ -1,4 +1,4 @@
-name: Publish Win11
+name: Publish
 
 on:
   workflow_dispatch:

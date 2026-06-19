@@ -981,7 +981,7 @@ def write_summary(rows: list[dict]) -> None:
     if not summary_path:
         return
     lines = [
-        "## Publish Win11 Artifacts",
+        "## Publish Artifacts",
         "",
         *artifact_table(rows),
         "",
