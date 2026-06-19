@@ -160,13 +160,13 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
             "--runtime",
             "win-x64",
             "--self-contained",
-            "false",
+            "true",
             "--output",
             str(publish_dir),
-            "-p:PublishAot=false",
+            "-p:PublishAot=true",
             "-p:PublishSingleFile=false",
             "-p:PublishTrimmed=false",
-            "-p:SelfContained=false",
+            "-p:SelfContained=true",
             "-p:IncludeNativeLibrariesForSelfExtract=false",
             "-p:IncludeAllContentForSelfExtract=false",
             "-p:UseAppHost=true",
@@ -177,11 +177,17 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
         ]
     )
 
-    expected_dll = publish_dir / f"{app.name}.dll"
-    if not expected_dll.exists():
+    expected_exe = publish_dir / f"{app.name}.exe"
+    forbidden_dll = publish_dir / f"{app.name}.dll"
+    if not expected_exe.exists():
         raise SystemExit(
-            f"{app.name} publish did not produce {expected_dll.name}. "
-            "Refusing to package a likely single-file/self-extracting publish."
+            f"{app.name} publish did not produce {expected_exe.name}. "
+            "Refusing to package a failed Native AOT publish."
+        )
+    if forbidden_dll.exists():
+        raise SystemExit(
+            f"{app.name} publish produced {forbidden_dll.name}. "
+            "Refusing to package a framework-dependent managed publish."
         )
 
     zip_directory(publish_dir, zip_path)
