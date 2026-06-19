@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tray_app_dot_net_version:
-        description: Aggregate TrayAppDotNET version. Defaults to max selected app build number.
+        description: Aggregate TrayAppDotNET version. Defaults to latest published release + 1, minimum 100.
         required: false
         type: string
       release_tag:

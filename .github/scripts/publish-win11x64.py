@@ -99,7 +99,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", choices=sorted(PROFILES), default="release", help="Profile to build in build-profile phase.")
     parser.add_argument("--app-name", default="", help="App name to build in build-app-profile phase.")
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "alchemyyy/TrayAppDotNET"))
-    parser.add_argument("--tray-version", default="", help="Aggregate TrayAppDotNET version. Defaults to max selected app version.")
+    parser.add_argument(
+        "--tray-version",
+        default="",
+        help="Aggregate TrayAppDotNET version. Defaults to latest published TrayAppDotNET release + 1, with a floor of 100.",
+    )
     parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>_x64Win.")
     parser.add_argument("--target", default=os.environ.get("GITHUB_SHA", ""), help="Target commit for a new release.")
     parser.add_argument("--output-root", default=".artifacts/publish-win11x64")
@@ -115,12 +119,40 @@ def read_buildnumber(path: Path) -> int:
     return int(value)
 
 
-def latest_release(repo: str) -> dict | None:
+def latest_release(repo: str, *, missing_message: str = "No latest published release found; all apps will be built.") -> dict | None:
     result = run(["gh", "api", f"repos/{repo}/releases/latest"], capture=True, check=False)
     if result.returncode != 0:
-        print("No latest published release found; all apps will be built.")
+        if missing_message:
+            print(missing_message)
         return None
     return json.loads(result.stdout)
+
+
+def release_version(release: dict | None) -> int | None:
+    if not release:
+        return None
+
+    candidates: list[int] = []
+    for value in (release.get("tag_name", ""), release.get("name", "")):
+        match = re.search(r"\bTrayAppDotNET_(\d+)_x64Win\b", str(value))
+        if match:
+            candidates.append(int(match.group(1)))
+
+    aggregate_pattern = re.compile(r"^TrayAppDotNET_(\d+)(?:_NativeAOT)?(?:_Symbols)?_x64Win\.zip$")
+    for asset in release.get("assets", []):
+        match = aggregate_pattern.fullmatch(str(asset.get("name", "")))
+        if match:
+            candidates.append(int(match.group(1)))
+
+    return max(candidates) if candidates else None
+
+
+def default_tray_version(repo: str) -> int:
+    latest = latest_release(repo, missing_message="No latest published release found; defaulting TrayAppDotNET version to 100.")
+    latest_version = release_version(latest)
+    if latest_version is None:
+        return 100
+    return max(latest_version + 1, 100)
 
 
 def app_asset_name(app: App, version: int, profile: Profile) -> str:
@@ -644,7 +676,7 @@ def build_profile(args: argparse.Namespace) -> int:
     profile_root.mkdir(parents=True, exist_ok=True)
 
     packages = selected_packages(args.repo, output_root, args.force_rebuild, profile)
-    tray_version = int(args.tray_version) if args.tray_version.strip() else max(package.version for package in packages)
+    tray_version = int(args.tray_version) if args.tray_version.strip() else default_tray_version(args.repo)
 
     package_dir = profile_root / "packages"
     aggregate_zip = package_dir / aggregate_asset_name(tray_version, profile)
@@ -785,10 +817,13 @@ def profile_manifest_from_group(
     profile = PROFILES[group["profile"]]
     apps = []
     for app_data in group["apps"]:
-        app_copy = dict(app_data)
-        app_copy.pop("zipPath", None)
-        app_copy.pop("symbolsZipPath", None)
-        apps.append(app_copy)
+        apps.append(
+            {
+                "appId": app_data["appId"],
+                "version": app_data["version"],
+                "source": app_data["source"],
+            }
+        )
 
     manifest = {
         "profile": profile.id,
@@ -837,30 +872,6 @@ def artifact_rows(manifests: list[dict]) -> list[dict]:
                     "kind": "symbols",
                 }
             )
-        for app in manifest["apps"]:
-            rows.append(
-                {
-                    "profile": manifest["displayName"],
-                    "appId": app["appId"],
-                    "version": app["version"],
-                    "fileName": app["fileName"],
-                    "sha256": app["sha256"],
-                    "source": app["source"],
-                    "kind": "app",
-                }
-            )
-            if "symbols" in app:
-                rows.append(
-                    {
-                        "profile": manifest["displayName"],
-                        "appId": app["appId"],
-                        "version": app["version"],
-                        "fileName": app["symbols"]["fileName"],
-                        "sha256": app["symbols"]["sha256"],
-                        "source": app["symbols"]["source"],
-                        "kind": "symbols",
-                    }
-                )
     return rows
 
 
@@ -902,6 +913,22 @@ def ensure_release(repo: str, tag: str, title: str, target: str, notes_path: Pat
     run(cmd)
 
 
+def prune_release_assets(repo: str, tag: str, keep_names: set[str]) -> None:
+    result = run(
+        ["gh", "release", "view", tag, "--repo", repo, "--json", "assets"],
+        capture=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return
+
+    release = json.loads(result.stdout)
+    for asset in release.get("assets", []):
+        asset_name = str(asset.get("name", ""))
+        if asset_name and asset_name not in keep_names:
+            run(["gh", "release", "delete-asset", tag, asset_name, "--repo", repo, "--yes"])
+
+
 def write_notes(path: Path, rows: list[dict]) -> None:
     lines = [
         "# TrayAppDotNET Win11 x64",
@@ -910,7 +937,7 @@ def write_notes(path: Path, rows: list[dict]) -> None:
         "",
         "- Release: framework-dependent Release publish from the Linux runners, with app DLLs and dependency DLLs side by side.",
         "- Native AOT: win-x64 Native AOT publish from the Windows runners, with native sidecar DLLs left beside the app executables.",
-        "- Symbols: PDB files are excluded from app zips and attached in separate Symbols zips.",
+        "- Symbols: PDB files are excluded from app zips and attached in separate aggregate Symbols zips.",
         "",
         *artifact_table(rows),
         "",
@@ -961,12 +988,7 @@ def write_updates_manifest(path: Path, manifests: list[dict], rows: list[dict], 
 def publish_release(args: argparse.Namespace) -> int:
     input_root = Path(args.input_root)
     groups = load_collected_profiles(input_root)
-    tray_versions = {
-        app_data["version"]
-        for group in groups.values()
-        for app_data in group["apps"]
-    }
-    tray_version = int(args.tray_version) if args.tray_version.strip() else max(tray_versions)
+    tray_version = int(args.tray_version) if args.tray_version.strip() else default_tray_version(args.repo)
     release_tag = args.release_tag.strip() or f"TrayAppDotNET_{tray_version}_x64Win"
 
     final_dir = input_root / "_release"
@@ -997,8 +1019,6 @@ def publish_release(args: argparse.Namespace) -> int:
                 tray_version,
             )
         )
-        upload_assets.extend(app_zip_paths)
-        upload_assets.extend(path for _app_id, path in symbol_sources)
         upload_assets.append(aggregate_zip)
         if aggregate_symbols_sha:
             upload_assets.append(aggregate_symbols_zip)
@@ -1022,6 +1042,7 @@ def publish_release(args: argparse.Namespace) -> int:
 
     upload_assets.extend([updates_path, artifact_list_path])
     upload_assets = list(dict.fromkeys(upload_assets))
+    prune_release_assets(args.repo, release_tag, {path.name for path in upload_assets})
 
     run(["gh", "release", "upload", release_tag, *[str(path) for path in upload_assets], "--repo", args.repo, "--clobber"])
 
