@@ -148,7 +148,6 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
-        CreateMemorySettingsSection(p).AddCards(stack);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(BoolCard(
@@ -203,16 +202,6 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Settings = _settings,
             SupportsFlyout = true,
             SupportsTrayContextMenu = true,
-        });
-
-    private TrayAppDotNETMemorySettingsSection CreateMemorySettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETMemorySettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            Settings = _settings,
         });
 
     private StackPanel BuildFanPropertiesPage()

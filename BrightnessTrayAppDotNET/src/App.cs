@@ -332,9 +332,6 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             try
             {
-                if (_settings?.PurgeMemoryOnStartup == true)
-                    await TrayAppDotNETWarmWindowResourcePurger.PurgeAsync(ex =>
-                        WPFLog.Log($"Brightness startup memory purge: {ex.Message}"));
                 if (_settings?.KeepFlyoutWarm == true && _monitorService != null)
                     await BrightnessFlyoutWarmSlot.PrimeAsync(CreateManagedBrightnessFlyout);
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)

@@ -506,12 +506,6 @@ internal sealed class VolumeAvaloniaApp : Application
         {
             try
             {
-                if (_settings?.PurgeMemoryOnStartup == true)
-                {
-                    await TrayAppDotNETWarmWindowResourcePurger.PurgeAsync(ex =>
-                        TADNLog.Log($"Volume startup memory purge: {ex.Message}"));
-                }
-
                 if (_settings?.KeepFlyoutWarm == true && _audioManager != null)
                     await VolumeFlyoutWarmSlot.PrimeAsync(CreateManagedVolumeFlyout);
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)

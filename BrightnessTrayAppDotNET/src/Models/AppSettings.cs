@@ -199,8 +199,7 @@ public class KnownDisplayEntry
 /// <summary>
 /// Root application settings class.
 /// </summary>
-public partial class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings,
-    ITrayAppDotNETStartupMemorySettings
+public partial class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings
 {
     // General
     public bool RunOnStartup { get; set; } = true;
@@ -228,7 +227,6 @@ public partial class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETK
     public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
-    public bool PurgeMemoryOnStartup { get; set; } = true;
 
     // Monitor Options
     public int BrightnessUpdateRateMs { get; set; } = TimeConstants.BrightnessUpdateRateDefaultMs;

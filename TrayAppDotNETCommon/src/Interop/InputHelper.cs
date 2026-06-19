@@ -9,7 +9,7 @@ namespace TrayAppDotNETCommon.Interop;
 /// </summary>
 public static class InputHelper
 {
-    public static void RegisterForMouseInput(IntPtr handle)
+    public static bool RegisterForMouseInput(IntPtr handle)
     {
         User32.RAWINPUTDEVICE device = new()
         {
@@ -19,11 +19,13 @@ public static class InputHelper
             hwndTarget = handle,
         };
 
-        if (!RegisterRawInputDevice(device))
+        bool registered = RegisterRawInputDevice(device);
+        if (!registered)
             TADNLog.Log($"InputHelper.RegisterForMouseInput failed: {Marshal.GetLastWin32Error()}");
+        return registered;
     }
 
-    public static void UnregisterForMouseInput()
+    public static bool UnregisterForMouseInput()
     {
         User32.RAWINPUTDEVICE device = new()
         {
@@ -33,8 +35,10 @@ public static class InputHelper
             hwndTarget = IntPtr.Zero,
         };
 
-        if (!RegisterRawInputDevice(device))
+        bool unregistered = RegisterRawInputDevice(device);
+        if (!unregistered)
             TADNLog.Log($"InputHelper.UnregisterForMouseInput failed: {Marshal.GetLastWin32Error()}");
+        return unregistered;
     }
 
     private static bool RegisterRawInputDevice(User32.RAWINPUTDEVICE device)

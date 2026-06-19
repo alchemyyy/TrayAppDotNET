@@ -96,6 +96,10 @@ public static class User32
     public static extern int GetMessagePos();
 
     [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
     public static extern IntPtr GetDC(IntPtr hwnd);
 
     [DllImport("user32.dll")]

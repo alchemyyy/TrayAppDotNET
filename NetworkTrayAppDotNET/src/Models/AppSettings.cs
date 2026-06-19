@@ -215,7 +215,6 @@ public class AppSettings : AppSettingsCommon
             Enum(nameof(FlyoutStyle), FlyoutStyle),
             Enum(nameof(AdapterSettingsStyle), AdapterSettingsStyle),
             Bool(nameof(KeepTrayContextMenuWarm), KeepTrayContextMenuWarm),
-            Bool(nameof(PurgeMemoryOnStartup), PurgeMemoryOnStartup),
             NullableThemeColorElement(nameof(NetworkConnectedColor), NetworkConnectedColor),
             NullableThemeColorElement(nameof(NetworkNoInternetColor), NetworkNoInternetColor),
             NullableThemeColorElement(nameof(NetworkDisconnectedColor), NetworkDisconnectedColor),
@@ -263,7 +262,6 @@ public class AppSettings : AppSettingsCommon
             loaded.AdapterSettingsStyle = ReadEnum(root, nameof(AdapterSettingsStyle), loaded.AdapterSettingsStyle);
             loaded.KeepTrayContextMenuWarm =
                 ReadBool(root, nameof(KeepTrayContextMenuWarm), loaded.KeepTrayContextMenuWarm);
-            loaded.PurgeMemoryOnStartup = ReadBool(root, nameof(PurgeMemoryOnStartup), loaded.PurgeMemoryOnStartup);
             loaded.NetworkConnectedColor =
                 ReadNullableThemeColor(root, nameof(NetworkConnectedColor), loaded.NetworkConnectedColor);
             loaded.NetworkNoInternetColor =

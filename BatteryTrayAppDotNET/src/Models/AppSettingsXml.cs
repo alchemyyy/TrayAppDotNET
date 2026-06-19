@@ -28,7 +28,6 @@ public sealed partial class AppSettings
                 Int(nameof(UpdateCheckIntervalMs), UpdateCheckIntervalMs),
                 Bool(nameof(KeepFlyoutWarm), KeepFlyoutWarm),
                 Bool(nameof(KeepTrayContextMenuWarm), KeepTrayContextMenuWarm),
-                Bool(nameof(PurgeMemoryOnStartup), PurgeMemoryOnStartup),
                 HotkeysElement(Hotkeys)));
 
         SaveDocument(stream, document);
@@ -71,8 +70,6 @@ public sealed partial class AppSettings
             settings.KeepFlyoutWarm = ReadBool(root, nameof(KeepFlyoutWarm), settings.KeepFlyoutWarm);
             settings.KeepTrayContextMenuWarm =
                 ReadBool(root, nameof(KeepTrayContextMenuWarm), settings.KeepTrayContextMenuWarm);
-            settings.PurgeMemoryOnStartup =
-                ReadBool(root, nameof(PurgeMemoryOnStartup), settings.PurgeMemoryOnStartup);
             settings.Hotkeys = ReadHotkeys(root.Element("Hotkeys"));
         }
         finally

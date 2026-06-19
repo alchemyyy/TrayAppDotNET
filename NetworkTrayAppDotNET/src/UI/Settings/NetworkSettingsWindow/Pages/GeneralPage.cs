@@ -12,7 +12,6 @@ public sealed partial class NetworkSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
-        CreateMemorySettingsSection(p).AddCards(stack);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
         commonSection.AddInstallationSection(
             stack,
@@ -84,16 +83,6 @@ public sealed partial class NetworkSettingsWindow
             Save = Save,
             Settings = _settings,
             SupportsTrayContextMenu = true,
-        });
-
-    private TrayAppDotNETMemorySettingsSection CreateMemorySettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETMemorySettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            Settings = _settings,
         });
 
     private static string StoreInstallDescription()

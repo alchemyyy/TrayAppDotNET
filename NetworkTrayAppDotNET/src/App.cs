@@ -434,9 +434,6 @@ internal sealed class NetworkAvaloniaApp : Application
         {
             try
             {
-                if (_settings?.PurgeMemoryOnStartup == true)
-                    await TrayAppDotNETWarmWindowResourcePurger.PurgeAsync(ex =>
-                        TADNLog.Log($"Network startup memory purge: {ex.Message}"));
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
                     await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
             }

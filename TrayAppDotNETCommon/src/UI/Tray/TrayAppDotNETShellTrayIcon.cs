@@ -47,11 +47,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         {
             if (_isScrollEnabled == value) return;
             _isScrollEnabled = value;
-            if (!value && _isListeningForInput)
-            {
-                _isListeningForInput = false;
-                InputHelper.UnregisterForMouseInput();
-            }
+            if (value) RefreshMouseInputRegistration();
+            else StopListeningForInput();
         }
     }
 
@@ -161,6 +158,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         NOTIFYICONDATAW data = MakeData();
         if (!_isVisible)
         {
+            StopListeningForInput();
             if (_isCreated)
             {
                 _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
@@ -171,8 +169,12 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         }
 
         if (_isCreated && Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_MODIFY, ref data))
+        {
+            RefreshMouseInputRegistration(forceRegistration: true);
             return;
+        }
 
+        StopListeningForInput();
         _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
         bool added = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_ADD, ref data);
         _isCreated = added;
@@ -185,6 +187,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         data.uTimeoutOrVersion = Shell32.NOTIFYICON_VERSION_4;
         _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_SETVERSION, ref data);
+        RefreshMouseInputRegistration(forceRegistration: true);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -203,7 +206,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             if (_isScrollEnabled
                 && InputHelper.ProcessMouseInputMessage(lParam, out int wheelDelta)
                 && wheelDelta != 0
-                && IsCursorWithinNotifyIconBounds(ExtractMessagePoint(User32.GetMessagePos())))
+                && UpdateInputRegistrationForCursor(ExtractMessagePoint(User32.GetMessagePos())))
                 Scrolled?.Invoke(wheelDelta);
 
             handled = true;
@@ -252,43 +255,67 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void OnNotifyIconMouseMove()
     {
-        if (!_isScrollEnabled) return;
+        RefreshMouseInputRegistration(forceRegistration: true);
+    }
 
+    private void RefreshMouseInputRegistration(bool forceRegistration = false)
+    {
+        if (!_isScrollEnabled || !_isVisible || _disposed || _window.Handle == IntPtr.Zero)
+        {
+            StopListeningForInput();
+            return;
+        }
+
+        if (!TryUpdateTrayIconLocation())
+        {
+            _trayIconLocation = default;
+            StopListeningForInput();
+            return;
+        }
+
+        if (!User32.GetCursorPos(out User32.POINT cursor))
+        {
+            StopListeningForInput();
+            return;
+        }
+
+        UpdateInputRegistrationForCursor(cursor, forceRegistration);
+    }
+
+    private bool TryUpdateTrayIconLocation()
+    {
         NOTIFYICONIDENTIFIER id = new()
         {
             cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(), hWnd = _window.Handle, guidItem = _iconGUID,
         };
 
-        if (Shell32.Shell_NotifyIconGetRect(ref id, out RECT location) == 0)
-        {
-            _trayIconLocation = location;
-            IsCursorWithinNotifyIconBounds(ExtractMessagePoint(User32.GetMessagePos()));
-            return;
-        }
+        if (Shell32.Shell_NotifyIconGetRect(ref id, out RECT location) != 0)
+            return false;
 
-        _trayIconLocation = default;
-        if (_isListeningForInput)
-        {
-            _isListeningForInput = false;
-            InputHelper.UnregisterForMouseInput();
-        }
+        _trayIconLocation = location;
+        return true;
     }
 
-    private bool IsCursorWithinNotifyIconBounds(User32.POINT cursor)
+    private bool UpdateInputRegistrationForCursor(User32.POINT cursor, bool forceRegistration = false)
     {
         bool inBounds = _trayIconLocation.Contains(cursor);
-        if (inBounds && !_isListeningForInput)
-        {
-            _isListeningForInput = true;
-            InputHelper.RegisterForMouseInput(_window.Handle);
-        }
-        else if (!inBounds && _isListeningForInput)
-        {
-            _isListeningForInput = false;
-            InputHelper.UnregisterForMouseInput();
-        }
+        if (inBounds) StartListeningForInput(forceRegistration);
+        else StopListeningForInput();
 
         return inBounds;
+    }
+
+    private void StartListeningForInput(bool forceRegistration)
+    {
+        if (!forceRegistration && _isListeningForInput) return;
+        _isListeningForInput = InputHelper.RegisterForMouseInput(_window.Handle);
+    }
+
+    private void StopListeningForInput()
+    {
+        if (!_isListeningForInput) return;
+        _isListeningForInput = false;
+        _ = InputHelper.UnregisterForMouseInput();
     }
 
     private static Point ExtractScreenPoint(IntPtr packedPoint)
@@ -305,11 +332,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        if (_isListeningForInput)
-        {
-            _isListeningForInput = false;
-            InputHelper.UnregisterForMouseInput();
-        }
+        StopListeningForInput();
 
         if (_isCreated)
         {

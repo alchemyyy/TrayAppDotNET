@@ -117,7 +117,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
             TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
             stack.Children.Add(commonSection.BuildStartupCard());
-            CreateMemorySettingsSection(p).AddCards(stack);
             CreateKeepWarmSettingsSection(p).AddCards(stack);
             commonSection.AddInstallationSection(
                 stack,
@@ -192,16 +191,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Settings = _settings,
             SupportsFlyout = true,
             SupportsTrayContextMenu = true,
-        });
-
-    private TrayAppDotNETMemorySettingsSection CreateMemorySettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETMemorySettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            Settings = _settings,
         });
 
     private static string StoreInstallDescription()

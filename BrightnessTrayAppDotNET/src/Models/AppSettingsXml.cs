@@ -67,7 +67,6 @@ public partial class AppSettings
                 Int(nameof(UpdateCheckIntervalMs), UpdateCheckIntervalMs),
                 Bool(nameof(KeepFlyoutWarm), KeepFlyoutWarm),
                 Bool(nameof(KeepTrayContextMenuWarm), KeepTrayContextMenuWarm),
-                Bool(nameof(PurgeMemoryOnStartup), PurgeMemoryOnStartup),
                 Enum(nameof(DefaultDisplaySortMode), DefaultDisplaySortMode),
                 Enum(nameof(DefaultDisplaySortDirection), DefaultDisplaySortDirection),
                 Enum(nameof(MonitorIdentityStrategy), MonitorIdentityStrategy),
@@ -184,7 +183,6 @@ public partial class AppSettings
                 ReadInt(root, nameof(UpdateCheckIntervalMs), TimeConstants.UpdateCheckIntervalDefaultMs),
             KeepFlyoutWarm = ReadBool(root, nameof(KeepFlyoutWarm), true),
             KeepTrayContextMenuWarm = ReadBool(root, nameof(KeepTrayContextMenuWarm), true),
-            PurgeMemoryOnStartup = ReadBool(root, nameof(PurgeMemoryOnStartup), true),
             DefaultDisplaySortMode = ReadEnum(root, nameof(DefaultDisplaySortMode), DisplaySortMode.Arrangement),
             DefaultDisplaySortDirection =
                 ReadEnum(root, nameof(DefaultDisplaySortDirection), DisplaySortDirection.Standard),

@@ -516,9 +516,6 @@ internal sealed class FanAvaloniaApp : Application
         {
             try
             {
-                if (_settings?.PurgeMemoryOnStartup == true)
-                    await TrayAppDotNETWarmWindowResourcePurger.PurgeAsync(ex =>
-                        TADNLog.Log($"Fan startup memory purge: {ex.Message}"));
                 if (_settings?.KeepFlyoutWarm == true)
                     await FanFlyoutWarmSlot.PrimeAsync(CreateManagedFanFlyout);
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)

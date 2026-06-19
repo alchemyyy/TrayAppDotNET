@@ -42,8 +42,7 @@ public enum ContextMenuPosition
 /// Skeleton scaffold with a few illustrative fields - extend with project-specific settings in your fork.
 /// </summary>
 [XmlRoot("AppSettings")]
-public partial class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings,
-    ITrayAppDotNETStartupMemorySettings
+public partial class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings
 {
     // General
     public bool RunOnStartup { get; set; } = true;
@@ -150,7 +149,6 @@ public partial class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETK
     public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
-    public bool PurgeMemoryOnStartup { get; set; } = true;
 
     // Empty by default; defaults are seeded by EnsureDefaultHotkeys() after construction or load.
     // The previous in-place initializer collided with XmlSerializer's "append to existing list" behavior:

@@ -455,12 +455,6 @@ internal sealed class BatteryAvaloniaApp : Application
         {
             try
             {
-                if (_settings?.PurgeMemoryOnStartup == true)
-                {
-                    await TrayAppDotNETWarmWindowResourcePurger.PurgeAsync(ex =>
-                        TADNLog.Log($"Battery startup memory purge: {ex.Message}"));
-                }
-
                 if (_settings?.KeepFlyoutWarm == true && _batteryMonitor != null)
                     await BatteryFlyoutWarmSlot.PrimeAsync(CreateManagedBatteryFlyout);
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)

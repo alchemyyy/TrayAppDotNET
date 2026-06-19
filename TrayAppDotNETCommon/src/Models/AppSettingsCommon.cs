@@ -32,13 +32,8 @@ public interface ITrayAppDotNETKeepWarmSettings
     bool KeepTrayContextMenuWarm { get; set; }
 }
 
-public interface ITrayAppDotNETStartupMemorySettings
-{
-    bool PurgeMemoryOnStartup { get; set; }
-}
-
 public abstract class AppSettingsCommon(int updateCheckIntervalDefaultMs) : INotifyPropertyChanged,
-    ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings, ITrayAppDotNETStartupMemorySettings
+    ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -134,12 +129,6 @@ public abstract class AppSettingsCommon(int updateCheckIntervalDefaultMs) : INot
     } = true;
 
     public bool KeepTrayContextMenuWarm
-    {
-        get;
-        set => SetField(ref field, value);
-    } = true;
-
-    public bool PurgeMemoryOnStartup
     {
         get;
         set => SetField(ref field, value);

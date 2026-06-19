@@ -21,7 +21,6 @@ public sealed partial class BrightnessSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
-        CreateMemorySettingsSection(p).AddCards(stack);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(BoolCard(
@@ -260,16 +259,6 @@ public sealed partial class BrightnessSettingsWindow
             Settings = _settings,
             SupportsFlyout = true,
             SupportsTrayContextMenu = true,
-        });
-
-    private TrayAppDotNETMemorySettingsSection CreateMemorySettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETMemorySettingsSectionOptions
-        {
-            Palette = p,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            Settings = _settings,
         });
 
     private sealed record ProfileSlotEntry(int Key, string Name);
