@@ -53,7 +53,6 @@ jobs:
           -p:PublishSingleFile=false
           -p:IncludeNativeLibrariesForSelfExtract=false
           -p:IncludeAllContentForSelfExtract=false
-          -p:DisableUnsupportedError=true
           -p:SkipKillRunningInstance=true
           -p:SkipPublishAfterBuild=true
           -p:ContinuousIntegrationBuild=true

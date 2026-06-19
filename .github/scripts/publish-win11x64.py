@@ -160,17 +160,17 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
             "--runtime",
             "win-x64",
             "--self-contained",
-            "true",
+            "false",
             "--output",
             str(publish_dir),
-            "-p:PublishAot=true",
+            "-p:PublishAot=false",
             "-p:PublishSingleFile=false",
-            "-p:SelfContained=true",
+            "-p:PublishTrimmed=false",
+            "-p:SelfContained=false",
             "-p:IncludeNativeLibrariesForSelfExtract=false",
             "-p:IncludeAllContentForSelfExtract=false",
             "-p:UseAppHost=true",
             "-p:EnableWindowsTargeting=true",
-            "-p:DisableUnsupportedError=true",
             "-p:SkipPublishAfterBuild=true",
             "-p:SkipKillRunningInstance=true",
             "-p:ContinuousIntegrationBuild=true",
@@ -178,16 +178,16 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
     )
 
     expected_exe = publish_dir / f"{app.name}.exe"
-    forbidden_dll = publish_dir / f"{app.name}.dll"
+    expected_dll = publish_dir / f"{app.name}.dll"
     if not expected_exe.exists():
         raise SystemExit(
             f"{app.name} publish did not produce {expected_exe.name}. "
-            "Refusing to package a failed Native AOT publish."
+            "Refusing to package a failed Win11 x64 publish."
         )
-    if forbidden_dll.exists():
+    if not expected_dll.exists():
         raise SystemExit(
-            f"{app.name} publish produced {forbidden_dll.name}. "
-            "Refusing to package a framework-dependent managed publish."
+            f"{app.name} publish did not produce {expected_dll.name}. "
+            "Refusing to package a single-file or incomplete publish."
         )
 
     zip_directory(publish_dir, zip_path)
