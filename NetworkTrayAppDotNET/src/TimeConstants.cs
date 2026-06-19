@@ -14,9 +14,13 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // Settings UI
     public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;
+    public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
     public new const int ToolTipShowDelayDefaultMs = CommonTimeConstants.ToolTipShowDelayDefaultMs;
     public new const int ToolTipShowDelayMinMs = CommonTimeConstants.ToolTipShowDelayMinMs;
     public new const int ToolTipShowDelayMaxMs = CommonTimeConstants.ToolTipShowDelayMaxMs;
+
+    // Auto-update
+    public new const int UpdateStaleGraceMs = CommonTimeConstants.UpdateStaleGraceMs;
 
     // Network polling
     public const int NetworkPollIntervalMs = 3_000;

@@ -1,8 +1,11 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
+using System.Xml.Linq;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services;
@@ -13,6 +16,8 @@ public sealed record UpdateInfo(
     string ReleaseName,
     string Changelog,
     string AssetUrl,
+    string AssetName,
+    string AssetSha256,
     long AssetSize);
 
 public enum UpdateCheckResult
@@ -24,8 +29,10 @@ public enum UpdateCheckResult
 
 public sealed class UpdateCheckOptions
 {
-    public required Uri ReleasesApiUrl { get; init; }
-    public required string AssetName { get; init; }
+    public required Uri VersionsManifestUrl { get; init; }
+    public required string RepositoryOwner { get; init; }
+    public required string RepositoryName { get; init; }
+    public required string ApplicationName { get; init; }
     public required int CurrentBuild { get; init; }
     public required string UserAgent { get; init; }
     public required Func<string> StagingDirectory { get; init; }
@@ -79,8 +86,9 @@ public sealed class UpdateCheckService : IDisposable
 
         _http = new HttpClient { Timeout = _options.NetworkTimeout };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(_options.UserAgent);
-        _http.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
+        _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
+        _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
     }
 
     public event Action? StateChanged;
@@ -154,7 +162,8 @@ public sealed class UpdateCheckService : IDisposable
         ArgumentNullException.ThrowIfNull(info);
 
         await SetCheckingAsync(true).ConfigureAwait(false);
-        string? stagedExe = null;
+        string? zipPath = null;
+        string? extractDirectory = null;
         string? scriptPath = null;
         bool launched = false;
         try
@@ -165,33 +174,60 @@ public sealed class UpdateCheckService : IDisposable
 
             Directory.CreateDirectory(stagingDirectory);
             string prefix = SafeFileNamePart(_options.StagingFilePrefix)
-                            ?? SafeFileNamePart(Path.GetFileNameWithoutExtension(_options.AssetName))
+                            ?? SafeFileNamePart(_options.ApplicationName)
                             ?? "trayapp";
+            string updateId = $"{prefix}_update_{info.Version}_{Guid.NewGuid():N}";
 
-            stagedExe = Path.Combine(
-                stagingDirectory,
-                $"{prefix}_update_{info.Version}_{Guid.NewGuid():N}.exe");
-            scriptPath = Path.Combine(
-                stagingDirectory,
-                $"{prefix}_update_{info.Version}_{Guid.NewGuid():N}.bat");
+            zipPath = Path.Combine(stagingDirectory, updateId + ".zip");
+            extractDirectory = Path.Combine(stagingDirectory, updateId);
+            scriptPath = Path.Combine(stagingDirectory, updateId + ".bat");
 
-            bool downloaded = await DownloadAssetWithRetryAsync(info.AssetUrl, stagedExe, token)
+            bool downloaded = await DownloadAssetWithRetryAsync(info.AssetUrl, zipPath, token)
                 .ConfigureAwait(false);
             if (!downloaded) return false;
 
-            FileInfo onDisk = new(stagedExe);
-            if (info.AssetSize > 0 && onDisk.Length != info.AssetSize)
+            if (info.AssetSize > 0)
             {
-                TADNLog.Log(
-                    $"UpdateCheckService.DownloadAndStageAsync: size mismatch "
-                    + $"(got {onDisk.Length}, expected {info.AssetSize})");
-                return false;
+                FileInfo onDisk = new(zipPath);
+                if (onDisk.Length != info.AssetSize)
+                {
+                    TADNLog.Log(
+                        $"UpdateCheckService.DownloadAndStageAsync: size mismatch "
+                        + $"(got {onDisk.Length}, expected {info.AssetSize})");
+                    return false;
+                }
             }
+
+            if (!string.IsNullOrWhiteSpace(info.AssetSha256))
+            {
+                string actualSha = await Sha256FileAsync(zipPath, token).ConfigureAwait(false);
+                if (!string.Equals(actualSha, info.AssetSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    TADNLog.Log(
+                        $"UpdateCheckService.DownloadAndStageAsync: sha256 mismatch "
+                        + $"(got {actualSha}, expected {info.AssetSha256})");
+                    return false;
+                }
+            }
+
+            ExtractZip(zipPath, extractDirectory);
 
             string currentExe = _options.CurrentExecutablePath()
                                 ?? throw new InvalidOperationException("Could not resolve current executable path.");
+            string? targetDirectory = Path.GetDirectoryName(currentExe);
+            if (string.IsNullOrWhiteSpace(targetDirectory))
+                throw new InvalidOperationException($"Could not resolve current executable directory: {currentExe}");
 
-            string scriptContents = BuildUpdateScript(Environment.ProcessId, stagedExe, currentExe);
+            string expectedExe = Path.Combine(extractDirectory, Path.GetFileName(currentExe));
+            if (!File.Exists(expectedExe))
+                throw new InvalidOperationException($"Update package did not contain {Path.GetFileName(currentExe)}.");
+
+            string scriptContents = BuildUpdateScript(
+                Environment.ProcessId,
+                extractDirectory,
+                zipPath,
+                targetDirectory,
+                currentExe);
             await File.WriteAllTextAsync(scriptPath, scriptContents, Encoding.ASCII, token)
                 .ConfigureAwait(false);
 
@@ -217,7 +253,8 @@ public sealed class UpdateCheckService : IDisposable
         {
             if (!launched)
             {
-                TryDeleteFile(stagedExe);
+                TryDeleteFile(zipPath);
+                TryDeleteDirectory(extractDirectory);
                 TryDeleteFile(scriptPath);
             }
 
@@ -233,6 +270,8 @@ public sealed class UpdateCheckService : IDisposable
         if (span.Length == 0) return 0;
 
         if (span[0] == 'v' || span[0] == 'V') span = span[1..];
+        if (span.StartsWith("TrayAppDotNET_", StringComparison.OrdinalIgnoreCase))
+            span = span["TrayAppDotNET_".Length..];
 
         int dashIndex = span.IndexOf('-');
         if (dashIndex >= 0) span = span[..dashIndex];
@@ -242,7 +281,9 @@ public sealed class UpdateCheckService : IDisposable
         int end = 0;
         while (end < span.Length && char.IsDigit(span[end])) end++;
         if (end == 0) return 0;
-        return int.TryParse(span[..end], out int version) ? version : 0;
+        return int.TryParse(span[..end], NumberStyles.None, CultureInfo.InvariantCulture, out int version)
+            ? version
+            : 0;
     }
 
     private async Task RunLoopAsync(CancellationToken token)
@@ -352,54 +393,66 @@ public sealed class UpdateCheckService : IDisposable
 
     private async Task<UpdateInfo?> FetchLatestAsync(CancellationToken token)
     {
-        using HttpRequestMessage req = new(HttpMethod.Get, _options.ReleasesApiUrl);
+        using HttpRequestMessage req = new(HttpMethod.Get, _options.VersionsManifestUrl);
         using HttpResponseMessage resp = await _http
             .SendAsync(req, HttpCompletionOption.ResponseContentRead, token)
             .ConfigureAwait(false);
         resp.EnsureSuccessStatusCode();
 
-        Stream stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        using JsonDocument doc = await JsonDocument.ParseAsync(stream, cancellationToken: token)
-            .ConfigureAwait(false);
-        JsonElement root = doc.RootElement;
+        await using Stream stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        XDocument doc = await XDocument.LoadAsync(stream, LoadOptions.None, token).ConfigureAwait(false);
+        XElement root = doc.Root ?? throw new InvalidOperationException("versions.xml had no root element.");
 
-        if (root.TryGetProperty("prerelease", out JsonElement preRel) && preRel.GetBoolean()) return null;
-        if (root.TryGetProperty("draft", out JsonElement draft) && draft.GetBoolean()) return null;
+        XElement? release = root.Element("release");
+        string tag = AttributeValue(release, "tag") ?? "";
+        string releaseName = AttributeValue(release, "name") ?? tag;
 
-        string tag = root.TryGetProperty("tag_name", out JsonElement tagEl) ? tagEl.GetString() ?? "" : "";
-        string name = root.TryGetProperty("name", out JsonElement nameEl) ? nameEl.GetString() ?? "" : "";
-        string body = root.TryGetProperty("body", out JsonElement bodyEl) ? bodyEl.GetString() ?? "" : "";
+        XElement? appArtifact = root
+            .Element("artifacts")
+            ?.Elements("artifact")
+            .FirstOrDefault(IsNativeAotAppArtifact);
+        if (appArtifact == null) return null;
 
-        int version = ParseVersionFromTag(tag);
+        int version = ParsePositiveInt(AttributeValue(appArtifact, "version"));
         if (version <= 0) return null;
 
-        string? assetUrl = null;
-        long assetSize = 0;
-        if (root.TryGetProperty("assets", out JsonElement assets))
+        string expectedAssetName = GitHubReleaseUrls.NativeAotAssetName(_options.ApplicationName, version);
+        string manifestAssetName = AttributeValue(appArtifact, "fileName") ?? expectedAssetName;
+        if (!string.Equals(manifestAssetName, expectedAssetName, StringComparison.OrdinalIgnoreCase))
         {
-            foreach (JsonElement asset in assets.EnumerateArray())
-            {
-                string assetName = asset.TryGetProperty("name", out JsonElement an)
-                    ? an.GetString() ?? ""
-                    : "";
-                if (!string.Equals(assetName, _options.AssetName, StringComparison.OrdinalIgnoreCase)) continue;
-
-                assetUrl = asset.TryGetProperty("browser_download_url", out JsonElement url)
-                    ? url.GetString()
-                    : null;
-                assetSize = asset.TryGetProperty("size", out JsonElement size)
-                            && size.ValueKind == JsonValueKind.Number
-                    ? size.GetInt64()
-                    : 0;
-                break;
-            }
+            TADNLog.Log(
+                $"UpdateCheckService.FetchLatestAsync: manifest asset {manifestAssetName} did not match "
+                + $"expected asset {expectedAssetName}.");
+            return null;
         }
 
-        if (string.IsNullOrEmpty(assetUrl)) return null;
+        string displayName = $"{_options.ApplicationName} {version}";
+        if (string.IsNullOrWhiteSpace(displayName))
+            displayName = string.IsNullOrWhiteSpace(releaseName) ? tag : releaseName;
 
-        string displayName = string.IsNullOrWhiteSpace(name) ? tag : name;
-        return new UpdateInfo(version, tag, displayName, body, assetUrl, assetSize);
+        Uri assetUrl = GitHubReleaseUrls.LatestNativeAotAssetUrl(
+            _options.RepositoryOwner,
+            _options.RepositoryName,
+            _options.ApplicationName,
+            version);
+        string sha256 = AttributeValue(appArtifact, "sha256") ?? "";
+        long size = ParsePositiveLong(AttributeValue(appArtifact, "size"));
+
+        return new UpdateInfo(
+            version,
+            tag,
+            displayName,
+            "",
+            assetUrl.ToString(),
+            expectedAssetName,
+            sha256,
+            size);
     }
+
+    private bool IsNativeAotAppArtifact(XElement artifact) =>
+        string.Equals(AttributeValue(artifact, "appId"), _options.ApplicationName, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(AttributeValue(artifact, "profile"), GitHubReleaseUrls.NativeAotProfile, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(AttributeValue(artifact, "kind"), "app", StringComparison.OrdinalIgnoreCase);
 
     private async Task<bool> DownloadAssetWithRetryAsync(
         string assetUrl,
@@ -469,12 +522,21 @@ public sealed class UpdateCheckService : IDisposable
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
         ex.StatusCode is { } statusCode && IsTerminalHttpStatus(statusCode);
 
-    private static string BuildUpdateScript(int pid, string stagedExe, string currentExe)
+    private static string BuildUpdateScript(
+        int pid,
+        string sourceDirectory,
+        string downloadedZip,
+        string targetDirectory,
+        string currentExe)
     {
         StringBuilder sb = new();
         sb.AppendLine("@echo off");
         sb.AppendLine("setlocal");
         sb.AppendLine($"set TARGETPID={pid}");
+        sb.AppendLine($"set \"SOURCE={sourceDirectory}\"");
+        sb.AppendLine($"set \"ZIP={downloadedZip}\"");
+        sb.AppendLine($"set \"TARGET={targetDirectory}\"");
+        sb.AppendLine($"set \"EXE={currentExe}\"");
         sb.AppendLine(":waitloop");
         sb.AppendLine("tasklist /FI \"PID eq %TARGETPID%\" 2>NUL | find \"%TARGETPID%\" >NUL");
         sb.AppendLine("if not errorlevel 1 (");
@@ -482,12 +544,52 @@ public sealed class UpdateCheckService : IDisposable
         sb.AppendLine("  goto waitloop");
         sb.AppendLine(")");
         sb.AppendLine("timeout /t 1 /nobreak >NUL");
-        sb.AppendLine($"move /Y \"{stagedExe}\" \"{currentExe}\" >NUL");
-        sb.AppendLine("if errorlevel 1 goto cleanup");
-        sb.AppendLine($"start \"\" \"{currentExe}\"");
+        sb.AppendLine("robocopy \"%SOURCE%\" \"%TARGET%\" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NC /NS >NUL");
+        sb.AppendLine("set COPYRC=%ERRORLEVEL%");
+        sb.AppendLine("if %COPYRC% GEQ 8 goto cleanup");
+        sb.AppendLine("start \"\" \"%EXE%\"");
         sb.AppendLine(":cleanup");
+        sb.AppendLine("rmdir /S /Q \"%SOURCE%\" 2>NUL");
+        sb.AppendLine("del \"%ZIP%\" 2>NUL");
         sb.AppendLine("(goto) 2>nul & del \"%~f0\"");
         return sb.ToString();
+    }
+
+    private static void ExtractZip(string zipPath, string destinationDirectory)
+    {
+        if (Directory.Exists(destinationDirectory))
+            Directory.Delete(destinationDirectory, recursive: true);
+        Directory.CreateDirectory(destinationDirectory);
+
+        string root = Path.GetFullPath(destinationDirectory);
+        if (!root.EndsWith(Path.DirectorySeparatorChar))
+            root += Path.DirectorySeparatorChar;
+
+        using ZipArchive archive = ZipFile.OpenRead(zipPath);
+        foreach (ZipArchiveEntry entry in archive.Entries)
+        {
+            string destinationPath = Path.GetFullPath(Path.Combine(root, entry.FullName));
+            if (!destinationPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Update package entry escapes staging directory: {entry.FullName}");
+
+            if (string.IsNullOrEmpty(entry.Name))
+            {
+                Directory.CreateDirectory(destinationPath);
+                continue;
+            }
+
+            string? parent = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(parent))
+                Directory.CreateDirectory(parent);
+            entry.ExtractToFile(destinationPath, overwrite: true);
+        }
+    }
+
+    private static async Task<string> Sha256FileAsync(string path, CancellationToken token)
+    {
+        await using FileStream fs = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        byte[] hash = await SHA256.HashDataAsync(fs, token).ConfigureAwait(false);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static void TryDeleteFile(string? path)
@@ -498,6 +600,16 @@ public sealed class UpdateCheckService : IDisposable
             if (File.Exists(path)) File.Delete(path);
         }
         catch (Exception ex) { TADNLog.Log($"UpdateCheckService.TryDeleteFile: {ex.Message}"); }
+    }
+
+    private static void TryDeleteDirectory(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        try
+        {
+            if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+        }
+        catch (Exception ex) { TADNLog.Log($"UpdateCheckService.TryDeleteDirectory: {ex.Message}"); }
     }
 
     private static string? SafeFileNamePart(string? value)
@@ -511,11 +623,26 @@ public sealed class UpdateCheckService : IDisposable
         return cleaned.Length == 0 ? null : cleaned;
     }
 
+    private static string? AttributeValue(XElement? element, string name) =>
+        element?.Attribute(name)?.Value;
+
+    private static int ParsePositiveInt(string? value) =>
+        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int parsed) && parsed > 0
+            ? parsed
+            : 0;
+
+    private static long ParsePositiveLong(string? value) =>
+        long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out long parsed) && parsed > 0
+            ? parsed
+            : 0;
+
     private static UpdateCheckOptions ValidateOptions(UpdateCheckOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(options.ReleasesApiUrl);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.AssetName);
+        ArgumentNullException.ThrowIfNull(options.VersionsManifestUrl);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.RepositoryOwner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.RepositoryName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.ApplicationName);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.UserAgent);
         ArgumentNullException.ThrowIfNull(options.StagingDirectory);
         ArgumentNullException.ThrowIfNull(options.IsEnabled);

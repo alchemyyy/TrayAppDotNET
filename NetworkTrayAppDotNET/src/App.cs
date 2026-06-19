@@ -47,10 +47,12 @@ internal sealed class NetworkAvaloniaApp : Application
     private AppTheme? _theme;
     private GlobalHotkeyService? _hotkeyService;
     private WatcherMonitor? _watcherMonitor;
+    private UpdateCheckService? _updateCheckService;
     private NetworkMonitor? _networkMonitor;
     private NetworkTrayIcon? _networkIconRenderer;
     private DispatcherTimer? _refreshTimer;
     private bool _shuttingDown;
+    private int _lastNotifiedUpdateVersion;
 
     public override void Initialize()
     {
@@ -185,6 +187,25 @@ internal sealed class NetworkAvaloniaApp : Application
         {
             TADNLog.Log($"NetworkAvaloniaApp watcher init failed: {ex}");
         }
+
+        if (_settings != null)
+        {
+            try
+            {
+                _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
+                    _settings,
+                    repositoryName: "TrayAppDotNET",
+                    applicationName: Program.ApplicationName,
+                    currentBuild: BuildInfo.BuildNumber);
+                _updateCheckService.StateChanged += OnUpdateStateChanged;
+                _updateCheckService.Start();
+                AppServices.UpdateCheckService = _updateCheckService;
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"NetworkAvaloniaApp update service init failed: {ex}");
+            }
+        }
     }
 
     private void CreateTrayIcon()
@@ -197,6 +218,7 @@ internal sealed class NetworkAvaloniaApp : Application
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
+        _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
     }
 
     private void OnHotkeyFired(object? sender, HotkeyFiredEventArgs e)
@@ -226,6 +248,27 @@ internal sealed class NetworkAvaloniaApp : Application
 
     private void OnNetworkStateChanged(NetworkIconState state) =>
         Dispatcher.UIThread.Post(RequestTrayRefresh);
+
+    private void OnUpdateStateChanged()
+    {
+        _settingsWindow?.StopAboutUpdateRefresh();
+
+        UpdateInfo? info = _updateCheckService?.AvailableUpdate;
+        if (info == null || _settings?.ShowUpdateNotificationsEnabled != true) return;
+        if (info.Version <= _lastNotifiedUpdateVersion) return;
+
+        _lastNotifiedUpdateVersion = info.Version;
+        _trayIcon?.ShowBalloon(
+            L("UpdateNotification_Title", "Update available"),
+            string.Format(L("UpdateNotification_BodyFormat", "{0} is available."), info.ReleaseName));
+    }
+
+    private void OnUpdateBalloonClicked()
+    {
+        if (_updateCheckService?.AvailableUpdate == null) return;
+
+        OpenSettings(NetworkSettingsPage.About);
+    }
 
     private void OnRefreshTimerTick(object? sender, EventArgs e)
     {
@@ -408,7 +451,7 @@ internal sealed class NetworkAvaloniaApp : Application
             exitText: L("Tray_Exit", "Exit"),
             openNetworkSettings: OpenNetworkSettings,
             openAdapterSettings: OpenAdapterSettings,
-            openSettings: OpenSettings,
+            openSettings: () => OpenSettings(),
             exit: ExitApplication);
         _trayMenuWindow = menuWindow;
         menuWindow.Closed += OnTrayMenuClosed;
@@ -527,7 +570,7 @@ internal sealed class NetworkAvaloniaApp : Application
         }
     }
 
-    private void OpenSettings()
+    private void OpenSettings(NetworkSettingsPage? page = null)
     {
         if (_settings == null) return;
 
@@ -538,6 +581,7 @@ internal sealed class NetworkAvaloniaApp : Application
         }
 
         _settingsWindow.Show();
+        if (page.HasValue) _settingsWindow.SelectPage(page.Value);
         _settingsWindow.Activate();
     }
 
@@ -579,6 +623,14 @@ internal sealed class NetworkAvaloniaApp : Application
 
             Safe.Dispose(_watcherMonitor);
             _watcherMonitor = null;
+
+            if (_updateCheckService != null)
+            {
+                _updateCheckService.StateChanged -= OnUpdateStateChanged;
+                Safe.Dispose(_updateCheckService);
+                _updateCheckService = null;
+                AppServices.UpdateCheckService = null;
+            }
 
             if (_refreshTimer != null)
             {
@@ -628,6 +680,7 @@ internal sealed class NetworkAvaloniaApp : Application
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
+                _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }
 
             Safe.Dispose(_trayIcon);

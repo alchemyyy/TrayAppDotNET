@@ -243,7 +243,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                 _settings,
-                repositoryName: "BrightnessTrayAppDotNET",
+                repositoryName: "TrayAppDotNET",
                 applicationName: Program.ApplicationName,
                 currentBuild: BuildInfo.BuildNumber);
             _updateCheckService.StateChanged += OnUpdateStateChanged;

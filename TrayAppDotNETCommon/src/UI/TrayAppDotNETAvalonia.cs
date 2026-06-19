@@ -194,8 +194,10 @@ public static class TrayAppDotNETAvalonia
 
         return new UpdateCheckOptions
         {
-            ReleasesApiUrl = new Uri($"https://api.github.com/repos/{owner}/{repositoryName}/releases/latest"),
-            AssetName = applicationName + ".exe",
+            VersionsManifestUrl = GitHubReleaseUrls.LatestVersionsManifestUrl(owner, repositoryName),
+            RepositoryOwner = owner,
+            RepositoryName = repositoryName,
+            ApplicationName = applicationName,
             CurrentBuild = currentBuild,
             UserAgent = applicationName + "-Updater",
             StagingDirectory = static () => Path.Combine(

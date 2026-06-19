@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -525,12 +526,14 @@ def app_manifest_data(package: AppPackage) -> dict:
         "version": package.version,
         "fileName": package.zip_path.name,
         "sha256": sha256_file(package.zip_path),
+        "size": package.zip_path.stat().st_size,
         "source": package.source,
     }
     if package.symbols_zip_path:
         app_data["symbols"] = {
             "fileName": package.symbols_zip_path.name,
             "sha256": sha256_file(package.symbols_zip_path),
+            "size": package.symbols_zip_path.stat().st_size,
             "source": package.source,
         }
 
@@ -635,6 +638,7 @@ def profile_manifest_data(
         "aggregate": {
             "fileName": aggregate_zip.name,
             "sha256": aggregate_sha,
+            "size": aggregate_zip.stat().st_size,
             "source": profile.build_source,
         },
         "apps": [],
@@ -644,6 +648,7 @@ def profile_manifest_data(
         manifest["aggregateSymbols"] = {
             "fileName": aggregate_symbols_zip.name,
             "sha256": aggregate_symbols_sha,
+            "size": aggregate_symbols_zip.stat().st_size,
             "source": profile.build_source,
         }
 
@@ -653,12 +658,14 @@ def profile_manifest_data(
             "version": package.version,
             "fileName": package.zip_path.name,
             "sha256": sha256_file(package.zip_path),
+            "size": package.zip_path.stat().st_size,
             "source": package.source,
         }
         if package.symbols_zip_path:
             app_data["symbols"] = {
                 "fileName": package.symbols_zip_path.name,
                 "sha256": sha256_file(package.symbols_zip_path),
+                "size": package.symbols_zip_path.stat().st_size,
                 "source": package.source,
             }
         manifest["apps"].append(app_data)
@@ -825,6 +832,7 @@ def profile_manifest_from_group(
         if profile.id == "native-aot":
             app_entry["fileName"] = app_data["fileName"]
             app_entry["sha256"] = app_data["sha256"]
+            app_entry["size"] = app_data.get("size", app_data["zipPath"].stat().st_size)
         apps.append(app_entry)
 
     manifest = {
@@ -835,6 +843,7 @@ def profile_manifest_from_group(
         "aggregate": {
             "fileName": aggregate_zip.name,
             "sha256": aggregate_sha,
+            "size": aggregate_zip.stat().st_size,
             "source": profile.build_source,
         },
         "apps": apps,
@@ -843,6 +852,7 @@ def profile_manifest_from_group(
         manifest["aggregateSymbols"] = {
             "fileName": aggregate_symbols_zip.name,
             "sha256": aggregate_symbols_sha,
+            "size": aggregate_symbols_zip.stat().st_size,
             "source": profile.build_source,
         }
     return manifest
@@ -853,11 +863,13 @@ def artifact_rows(manifests: list[dict]) -> list[dict]:
     for manifest in sorted(manifests, key=lambda item: item["profile"]):
         rows.append(
             {
+                "profileId": manifest["profile"],
                 "profile": manifest["displayName"],
                 "appId": "TrayAppDotNET",
                 "version": manifest["version"],
                 "fileName": manifest["aggregate"]["fileName"],
                 "sha256": manifest["aggregate"]["sha256"],
+                "size": manifest["aggregate"]["size"],
                 "source": manifest["aggregate"]["source"],
                 "kind": "aggregate",
             }
@@ -865,11 +877,13 @@ def artifact_rows(manifests: list[dict]) -> list[dict]:
         if "aggregateSymbols" in manifest:
             rows.append(
                 {
+                    "profileId": manifest["profile"],
                     "profile": manifest["displayName"],
                     "appId": "TrayAppDotNET",
                     "version": manifest["version"],
                     "fileName": manifest["aggregateSymbols"]["fileName"],
                     "sha256": manifest["aggregateSymbols"]["sha256"],
+                    "size": manifest["aggregateSymbols"]["size"],
                     "source": manifest["aggregateSymbols"]["source"],
                     "kind": "symbols",
                 }
@@ -878,11 +892,13 @@ def artifact_rows(manifests: list[dict]) -> list[dict]:
             for app in manifest["apps"]:
                 rows.append(
                     {
+                        "profileId": manifest["profile"],
                         "profile": manifest["displayName"],
                         "appId": app["appId"],
                         "version": app["version"],
                         "fileName": app["fileName"],
                         "sha256": app["sha256"],
+                        "size": app["size"],
                         "source": app["source"],
                         "kind": "app",
                     }
@@ -974,30 +990,44 @@ def write_summary(rows: list[dict]) -> None:
         summary.write("\n".join(lines))
 
 
-def write_updates_manifest(path: Path, manifests: list[dict], rows: list[dict], tray_version: int) -> None:
-    by_profile = {manifest["profile"]: manifest for manifest in manifests}
-    release_profile = by_profile["release"]
-    runtime_apps = []
-    for app in release_profile["apps"]:
-        app_copy = dict(app)
-        app_copy.pop("symbols", None)
-        runtime_apps.append(app_copy)
+def write_versions_manifest(path: Path, rows: list[dict], tray_version: int, repo: str, release_tag: str) -> None:
+    root = ET.Element(
+        "versions",
+        {
+            "version": str(tray_version),
+            "runtime": "win-x64",
+        },
+    )
+    ET.SubElement(
+        root,
+        "release",
+        {
+            "repository": repo,
+            "tag": release_tag,
+            "name": f"TrayAppDotNET {tray_version}",
+        },
+    )
+    artifacts = ET.SubElement(root, "artifacts")
+    for row in rows:
+        ET.SubElement(
+            artifacts,
+            "artifact",
+            {
+                "profile": str(row["profileId"]),
+                "profileName": str(row["profile"]),
+                "kind": str(row["kind"]),
+                "appId": str(row["appId"]),
+                "version": str(row["version"]),
+                "fileName": str(row["fileName"]),
+                "sha256": str(row["sha256"]),
+                "size": str(row["size"]),
+                "source": str(row["source"]),
+            },
+        )
 
-    data = {
-        "version": tray_version,
-        "runtime": "win-x64",
-        "aggregate": release_profile["aggregate"],
-        "apps": runtime_apps,
-        "profiles": by_profile,
-    }
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-    artifact_list = {
-        "version": tray_version,
-        "runtime": "win-x64",
-        "artifacts": rows,
-    }
-    (path.parent / "artifact-list.json").write_text(json.dumps(artifact_list, indent=2) + "\n", encoding="utf-8")
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(path, encoding="utf-8", xml_declaration=True)
 
 
 def publish_release(args: argparse.Namespace) -> int:
@@ -1043,10 +1073,9 @@ def publish_release(args: argparse.Namespace) -> int:
     rows = artifact_rows(manifests)
 
     notes_path = final_dir / "release-notes.md"
-    updates_path = final_dir / "updates.json"
-    artifact_list_path = final_dir / "artifact-list.json"
+    versions_path = final_dir / "versions.xml"
     write_notes(notes_path, rows)
-    write_updates_manifest(updates_path, manifests, rows, tray_version)
+    write_versions_manifest(versions_path, rows, tray_version, args.repo, release_tag)
     write_summary(rows)
 
     ensure_release(
@@ -1057,7 +1086,7 @@ def publish_release(args: argparse.Namespace) -> int:
         notes_path,
     )
 
-    upload_assets.extend([updates_path, artifact_list_path])
+    upload_assets.append(versions_path)
     upload_assets = list(dict.fromkeys(upload_assets))
     prune_release_assets(args.repo, release_tag, {path.name for path in upload_assets})
 
@@ -1066,8 +1095,7 @@ def publish_release(args: argparse.Namespace) -> int:
     print("Published draft release assets:")
     for row in rows:
         print(f"- {row['profile']}: {row['fileName']}")
-    print(f"- {updates_path.name}")
-    print(f"- {artifact_list_path.name}")
+    print(f"- {versions_path.name}")
     return 0
 
 

@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using NetworkTrayAppDotNET.Models;
+using TrayAppDotNETCommon.UI.Settings;
 
 namespace NetworkTrayAppDotNET.UI;
 
@@ -21,6 +22,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
     private readonly AppSettings _settings;
     private readonly Action<string, InstallScope> _showUninstaller;
     private readonly TrayAppDotNETSettingsColorCardCoordinator _colorCardCoordinator = new();
+    private TrayAppDotNETAboutPage? _aboutPage;
 
     public NetworkSettingsWindow()
         : this(new AppSettings(), static (_, _) => { })
@@ -70,8 +72,17 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
         new(NetworkSettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage),
     ];
 
-    protected override void OnSettingsWindowClosed() =>
+    protected override void OnSettingsWindowClosed()
+    {
+        StopAboutUpdateRefresh();
         _colorCardCoordinator.CloseOpenColorPickers();
+    }
+
+    internal void StopAboutUpdateRefresh()
+    {
+        _aboutPage?.StopUpdateRefresh();
+        _aboutPage = null;
+    }
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings? settings, bool isLight)
     {

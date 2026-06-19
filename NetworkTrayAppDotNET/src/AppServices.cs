@@ -52,4 +52,5 @@ internal static class AppServices
     public static AppTheme? Theme { get; set; }
     public static AppSettings? Settings { get; set; }
     public static GlobalHotkeyService? HotkeyService { get; set; }
+    public static UpdateCheckService? UpdateCheckService { get; set; }
 }

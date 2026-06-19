@@ -7,7 +7,8 @@ public sealed partial class NetworkSettingsWindow
 {
     private StackPanel BuildAboutPage()
     {
-        TrayAppDotNETAboutPage page = new(new TrayAppDotNETAboutPageOptions
+        StopAboutUpdateRefresh();
+        _aboutPage = new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
         {
             Palette = Palette,
             ButtonRadius = RadiusMedium,
@@ -19,7 +20,20 @@ public sealed partial class NetworkSettingsWindow
             BuildNumber = BuildInfo.BuildNumber,
             Publisher = Constants.Publisher,
             HelpLink = Constants.HelpLink,
+            UpdateSettings = _settings,
+            UpdateService = static () => AppServices.UpdateCheckService,
+            ConfirmAsync = ConfirmAsync,
+            Shutdown = static () =>
+            {
+                if (Avalonia.Application.Current?.ApplicationLifetime
+                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                    desktop.Shutdown();
+            },
+            Log = message => TADNLog.Log(message),
+            RebuildAboutPage = () => RebuildShell(NetworkSettingsPage.About),
+            StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
+            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
         });
-        return page.Build();
+        return _aboutPage.Build();
     }
 }

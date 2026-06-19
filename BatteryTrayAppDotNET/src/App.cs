@@ -178,7 +178,7 @@ internal sealed class BatteryAvaloniaApp : Application
             {
                 _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                     _settings,
-                    repositoryName: "BatteryTrayAppDotNET",
+                    repositoryName: "TrayAppDotNET",
                     applicationName: Program.ApplicationName,
                     currentBuild: BuildInfo.BuildNumber);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;

@@ -194,7 +194,7 @@ internal sealed class FanAvaloniaApp : Application
             {
                 _updateCheckService = TrayAppDotNETAvalonia.CreateGitHubUpdateCheckService(
                     _settings,
-                    repositoryName: "FanControlTrayAppDotNET",
+                    repositoryName: "TrayAppDotNET",
                     applicationName: Program.ApplicationName,
                     currentBuild: BuildInfo.BuildNumber);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
