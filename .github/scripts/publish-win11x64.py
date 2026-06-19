@@ -164,13 +164,25 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
             "--output",
             str(publish_dir),
             "-p:PublishAot=false",
+            "-p:PublishSingleFile=false",
+            "-p:PublishTrimmed=false",
             "-p:SelfContained=false",
+            "-p:IncludeNativeLibrariesForSelfExtract=false",
+            "-p:IncludeAllContentForSelfExtract=false",
+            "-p:UseAppHost=true",
             "-p:EnableWindowsTargeting=true",
             "-p:SkipPublishAfterBuild=true",
             "-p:SkipKillRunningInstance=true",
             "-p:ContinuousIntegrationBuild=true",
         ]
     )
+
+    expected_dll = publish_dir / f"{app.name}.dll"
+    if not expected_dll.exists():
+        raise SystemExit(
+            f"{app.name} publish did not produce {expected_dll.name}. "
+            "Refusing to package a likely single-file/self-extracting publish."
+        )
 
     zip_directory(publish_dir, zip_path)
     return zip_path
