@@ -42,6 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="NCalc.Core" Version="6.2.0" />
     <Using Include="TrayAppDotNETCommon.TADNLog" Alias="TADNLog" />
     <Using Include="TrayAppDotNETCommon" />
     <Using Include="TrayAppDotNETCommon.Interop" />
@@ -72,7 +73,6 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
-    <PackageReference Include="NCalcSync" Version="5.4.2" />
   </ItemGroup>
 
   <ItemGroup>

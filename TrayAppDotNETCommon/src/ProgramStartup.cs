@@ -107,8 +107,15 @@ public static class TrayAppDotNETProgram
         if (TryGetArgValue(args, "--admin-action") is { } adminVerb)
             return RunOnStaThreadIfNeeded(() => RunAdminAction(adminVerb, args, options, log));
 
+        if (HasArg(args, "--installlocal"))
+            return RunOnStaThreadIfNeeded(() => RunInstall("local", options, log, startInstalled: true));
+
+        if (HasArg(args, "--installsystem"))
+            return RunOnStaThreadIfNeeded(() => RunInstall("system", options, log, startInstalled: true));
+
         if (HasArg(args, "--install"))
-            return RunOnStaThreadIfNeeded(() => RunInstall(TryGetArgValue(args, "--install"), options, log));
+            return RunOnStaThreadIfNeeded(() =>
+                RunInstall(TryGetArgValue(args, "--install"), options, log, startInstalled: false));
 
         if (TryGetArgValue(args, "--uninstall") is { } installDir)
             return RunUninstall(args, installDir, options);
@@ -222,6 +229,8 @@ public static class TrayAppDotNETProgram
         !Debugger.IsAttached &&
         !HasArg(args, "--monitored") &&
         !HasArg(args, "--install") &&
+        !HasArg(args, "--installlocal") &&
+        !HasArg(args, "--installsystem") &&
         !HasArg(args, "--admin-action") &&
         !HasArg(args, "--uninstall");
 
@@ -293,7 +302,8 @@ public static class TrayAppDotNETProgram
     private static int RunInstall(
         string? scope,
         TrayAppDotNETProgramOptions options,
-        Action<string> log)
+        Action<string> log,
+        bool startInstalled)
     {
         if (scope is null) return PrintInstallUsage("Missing scope argument after --install", log);
 
@@ -302,34 +312,103 @@ public static class TrayAppDotNETProgram
             case "local":
             {
                 TrayAppDotNETProgramInstallResult result = options.InstallToLocalAppData();
-                string message = result.Success
-                    ? $"Installed to {options.LocalAppDataInstallExecutable()}"
-                    : $"Local install failed: {result.ErrorMessage}";
-                WriteInstallMessage(message, error: !result.Success, log);
-                return result.Success ? 0 : 1;
+                string installExecutable = options.LocalAppDataInstallExecutable();
+                return CompleteInstall(
+                    result,
+                    installExecutable,
+                    startInstalled,
+                    successMessage: $"Installed to {installExecutable}",
+                    failureMessage: $"Local install failed: {result.ErrorMessage}",
+                    log: log);
             }
             case "system":
             {
                 TrayAppDotNETProgramInstallResult result = options.InstallSystemWide();
-                string message;
-                if (result.Success)
-                    message = $"Installed to {options.ProgramFilesInstallExecutable()}";
-                else if (result.UserCancelled)
-                    message = "System install cancelled (UAC prompt declined)";
-                else
-                    message = $"System install failed: {result.ErrorMessage}";
-                WriteInstallMessage(message, error: !result.Success, log);
-                return result.Success ? 0 : 1;
+                string installExecutable = options.ProgramFilesInstallExecutable();
+                string failureMessage = result.UserCancelled
+                    ? "System install cancelled (UAC prompt declined)"
+                    : $"System install failed: {result.ErrorMessage}";
+                return CompleteInstall(
+                    result,
+                    installExecutable,
+                    startInstalled,
+                    successMessage: $"Installed to {installExecutable}",
+                    failureMessage: failureMessage,
+                    log: log);
             }
             default:
                 return PrintInstallUsage($"Unknown scope '{scope}'", log);
         }
     }
 
+    private static int CompleteInstall(
+        TrayAppDotNETProgramInstallResult result,
+        string installExecutable,
+        bool startInstalled,
+        string successMessage,
+        string failureMessage,
+        Action<string> log)
+    {
+        if (!result.Success)
+        {
+            WriteInstallMessage(failureMessage, error: true, log);
+            return 1;
+        }
+
+        if (!startInstalled)
+        {
+            WriteInstallMessage(successMessage, error: false, log);
+            return 0;
+        }
+
+        string? launchError = StartInstalledInstance(installExecutable, log);
+        if (launchError == null)
+        {
+            WriteInstallMessage($"{successMessage}; started installed instance", error: false, log);
+            return 0;
+        }
+
+        WriteInstallMessage($"{successMessage}; failed to start installed instance: {launchError}", error: true, log);
+        return 1;
+    }
+
+    private static string? StartInstalledInstance(string installExecutable, Action<string> log)
+    {
+        try
+        {
+            if (!File.Exists(installExecutable))
+                return $"Installed executable not found: {installExecutable}";
+
+            ProcessStartInfo startInfo = new()
+            {
+                FileName = installExecutable,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+            };
+
+            string? workingDirectory = Path.GetDirectoryName(installExecutable);
+            if (!string.IsNullOrWhiteSpace(workingDirectory))
+                startInfo.WorkingDirectory = workingDirectory;
+
+            using Process? process = Process.Start(startInfo);
+            return process == null ? "Process.Start returned null" : null;
+        }
+        catch (Exception ex)
+        {
+            log($"TrayAppDotNETProgram.StartInstalledInstance: {ex}");
+            return ex.Message;
+        }
+    }
+
     private static int PrintInstallUsage(string? reason, Action<string> log)
     {
         string usage =
-            "Usage: --install <system|local>" + Environment.NewLine +
+            "Usage:" + Environment.NewLine +
+            "  --install <system|local>" + Environment.NewLine +
+            "  --installsystem" + Environment.NewLine +
+            "  --installlocal" + Environment.NewLine +
+            "Scopes:" + Environment.NewLine +
             "  system  Install to %ProgramFiles%\\TrayAppDotNET (triggers UAC)" + Environment.NewLine +
             "  local   Install to %LOCALAPPDATA%\\TrayAppDotNET (no UAC)";
         string body = reason is null ? usage : $"{reason}{Environment.NewLine}{Environment.NewLine}{usage}";

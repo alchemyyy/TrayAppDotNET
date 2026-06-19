@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI.Controls;
 
@@ -21,6 +23,13 @@ public sealed class TrayAppDotNETGeneralSettingsSectionOptions
     public required Action RetargetStartupShortcut { get; init; }
     public required Func<IReadOnlyList<TrayAppDotNETInstallationInfo>> DetectInstallations { get; init; }
     public required int CurrentBuildNumber { get; init; }
+    public Action Shutdown { get; init; } = ShutdownDesktopApp;
+
+    private static void ShutdownDesktopApp()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
+    }
 }
 
 public sealed class TrayAppDotNETInstallCardOptions
@@ -148,9 +157,10 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             if (!ok) return;
 
             installButton.IsEnabled = false;
+            TrayAppDotNETInstallResult? result = null;
             try
             {
-                TrayAppDotNETInstallResult result = await Task.Run(entry.Install);
+                result = await Task.Run(entry.Install);
                 if (result is { Success: false, UserCancelled: false } && !string.IsNullOrEmpty(result.ErrorMessage))
                     await _options.ShowMessage(L("Settings_General_InstallFailed_Title", "Install failed"),
                         result.ErrorMessage);
@@ -160,6 +170,9 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                 installButton.IsEnabled = true;
                 RefreshAfterInstallChange();
             }
+
+            if (result is { Success: true })
+                await PromptRestartFromInstalledAsync(entry);
         };
 
         uninstallButton.Click += async (_, _) =>
@@ -169,6 +182,53 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         };
 
         return card;
+    }
+
+    private async Task PromptRestartFromInstalledAsync(TrayAppDotNETInstallCardOptions entry)
+    {
+        bool restart = await _options.ConfirmAsync(
+            L("Settings_General_InstallComplete_Title", "Installation complete"),
+            string.Format(
+                CultureInfo.CurrentCulture,
+                L("Settings_General_InstallCompleteRestart_Message_Format",
+                    "Installed at \"{0}\".\n\nRestart from the installed copy now?"),
+                entry.ExecutablePath),
+            L("Settings_General_RestartFromInstalled_Button", "Restart"),
+            L("Settings_General_NotNow_Button", "Not now"));
+        if (!restart) return;
+
+        await StartInstalledInstanceAsync(entry.ExecutablePath);
+    }
+
+    private async Task StartInstalledInstanceAsync(string executablePath)
+    {
+        try
+        {
+            if (!File.Exists(executablePath))
+                throw new FileNotFoundException("Installed executable was not found.", executablePath);
+
+            ProcessStartInfo startInfo = new()
+            {
+                FileName = executablePath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+            };
+
+            string? workingDirectory = Path.GetDirectoryName(executablePath);
+            if (!string.IsNullOrWhiteSpace(workingDirectory))
+                startInfo.WorkingDirectory = workingDirectory;
+
+            using Process? process = Process.Start(startInfo);
+            if (process == null)
+                throw new InvalidOperationException("Process.Start returned null.");
+
+            _options.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            await _options.ShowMessage(L("Settings_General_RestartFailed_Title", "Restart failed"), ex.Message);
+        }
     }
 
     private void ApplyInstallRow(

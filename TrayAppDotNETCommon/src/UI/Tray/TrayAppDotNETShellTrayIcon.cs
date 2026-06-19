@@ -91,6 +91,26 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         Update();
     }
 
+    public void ShowTooltip()
+    {
+        if (_disposed || !_isCreated || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
+
+        NOTIFYICONDATAW data = new()
+        {
+            cbSize = Marshal.SizeOf<NOTIFYICONDATAW>(),
+            hWnd = _window.Handle,
+            uFlags = NotifyIconFlags.NIF_TIP | NotifyIconFlags.NIF_SHOWTIP | NotifyIconFlags.NIF_GUID,
+            szTip = _tooltipText.Length > 127 ? _tooltipText[..127] : _tooltipText,
+            guidItem = _iconGUID,
+        };
+
+        if (!Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_MODIFY, ref data))
+        {
+            int error = Marshal.GetLastWin32Error();
+            TADNLog.Log($"TrayAppDotNETShellTrayIcon.ShowTooltip: NIM_MODIFY failed (0x{error:X8}).");
+        }
+    }
+
     public bool TryGetIconRect(out PixelRect rect)
     {
         NOTIFYICONIDENTIFIER id = new()

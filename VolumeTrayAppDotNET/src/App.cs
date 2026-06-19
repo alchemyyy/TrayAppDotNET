@@ -424,6 +424,7 @@ internal sealed class VolumeAvaloniaApp : Application
         int stepPercent = _settings?.WheelVolumeStepPercent ?? AppSettings.WheelVolumeStepPercentDefault;
         double next = currentPercent + (delta > 0 ? stepPercent : -stepPercent);
         device.Volume = (float)(Math.Clamp(next, 0, 100) / 100.0);
+        _trayIcon?.ShowTooltip();
     }
 
     private void ShowTrayContextMenu(Point point)
