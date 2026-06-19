@@ -170,6 +170,7 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
             "-p:IncludeAllContentForSelfExtract=false",
             "-p:UseAppHost=true",
             "-p:EnableWindowsTargeting=true",
+            "-p:DisableUnsupportedError=true",
             "-p:SkipPublishAfterBuild=true",
             "-p:SkipKillRunningInstance=true",
             "-p:ContinuousIntegrationBuild=true",
