@@ -89,7 +89,7 @@ def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False, check
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build and publish TrayAppDotNET Win11 x64 release assets.")
+    parser = argparse.ArgumentParser(description="Build and publish TrayAppDotNET Win11 release assets.")
     parser.add_argument(
         "--phase",
         choices=["build-profile", "build-app-profile", "publish-release"],
@@ -104,10 +104,10 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Aggregate TrayAppDotNET version. Defaults to latest published TrayAppDotNET release + 1, with a floor of 100.",
     )
-    parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>_x64Win.")
+    parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>.")
     parser.add_argument("--target", default=os.environ.get("GITHUB_SHA", ""), help="Target commit for a new release.")
-    parser.add_argument("--output-root", default=".artifacts/publish-win11x64")
-    parser.add_argument("--input-root", default=".artifacts/publish-win11x64/collected")
+    parser.add_argument("--output-root", default=".artifacts/publish-win11")
+    parser.add_argument("--input-root", default=".artifacts/publish-win11/collected")
     parser.add_argument("--force-rebuild", action="store_true", help="Build every app even if latest release has an equal/newer app zip.")
     return parser.parse_args()
 
@@ -134,11 +134,11 @@ def release_version(release: dict | None) -> int | None:
 
     candidates: list[int] = []
     for value in (release.get("tag_name", ""), release.get("name", "")):
-        match = re.search(r"\bTrayAppDotNET_(\d+)_x64Win\b", str(value))
+        match = re.search(r"\bTrayAppDotNET_(\d+)\b", str(value))
         if match:
             candidates.append(int(match.group(1)))
 
-    aggregate_pattern = re.compile(r"^TrayAppDotNET_(\d+)(?:_NativeAOT)?(?:_Symbols)?_x64Win\.zip$")
+    aggregate_pattern = re.compile(r"^TrayAppDotNET_(\d+)(?:_NativeAOT)?(?:_Symbols)?\.zip$")
     for asset in release.get("assets", []):
         match = aggregate_pattern.fullmatch(str(asset.get("name", "")))
         if match:
@@ -157,30 +157,30 @@ def default_tray_version(repo: str) -> int:
 
 def app_asset_name(app: App, version: int, profile: Profile) -> str:
     if profile.legacy_names:
-        return f"{app.name}_{version}_x64Win.zip"
+        return f"{app.name}_{version}.zip"
     token = profile_asset_token(profile)
-    return f"{app.name}_{version}_{token}_x64Win.zip"
+    return f"{app.name}_{version}_{token}.zip"
 
 
 def app_symbols_asset_name(app: App, version: int, profile: Profile) -> str:
     if profile.legacy_names:
-        return f"{app.name}_{version}_Symbols_x64Win.zip"
+        return f"{app.name}_{version}_Symbols.zip"
     token = profile_asset_token(profile)
-    return f"{app.name}_{version}_{token}_Symbols_x64Win.zip"
+    return f"{app.name}_{version}_{token}_Symbols.zip"
 
 
 def aggregate_asset_name(tray_version: int, profile: Profile) -> str:
     if profile.legacy_names:
-        return f"TrayAppDotNET_{tray_version}_x64Win.zip"
+        return f"TrayAppDotNET_{tray_version}.zip"
     token = profile_asset_token(profile)
-    return f"TrayAppDotNET_{tray_version}_{token}_x64Win.zip"
+    return f"TrayAppDotNET_{tray_version}_{token}.zip"
 
 
 def aggregate_symbols_asset_name(tray_version: int, profile: Profile) -> str:
     if profile.legacy_names:
-        return f"TrayAppDotNET_{tray_version}_Symbols_x64Win.zip"
+        return f"TrayAppDotNET_{tray_version}_Symbols.zip"
     token = profile_asset_token(profile)
-    return f"TrayAppDotNET_{tray_version}_{token}_Symbols_x64Win.zip"
+    return f"TrayAppDotNET_{tray_version}_{token}_Symbols.zip"
 
 
 def profile_asset_token(profile: Profile) -> str:
@@ -191,16 +191,16 @@ def profile_asset_token(profile: Profile) -> str:
 
 def app_asset_pattern(app: App, profile: Profile) -> re.Pattern[str]:
     if profile.legacy_names:
-        return re.compile(rf"^{re.escape(app.name)}_(\d+)_x64Win\.zip$")
+        return re.compile(rf"^{re.escape(app.name)}_(\d+)\.zip$")
     token = profile_asset_token(profile)
-    return re.compile(rf"^{re.escape(app.name)}_(\d+)_{re.escape(token)}_x64Win\.zip$")
+    return re.compile(rf"^{re.escape(app.name)}_(\d+)_{re.escape(token)}\.zip$")
 
 
 def app_symbols_asset_pattern(app: App, profile: Profile) -> re.Pattern[str]:
     if profile.legacy_names:
-        return re.compile(rf"^{re.escape(app.name)}_(\d+)_Symbols_x64Win\.zip$")
+        return re.compile(rf"^{re.escape(app.name)}_(\d+)_Symbols\.zip$")
     token = profile_asset_token(profile)
-    return re.compile(rf"^{re.escape(app.name)}_(\d+)_{re.escape(token)}_Symbols_x64Win\.zip$")
+    return re.compile(rf"^{re.escape(app.name)}_(\d+)_{re.escape(token)}_Symbols\.zip$")
 
 
 def latest_app_assets(release: dict | None, profile: Profile) -> dict[str, tuple[int, str]]:
@@ -537,7 +537,7 @@ def app_manifest_data(package: AppPackage) -> dict:
     return {
         "profile": package.profile.id,
         "displayName": package.profile.display_name,
-        "runtime": "x64Win",
+        "runtime": "win-x64",
         "app": app_data,
     }
 
@@ -631,7 +631,7 @@ def profile_manifest_data(
         "profile": profile.id,
         "displayName": profile.display_name,
         "version": tray_version,
-        "runtime": "x64Win",
+        "runtime": "win-x64",
         "aggregate": {
             "fileName": aggregate_zip.name,
             "sha256": aggregate_sha,
@@ -767,7 +767,7 @@ def load_collected_profiles(input_root: Path) -> dict[str, dict]:
             {
                 "profile": profile_id,
                 "displayName": display_name,
-                "runtime": "x64Win",
+                "runtime": "win-x64",
                 "apps": [],
             },
         )
@@ -831,7 +831,7 @@ def profile_manifest_from_group(
         "profile": profile.id,
         "displayName": profile.display_name,
         "version": tray_version,
-        "runtime": "x64Win",
+        "runtime": "win-x64",
         "aggregate": {
             "fileName": aggregate_zip.name,
             "sha256": aggregate_sha,
@@ -946,7 +946,7 @@ def prune_release_assets(repo: str, tag: str, keep_names: set[str]) -> None:
 
 def write_notes(path: Path, rows: list[dict]) -> None:
     lines = [
-        "# TrayAppDotNET Win11 x64",
+        "# TrayAppDotNET Win11",
         "",
         "This draft contains both build profiles:",
         "",
@@ -965,7 +965,7 @@ def write_summary(rows: list[dict]) -> None:
     if not summary_path:
         return
     lines = [
-        "## Publish Win11x64 Artifacts",
+        "## Publish Win11 Artifacts",
         "",
         *artifact_table(rows),
         "",
@@ -985,7 +985,7 @@ def write_updates_manifest(path: Path, manifests: list[dict], rows: list[dict], 
 
     data = {
         "version": tray_version,
-        "runtime": "x64Win",
+        "runtime": "win-x64",
         "aggregate": release_profile["aggregate"],
         "apps": runtime_apps,
         "profiles": by_profile,
@@ -994,7 +994,7 @@ def write_updates_manifest(path: Path, manifests: list[dict], rows: list[dict], 
 
     artifact_list = {
         "version": tray_version,
-        "runtime": "x64Win",
+        "runtime": "win-x64",
         "artifacts": rows,
     }
     (path.parent / "artifact-list.json").write_text(json.dumps(artifact_list, indent=2) + "\n", encoding="utf-8")
@@ -1004,7 +1004,7 @@ def publish_release(args: argparse.Namespace) -> int:
     input_root = Path(args.input_root)
     groups = load_collected_profiles(input_root)
     tray_version = int(args.tray_version) if args.tray_version.strip() else default_tray_version(args.repo)
-    release_tag = args.release_tag.strip() or f"TrayAppDotNET_{tray_version}_x64Win"
+    release_tag = args.release_tag.strip() or f"TrayAppDotNET_{tray_version}"
 
     final_dir = input_root / "_release"
     final_dir.mkdir(parents=True, exist_ok=True)
@@ -1052,7 +1052,7 @@ def publish_release(args: argparse.Namespace) -> int:
     ensure_release(
         args.repo,
         release_tag,
-        f"TrayAppDotNET {tray_version} x64Win",
+        f"TrayAppDotNET {tray_version}",
         args.target,
         notes_path,
     )

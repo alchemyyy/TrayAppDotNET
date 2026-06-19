@@ -88,12 +88,12 @@ jobs:
           fi
 
           args=(
-            .github/scripts/publish-win11x64.py
+            .github/scripts/publish-win11.py
             --phase build-app-profile
             --profile release
             --app-name "${{ inputs.app_name }}"
             --repo "${GITHUB_REPOSITORY}"
-            --output-root .artifacts/publish-win11x64
+            --output-root .artifacts/publish-win11
           )
 
           if [[ -n "${{ inputs.tray_version }}" ]]; then
@@ -131,6 +131,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.package_artifact_name || format('{0}-release-package-{1}', inputs.artifact_slug, github.run_id) }}
-          path: .artifacts/publish-win11x64/release/packages/**
+          path: .artifacts/publish-win11/release/packages/**
           if-no-files-found: error
           retention-days: 14
