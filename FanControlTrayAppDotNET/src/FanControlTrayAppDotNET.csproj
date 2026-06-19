@@ -63,6 +63,7 @@
     <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
     </ProjectReference>
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
