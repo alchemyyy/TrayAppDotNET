@@ -51,7 +51,6 @@ jobs:
           -p:PublishAot=true
           -p:SelfContained=true
           -p:PublishSingleFile=false
-          -p:PublishTrimmed=false
           -p:IncludeNativeLibrariesForSelfExtract=false
           -p:IncludeAllContentForSelfExtract=false
           -p:SkipKillRunningInstance=true

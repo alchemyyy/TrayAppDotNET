@@ -165,7 +165,6 @@ def build_app(app: App, version: int, output_root: Path) -> Path:
             str(publish_dir),
             "-p:PublishAot=true",
             "-p:PublishSingleFile=false",
-            "-p:PublishTrimmed=false",
             "-p:SelfContained=true",
             "-p:IncludeNativeLibrariesForSelfExtract=false",
             "-p:IncludeAllContentForSelfExtract=false",
