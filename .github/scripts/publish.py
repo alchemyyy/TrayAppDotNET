@@ -69,6 +69,9 @@ PROFILES = {
     ),
 }
 
+INSTALL_ALL_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "install-all.bat"
+INSTALL_ALL_ARCHIVE_NAME = "install-all.bat"
+
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
     print("+ " + " ".join(cmd))
@@ -244,6 +247,29 @@ def latest_app_symbols_assets(release: dict | None, profile: Profile) -> dict[tu
 
 def is_pdb_name(name: str) -> bool:
     return name.lower().endswith(".pdb")
+
+
+def write_unique_zip_entry(archive: ZipFile, seen: dict[str, str], name: str, content: bytes) -> None:
+    digest = hashlib.sha256(content).hexdigest()
+    existing_digest = seen.get(name)
+    if existing_digest == digest:
+        return
+    if existing_digest is not None and existing_digest != digest:
+        print(f"Warning: aggregate path collision for {name}; keeping first copy.")
+        return
+    seen[name] = digest
+    archive.writestr(name, content)
+
+
+def write_install_all_script(archive: ZipFile, seen: dict[str, str]) -> None:
+    if not INSTALL_ALL_SCRIPT_PATH.exists():
+        raise SystemExit(f"Missing aggregate installer script: {INSTALL_ALL_SCRIPT_PATH}")
+    write_unique_zip_entry(
+        archive,
+        seen,
+        INSTALL_ALL_ARCHIVE_NAME,
+        INSTALL_ALL_SCRIPT_PATH.read_bytes(),
+    )
 
 
 def zip_directory(source_dir: Path, zip_path: Path, *, pdbs: bool | None = None) -> Path | None:
@@ -574,6 +600,7 @@ def create_flat_aggregate(packages: list[AppPackage], aggregate_zip: Path) -> st
 
     seen: dict[str, str] = {}
     with ZipFile(aggregate_zip, "w", ZIP_DEFLATED) as aggregate:
+        write_install_all_script(aggregate, seen)
         for package in packages:
             with ZipFile(package.zip_path, "r") as app_zip:
                 for entry in sorted(app_zip.infolist(), key=lambda item: item.filename):
@@ -582,15 +609,7 @@ def create_flat_aggregate(packages: list[AppPackage], aggregate_zip: Path) -> st
                     if is_pdb_name(entry.filename):
                         continue
                     content = app_zip.read(entry.filename)
-                    digest = hashlib.sha256(content).hexdigest()
-                    existing_digest = seen.get(entry.filename)
-                    if existing_digest == digest:
-                        continue
-                    if existing_digest is not None and existing_digest != digest:
-                        print(f"Warning: aggregate path collision for {entry.filename}; keeping first copy.")
-                        continue
-                    seen[entry.filename] = digest
-                    aggregate.writestr(entry.filename, content)
+                    write_unique_zip_entry(aggregate, seen, entry.filename, content)
 
     return sha256_file(aggregate_zip)
 
@@ -730,6 +749,7 @@ def create_flat_aggregate_from_zips(zip_paths: list[Path], aggregate_zip: Path) 
 
     seen: dict[str, str] = {}
     with ZipFile(aggregate_zip, "w", ZIP_DEFLATED) as aggregate:
+        write_install_all_script(aggregate, seen)
         for zip_path in zip_paths:
             with ZipFile(zip_path, "r") as app_zip:
                 for entry in sorted(app_zip.infolist(), key=lambda item: item.filename):
@@ -738,15 +758,7 @@ def create_flat_aggregate_from_zips(zip_paths: list[Path], aggregate_zip: Path) 
                     if is_pdb_name(entry.filename):
                         continue
                     content = app_zip.read(entry.filename)
-                    digest = hashlib.sha256(content).hexdigest()
-                    existing_digest = seen.get(entry.filename)
-                    if existing_digest == digest:
-                        continue
-                    if existing_digest is not None and existing_digest != digest:
-                        print(f"Warning: aggregate path collision for {entry.filename}; keeping first copy.")
-                        continue
-                    seen[entry.filename] = digest
-                    aggregate.writestr(entry.filename, content)
+                    write_unique_zip_entry(aggregate, seen, entry.filename, content)
 
     return sha256_file(aggregate_zip)
 
