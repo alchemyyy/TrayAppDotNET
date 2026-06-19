@@ -21,10 +21,9 @@ permissions:
   contents: write
 
 jobs:
-  publish:
-    name: Publish Win11x64
-    runs-on: [self-hosted]
-    environment: trayapp-release
+  build-release:
+    name: Build Release on Linux
+    runs-on: [self-hosted, Linux, X64, trayapp]
     timeout-minutes: 120
 
     steps:
@@ -33,7 +32,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Verify Toolchain
+      - name: Verify Linux Toolchain
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +41,119 @@ jobs:
           command -v python3 || command -v python
           dotnet --info
           dotnet --list-sdks | grep -E '^10\.'
+
+      - name: Build Release Packages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          python_bin="python3"
+          if ! command -v python3 >/dev/null 2>&1; then
+            python_bin="python"
+          fi
+
+          args=(
+            .github/scripts/publish-win11x64.py
+            --phase build-profile
+            --profile release
+            --repo "${GITHUB_REPOSITORY}"
+            --output-root .artifacts/publish-win11x64
+          )
+
+          if [[ -n "${{ inputs.tray_app_dot_net_version }}" ]]; then
+            args+=(--tray-version "${{ inputs.tray_app_dot_net_version }}")
+          fi
+
+          if [[ "${{ inputs.force_rebuild }}" == "true" ]]; then
+            args+=(--force-rebuild)
+          fi
+
+          "$python_bin" "${args[@]}"
+
+      - name: Upload Release Package Set
+        uses: actions/upload-artifact@v4
+        with:
+          name: win11x64-release-${{ github.run_id }}
+          path: .artifacts/publish-win11x64/release/packages/**
+          if-no-files-found: error
+          retention-days: 14
+
+  build-native-aot:
+    name: Build Native AOT on Windows
+    runs-on: [self-hosted, Windows, X64, trayapp]
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify Windows Toolchain
+        shell: cmd
+        run: |
+          where dotnet
+          where gh
+          where python
+          dotnet --info
+          dotnet --list-sdks | findstr /R "^10\."
+
+      - name: Build Native AOT Packages
+        shell: cmd
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set "TRAY_VERSION_ARG="
+          set "FORCE_REBUILD_ARG="
+
+          if not "${{ inputs.tray_app_dot_net_version }}"=="" set "TRAY_VERSION_ARG=--tray-version ${{ inputs.tray_app_dot_net_version }}"
+          if "${{ inputs.force_rebuild }}"=="true" set "FORCE_REBUILD_ARG=--force-rebuild"
+
+          python .github\scripts\publish-win11x64.py --phase build-profile --profile native-aot --repo "%GITHUB_REPOSITORY%" --output-root .artifacts\publish-win11x64 %TRAY_VERSION_ARG% %FORCE_REBUILD_ARG%
+
+      - name: Upload Native AOT Package Set
+        uses: actions/upload-artifact@v4
+        with:
+          name: win11x64-native-aot-${{ github.run_id }}
+          path: .artifacts/publish-win11x64/native-aot/packages/**
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish Draft Release
+    runs-on: [self-hosted, Linux, X64, trayapp]
+    needs:
+      - build-release
+      - build-native-aot
+    environment: trayapp-release
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download Release Package Set
+        uses: actions/download-artifact@v4
+        with:
+          name: win11x64-release-${{ github.run_id }}
+          path: .artifacts/publish-win11x64/collected/release
+
+      - name: Download Native AOT Package Set
+        uses: actions/download-artifact@v4
+        with:
+          name: win11x64-native-aot-${{ github.run_id }}
+          path: .artifacts/publish-win11x64/collected/native-aot
+
+      - name: Verify Release Toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gh
+          command -v python3 || command -v python
 
       - name: Publish Draft Release
         shell: bash
@@ -57,7 +169,9 @@ jobs:
 
           args=(
             .github/scripts/publish-win11x64.py
+            --phase publish-release
             --repo "${GITHUB_REPOSITORY}"
+            --input-root .artifacts/publish-win11x64/collected
           )
 
           if [[ -n "${{ inputs.tray_app_dot_net_version }}" ]]; then
@@ -66,10 +180,6 @@ jobs:
 
           if [[ -n "${{ inputs.release_tag }}" ]]; then
             args+=(--release-tag "${{ inputs.release_tag }}")
-          fi
-
-          if [[ "${{ inputs.force_rebuild }}" == "true" ]]; then
-            args+=(--force-rebuild)
           fi
 
           "$python_bin" "${args[@]}"
