@@ -107,8 +107,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>.")
     parser.add_argument("--target", default=os.environ.get("GITHUB_SHA", ""), help="Target commit for a new release.")
-    parser.add_argument("--output-root", default=".artifacts/publish-win11")
-    parser.add_argument("--input-root", default=".artifacts/publish-win11/collected")
+    parser.add_argument("--output-root", default=".artifacts/publish")
+    parser.add_argument("--input-root", default=".artifacts/publish/collected")
     parser.add_argument("--force-rebuild", action="store_true", help="Build every app even if latest release has an equal/newer app zip.")
     return parser.parse_args()
 
