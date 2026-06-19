@@ -96,8 +96,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_slug }}-native-aot-${{ github.sha }}
-          path: .artifacts/native-aot/${{ inputs.app_name }}/**
+          path: |
+            .artifacts/native-aot/${{ inputs.app_name }}/**
+            !.artifacts/native-aot/${{ inputs.app_name }}/**/*.pdb
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Native AOT Symbols Artifact
+        if: ${{ inputs.package_profile == 'none' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_slug }}-native-aot-symbols-${{ github.sha }}
+          path: .artifacts/native-aot/${{ inputs.app_name }}/**/*.pdb
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload Native AOT Package Artifact
