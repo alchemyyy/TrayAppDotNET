@@ -18,6 +18,7 @@ on:
         type: boolean
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -181,3 +182,40 @@ jobs:
           fi
 
           "$python_bin" "${args[@]}"
+
+      - name: Upload Aggregate Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tray-app-dot-net-conglomerate-builds-${{ github.run_id }}
+          path: |
+            .artifacts/publish-win11x64/collected/_release/TrayAppDotNET_*_x64Win.zip
+            !.artifacts/publish-win11x64/collected/_release/TrayAppDotNET_*_Symbols_x64Win.zip
+          if-no-files-found: error
+
+      - name: Upload Aggregate Symbol Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tray-app-dot-net-conglomerate-symbols-${{ github.run_id }}
+          path: .artifacts/publish-win11x64/collected/_release/TrayAppDotNET_*_Symbols_x64Win.zip
+          if-no-files-found: error
+
+      - name: Remove Intermediate Package Artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          release_suffix="-release-package-${GITHUB_RUN_ID}"
+          native_aot_suffix="-native-aot-package-${GITHUB_RUN_ID}"
+
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.name | endswith(\"${release_suffix}\") or endswith(\"${native_aot_suffix}\")) | [.id, .name] | @tsv" |
+          while IFS=$'\t' read -r artifact_id artifact_name; do
+            if [[ -z "${artifact_id}" ]]; then
+              continue
+            fi
+
+            echo "Deleting intermediate package artifact: ${artifact_name}"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done
