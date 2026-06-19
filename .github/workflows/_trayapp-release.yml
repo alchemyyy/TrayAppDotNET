@@ -15,7 +15,7 @@ on:
       runtime:
         required: false
         type: string
-        default: win-x64
+        default: portable
       version:
         required: false
         type: string
@@ -43,7 +43,7 @@ permissions:
 jobs:
   release:
     name: ${{ inputs.app_name }} Release
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: [self-hosted]
     environment: trayapp-release
     timeout-minutes: 90
 
@@ -78,29 +78,55 @@ jobs:
           fi
 
           runtime="$(printf '%s' "${{ inputs.runtime }}" | xargs)"
+          if [[ -z "$runtime" ]]; then
+            runtime="portable"
+          fi
+
+          runtime_output="$runtime"
+          runtime_arg="$runtime"
+          if [[ "$runtime" == "portable" ]]; then
+            runtime_arg=""
+          fi
+
           artifact_slug="$(printf '%s' "${{ inputs.artifact_slug }}" | xargs)"
 
           {
             echo "version=$version"
             echo "release_tag=$tag"
             echo "release_title=TrayAppDotNET $version"
-            echo "package_name=$artifact_slug-$version-$runtime.zip"
+            echo "runtime_output=$runtime_output"
+            echo "runtime_arg=$runtime_arg"
+            echo "package_name=$artifact_slug-$version-$runtime_output.zip"
           } >> "$GITHUB_OUTPUT"
 
       - name: Restore
         shell: bash
-        run: dotnet restore "${{ inputs.project_path }}"
+        run: dotnet restore "${{ inputs.project_path }}" -p:EnableWindowsTargeting=true
 
       - name: Publish Release
         shell: bash
-        run: >
-          dotnet publish "${{ inputs.project_path }}"
-          --configuration Release
-          --runtime "${{ inputs.runtime }}"
-          --output ".artifacts/publish/${{ inputs.app_name }}/${{ inputs.runtime }}"
-          -p:SkipKillRunningInstance=true
-          -p:SkipPublishAfterBuild=true
-          -p:ContinuousIntegrationBuild=true
+        run: |
+          set -euo pipefail
+
+          publish_args=(
+            dotnet
+            publish
+            "${{ inputs.project_path }}"
+            --configuration
+            Release
+            --output
+            ".artifacts/publish/${{ inputs.app_name }}/${{ steps.meta.outputs.runtime_output }}"
+            -p:EnableWindowsTargeting=true
+            -p:SkipKillRunningInstance=true
+            -p:SkipPublishAfterBuild=true
+            -p:ContinuousIntegrationBuild=true
+          )
+
+          if [[ -n "${{ steps.meta.outputs.runtime_arg }}" ]]; then
+            publish_args+=(--runtime "${{ steps.meta.outputs.runtime_arg }}")
+          fi
+
+          "${publish_args[@]}"
 
       - name: Package Release
         id: package
@@ -109,7 +135,7 @@ jobs:
           set -euo pipefail
 
           app_name="${{ inputs.app_name }}"
-          runtime="${{ inputs.runtime }}"
+          runtime="${{ steps.meta.outputs.runtime_output }}"
           version="${{ steps.meta.outputs.version }}"
           package_name="${{ steps.meta.outputs.package_name }}"
 
@@ -124,49 +150,74 @@ jobs:
             exit 1
           fi
 
-          mkdir -p "$package_dir"
-          rm -f "$zip_path" "$sha_path" "$manifest_path"
-          zip_abs="$(cd "$package_dir" && pwd)/$package_name"
-          windows_tar="${WINDIR:-C:\\Windows}"
-          windows_tar="${windows_tar//\\//}/System32/tar.exe"
-
-          if [[ -x "$windows_tar" ]]; then
-            "$windows_tar" -a -cf "$zip_path" -C "$publish_dir" .
-          elif command -v 7z >/dev/null 2>&1; then
-            (cd "$publish_dir" && 7z a -tzip "$zip_abs" .)
+          python_bin=""
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          elif command -v python >/dev/null 2>&1; then
+            python_bin="python"
           else
-            echo "Neither Windows tar.exe nor 7z is available for zip packaging." >&2
+            echo "Python 3 is required for release packaging." >&2
             exit 1
           fi
 
-          hash="$(sha256sum "$zip_path" | awk '{print tolower($1)}')"
-          printf '%s  %s\n' "$hash" "$package_name" > "$sha_path"
+          mkdir -p "$package_dir"
+          rm -f "$zip_path" "$sha_path" "$manifest_path"
 
-          json_escape() {
-            printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+          APP_NAME="$app_name" \
+          RUNTIME="$runtime" \
+          VERSION="$version" \
+          PACKAGE_NAME="$package_name" \
+          PUBLISH_DIR="$publish_dir" \
+          ZIP_PATH="$zip_path" \
+          SHA_PATH="$sha_path" \
+          MANIFEST_PATH="$manifest_path" \
+          RELEASE_TAG="${{ steps.meta.outputs.release_tag }}" \
+          "$python_bin" - <<'PY'
+          import datetime
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+
+          publish_dir = Path(os.environ["PUBLISH_DIR"])
+          zip_path = Path(os.environ["ZIP_PATH"])
+          sha_path = Path(os.environ["SHA_PATH"])
+          manifest_path = Path(os.environ["MANIFEST_PATH"])
+          package_name = os.environ["PACKAGE_NAME"]
+
+          with ZipFile(zip_path, "w", ZIP_DEFLATED) as archive:
+              for path in sorted(publish_dir.rglob("*")):
+                  if path.is_file():
+                      archive.write(path, path.relative_to(publish_dir).as_posix())
+
+          digest = hashlib.sha256()
+          with zip_path.open("rb") as package:
+              for chunk in iter(lambda: package.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          sha256 = digest.hexdigest()
+
+          sha_path.write_text(f"{sha256}  {package_name}\n", encoding="utf-8")
+
+          manifest = {
+              "appId": os.environ["APP_NAME"],
+              "version": os.environ["VERSION"],
+              "runtime": os.environ["RUNTIME"],
+              "fileName": package_name,
+              "sha256": sha256,
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commit": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+              "releaseTag": os.environ["RELEASE_TAG"],
+              "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
           }
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-          created_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          cat > "$manifest_path" <<JSON
-          {
-            "appId": "$(json_escape "$app_name")",
-            "version": "$(json_escape "$version")",
-            "runtime": "$(json_escape "$runtime")",
-            "fileName": "$(json_escape "$package_name")",
-            "sha256": "$hash",
-            "repository": "$(json_escape "$GITHUB_REPOSITORY")",
-            "commit": "$(json_escape "$GITHUB_SHA")",
-            "runId": "$(json_escape "$GITHUB_RUN_ID")",
-            "releaseTag": "$(json_escape "${{ steps.meta.outputs.release_tag }}")",
-            "createdAt": "$created_at"
-          }
-          JSON
-
-          {
-            echo "zip_path=$zip_path"
-            echo "sha256_path=$sha_path"
-            echo "manifest_path=$manifest_path"
-          } >> "$GITHUB_OUTPUT"
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"zip_path={zip_path.as_posix()}\n")
+              output.write(f"sha256_path={sha_path.as_posix()}\n")
+              output.write(f"manifest_path={manifest_path.as_posix()}\n")
+          PY
 
       - name: Upload Release Artifact
         uses: actions/upload-artifact@v4

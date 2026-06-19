@@ -8,11 +8,12 @@ on:
         required: false
         type: string
       runtime:
-        description: Runtime identifier.
+        description: Runtime identifier. Use portable for runner-agnostic publishing.
         required: true
-        default: win-x64
+        default: portable
         type: choice
         options:
+          - portable
           - win-x64
           - win-arm64
           - win-x86
@@ -52,4 +53,3 @@ jobs:
       release_tag: ${{ inputs.release_tag }}
       draft: ${{ inputs.draft }}
       prerelease: ${{ inputs.prerelease }}
-

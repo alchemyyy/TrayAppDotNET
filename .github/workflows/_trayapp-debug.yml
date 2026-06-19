@@ -19,7 +19,7 @@ permissions:
 jobs:
   debug:
     name: ${{ inputs.app_name }} Debug
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: [self-hosted]
     timeout-minutes: 45
 
     steps:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Restore
         shell: bash
-        run: dotnet restore "${{ inputs.project_path }}"
+        run: dotnet restore "${{ inputs.project_path }}" -p:EnableWindowsTargeting=true
 
       - name: Build Debug
         shell: bash
@@ -46,6 +46,8 @@ jobs:
           dotnet build "${{ inputs.project_path }}"
           --configuration Debug
           --no-restore
+          --output ".artifacts/build/${{ inputs.app_name }}/Debug"
+          -p:EnableWindowsTargeting=true
           -p:SkipKillRunningInstance=true
           -p:SkipPublishAfterBuild=true
           -p:ContinuousIntegrationBuild=true
@@ -54,6 +56,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_slug }}-debug-${{ github.sha }}
-          path: ${{ inputs.app_name }}/bin/Debug/**
+          path: .artifacts/build/${{ inputs.app_name }}/Debug/**
           if-no-files-found: error
           retention-days: 14
