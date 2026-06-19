@@ -817,13 +817,15 @@ def profile_manifest_from_group(
     profile = PROFILES[group["profile"]]
     apps = []
     for app_data in group["apps"]:
-        apps.append(
-            {
-                "appId": app_data["appId"],
-                "version": app_data["version"],
-                "source": app_data["source"],
-            }
-        )
+        app_entry = {
+            "appId": app_data["appId"],
+            "version": app_data["version"],
+            "source": app_data["source"],
+        }
+        if profile.id == "native-aot":
+            app_entry["fileName"] = app_data["fileName"]
+            app_entry["sha256"] = app_data["sha256"]
+        apps.append(app_entry)
 
     manifest = {
         "profile": profile.id,
@@ -872,6 +874,19 @@ def artifact_rows(manifests: list[dict]) -> list[dict]:
                     "kind": "symbols",
                 }
             )
+        if manifest["profile"] == "native-aot":
+            for app in manifest["apps"]:
+                rows.append(
+                    {
+                        "profile": manifest["displayName"],
+                        "appId": app["appId"],
+                        "version": app["version"],
+                        "fileName": app["fileName"],
+                        "sha256": app["sha256"],
+                        "source": app["source"],
+                        "kind": "app",
+                    }
+                )
     return rows
 
 
@@ -1022,6 +1037,8 @@ def publish_release(args: argparse.Namespace) -> int:
         upload_assets.append(aggregate_zip)
         if aggregate_symbols_sha:
             upload_assets.append(aggregate_symbols_zip)
+        if profile.id == "native-aot":
+            upload_assets.extend(app_zip_paths)
 
     rows = artifact_rows(manifests)
 
