@@ -91,11 +91,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build and publish TrayAppDotNET Win11 x64 release assets.")
     parser.add_argument(
         "--phase",
-        choices=["build-profile", "publish-release"],
+        choices=["build-profile", "build-app-profile", "publish-release"],
         required=True,
-        help="Build one profile package set, or publish a release from built profile package sets.",
+        help="Build one profile package set, build one app profile package, or publish a release from built packages.",
     )
     parser.add_argument("--profile", choices=sorted(PROFILES), default="release", help="Profile to build in build-profile phase.")
+    parser.add_argument("--app-name", default="", help="App name to build in build-app-profile phase.")
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "alchemyyy/TrayAppDotNET"))
     parser.add_argument("--tray-version", default="", help="Aggregate TrayAppDotNET version. Defaults to max selected app version.")
     parser.add_argument("--release-tag", default="", help="Release tag. Defaults to TrayAppDotNET_<version>_x64Win.")
@@ -314,6 +315,75 @@ def selected_packages(repo: str, output_root: Path, force_rebuild: bool, profile
     return packages
 
 
+def app_by_name(app_name: str) -> App:
+    for app in APPS:
+        if app.name == app_name:
+            return app
+    valid = ", ".join(app.name for app in APPS)
+    raise SystemExit(f"Unknown app name: {app_name!r}. Expected one of: {valid}")
+
+
+def selected_app_package(repo: str, output_root: Path, force_rebuild: bool, profile: Profile, app: App) -> AppPackage:
+    release = latest_release(repo)
+    latest_tag = release.get("tag_name") if release else ""
+    latest_assets = latest_app_assets(release, profile)
+    package_dir = output_root / profile.id / "packages"
+
+    current_version = read_buildnumber(Path(app.buildnumber))
+    latest = latest_assets.get(app.name)
+
+    if not force_rebuild and latest and current_version <= latest[0]:
+        latest_version, latest_asset = latest
+        print(
+            f"{app.name} {profile.display_name}: current {current_version} is not greater than "
+            f"latest {latest_version}; reusing {latest_asset}."
+        )
+        zip_path = download_latest_asset(repo, latest_tag, latest_asset, package_dir)
+        return AppPackage(app, profile, latest_version, zip_path, "reused")
+
+    if latest:
+        print(f"{app.name} {profile.display_name}: current {current_version} is greater than latest {latest[0]}; building.")
+    else:
+        print(f"{app.name} {profile.display_name}: no latest app asset found; building current {current_version}.")
+    zip_path = build_app(app, current_version, output_root, profile)
+    return AppPackage(app, profile, current_version, zip_path, profile.build_source)
+
+
+def app_manifest_data(package: AppPackage) -> dict:
+    return {
+        "profile": package.profile.id,
+        "displayName": package.profile.display_name,
+        "runtime": "x64Win",
+        "app": {
+            "appId": package.app.name,
+            "version": package.version,
+            "fileName": package.zip_path.name,
+            "sha256": sha256_file(package.zip_path),
+            "source": package.source,
+        },
+    }
+
+
+def build_app_profile(args: argparse.Namespace) -> int:
+    if not args.app_name.strip():
+        raise SystemExit("--app-name is required for build-app-profile phase.")
+
+    profile = PROFILES[args.profile]
+    app = app_by_name(args.app_name.strip())
+    output_root = Path(args.output_root)
+    package_dir = output_root / profile.id / "packages"
+    package_dir.mkdir(parents=True, exist_ok=True)
+
+    package = selected_app_package(args.repo, output_root, args.force_rebuild, profile, app)
+    manifest_path = package_dir / f"app-{profile.id}-{app.name}.json"
+    manifest_path.write_text(json.dumps(app_manifest_data(package), indent=2) + "\n", encoding="utf-8")
+
+    print(f"Built {profile.display_name} package:")
+    print(f"- {package.zip_path}")
+    print(f"- {manifest_path}")
+    return 0
+
+
 def create_flat_aggregate(packages: list[AppPackage], aggregate_zip: Path) -> str:
     aggregate_zip.parent.mkdir(parents=True, exist_ok=True)
     if aggregate_zip.exists():
@@ -400,34 +470,110 @@ def build_profile(args: argparse.Namespace) -> int:
     return 0
 
 
-def load_profile_manifests(input_root: Path) -> list[tuple[Path, dict]]:
-    manifests: list[tuple[Path, dict]] = []
-    for path in sorted(input_root.rglob("profile-*.json")):
-        manifests.append((path.parent, json.loads(path.read_text(encoding="utf-8"))))
+def create_flat_aggregate_from_zips(zip_paths: list[Path], aggregate_zip: Path) -> str:
+    aggregate_zip.parent.mkdir(parents=True, exist_ok=True)
+    if aggregate_zip.exists():
+        aggregate_zip.unlink()
 
-    if not manifests:
-        raise SystemExit(f"No profile manifests found under {input_root}")
+    seen: dict[str, str] = {}
+    with ZipFile(aggregate_zip, "w", ZIP_DEFLATED) as aggregate:
+        for zip_path in zip_paths:
+            with ZipFile(zip_path, "r") as app_zip:
+                for entry in sorted(app_zip.infolist(), key=lambda item: item.filename):
+                    if entry.is_dir():
+                        continue
+                    content = app_zip.read(entry.filename)
+                    digest = hashlib.sha256(content).hexdigest()
+                    existing_digest = seen.get(entry.filename)
+                    if existing_digest == digest:
+                        continue
+                    if existing_digest is not None and existing_digest != digest:
+                        print(f"Warning: aggregate path collision for {entry.filename}; keeping first copy.")
+                        continue
+                    seen[entry.filename] = digest
+                    aggregate.writestr(entry.filename, content)
 
-    profile_ids = {manifest["profile"] for _root, manifest in manifests}
-    missing = set(PROFILES) - profile_ids
-    if missing:
-        raise SystemExit(f"Missing profile manifest(s): {', '.join(sorted(missing))}")
-
-    return manifests
+    return sha256_file(aggregate_zip)
 
 
-def profile_asset_paths(manifest_root: Path, manifest: dict) -> list[Path]:
-    paths = [manifest_root / app["fileName"] for app in manifest["apps"]]
-    paths.append(manifest_root / manifest["aggregate"]["fileName"])
-    missing = [str(path) for path in paths if not path.exists()]
-    if missing:
-        raise SystemExit("Missing built asset(s):\n" + "\n".join(missing))
-    return paths
+def load_collected_profiles(input_root: Path) -> dict[str, dict]:
+    groups: dict[str, dict] = {}
+
+    def add_app(profile_id: str, display_name: str, app_data: dict, root: Path) -> None:
+        if profile_id not in PROFILES:
+            raise SystemExit(f"Unknown profile in manifest: {profile_id}")
+
+        zip_path = root / app_data["fileName"]
+        if not zip_path.exists():
+            raise SystemExit(f"Missing built asset for {app_data['appId']}: {zip_path}")
+
+        group = groups.setdefault(
+            profile_id,
+            {
+                "profile": profile_id,
+                "displayName": display_name,
+                "runtime": "x64Win",
+                "apps": [],
+            },
+        )
+        app_copy = dict(app_data)
+        app_copy["zipPath"] = zip_path
+        group["apps"].append(app_copy)
+
+    app_manifests = sorted(input_root.rglob("app-*.json"))
+    if app_manifests:
+        for path in app_manifests:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            add_app(manifest["profile"], manifest["displayName"], manifest["app"], path.parent)
+    else:
+        for path in sorted(input_root.rglob("profile-*.json")):
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            for app_data in manifest["apps"]:
+                add_app(manifest["profile"], manifest["displayName"], app_data, path.parent)
+
+    if not groups:
+        raise SystemExit(f"No app or profile manifests found under {input_root}")
+
+    missing_profiles = set(PROFILES) - set(groups)
+    if missing_profiles:
+        raise SystemExit(f"Missing profile manifest(s): {', '.join(sorted(missing_profiles))}")
+
+    expected_apps = {app.name for app in APPS}
+    for profile_id, group in groups.items():
+        found_apps = {app["appId"] for app in group["apps"]}
+        missing_apps = expected_apps - found_apps
+        if missing_apps:
+            raise SystemExit(f"{profile_id} is missing app package(s): {', '.join(sorted(missing_apps))}")
+        group["apps"].sort(key=lambda item: item["appId"])
+
+    return groups
 
 
-def artifact_rows(manifests: list[tuple[Path, dict]]) -> list[dict]:
+def profile_manifest_from_group(group: dict, aggregate_zip: Path, aggregate_sha: str, tray_version: int) -> dict:
+    profile = PROFILES[group["profile"]]
+    apps = []
+    for app_data in group["apps"]:
+        app_copy = dict(app_data)
+        app_copy.pop("zipPath", None)
+        apps.append(app_copy)
+
+    return {
+        "profile": profile.id,
+        "displayName": profile.display_name,
+        "version": tray_version,
+        "runtime": "x64Win",
+        "aggregate": {
+            "fileName": aggregate_zip.name,
+            "sha256": aggregate_sha,
+            "source": profile.build_source,
+        },
+        "apps": apps,
+    }
+
+
+def artifact_rows(manifests: list[dict]) -> list[dict]:
     rows: list[dict] = []
-    for _root, manifest in sorted(manifests, key=lambda item: item[1]["profile"]):
+    for manifest in sorted(manifests, key=lambda item: item["profile"]):
         rows.append(
             {
                 "profile": manifest["displayName"],
@@ -521,8 +667,8 @@ def write_summary(rows: list[dict]) -> None:
         summary.write("\n".join(lines))
 
 
-def write_updates_manifest(path: Path, manifests: list[tuple[Path, dict]], rows: list[dict], tray_version: int) -> None:
-    by_profile = {manifest["profile"]: manifest for _root, manifest in manifests}
+def write_updates_manifest(path: Path, manifests: list[dict], rows: list[dict], tray_version: int) -> None:
+    by_profile = {manifest["profile"]: manifest for manifest in manifests}
     release_profile = by_profile["release"]
     data = {
         "version": tray_version,
@@ -543,14 +689,31 @@ def write_updates_manifest(path: Path, manifests: list[tuple[Path, dict]], rows:
 
 def publish_release(args: argparse.Namespace) -> int:
     input_root = Path(args.input_root)
-    manifests = load_profile_manifests(input_root)
-    tray_versions = {manifest["version"] for _root, manifest in manifests}
+    groups = load_collected_profiles(input_root)
+    tray_versions = {
+        app_data["version"]
+        for group in groups.values()
+        for app_data in group["apps"]
+    }
     tray_version = int(args.tray_version) if args.tray_version.strip() else max(tray_versions)
     release_tag = args.release_tag.strip() or f"TrayAppDotNET_{tray_version}_x64Win"
 
-    rows = artifact_rows(manifests)
     final_dir = input_root / "_release"
     final_dir.mkdir(parents=True, exist_ok=True)
+
+    manifests: list[dict] = []
+    upload_assets: list[Path] = []
+    for profile_id in sorted(groups):
+        group = groups[profile_id]
+        profile = PROFILES[profile_id]
+        aggregate_zip = final_dir / aggregate_asset_name(tray_version, profile)
+        app_zip_paths = [app_data["zipPath"] for app_data in group["apps"]]
+        aggregate_sha = create_flat_aggregate_from_zips(app_zip_paths, aggregate_zip)
+        manifests.append(profile_manifest_from_group(group, aggregate_zip, aggregate_sha, tray_version))
+        upload_assets.extend(app_zip_paths)
+        upload_assets.append(aggregate_zip)
+
+    rows = artifact_rows(manifests)
 
     notes_path = final_dir / "release-notes.md"
     updates_path = final_dir / "updates.json"
@@ -567,9 +730,6 @@ def publish_release(args: argparse.Namespace) -> int:
         notes_path,
     )
 
-    upload_assets: list[Path] = []
-    for manifest_root, manifest in manifests:
-        upload_assets.extend(profile_asset_paths(manifest_root, manifest))
     upload_assets.extend([updates_path, artifact_list_path])
 
     run(["gh", "release", "upload", release_tag, *[str(path) for path in upload_assets], "--repo", args.repo, "--clobber"])
@@ -586,6 +746,8 @@ def main() -> int:
     args = parse_args()
     if args.phase == "build-profile":
         return build_profile(args)
+    if args.phase == "build-app-profile":
+        return build_app_profile(args)
     return publish_release(args)
 
 

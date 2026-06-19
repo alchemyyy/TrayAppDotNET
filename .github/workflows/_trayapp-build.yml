@@ -12,6 +12,22 @@ on:
       artifact_slug:
         required: true
         type: string
+      package_profile:
+        required: false
+        type: string
+        default: none
+      package_artifact_name:
+        required: false
+        type: string
+        default: ""
+      tray_version:
+        required: false
+        type: string
+        default: ""
+      force_rebuild:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +35,7 @@ permissions:
 jobs:
   build:
     name: ${{ inputs.app_name }} Build
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, Linux, X64, trayapp]
     timeout-minutes: 45
 
     steps:
@@ -33,14 +49,20 @@ jobs:
         run: |
           set -euo pipefail
           command -v dotnet
+          if [[ "${{ inputs.package_profile }}" != "none" ]]; then
+            command -v gh
+            command -v python3 || command -v python
+          fi
           dotnet --info
           dotnet --list-sdks | grep -E '^10\.'
 
       - name: Restore
+        if: ${{ inputs.package_profile == 'none' }}
         shell: bash
-        run: dotnet restore "${{ inputs.project_path }}" -p:EnableWindowsTargeting=true
+        run: dotnet restore "${{ inputs.project_path }}" --disable-parallel -p:EnableWindowsTargeting=true
 
       - name: Build
+        if: ${{ inputs.package_profile == 'none' }}
         shell: bash
         run: >
           dotnet build "${{ inputs.project_path }}"
@@ -52,10 +74,52 @@ jobs:
           -p:SkipPublishAfterBuild=true
           -p:ContinuousIntegrationBuild=true
 
+      - name: Build Release Package
+        if: ${{ inputs.package_profile == 'release' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          python_bin="python3"
+          if ! command -v python3 >/dev/null 2>&1; then
+            python_bin="python"
+          fi
+
+          args=(
+            .github/scripts/publish-win11x64.py
+            --phase build-app-profile
+            --profile release
+            --app-name "${{ inputs.app_name }}"
+            --repo "${GITHUB_REPOSITORY}"
+            --output-root .artifacts/publish-win11x64
+          )
+
+          if [[ -n "${{ inputs.tray_version }}" ]]; then
+            args+=(--tray-version "${{ inputs.tray_version }}")
+          fi
+
+          if [[ "${{ inputs.force_rebuild }}" == "true" ]]; then
+            args+=(--force-rebuild)
+          fi
+
+          "$python_bin" "${args[@]}"
+
       - name: Upload Build Artifact
+        if: ${{ inputs.package_profile == 'none' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_slug }}-build-${{ github.sha }}
           path: .artifacts/build/${{ inputs.app_name }}/Debug/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Release Package Artifact
+        if: ${{ inputs.package_profile == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.package_artifact_name || format('{0}-release-package-{1}', inputs.artifact_slug, github.run_id) }}
+          path: .artifacts/publish-win11x64/release/packages/**
           if-no-files-found: error
           retention-days: 14

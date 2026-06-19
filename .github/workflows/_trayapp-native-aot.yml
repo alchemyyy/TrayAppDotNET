@@ -12,6 +12,22 @@ on:
       artifact_slug:
         required: true
         type: string
+      package_profile:
+        required: false
+        type: string
+        default: none
+      package_artifact_name:
+        required: false
+        type: string
+        default: ""
+      tray_version:
+        required: false
+        type: string
+        default: ""
+      force_rebuild:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +35,7 @@ permissions:
 jobs:
   native-aot:
     name: ${{ inputs.app_name }} Native AOT
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, Windows, X64, trayapp]
     timeout-minutes: 90
 
     steps:
@@ -29,24 +45,28 @@ jobs:
           submodules: recursive
 
       - name: Verify .NET SDK
-        shell: bash
+        shell: cmd
         run: |
-          set -euo pipefail
-          command -v dotnet
+          where dotnet
+          if not "${{ inputs.package_profile }}"=="none" where gh
+          if not "${{ inputs.package_profile }}"=="none" where python
           dotnet --info
-          dotnet --list-sdks | grep -E '^10\.'
+          dotnet --list-sdks | findstr /R "^10\."
 
       - name: Restore
-        shell: bash
-        run: dotnet restore "${{ inputs.project_path }}" -p:EnableWindowsTargeting=true
+        if: ${{ inputs.package_profile == 'none' }}
+        shell: cmd
+        run: dotnet restore "${{ inputs.project_path }}" --disable-parallel -p:EnableWindowsTargeting=true
 
       - name: Publish Native AOT
-        shell: bash
+        if: ${{ inputs.package_profile == 'none' }}
+        shell: cmd
         run: >
           dotnet publish "${{ inputs.project_path }}"
           --configuration Release
           --runtime win-x64
           --output ".artifacts/native-aot/${{ inputs.app_name }}"
+          -m:1
           -p:EnableWindowsTargeting=true
           -p:PublishAot=true
           -p:SelfContained=true
@@ -57,10 +77,34 @@ jobs:
           -p:SkipPublishAfterBuild=true
           -p:ContinuousIntegrationBuild=true
 
+      - name: Build Native AOT Package
+        if: ${{ inputs.package_profile == 'native-aot' }}
+        shell: cmd
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set "TRAY_VERSION_ARG="
+          set "FORCE_REBUILD_ARG="
+
+          if not "${{ inputs.tray_version }}"=="" set "TRAY_VERSION_ARG=--tray-version ${{ inputs.tray_version }}"
+          if "${{ inputs.force_rebuild }}"=="true" set "FORCE_REBUILD_ARG=--force-rebuild"
+
+          python .github\scripts\publish-win11x64.py --phase build-app-profile --profile native-aot --app-name "${{ inputs.app_name }}" --repo "%GITHUB_REPOSITORY%" --output-root .artifacts\publish-win11x64 %TRAY_VERSION_ARG% %FORCE_REBUILD_ARG%
+
       - name: Upload Native AOT Artifact
+        if: ${{ inputs.package_profile == 'none' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_slug }}-native-aot-${{ github.sha }}
           path: .artifacts/native-aot/${{ inputs.app_name }}/**
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Native AOT Package Artifact
+        if: ${{ inputs.package_profile == 'native-aot' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.package_artifact_name || format('{0}-native-aot-package-{1}', inputs.artifact_slug, github.run_id) }}
+          path: .artifacts/publish-win11x64/native-aot/packages/**
           if-no-files-found: error
           retention-days: 14

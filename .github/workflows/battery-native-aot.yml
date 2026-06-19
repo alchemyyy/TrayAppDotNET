@@ -2,6 +2,24 @@ name: Battery Native AOT
 
 on:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      package_profile:
+        required: false
+        type: string
+        default: none
+      package_artifact_name:
+        required: false
+        type: string
+        default: ""
+      tray_version:
+        required: false
+        type: string
+        default: ""
+      force_rebuild:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,3 +31,7 @@ jobs:
       app_name: BatteryTrayAppDotNET
       project_path: BatteryTrayAppDotNET/src/BatteryTrayAppDotNET.csproj
       artifact_slug: battery-tray-app
+      package_profile: ${{ inputs.package_profile || 'none' }}
+      package_artifact_name: ${{ inputs.package_artifact_name || '' }}
+      tray_version: ${{ inputs.tray_version || '' }}
+      force_rebuild: ${{ inputs.force_rebuild || false }}
