@@ -4,7 +4,7 @@ setlocal EnableExtensions
 set "ROOT=%~dp0"
 set "SCOPE=%~1"
 
-if "%SCOPE%"=="" set "SCOPE=local"
+if "%SCOPE%"=="" set "SCOPE=system"
 
 if /I "%SCOPE%"=="local" (
     set "INSTALL_ARG=--installlocal"

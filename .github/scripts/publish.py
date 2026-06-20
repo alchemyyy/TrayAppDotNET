@@ -69,8 +69,10 @@ PROFILES = {
     ),
 }
 
-INSTALL_ALL_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "install-all.bat"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+INSTALL_ALL_SCRIPT_PATH = REPO_ROOT / ".github" / "install-all.bat"
 INSTALL_ALL_ARCHIVE_NAME = "install-all.bat"
+APP_INSTALL_ARCHIVE_NAME = "install.bat"
 
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -249,13 +251,17 @@ def is_pdb_name(name: str) -> bool:
     return name.lower().endswith(".pdb")
 
 
+def is_root_app_install_name(name: str) -> bool:
+    return name.replace("\\", "/").lower() == APP_INSTALL_ARCHIVE_NAME
+
+
 def write_unique_zip_entry(archive: ZipFile, seen: dict[str, str], name: str, content: bytes) -> None:
     digest = hashlib.sha256(content).hexdigest()
     existing_digest = seen.get(name)
     if existing_digest == digest:
         return
     if existing_digest is not None and existing_digest != digest:
-        print(f"Warning: aggregate path collision for {name}; keeping first copy.")
+        print(f"Warning: zip path collision for {name}; keeping first copy.")
         return
     seen[name] = digest
     archive.writestr(name, content)
@@ -272,7 +278,41 @@ def write_install_all_script(archive: ZipFile, seen: dict[str, str]) -> None:
     )
 
 
-def zip_directory(source_dir: Path, zip_path: Path, *, pdbs: bool | None = None) -> Path | None:
+def app_install_script_path(app_name: str) -> Path:
+    return REPO_ROOT / app_name / APP_INSTALL_ARCHIVE_NAME
+
+
+def read_app_install_script(app_name: str) -> bytes:
+    path = app_install_script_path(app_name)
+    if not path.exists():
+        raise SystemExit(f"Missing app installer script for {app_name}: {path}")
+    return path.read_bytes()
+
+
+def app_install_entries(app_name: str) -> dict[str, bytes]:
+    return {APP_INSTALL_ARCHIVE_NAME: read_app_install_script(app_name)}
+
+
+def aggregate_app_install_archive_name(app_name: str) -> str:
+    return f"install-{app_name}.bat"
+
+
+def write_aggregate_app_install_script(archive: ZipFile, seen: dict[str, str], app_name: str) -> None:
+    write_unique_zip_entry(
+        archive,
+        seen,
+        aggregate_app_install_archive_name(app_name),
+        read_app_install_script(app_name),
+    )
+
+
+def zip_directory(
+    source_dir: Path,
+    zip_path: Path,
+    *,
+    pdbs: bool | None = None,
+    extra_entries: dict[str, bytes] | None = None,
+) -> Path | None:
     zip_path.parent.mkdir(parents=True, exist_ok=True)
     if zip_path.exists():
         zip_path.unlink()
@@ -288,17 +328,26 @@ def zip_directory(source_dir: Path, zip_path: Path, *, pdbs: bool | None = None)
             continue
         files.append(path)
 
-    if not files:
+    if not files and not extra_entries:
         return None
 
+    seen: dict[str, str] = {}
     with ZipFile(zip_path, "w", ZIP_DEFLATED) as archive:
+        for name, content in (extra_entries or {}).items():
+            write_unique_zip_entry(archive, seen, name, content)
         for path in files:
-            archive.write(path, path.relative_to(source_dir).as_posix())
+            write_unique_zip_entry(archive, seen, path.relative_to(source_dir).as_posix(), path.read_bytes())
 
     return zip_path
 
 
-def split_runtime_and_symbols_zip(source_zip: Path, runtime_zip: Path, symbols_zip: Path) -> Path | None:
+def split_runtime_and_symbols_zip(
+    source_zip: Path,
+    runtime_zip: Path,
+    symbols_zip: Path,
+    *,
+    extra_runtime_entries: dict[str, bytes] | None = None,
+) -> Path | None:
     runtime_zip.parent.mkdir(parents=True, exist_ok=True)
     symbols_zip.parent.mkdir(parents=True, exist_ok=True)
     if runtime_zip.exists():
@@ -309,6 +358,10 @@ def split_runtime_and_symbols_zip(source_zip: Path, runtime_zip: Path, symbols_z
     runtime_count = 0
     symbols_count = 0
     with ZipFile(source_zip, "r") as source, ZipFile(runtime_zip, "w", ZIP_DEFLATED) as runtime:
+        seen_runtime: dict[str, str] = {}
+        for name, content in (extra_runtime_entries or {}).items():
+            write_unique_zip_entry(runtime, seen_runtime, name, content)
+
         symbols: ZipFile | None = None
         try:
             for entry in sorted(source.infolist(), key=lambda item: item.filename):
@@ -321,7 +374,7 @@ def split_runtime_and_symbols_zip(source_zip: Path, runtime_zip: Path, symbols_z
                     symbols.writestr(entry.filename, content)
                     symbols_count += 1
                     continue
-                runtime.writestr(entry.filename, content)
+                write_unique_zip_entry(runtime, seen_runtime, entry.filename, content)
                 runtime_count += 1
         finally:
             if symbols is not None:
@@ -433,7 +486,7 @@ def build_app(app: App, version: int, output_root: Path, profile: Profile) -> Ap
     run(["dotnet", "restore", app.project, "--disable-parallel", "-p:EnableWindowsTargeting=true"])
     run(publish_command(app, publish_dir, profile))
     validate_publish_dir(app, publish_dir, profile)
-    if zip_directory(publish_dir, zip_path, pdbs=False) is None:
+    if zip_directory(publish_dir, zip_path, pdbs=False, extra_entries=app_install_entries(app.name)) is None:
         raise SystemExit(f"{app.name} {profile.display_name} publish produced no runtime files.")
     symbols_zip = zip_directory(publish_dir, symbols_zip_path, pdbs=True)
     return AppPackage(app, profile, version, zip_path, profile.build_source, symbols_zip)
@@ -455,7 +508,12 @@ def reuse_app_package(
 
     runtime_zip = package_dir / app_asset_name(app, version, profile)
     symbols_zip = package_dir / app_symbols_asset_name(app, version, profile)
-    extracted_symbols_zip = split_runtime_and_symbols_zip(downloaded_zip, runtime_zip, symbols_zip)
+    extracted_symbols_zip = split_runtime_and_symbols_zip(
+        downloaded_zip,
+        runtime_zip,
+        symbols_zip,
+        extra_runtime_entries=app_install_entries(app.name),
+    )
     symbols_zip_path = extracted_symbols_zip
 
     if latest_symbols_asset:
@@ -602,11 +660,15 @@ def create_flat_aggregate(packages: list[AppPackage], aggregate_zip: Path) -> st
     with ZipFile(aggregate_zip, "w", ZIP_DEFLATED) as aggregate:
         write_install_all_script(aggregate, seen)
         for package in packages:
+            write_aggregate_app_install_script(aggregate, seen, package.app.name)
+        for package in packages:
             with ZipFile(package.zip_path, "r") as app_zip:
                 for entry in sorted(app_zip.infolist(), key=lambda item: item.filename):
                     if entry.is_dir():
                         continue
                     if is_pdb_name(entry.filename):
+                        continue
+                    if is_root_app_install_name(entry.filename):
                         continue
                     content = app_zip.read(entry.filename)
                     write_unique_zip_entry(aggregate, seen, entry.filename, content)
@@ -742,7 +804,7 @@ def build_profile(args: argparse.Namespace) -> int:
     return 0
 
 
-def create_flat_aggregate_from_zips(zip_paths: list[Path], aggregate_zip: Path) -> str:
+def create_flat_aggregate_from_zips(app_zips: list[tuple[str, Path]], aggregate_zip: Path) -> str:
     aggregate_zip.parent.mkdir(parents=True, exist_ok=True)
     if aggregate_zip.exists():
         aggregate_zip.unlink()
@@ -750,12 +812,16 @@ def create_flat_aggregate_from_zips(zip_paths: list[Path], aggregate_zip: Path) 
     seen: dict[str, str] = {}
     with ZipFile(aggregate_zip, "w", ZIP_DEFLATED) as aggregate:
         write_install_all_script(aggregate, seen)
-        for zip_path in zip_paths:
+        for app_name, _ in app_zips:
+            write_aggregate_app_install_script(aggregate, seen, app_name)
+        for _, zip_path in app_zips:
             with ZipFile(zip_path, "r") as app_zip:
                 for entry in sorted(app_zip.infolist(), key=lambda item: item.filename):
                     if entry.is_dir():
                         continue
                     if is_pdb_name(entry.filename):
+                        continue
+                    if is_root_app_install_name(entry.filename):
                         continue
                     content = app_zip.read(entry.filename)
                     write_unique_zip_entry(aggregate, seen, entry.filename, content)
@@ -1058,7 +1124,8 @@ def publish_release(args: argparse.Namespace) -> int:
         profile = PROFILES[profile_id]
         aggregate_zip = final_dir / aggregate_asset_name(tray_version, profile)
         app_zip_paths = [app_data["zipPath"] for app_data in group["apps"]]
-        aggregate_sha = create_flat_aggregate_from_zips(app_zip_paths, aggregate_zip)
+        app_zips = [(app_data["appId"], app_data["zipPath"]) for app_data in group["apps"]]
+        aggregate_sha = create_flat_aggregate_from_zips(app_zips, aggregate_zip)
         symbol_sources = [
             (app_data["appId"], app_data["symbolsZipPath"])
             for app_data in group["apps"]
