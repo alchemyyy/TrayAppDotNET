@@ -16,6 +16,7 @@ internal static class AppServices
 {
     public const string LibreHardwareMonitorFileName = "LibreHardwareMonitorLib.dll";
     public const string PawnIoSetupFileName = "PawnIO_setup.exe";
+    public static readonly string PawnIoSetupRelativePath = Path.Combine("Resources", PawnIoSetupFileName);
 
     public static TrayAppDotNETInstallLayout InstallLayout { get; } =
         TrayAppDotNETInstallLayout.Create(
@@ -75,7 +76,7 @@ internal static class AppServices
             [
                 .. payload.RequiredFiles,
                 new TrayAppDotNETInstallFile(LibreHardwareMonitorFileName),
-                new TrayAppDotNETInstallFile(PawnIoSetupFileName),
+                new TrayAppDotNETInstallFile(PawnIoSetupRelativePath),
             ],
         };
     }
