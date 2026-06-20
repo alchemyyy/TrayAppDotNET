@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using TrayAppDotNETCommon.Utils;
 
@@ -332,7 +333,29 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
         string? destinationDirectory = Path.GetDirectoryName(destinationFile);
         if (!string.IsNullOrEmpty(destinationDirectory)) Directory.CreateDirectory(destinationDirectory);
+
+        if (File.Exists(destinationFile) && IsDllFile(sourceFile) && DllHashesMatch(sourceFile, destinationFile))
+        {
+            return;
+        }
+
         File.Copy(sourceFile, destinationFile, overwrite: true);
+    }
+
+    private static bool IsDllFile(string path) =>
+        string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase);
+
+    private static bool DllHashesMatch(string sourceFile, string destinationFile)
+    {
+        byte[] sourceHash = HashFile(sourceFile);
+        byte[] destinationHash = HashFile(destinationFile);
+        return sourceHash.SequenceEqual(destinationHash);
+    }
+
+    private static byte[] HashFile(string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        return SHA256.HashData(stream);
     }
 
     private static void CopyDirectoryMerge(string sourceDirectory, string destinationDirectory)
