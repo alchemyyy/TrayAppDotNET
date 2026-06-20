@@ -2343,19 +2343,27 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
     };
 
-    private static string DeviceVolumeGlyph(AudioDevice device)
+    private string DeviceVolumeGlyph(AudioDevice device)
     {
         if (device.IsCaptureDevice) return CaptureDeviceVolumeGlyph(device, device.IsMuted);
 
-        return GlyphCatalog.GetVolumeTier(device.Volume, device.IsMuted);
+        return PlaybackDeviceVolumeGlyph(device, device.IsMuted);
     }
 
-    private static string DeviceMuteTogglePreviewGlyph(AudioDevice device)
+    private string DeviceMuteTogglePreviewGlyph(AudioDevice device)
     {
         bool mutedAfterToggle = !device.IsMuted;
         if (device.IsCaptureDevice) return CaptureDeviceVolumeGlyph(device, mutedAfterToggle);
 
-        return GlyphCatalog.GetVolumeTier(device.Volume, mutedAfterToggle);
+        return PlaybackDeviceVolumeGlyph(device, mutedAfterToggle);
+    }
+
+    private string PlaybackDeviceVolumeGlyph(AudioDevice device, bool muted)
+    {
+        if (muted) return GlyphCatalog.PLAYBACK_VOLUME_MUTE;
+        return _settings.UseDynamicPlaybackVolumeGlyphInFlyout
+            ? GlyphCatalog.GetVolumeTier(device.Volume, muted: false)
+            : GlyphCatalog.PLAYBACK_VOLUME_LOW;
     }
 
     private static string CaptureDeviceVolumeGlyph(AudioDevice device, bool muted)

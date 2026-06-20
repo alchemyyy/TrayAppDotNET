@@ -86,6 +86,7 @@ public partial class AppSettings
                 Enum(nameof(FlyoutDeviceSort), FlyoutDeviceSort),
                 Bool(nameof(ShowRecordingDevicesInFlyout), ShowRecordingDevicesInFlyout),
                 Bool(nameof(IntermixRecordingWithPlaybackInFlyout), IntermixRecordingWithPlaybackInFlyout),
+                Bool(nameof(UseDynamicPlaybackVolumeGlyphInFlyout), UseDynamicPlaybackVolumeGlyphInFlyout),
                 Enum(nameof(FlyoutCommunicationsButtonVisibility), FlyoutCommunicationsButtonVisibility),
                 Bool(nameof(ShowLockButtonForPlayback), ShowLockButtonForPlayback),
                 Bool(nameof(ShowEqualizerAPOButtonForPlayback), ShowEqualizerAPOButtonForPlayback),
@@ -251,6 +252,8 @@ public partial class AppSettings
                 settings.ShowRecordingDevicesInFlyout);
             settings.IntermixRecordingWithPlaybackInFlyout = ReadBool(root,
                 nameof(IntermixRecordingWithPlaybackInFlyout), settings.IntermixRecordingWithPlaybackInFlyout);
+            settings.UseDynamicPlaybackVolumeGlyphInFlyout = ReadBool(root,
+                nameof(UseDynamicPlaybackVolumeGlyphInFlyout), settings.UseDynamicPlaybackVolumeGlyphInFlyout);
             settings.FlyoutCommunicationsButtonVisibility = ReadEnum(root, nameof(FlyoutCommunicationsButtonVisibility),
                 settings.FlyoutCommunicationsButtonVisibility);
             settings.ShowLockButtonForPlayback = ReadBool(root, nameof(ShowLockButtonForPlayback),

@@ -279,6 +279,12 @@
   <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
     <value>Show undock button</value>
   </data>
+  <data name="Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description" xml:space="preserve">
+    <value>When on, playback-device buttons in the flyout use the current volume tier glyph. When off, unmuted playback devices use the static low-volume glyph.</value>
+  </data>
+  <data name="Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title" xml:space="preserve">
+    <value>Use dynamic playback volume glyph for playback devices in flyout</value>
+  </data>
   <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
     <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
   </data>

@@ -51,6 +51,12 @@ public sealed partial class VolumeSettingsWindow
             p,
             afterSave: RefreshCurrentPage));
         stack.Children.Add(BoolCard(
+            Loc("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title"),
+            Loc("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description"),
+            _settings.UseDynamicPlaybackVolumeGlyphInFlyout,
+            v => _settings.UseDynamicPlaybackVolumeGlyphInFlyout = v,
+            p));
+        stack.Children.Add(BoolCard(
             Loc("Settings_Flyout_ShowDeviceFormatText_Title"),
             Loc("Settings_Flyout_ShowDeviceFormatText_Description"),
             _settings.ShowDeviceFormatText,

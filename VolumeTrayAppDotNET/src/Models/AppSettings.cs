@@ -721,6 +721,14 @@ public partial class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    // Playback-device mute buttons in the flyout. Off keeps a stable speaker glyph for unmuted
+    // playback endpoints; on mirrors the current scalar with low / mid / high / silent tiers.
+    public bool UseDynamicPlaybackVolumeGlyphInFlyout
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     // Titlebar communications-activity button visibility. Drives both the button's Visibility and
     // whether the registry watcher even runs - Hidden keeps the watcher asleep entirely.
     public CommunicationsButtonVisibility FlyoutCommunicationsButtonVisibility
