@@ -30,6 +30,8 @@ public sealed record TrayAppDotNETProgramOptions(
 
 public static class TrayAppDotNETProgram
 {
+    private const int TerminateRunningCopiesTimeoutMs = 5000;
+
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
 
     public static int? WatcherPID { get; private set; }
@@ -306,8 +308,18 @@ public static class TrayAppDotNETProgram
         bool startInstalled)
     {
         if (scope is null) return PrintInstallUsage("Missing scope argument after --install", log);
+        string normalizedScope = scope.ToLowerInvariant();
+        if (normalizedScope is not ("local" or "system"))
+            return PrintInstallUsage($"Unknown scope '{scope}'", log);
 
-        switch (scope.ToLowerInvariant())
+        string? terminationError = TerminateRunningApplicationCopies(options.ApplicationName, log);
+        if (terminationError != null)
+        {
+            WriteInstallMessage($"Install failed before copying: {terminationError}", error: true, log);
+            return 1;
+        }
+
+        switch (normalizedScope)
         {
             case "local":
             {
@@ -337,8 +349,75 @@ public static class TrayAppDotNETProgram
                     log: log);
             }
             default:
-                return PrintInstallUsage($"Unknown scope '{scope}'", log);
+                throw new UnreachableException();
         }
+    }
+
+    private static string? TerminateRunningApplicationCopies(string applicationName, Action<string> log)
+    {
+        string processName = Path.GetFileNameWithoutExtension(applicationName);
+        if (string.IsNullOrWhiteSpace(processName)) return "Cannot determine application process name";
+
+        int currentPid = Environment.ProcessId;
+        List<Process> processes;
+        try
+        {
+            processes = [.. Process.GetProcessesByName(processName).Where(process => process.Id != currentPid)];
+        }
+        catch (Exception ex)
+        {
+            log($"TrayAppDotNETProgram.TerminateRunningApplicationCopies: enumerate failed: {ex}");
+            return $"Could not enumerate running {applicationName} processes: {ex.Message}";
+        }
+
+        if (processes.Count == 0) return null;
+
+        List<string> failures = [];
+        foreach (Process process in processes)
+        {
+            int pid = SafeProcessId(process);
+            try
+            {
+                if (process.HasExited) continue;
+
+                log($"TrayAppDotNETProgram.TerminateRunningApplicationCopies: terminating {applicationName} PID {pid}");
+                process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                log($"TrayAppDotNETProgram.TerminateRunningApplicationCopies: kill PID {pid} failed: {ex}");
+                failures.Add($"PID {pid}: {ex.Message}");
+            }
+        }
+
+        foreach (Process process in processes)
+        {
+            int pid = SafeProcessId(process);
+            try
+            {
+                if (!process.HasExited && !process.WaitForExit(TerminateRunningCopiesTimeoutMs))
+                    failures.Add($"PID {pid}: did not exit within {TerminateRunningCopiesTimeoutMs} ms");
+            }
+            catch (Exception ex)
+            {
+                log($"TrayAppDotNETProgram.TerminateRunningApplicationCopies: wait PID {pid} failed: {ex}");
+                failures.Add($"PID {pid}: {ex.Message}");
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        return failures.Count == 0
+            ? null
+            : $"Could not terminate all running {applicationName} processes: {string.Join("; ", failures)}";
+    }
+
+    private static int SafeProcessId(Process process)
+    {
+        try { return process.Id; }
+        catch { return 0; }
     }
 
     private static int CompleteInstall(
