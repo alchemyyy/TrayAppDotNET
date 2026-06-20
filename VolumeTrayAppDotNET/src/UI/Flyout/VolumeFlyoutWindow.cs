@@ -23,16 +23,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private static readonly HashSet<string> DeviceRebuildProperties = new(StringComparer.Ordinal)
     {
-        nameof(AudioDevice.IsDefault),
-        nameof(AudioDevice.IsDefaultCommunications),
         nameof(AudioDevice.IsActive),
         nameof(AudioDevice.State),
         nameof(AudioDevice.BatteryLevel),
-        nameof(AudioDevice.IsExclusiveModeAllowed),
-        nameof(AudioDevice.IsExclusiveControlHeld),
-        nameof(AudioDevice.EqualizerAPOState),
-        nameof(AudioDevice.IsListeningToThisDevice),
-        nameof(AudioDevice.IsCaptureSleeping),
         nameof(AudioDevice.DefaultFormat),
         nameof(AudioDevice.CurrentCodecName),
     };
@@ -52,6 +45,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool _isDraggingWindow;
     private bool _undockButtonPointerCaptured;
     private bool _undockButtonDragOccurred;
+    private int _hoveredDeviceStateButtonCount;
+    private bool _deviceOrderingRebuildPending;
     private FlyoutLayout? _layout;
     private Border? _undockButton;
     private TextBlock? _undockButtonGlyph;
@@ -326,6 +321,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             }
 
             _cleanup.Clear();
+            _hoveredDeviceStateButtonCount = 0;
+            _deviceOrderingRebuildPending = false;
             CloseOpenMenu();
 
             bool isLight = ResolveEffectiveIsLight();
@@ -878,6 +875,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             if (e.PropertyName == nameof(AudioDevice.FriendlyName))
                 name.Text = device.FriendlyName;
+            else if ((e.PropertyName is nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications))
+                     && !IsDefaultDeviceButtonVisible(device))
+                RunOnUiThread(QueueDeviceOrderingRebuild);
             else if (DeviceRebuildProperties.Contains(e.PropertyName ?? string.Empty))
                 Dispatcher.UIThread.Post(Rebuild);
         }
@@ -905,12 +905,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             p,
             v => device.Volume = (float)(v / 100.0),
             immediate => _feedback?.PlayForDevice(device, immediate));
-        slider.Opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
         Grid.SetColumn(slider, 1);
         row.Children.Add(slider);
 
         (Grid percentHost, TextBlock percent, TextBox percentEdit) = BuildPercentEditor(device.Volume, p);
-        percentHost.Opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
         WirePercentEditor(percent, percentEdit, slider, v =>
         {
             device.Volume = (float)(v / 100.0);
@@ -921,6 +919,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         device.PropertyChanged += OnDeviceChanged;
         _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        UpdateMutedActiveVisuals();
         return row;
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
@@ -932,9 +931,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             }
             else if (e.PropertyName == nameof(AudioDevice.PeakValues))
                 slider.PeakValues = SliderPeaks(device.PeakValues);
-            else if (e.PropertyName is nameof(AudioDevice.IsMuted) or nameof(AudioDevice.IsActive)
-                     or nameof(AudioDevice.IsCaptureSleeping)
-                     or nameof(AudioDevice.IsListeningToThisDevice)) Dispatcher.UIThread.Post(Rebuild);
+            else if (e.PropertyName == nameof(AudioDevice.IsMuted))
+                RunOnUiThread(UpdateMutedActiveVisuals);
+            else if (e.PropertyName is nameof(AudioDevice.IsActive) or nameof(AudioDevice.State))
+                Dispatcher.UIThread.Post(Rebuild);
+        }
+
+        void UpdateMutedActiveVisuals()
+        {
+            double opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
+            slider.Opacity = opacity;
+            percentHost.Opacity = opacity;
         }
     }
 
@@ -1114,28 +1121,18 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Border button = DeviceIconButton(string.Empty, p, () => device.IsMuted = !device.IsMuted,
             width: Layout.DeviceMuteButtonWidth, height: Layout.DeviceMuteButtonHeight);
         button.Margin = Layout.DeviceMuteButtonMargin;
-        button.Opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
         button.Child = slot;
-        TrayAppDotNETToolTip.SetTip(
-            button,
-            device.IsMuted
-                ? L("Flyout_DeviceUnmute_Tooltip", "Unmute")
-                : L("Flyout_DeviceMute_Tooltip", "Mute"));
+        UpdateVisual();
 
         button.PointerEntered += (_, _) =>
         {
             isPointerOver = true;
-            string hoverGlyph =
-                device.IsCaptureDevice ? GlyphCatalog.MICROPHONE_OFF : GlyphCatalog.PLAYBACK_VOLUME_MUTE;
-            glyph.Text = hoverGlyph;
-            ApplyDeviceMuteGlyphStyle(glyph, hoverGlyph);
+            UpdateVisual();
         };
         button.PointerExited += (_, _) =>
         {
             isPointerOver = false;
-            normalGlyph = DeviceVolumeGlyph(device);
-            glyph.Text = normalGlyph;
-            ApplyDeviceMuteGlyphStyle(glyph, normalGlyph);
+            UpdateVisual();
         };
 
         device.PropertyChanged += OnDeviceChanged;
@@ -1145,15 +1142,28 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != nameof(AudioDevice.Volume)) return;
-            if (isPointerOver) return;
+            if (e.PropertyName is not (nameof(AudioDevice.Volume)
+                or nameof(AudioDevice.IsMuted)
+                or nameof(AudioDevice.IsActive)
+                or nameof(AudioDevice.IsCaptureSleeping)
+                or nameof(AudioDevice.IsListeningToThisDevice))) return;
 
-            string nextGlyph = DeviceVolumeGlyph(device);
-            if (nextGlyph == normalGlyph) return;
+            RunOnUiThread(UpdateVisual);
+        }
 
-            normalGlyph = nextGlyph;
-            glyph.Text = normalGlyph;
-            ApplyDeviceMuteGlyphStyle(glyph, normalGlyph);
+        void UpdateVisual()
+        {
+            normalGlyph = DeviceVolumeGlyph(device);
+            string visibleGlyph = isPointerOver ? DeviceMuteTogglePreviewGlyph(device) : normalGlyph;
+            glyph.Text = visibleGlyph;
+            ApplyDeviceMuteGlyphStyle(glyph, visibleGlyph);
+
+            button.Opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
+            TrayAppDotNETToolTip.SetTip(
+                button,
+                device.IsMuted
+                    ? L("Flyout_DeviceUnmute_Tooltip", "Unmute")
+                    : L("Flyout_DeviceMute_Tooltip", "Mute"));
         }
     }
 
@@ -1204,17 +1214,32 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             : _settings.ShowLockButtonForPlayback;
         if (!visible) return null;
 
-        string glyph = device is { IsExclusiveModeAllowed: true, IsExclusiveControlHeld: true }
-            ? GlyphCatalog.LOCK
-            : GlyphCatalog.UNLOCK;
-        Border button = DeviceIconButton(glyph, p, device.ToggleAllowExclusiveControl);
-        button.Opacity = device.IsExclusiveModeAllowed ? 1.0 : 0.4;
-        TrayAppDotNETToolTip.SetTip(button, device.IsExclusiveModeAllowed
-            ? device.IsExclusiveControlHeld
-                ? L("Flyout_ExclusiveMode_Tooltip_Held", "Exclusive control is held")
-                : L("Flyout_ExclusiveMode_Tooltip_Allowed", "Exclusive mode allowed")
-            : L("Flyout_ExclusiveMode_Tooltip_Disallowed", "Exclusive mode disallowed"));
+        Border button = DeviceIconButton(ExclusiveButtonGlyph(device), p, device.ToggleAllowExclusiveControl);
+        TextBlock? glyph = button.Child as TextBlock;
+        UpdateVisual();
+
+        device.PropertyChanged += OnDeviceChanged;
+        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
+
+        void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is not (nameof(AudioDevice.IsExclusiveModeAllowed)
+                or nameof(AudioDevice.IsExclusiveControlHeld))) return;
+
+            RunOnUiThread(UpdateVisual);
+        }
+
+        void UpdateVisual()
+        {
+            if (glyph != null) glyph.Text = ExclusiveButtonGlyph(device);
+            button.Opacity = device.IsExclusiveModeAllowed ? 1.0 : 0.4;
+            TrayAppDotNETToolTip.SetTip(button, device.IsExclusiveModeAllowed
+                ? device.IsExclusiveControlHeld
+                    ? L("Flyout_ExclusiveMode_Tooltip_Held", "Exclusive control is held")
+                    : L("Flyout_ExclusiveMode_Tooltip_Allowed", "Exclusive mode allowed")
+                : L("Flyout_ExclusiveMode_Tooltip_Disallowed", "Exclusive mode disallowed"));
+        }
     }
 
     private Border? BuildEqualizerButton(AudioDevice device, FlyoutPalette p)
@@ -1242,25 +1267,37 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         TextBlock equalizer = Text(GlyphCatalog.EQUALIZER, p, Layout.EqualizerFontSize);
         equalizer.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         equalizer.Foreground = Brush(p.IconForeground);
-        equalizer.Opacity = device.EqualizerAPOState == EqualizerAPOState.Running ? 1.0 : 0.4;
         PreventIconGlyphClipping(equalizer, Layout.IconGlyphLineHeightPadding);
         glyphs.Children.Add(equalizer);
-        if (device.EqualizerAPOState == EqualizerAPOState.NotAvailable)
-        {
-            TextBlock badge = Text(GlyphCatalog.SIGNAL_NOT_CONNECTED, p, Layout.EqualizerBadgeFontSize,
-                FontWeight.ExtraBold);
-            badge.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-            badge.Foreground = Brush(p.IconForeground);
-            badge.HorizontalAlignment = HorizontalAlignment.Right;
-            badge.VerticalAlignment = VerticalAlignment.Bottom;
-            badge.Margin = Layout.EqualizerBadgeMargin;
-            PreventIconGlyphClipping(badge, Layout.IconGlyphLineHeightPadding);
-            glyphs.Children.Add(badge);
-        }
+        TextBlock badge = Text(GlyphCatalog.SIGNAL_NOT_CONNECTED, p, Layout.EqualizerBadgeFontSize,
+            FontWeight.ExtraBold);
+        badge.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        badge.Foreground = Brush(p.IconForeground);
+        badge.HorizontalAlignment = HorizontalAlignment.Right;
+        badge.VerticalAlignment = VerticalAlignment.Bottom;
+        badge.Margin = Layout.EqualizerBadgeMargin;
+        PreventIconGlyphClipping(badge, Layout.IconGlyphLineHeightPadding);
+        glyphs.Children.Add(badge);
 
         button.Child = glyphs;
-        TrayAppDotNETToolTip.SetTip(button, EqualizerTooltip(device.EqualizerAPOState));
+        UpdateVisual();
+
+        device.PropertyChanged += OnDeviceChanged;
+        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
+
+        void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(AudioDevice.EqualizerAPOState)) return;
+            RunOnUiThread(UpdateVisual);
+        }
+
+        void UpdateVisual()
+        {
+            equalizer.Opacity = device.EqualizerAPOState == EqualizerAPOState.Running ? 1.0 : 0.4;
+            badge.IsVisible = device.EqualizerAPOState == EqualizerAPOState.NotAvailable;
+            TrayAppDotNETToolTip.SetTip(button, EqualizerTooltip(device.EqualizerAPOState));
+        }
     }
 
     private Border? BuildListenButton(AudioDevice device, FlyoutPalette p)
@@ -1275,19 +1312,26 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             else
                 device.SetListenEnabled(!device.IsListeningToThisDevice);
         }, rightClick: _ => ShowListenTargetMenu(button!, device, p));
-        button.Opacity = device.IsListeningToThisDevice ? 1.0 : 0.4;
         TrayAppDotNETToolTip.SetTip(button, L("Flyout_ListenButton_Tooltip", "Listen to this device"));
+        UpdateVisual();
+
+        device.PropertyChanged += OnDeviceChanged;
+        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
+
+        void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(AudioDevice.IsListeningToThisDevice)) return;
+            RunOnUiThread(UpdateVisual);
+        }
+
+        void UpdateVisual() => button.Opacity = device.IsListeningToThisDevice ? 1.0 : 0.4;
     }
 
     private Border? BuildDeviceStateButton(AudioDevice device, FlyoutPalette p)
     {
-        bool visible = device.IsCaptureDevice
-            ? _settings.ShowDefaultDeviceButtonForRecording
-            : _settings.ShowDefaultDeviceButtonForPlayback;
-        if (!visible) return null;
+        if (!IsDefaultDeviceButtonVisible(device)) return null;
 
-        string stateGlyph = DeviceStateGlyph(device);
         Border button = DeviceIconButton(string.Empty, p, e =>
         {
             if ((e.KeyModifiers & KeyModifiers.Shift) != 0)
@@ -1297,23 +1341,98 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             else
                 device.SetAsDefault();
         }, rightClick: _ => DeviceShellLinks.OpenDeviceProperties(device));
-        button.Opacity = device.IsActive ? 1.0 : 0.4;
         TextBlock glyph = Text(
-            stateGlyph,
+            DeviceStateGlyph(device),
             p,
-            stateGlyph == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
+            DeviceStateGlyph(device) == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
                 ? Layout.DeviceStateDisabledFontSize
                 : Layout.DeviceStateFontSize);
         glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         glyph.Foreground = Brush(p.IconForeground);
         glyph.HorizontalAlignment = HorizontalAlignment.Center;
         glyph.VerticalAlignment = VerticalAlignment.Center;
-        PreventIconGlyphClipping(glyph, Layout.IconGlyphLineHeightPadding);
-        if (stateGlyph == GlyphCatalog.PLAYBACK_DEVICE_DISABLED)
-            glyph.RenderTransform = CloneTransform(Layout.DeviceStateDisabledTransform);
         button.Child = glyph;
         TrayAppDotNETToolTip.SetTip(button, L("Flyout_DeviceIcon_Tooltip", "Set as default device"));
+        TrackDeviceStateButtonHover(button);
+        UpdateVisual();
+
+        device.PropertyChanged += OnDeviceChanged;
+        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
+
+        void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is not (nameof(AudioDevice.IsDefault)
+                or nameof(AudioDevice.IsDefaultCommunications)
+                or nameof(AudioDevice.IsActive)
+                or nameof(AudioDevice.State))) return;
+
+            RunOnUiThread(() =>
+            {
+                UpdateVisual();
+                if (e.PropertyName is nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications))
+                    QueueDeviceOrderingRebuild();
+            });
+        }
+
+        void UpdateVisual()
+        {
+            string stateGlyph = DeviceStateGlyph(device);
+            glyph.Text = stateGlyph;
+            glyph.FontSize = stateGlyph == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
+                ? Layout.DeviceStateDisabledFontSize
+                : Layout.DeviceStateFontSize;
+            glyph.RenderTransform = stateGlyph == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
+                ? CloneTransform(Layout.DeviceStateDisabledTransform)
+                : null;
+            PreventIconGlyphClipping(glyph, Layout.IconGlyphLineHeightPadding);
+            button.Opacity = device.IsActive ? 1.0 : 0.4;
+        }
+    }
+
+    private bool IsDefaultDeviceButtonVisible(AudioDevice device) =>
+        device.IsCaptureDevice
+            ? _settings.ShowDefaultDeviceButtonForRecording
+            : _settings.ShowDefaultDeviceButtonForPlayback;
+
+    private void TrackDeviceStateButtonHover(Control button)
+    {
+        bool pointerOver = false;
+        button.PointerEntered += (_, _) =>
+        {
+            if (pointerOver) return;
+            pointerOver = true;
+            _hoveredDeviceStateButtonCount++;
+        };
+        button.PointerExited += (_, _) =>
+        {
+            if (!pointerOver) return;
+            pointerOver = false;
+            _hoveredDeviceStateButtonCount = Math.Max(0, _hoveredDeviceStateButtonCount - 1);
+            FlushDeviceOrderingRebuild();
+        };
+        _cleanup.Add(() =>
+        {
+            if (!pointerOver) return;
+            pointerOver = false;
+            _hoveredDeviceStateButtonCount = Math.Max(0, _hoveredDeviceStateButtonCount - 1);
+        });
+    }
+
+    private void QueueDeviceOrderingRebuild()
+    {
+        if (_settings.FlyoutDeviceSort != FlyoutDeviceSortOrder.StateGrouped) return;
+
+        _deviceOrderingRebuildPending = true;
+        FlushDeviceOrderingRebuild();
+    }
+
+    private void FlushDeviceOrderingRebuild()
+    {
+        if (!_deviceOrderingRebuildPending || _hoveredDeviceStateButtonCount > 0) return;
+
+        _deviceOrderingRebuildPending = false;
+        Dispatcher.UIThread.Post(Rebuild);
     }
 
     private Border BuildDrawerButton(AudioDevice device, IReadOnlyList<AudioAppGroup> groups, FlyoutPalette p)
@@ -1517,35 +1636,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
 
-        button.PointerEntered += (_, _) =>
-        {
-            if (enabled) button.Background = Brush(hover);
-        };
-        button.PointerExited += (_, _) => button.Background = Brushes.Transparent;
-        button.PointerPressed += (_, e) =>
-        {
-            if (!enabled || e.GetCurrentPoint(button).Properties.PointerUpdateKind !=
-                PointerUpdateKind.LeftButtonPressed) return;
-            button.Background = Brush(pressed);
-            e.Handled = true;
-        };
-        button.PointerReleased += (_, e) =>
-        {
-            if (!enabled) return;
-            if (e.InitialPressMouseButton == MouseButton.Right && rightClick != null)
-            {
-                rightClick(e);
-                e.Handled = true;
-                return;
-            }
-
-            if (e.InitialPressMouseButton != MouseButton.Left) return;
-            bool releasedInside = IsPointerInside(button, e);
-            button.Background = releasedInside ? Brush(hover) : Brushes.Transparent;
-            if (releasedInside) click(e);
-            e.Handled = true;
-        };
-
+        FlyoutButtonState.Attach(
+            button,
+            () => Brushes.Transparent,
+            () => Brush(hover),
+            () => Brush(pressed),
+            click,
+            enabled,
+            rightClick);
         return button;
     }
 
@@ -1563,23 +1661,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Child = label,
             Cursor = new Cursor(StandardCursorType.Hand),
         };
-        button.PointerEntered += (_, _) => button.Background = Brush(p.ButtonHover);
-        button.PointerExited += (_, _) => button.Background = Brush(p.ControlBackground);
-        button.PointerPressed += (_, e) =>
-        {
-            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
-            button.Background = Brush(p.ButtonPressed);
-            e.Handled = true;
-        };
-        button.PointerReleased += (_, e) =>
-        {
-            if (e.InitialPressMouseButton != MouseButton.Left) return;
-            bool releasedInside = IsPointerInside(button, e);
-            button.Background = releasedInside ? Brush(p.ButtonHover) : Brush(p.ControlBackground);
-            if (releasedInside) click();
-            e.Handled = true;
-        };
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
+        FlyoutButtonState.Attach(
+            button,
+            () => Brush(p.ControlBackground),
+            () => Brush(p.ButtonHover),
+            () => Brush(p.ButtonPressed),
+            _ => click());
         return button;
     }
 
@@ -1589,6 +1677,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return point is { X: >= 0, Y: >= 0 }
                && point.X <= control.Bounds.Width
                && point.Y <= control.Bounds.Height;
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        if (Dispatcher.UIThread.CheckAccess()) action();
+        else Dispatcher.UIThread.Post(action);
     }
 
     private void BeginUndockButtonDrag(Control source, PointerPressedEventArgs e)
@@ -2251,16 +2345,31 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private static string DeviceVolumeGlyph(AudioDevice device)
     {
-        if (device.IsCaptureDevice)
-        {
-            if (device.IsMuted) return GlyphCatalog.MICROPHONE_OFF;
-            if (device.IsListeningToThisDevice) return GlyphCatalog.MICROPHONE_LISTENING;
-            if (device.IsCaptureSleeping) return GlyphCatalog.MICROPHONE_SLEEP;
-            return GlyphCatalog.MICROPHONE;
-        }
+        if (device.IsCaptureDevice) return CaptureDeviceVolumeGlyph(device, device.IsMuted);
 
-        return GlyphCatalog.PLAYBACK_VOLUME_LOW;
+        return GlyphCatalog.GetVolumeTier(device.Volume, device.IsMuted);
     }
+
+    private static string DeviceMuteTogglePreviewGlyph(AudioDevice device)
+    {
+        bool mutedAfterToggle = !device.IsMuted;
+        if (device.IsCaptureDevice) return CaptureDeviceVolumeGlyph(device, mutedAfterToggle);
+
+        return GlyphCatalog.GetVolumeTier(device.Volume, mutedAfterToggle);
+    }
+
+    private static string CaptureDeviceVolumeGlyph(AudioDevice device, bool muted)
+    {
+        if (muted) return GlyphCatalog.MICROPHONE_OFF;
+        if (device.IsListeningToThisDevice) return GlyphCatalog.MICROPHONE_LISTENING;
+        if (device.IsCaptureSleeping) return GlyphCatalog.MICROPHONE_SLEEP;
+        return GlyphCatalog.MICROPHONE;
+    }
+
+    private static string ExclusiveButtonGlyph(AudioDevice device) =>
+        device is { IsExclusiveModeAllowed: true, IsExclusiveControlHeld: true }
+            ? GlyphCatalog.LOCK
+            : GlyphCatalog.UNLOCK;
 
     private static string DeviceStateGlyph(AudioDevice device)
     {

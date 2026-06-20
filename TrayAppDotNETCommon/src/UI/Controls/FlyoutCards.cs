@@ -128,35 +128,14 @@ public static class TrayAppDotNETFlyoutUI
 
         if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-
-        button.PointerEntered += (_, _) =>
-        {
-            if (enabled) button.Background = Brush(palette.Hover);
-        };
-        button.PointerExited += (_, _) => button.Background = Brushes.Transparent;
-        button.PointerPressed += (_, e) =>
-        {
-            if (!enabled || e.GetCurrentPoint(button).Properties.PointerUpdateKind !=
-                PointerUpdateKind.LeftButtonPressed) return;
-            button.Background = Brush(palette.Pressed);
-            e.Handled = true;
-        };
-        button.PointerReleased += (_, e) =>
-        {
-            if (!enabled) return;
-            if (e.InitialPressMouseButton == MouseButton.Right && rightClick != null)
-            {
-                rightClick(e);
-                e.Handled = true;
-                return;
-            }
-
-            if (e.InitialPressMouseButton != MouseButton.Left) return;
-            bool releasedInside = IsPointerInside(button, e);
-            button.Background = releasedInside ? Brush(palette.Hover) : Brushes.Transparent;
-            if (releasedInside) click(e);
-            e.Handled = true;
-        };
+        FlyoutButtonState.Attach(
+            button,
+            () => Brushes.Transparent,
+            () => Brush(palette.Hover),
+            () => Brush(palette.Pressed),
+            click,
+            enabled,
+            rightClick);
 
         return button;
     }
@@ -183,23 +162,13 @@ public static class TrayAppDotNETFlyoutUI
             Cursor = new Cursor(StandardCursorType.Hand),
         };
 
-        button.PointerEntered += (_, _) => button.Background = Brush(palette.Hover);
-        button.PointerExited += (_, _) => button.Background = Brush(palette.ControlBackground);
-        button.PointerPressed += (_, e) =>
-        {
-            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
-            button.Background = Brush(palette.Pressed);
-            e.Handled = true;
-        };
-        button.PointerReleased += (_, e) =>
-        {
-            if (e.InitialPressMouseButton != MouseButton.Left) return;
-            bool releasedInside = IsPointerInside(button, e);
-            button.Background = releasedInside ? Brush(palette.Hover) : Brush(palette.ControlBackground);
-            if (releasedInside) click();
-            e.Handled = true;
-        };
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
+        FlyoutButtonState.Attach(
+            button,
+            () => Brush(palette.ControlBackground),
+            () => Brush(palette.Hover),
+            () => Brush(palette.Pressed),
+            _ => click());
         return button;
     }
 
