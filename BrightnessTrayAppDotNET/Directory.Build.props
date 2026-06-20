@@ -7,9 +7,9 @@
          Must live in Directory.Build.props (auto-imported before the SDK props)
          because BaseIntermediateOutputPath is consumed during the SDK props
          import. Setting it inside the .csproj is too late.
-         FormatProbe is a diagnostic harness with a different target framework, so it keeps
-         its own local obj\ instead of sharing the app project's project.assets.json. -->
-    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+         FormatProbe and xUnit tests keep their own local obj\ instead of sharing the app
+         project's project.assets.json, because their package graphs differ from the app. -->
+    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'BrightnessTrayAppDotNET.Tests'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
 
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Release;ReleaseWithDebugging</Configurations>

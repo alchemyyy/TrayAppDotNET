@@ -72,6 +72,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="NightLightTester" />
+    <InternalsVisibleTo Include="BrightnessTrayAppDotNET.Tests" />
   </ItemGroup>
 
   <ItemGroup>

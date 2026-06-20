@@ -24,6 +24,22 @@ public enum DDCRecoveryAction
     RefreshHandle,
 }
 
+internal interface IMonitorServiceDispatcher
+{
+    bool CheckAccess();
+    void Post(Action action);
+    void Invoke(Action action);
+    T Invoke<T>(Func<T> action);
+}
+
+internal sealed class AvaloniaMonitorServiceDispatcher(Dispatcher dispatcher) : IMonitorServiceDispatcher
+{
+    public bool CheckAccess() => dispatcher.CheckAccess();
+    public void Post(Action action) => dispatcher.Post(action);
+    public void Invoke(Action action) => dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+    public T Invoke<T>(Func<T> action) => dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+}
+
 /// <summary>
 /// Bridges the DDC/CI layer and the UI's <see cref="MonitorInfo"/> models.
 /// Owns the authoritative list of <see cref="MonitorInfo"/> instances - the flyout binds to <see cref="Monitors"/>
@@ -42,7 +58,7 @@ public sealed class MonitorService : IDisposable
     private readonly IDisplayService _display;
     private readonly AppSettings _settings;
     private readonly KnownDisplaysStore _knownDisplays;
-    private readonly Dispatcher _dispatcher;
+    private readonly IMonitorServiceDispatcher _dispatcher;
 
     private readonly ConcurrentDictionary<string, MonitorEntry> _entries = new(StringComparer.Ordinal);
 
@@ -125,9 +141,17 @@ public sealed class MonitorService : IDisposable
     /// Creates the monitor service and optionally uses an injected known-display store.
     /// </summary>
     public MonitorService(IDisplayService display, AppSettings settings, KnownDisplaysStore? knownDisplays = null)
+        : this(display, settings, knownDisplays, new AvaloniaMonitorServiceDispatcher(Dispatcher.UIThread)) { }
+
+    internal MonitorService(
+        IDisplayService display,
+        AppSettings settings,
+        KnownDisplaysStore? knownDisplays,
+        IMonitorServiceDispatcher dispatcher)
     {
         _display = display;
         _settings = settings;
+        _dispatcher = dispatcher;
 
         // Optional injection: callers wired up before the displays.json extraction keep working with the
         // two-arg constructor.
@@ -140,7 +164,6 @@ public sealed class MonitorService : IDisposable
         // accumulated history (or, more importantly, the sticky WasEverDDCCapable flags DDCRecoveryService relies on).
         _knownDisplays.Load(_settings.KnownDisplays);
 
-        _dispatcher = Dispatcher.UIThread;
         _writeCooldownMs = Math.Max(0, settings.BrightnessUpdateRateMs);
         _validationDwellMs = Math.Max(0, settings.ValidationDwellMs);
         _display.OperationTimeoutMs = settings.DDCOperationTimeoutMs;
@@ -1091,17 +1114,9 @@ public sealed class MonitorService : IDisposable
     /// </summary>
     private void ProjectWasEverDDCCapableToMonitors()
     {
+        IReadOnlyList<KnownDisplayEntry> known = _knownDisplays.Entries;
         foreach (MonitorInfo m in Monitors)
-        {
-            if (string.IsNullOrEmpty(m.EDIDKey))
-            {
-                m.WasEverDDCCapable = false;
-                continue;
-            }
-
-            KnownDisplayEntry? entry = _knownDisplays.Find(m.EDIDKey);
-            m.WasEverDDCCapable = entry?.WasEverDDCCapable ?? false;
-        }
+            m.WasEverDDCCapable = IsKnownDDCCapable(m, known);
     }
 
     /// <summary>
@@ -1498,6 +1513,10 @@ public sealed class MonitorService : IDisposable
                 .Where(k => k.WasEverDDCCapable && !string.IsNullOrEmpty(k.EDIDKey))
                 .Select(k => k.EDIDKey)
                 .ToHashSet(StringComparer.Ordinal);
+            HashSet<string> capableSerials = _knownDisplays.Entries
+                .Where(k => k.WasEverDDCCapable && !string.IsNullOrEmpty(k.EDIDSerial))
+                .Select(k => k.EDIDSerial)
+                .ToHashSet(StringComparer.Ordinal);
 
             List<string> result = [];
             foreach (MonitorInfo m in Monitors)
@@ -1509,15 +1528,33 @@ public sealed class MonitorService : IDisposable
 
                 if (!m.IsPoweredOn) continue;
 
-                if (string.IsNullOrEmpty(m.EDIDKey)) continue;
-
-                if (!capableKeys.Contains(m.EDIDKey)) continue;
+                bool knownCapable = m.WasEverDDCCapable
+                                    || (!string.IsNullOrEmpty(m.EDIDKey)
+                                        && capableKeys.Contains(m.EDIDKey))
+                                    || (!string.IsNullOrEmpty(m.EDIDSerial)
+                                        && capableSerials.Contains(m.EDIDSerial));
+                if (!knownCapable) continue;
 
                 result.Add(m.ID);
             }
 
             return result;
         }
+    }
+
+    private static bool IsKnownDDCCapable(MonitorInfo info, IReadOnlyList<KnownDisplayEntry> known)
+    {
+        if (known.Count == 0) return false;
+
+        if (!string.IsNullOrEmpty(info.EDIDKey)
+            && known.Any(k => k.WasEverDDCCapable
+                              && string.Equals(k.EDIDKey, info.EDIDKey, StringComparison.Ordinal)))
+            return true;
+
+        return !string.IsNullOrEmpty(info.EDIDSerial)
+               && known.Any(k => k.WasEverDDCCapable
+                                  && !string.IsNullOrEmpty(k.EDIDSerial)
+                                  && string.Equals(k.EDIDSerial, info.EDIDSerial, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -1585,21 +1622,7 @@ public sealed class MonitorService : IDisposable
             foreach (DDCMonitor liveMonitor in live)
                 ApplyBrightnessVcpOverride(liveMonitor, ComputeEDIDKey(liveMonitor), monitorOverridesByEDID);
 
-            ddc = live.FirstOrDefault(d => ComputeMonitorID(d, _activeStrategy) == monitorID);
-
-            // EDID fallback: if the live monitor's computed ID has drifted from the MonitorInfo's persisted ID
-            // (e.g. display number reshuffled across a power-cycle),
-            // the strategy-keyed lookup misses but the panel is still there.
-            // Match by EDID serial - that's the panel-bound identifier
-            // and survives every topology event we care about.
-            // Without this, targeted recovery silently aborts forever for any monitor whose ID drifted,
-            // which is exactly what hit `num:3` after the physical-restart cycle.
-            if (ddc == null && info != null && !string.IsNullOrEmpty(info.EDIDSerial))
-            {
-                ddc = live.FirstOrDefault(d =>
-                    !string.IsNullOrEmpty(d.EDIDSerial)
-                    && string.Equals(d.EDIDSerial, info.EDIDSerial, StringComparison.Ordinal));
-            }
+            ddc = FindRecoveryTarget(live, info, monitorID);
         });
 
         if (alreadySupported) return true;
@@ -1675,6 +1698,42 @@ public sealed class MonitorService : IDisposable
         return true;
     }
 
+    private DDCMonitor? FindRecoveryTarget(IReadOnlyList<DDCMonitor> live, MonitorInfo info, string requestedID)
+    {
+        if (live.Count == 0) return null;
+
+        DDCMonitor? match = live.FirstOrDefault(d => ComputeMonitorID(d, _activeStrategy) == requestedID);
+        if (match != null) return match;
+
+        // Same stable-identity rescue order as RefreshProbePhaseAsync:
+        // EDIDKey, then port-form fallback, then EDID serial. Targeted recovery used to only try
+        // requestedID + EDID serial, leaving port-keyed rows permanently failed after EDID/display-number drift.
+        if (!string.IsNullOrEmpty(info.EDIDKey))
+        {
+            match = live.FirstOrDefault(d =>
+                string.Equals(ComputeEDIDKey(d), info.EDIDKey, StringComparison.Ordinal)
+                || string.Equals(ComputePortFormKey(d), info.EDIDKey, StringComparison.Ordinal));
+            if (match != null) return match;
+        }
+
+        if (!string.IsNullOrEmpty(info.EDIDSerial))
+        {
+            match = live.FirstOrDefault(d =>
+                !string.IsNullOrEmpty(d.EDIDSerial)
+                && string.Equals(d.EDIDSerial, info.EDIDSerial, StringComparison.Ordinal));
+            if (match != null) return match;
+        }
+
+        if (!string.IsNullOrEmpty(info.ID) && info.ID.StartsWith("port:", StringComparison.Ordinal))
+        {
+            match = live.FirstOrDefault(d =>
+                string.Equals(ComputePortFormKey(d), info.ID, StringComparison.Ordinal));
+            if (match != null) return match;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Sends the row's current manual brightness to verify the monitor's write half is alive when reads fail.
     /// Used to distinguish full DDC failure (both halves dead) from asymmetric read-degraded state
@@ -1723,6 +1782,8 @@ public sealed class MonitorService : IDisposable
         // Don't trample a fully-recovered or fully-functional monitor.
         if (info is { IsHardwareFunctional: true, IsReadDegraded: false }) return;
 
+        RefreshRecoveredMonitorMetadata(info, ddc);
+
         // Install a minimal entry so the throttler / curve service can route writes to this monitor.
         // Reads are still degraded, so reuse the last known max range captured before failure.
         uint brightnessMax = NormalizeBrightnessMax(info.LastKnownBrightnessMax);
@@ -1745,6 +1806,8 @@ public sealed class MonitorService : IDisposable
         info.IsReadDegraded = true;
         info.LastDDCError = readError;
         info.WasEverDDCCapable = true;
+        string EDIDKey = ComputeEDIDKey(ddc);
+        if (!string.IsNullOrEmpty(EDIDKey)) _knownDisplays.MarkDDCCapable(EDIDKey);
         WPFLog.Log($"MonitorService: '{ddc.Name}' is read-degraded (write probe landed, reads failing)");
         MonitorsAcquired?.Invoke([info]);
         MonitorsRefreshed?.Invoke();
@@ -1832,6 +1895,8 @@ public sealed class MonitorService : IDisposable
         // check before clobbering.
         if (info is { IsHardwareFunctional: true, IsReadDegraded: false }) return;
 
+        RefreshRecoveredMonitorMetadata(info, ddc);
+
         int pct = max == 0 ? 0 : (int)Math.Round(current * 100.0 / max);
         uint brightnessMax = NormalizeBrightnessMax(max);
         info.LastKnownBrightnessMax = brightnessMax;
@@ -1870,6 +1935,45 @@ public sealed class MonitorService : IDisposable
 
         MonitorsAcquired?.Invoke([info]);
         MonitorsRefreshed?.Invoke();
+    }
+
+    private void RefreshRecoveredMonitorMetadata(MonitorInfo info, DDCMonitor ddc)
+    {
+        string oldID = info.ID;
+        string newID = ComputeMonitorID(ddc, _activeStrategy);
+        string newEDIDKey = ComputeEDIDKey(ddc);
+
+        bool EDIDUpgraded = info.EDIDKey.StartsWith("port:", StringComparison.Ordinal)
+                            && newEDIDKey.StartsWith("edid:", StringComparison.Ordinal);
+        bool shouldRekeyID = !string.IsNullOrEmpty(newID)
+                             && !string.Equals(oldID, newID, StringComparison.Ordinal)
+                             && (_activeStrategy != MonitorIdentityStrategy.DisplayNumber || EDIDUpgraded);
+
+        if (shouldRekeyID)
+        {
+            if (_entries.TryRemove(oldID, out MonitorEntry? movingEntry))
+            {
+                movingEntry.ID = newID;
+                movingEntry.EDIDKey = newEDIDKey;
+                _entries[newID] = movingEntry;
+            }
+
+            _writeThrottler.Drop(oldID);
+            info.ID = newID;
+            WPFLog.Log(
+                $"MonitorService: re-keyed recovered '{info.Name}' from "
+                + $"{(string.IsNullOrEmpty(oldID) ? "<empty>" : oldID)} -> {newID}");
+        }
+
+        info.EDIDKey = newEDIDKey;
+        info.OriginalName = ddc.FriendlyName;
+        info.EDIDSerial = ddc.EDIDSerial;
+        info.DisplayNumber = ddc.DisplayNumber;
+        info.ArrangementX = ddc.X;
+        info.ArrangementY = ddc.Y;
+        info.Name = ResolveDisplayName(info, BuildNameOverrideMap());
+
+        RegisterKnownDisplays([ddc]);
     }
 
     /// <summary>
@@ -2339,13 +2443,13 @@ public sealed class MonitorService : IDisposable
             return;
         }
 
-        _dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+        _dispatcher.Invoke(action);
     }
 
     private T InvokeOnDispatcher<T>(Func<T> action)
     {
         if (_dispatcher.CheckAccess()) return action();
-        return _dispatcher.InvokeAsync(action).GetAwaiter().GetResult();
+        return _dispatcher.Invoke(action);
     }
 
     public void Dispose()
