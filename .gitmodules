@@ -1,0 +1,5 @@
+[submodule "FanControlTrayAppDotNET/LibreHardwareMonitor"]
+	path = FanControlTrayAppDotNET/LibreHardwareMonitor
+	url = https://github.com/LibreHardwaRemonitor/LibreHardwareMonitor
+	branch = master
+	update = merge

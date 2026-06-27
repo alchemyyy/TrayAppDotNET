@@ -1,0 +1,456 @@
+@startuml nightlight_control_flow
+!include dark-theme.puml
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+title Night-light - control flow at runtime (UI gesture -> Provider dispatch -> bracket -> broker -> hardware)
+
+' ===========================================================================
+' Layout strategy
+' ---------------------------------------------------------------------------
+' Vertical bands top-to-bottom:
+'   1. App entry points (UI / hotkey / curve / topology relink)
+'   2. NightLightProvider facade (clamp, persist, auto-off, backend dispatch)
+'   3. Registry backend          (NightLightRegistry: spaced-bracket + resend timer)
+'   4. SettingsHandler backend   (NightLightSettingsHandler -> NightLightCloudStore RVA bracket)
+'   5. Decompiled SettingsHandlers_Display path (BlueLightSingleton -> SHTaskPool)
+'   6. Decompiled Windows.Shell.BlueLightReduction broker (CloudStore watcher -> apply lambdas)
+'   7. Display hardware (DES vs legacy gamma)
+'
+' Companion diagram 07 shows the *backend menu* (resolution table). This one
+' is the *runtime call sequence* with the spaced-bracket + IsDragging edge,
+' the resend timer debounce, and the SHTaskPool ride.
+' ===========================================================================
+
+left to right direction
+
+' ---------------------------------------------------------------------------
+' 1. App entry points
+' ---------------------------------------------------------------------------
+package "App entry points" $TINT_BLUE {
+  [Brightness flyout slider\n(BrightnessFlyout.xaml.cs)]          as UI_SLIDER
+  [Brightness flyout NL toggle\n(BrightnessFlyout.xaml.cs)]       as UI_TOGGLE
+  [Hotkey ToggleNightLight\n(App.xaml.cs)]                        as UI_HOTKEY
+  [Hotkey Increment/Decrement\n(App.xaml.cs -> slider)]           as UI_HOTKEY_DELTA
+  [Tooltip / flyout-open read\n(App.xaml.cs / Flyout)]            as UI_READ
+  [Environmental curve tick\n(EnvironmentalCurveService)]         as UI_CURVE
+  [Display topology relink\n(App.xaml.cs -> Reapply)]             as UI_RELINK
+  [Profile apply\n(BrightnessFlyout.xaml.cs)]                     as UI_PROFILE
+  [Tray icon wheel TrayWheelTarget.NightLight\n(App.xaml.cs OnTrayScrolled\n-> NightLightMonitor.Brightness)] as UI_TRAY
+}
+
+' ---------------------------------------------------------------------------
+' 2. NightLightProvider facade
+' ---------------------------------------------------------------------------
+package "NightLightProvider facade (Services/NightLightProvider.cs)" $TINT_AMBER {
+  [GetStrength / IsEnabled\n(read via active backend)]        as NLP_READ
+  [SetStrength(percent, persistAsLast)\n+ auto-off-at-zero hook] as NLP_SET
+  [SetEnabled(enabled)\n+ EnsureNonZeroStrengthBeforeEnable]   as NLP_EN
+  [Toggle()\n(flip; restore last warmth if going on at 0)]    as NLP_TOG
+  [Reapply()\n(re-issue current strength if enabled)]         as NLP_REAPPLY
+
+  [GetCachedBackend()\nResolveBackend by AppSettings\n.NightLightFallbackMode] as NLP_RESOLVE
+  note bottom of NLP_RESOLVE
+    Backend resolution
+    ----
+    Auto / Registry / GammaRamp -> Registry
+       (GammaRamp is a hidden affordance with no
+        backing impl; falls through to Registry)
+    SettingsHandler             -> SettingsHandler
+       (explicit user opt-in; no silent fallback
+        if the DLL probe fails -> Backend.None)
+    None                        -> all calls no-op
+
+    Default in fresh AppSettings:
+       NightLightFallbackMode = SettingsHandler
+
+    Cached in _backendCached, invalidated only when
+    NightLightFallbackMode actually changes - other
+    AppSettings.Changed fires share the same event.
+  end note
+}
+
+UI_SLIDER       --> NLP_SET
+UI_HOTKEY_DELTA --> NLP_SET     : via slider write
+UI_PROFILE      --> NLP_SET
+UI_CURVE        --> NLP_SET     : persistAsLastUserValue=false
+UI_TRAY         --> NLP_SET     : via NightLightMonitor.Brightness setter\n(same as flyout slider)
+UI_TOGGLE       --> NLP_TOG
+UI_HOTKEY       --> NLP_TOG
+UI_RELINK       --> NLP_REAPPLY
+UI_READ         --> NLP_READ
+
+NLP_SET     --> NLP_RESOLVE
+NLP_EN      --> NLP_RESOLVE
+NLP_TOG     --> NLP_RESOLVE
+NLP_REAPPLY --> NLP_RESOLVE
+NLP_READ    --> NLP_RESOLVE
+
+note top of NLP_SET
+  SetStrength dispatch
+  ----
+  1. Math.Clamp(percent, 0, 100)
+  2. Switch on cached backend:
+       Registry        -> NightLightRegistry.EnqueueSetStrengthSpaced
+       SettingsHandler -> NightLightSettingsHandler.SetStrength
+                          (which queues NightLightCloudStore.SaveSettingsKelvinAsync)
+       None            -> no-op
+  3. If percent > 0 && persistAsLastUserValue:
+       AppSettings.NightLightLastNonZeroStrength := percent
+       (M-05 fix: no longer holds _gate across
+        AppSettings.Save so a slow disk cannot
+        block a parallel SetEnabled / Toggle)
+  4. If percent == 0
+       && AppSettings.TurnOffNightLightAtZeroStrength
+       && IsEnabled():
+         CancelPendingResend on BOTH
+         NightLightRegistry and
+         NightLightSettingsHandler FIRST
+         (M-07 zero-trap fix), then SetEnabled(false)
+end note
+
+note top of NLP_EN
+  EnsureNonZeroStrengthBeforeEnable
+  ----
+  Guard for the off->on transition only.
+  If the active backend reports strength 0,
+  pre-write a restored value via the SPACED
+  pipeline (M-14 fix: now uses
+  EnqueueSetStrengthSpaced rather than a bare
+  synchronous SetStrength, so toggling NL on
+  from strength=0 no longer visibly flickers
+  - DUP-19 closed).
+
+  Restored value:
+    AppSettings.NightLightLastNonZeroStrength
+    if set and > 0, otherwise hard default 50.
+end note
+
+' ---------------------------------------------------------------------------
+' 3. Registry backend (default for Auto / Registry / GammaRamp modes)
+' ---------------------------------------------------------------------------
+package "Registry backend (Interop/NightLight/NightLightRegistry.cs)" $TINT_GREEN {
+  [GetStrength / IsEnabled\n(parse Bond CB v1, find tag,\nZigZag varint decode)] as REG_READ
+
+  [EnqueueSetStrengthSpaced(percent)\nfire-and-forget; off-loads CTS/dictionary\nwork to Task.Run before throttler] as REG_ENQ
+
+  [SchedulePostSettleResend(percent)\nsingle reusable Timer;\nTimer.Change(NightLightUIHandleryRegistryEnforceDelayMs)\non every call - thread-safe, zero-alloc] as REG_RESEND
+
+  [AsyncThrottler<string>\nkey="nightlight", cooldown=0\nlatest-pending-wins, single-flight] as REG_THROTTLE
+
+  [SetStrengthSpacedAsync (3-step bracket)\nstep 1: kelvin only,    IsDragging absent\nstep 2: kelvin,         IsDragging=true  (insert C2 46 01)\nstep 3: kelvin,         IsDragging absent (remove C2 46)\neach step: IssueWithSaveNotifyAsync +\n           Task.Delay(NightLightInterWriteDelayMs);\nctx.HasReplacement short-circuits between steps] as REG_BRACKET
+
+  [SetEnabled / Toggle\nflip presence-marker (STATE field 0)\n+ bump inner FILETIME (field 20)] as REG_TOG
+
+  [SetStrength (synchronous)\nWriteKelvin + RefreshStateFileTime;\nused only by EnsureNonZeroStrengthBeforeEnable] as REG_SYNC_SET
+
+  [PulseApply\nToggle off->on as recovery\n(visible flicker; not used by\nProvider's hot path)] as REG_PULSE
+
+  [HKCU\\...\\CloudStore\\...\nSTATE blob + SETTINGS blob\n(REG_BINARY 'Data')] as REG_STORE
+}
+
+NLP_READ --> REG_READ : both Registry and SettingsHandler\nbackends read via Registry
+NLP_SET  --> REG_ENQ  : Backend.Registry
+NLP_EN   --> REG_TOG  : Backend.Registry
+NLP_TOG  --> REG_TOG  : Backend.Registry
+NLP_EN   --> REG_SYNC_SET : EnsureNonZeroStrengthBeforeEnable\n(Backend.Registry)
+NLP_TOG  --> REG_SYNC_SET : EnsureNonZeroStrengthBeforeEnable\n(Backend.Registry)
+
+REG_ENQ      --> REG_RESEND   : re-arm belt-and-suspenders timer
+REG_ENQ      --> REG_THROTTLE : RunAsync(key="nightlight")
+REG_RESEND   --> REG_THROTTLE : OnResendTimerFired re-fires\nthe latest percent after quiet
+REG_THROTTLE --> REG_BRACKET  : driver invokes SetStrengthSpacedAsync(percent, ctx)
+
+REG_BRACKET   --> REG_STORE : 3 x WriteSettingsBlob\n(SetValue + RegFlushKey)
+REG_TOG       --> REG_STORE : SetValue + RegFlushKey
+REG_SYNC_SET  --> REG_STORE : SetValue + RegFlushKey
+REG_PULSE     --> REG_STORE : two STATE writes (flicker)
+REG_READ      --> REG_STORE : RegOpenKeyEx + GetValue
+
+note right of REG_BRACKET
+  Why three writes
+  ----
+  * 24H2/26200: settings-only writes are
+    silently ignored by the live filter.
+  * The Bond CB v1 IsDragging tag (field 70 BOOL,
+    bytes C2 46 01) is omitted when false; setting
+    it true and then removing it produces a
+    false->true edge the broker observes as a
+    real state change.
+  * That edge queues ColorTemperatureControl::fb3daf,
+    which calls ApplyTemperatureChangeToMonitorsImmediate
+    UNCONDITIONALLY - bypassing the wedged "+36 inflight"
+    gate that drops kelvin-only updates on this build.
+  * Each step waits for its own RegNotifyChangeKeyValue
+    so the broker actually observes the transitions
+    (raw registry writes do NOT fire CloudCacheInvalidator,
+    only CloudStore-API saves do - probe G/H finding;
+    we rely on the broker's own RegNotify subscription
+    + brief inter-write dwell).
+end note
+
+note right of REG_RESEND
+  Resend timer (debounce)
+  ----
+  Reusable System.Threading.Timer. Volatile-write
+  the latest percent, then Timer.Change to re-arm
+  for NightLightUIHandleryRegistryEnforceDelayMs from now. Each new
+  EnqueueSetStrengthSpaced cancels the prior pending
+  fire - one-shot per quiet period.
+
+  Callback wrapped in try/catch (M-11 fix) so any
+  thrown exception is logged and swallowed rather
+  than tearing down the process from a thread-pool
+  context with no handler.
+
+  CancelPendingResend is now public so the zero-trap
+  fix at NightLightProvider.SetStrength(0) can drop
+  a queued resend before flipping enabled=false.
+
+  History: an earlier impl allocated a fresh CTS per
+  call and threw OperationCanceledException for every
+  supersession. At 60+/sec slider rates the kernel-handle
+  + exception churn caused UI hitches even though all
+  the work happened on the thread pool. Timer.Change
+  is thread-safe and effectively free.
+end note
+
+note over NLP_RESOLVE $TINT_BLUE
+  Registry-only flicker-free bracket
+  ----
+  Uses an IsDragging Bond CB tag (C2 46 01,
+  field 70 BOOL). Probe G+H show that
+  CloudCacheInvalidator only fires for
+  CloudStore-API saves, not raw registry
+  writes - so for the Registry backend the
+  broker observes the bracket purely via its
+  own RegNotifyChangeKeyValue subscription
+  plus the false->true->false IsDragging edges.
+  Debounce is done via Timer.Change (no CTS
+  churn).
+end note
+
+note bottom of REG_STORE
+  Bond CompactBinary v1 envelope
+  ----
+  outer: "CB",1,0 + 6B header + varint Unix-seconds ts
+       + 3B inner-prefix + 1B inner-len + inner CB struct
+  STATE inner fields:
+       0  = INT32 presence (= ON)
+       10 = INT32 1 (initialized)
+       20 = UINT64 FILETIME (last transition)
+  SETTINGS inner fields:
+       40 = INT16 kelvin (ZigZag varint, 2 bytes for [1200,6500])
+       70 = BOOL  IsDragging (tag C2 46, omitted when default false)
+end note
+
+' ---------------------------------------------------------------------------
+' 4. SettingsHandler backend (RVA-resolved DLL path; explicit opt-in)
+' ---------------------------------------------------------------------------
+package "SettingsHandler backend (Interop/NightLight)" $TINT_PURPLE {
+  [NightLightSettingsHandler\nthrottler key="nightlight"\nlatest-pending-wins, cooldown=0] as SH_FACADE
+
+  [NightLightCloudStore.EnsureInit\n(MTA thread + LoadLibraryW +\nRVA resolve via known table or PDB +\nBlueLightSingleton::Initialize +\nsanity-check inner ptrs at +272 / +296)] as SH_INIT
+
+  [SaveSettingsKelvinAsync(percent)\n3-step RVA bracket via marshalled delegates:\n  setTargetColorTemperature(_singleton, kelvin)\n  setPreviewColorTemperatureChanges(_singleton, 1)\n  setPreviewColorTemperatureChanges(_singleton, 0)\neach call wrapped in IssueWithSaveNotifyAsync] as SH_BRACKET
+
+  [_deferredRegistryTimer\nSystem.Threading.Timer\nNightLightUIHandleryRegistryEnforceDelayMs (500ms),\nlatest-wins by Volatile.Read on\n_deferredStrengthPercent;\ncallback try/catch wrapped (M-11);\nCancelPendingResend cancels it on zero-trap (M-07)] as SH_DEFERRED
+}
+
+NLP_SET --> SH_FACADE : Backend.SettingsHandler
+NLP_EN  --> REG_TOG   : Backend.SettingsHandler\n(on/off delegates to Registry)
+NLP_TOG --> REG_TOG   : Backend.SettingsHandler\n(on/off delegates to Registry)
+NLP_EN  --> SH_BRACKET : EnsureNonZeroStrengthBeforeEnable\n(SaveSettingsKelvin sync wrap)
+NLP_TOG --> SH_BRACKET : EnsureNonZeroStrengthBeforeEnable\n(SaveSettingsKelvin sync wrap)
+
+SH_FACADE --> SH_INIT     : first IsSupported() probe
+SH_FACADE --> SH_BRACKET  : RunAsync(throttled)
+SH_FACADE --> SH_DEFERRED : ArmDeferredRegistryWrite\n(every SetStrength / SetEnabled / Toggle)
+SH_DEFERRED --> REG_SYNC_SET : OnDeferredRegistryTimerFired\n-> NightLightRegistry.SetStrength(latest)\n+ RefreshStateFileTime
+
+note bottom of SH_DEFERRED
+  Belt-and-suspenders settle-write
+  ----
+  Even when SaveSettingsKelvinAsync lands and
+  SHTaskPool successfully bumps the CloudStore
+  version, some 24H2 cohorts still miss the live
+  filter re-evaluate. This deferred fire writes
+  the registry directly (RefreshStateFileTime
+  bump included), guaranteeing the broker sees
+  a state transition. 500ms quiet so a slider
+  drag doesn't issue redundant writes mid-gesture.
+end note
+
+note left of SH_INIT
+  Initialize prerequisites
+  ----
+  * apartment must be MTA -- Initialize wires
+    up CloudStore + Geolocator factories.
+  * After Initialize, both inner ptrs must be
+    non-null:
+       this+272 -> wil::cloud_store
+       this+296 -> Settings inner
+    SetTargetColorTemperature has an early
+    null-check that silently bails otherwise.
+  * Library is pinned for process lifetime;
+    FreeLibrary would crash the geolocator
+    callback we registered.
+  * Per-build RVAs sourced from
+    KnownSettingsHandlersRvas table or
+    PDBSymbolResolver, mirrored to
+    %LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\
+    nightlight_known_rvas.xml.
+end note
+
+' ---------------------------------------------------------------------------
+' 5. Decompiled SettingsHandlers_Display.dll  (BlueLightSingleton)
+' ---------------------------------------------------------------------------
+package "SettingsHandlers_Display.dll  (decompiled, RVAs at 10.0.26100.8117)" $TINT_TEAL {
+  rectangle "BlueLightSingleton::SetTargetColorTemperature\n(RVA 0x27EE8)\nlock; WORD at settings_inner+6 := ClampTargetColorTemperature(kelvin);\nSaveSettingsAsync" as BLS_SET_TEMP
+
+  rectangle "BlueLightSingleton::SetPreviewColorTemperatureChanges\n(RVA 0x27E20)\nlock; BYTE at settings_inner+12 := isDragging;\ntelemetry on isDragging-false edge;\nSaveSettingsAsync" as BLS_SET_PREVIEW
+
+  rectangle "BlueLightSingleton::SaveSettingsAsync\nsnapshot cloud_store_data<Settings>;\nSHTaskPoolQueueTask(3, 258, ctx)\n  tag 258 = dedup key\n  ctx = SHTaskPoolGetUniqueContext()" as BLS_SAVE_ASYNC
+
+  rectangle "SHTaskPool worker (thread 3)\nlambda observed at queue time:\n  cloud_store::call_save<Settings>" as SHTP_WORKER
+}
+
+SH_BRACKET --> BLS_SET_TEMP    : RVA-resolved fnptr\n(SetTargetColorTemperature)
+SH_BRACKET --> BLS_SET_PREVIEW : RVA-resolved fnptr\n(SetPreviewColorTemperatureChanges)
+
+BLS_SET_TEMP    --> BLS_SAVE_ASYNC
+BLS_SET_PREVIEW --> BLS_SAVE_ASYNC
+BLS_SAVE_ASYNC  --> SHTP_WORKER : queued task (deduped by tag 258)
+
+note bottom of SHTP_WORKER
+  SHTaskPool tag-258 dedup
+  ----
+  Rapid back-to-back SaveSettingsAsync calls collapse
+  into fewer worker runs, but each queued task captures
+  the singleton's CURRENT kelvin at queue time, so the
+  LAST issued value still lands. Verified by
+  CloudStoreTester: 202 calls @ 100 Hz across 0..100..0
+  -> final readback = 0%.
+end note
+
+note bottom of BLS_SAVE_ASYNC
+  Why ride SaveSettingsAsync (not Save directly)
+  ----
+  Direct ICloudStore::Save from our throttler thread
+  always returns 0x80070490 (CloudStorePartitionSet::
+  GetPartitionInfo std::map miss). SHTaskPool's worker
+  has a process/COM context that satisfies the lookup
+  - we cannot reproduce it from our thread. The
+  RVA-call path lets the singleton queue from its own
+  internal context, and the Save succeeds there.
+end note
+
+' ---------------------------------------------------------------------------
+' 6. Windows.CloudStore.dll  (worker-side save)
+' ---------------------------------------------------------------------------
+package "Windows.CloudStore.dll  (decompiled)" $TINT_NEUTRAL {
+  [wil::cloud_store::call_save<Settings>\n  -> ICloudStore::Save] as CS_CALL_SAVE
+  [Registry write\n(default$windows.data.bluelightreduction.settings)\n+ CloudStore version bump\n+ CloudCacheInvalidator + DataWatcher fire] as CS_VERSION
+}
+
+SHTP_WORKER  --> CS_CALL_SAVE
+CS_CALL_SAVE --> CS_VERSION
+CS_VERSION   --> REG_STORE : observed registry change\n(SettingsHandler path also bumps STATE\nvia State::save when on/off changes)
+
+' ---------------------------------------------------------------------------
+' 7. Decompiled Windows.Shell.BlueLightReduction (broker re-apply)
+' ---------------------------------------------------------------------------
+package "Windows.Shell.BlueLightReduction.dll  (decompiled, broker)" $TINT_PINK {
+
+  rectangle "CloudStoreDataWatcher\n(typed event handler;\nfires on CloudStore version delta -\nCloudStore-API saves only;\nraw registry writes reach the broker via\nits own RegNotifyChangeKeyValue subscription)" as BLR_WATCHER
+
+  rectangle "BlueLightReductionManager::OnBlueLightReductionSettingsChange\ncopy Settings into LoadedCloudData;\ncall ColorTemperatureControl::SetTargetTemperature\nand SetPreviewTemperatureChanges" as BLR_ON_SETTINGS
+  rectangle "BlueLightReductionManager::OnBlueLightReductionStateChange\non/off transition;\ncall ColorTemperatureControl::SetBlueLightReduction" as BLR_ON_STATE
+
+  rectangle "ColorTemperatureControl::SetTargetTemperature\nClampTargetColorTemperature;\nif active OR preview && !inflight:\n  queue lambda c43bbc... to ComTaskPool" as CTC_SET_TEMP
+  rectangle "ColorTemperatureControl::SetPreviewTemperatureChanges\nflip IsDragging byte;\nqueue lambda fb3daf... to ComTaskPool" as CTC_SET_PREVIEW
+  rectangle "ColorTemperatureControl::SetBlueLightReduction\nflip active byte;\nqueue lambda b9a81d... to ComTaskPool" as CTC_SET_ACTIVE
+
+  rectangle "lambda c43bbc...\n(SetTargetTemperature continuation)\nif active OR preview:\n  ApplyChangeImmediate(target)" as L_C43BBC
+  rectangle "lambda fb3daf...\n(SetPreviewTemperatureChanges continuation)\nedge IsDragging high : ApplyChangeImmediate(target)\nedge IsDragging low  :\n  if !active : ClearChangeOnMonitors\n  else       : telemetry only" as L_FB3DAF
+  rectangle "lambda b9a81d...\n(SetBlueLightReduction continuation)\nactive becomes true:\n  ApplyChangeWithAnimationCurve(start->target)\nactive becomes false:\n  ApplyChangeWithAnimationCurve(start->6500)\n  if target == 6500: ClearChangeOnMonitors" as L_B9A81D
+
+  rectangle "ApplyTemperatureChangeToMonitorsImmediate\n(thin wrapper:\nApplyTemperatureStepToMonitors at target)" as CTC_APPLY_IMM
+  rectangle "ApplyTemperatureChangeToMonitorsWithAnimationCurve\nlerp start -> target over GetTransitionTime;\nApplyTemperatureStepToMonitors per frame;\nuses ShouldUseDESPath up-front to pick fast lane" as CTC_APPLY_CURVE
+  rectangle "ApplyTemperatureStepToMonitors\nfor each monitor in MonitorList:\n  SetTargetTemperatureOnMonitorImmediate(mon, kelvin)" as CTC_APPLY_STEP
+  rectangle "ClearTemperatureChangeOnMonitors\nfor each monitor in MonitorList:\n  SetTargetTemperatureOnMonitorImmediate(mon, 6500.0)" as CTC_CLEAR
+  rectangle "SetTargetTemperatureOnMonitorImmediate\n(per-monitor leaf)\nif ShouldUseDESPath(mon):\n  SetTemperatureDem(mon, kelvin)\nelse:\n  InternalSetDeviceTemperature(mon, kelvin)" as CTC_SET_MON
+  rectangle "ShouldUseDESPath\nsticky-cached at +41;\nprobes monitor capabilities via\nDisplayEnhancementManagement" as CTC_SHOULD_DES
+}
+
+CS_VERSION       --> BLR_WATCHER : CloudStore-API saves
+REG_STORE        --> BLR_WATCHER : raw-registry writes\n(broker RegNotify subscription)
+BLR_WATCHER      --> BLR_ON_SETTINGS : Settings blob changed
+BLR_WATCHER      --> BLR_ON_STATE    : State blob changed
+
+BLR_ON_SETTINGS  --> CTC_SET_TEMP
+BLR_ON_SETTINGS  --> CTC_SET_PREVIEW
+BLR_ON_STATE     --> CTC_SET_ACTIVE
+
+CTC_SET_TEMP     --> L_C43BBC  : ComTaskPool
+CTC_SET_PREVIEW  --> L_FB3DAF  : ComTaskPool
+CTC_SET_ACTIVE   --> L_B9A81D  : ComTaskPool
+
+L_C43BBC  --> CTC_APPLY_IMM
+L_FB3DAF  --> CTC_APPLY_IMM   : IsDragging high\n(unconditional - bypasses\n+36 inflight gate)
+L_FB3DAF  --> CTC_CLEAR        : IsDragging low\n  && !active
+L_B9A81D  --> CTC_APPLY_CURVE  : active toggle\n  (both directions)
+L_B9A81D  --> CTC_CLEAR        : after curve to 6500\n  if target == 6500
+
+CTC_APPLY_IMM   --> CTC_APPLY_STEP
+CTC_APPLY_CURVE --> CTC_APPLY_STEP : looped per frame
+CTC_APPLY_CURVE --> CTC_SHOULD_DES : up-front capability gate
+CTC_APPLY_STEP  --> CTC_SET_MON
+CTC_CLEAR       --> CTC_SET_MON    : kelvin = 6500.0
+CTC_SET_MON     --> CTC_SHOULD_DES : per-monitor decision
+
+' ---------------------------------------------------------------------------
+' 8. Hardware - DES + legacy gamma ramp
+' ---------------------------------------------------------------------------
+package "Display hardware" $TINT_RED {
+  rectangle "DES path\nSetTemperatureDem ->\nIDisplayEnhancementManagement::SetColorOverrideSettings\n(per-monitor color matrix; HDR-safe)" as HW_DES
+  rectangle "Legacy path\nInternalSetDeviceTemperature ->\nDisplayEnhancementOverride / GDI gamma ramp\n(HDR no-op; cleared by other apps)" as HW_GAMMA
+  rectangle "Physical panels" as HW_PANELS
+}
+
+CTC_SET_MON --> HW_DES   : ShouldUseDESPath == 1
+CTC_SET_MON --> HW_GAMMA : ShouldUseDESPath == 0
+HW_DES   --> HW_PANELS
+HW_GAMMA --> HW_PANELS
+
+' ===========================================================================
+' Cross-cutting timing constants (TimeConstants.cs)
+' ===========================================================================
+note bottom of REG_THROTTLE
+  Timing constants
+  ----
+  NightLightSaveNotifyTimeoutMs        = 1500  (per IssueWithSaveNotifyAsync wait)
+  NightLightFallbackDwellMs            = 50    (Registry path; if RegNotify fails to arm)
+  NightLightCloudStoreFallbackDwellMs  = 250   (CloudStore path; same fallback)
+  NightLightInterWriteDelayMs          = 15    (between bracket steps)
+  NightLightUIHandleryRegistryEnforceDelayMs = 500 (resend-timer quiet period; also Settings-handler registry-enforce delay)
+end note
+
+note right of UI_SLIDER $TINT_RESOLVED
+  Slider gate "_isNightLightActive flag"
+  ----
+  BrightnessFlyout now subscribes to
+  SystemEvents.UserPreferenceChanged
+  (category General) and refreshes the
+  cached flag on each tick (H-21 fix).
+  External Windows-Settings flips
+  (Settings app toggle, scheduled
+  transitions, hotkey from another app)
+  are observed promptly so the slider gate
+  is no longer stale.
+
+  Previously the flag updated only on
+  construction, OnAppSettingsChanged,
+  and own toggle. NightLightPulseOnStrengthChange
+  was also removed entirely (H-22).
+end note
+
+@enduml

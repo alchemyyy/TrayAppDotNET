@@ -1,0 +1,66 @@
+:root {
+    --content-font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.content {
+    font-family: var(--content-font);
+    font-size: 1.6rem;
+    line-height: 0.9;
+}
+
+h1 { margin: 0.6em 0 0.4em; }
+h2 { margin: 0.5em 0 0.3em; }
+h3, h4, h5, h6 { margin: 0.4em 0 0.25em; }
+
+p { margin: 0.4em 0; }
+ul, ol { margin: 0.3em 0; }
+li { margin: 0.15em 0; }
+
+pre { margin: 0.5em 0; }
+code { font-size: 0.85em; }
+
+table { margin: 0.5em 0; }
+th, td { padding: 0.25em 0.6em; }
+
+hr { margin: 0.6em 0; }
+
+blockquote { margin: 0.4em 0; }
+
+/* Images - break out of content column, fill page-wrapper width */
+.page-wrapper {
+    overflow-x: hidden;
+}
+
+.content img {
+    display: block;
+    max-width: calc(100vw - var(--sidebar-width) - var(--sidebar-resize-indicator-width) - 30px);
+    width: auto;
+    height: auto;
+    margin: 0.6em auto;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Lightbox overlay */
+#lightbox-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.85);
+    justify-content: center;
+    align-items: center;
+}
+
+#lightbox-overlay.active {
+    display: flex;
+}
+
+#lightbox-img {
+    max-width: 95vw;
+    max-height: 95vh;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}

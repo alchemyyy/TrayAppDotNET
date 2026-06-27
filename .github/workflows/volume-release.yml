@@ -1,0 +1,127 @@
+name: Volume Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_artifact_name:
+        description: Optional package artifact name.
+        required: false
+        type: string
+      tray_version:
+        description: Aggregate TrayAppDotNET version, passed through for consistency with publish runs.
+        required: false
+        type: string
+      force_rebuild:
+        description: Build even if an existing release asset could be reused.
+        required: false
+        default: false
+        type: boolean
+      publish_staging_root:
+        description: Optional local package staging root.
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      package_artifact_name:
+        required: false
+        type: string
+        default: ""
+      tray_version:
+        required: false
+        type: string
+        default: ""
+      force_rebuild:
+        required: false
+        type: boolean
+        default: false
+      publish_staging_root:
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: VolumeTrayAppDotNET Release
+    runs-on: [self-hosted, Windows, X64, trayapp]
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Verify Release Toolchain
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Command dotnet
+          Get-Command gh
+          if (-not (Get-Command python3 -ErrorAction SilentlyContinue) -and -not (Get-Command python -ErrorAction SilentlyContinue)) {
+            throw "python3 or python is required."
+          }
+          dotnet --info
+          dotnet --list-sdks | Select-String -Pattern '^10\.'
+
+      - name: Build Release Package
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $pythonBin = "python"
+          if (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonBin = "python3"
+          }
+
+          $argsList = @(
+            ".github/scripts/publish.py",
+            "--phase", "build-app-profile",
+            "--profile", "release",
+            "--app-name", "VolumeTrayAppDotNET",
+            "--repo", $env:GITHUB_REPOSITORY,
+            "--output-root", ".artifacts/publish"
+          )
+
+          if ("${{ inputs.tray_version }}" -ne "") {
+            $argsList += @("--tray-version", "${{ inputs.tray_version }}")
+          }
+
+          if ("${{ inputs.force_rebuild }}" -eq "true") {
+            $argsList += "--force-rebuild"
+          }
+
+          & $pythonBin @argsList
+
+      - name: Stage Release Package Locally
+        id: stage-release-package
+        if: ${{ inputs.publish_staging_root != '' }}
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pythonBin = "python"
+          if (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonBin = "python3"
+          }
+
+          & $pythonBin .github/scripts/publish.py `
+            --phase stage-app-profile `
+            --profile release `
+            --app-name "VolumeTrayAppDotNET" `
+            --repo $env:GITHUB_REPOSITORY `
+            --output-root .artifacts/publish `
+            --stage-root "${{ inputs.publish_staging_root }}"
+
+      - name: Upload Release Package Artifact
+        if: ${{ inputs.publish_staging_root == '' || steps.stage-release-package.outcome != 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.package_artifact_name || format('volume-tray-app-package-{0}', github.run_id) }}
+          path: .artifacts/publish/release/packages/**
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,158 @@
+@startuml event_flow
+' Revised 2026-05-13: applied audit_23/H-01/H-03/H-22 amendments
+!include dark-theme.puml
+title Event Flow - Win32 messages -> .NET events -> handlers
+
+' ------------ Win32 / OS sources ------------
+package "Win32 / OS" $TINT_NEUTRAL {
+  [WM_DEVICECHANGE\n(GUID_DEVINTERFACE_MONITOR)]   as WM_DC
+  [WM_HOTKEY]                                       as WM_HK
+  [WM_CALLBACKMOUSEMSG\n(WM_USER+1024)]             as WM_TRAY
+  [WM_INPUT (raw mouse wheel)]                      as WM_INPUT
+  [WM_TASKBARCREATED\n(RegisterWindowMessage)]      as WM_TBC
+  [SystemEvents.DisplaySettingsChanged]             as SE_DSC
+  [SystemEvents.PowerModeChanged]                   as SE_PMC
+  [SystemEvents.SessionSwitch]                      as SE_SS
+  [SystemEvents.UserPreferenceChanged]              as SE_UPC
+}
+
+' ------------ Hidden HWNDs ------------
+package "Message-only HWNDs (3)" $TINT_BLUE {
+  [DisplayEventManager\nWnd] as DEM
+  [GlobalHotkeyService\nHwndSource] as GHS
+  [ShellNotifyIcon\nWnd]     as SNI
+}
+
+' ------------ App / services ------------
+package "App + Services" $TINT_AMBER {
+  [App.OnDisplayTopologyChanged]                                        as AOD
+  [MonitorService.Refresh()]                                            as MSR
+  [App.OnHotkeyFired\n(switch over HotkeyAction)]                       as AOH
+  [App.OnTrayLeftClick / RightClick / Scrolled / LeftDoubleClick]       as AOT
+  [App.OnThemeChanged]                                                  as ATC
+  [App.OnSettingsChanged]                                               as AOSC
+  [App.OnMonitorsRefreshedForHotkeys]                                   as AOMRH
+  [App.OnFlyoutDeactivated\n(suppress next tray click)]                 as AOFD
+  [App.RequestTrayRefresh\n(single funnel)]                             as RTR
+  [TrayIconManager\n(cooldown, dispatcher gate)]                        as TIM
+  [BrightnessFlyout]                                                    as BFL
+  [SettingsWindow]                                                      as SWN
+  [EnvironmentalCurveService]                                           as ECS
+  [AppTheme]                                                            as ATH
+  [NightLightProvider.Reapply]                                          as NLR
+  [DDCRecoveryService]                                                  as DRS
+  [UpdateCheckService\n(GitHub poller)]                                 as UCS
+  [MonitorBrightnessRangeProvider]                                      as MBR
+  [App.OnUpdateStateChanged /\nOnUpdateBalloonClicked]                  as AUSC
+}
+
+' ------------ Win32 -> message-only HWNDs ------------
+WM_DC    --> DEM   : OnMessage\nfast: 250 ms debounce\nslow: 1 s burst, up to 10 ticks
+WM_HK    --> GHS   : WndProc\nlooks up id in _byId
+WM_TRAY  --> SNI   : LBUTTONUP / RBUTTONUP /\nLBUTTONDBLCLK / NIN_POPUPOPEN /\nMOUSEMOVE
+WM_INPUT --> SNI   : raw mouse wheel\n(only while cursor in icon bounds)
+WM_TBC   --> SNI   : ScheduleTaskbarRecreate\n-> RefreshNeeded after 10 ticks
+
+' ------------ SystemEvents (.NET wrappers) ------------
+SE_DSC --> DEM : Kick (debounce)
+SE_PMC --> DEM : Resume only
+SE_SS  --> DEM : Unlock / ConsoleConnect
+SE_UPC --> ATH : OnUserPreferenceChanged
+ATH    --> ATC : ThemeChanged event
+
+' ------------ DisplayEventManager outputs ------------
+DEM --> AOD  : DisplayTopologyChanged\n(fast path, on UI dispatcher)
+DEM --> MSR  : Refresh() from slow-path\nScanAndReconcile (gated by\nAllProfileMonitorsLoaded)
+BFL ..> DEM  : RunSingleGatedScan()\n(trigger B from flyout Show)
+
+AOD --> MSR  : Refresh()
+AOD --> NLR  : NightLightProvider.Reapply()
+AOD --> RTR
+
+MSR ..> BFL  : MonitorsAcquired(acquired rows)\n(manual mode may write only acquired rows)
+MSR ..> AOMRH : MonitorsRefreshed event\n(fan-out: DEM short-circuit, DRS signal/clear fallback,\nECS immediate Evaluate, MBR resubscribe)
+AOMRH --> GHS : Apply(_appSettings.Hotkeys)\n(re-register per-monitor bindings)
+MSR ..> ECS  : MonitorsRefreshed -> OnMonitorsRefreshed\n(immediate Evaluate after read-only acquisition)
+MSR ..> DRS  : MonitorsRefreshed -> SignalDDCRecoveryNeeded\nwhen failed/read-degraded candidates exist
+MSR ..> MBR  : MonitorsRefreshed -> Resubscribe
+
+note right of MSR
+  fixed (H-01): Refresh has a _refreshGen
+  Volatile-checked reentrancy guard so a second
+  Refresh within the 1.5 s Phase-B window
+  supersedes the first instead of stacking.
+  WM_DEVICECHANGE coalescer: 250 ms fast path
+  fires exactly once per window (OnCoalesceTick
+  Stops the timer before invoking; Kick does
+  Stop+Start per signal). Burst counter resets
+  on each hot-plug but the single periodic
+  instance lives until AllProfileMonitorsLoaded
+  short-circuits OR counter hits 10.
+end note
+
+' ------------ Hotkeys ------------
+GHS --> AOH : Fired event (UI thread)
+AOH --> BFL : OpenFlyout / Increment / Decrement /\nNormalizeBrightnesses / ProfileSelect /\nMonitorOff
+AOH --> SWN : OpenSettings
+AOH --> NLR : ToggleNightLight /\nIncr/Decr NightLight
+
+' ------------ Tray icon callbacks ------------
+SNI --> AOT  : LeftClick / RightClick /\nLeftDoubleClick / Scrolled
+SNI --> RTR  : RefreshNeeded\n(taskbar restart timer)
+SNI --> TIM  : TooltipPopup\n-> SetTooltip (bypasses cooldown)
+TIM --> AUSC : BalloonClicked\n-> OnUpdateBalloonClicked\n-> ShowBrightnessFlyout + RequestUpdatePrompt
+
+' ------------ Auto-update path ------------
+UCS  ..> AUSC : StateChanged -> OnUpdateStateChanged\n-> flyout.NotifyUpdateStateChanged
+UCS  --> TIM  : ShowBalloon (new version available)
+AUSC --> BFL  : NotifyUpdateStateChanged /\nShow + RequestUpdatePrompt
+
+AOT --> BFL : ShowBrightnessFlyout / wheel adjust
+AOT --> SWN : OpenSettings
+AOT --> AOFD : FlyoutDeactivated\n(_suppressNextTrayClick)
+
+' ------------ Theme + settings funnel ------------
+ATC  --> RTR : Update tray colors
+AOSC --> RTR : push tray icon style /\ncooldown / scroll-enabled
+AOSC --> GHS : re-Apply(_appSettings.Hotkeys)
+AOSC --> MSR : push WriteCooldownMs / ValidationDwellMs
+
+' ------------ Flyout -> tray funnel ------------
+BFL --> RTR : BrightnessUpdated event
+BFL --> SWN : SettingsRequested
+BFL --> AOFD : FlyoutDeactivated
+
+' ------------ Curve service ------------
+ECS ..> MSR : EnqueueDirectBrightness\n(per-tick hardware writes,\nactive even when flyout hidden)
+ECS ..> NLR : SetStrength via curve
+BFL ..> ECS : Engage / Disengage /\nSuspend / Resume / Evaluate
+
+' ------------ Tray-refresh funnel ------------
+RTR --> TIM : Update(GetBrightnessAndTooltip)\n-> ApplyUpdate + StartCooldown
+
+' ------------ Notes ------------
+note right of DEM
+  Single owner of WM_DEVICECHANGE +
+  display-related SystemEvents.
+  Slow path short-circuits as soon as
+  every monitor required by the active
+  profile is loaded. BurstMaxTicks = 10.
+end note
+
+note right of RTR
+  Every tray-icon repaint flows through
+  one funnel (App.RequestTrayRefresh
+  -> TrayIconManager.Update), which
+  honours the cooldown gate so rapid
+  brightness ticks don't thrash the icon.
+end note
+
+note bottom of GHS
+  Owns its own message-only window.
+  RegisterHotKey is HWND-and-thread bound,
+  so the service is created on the UI thread
+  and Fired runs on the UI thread directly
+  (no Dispatcher marshaling).
+end note
+
+@enduml

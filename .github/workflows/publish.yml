@@ -1,0 +1,197 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tray_app_dot_net_version:
+        description: Aggregate TrayAppDotNET version. Defaults to latest published release + 1, minimum 100.
+        required: false
+        type: string
+      release_tag:
+        description: Release tag. Defaults to TrayAppDotNET_<version>.
+        required: false
+        type: string
+      force_rebuild:
+        description: Build every app even if latest release has equal/newer app asset.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+  contents: write
+
+env:
+  TRAYAPP_PUBLISH_STAGE_ROOT: ${{ vars.TRAYAPP_PUBLISH_STAGE_ROOT || 'C:/actions-runners/trayappdotnet/_publish-staging' }}
+
+jobs:
+  release-battery:
+    name: Battery Release
+    uses: ./.github/workflows/battery-release.yml
+    with:
+      package_artifact_name: battery-tray-app-package-${{ github.run_id }}
+      tray_version: ${{ inputs.tray_app_dot_net_version }}
+      force_rebuild: ${{ inputs.force_rebuild }}
+      publish_staging_root: ${{ vars.TRAYAPP_PUBLISH_STAGE_ROOT || 'C:/actions-runners/trayappdotnet/_publish-staging' }}
+
+  release-brightness:
+    name: Brightness Release
+    uses: ./.github/workflows/brightness-release.yml
+    with:
+      package_artifact_name: brightness-tray-app-package-${{ github.run_id }}
+      tray_version: ${{ inputs.tray_app_dot_net_version }}
+      force_rebuild: ${{ inputs.force_rebuild }}
+      publish_staging_root: ${{ vars.TRAYAPP_PUBLISH_STAGE_ROOT || 'C:/actions-runners/trayappdotnet/_publish-staging' }}
+
+  release-fan-control:
+    name: Fan Control Release
+    uses: ./.github/workflows/fan-control-release.yml
+    with:
+      package_artifact_name: fan-control-tray-app-package-${{ github.run_id }}
+      tray_version: ${{ inputs.tray_app_dot_net_version }}
+      force_rebuild: ${{ inputs.force_rebuild }}
+      publish_staging_root: ${{ vars.TRAYAPP_PUBLISH_STAGE_ROOT || 'C:/actions-runners/trayappdotnet/_publish-staging' }}
+
+  release-network:
+    name: Network Release
+    uses: ./.github/workflows/network-release.yml
+    with:
+      package_artifact_name: network-tray-app-package-${{ github.run_id }}
+      tray_version: ${{ inputs.tray_app_dot_net_version }}
+      force_rebuild: ${{ inputs.force_rebuild }}
+      publish_staging_root: ${{ vars.TRAYAPP_PUBLISH_STAGE_ROOT || 'C:/actions-runners/trayappdotnet/_publish-staging' }}
+
+  release-volume:
+    name: Volume Release
+    uses: ./.github/workflows/volume-release.yml
+    with:
+      package_artifact_name: volume-tray-app-package-${{ github.run_id }}
+      tray_version: ${{ inputs.tray_app_dot_net_version }}
+      force_rebuild: ${{ inputs.force_rebuild }}
+      publish_staging_root: ${{ vars.TRAYAPP_PUBLISH_STAGE_ROOT || 'C:/actions-runners/trayappdotnet/_publish-staging' }}
+
+  publish:
+    name: Publish Draft Release
+    runs-on: [self-hosted, Windows, X64, trayapp]
+    needs:
+      - release-battery
+      - release-brightness
+      - release-fan-control
+      - release-network
+      - release-volume
+    environment: trayapp-release
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Collect Local Publish Package Staging
+        id: collect-local-staging
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $pythonBin = "python"
+          if (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonBin = "python3"
+          }
+
+          & $pythonBin .github/scripts/publish.py `
+            --phase collect-staged-profiles `
+            --repo $env:GITHUB_REPOSITORY `
+            --profiles release `
+            --stage-root $env:TRAYAPP_PUBLISH_STAGE_ROOT `
+            --input-root .artifacts/publish/collected
+
+      - name: Download Package Artifacts
+        if: ${{ steps.collect-local-staging.outputs.complete != 'true' }}
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-package-${{ github.run_id }}"
+          path: .artifacts/publish/collected/release
+          merge-multiple: true
+
+      - name: Verify Release Toolchain
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Command gh
+          if (-not (Get-Command python3 -ErrorAction SilentlyContinue) -and -not (Get-Command python -ErrorAction SilentlyContinue)) {
+            throw "python3 or python is required."
+          }
+
+      - name: Publish Draft Release
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $pythonBin = "python"
+          if (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonBin = "python3"
+          }
+
+          $argsList = @(
+            ".github/scripts/publish.py",
+            "--phase", "publish-release",
+            "--repo", $env:GITHUB_REPOSITORY,
+            "--profiles", "release",
+            "--input-root", ".artifacts/publish/collected"
+          )
+
+          if ("${{ inputs.tray_app_dot_net_version }}" -ne "") {
+            $argsList += @("--tray-version", "${{ inputs.tray_app_dot_net_version }}")
+          }
+
+          if ("${{ inputs.release_tag }}" -ne "") {
+            $argsList += @("--release-tag", "${{ inputs.release_tag }}")
+          }
+
+          & $pythonBin @argsList
+
+      - name: Upload Aggregate Release Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: tray-app-dot-net-conglomerate-builds-${{ github.run_id }}
+          path: .artifacts/publish/collected/_release/TrayAppDotNET_*.zip
+          if-no-files-found: error
+
+      - name: Remove Intermediate Package Artifacts
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $packageSuffix = "-package-$env:GITHUB_RUN_ID"
+          $response = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/artifacts?per_page=100" | ConvertFrom-Json
+
+          foreach ($artifact in $response.artifacts) {
+            if (-not $artifact.name.EndsWith($packageSuffix)) {
+              continue
+            }
+
+            Write-Host "Deleting intermediate package artifact: $($artifact.name)"
+            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$($artifact.id)"
+          }
+
+      - name: Clean Local Publish Package Staging
+        if: ${{ always() }}
+        continue-on-error: true
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $pythonBin = "python"
+          if (Get-Command python3 -ErrorAction SilentlyContinue) {
+            $pythonBin = "python3"
+          }
+
+          & $pythonBin .github/scripts/publish.py `
+            --phase clean-staged-profiles `
+            --repo $env:GITHUB_REPOSITORY `
+            --stage-root $env:TRAYAPP_PUBLISH_STAGE_ROOT

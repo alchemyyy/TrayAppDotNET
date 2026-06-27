@@ -1,0 +1,185 @@
+@startuml brightness_call_tree
+' Revised 2026-05-13: applied audit_23/H-03/H-05/H-11/H-12 amendments
+!include dark-theme.puml
+title Brightness change - full call tree (input sources -> MonitorService -> DDC/VCP)
+
+actor User
+participant "GlobalHotkeyService\n(WM_HOTKEY)"      as GHK
+participant "App.xaml.cs\n(HandleHotkey / wheel)"   as APP
+participant "BrightnessFlyout\n.xaml.cs"            as BFL
+participant "EnvironmentalCurveService\n(DispatcherTimer)" as ECS
+participant "MonitorInfo\n(model)"                  as MI
+participant "MonitorService"                        as MS
+participant "AsyncThrottler<string>\n(latest-wins)" as TH
+participant "DDCRecoveryService\n(event-triggered fallback worker;\ncandidates via\nGetStuckRecoveryCandidateIds)" as DRS
+participant "KnownDisplaysStore\n(displays.json)"   as KDS
+participant "DisplayService\n(IDisplayService)"     as DS
+participant "Dxva2\n(P/Invoke)"                     as DXV
+participant "App.RequestTrayRefresh"                as RTR
+participant "TrayIconManager"                       as TIM
+
+note over MS
+  Single brightness backend - DDC/VCP (Dxva2 SetVCPFeature 0x10).
+  No WMI / GammaRamp / internal-display fallback path exists.
+end note
+
+== Input source 1: slider drag ==
+User -> BFL : Slider_PreviewMouseLeftButtonDown\n(track-click branch only)
+loop while dragging (or scrubbing master)
+  User -> BFL : Slider.ValueChanged TwoWay binding\n-> MonitorInfo.Brightness setter
+  BFL -> MI  : Brightness = newVal
+  MI  -> BFL : PropertyChanged (gated to integer transitions)
+  BFL -> BFL : OnMonitorPropertyChanged\nApplyMasterToEnabledMonitors /\nUpdateMasterFromEnabledIndividuals\n(filter by IsParticipatingInMaster)
+  MI  -> MS  : OnMonitorPropertyChanged\n(MonitorService is also subscribed)
+  alt _hardwareWritesSuspendCount == 0
+    MS -> MS : EnqueueDirectBrightness(monitor, RoundedBrightness)
+  else suspended (curve owns hardware on startup restore)
+    MS -> MS : skip - slider is pure visual state
+  end
+  BFL -> RTR : BrightnessUpdated event\n(via EffectiveRoundedBrightness)
+  RTR -> TIM : Update(GetBrightnessAndTooltip)\n(UpdateCooldownMs cooldown)
+end
+
+== Input source 2: scroll wheel (flyout row or tray icon) ==
+User -> BFL : MonitorGrid_PreviewMouseWheel
+BFL -> BFL : DisengageCurveForUserAdjustment\n+ AdjustSliderByScrollDelta\n(slider.Value = clamp(...))
+note right of BFL
+  Tray-icon wheel goes through App.OnTrayWheel:
+  for TrayWheelTarget.Brightness it writes
+  m.Brightness directly on each monitor
+  (same setter -> same MonitorService hook).
+end note
+
+== Input source 3: global hotkey ==
+User -> GHK : Ctrl+Alt+...\n(WM_HOTKEY on message-only HWND)
+GHK -> APP : Fired event (UI thread)
+APP -> APP : HandleHotkey(action, parameter)
+alt FullBright / FullDim
+  APP -> APP : ApplyOrRestoreBrightness(target)\n-> m.Brightness = target
+else IncrementMasterBrightness / DecrementMasterBrightness
+  APP -> APP : AdjustAllMonitorBrightness(+/-HotkeyStep)\n-> m.Brightness = clamp(m.Brightness + delta)
+end
+APP -> MI : Brightness = newVal\n(routes through the slider-drag arrows above)
+note right of APP
+  Hotkey master/all/NL paths (App.xaml.cs:638-657,
+  942-978) DO NOT call NotifyUserBrightnessAdjustment
+  (distinct from the tray-scroll path which DOES).
+  Master is gated out at MonitorService:1580 so master
+  itself does not auto-release - but each enabled
+  individual it propagates to falls through to the
+  OnUserRelease auto-release at :1581 (H-05).
+  Individual-row hotkeys: clean disengage via
+  OnUserRelease + HarmonizeRow CR-preservation.
+end note
+
+== Input source 4: environmental curve evaluator ==
+ECS -> ECS : Tick -> Evaluate()\nApplyBrightnessCurve(curve, t, smoothness, absolute)
+note right of ECS
+  Curve owns hardware; slider thumbs hold user's
+  manual intent. Writes BYPASS the Brightness setter
+  so the slider thumb does not drag along.
+end note
+loop for each MonitorInfo where SliderState == CurveActive
+  ECS -> MI  : CurveTargetBrightness = absolute or (Brightness + offset)
+  ECS -> MS  : EnqueueDirectBrightness(monitor, rowTargetPct)
+end
+
+== MonitorService write pipeline (shared by all sources) ==
+MS -> TH  : RunAsync(entry.ID, ctx => DoBrightnessWriteAsync)\n(per-monitor key, latest-pending-wins)
+
+note over TH
+  AsyncThrottler<string> collapses bursts:
+  while a payload runs, queued payloads
+  collapse to "latest only" and inherit
+  the WriteCooldownMs after the running one.
+  Replacement signal short-circuits dwells via
+  IThrottlerContext.HasReplacement.
+end note
+
+note over MS
+  EnqueueDirectBrightness dedupes on
+  entry.LastEnqueuedPercentage so a steady
+  curve pct does not re-write every tick.
+end note
+
+TH -> MS  : DoBrightnessWriteAsync(entry, pct, ctx)
+loop write attempts (ValidationAttempts, ScaledRetryDwellMs)
+  MS -> DS  : TrySetVCPFeature(entry.DDC.BrightnessCode, raw)\nWithDDCLockAsync(per-monitor lock)
+  DS -> DXV : SetVCPFeature
+  DXV --> DS : ok / Win32 error
+  DS  --> MS
+  alt ok
+  else transient I2C / monitor busy
+    MS -> MS : Task.Delay(ScaledRetryDwellMs)\nbail if HasReplacement
+  end
+end
+
+alt write succeeded and no replacement queued
+  MS -> MS : VerifyAppliedAsync(entry, expectedRaw, ctx)
+  loop verify attempts (ValidationAttempts)
+    MS -> DS  : TryGetVCPFeature(entry.DDC.BrightnessCode)\nWithDDCLockAsync
+    DS -> DXV : GetVCPFeatureAndVCPFeatureReply
+    DXV --> DS
+    DS  --> MS
+    alt match (within +/- 1 raw unit)
+    else mismatch -> RefreshHandle once + re-apply
+      MS -> DS : TrySetVCPFeature(entry.DDC.BrightnessCode, raw)
+    end
+  end
+else write retries exhausted, no replacement queued
+  MS -> MS  : DemoteOnDDCFailure(entry, lastWriteError)\n(info.SliderState = SliderStateMachine.OnHardwareFailed();\n IsHardwareFunctional is derived from SliderState, not a setter;\n DDCRecoveryService picks the entry up via\n GetStuckRecoveryCandidateIds)
+end
+
+note over MS
+  After every successful bus write, MonitorService stamps
+  KnownDisplaysStore.LastBusBrightness for diagnostics/history.
+  Acquisition no longer hydrates sliders from this value; it reads
+  current DDC first, then profile/manual UI state is restored by
+  BrightnessFlyout without implicit hardware replay.
+end note
+MS -> KDS : stamp LastBusBrightness
+
+== Read paths (four sources) ==
+note over MS
+  DDC reads enter the throttler through four distinct paths:
+   1. Initial/topology probe at MonitorService.Refresh / RefreshProbePhaseAsync
+      (immediate on cold start; after the 1500 ms settle for recent topology events).
+   2. Verify-after-write via VerifyAppliedAsync.
+   3. Refresh re-probe of an existing row.
+   4. Fallback acquisition pass via DDCRecoveryService calling MonitorService.Refresh.
+end note
+
+== DDC fallback acquisition ==
+MS -> DRS : MonitorsRefreshed\ncandidate snapshot
+alt failed/read-degraded known-DDC candidates exist
+  DRS -> DRS : SignalDDCRecoveryNeeded()\n(single global flag)
+  DRS -> DRS : start one worker if idle
+  loop every 2 seconds while candidates remain
+    DRS -> MS : Refresh()\nread-only acquisition path
+    MS -> DS : TryGetVCPFeature(entry.DDC.BrightnessCode)\nvia RefreshProbePhaseAsync
+    alt acquisition succeeds
+      MS -> MS : PromoteRecovered / refresh promotion\nclears IsReadDegraded
+      MS -> BFL : MonitorsAcquired(acquired rows)
+    else acquisition still fails
+      MS -> MS : keep Failed / ReadDegraded\nrefresh LastDDCError
+    end
+  end
+else no candidates
+  DRS -> DRS : ClearDDCRecoveryNeeded()\nworker exits
+end
+
+note right of DRS
+  No per-monitor workers, no MaxRecoveryAttempts terminal state.
+  Acquisition stays read-only; writes remain owned by
+  MonitorsAcquired, curve, manual, and explicit user paths.
+end note
+
+note over MS
+  Per-op timeouts inside WithDDCLockAsync.
+  Cumulative deadline still NOT modeled -
+  spurious timeouts remain possible on slow buses.
+  Cascade guard: write/verify exhaustion DEFERS
+  the demote when a fresher payload is queued.
+end note
+
+@enduml

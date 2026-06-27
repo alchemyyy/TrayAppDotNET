@@ -1,0 +1,7 @@
+Annotation keybinds while dragging:
+
+`a` = card should index above at current position  
+`b` = card should index below at current position  
+`i` = card should index into the group at current position  
+`o` = card should index out of the group at current position  
+`x` = card should not change indexing at current position

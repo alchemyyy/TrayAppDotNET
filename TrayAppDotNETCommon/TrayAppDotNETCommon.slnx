@@ -1,0 +1,16 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/generators/">
+    <Project Path="generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/TrayAppDotNETCommon.csproj">
+      <Platform Solution="Release|*" Project="x64" />
+    </Project>
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/XmlSourceGenerator.Tests/TrayAppDotNETCommon.XmlSourceGenerator.Tests.csproj" />
+  </Folder>
+</Solution>

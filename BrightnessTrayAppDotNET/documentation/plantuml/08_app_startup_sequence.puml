@@ -1,0 +1,203 @@
+@startuml app_startup_sequence
+!include dark-theme.puml
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+title App startup - Program.Main -> CrashHandler -> App.OnStartup
+
+' Note on syntax: PlantUML parses a leading "--" inside an alt label as a sequence-arrow
+' fragment, so flag names below are wrapped in quotes ("--watcher" etc) and rendered as text.
+
+participant "Program.Main"                  as MAIN
+participant "CrashHandler\n(--watcher proc)" as WAT
+participant "SingleInstanceCoordinator"     as SIC
+participant "App (WPF)\n(--monitored proc)" as APP
+participant "AppSettings"                   as AS
+participant "StartupManager"                as SM
+participant "NightLightProvider"            as NLP
+participant "AppTheme"                      as AT
+participant "MonitorService"                as MS
+participant "DisplayEventManager"           as DEM
+participant "DDCRecoveryService"            as DRS
+participant "ProfileManager"                as PM
+participant "TrayIconManager"               as TIM
+participant "BrightnessFlyout"              as BFL
+participant "EnvironmentalCurveService"     as ECS
+participant "MonitorBrightnessRangeProvider" as MBR
+participant "GlobalHotkeyService"           as GHS
+participant "UpdateCheckService\n(GitHub poller; commit cf410f7)" as UCS
+
+== Program.Main: log + branch on argv ==
+
+MAIN -> MAIN : WPFLog.Initialize()\nhook ProcessExit -> Flush
+
+alt "--admin-action <verb>"
+  MAIN -> MAIN : RunAdminAction\n(install-system via runas); exit
+end
+
+alt "--uninstall <dir> [--scope user|system]"
+  MAIN -> MAIN : set IsUninstallerMode\n+ UninstallerInstallDir\n+ UninstallerScope
+  MAIN -> APP : new App + Run()\n(falls through to RunUninstallerMode below)
+end
+
+alt "--watcher" (running as crash handler)
+  MAIN -> WAT : CrashHandler.RunWatcher()
+  WAT -> SIC : AcquireOrTakeover()\n(named mutex + PID MMF\nkills any prior watcher tree)
+  WAT -> APP : LaunchApplication("--monitored --watcher-pid <PID>")
+  WAT -> SIC : RecordMonitoredPID(child)
+  WAT -> WAT : GC.Collect aggressive\nwait + restart loop\n(skip restart on exit 0/1,\n cap rapid restarts)
+end
+
+alt no flag and not Debugger.IsAttached
+  MAIN -> WAT : LaunchWatcherDetached()\n(cmd.exe /c start ... --watcher); exit 0
+end
+
+== Program.Main: monitored path (or debugger attached) ==
+
+MAIN -> MAIN : WatcherPID = ParseWatcherPID(args)
+note right of MAIN
+  Debug builds also call
+  AppIconGenerator.Generate
+  to refresh app.ico from
+  the current renderer.
+end note
+MAIN -> APP : new App + InitializeComponent + Run()
+
+== App.OnStartup ==
+
+alt Program.IsUninstallerMode
+  APP -> AS  : LoadOrDefault (theme only)
+  APP -> AT  : LoadOrDefault + UpdateThemeResources
+  APP -> APP : show UninstallerWindow as MainWindow\nShutdownMode = OnLastWindowClose
+  note right of APP
+    No tray, no monitors,
+    no hotkeys, no watcher poll.
+  end note
+end
+
+APP -> APP : install crash handlers\n(UnhandledException, DispatcherUnhandledException,\n ProcessExit, SessionEnding)\neach calls TryDrainQuickly + WPFLog.Flush
+
+APP -> AS  : firstRun = !File.Exists(settingsPath)\n_appSettings = LoadOrDefault(path)
+alt firstRun
+  APP -> SM : SetRunOnStartup(_appSettings.RunOnStartup)
+end
+APP -> SM : RemoveLegacyRunKey()\nRepairShortcutIfStale()
+APP -> APP : _appSettings.Changed += OnSettingsChanged\nProperties[AppSettings] = _appSettings
+
+APP -> NLP : Initialize(_appSettings)
+APP -> APP : ApplyPDBDownloadTimeout(_appSettings)\n(clamped 5..600s -> PDBSymbolResolver.DownloadTimeout)
+
+APP -> AT  : LoadOrDefault + ThemeChanged subscribe\nProperties[AppTheme] = _theme\nUpdateThemeResources(effectiveIsLight)
+
+APP -> MS  : new MonitorService(new DisplayService(), _appSettings)
+MS  -> MS  : ScheduleStartupRecoverySweep()\n(2s/5s ticks, gated on KnownDisplays;\n re-Refresh until every WasEverDDCCapable\n panel is IsDDCCISupported)
+APP -> APP : Properties[MonitorService] = _monitorService
+
+APP -> DEM : new DisplayEventManager(_monitorService, ProfileManager.GetDefaultPath())\nDisplayTopologyChanged += OnDisplayTopologyChanged\nStart()
+note right of DEM
+  message-only HWND:
+  WM_DEVICECHANGE,
+  WM_DISPLAYCHANGE,
+  resume-from-suspend,
+  + slow-path SetupAPI burst
+end note
+
+APP -> DRS : new DDCRecoveryService(_monitorService) + Start()\n(subscribe to MonitorsRefreshed;\nno worker unless candidates exist)
+
+APP -> PM  : new ProfileManager\nProperties[ProfileManager] = pm
+
+APP -> TIM : CreateTrayIcon()\n(Shell_NotifyIcon + ContextMenu)\nLeftClick / DoubleClick / RightClick / RefreshNeeded / Scrolled subscriptions
+APP -> UCS : new UpdateCheckService(_appSettings)\nStateChanged += OnUpdateStateChanged\nStart()\n(constructed at App.OnStartup line 216; commit cf410f7)
+APP -> TIM : BalloonClicked += OnUpdateBalloonClicked
+APP -> APP : RequestTrayRefresh()
+
+APP -> MBR : new MonitorBrightnessRangeProvider(_monitorService)\nProperties[MonitorBrightnessRangeProvider] = mbr
+
+APP -> GHS : new GlobalHotkeyService\nInitialize() (message-only HWND on UI thread)\nFired += OnHotkeyFired\nApply(_appSettings.Hotkeys)
+APP -> MS  : MonitorsRefreshed += OnMonitorsRefreshedForHotkeys
+
+APP -> APP : StartWatcherMonitor()\n(Task.Run polling Process.GetProcessById(WatcherPID);\n if it dies -> Dispatcher -> ExitApplication)
+
+note over MS, BFL $TINT_GREEN
+  Refresh() at MonitorService ctor performs Phase A
+  synchronously, then starts Phase B immediately for
+  cold start or after the 1500 ms settle window for a
+  recent topology event.
+
+  Phase B's retrying VCP reads run off the dispatcher.
+  The flyout may therefore wire up against an empty or
+  partial Monitors collection. AttachMonitor is the
+  event-driven per-row repair path: it restores profile
+  brightness for curve-on slider intent or
+  ApplyBrightnessOnStartup, and initializes only the
+  newly attached row's Offset.
+
+  MonitorService acquisition is read-only: bounds/norm
+  projection installs metadata without replaying hardware,
+  and hardware-read hydration uses write suspension.
+  Mode-specific writes happen later through MonitorsAcquired
+  (manual rows only) or EnvironmentalCurveService.
+
+  When the flyout started with an empty monitor collection,
+  BrightnessFlyout performs one startup-only rebaseline on
+  the first MonitorsRefreshed before EnvironmentalCurveService
+  evaluates. That removes offsets created against the rolling
+  persisted master during staggered per-row attach.
+end note
+
+== Phase B: immediate cold start or deferred topology ==
+MS -> MS  : RefreshProbePhaseAsync\n(consumes Phase A snapshot;\n  _refreshGen guards stale async continuations)
+loop per enumerated monitor
+  MS -> MS  : TryReadBrightnessWithRetryAsync\n(Task.Run; 80/160/480 backoff)
+  MS -> BFL : Monitors.Add(info) fires\nCollectionChanged synchronously
+  BFL -> BFL : AttachMonitor:\nprofile restore if needed\n+ InitializeOffsetFromMaster(new row only)\n+ UpdateMasterFromEnabledIndividuals\n(inside _suppressPropagation scope)
+end
+MS -> MS  : ResortMonitors -> per-row Move events
+MS -> BFL : (each Move re-enters OnMonitorsCollectionChanged)
+MS -> BFL : MonitorsAcquired(acquired rows)\n(manual mode writes only explicit\nuser/profile values on acquired rows)
+MS -> APP : MonitorsRefreshed fan-out
+MS -> APP : OnMonitorsRefreshedForHotkeys\n(reapply per-monitor bindings)
+MS -> BFL : OnInitialMonitorEnrollmentRefreshed\n(startup-only master/offset rebaseline)
+MS -> ECS : OnMonitorsRefreshed -> Evaluate()
+ECS -> ECS : HarmonizeRow per monitor\n(Enabled -> CurveActive / CurveSleeping)
+ECS -> MS : EnqueueDirectBrightness per row\n(curve targets)
+MS -> DRS : OnMonitorsRefreshed (re-check candidates)
+MS -> MBR : Resubscribe
+
+== T+2000 ms and T+5000 ms: startup recovery sweep ==
+MS -> MS  : ScheduleStartupRecoverySweep ticks\n(gated on KnownDisplays;\n re-Refresh until every WasEverDDCCapable\n panel is IsDDCCISupported)
+note right of MS
+  Each sweep fires a fresh Phase B.
+  Refresh now has _refreshGen reentrancy guard
+  (H-01 fix) so a sweep1 Phase B that arrives
+  while Phase B(initial) is mid-flight drops
+  rather than racing the snapshot.
+end note
+
+note over APP, GHS
+  Subscriptions wired in App.xaml.cs:
+   - AppSettings.Changed
+   - AppTheme.ThemeChanged
+   - DisplayEventManager.DisplayTopologyChanged
+   - GlobalHotkeyService.Fired
+   - MonitorService.MonitorsRefreshed (hotkey reattach)
+   - UpdateCheckService.StateChanged
+     (OnUpdateStateChanged -> flyout NotifyUpdateStateChanged
+      + tray balloon for new versions; cf410f7)
+   - 5 TrayIconManager events
+     (LeftClick, LeftDoubleClick, RightClick,
+      RefreshNeeded, Scrolled) + BalloonClicked
+     (OnUpdateBalloonClicked -> ShowBrightnessFlyout
+      + RequestUpdatePrompt)
+   - 3 BrightnessFlyout events
+     (BrightnessUpdated, FlyoutDeactivated, SettingsRequested)
+     re-wired by ShowBrightnessFlyout's defensive recreate path
+   - SettingsWindow.Closed (lazy, on first OpenSettings)
+end note
+
+note over AS $TINT_BLUE
+  AppSettings.Save now uses atomic temp+rename
+  (M-04 fix). IOExceptions are logged rather than
+  swallowed silently, so a locked file no longer
+  resets the flag on next launch without trace.
+end note
+
+@enduml

@@ -1,0 +1,236 @@
+@startuml class_dependencies
+' Revised 2026-05-13: applied audit_23 amendments (UpdateCheckService,
+' StartMenuShortcut, UpdateConfirmationWindow, DisplayIdentifierService static)
+!include dark-theme.puml
+title Service & UI dependency graph (who depends on whom)
+
+skinparam classBackgroundColor<<orchestrator>> $STER_ORCHESTRATOR
+skinparam classBackgroundColor<<service>>      $STER_SERVICE
+skinparam classBackgroundColor<<ui>>           $STER_UI
+skinparam classBackgroundColor<<interop>>      $STER_INTEROP
+skinparam classBackgroundColor<<lifecycle>>    $STER_LIFECYCLE
+
+' ----- Process bootstrap / lifecycle -----
+class Program                          <<orchestrator>>
+class App                              <<orchestrator>>
+class TrayIconManager                  <<orchestrator>>
+class CrashHandler                     <<lifecycle>>
+class SingleInstanceCoordinator        <<lifecycle>>
+class DisplayEventManager              <<lifecycle>>
+
+' ----- Services -----
+class MonitorService                   <<service>>
+class DDCRecoveryService               <<service>>
+class MonitorBrightnessRangeProvider   <<service>>
+class ProfileManager                   <<service>>
+class EnvironmentalCurveService        <<service>>
+class NightLightProvider               <<service>>
+class GlobalHotkeyService              <<service>>
+class DisplayIdentifierService         <<service>> /' static class - see note '/
+class StartupManager                   <<service>>
+class InstallationService              <<service>>
+class AsyncThrottler                   <<service>>
+class UpdateCheckService               <<service>>
+class StartMenuShortcut                <<service>>
+
+' ----- Helpers / models / theming (treated as services for grouping) -----
+class AppSettings                      <<service>>
+class AppTheme                         <<service>>
+class KnownDisplaysStore               <<service>>
+class TrayIconRenderer                 <<service>>
+class NightLightIconRenderer           <<service>>
+class IconRenderingHelper              <<service>>
+class GlyphCatalog                     <<service>>
+class SunShifter                       <<service>>
+class EnvironmentalCurveSampler        <<service>>
+
+' ----- UI -----
+class BrightnessFlyout                 <<ui>>
+class SettingsWindow                   <<ui>>
+class CurveEditor                      <<ui>>
+class MapPickerOverlay                 <<ui>>
+class DisplayIdentifierOverlayWindow   <<ui>>
+class UninstallerWindow                <<ui>>
+class NumericSpinner                   <<ui>>
+class WindowDragHelper                 <<ui>>
+class UpdateConfirmationWindow         <<ui>>
+
+' ----- Interop -----
+interface IDisplayService              <<interop>>
+class DisplayService                   <<interop>>
+class DDCMonitor                       <<interop>>
+class Dxva2                            <<interop>>
+class CCD                              <<interop>>
+class EDIDParser                       <<interop>>
+class NightLightRegistry               <<interop>>
+class NightLightSettingsHandler        <<interop>>
+class NightLightCloudStore             <<interop>>
+class NightLightKelvin                 <<interop>>
+class PDBSymbolResolver                <<interop>>
+
+' ===========================================================================
+' Process bootstrap
+' ===========================================================================
+
+Program --> CrashHandler
+Program --> SingleInstanceCoordinator
+Program --> App
+Program --> InstallationService          : --admin-action install-system
+
+' ===========================================================================
+' App composition root
+' ===========================================================================
+
+App --> AppSettings
+App --> AppTheme
+App --> MonitorService
+App --> DisplayEventManager
+App --> DDCRecoveryService
+App --> MonitorBrightnessRangeProvider
+App --> ProfileManager
+App --> NightLightProvider
+App --> GlobalHotkeyService
+App --> TrayIconManager
+App --> BrightnessFlyout
+App --> SettingsWindow
+App --> UninstallerWindow                : --uninstall mode
+App --> StartupManager
+App --> PDBSymbolResolver                : DownloadTimeout
+App --> UpdateCheckService               : OnStartup -> StateChanged
+UpdateCheckService --> AppSettings       : CheckForUpdatesEnabled /\nUpdateCheckIntervalMinutes /\nUpdateChannel
+
+' ===========================================================================
+' Tray icon stack
+' ===========================================================================
+
+TrayIconManager --> TrayIconRenderer
+TrayIconManager ..> AppTheme
+TrayIconRenderer --> AppTheme
+TrayIconRenderer --> IconRenderingHelper
+TrayIconRenderer --> GlyphCatalog
+NightLightIconRenderer --> IconRenderingHelper
+NightLightIconRenderer --> GlyphCatalog
+
+' ===========================================================================
+' Service-to-service
+' ===========================================================================
+
+MonitorService --> IDisplayService
+MonitorService --> AppSettings
+MonitorService --> AsyncThrottler
+MonitorService --> KnownDisplaysStore
+DDCRecoveryService --> MonitorService
+MonitorBrightnessRangeProvider --> MonitorService
+DisplayEventManager --> MonitorService   : Refresh()\n+ short-circuit gate
+ProfileManager --> KnownDisplaysStore
+
+' Curve evaluation runs as a service so curves keep driving when the flyout is hidden.
+EnvironmentalCurveService --> ProfileManager
+EnvironmentalCurveService --> MonitorService     : EnqueueDirectBrightness
+EnvironmentalCurveService --> NightLightProvider : SetStrength
+EnvironmentalCurveService --> SunShifter         : BuildPreview
+EnvironmentalCurveService --> EnvironmentalCurveSampler
+
+' Night-light facade fans out to whichever backend is resolved.
+NightLightProvider --> AppSettings
+NightLightProvider --> NightLightRegistry
+NightLightProvider --> NightLightSettingsHandler
+
+' ===========================================================================
+' Interop
+' ===========================================================================
+
+DisplayService ..|> IDisplayService
+DisplayService --> Dxva2
+DisplayService --> CCD
+DisplayService --> EDIDParser
+DisplayService --> DDCMonitor
+
+NightLightSettingsHandler --> NightLightRegistry
+NightLightSettingsHandler --> NightLightCloudStore
+NightLightSettingsHandler --> NightLightKelvin
+NightLightRegistry --> NightLightKelvin
+NightLightRegistry --> AsyncThrottler
+NightLightCloudStore --> PDBSymbolResolver       : RVA fallback
+
+' ===========================================================================
+' UI -> services
+' ===========================================================================
+
+BrightnessFlyout --> ProfileManager
+BrightnessFlyout --> MonitorService
+BrightnessFlyout --> EnvironmentalCurveService
+BrightnessFlyout --> NightLightProvider
+BrightnessFlyout --> NightLightIconRenderer
+BrightnessFlyout --> AppTheme
+BrightnessFlyout *-- WindowDragHelper
+BrightnessFlyout --> UpdateCheckService          : reads AvailableUpdate /\nNotifyUpdateStateChanged
+BrightnessFlyout *-- UpdateConfirmationWindow    : modal child on\nRequestUpdatePrompt
+
+SettingsWindow --> AppSettings
+SettingsWindow --> ProfileManager
+SettingsWindow --> MonitorService
+SettingsWindow --> NightLightProvider
+SettingsWindow --> MonitorBrightnessRangeProvider
+SettingsWindow --> DisplayIdentifierService
+SettingsWindow --> StartupManager
+SettingsWindow --> InstallationService
+SettingsWindow *-- CurveEditor
+SettingsWindow *-- MapPickerOverlay
+
+CurveEditor --> EnvironmentalCurveSampler
+CurveEditor --> ProfileManager
+CurveEditor --> MonitorBrightnessRangeProvider
+
+' DisplayIdentifierService is a static class that manages a private list
+' of overlay windows internally (DisplayIdentifierService.cs:13, 18).
+DisplayIdentifierService ..> DisplayIdentifierOverlayWindow : owns N (one per monitor)
+UninstallerWindow --> InstallationService
+
+' StartMenuShortcut wiring (cf410f7: Start Menu shortcuts).
+Program --> StartMenuShortcut            : --admin-action sync-startmenu
+InstallationService --> StartMenuShortcut : Sync()
+StartupManager --> StartMenuShortcut     : RepairShortcutIfStale
+
+' ===========================================================================
+' Notes
+' ===========================================================================
+
+note right of MonitorService
+  Internal clusters:
+    A enumeration / reconciliation
+    B brightness I/O via AsyncThrottler
+      (write -> retry -> verify)
+    C sorting & overrides
+    D recovery coordination
+    E shutdown drain
+end note
+
+note bottom of BrightnessFlyout
+  Curve evaluation lives in
+  EnvironmentalCurveService;
+  flyout is an observer.
+end note
+
+note bottom of SettingsWindow
+  Per-tab pages in WPF/Settings/Pages/*.
+  CurveEditor + MapPickerOverlay are
+  hosted directly by the shell so the
+  preview sweep can dock either one.
+end note
+
+note top of DisplayEventManager
+  Single message-only HWND;
+  owns the WM_DEVICECHANGE pipeline,
+  fast-path debounce + slow-path
+  SetupAPI burst.
+end note
+
+note bottom of NightLightProvider
+  Backend resolved lazily:
+  Registry (CloudStore Bond blob) or
+  SettingsHandler (kelvin via RVA into
+  SettingsHandlers_Display.dll).
+end note
+
+@enduml

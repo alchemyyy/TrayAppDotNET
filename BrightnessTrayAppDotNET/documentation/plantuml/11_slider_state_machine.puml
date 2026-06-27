@@ -1,0 +1,75 @@
+@startuml slider_state_machine
+' Created 2026-05-13: per claudeit/_diagram_amendments.md
+!include dark-theme.puml
+title Slider state machine per row (MonitorInfo.SliderState)\nTransitions verified at MonitorInfo.cs:49-112 + EnvironmentalCurveService.cs:336-347
+
+state Enabled : user-owned slider drives DDC
+state Disabled : group-excluded, no DDC writes
+state CurveActive : curve drives DDC every tick
+state CurveSleeping : curve holds, no DDC writes (disabled period)
+state CurveReleased : user-released, curve does NOT resume\n(survives sleep cycles)
+state Failed : DDC dead, slider greyed\n_preFailureSliderState stashed
+
+[*] --> Enabled : new monitor, IsParticipating
+
+Enabled --> Disabled : OnUserToggleOff (per-row icon click)
+Enabled --> Failed : OnHardwareFailed (write/verify exhausted)
+Enabled --> CurveActive : OnCurveEngaged(d=false) OR HarmonizeRow(d=false)
+Enabled --> CurveSleeping : OnCurveEngaged(d=true) OR HarmonizeRow(d=true)
+
+Disabled --> Enabled : OnUserToggleOn(c=false,d=false) [profile / per-row]
+Disabled --> CurveActive : OnUserToggleOn(c=true,d=false)
+Disabled --> CurveSleeping : OnUserToggleOn(c=true,d=true)
+Disabled --> Failed : OnHardwareFailed
+
+CurveActive --> CurveSleeping : HarmonizeRow(d=true)
+CurveActive --> CurveReleased : OnUserRelease (drag / hotkey individual / disabled-period master drag)
+CurveActive --> Enabled : OnCurveDisengaged
+CurveActive --> Failed : OnHardwareFailed
+
+CurveSleeping --> CurveActive : HarmonizeRow(d=false)
+CurveSleeping --> CurveReleased : OnUserRelease
+CurveSleeping --> Enabled : OnCurveDisengaged
+CurveSleeping --> Failed : OnHardwareFailed
+
+CurveReleased --> CurveActive : OnUserReengage(d=false) (double-click)
+CurveReleased --> CurveSleeping : OnUserReengage(d=true)
+CurveReleased --> Enabled : OnCurveDisengaged
+CurveReleased --> Failed : OnHardwareFailed
+note left of CurveReleased : HarmonizeRow EXPLICITLY preserves CR\n(default arm at EnvironmentalCurveService.cs:345)
+
+Failed --> Enabled : OnHardwareRecovered(c,d)
+note right of Failed
+  OnHardwareRecovered now consults the live IsBrightnessCurveEnabledQuery
+  + IsInDisabledPeriodQuery closures (post-H-03 fix). The recovery
+  callsite at MonitorService promotes back through the correct
+  arm (Enabled / CurveActive / CurveSleeping) without relying on
+  the subsequent MonitorsRefreshed fan-out, eliminating the
+  master-jitter symptom.
+end note
+
+' Post-fix notes on user-write paths
+note as N_FIX_PATHS $TINT_GREEN
+  Disabled-period master drag (post-H-04 fix):
+   - BrightnessFlyout.ApplyMasterToEnabledMonitors now wraps the
+     propagation in SuspendHardwareWrites, so individual writes
+     during the master drag no longer fire OnUserRelease ->
+     CurveActive -> CurveReleased. Enabled rows stay CA/CS across
+     the master adjust.
+
+  Hotkey adjust (post-H-05 fix):
+   - App.xaml.cs hotkey paths (AdjustAllMonitorBrightness,
+     AdjustNightLightBrightness, ApplyOrRestoreBrightness) now
+     call NotifyUserBrightnessAdjustment first, matching the
+     tray-scroll discipline. Hotkey individual writes route
+     through the curve-release suppression window.
+end note
+
+' Dead helpers - documented for awareness, no transitions
+note as N_DEAD
+  OnSleepEnter / OnSleepExit at MonitorInfo.cs:107, 111 have
+  ZERO callers. HarmonizeRow re-implements them inline plus the
+  Enabled -> CurveActive promotion arm. Safe to remove.
+end note
+
+@enduml

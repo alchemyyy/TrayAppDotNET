@@ -1,0 +1,18 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="src/FanControlTrayAppDotNET.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="LibreHardwareMonitor/LibreHardwareMonitorLib/LibreHardwareMonitorLib.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="tests/FanControlTrayAppDotNET.Tests/FanControlTrayAppDotNET.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="../TrayAppDotNETCommon/src/TrayAppDotNETCommon.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="../TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
+</Solution>

@@ -1,0 +1,195 @@
+@startuml duplication_map
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+!include dark-theme.puml
+title Duplication map - status of repeated code & parallel implementations
+
+legend top right
+  |= color |= meaning |
+  |<$TINT_RESOLVED>| RESOLVED |
+  |<$TINT_PARTIAL>| PARTIAL |
+  |<$TINT_OPEN>| OPEN |
+endlegend
+
+' ----- DUP-1: WM_DEVICECHANGE listeners merged -----
+package "DUP-1  WM_DEVICECHANGE listeners" $TINT_RESOLVED {
+  [DisplayEventManager\n(single owner)\nsrc/Services/DisplayEventManager.cs] as D1A
+  note bottom of D1A
+    One HWND owns the only DeviceNotification registration.
+    Fast path: DispatcherTimer 250 ms coalescer.
+    Slow path: System.Threading.Timer 1 s x 10 burst.
+    App.xaml.cs only consumes events; it does not register a sink.
+  end note
+}
+
+' ----- DUP-2: NumericSpinner is the single spinner control -----
+package "DUP-2  Numeric spinners" $TINT_RESOLVED {
+  [NumericSpinner.xaml.cs\n(single UserControl)] as D2X
+  [MonitorsPage / GeneralPage / FlyoutPage\ncall sites] as D2A
+  D2X -[#green]- D2A : single source
+}
+
+' ----- DUP-3: curve apply owned by EnvironmentalCurveService -----
+package "DUP-3  Curve application" $TINT_RESOLVED {
+  [EnvironmentalCurveService.ApplyCurveCore\nsrc/Services/EnvironmentalCurveService.cs] as D3A
+  [.ApplyBrightnessCurve / .ApplyNightLightCurve\n(thin wrappers around ApplyCurveCore)] as D3B
+  D3A -[#green]- D3B : single owner
+}
+
+' ----- DUP-4: WindowDragHelper owns drag/snap math -----
+package "DUP-4  Window-drag snap-zone math" $TINT_RESOLVED {
+  [WindowDragHelper.cs] as D4X
+  [BrightnessFlyout\nUndockButton + RootCard handlers] as D4A
+  D4X -[#green]- D4A : both handlers delegate\nBeginDrag / ComputeNatural /\nApplyDragPosition / IsCurrentlySnapped
+}
+
+' ----- DUP-5: DPI / icon helpers consolidated -----
+package "DUP-5  DPI + icon-conversion helpers" $TINT_RESOLVED {
+  [IconRenderingHelper\n.GetTaskbarDpi /\n.GetIconSizeForDpi /\n.BitmapToIcon] as D5X
+  [TrayIconRenderer\n+ NightLightIconRenderer] as D5C
+  D5X -[#green]- D5C : single source
+}
+
+' ----- DUP-6: GlyphCatalog is the single glyph source -----
+package "DUP-6  Glyph definitions" $TINT_RESOLVED {
+  [Visuals/GlyphCatalog.cs\n(canonical codepoints)] as D6X
+  [ThemeGlyphs (defaults from D6X,\nXML-overridable in ThemeSettings.xml)] as D6B
+  [TrayIconRenderer / NightLightIconRenderer\n(consume GlyphCatalog directly)] as D6C
+  D6X -[#green]- D6B
+  D6X -[#green]- D6C
+}
+
+' ----- DUP-7: theme palette vs brightness-aware dimming (orthogonal layers) -----
+package "DUP-7  Color resolution" $TINT_RESOLVED {
+  [AppTheme.ResolveForeground /\nResolveBackground\n(user override -> theme default)] as D7A
+  [TrayIconRenderer.ResolveForegroundColor\n(brightness-aware dimming\non top of theme default)] as D7B
+  D7A -[#green]- D7B : layered by design,\nnot a duplicate
+}
+
+' ----- DUP-8 OPEN: P/Invoke struct duplication -----
+package "DUP-8  P/Invoke structs" $TINT_OPEN {
+  [Interop/Shell32.cs\nRECT (Left/Top/Right/Bottom\n+ Contains helper)] as D8A
+  [DDCCI/Interop/User32Monitor.cs\nRect (left/top/right/bottom)] as D8B
+  D8A -[#red]- D8B : same layout,\ndiffers only in casing &\nthe Contains convenience.\nGammaRamp.cs has been removed,\nso DISPLAY_DEVICE is now\nsingle-sourced in User32Monitor.
+}
+
+' ----- DUP-9: tray-icon refresh single funnel -----
+package "DUP-9  Tray icon refresh" $TINT_RESOLVED {
+  [App.RequestTrayRefresh\n(single funnel)] as D9X
+  [TrayIconManager.Update\n(only invoked via D9X)] as D9Y
+  D9X -[#green]- D9Y : startup, theme, settings,\ntopology, brightness, scroll all\nflow through RequestTrayRefresh
+}
+
+' ----- DUP-10 PARTIAL: timer inventory (6 timers still undocumented) -----
+package "DUP-10  Timer inventory" $TINT_PARTIAL {
+  [DisplayEventManager._coalesce\n(DispatcherTimer, 250 ms)] as D10A
+  [DisplayEventManager._burstTimer\n(System.Threading.Timer, 1 s x 10)] as D10B
+  [EnvironmentalCurveService._curveTimer\n+ _curveEventThrottleTimer\n(both DispatcherTimer)] as D10C
+  [DDCRecoveryService fallback worker\n(Task.Delay loop only while\nDDC candidates exist)] as D10D
+  [NightLightRegistry._resendTimer\n(System.Threading.Timer, debounced resend)] as D10E
+  [DisplayIdentifierService._timer\n(DispatcherTimer, overlay auto-hide)] as D10F
+  [WPFLog._timer\n(System.Threading.Timer, async flush)] as D10G
+  [ShellNotifyIcon._taskbarRecreateTimer\n(DispatcherTimer)] as D10H
+  [NightLightSettingsHandler._deferredRegistryTimer\n(System.Threading.Timer; 6089fd8 NL flicker-fix)] as D10I
+  [KnownDisplaysStore._stampDebounceTimer\n(System.Threading.Timer)] as D10J
+  [BrightnessFlyout._activeRecoveryTooltipCloseTimer\n(DispatcherTimer)] as D10K
+  [BrightnessFlyout._previewSweepTimer\n(DispatcherTimer, 50 ms cadence)] as D10L
+  [AboutPage._staleTimer\n(DispatcherTimer)] as D10M
+  [CurveEditor._currentTimeTimer\n(DispatcherTimer)] as D10N
+  [EnvironmentalPage._curveSaveDebounceTimer\n(DispatcherTimer)] as D10O
+  note bottom
+    Each timer owns a distinct domain.
+    TrayIconManager itself is event-driven (no internal timer).
+    PARTIAL: six timers (D10I..D10O) still
+    not documented in audits/notes; audit_21 F3
+    proposed try/catch on threading-timer callbacks
+    to prevent process tear-down (M-11 / D-11).
+  end note
+}
+
+' ----- DUP-11 PARTIAL: hex color parsing (three slightly different copies) -----
+package "DUP-11  Hex color parsing / formatting" $TINT_PARTIAL {
+  [Visuals/AppTheme.cs\n.ParseHex / .ToHex\n(throws on bad input)] as D11A
+  [Models/AppSettings.cs\nThemeColorOverride.TryParse / .ToHex\n(returns nullable, swallows on error)] as D11B
+  [WPF/TAWPFColorPicker.xaml.cs\n.TryParseHex (ARGB or RGBA order,\n3/4/6/8-char input)] as D11C
+  D11A -[#orange]- D11B : same 6/8-char branch,\ndifferent error policy
+  D11A -[#orange]- D11C : color-picker accepts\nshort forms the others reject
+  note bottom
+    Three call-site shapes (validating ctor,
+    nullable model getter, picker text input)
+    are real - but the 6/8-char Convert.ToByte
+    blocks are byte-for-byte parallel and
+    could share a primitive.
+  end note
+}
+
+' ----- DUP-12 PARTIAL: monitor-id prefix vocabulary -----
+package "DUP-12  Monitor-id prefix vocabulary" $TINT_PARTIAL {
+  [MonitorService.GetIdentityKey\n(produces edid: / port: / num:)] as D12A
+  [DisplayEventManager.ExtractHwid\n(strips port: prefix,\nsplits DISPLAY\\... / MONITOR\\...)] as D12B
+  [Models/Hotkey.cs HotkeyTarget\n(EdidPrefix const "edid:")] as D12C
+  [Services/ProfileManager.cs\n(EdidIdPrefix const "edid:",\nlegacy migration only)] as D12D
+  D12A -[#orange]- D12B : producer / consumer
+  D12C -[#orange]- D12D : same literal,\ntwo private const fields
+  note bottom
+    The "edid:" / "port:" / "num:" tokens
+    are produced in one place but each consumer
+    re-declares its own const string for the
+    prefix it cares about. Cheap to share via
+    a small MonitorIdPrefixes static.
+  end note
+}
+
+' ----- DUP-13 RESOLVED: hotkey paths route through Notify*Adjustment helper -----
+package "DUP-13  Hotkey vs tray-scroll Notify discipline" $TINT_RESOLVED {
+  [App.xaml.cs:AdjustAllMonitorBrightness\nApp.xaml.cs:AdjustNightLightBrightness\nApp.xaml.cs:ApplyOrRestoreBrightness] as D13A
+  [App.xaml.cs:TrayScroll handler] as D13B
+  [App.xaml.cs:Notify*Adjustment helper\n(single funnel)] as D13C
+  D13A -[#green]- D13C : all hotkey paths now\ncall NotifyUserBrightnessAdjustment /\nNotifyUserNightLightAdjustment
+  D13B -[#green]- D13C : tray scroll routes through\nthe same helper
+  note bottom
+    Wave-1 fix: hotkey and tray-scroll write paths
+    share the same release-discipline funnel.
+    Curve toggle stays lit while individuals
+    auto-release consistently across both entry
+    points (H-05 closed).
+  end note
+}
+
+' ----- DUP-16 RESOLVED: Refresh inline promotion vs PromoteRecovered -----
+package "DUP-16  Recovery promotion paths" $TINT_RESOLVED {
+  [MonitorService.Refresh\ninline promotion arm\nrelies on post-Refresh\nRecordDDCCapableObservations sweep] as D16A
+  [MonitorService.PromoteRecovered /\nPromoteReadDegraded\neagerly MarkDDCCapable +\nfires MonitorsRefreshed] as D16B
+  D16A -[#green]- D16B : Refresh now participates in\nthe same acquisition outcome flow.\nDDCRecoveryService keeps retrying\nuntil candidates clear.
+}
+
+' ----- DUP-18 RESOLVED: brightness percent -> raw VCP scaling -----
+package "DUP-18  Brightness percent -> raw VCP scaling" $TINT_RESOLVED {
+  [MonitorService.ScaleBrightnessPercentToRaw\nsingle pct -> raw helper] as D18X
+  [MonitorService.DoBrightnessWriteAsync\nuses entry.Max] as D18A
+  [MonitorService.TryDDCWriteProbe\nuses LastKnownBrightnessMax\nand current manual/profile target] as D18B
+  D18X -[#green]- D18A : shared scaling
+  D18X -[#green]- D18B : read-degraded probe no longer\nwrites an arbitrary raw value
+}
+
+' ----- DUP-19 RESOLVED: night-light spaced write discipline -----
+package "DUP-19  Night-light spaced write discipline" $TINT_RESOLVED {
+  [NightLightRegistry.EnqueueSetStrengthSpaced\n(throttled, debounced)] as D19A
+  [NightLightProvider.EnsureNonZeroStrengthBeforeEnable\n(calls EnqueueSetStrengthSpaced)] as D19B
+  D19A -[#green]- D19B : Wave-1 fix:\nEnable-from-zero path now uses\nthe same spaced write primitive.\nNL toggle-on no longer visibly flickers.
+}
+
+' ----- DUP-20 PARTIAL: per-monitor offset capture rules -----
+package "DUP-20  Per-monitor offset capture" $TINT_PARTIAL {
+  [BrightnessFlyout.CaptureOffsetsFromMaster\n(reads LastUserBrightness)] as D20A
+  [BrightnessFlyout.HandleCurveSliderTouch\nre-engage path\n(reads Brightness)] as D20B
+  D20A -[#orange]- D20B : two parallel offset rules\nin same file. Different baseline\nfor CS->CA re-engage vs fresh\nengage. Audit_24 DUP-20 still open.
+}
+
+' ----- T-1 RESOLVED: theme effective-light reimplemented -> consolidated -----
+package "T-1  ResolveEffectiveIsLightTheme" $TINT_RESOLVED {
+  [AppTheme.ResolveEffectiveIsLightTheme(AppSettings?)\n(single canonical impl)] as T1X
+  [App.xaml.cs / SettingsWindow.xaml.cs /\nThemePage.xaml.cs call sites] as T1Y
+  T1X -[#green]- T1Y : Wave-1 fix (M-17):\nthree parallel copies removed.\nAll consumers route through AppTheme.
+}
+
+@enduml

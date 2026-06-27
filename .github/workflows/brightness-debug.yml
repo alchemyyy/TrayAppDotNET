@@ -1,0 +1,70 @@
+name: Brightness Debug
+
+on:
+  push:
+  pull_request:
+    paths:
+      - BrightnessTrayAppDotNET/**
+      - TrayAppDotNETCommon/**
+      - Directory.Build.props
+      - TrayAppDotNET.Parent.props
+      - TrayAppDotNET.Parent.targets
+      - .github/workflows/brightness-debug.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: BrightnessTrayAppDotNET Debug
+    runs-on: [self-hosted, Windows, X64, trayapp]
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Verify .NET SDK
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Command dotnet
+          dotnet --info
+          dotnet --list-sdks | Select-String -Pattern '^10\.'
+
+      - name: Restore
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: dotnet restore "BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj" --disable-parallel -p:Platform=x64 -p:EnableWindowsTargeting=true
+
+      - name: Build Debug
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: >
+          dotnet build "BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj"
+          --configuration Debug
+          --no-restore
+          --output ".artifacts/debug/BrightnessTrayAppDotNET"
+          -p:Platform=x64
+          -p:EnableWindowsTargeting=true
+          -p:SkipKillRunningInstance=true
+          -p:SkipPublishAfterBuild=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Remove PDB Files
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem ".artifacts/debug/BrightnessTrayAppDotNET" -Recurse -Filter *.pdb -File |
+            Remove-Item -Force
+
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: brightness-tray-app-debug-${{ github.sha }}
+          path: .artifacts/debug/BrightnessTrayAppDotNET/**
+          if-no-files-found: error
+          retention-days: 14

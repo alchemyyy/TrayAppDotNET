@@ -1,0 +1,9 @@
+.vs/
+bin/
+obj/
+claudeit/
+inspect.xml
+# Visual Studio XAML designer regenerates these on every preview render.
+*_wpftmp.csproj
+.claude
+CLAUDE.md

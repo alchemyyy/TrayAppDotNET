@@ -1,0 +1,6 @@
+.vs/
+.artifacts/
+bin/
+obj/
+*.binlog
+msbuild*.log

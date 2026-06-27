@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FormatProbe</RootNamespace>
+    <AssemblyName>FormatProbe</AssemblyName>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <!-- Skip the build-number embedding target inherited from the repo's Directory.Build.props. -->
+    <EmitBuildInfo>false</EmitBuildInfo>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,67 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)..\TrayAppDotNET.Parent.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\TrayAppDotNET.Parent.props')" />
+
+  <PropertyGroup>
+    <!-- Redirect obj\ to the repo root instead of next to the .csproj.
+         Must live in Directory.Build.props (auto-imported before the SDK props)
+         because BaseIntermediateOutputPath is consumed during the SDK props
+         import. Setting it inside the .csproj is too late.
+         FormatProbe and xUnit tests keep their own local obj\ instead of sharing the app
+         project's project.assets.json, because their package graphs differ from the app. -->
+    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'BrightnessTrayAppDotNET.Tests'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+
+    <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
+    <Configurations>Debug;Release</Configurations>
+
+    <!-- x64-only: WPF + WinForms + Win32 interop and native dependencies require
+         a concrete x64 build. Platforms drives the IDE platform picker; PlatformTarget
+         drives the compiler; Platform covers command-line builds invoked without
+         an explicit platform. -->
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+  </PropertyGroup>
+
+  <!-- Bake the build number into the assembly at compile time as
+       BuildInfo.BuildNumber in the project's root namespace.
+       The constant is inlined at every use site by the C# compiler, so no
+       reflection or attribute lookup is needed at runtime.
+
+       This target is read-only: it reads buildnumber.txt and embeds the
+       current value. It deliberately does NOT increment, because
+       GenerateAssemblyInfo can fire more than once across the
+       outer-build / inner-publish chain triggered by Release (and within
+       a single MSBuild process under some WPF/publish target paths).
+       The bump lives in PublishAfterBuild in the app project,
+       which fires exactly once before the publish Exec, so the inner
+       publish reads the already-bumped value. -->
+  <Target Name="EmbedBuildNumber" BeforeTargets="GenerateAssemblyInfo"
+          Condition="'$(EmitBuildInfo)' != 'false'">
+    <PropertyGroup>
+      <_OldBuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_OldBuildNumber>
+      <_OldBuildNumber Condition="'$(_OldBuildNumber)' == ''">0</_OldBuildNumber>
+      <BuildNumber>$(_OldBuildNumber)</BuildNumber>
+      <BuildInfoNamespace Condition="'$(RootNamespace)' != ''">$(RootNamespace)</BuildInfoNamespace>
+      <BuildInfoNamespace Condition="'$(BuildInfoNamespace)' == ''">$(MSBuildProjectName)</BuildInfoNamespace>
+      <_BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</_BuildInfoFile>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <ItemGroup>
+      <_BuildInfoLines Include="// &lt;auto-generated/&gt;" />
+      <_BuildInfoLines Include="namespace $(BuildInfoNamespace)%3B" />
+      <_BuildInfoLines Include="internal static class BuildInfo" />
+      <_BuildInfoLines Include="{" />
+      <_BuildInfoLines Include="    public const int BuildNumber = $(BuildNumber)%3B" />
+      <_BuildInfoLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_BuildInfoFile)"
+                      Lines="@(_BuildInfoLines)"
+                      Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(_BuildInfoFile)" />
+      <FileWrites Include="$(_BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Uninstaller_Title" xml:space="preserve">
+    <value>Uninstall BatteryTrayAppDotNET</value>
+  </data>
+  <data name="Uninstaller_Message" xml:space="preserve">
+    <value>Remove BatteryTrayAppDotNET from this computer.</value>
+  </data>
+  <data name="Uninstaller_UninstallButton" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="Uninstaller_UninstallingButton" xml:space="preserve">
+    <value>Uninstalling...</value>
+  </data>
+  <data name="Uninstaller_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="ColorPicker_ARGBHexLabel" xml:space="preserve">
+    <value>argb hex:</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_Alpha" xml:space="preserve">
+    <value>alpha</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_B" xml:space="preserve">
+    <value>b</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_G" xml:space="preserve">
+    <value>g</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_Hue" xml:space="preserve">
+    <value>hue</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_R" xml:space="preserve">
+    <value>r</value>
+  </data>
+  <data name="ColorPicker_CloseTooltip" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ColorPicker_DefaultButton" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
+    <value>Color picker</value>
+  </data>
+  <data name="ColorPicker_ResetButton" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="ColorPicker_RGBAHexLabel" xml:space="preserve">
+    <value>rgba hex:</value>
+  </data>
+  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
+    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
+    <value>Keep undocked flyout on screen</value>
+  </data>
+  <data name="Settings_Flyout_HeaderAtBottom_Description" xml:space="preserve">
+    <value>Render the flyout title bar at the bottom of the flyout instead of the top.</value>
+  </data>
+  <data name="Settings_Flyout_HeaderAtBottom_Title" xml:space="preserve">
+    <value>Title bar at the bottom</value>
+  </data>
+  <data name="Settings_Flyout_Layout_Header" xml:space="preserve">
+    <value>Layout</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
+    <value>When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked.</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
+    <value>Restore undock state on startup</value>
+  </data>
+  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
+    <value>Show the undock button in the flyout. When off, the flyout always stays anchored to the tray.</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
+    <value>Show undock button</value>
+  </data>
+  <data name="Settings_Flyout_Visibility_Header" xml:space="preserve">
+    <value>Visibility</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark flyout background</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_Description" xml:space="preserve">
+    <value>Override the main battery flyout background color.</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light flyout background</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_Title" xml:space="preserve">
+    <value>Flyout background</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark titlebar background</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_Description" xml:space="preserve">
+    <value>Override the battery flyout titlebar background color.</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light titlebar background</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_Title" xml:space="preserve">
+    <value>Titlebar background</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_DarkVariant" xml:space="preserve">
+    <value>dark</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_Format" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_LightVariant" xml:space="preserve">
+    <value>light</value>
+  </data>
+  <data name="Settings_Theme_Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+</root>
