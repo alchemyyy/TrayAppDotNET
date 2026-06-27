@@ -1,0 +1,133 @@
+@startuml publish_action_activity
+!include btadn/dark-theme.puml
+title Publish action - automatic version planning and draft release
+
+start
+
+partition "Manual dispatch" {
+  :Optionally override the aggregate version
+  and release tag;
+  :Set per-app Force and Skip checkboxes;
+}
+
+partition "Plan app actions" {
+  :Checkout the selected ref;
+  :Fetch complete Git history and tags;
+  :Query published GitHub releases;
+
+  if (Every app skipped?) then (yes)
+    :Fail the workflow;
+    stop
+  else (no)
+  endif
+
+  :Find the newest published aggregate ZIP;
+  :Check TrayAppDotNETCommon history since
+  the aggregate release;
+
+  if (Common changed?) then (yes)
+    :Plan a new version and "build"
+    for every non-skipped app;
+    note right $TINT_BLUE
+      No per-app history queries are needed.
+    end note
+  else (no)
+  repeat
+    :Select the next app;
+
+    if (Skip app checked?) then (yes)
+      :Mark app as "skip";
+      note right $TINT_AMBER
+        Skip takes precedence over Force for the same app.
+        No package job runs for this app.
+      end note
+    else (no)
+      :Find the newest published release
+      containing this app's ZIP;
+
+      if (Prior app asset exists?) then (yes)
+        :Resolve its release tag to a commit;
+        :Check Git history since that app release for
+        app-folder changes and any deferred Common changes;
+        :Ignore buildnumber.txt-only changes;
+
+        if (Relevant changes found?) then (yes)
+          :Plan max(tracked build number,
+          published version + 1);
+          :Mark app as "build";
+        else (no)
+          if (Force this app checked?) then (yes)
+            :Mark app as "build"
+            without incrementing;
+          else (no)
+            :Mark app as "reuse";
+          endif
+        endif
+      else (no)
+        :Mark app as "build"
+        at max(tracked build number, 1);
+      endif
+    endif
+  repeat while (More apps?) is (yes)
+  endif
+
+  :Keep the original source commit unchanged;
+  :Expose the source commit, included apps,
+  and each app's action and planned version;
+}
+
+partition "Package included apps in parallel" {
+  :Start one reusable release workflow
+  for every non-skipped app;
+
+  fork
+    :Apps marked "build":
+    checkout the source commit;
+    :Pass the planned version and source commit
+    to the build as ephemeral MSBuild properties;
+    :Restore and publish the win-x64
+    self-contained Native AOT app;
+    :Create the versioned app ZIP;
+  fork again
+    :Apps marked "reuse":
+    locate the last published app ZIP;
+    :Download and validate the ZIP
+    and its published SHA-256 digest;
+  end fork
+
+  :Write each app package manifest;
+  :Upload each package as an Actions artifact;
+}
+
+partition "Assemble and publish" {
+  :Wait for every non-skipped app workflow;
+
+  if (Any required app workflow failed?) then (yes)
+    :Fail without publishing the draft release;
+    stop
+  else (no)
+  endif
+
+  :Download package artifacts from every
+  included app workflow;
+
+  :Build the aggregate ZIP from included apps;
+  note right $TINT_BLUE
+    Skipped apps are omitted. install-all.bat skips
+    unavailable executables in a partial aggregate.
+  end note
+
+  :Generate versions.xml;
+  :Generate release notes with app versions,
+  source commit hashes, SHA-256 checksums,
+  pull requests as "title by username in PR link",
+  and commits since the prior aggregate release;
+  :Create or update the GitHub draft release;
+  :Prune stale release assets;
+  :Upload aggregate ZIP, app ZIPs, and versions.xml;
+  :Upload the aggregate Actions artifact;
+  :Delete intermediate package artifacts;
+}
+
+stop
+@enduml

@@ -1,0 +1,140 @@
+@startuml nightlight_backends
+!include dark-theme.puml
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+title Night-light dispatch - two live backends, registry as the source of truth
+
+[Caller (UI / hotkey / env curve)] as CALLER
+[NightLightProvider\n(static facade,\n_lastResolvedBackend cache)] as NLP
+[AppSettings\nNightLightFallbackMode] as MODE
+
+package "Backend resolution" $TINT_BLUE {
+  [ResolveBackend\n(switch on mode)] as RESOLVE
+}
+
+package "Live backends" $TINT_AMBER {
+  [Backend.SettingsHandler\nNightLightSettingsHandler] as B_SH
+  [Backend.Registry\nNightLightRegistry] as B_REG
+  [Backend.None\n(unsupported)] as B_NONE
+}
+
+package "SettingsHandler write path (kelvin only)" $TINT_PURPLE {
+  [NightLightCloudStore\n(RVA-resolved, MTA-init)] as CS
+  [BlueLightSingleton\n::SetTargetColorTemperature\n::SetPreviewColorTemperatureChanges] as SING
+  [SHTaskPool\nSaveSettingsAsync (tag 258)] as SHTP
+  [ICloudStore::Save\n(succeeds on SHTaskPool thread)] as CSAVE
+  [NightLightSettingsHandler\n._deferredRegistryTimer\n(System.Threading.Timer,\nNightLightUIHandleryRegistryEnforceDelayMs;\nmirror of NightLightRegistry._resendTimer)] as SHDEF
+}
+
+package "Registry write path (kelvin only)" $TINT_TEAL {
+  [SETTINGS blob\n(CloudStore Bond CB v1)] as REGSET
+  [STATE blob\n(field 0 enabled, field 20 FILETIME)] as REGSTATE
+  [RegNotifyChangeKeyValue\nwait between writes] as REGNOTIFY
+}
+
+[BlueLightReductionService\n(broker live filter)] as BROKER
+
+CALLER --> NLP : SetStrength / SetEnabled\nToggle / Reapply / IsEnabled\nGetStrength
+MODE  ..> NLP  : Changed event\nInvalidateBackendCache only when\nNightLightFallbackMode actually moves\n(other AppSettings.Changed fires are no-ops)
+NLP   --> RESOLVE : first call /\non mode change
+
+RESOLVE --> B_SH   : mode == SettingsHandler\n&& CloudStore.IsSupported()
+RESOLVE --> B_REG  : mode == Auto / Registry / GammaRamp\n(Registry.IsSupported())
+RESOLVE --> B_NONE : mode == SettingsHandler\nbut RVA init failed\n(no silent downgrade)
+
+note right of RESOLVE
+  GammaRamp is a hidden enum value with
+  no implementation - the resolver folds it
+  into the Registry branch.
+  Auto is a legacy XML-compat value, also
+  treated as Registry.
+  Default for new installs is SettingsHandler.
+end note
+
+B_SH  --> CS : SetStrength(percent)\nSaveSettingsKelvinAsync
+B_SH  --> B_REG : Get / IsEnabled\nSetEnabled / Toggle\n(Registry is the read+toggle owner)
+B_SH  --> SHDEF : ArmDeferredRegistryWrite\n(every SetStrength / SetEnabled / Toggle)
+SHDEF --> B_REG : OnDeferredRegistryTimerFired\n-> NightLightRegistry.SetStrength(latest)\n+ RefreshStateFileTime\n(callback wrapped in try/catch - M-11)
+
+CS --> SING : 1) SetTargetColorTemperature(kelvin)\n2) SetPreviewColorTemperatureChanges(1)\n3) SetPreviewColorTemperatureChanges(0)
+SING --> SHTP : queue SaveSettingsAsync\nbetween steps
+SHTP --> CSAVE : on SHTaskPool worker thread
+CSAVE --> REGSET : ICloudStore writes\nSETTINGS blob
+CS    .> REGNOTIFY : await one-shot notify\nbefore next step
+
+B_REG --> REGSET : SetStrength: WriteSettingsBlob\nspaced bracket (IsDragging C2 46 01)\nstep 1: kelvin, dragging=false\nstep 2: kelvin, dragging=true\nstep 3: kelvin, dragging=false
+B_REG --> REGSTATE : Toggle / SetEnabled:\nflip enabled marker (10 00)\n+ refresh FILETIME (C6 14)
+B_REG --> REGNOTIFY : await IssueWithSaveNotifyAsync\nbetween bracket steps
+
+REGSET   --> BROKER : CloudCacheInvalidator fires\nfor CloudStore-API saves only;\nraw writes propagate via\nRegNotifyChangeKeyValue
+REGSTATE --> BROKER : FILETIME bump = real transition\n(state save chain)
+CSAVE    --> BROKER : version-counter bump\ntriggers OnBlueLightReductionSettingsChange
+
+note bottom of CS
+  History:
+   - direct ICloudStore::Save from our
+     thread fails 0x80070490
+     (CloudStorePartitionSet::GetPartitionInfo
+      NOT_FOUND).
+   - riding SHTaskPool's worker context is
+     what makes Save succeed.
+   - SHTaskPool dedups tag 258, but each task
+     captures the current kelvin at queue
+     time, so latest-wins still lands.
+   - RVAs cached per DLL FileVersion in
+     nightlight_known_rvas.xml; PDB resolver
+     is the slow-path fallback.
+end note
+
+note bottom of B_REG
+  Spaced-bracket trick (registry-only):
+  the IsDragging false->true edge triggers
+  ColorTemperatureControl::fb3daf, which
+  calls ApplyTemperatureChangeToMonitorsImmediate
+  unconditionally - bypasses the wedged
+  +36 inflight gate that drops kelvin-only
+  writes on 24H2 / 26200.
+
+  Belt-and-suspenders: a single shared
+  System.Threading.Timer re-fires the last
+  bracket NightLightUIHandleryRegistryEnforceDelayMs after
+  the most recent enqueue (one-shot per
+  quiet period, no infinite loop). The same
+  constant is the dueTime for the
+  SettingsHandler backend's
+  _deferredRegistryTimer settle-write.
+
+  Both timer callbacks now wrapped in
+  try/catch (M-11) so background-thread
+  exceptions cannot tear down the process.
+
+  CancelPendingResend is a public method
+  on both NightLightRegistry and
+  NightLightSettingsHandler. The zero-trap
+  fix (M-07) calls it on BOTH backends
+  before SetEnabled(false), so a pending
+  resend can never resurrect a non-zero
+  strength after the user just toggled off.
+
+  PulseApply (toggle off then on) is kept
+  as a manual recovery primitive only;
+  the FILETIME bump in SetStrength normally
+  makes a pulse unnecessary.
+end note
+
+note right of NLP
+  Reads always go through Registry, even
+  on the SettingsHandler backend - the
+  registry blobs are the OS source of truth.
+
+  EnsureNonZeroStrengthBeforeEnable:
+  toggling on at strength 0 silently restores
+  AppSettings.NightLightLastNonZeroStrength
+  first, otherwise the user sees no visible
+  change.
+
+  TurnOffNightLightAtZeroStrength:
+  setting strength to 0 auto-disables when
+  the option is on.
+end note
+
+@enduml

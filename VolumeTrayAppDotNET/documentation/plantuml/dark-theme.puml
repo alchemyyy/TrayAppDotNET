@@ -1,0 +1,204 @@
+' Dark Theme for project diagrams.
+'
+' Usage: place `!include dark-theme.puml` immediately after `@startuml <name>`,
+' then use the $TINT_* variables for package / note backgrounds instead of
+' hard-coded pastel hex codes.
+'
+' Renderer flag --dark-mode is NOT required (and should not be used);
+' this file owns the palette so the look stays consistent across compilers.
+
+' ===========================================================================
+' Base palette
+' ===========================================================================
+
+' Surfaces
+!$BG             = "#16171D"
+!$SURFACE        = "#222530"
+!$SURFACE_ALT    = "#1B1D26"
+!$SURFACE_RAISED = "#2A2D3A"
+
+' Lines & text
+!$BORDER         = "#3D414F"
+!$BORDER_DIM     = "#2C2F39"
+!$ACCENT         = "#7FB3E8"
+!$ACCENT_DIM     = "#5C7FAF"
+!$ARROW          = "#A4B7D2"
+!$TEXT           = "#E6E8F0"
+!$TEXT_DIM       = "#9098AB"
+!$TITLE          = "#F2F4FA"
+
+' ===========================================================================
+' Semantic tints (subtle hue against dark BG; legible on top, not blowout)
+'
+' Use these for package #colour blocks and note backgrounds.
+' Naming is intentional - call sites read better than raw hex.
+' ===========================================================================
+
+' Status tints (used by the duplication map)
+!$TINT_RESOLVED  = "#1E3D2A"
+!$TINT_PARTIAL   = "#3D2F1A"
+!$TINT_OPEN      = "#3D232A"
+
+' Domain tints
+!$TINT_RED       = "#3A2128"
+!$TINT_GREEN     = "#1E3525"
+!$TINT_AMBER     = "#3A2F1A"
+!$TINT_BLUE      = "#1F2D40"
+!$TINT_PURPLE    = "#2A1F3A"
+!$TINT_TEAL      = "#1E3535"
+!$TINT_PINK      = "#3A1F32"
+!$TINT_NEUTRAL   = "#252836"
+
+' Stereotype shading for class diagrams (slightly punchier than domain tints
+' so swimlane-of-roles reads at a glance).
+!$STER_ORCHESTRATOR = "#3D341A"
+!$STER_SERVICE      = "#1F2D40"
+!$STER_UI           = "#1E3525"
+!$STER_INTEROP      = "#2A2C35"
+!$STER_LIFECYCLE    = "#3A2128"
+
+' ===========================================================================
+' Global skinparams
+' ===========================================================================
+
+skinparam backgroundColor       $BG
+skinparam defaultFontColor      $TEXT
+skinparam defaultFontName       "Segoe UI"
+skinparam defaultFontSize       12
+skinparam shadowing             false
+skinparam roundCorner           5
+skinparam wrapWidth             240
+
+skinparam title {
+  FontColor   $TITLE
+  FontSize    18
+  FontStyle   bold
+}
+
+skinparam legend {
+  BackgroundColor $SURFACE
+  BorderColor     $BORDER
+  FontColor       $TEXT
+}
+
+' ===========================================================================
+' Notes
+' ===========================================================================
+
+skinparam note {
+  BackgroundColor $SURFACE_RAISED
+  BorderColor     $BORDER
+  FontColor       $TEXT
+}
+
+' ===========================================================================
+' Arrows (global)
+' ===========================================================================
+
+skinparam arrow {
+  Color     $ARROW
+  FontColor $TEXT
+  Thickness 1
+}
+
+' ===========================================================================
+' Sequence diagrams
+' ===========================================================================
+
+skinparam sequenceMessageAlign       center
+skinparam responseMessageBelowArrow  true
+skinparam sequenceArrowThickness     1
+skinparam sequenceArrowColor         $ARROW
+skinparam sequenceLifeLineBorderColor $ACCENT_DIM
+skinparam sequenceLifeLineBackgroundColor $SURFACE_ALT
+skinparam sequenceGroupBorderThickness 1
+skinparam BoxPadding                 12
+skinparam ParticipantPadding         12
+
+skinparam sequence {
+  ParticipantBackgroundColor $SURFACE
+  ParticipantBorderColor     $ACCENT
+  ParticipantFontColor       $TEXT
+  ParticipantFontStyle       bold
+
+  ActorBackgroundColor       $SURFACE
+  ActorBorderColor           $ACCENT
+  ActorFontColor             $TEXT
+
+  GroupBackgroundColor       $SURFACE_ALT
+  GroupBorderColor           $BORDER
+  GroupFontColor             $TEXT
+  GroupFontStyle             bold
+  GroupHeaderFontColor       $TEXT
+  GroupBodyBackgroundColor   $BG
+
+  DividerBackgroundColor     $SURFACE_RAISED
+  DividerBorderColor         $ACCENT
+  DividerFontColor           $TEXT
+  DividerFontStyle           bold
+
+  ReferenceBackgroundColor   $SURFACE
+  ReferenceBorderColor       $ACCENT
+}
+
+skinparam sequenceBoxBackgroundColor $SURFACE_ALT
+skinparam sequenceBoxBorderColor     $BORDER
+skinparam sequenceBoxFontColor       $TEXT
+skinparam sequenceBoxFontStyle       bold
+
+' ===========================================================================
+' Component / package / rectangle (used by 01, 03, 04, 07)
+' ===========================================================================
+
+skinparam componentStyle rectangle
+
+skinparam component {
+  BackgroundColor $SURFACE
+  BorderColor     $ACCENT
+  FontColor       $TEXT
+}
+
+skinparam rectangle {
+  BackgroundColor $SURFACE
+  BorderColor     $ACCENT
+  FontColor       $TEXT
+}
+
+skinparam package {
+  BackgroundColor $SURFACE_ALT
+  BorderColor     $BORDER
+  FontColor       $TEXT
+  FontStyle       bold
+  TitleFontColor  $TITLE
+}
+
+' ===========================================================================
+' Class diagrams (used by 05)
+' ===========================================================================
+
+skinparam class {
+  BackgroundColor $SURFACE
+  BorderColor     $ACCENT
+  FontColor       $TEXT
+  HeaderBackgroundColor $SURFACE_RAISED
+  AttributeFontColor    $TEXT_DIM
+  StereotypeFontColor   $ACCENT
+}
+
+' ===========================================================================
+' Activity diagrams (defensive defaults; not currently used in this set)
+' ===========================================================================
+
+skinparam activity {
+  BackgroundColor $SURFACE
+  BorderColor     $ACCENT
+  FontColor       $TEXT
+  BarColor        $ACCENT
+  StartColor      $ACCENT
+  EndColor        $ACCENT
+  DiamondBackgroundColor $SURFACE
+  DiamondBorderColor     $ACCENT
+  DiamondFontColor       $TEXT
+  ArrowColor             $ARROW
+  ArrowFontColor         $TEXT
+}

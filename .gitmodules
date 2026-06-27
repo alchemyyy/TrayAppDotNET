@@ -1,0 +1,16 @@
+[submodule "FanControlTrayAppDotNET/vendor/LibreHardwareMonitor"]
+	path = FanControlTrayAppDotNET/vendor/LibreHardwareMonitor
+	url = https://github.com/alchemyyy/LibreHardwareMonitor
+	branch = master
+[submodule "FanControlTrayAppDotNET/vendor/NCalc"]
+	path = FanControlTrayAppDotNET/vendor/NCalc
+	url = https://github.com/Allied-Bits-Ltd/ncalc
+	branch = ABCalc
+[submodule "FanControlTrayAppDotNET/vendor/HIDSharp"]
+	path = FanControlTrayAppDotNET/vendor/HIDSharp
+	url = https://github.com/alchemyyy/HidSharp
+	branch = master
+[submodule "FanControlTrayAppDotNET/vendor/DiskInfoToolkit"]
+	path = FanControlTrayAppDotNET/vendor/DiskInfoToolkit
+	url = https://github.com/alchemyyy/DiskInfoToolkit
+	branch = master

@@ -1,0 +1,84 @@
+name: Network Debug
+
+on:
+  push:
+  pull_request:
+    paths:
+      - NetworkTrayAppDotNET/**
+      - TrayAppDotNETCommon/**
+      - Directory.Build.props
+      - TrayAppDotNET.Parent.props
+      - TrayAppDotNET.Parent.targets
+      - .github/workflows/network-debug.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: NetworkTrayAppDotNET Debug
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          # Network has no submodule dependencies. Do not download unrelated
+          # FanControl hardware dependencies.
+          submodules: false
+
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
+      - name: Verify .NET SDK
+        run: |
+          set -euo pipefail
+
+          command -v dotnet
+          dotnet --info
+          dotnet --list-sdks | grep -E '^10\.'
+
+      - name: Restore
+        run: dotnet restore "NetworkTrayAppDotNET/src/NetworkTrayAppDotNET.csproj" -p:Platform=x64 -p:EnableWindowsTargeting=true
+
+      - name: Build Debug
+        # Debug artifacts are built for CI only, so avoid local app shutdowns
+        # and publish side effects.
+        # Keep uploaded debug artifacts small.
+        run: |
+          set -euo pipefail
+
+          dotnet build "NetworkTrayAppDotNET/src/NetworkTrayAppDotNET.csproj" \
+            --configuration Debug \
+            --no-restore \
+            --output ".artifacts/debug/NetworkTrayAppDotNET" \
+            -p:Platform=x64 \
+            -p:EnableWindowsTargeting=true \
+            -p:SkipKillRunningInstance=true \
+            -p:SkipPublishAfterBuild=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false \
+            -p:ContinuousIntegrationBuild=true
+
+      - name: Remove PDB Files
+        run: |
+          set -euo pipefail
+
+          find ".artifacts/debug/NetworkTrayAppDotNET" -type f -name '*.pdb' -delete
+
+      - name: Upload Debug Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: network-tray-app-debug-${{ github.sha }}
+          path: .artifacts/debug/NetworkTrayAppDotNET/**
+          if-no-files-found: error
+          retention-days: 14

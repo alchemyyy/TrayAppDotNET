@@ -1,0 +1,7 @@
+{
+  "name": "trayapp-version-endpoint-updater",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-08-20",
+  "workers_dev": true,
+  "preview_urls": false
+}

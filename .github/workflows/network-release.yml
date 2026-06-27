@@ -1,0 +1,141 @@
+name: Network Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_artifact_name:
+        description: Optional package artifact name.
+        required: false
+        type: string
+      tray_version:
+        description: Aggregate TrayAppDotNET version, passed through for consistency with publish runs.
+        required: false
+        type: string
+      app_version:
+        description: Network version to embed when building.
+        required: false
+        type: string
+      force_rebuild:
+        description: Build even if an existing release asset could be reused.
+        required: false
+        default: false
+        type: boolean
+      source_ref:
+        description: Optional commit or ref to package.
+        required: false
+        type: string
+      reuse_previous_release:
+        description: Download the latest published app asset. Takes precedence over force rebuild.
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      package_artifact_name:
+        required: false
+        type: string
+        default: ""
+      tray_version:
+        required: false
+        type: string
+        default: ""
+      app_version:
+        required: false
+        type: string
+        default: ""
+      force_rebuild:
+        required: false
+        type: boolean
+        default: false
+      source_ref:
+        required: false
+        type: string
+        default: ""
+      reuse_previous_release:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: NetworkTrayAppDotNET Release
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source_ref || github.sha }}
+          # Network has no submodule dependencies. Do not download unrelated
+          # FanControl hardware dependencies.
+          submodules: false
+
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
+      - name: Verify Release Toolchain
+        run: |
+          set -euo pipefail
+
+          command -v gh
+          if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+            echo "python3 or python is required." >&2
+            exit 1
+          fi
+          if [ "${{ inputs.reuse_previous_release }}" != "true" ]; then
+            command -v dotnet
+            dotnet --info
+            dotnet --list-sdks | grep -E '^10\.'
+          fi
+
+      - name: Prepare Release Package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
+
+          args_list=(
+            ".github/scripts/publish.py"
+            "--phase" "build-app-profile"
+            "--profile" "release"
+            "--app-name" "NetworkTrayAppDotNET"
+            "--app-version" "${{ inputs.app_version }}"
+            "--repo" "$GITHUB_REPOSITORY"
+            "--output-root" ".artifacts/publish"
+          )
+
+          if [ "${{ inputs.tray_version }}" != "" ]; then
+            args_list+=("--tray-version" "${{ inputs.tray_version }}")
+          fi
+
+          if [ "${{ inputs.reuse_previous_release }}" = "true" ]; then
+            args_list+=("--reuse-latest")
+          elif [ "${{ inputs.force_rebuild }}" = "true" ]; then
+            args_list+=("--force-rebuild")
+          fi
+
+          "$python_bin" "${args_list[@]}"
+
+      - name: Upload Release Package Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.package_artifact_name || format('network-tray-app-package-{0}', github.run_id) }}
+          path: .artifacts/publish/release/packages/**
+          if-no-files-found: error
+          retention-days: 14

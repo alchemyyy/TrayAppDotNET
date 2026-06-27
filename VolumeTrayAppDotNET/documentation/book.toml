@@ -1,0 +1,14 @@
+﻿[book]
+authors = []
+language = "en"
+src = "docs"
+title = "VolumeTrayAppDotNET Documentation"
+
+[build]
+build-dir = ".mdbook"
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+additional-css = ["docs/custom.css"]
+additional-js = ["docs/lightbox.js"]

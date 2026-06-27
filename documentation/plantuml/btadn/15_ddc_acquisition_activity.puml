@@ -1,0 +1,133 @@
+@startuml ddc_acquisition_activity
+!include dark-theme.puml
+title DDC acquisition lifecycle - full refresh and targeted recovery
+
+start
+
+:Acquisition trigger;
+if (Targeted recovery request?) then (yes)
+  :Snapshot only the failed/read-degraded row\non the dispatcher;
+  if (Already healthy, explicitly powered off this runtime,\nor write busy?) then (yes)
+    :Skip this candidate pass;
+    stop
+  else (probe)
+    :Enumerate current displays off dispatcher;
+    :Match requested ID, retained instance path / DeviceID,\nEDID key / serial, port form, then adapter name;
+    if (Matching display found?) then (no)
+      :Keep Failed and retry on a later worker pass;
+      stop
+    else (yes)
+    endif
+  endif
+else (full Refresh)
+  :Latest-request-wins scheduler enumerates off dispatcher;
+  note right
+    Constructor bootstrap is the one synchronous enumeration.
+    Public topology/settings refreshes never run CCD, registry,
+    or WMI enumeration on their caller thread.
+  end note
+  :Post fresh snapshot reconcile to dispatcher;
+  :Reconcile identity and park missing known-DDC rows as Failed;
+  if (Recent topology event?) then (yes)
+    :Wait remaining post-detection settle window;
+  else (no)
+  endif
+  :Phase B probes enumerated displays sequentially;
+endif
+
+:Read resolved brightness VCP with retry;
+note right $TINT_GREEN
+  Every failed native GET retires only that monitor's helper.
+  The next retry launches a fresh process, performs lightweight
+  Win32 + EDID identity resolution, and opens new physical handles.
+  Final acquisition attempt also refreshes the parent snapshot while
+  preserving a user brightness-VCP override.
+end note
+
+if (Read succeeds?) then (yes)
+  if (Existing MonitorInfo?) then (yes)
+    :Install fresh DDC entry / maximum / projections;
+    if (Has explicit user/profile slider value?) then (yes)
+      :Preserve manual slider baseline;
+    else (no)
+      :Sync slider baseline from current DDC read\nwithout claiming user intent;
+    endif
+    :Recover curve-aware SliderState;
+  else (no)
+    :Create MonitorInfo from current DDC read;
+    :Saved profile may later restore manual UI state;
+  endif
+  :Clear read-degraded/error state and retained recovery identity;
+  :Mark row acquired;
+else (no)
+  if (Targeted recovery and eligible manual row has\na previously verified projected bus value?) then (yes)
+    :Send one minimally-invasive write transport probe;
+    if (SET transport accepted?) then (yes)
+      :Attempt one immediate GET;
+      if (Reply recovered?) then (yes)
+        :Promote fully from the returned brightness;
+        :Mark row acquired;
+      else (no)
+        :Publish explicit ReadDegraded compatibility state;
+        :Keep LastDDCError and recovery candidacy;
+      endif
+    else (no)
+      :Reset this monitor's helper transport;
+      :Keep Failed and retained recovery identity;
+    endif
+  else (no)
+    :Add or keep row as Failed;
+    :Retain immutable recovery identity;
+    :Raise DDCRecoveryRequested for known-capable rows;
+    :No arbitrary acquisition write;
+  endif
+endif
+
+:Apply per-row bounds, norm curve, and dwell projections;
+:Record sticky DDC-capable observation;
+
+if (Full refresh?) then (yes)
+  :Consume explicit topology/VCP replay generation;
+  if (Hardware state was invalidated?) then (yes)
+    :Invalidate pending + verified target state;
+    :Queue explicit manual replay only after fresh handles/maxima;
+  else (no)
+  endif
+endif
+
+:Raise MonitorsRefreshed;
+
+if (Brightness curve enabled?) then (yes)
+  :EnvironmentalCurveService evaluates immediately\nand queues current curve-owned targets;
+else (no)
+  :No additional write;
+endif
+
+:Recompute master slider from connected\nhardware-functional displays using MasterSliderMode;
+
+if (Fully readable row was marked acquired?) then (yes)
+  :Clear stale runtime power-off suppression;
+  :Resolve final post-subscriber SliderState owner;
+  if (Current manual or curve owner target exists?) then (yes)
+    :ReplayRecoveredBrightnessIntent;
+    :Force through zero-cooldown scheduler;
+    :SET + normal matching read-back verification;
+  else (Disabled / no intent)
+    :No recovery brightness write;
+  endif
+else (no)
+endif
+
+note right
+  Master recompute is UI-only. MonitorsRefreshed subscribers finish
+  synchronous curve and master reconciliation before MonitorService
+  resolves the recovered row's final hardware owner.
+
+  A successful acquisition GET proves that replies resumed, not that
+  firmware visibly applied the value it reports. The forced replay is
+  one recovery-boundary SET, not a periodic reapply loop, and it still
+  requires matching read-back before persistence or dedupe.
+end note
+
+stop
+@enduml

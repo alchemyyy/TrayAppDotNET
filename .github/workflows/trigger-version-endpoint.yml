@@ -1,0 +1,65 @@
+name: Trigger Version Endpoint Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: trayapp-version-endpoint-trigger
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    name: Trigger Cloudflare Endpoint Updater
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Publish Latest Version Manifest
+        env:
+          EXPECTED_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          VERSION_ENDPOINT_TRIGGER_URL: ${{ secrets.VERSION_ENDPOINT_TRIGGER_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$VERSION_ENDPOINT_TRIGGER_URL" ]; then
+            echo "VERSION_ENDPOINT_TRIGGER_URL is not configured." >&2
+            exit 1
+          fi
+
+          maximum_attempts=4
+          for attempt in $(seq 1 "$maximum_attempts"); do
+            response=""
+            if response="$(curl --fail --silent --show-error \
+              --connect-timeout 10 \
+              --max-time 120 \
+              --retry 2 \
+              --retry-all-errors \
+              --request POST \
+              "$VERSION_ENDPOINT_TRIGGER_URL")"; then
+              published_release_tag="$(
+                printf '%s' "$response" | jq -r '.releaseTag // empty' 2>/dev/null || true
+              )"
+              if [ -z "$EXPECTED_RELEASE_TAG" ] || [ "$published_release_tag" = "$EXPECTED_RELEASE_TAG" ]; then
+                printf '%s\n' "$response"
+                exit 0
+              fi
+              echo "Endpoint returned ${published_release_tag:-no release tag}; expected $EXPECTED_RELEASE_TAG." >&2
+            else
+              echo "Endpoint trigger attempt $attempt failed." >&2
+            fi
+
+            if [ "$attempt" -lt "$maximum_attempts" ]; then
+              sleep_seconds=$((attempt * 5))
+              echo "Retrying in $sleep_seconds seconds." >&2
+              sleep "$sleep_seconds"
+            fi
+          done
+
+          echo "Version endpoint did not publish $EXPECTED_RELEASE_TAG." >&2
+          exit 1

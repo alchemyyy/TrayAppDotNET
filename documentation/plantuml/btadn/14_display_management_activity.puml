@@ -1,0 +1,507 @@
+@startuml display_management_activity
+!include dark-theme.puml
+title Display management activity - acquisition, value reads/writes, manual sliders, and curve mode
+
+start
+
+partition "App startup" {
+  :App.OnStartup loads AppSettings;
+  :Create MonitorService(new DisplayService(), settings);
+  note right $TINT_BLUE
+    Settings sources read at startup:
+    - EnvironmentalBrightnessCurveEnabled
+    - EnvironmentalNightLightCurveEnabled
+    - EnvironmentalOffsetMode
+    - ApplyBrightnessOnStartup
+    - LastMasterBrightness
+    - DDC timing / validation settings
+  end note
+}
+
+partition "MonitorService.Refresh - acquisition" {
+  if (Constructor bootstrap?) then (yes)
+    :RefreshInitial calls TryGetMonitors synchronously
+    before the tray surface is published;
+  else (public Refresh)
+    :Latest-request-wins refresh scheduler;
+    :TryGetMonitors off dispatcher;
+    :Post fresh snapshot reconcile to dispatcher;
+  endif
+  note right
+    DisplayService.TryGetMonitors reads:
+    - EnumDisplayMonitors HMONITOR/HDC
+    - MONITORINFOEX adapter name
+    - EnumDisplayDevices device ID
+    - registry EDID block
+    - CCD display number map
+  end note
+
+  :Compute runtime ID, EDIDKey, port fallback key;
+  :RegisterKnownDisplays in displays.json;
+  :Phase A removes or parks missing rows;
+
+  if (Recent topology event within 1500 ms?) then (yes)
+    :Delay remaining settle window;
+    :Drop this Phase B if a newer Refresh generation exists;
+  else (no)
+    :Start Phase B immediately;
+  endif
+  :Increment Refresh generation for this Phase B;
+
+  note right $TINT_AMBER
+    Cold start does not intentionally wait 1500 ms.
+    Hot-plug / wake paths do wait so fresh panels
+    can settle before the first VCP read.
+  end note
+
+  while (Each enumerated DDCMonitor) is (next)
+    :Match existing MonitorInfo by EDIDKey,\nthen ID, then port-form rescue;
+
+    if (Existing DDC entry?) then (yes)
+      :Atomically replace the DDC snapshot;
+      :await TryReadBrightnessWithRetryAsync\n(resolved brightness VCP; Task.Run retry loop;\neach native failure retires that row's helper);
+      :Abort Phase B if Refresh generation is stale;
+      if (read ok?) then (yes)
+        :Keep row supported;\nclear LastDDCError;
+      else (no)
+        :Set SliderState = Failed;\nremove MonitorEntry;\ndrop queued write;
+      endif
+    elseif (Existing row without DDC entry?) then (promote)
+      :await TryReadBrightnessWithRetryAsync\n(resolved brightness VCP; Task.Run retry loop;\neach native failure retires that row's helper);
+      :Abort Phase B if Refresh generation is stale;
+      if (read ok?) then (yes)
+        :Create MonitorEntry;
+        if (row already has explicit user/profile value?) then (yes)
+          :Preserve manual slider baseline;
+        else (no)
+          if (Brightness curve query says engaged?) then (yes)
+            :Preserve curve-owned slider baseline;
+          else (no)
+            :SyncBrightnessFromHardware(read percent)\nunder hardware-write suspension;
+          endif
+        endif
+        :SliderState = OnHardwareRecovered(curve flag,\ndisabled-period flag);
+        :Mark row acquired;
+      else (no)
+        :Keep row failed / read-degraded candidate;
+      endif
+    else (new row)
+      :await TryReadBrightnessWithRetryAsync\n(resolved brightness VCP; Task.Run retry loop;\neach native failure retires that row's helper);
+      :Abort Phase B if Refresh generation is stale;
+      if (read ok?) then (supported)
+        :seededBrightness = read percent;
+        :new MonitorInfo(SliderState = InitialHardwareFunctionalSliderState);
+        :InitializeBrightnessFromHardware(seededBrightness);
+        :Create MonitorEntry;
+        :Mark row acquired;
+      else (unsupported)
+        :new MonitorInfo(Brightness = 0,\nSliderState = Failed,\nLastDDCError = read error);
+      endif
+      :Subscribe MonitorService.OnMonitorPropertyChanged;
+      :Monitors.Add(info);
+    endif
+  endwhile (done)
+
+  :ResortMonitors;
+  :Apply min/max bounds, norm curves, and\nper-monitor dwell overrides as entry metadata only;
+  :Record WasEverDDCCapable;
+  :Project WasEverDDCCapable onto MonitorInfo;
+  :MonitorsRefreshed event;
+  :ReplayRecoveredBrightnessIntent(acquired rows)\nafter synchronous ownership reconciliation;
+  :Force final owner target through\nimmediate SET + matching read-back;
+
+  note right $TINT_GREEN
+    Public enumeration and retry waits do not block the dispatcher:
+    Phase A / Phase B mutate rows on the UI thread, but each retrying
+    DDC read runs through TryReadBrightnessWithRetryAsync.
+    The generation guard prevents stale async reads from
+    applying values after a newer topology refresh.
+
+    Probe and reconcile are read-only. After timing, bounds, and norm
+    projections are installed, MonitorsRefreshed subscribers finalize
+    manual/curve ownership. MonitorService then forces one current owner
+    target for acquired rows. Disabled rows receive no replay. The forced
+    generation supersedes any same-event curve enqueue and still uses
+    normal read-back verification.
+  end note
+}
+
+partition "BrightnessFlyout enrollment" {
+  :BrightnessFlyout constructor binds Monitors directly;
+  :Seed MasterMonitor.Brightness from LastMasterBrightness;
+  :Seed curve backing fields directly from AppSettings;
+  :Apply selected profile structure;
+
+  if (brightness curve persisted on?) then (yes)
+    :Skip profile hardware apply;
+    :SuspendHardwareWrites;
+    :ApplyCurrentProfile(includeBrightness: true)\nto restore slider intent only;
+  else (no)
+    if (ApplyBrightnessOnStartup?) then (yes)
+      :ApplyCurrentProfile(includeBrightness: true);
+    else (no)
+      :Keep slider values from current DDC reads;
+    endif
+  endif
+
+  :Compute master from connected\nhardware-functional individuals\nusing MasterSliderMode;
+  :CaptureOffsetsFromMaster();
+  note right $TINT_GREEN
+    Offset writes happen here, for newly attached rows only,
+    master drag start, sync commands, and individual re-engage.
+    EnvironmentalCurveService should only read Offset;
+    it should never write Offset or LastUserBrightness.
+  end note
+
+  :Create EnvironmentalCurveService;
+  :Wire MonitorService queries\n(IsBrightnessCurveEnabledQuery,\nIsInDisabledPeriodQuery);
+
+  if (any curve persisted on?) then (yes)
+    :OnCurveToggleStateChanged();
+    :Engage row SliderStates;
+    :CaptureOffsetsFromMaster again;
+    :Evaluate immediately;
+  endif
+}
+
+partition "CollectionChanged attach path" {
+  if (Monitors.Add fires after flyout exists?) then (yes)
+    :AttachMonitor(m);
+    :Add to Master.Dependents and AllItems;
+    :Subscribe BrightnessFlyout.OnMonitorPropertyChanged;
+    :Set _suppressPropagation = true;
+
+    if (brightness curve on?) then (yes)
+      :SuspendHardwareWrites;
+      :ApplyCurrentProfile([m], includeBrightness: true);
+      note right $TINT_GREEN
+        This restores saved manual slider intent for a late monitor
+        without pushing that manual value to DDC.
+        The brightness curve remains the only hardware writer.
+      end note
+    elseif (ApplyBrightnessOnStartup?) then (yes)
+      :ApplyCurrentProfile([m], includeBrightness: true);
+      note right
+        Late monitor receives the selected profile value
+        through the same event-driven attach path.
+      end note
+    endif
+
+    :InitializeOffsetFromMaster(m)\nfor this new row only;
+    :UpdateMasterFromEnabledIndividuals();
+    :Clear _suppressPropagation;
+  endif
+
+  note right $TINT_GREEN
+    Topology changes enroll only the newly affected row.
+    Existing monitors' Offset and LastUserBrightness are not
+    recaptured on attach/detach, so staggered acquisition cannot
+    retarget already-attached monitors' curve/manual baselines.
+  end note
+}
+
+partition "Initial async enrollment rebaseline" {
+  if (Flyout was constructed with Monitors.Count == 0\nand first MonitorsRefreshed arrives?) then (yes)
+    :UpdateMasterFromEnabledIndividuals()\n(configured tracking mode);
+    :CaptureOffsetsFromMaster();
+    note right $TINT_GREEN
+      Startup-only rebaseline.
+      Runs before EnvironmentalCurveService handles the same
+      MonitorsRefreshed event, so absolute curve targets consume
+      offsets based on the final startup monitor set instead of
+      the rolling/persisted master used during per-row attach.
+
+      Does not run for later topology changes.
+    end note
+  endif
+}
+
+partition "Curve evaluator" {
+  :Drivers: periodic timer,\nMonitorsRefreshed,\nprofile switch,\nsettings RequestEvaluation throttle,\npreview ApplyAt(t);
+  :Resolve stored profile curve;
+  :Resolve live sun-shifted curve cache;
+  :Read current day fraction;
+  :Read disabled period from stored curve;
+  :Set IsInCurveDisabledPeriod mirror;
+
+  if (brightness curve enabled?) then (yes)
+    :HarmonizeBrightnessCurveStates();
+  else (no)
+    :DisengageBrightnessCurveStates();
+  endif
+
+  if (sleep just entered?) then (yes)
+    :For CurveSleeping rows,\nEnqueueDirectBrightness(row.Brightness);
+  endif
+
+  if (brightness curve enabled?) then (yes)
+    if (absolute mode?) then (yes)
+      :sample = curve.Brightness(t);
+      :master target = sample;
+      :row target = sample + row.Offset;
+    else (offset mode)
+      :offsetPercent = (curve.BrightnessOffset(t) - 50) * 2;
+      :master target = master.LastUserBrightness + offsetPercent;
+      :row target = row.LastUserBrightness + offsetPercent;
+    endif
+
+    :Set CurveTargetBrightness on curve-driven rows;
+
+    while (Each physical monitor) is (next)
+      if (SliderState == CurveActive and not IsDragging?) then (yes)
+        :EnqueueDirectBrightness(row, target);
+      else (no)
+        :No brightness hardware write;
+      endif
+    endwhile (done)
+  endif
+
+  note right $TINT_GREEN
+    Intentional design boundary:
+    Curve writes update:
+    - CurveTargetBrightness for indicator/value label
+    - hardware through EnqueueDirectBrightness
+
+    Curve writes do NOT update:
+    - MonitorInfo.Brightness
+    - LastUserBrightness
+    - Offset
+    - profile MonitorState.Brightness
+  end note
+}
+
+partition "Manual slider / wheel / hotkey path" {
+  :User touches slider, wheel, tray scroll, or hotkey;
+
+  if (absolute curve active and not disabled period?) then (yes)
+    if (master row?) then (yes)
+      :Turn brightness curve off;
+      :ResyncBrightnessHardwareToSliders();
+    elseif (individual row?) then (yes)
+      :SliderState = OnUserRelease();\nCurveReleased survives ticks;
+    endif
+  else (offset mode or disabled period or curve off)
+    :Keep curve flag as-is;
+  endif
+
+  if (master adjustment?) then (yes)
+    :CaptureOffsetsFromMaster before value changes;
+  endif
+
+  :Slider.Value two-way binding writes MonitorInfo.Brightness;
+  note right
+    Brightness setter:
+    - writes Brightness
+    - writes LastUserBrightness
+    - writes VirtualBrightness
+    - raises PropertyChanged on rounded transitions
+  end note
+
+  :MonitorService.OnMonitorPropertyChanged;
+  if (SuspendHardwareWrites active?) then (yes)
+    :Return without OnUserRelease or DDC write;
+  else (no)
+    :Individual CurveActive/CurveSleeping -> CurveReleased;
+    :EnqueueDirectBrightness(row, RoundedBrightness);
+  endif
+
+  :BrightnessFlyout.OnMonitorPropertyChanged;
+  if (propagation allowed?) then (yes)
+    if (master moved?) then (yes)
+      :ApplyMasterToEnabledMonitors\n(master + stored Offset);
+    else (individual moved)
+    :UpdateMasterFromEnabledIndividuals()\n(configured tracking mode);
+    endif
+  endif
+
+  if (brightness curve enabled and offset mode\nand not disabled period?) then (yes)
+    :RequestEvaluation throttled by BrightnessUpdateRateMs;
+  endif
+}
+
+partition "DDC write/read-back" {
+  :EnqueueDirectBrightness(monitor, percent);
+  :Apply per-monitor norm curve;
+  :Clamp to [0,100] and min/max override;
+  if (same target pending or read-back verified?) then (yes)
+    :Skip proven/redundant enqueue;
+  else (no)
+    :Increment explicit target generation;
+    if (mode handoff?) then (yes)
+      :Zero-cooldown immediate throttler;
+    else (no)
+      :Normal latest-pending-wins throttler;
+    endif
+    :DoBrightnessWriteAsync(current target);
+    :WithDDCLockAsync per monitor DeviceID;
+    :DisplayService.TrySetVCPFeature;
+    if (write ok?) then (yes)
+      :Wait bounded initial commit dwell;
+      :VerifyAppliedAsync read-back;
+      if (read-back matches?) then (yes)
+        :Complete target generation;
+        :Stamp KnownDisplay.LastBusBrightness;
+      elseif (read succeeded but mismatched?) then (yes)
+        :Refresh handle once;
+        :Re-apply current target + quiet dwell + retry GET;
+      else (GET failed)
+        :ResetDDCTransport for only this monitor;
+        :Refresh handle once + quiet dwell + retry GET;
+        note right $TINT_GREEN
+          A failed GET does not justify another SET. Avoiding
+          read-failure reapply storms lets fragile HDMI reply
+          pipelines recover before the next confirmation read.
+        end note
+      endif
+    else (no)
+      :ResetDDCTransport for only this monitor;
+      :Retry through a fresh helper / demote if exhausted;
+    endif
+  endif
+
+  note right $TINT_AMBER
+    Writes are serialized per monitor, not globally.
+    Each monitor owns a helper process. Native FAIL, hang, timeout,
+    or IPC failure retires only that helper so the next attempt starts
+    with a fresh process-local dxva2 context. Production clamps the
+    operation timeout to at least 500 ms.
+    Acquisition Phase B still awaits reads sequentially in monitor
+    order, with retry waits off the dispatcher.
+  end note
+}
+
+partition "Topology event / recovery" {
+  :DisplayEventManager receives WM_DEVICECHANGE,\nDisplaySettingsChanged, resume, unlock;
+  :250 ms debounce;
+  :App.OnDisplayTopologyChanged;
+  :NotifyTopologyEvent();
+  :Refresh();
+  note right
+    A successful app-issued monitor power-on enters the same
+    NotifyTopologyEvent + Refresh path because some wakes reset
+    brightness without emitting a reliable Windows topology event.
+    A failed power-off also requests refresh so its pre-command
+    brightness invalidation does not discard user intent.
+  end note
+  :Latest enumeration runs off dispatcher;
+  :Async Phase B eventually completes;
+  :Invalidate pending/verified brightness generations;
+  :Replay explicit manual targets through fresh handles;
+  :MonitorsRefreshed event;
+  :EnvironmentalCurveService.Evaluate\nreplays current curve targets;
+  :For recovered/acquired rows, resolve final owner\nand force SET + matching read-back;
+  note right $TINT_GREEN
+    Replay happens after Phase B, never immediately after Refresh().
+    This preserves the post-detection settle and guarantees that
+    a percentage verified before the topology reset is not wrongly
+    deduplicated after hardware returns at another brightness.
+  end note
+
+  :MonitorService raises DDCRecoveryRequested(id)\nsynchronously on demotion;
+  :DDCRecoveryService signals one global fallback worker;
+  :Immediate first pass, then every 2 seconds\nuntil an authoritative candidate snapshot is empty;
+  note right
+    Candidate suppression follows only a power-off VCP accepted
+    in this application lifetime. Stale profile-restored
+    IsPoweredOn=false state cannot cancel direct recovery.
+  end note
+  :Run candidate TryRecoverMonitor(id) tasks in parallel;
+  :Fresh enumeration + retained identity match +\ntargeted read off dispatcher;
+  :PromoteRecovered;
+  :MonitorsRefreshed;
+  :ReplayRecoveredBrightnessIntent\nforces final owner target after subscribers;
+}
+
+partition "Audit findings / boundaries" {
+  :1. Partial topology curve startup;
+  note right $TINT_GREEN
+    Fixed: attach/detach no longer recaptures offsets for
+    surviving rows. A monitor that arrives later initializes only
+    its own Offset, so topology changes do not retarget existing
+    monitors' curve/manual baselines.
+  end note
+
+  :2. Physical brightness recovery curve gate;
+  note right $TINT_GREEN
+    Fixed: MonitorService now queries IsBrightnessCurveEnabledQuery.
+    Night-light curve state no longer gates brightness recovery,
+    brightness hardware sync, or brightness row promotion.
+  end note
+
+  :3. Night-light provider parity is intentional;
+  note right $TINT_GREEN
+    BrightnessFlyout.OnAppSettingsChanged copies provider strength
+    into NightLightMonitor.Brightness by design.
+    Windows can change night-light externally, so the app should
+    reflect the provider's current value and use that as the
+    visible baseline.
+  end note
+
+  :4. UI-thread DDC read retry;
+  note right $TINT_GREEN
+    Fixed for Refresh Phase B: retrying reads are wrapped in
+    TryReadBrightnessWithRetryAsync and stale generations abort
+    before row mutation. DDC fallback acquisition runs off-thread.
+  end note
+
+  :5. Write acknowledgement and dedupe;
+  note right $TINT_GREEN
+    Fixed: immediate handoffs and read-degraded rows no longer bypass
+    verification. Dedupe is pending-or-verified, not enqueue-time.
+    LastBusBrightness is stamped only after matching read-back.
+  end note
+
+  :6. Startup manual vs curve ownership;
+  note right $TINT_GREEN
+    Curve-on startup restores saved manual slider intent under
+    SuspendHardwareWrites, then curve evaluation writes hardware
+    directly. Curve evaluation intentionally does not update
+    Brightness, LastUserBrightness, Offset, or profile values.
+    MonitorService suppresses automatic slider replays while
+    the persisted brightness curve flag is on and the row has
+    not been explicitly released, disabled, or parked by the
+    disabled-period window.
+  end note
+
+  :7. Restart-only HDMI recovery;
+  note right $TINT_GREEN
+    Fixed: syntactically valid helper FAIL replies no longer leave
+    every retry in the same potentially poisoned process. Any native
+    read/write failure retires that monitor's helper; the next operation
+    launches a fresh helper without disturbing DisplayPort rows.
+  end note
+
+  :8. Recovery wake-up and target ownership;
+  note right $TINT_GREEN
+    Fixed: demotion directly raises DDCRecoveryRequested instead of
+    relying only on generic refresh fan-out. Successful recovery waits
+    for synchronous refresh subscribers to finalize ownership, then forces
+    the current manual or curve target through SET plus matching read-back.
+    The parallel acquisition event/subscriber path was removed entirely.
+  end note
+
+  :9. HDMI identity drift;
+  note right $TINT_GREEN
+    Fixed: failed rows retain immutable DeviceID, display-instance path,
+    EDID serial, and adapter name. Targeted recovery can match a
+    no-serial HDMI row even when Windows display numbering drifts.
+  end note
+
+  :10. Unbounded native-call setting;
+  note right $TINT_GREEN
+    Fixed: production never runs an unbounded dxva2 call in the tray
+    process. Non-positive settings clamp to the safe default and the UI
+    minimum is 500 ms; inline unbounded calls exist only in the killable
+    helper child.
+  end note
+
+  :11. Dormant monitor timing overrides;
+  note right $TINT_GREEN
+    Fixed: ValidationDwellMs controls verification settling and
+    BrightnessDwellMs controls the normal scheduler cooldown per row;
+    negative values inherit the global settings.
+  end note
+}
+
+stop
+@enduml

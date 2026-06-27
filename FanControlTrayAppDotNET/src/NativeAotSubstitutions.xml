@@ -1,0 +1,9 @@
+<linker>
+  <assembly fullname="Parlot">
+    <type fullname="Parlot.Fluent.Parser`1">
+      <method name="Compile" body="remove" />
+      <method name="Build" body="remove" />
+      <method name="BuildAsNonCompilableParser" body="remove" />
+    </type>
+  </assembly>
+</linker>

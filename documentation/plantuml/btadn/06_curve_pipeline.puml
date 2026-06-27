@@ -1,0 +1,254 @@
+@startuml curve_pipeline
+' Revised 2026-05-13: applied audit_23/Wave-1-fix amendments
+!include dark-theme.puml
+title Environmental-curve pipeline - sun/time inputs to per-monitor target to apply\nOwned by EnvironmentalCurveService; SliderState is the per-row gate
+
+participant "EnvironmentalCurveService\n._curveTimer (DispatcherTimer Background,\n interval = AppSettings.EnvironmentalCurveTickIntervalMs\n clamped to 250ms..60s)"  as TIM
+participant "EnvironmentalCurveService\n._curveEventThrottleTimer\n(trailing-edge, BrightnessUpdateRateMs)"  as THR
+participant "EnvironmentalCurveService\n.Evaluate / .ApplyAt(t)"                       as EC
+participant "ProfileManager\n(SelectedIndex,\n SelectedProfileChanged)"                 as PM
+participant "EnvironmentalCurve\n(stored on profile)"                                   as STORED
+participant "AppSettings\n(Latitude / Longitude /\n EnvironmentalOffsetMode /\n EnvironmentalCurveSmoothness)" as APP
+participant "SunShifter\n(src/Utils)"                                                   as SS
+participant "SPACalculator\n(src/SunriseSunset)"                                        as SPA
+participant "EnvironmentalCurveSampler\n(src/Utils)"                                    as ECS
+participant "SliderStateMachine\n(pure transition fns,\n in src/Models/MonitorInfo.cs)" as SSM
+participant "MonitorInfo\n(.SliderState,\n .CurveTargetBrightness,\n .Brightness, .Offset)" as MI
+participant "MonitorService\n.EnqueueDirectBrightness"                                  as MSE
+participant "NightLightProvider\n.SetStrength(persistAsLastUserValue: false)"           as NLP
+participant "BrightnessFlyout\n(toggle owner,\n preview-sweep driver)"                  as BFL
+participant "App / User"                                                                  as USER
+
+== Engagement flag write path (canonical 9-step sequence) ==
+note over BFL, APP
+  Sole writer: BrightnessFlyout setter for IsBrightnessCurveEnabled / IsNightLightCurveEnabled.
+  All steps run synchronously on the UI dispatcher.
+  Flyout constructor seeds backing fields DIRECTLY (line 321) - setters bypassed at startup.
+end note
+USER -> BFL : click curve toggle\n(per-row icon, footer, or absolute-mode slider mousedown un-toggle)
+BFL  -> BFL : step 1: equality check (skip if unchanged)
+BFL  -> BFL : step 2: capture wasOn
+BFL  -> BFL : step 3: _isBrightnessCurveEnabled = value (flyout mirror)
+BFL  -> EC  : step 4: _curveService.IsBrightnessCurveEnabled = value (auto-prop, no event)
+BFL  -> APP : step 5: AppSettings.EnvironmentalBrightnessCurveEnabled = value
+BFL  -> APP : step 6: AppSettings.Save (best-effort - swallows IO exceptions)
+BFL  -> BFL : step 7: OnPropertyChanged (XAML chrome refresh)
+BFL  -> EC  : step 8: OnCurveToggleStateChanged ->\n  Engage/Disengage + CaptureOffsetsFromMaster (engage-on only) + Start() + Evaluate()
+BFL  -> MSE : step 9 (if wasOn && !value): ResyncBrightnessHardwareToSliders
+
+== Inputs ==
+note over TIM, APP
+  Two driver paths into Evaluate():
+  - Periodic: _curveTimer.Tick fires Evaluate while a curve resolves.
+  - Event-driven: settings-window edits call BFL.RequestCurveReevaluation,
+    which calls service.RequestEvaluation; first call schedules
+    _curveEventThrottleTimer to fire Evaluate at +BrightnessUpdateRateMs;
+    further calls in-window fold into the pending fire.
+  Suspend()/Resume() pause both timers for the 24h preview sweep, which
+  drives ApplyAt(t) directly with a simulated day-fraction.
+end note
+
+TIM -> EC : Tick
+THR -> EC : trailing-edge fire (settings edit)
+BFL -> EC : ApplyAt(t)\n(preview sweep, 50ms cadence)
+
+== Resolve current curve ==
+EC -> PM     : SelectedIndex
+EC -> STORED : profile.EnvironmentalCurve\n(ResolveStoredCurve)
+EC -> EC     : ResolveLiveCurve\n(check FollowTheSun &&\n cached source/date/lat/lon/DST\n against AppSettings)
+
+alt FollowTheSun off OR (lat == 0 AND lon == 0) OR\n stored.BrightnessAnchor.Date == default
+  EC -> EC : return stored as live\n(no shift)
+else cache miss (key axis differs)
+  EC -> SS  : BuildPreview(stored, fromAnchor, toAnchor)
+  SS -> SPA : GetSunTimes(lat, lon, refDateTimeOffset)\nx2 (from-date, to-date)
+  SPA --> SS : SunTimes\n(twilights, sunrise, solar noon, sunset)
+  SS -> SS  : BuildAnchorArray (11 entries)\n[0, astroDawn, nautDawn, civilDawn,\n sunrise, solarNoon, sunset,\n civilDusk, nautDusk, astroDusk, 1]\nMissing twilights synthesized at +/-1s
+  SS -> SS  : ShiftPoints (per-list, segment-relative remap)\nfor Brightness, NightLight,\nBrightnessOffset, NightLightOffset
+  SS --> EC : sun-shifted EnvironmentalCurve\nstored in _cachedShiftedCurve\n+ (Date, Lat, Lon, DST, sourceRef) cache key
+else cache hit
+  EC -> EC : reuse _cachedShiftedCurve
+end
+
+note right of EC
+  Cache key: (sourceCurveRef, **Version**, Date, Lat, Lon, DST).
+  EnvironmentalCurve.Version int bumps on every mutation (H-28 fix);
+  a future mutation path that bypasses NotifyRuntimeCurveChanged
+  would no longer silently keep the pre-edit shape until midnight.
+  Invalidation triggers today:
+   - ProfileManager.SelectedProfileChanged -> InvalidateCurveCache
+     (now fires immediate Evaluate - M-03 fix).
+   - RequestEvaluation nukes _cachedShifted* unconditionally.
+   - SystemEvents.TimeChanged subscription invalidates the cache
+     on clock / DST jumps (M-01 fix).
+end note
+
+== Time + disabled-period read ==
+EC -> ECS : t = CurrentDayFraction()\n(local TimeOfDay / 24, [0,1))
+EC -> ECS : inDisabled = IsInDisabledPeriod(stored, t)
+note right of ECS
+  Disabled-period uses STORED curve, not live.
+  SunShifter.ClonePoints does not carry
+  DisabledPeriod* fields, and the period
+  has its own (independent) SunAnchor.
+  Wrap-midnight handled inside the sampler.
+end note
+EC -> BFL : onDisabledPeriodChanged(inDisabled)\n(updates IsInCurveDisabledPeriod)
+
+== Per-tick state harmonization (HarmonizeRow) ==
+loop foreach m in _monitors
+  alt brightness curve engaged
+    EC -> SSM : HarmonizeRow(m, inDisabledPeriod, curveEngaged=true)
+    note right
+      switch m.SliderState:
+        Enabled        -> CurveActive (curveEngaged) or CurveSleeping (inDisabled)
+        CurveActive    -> CurveSleeping if inDisabled
+        CurveSleeping  -> CurveActive if !inDisabled
+        CurveReleased  -> CurveReleased (PRESERVED at default arm)
+        Disabled       -> unchanged
+        Failed         -> unchanged (HarmonizeRow gates on IsHardwareFunctional /\n                     IsHardwareFailed - H-27)
+    end note
+  end
+end
+alt night-light curve engaged
+  EC -> SSM : HarmonizeRow on _nightLightMonitor
+end
+SSM -> MI : SliderState writes\n(CurveReleased / Disabled / Failed untouched)
+MI --> BFL : PropertyChanged (one event for SliderState\nplus IsCurveDriven, IsCurveSleeping,\n IsHardwareFunctional, etc.)
+
+== Sleep-enter one-shot resync ==
+alt sleepEntering (false -> true since last tick)
+  loop foreach MonitorInfo m in _monitors
+    alt m.SliderState == CurveSleeping
+      EC -> MSE : EnqueueDirectBrightness(m, m.RoundedBrightness)
+    end
+  end
+  alt night-light row sleeping AND NightLightProvider.IsSupported
+    EC -> NLP : SetStrength(\n  flipIfNightLightInverted(roundedBrightness),\n  persistAsLastUserValue: false)
+  end
+  note right of EC
+    Curve relinquishes hardware to the user's
+    slider. Without this push, the bus stays
+    frozen at the last curve write through
+    the sleep window.
+  end note
+end
+
+== Brightness curve apply (if IsBrightnessCurveEnabled) ==
+note over EC: smoothness = AppSettings.EnvironmentalCurveSmoothness/100\nabsolute = !AppSettings.EnvironmentalOffsetMode
+
+alt absolute mode
+  EC -> ECS : Sample(curve.Brightness, t, smoothness)\n(monotonic-cubic Hermite blended with linear)
+  EC -> MI  : master.CurveTargetBrightness = sample\n(clamped 0..100; gated on master.IsCurveDriven - H-29)
+  loop foreach m in _monitors
+    alt m.IsCurveDriven (Active or Sleeping)
+      EC -> MI  : m.CurveTargetBrightness = sample + m.Offset
+    end
+    alt m.SliderState == CurveActive AND !m.IsDragging
+      EC -> MSE : EnqueueDirectBrightness(m, round(sample + m.Offset))
+    end
+  end
+else offset mode
+  EC -> ECS : Sample(curve.BrightnessOffset, t, smoothness)
+  EC -> EC  : offsetPercent = (sample - 50) * 2  (-> [-100,+100])
+  EC -> MI  : master.CurveTargetBrightness = master.LastUserBrightness + offsetPercent
+  loop foreach m in _monitors
+    alt m.IsCurveDriven
+      EC -> MI  : m.CurveTargetBrightness = m.LastUserBrightness + offsetPercent
+    end
+    alt m.SliderState == CurveActive AND !m.IsDragging
+      EC -> MSE : EnqueueDirectBrightness(m, round(m.LastUserBrightness + offsetPercent))
+    end
+  end
+end
+
+alt brightness curve disengaged
+  EC -> SSM : DisengageBrightnessCurveStates\n(Curve* -> Enabled; Disabled / Failed stick)
+end
+
+== Night-light curve apply (if IsNightLightCurveEnabled and supported) ==
+alt NightLightProvider.IsSupported()
+  alt absolute mode
+    EC -> ECS : Sample(curve.NightLight, t, smoothness)
+    EC -> EC  : strength = clamp(round(sample), 0..100)\nsliderPos = flipIfNightLightInverted(strength)
+    alt nightLight row IsCurveDriven
+      EC -> MI : nightLight.CurveTargetBrightness = sliderPos
+    end
+    alt nightLight.SliderState == CurveActive
+      EC -> NLP : SetStrength(strength, persistAsLastUserValue: false)
+    end
+  else offset mode
+    EC -> ECS : Sample(curve.NightLightOffset, t, smoothness)
+    EC -> EC  : strengthOffsetPercent = (sample - 50) * 2  (-> [-100,+100])\ncurStrength = flipIfNightLightInverted(rounded)\ntargetStrength = clamp(curStrength + offsetPct)
+    alt nightLight row IsCurveDriven
+      EC -> MI : nightLight.CurveTargetBrightness =\n  flipIfNightLightInverted(targetStrength)
+    end
+    alt nightLight.SliderState == CurveActive
+      EC -> NLP : SetStrength(targetStrength,\n  persistAsLastUserValue: false)
+    end
+  end
+else backend unavailable
+  EC -> SSM : DisengageNightLightCurveStates
+end
+
+== Out-of-band SliderState transitions (not in Evaluate) ==
+BFL -> SSM : OnUserToggleOff / OnUserToggleOn\n(group-membership icon click)
+BFL -> SSM : OnUserRelease (drag a curve-driven individual)\nOnUserReengage (double-click released individual)
+BFL -> EC  : EngageBrightnessCurveStates /\nEngageNightLightCurveStates /\nDisengage* (OnCurveToggleStateChanged)
+EC  -> SSM : OnCurveEngaged / OnCurveDisengaged per row
+MSE -> SSM : OnHardwareFailed / OnHardwareRecovered\n(MonitorService write/verify path)
+BFL -> EC  : Suspend / Resume / ApplyAt(t)\n(preview sweep)
+
+note over TIM
+  Service lives independent of the flyout window.
+  Curves drive monitors and night-light even
+  when the flyout is hidden. BrightnessFlyout
+  observes MonitorInfo.PropertyChanged for
+  Brightness / SliderState / CurveTargetBrightness.
+end note
+
+note over MI
+  SliderState is the single source of truth
+  for what each row is doing right now.
+  Setter coalesces PropertyChanged so a single
+  state change emits one event for SliderState
+  plus one for each derived computed bool
+  (IsHardwareFunctional, IsCurveDriven,
+   IsCurveSleeping, etc.).
+end note
+
+note over NLP
+  Slider-release SetStrength still calls in
+  parallel with curve-driven SetStrength.
+  Curve writes pass persistAsLastUserValue: false
+  so curve samples never overwrite the user's
+  remembered "last warmth" for restore-on-toggle.
+end note
+
+== Disabled-period master propagation (FIXED - H-04) ==
+USER -> BFL : drag MasterMonitor slider during _isInCurveDisabledPeriod == true
+BFL  -> MSE : SuspendHardwareWrites() {
+BFL  -> MI  :   ApplyMasterToEnabledMonitors writes each individual's Brightness
+MI   -> MSE :   OnMonitorPropertyChanged subscribers - _hardwareWritesSuspendCount > 0,\n  short-circuit before OnUserRelease
+BFL  -> MSE :   EnqueueDirectBrightness(m, target) DIRECTLY per individual
+BFL  -> MSE : } ResumeHardwareWrites()
+note right of MSE
+  Wave-1 fix: disabled-period master propagation is wrapped in
+  SuspendHardwareWrites; OnMonitorPropertyChanged sees suspendCount > 0
+  and skips the OnUserRelease(CS) -> CR transition. Direct
+  EnqueueDirectBrightness pushes the user's master value to the bus
+  while individuals STAY in CurveSleeping. When the disabled period
+  ends, HarmonizeRow promotes them back to CurveActive cleanly.
+end note
+
+note right of TIM
+  Start() arming sites:
+   - BrightnessFlyout ctor end (UNCONDITIONAL - M-02 fix:\n     timer arms even with both curve flags persisted OFF)
+   - OnCurveToggleStateChanged (per toggle)
+   - OnAppSettingsChanged (per settings save)
+  With M-02 closed, _isInDisabledPeriod is computed live on every
+  tick regardless of curve-flag state. Disabled-period flags do not
+  go stale through the lifetime of a session.
+end note
+
+@enduml

@@ -1,0 +1,246 @@
+TRAYAPPDOTNET THIRD-PARTY NOTICES
+
+TrayAppDotNET project-authored material is Copyright (C) 2026 alchemyyy and is
+licensed under the GNU General Public License, version 3 or, at your option,
+any later version. Third-party material is not relicensed. It remains subject
+to the terms identified below and in .notices.
+
+RUNTIME AND NUGET COMPONENTS
+============================
+
+.NET runtime and Native AOT toolchain, 10.0.9
+  Copyright (c) .NET Foundation and Contributors.
+  License: MIT, plus bundled third-party terms.
+  Source: https://github.com/dotnet/dotnet/tree/901ca941248413c79832d2fdbd709da0c4386353
+  Notices:
+    .notices/dotnet-runtime-MIT.txt
+    .notices/dotnet-runtime-THIRD-PARTY-NOTICES.txt
+
+Avalonia packages, 12.1.1
+  Copyright 2013-2026 The AvaloniaUI Project.
+  License: MIT, plus bundled third-party terms.
+  Source: https://github.com/AvaloniaUI/Avalonia/tree/e33eaed9c106846b200680751022385d9cc5dc6f
+  Notices:
+    .notices/Avalonia-MIT.txt
+    .notices/Avalonia-NOTICE.txt
+
+Avalonia ANGLE Windows native assets, 2.1.27548.20260419
+  Copyright 2018 The ANGLE Project Authors.
+  License: BSD-3-Clause.
+  Source: https://github.com/AvaloniaUI/angle/tree/1c89805903c1482166356d3b950d474973180e61
+  Notice: .notices/Avalonia-ANGLE-BSD-3-Clause.txt
+
+SkiaSharp and SkiaSharp.NativeAssets.Win32, 3.119.4
+  Copyright (c) 2015-2016 Xamarin, Inc.
+  Copyright (c) 2017-2018 Microsoft Corporation.
+  License: MIT, plus bundled third-party terms.
+  Source: https://github.com/mono/SkiaSharp/tree/f568ac94dd768ef9a2f593537cfde2dd0d348ef5
+  Notices:
+    .notices/SkiaSharp-MIT.txt
+    .notices/SkiaSharp-THIRD-PARTY-NOTICES.txt
+
+HarfBuzzSharp and HarfBuzzSharp.NativeAssets.Win32, 8.3.1.3
+  Copyright (c) 2015-2016 Xamarin, Inc.
+  Copyright (c) 2017-2018 Microsoft Corporation.
+  License: MIT, plus bundled third-party terms.
+  Source: https://github.com/mono/SkiaSharp/tree/2888c737ad016d584c74525e2d35db5097ea8576
+  Notices:
+    .notices/SkiaSharp-MIT.txt
+    .notices/SkiaSharp-THIRD-PARTY-NOTICES.txt
+
+MicroCom.Runtime, 0.11.6
+  Copyright (c) 2021 Nikita Tsukanov.
+  License: MIT.
+  Source: https://github.com/kekekeks/MicroCom/tree/76785efcafd91b5902fd19dd11145f6dd655b7b4
+  Notice: .notices/MicroCom-MIT.txt
+
+Tmds.DBus.Protocol, 0.94.1
+  Copyright (c) Tom Deseyn.
+  License: MIT.
+  Source: https://github.com/tmds/Tmds.DBus/tree/b4a7fed0b878f74cb54f7cca84d2889af4e596ba
+  Notice: .notices/Tmds.DBus-MIT.txt
+
+Microsoft.Diagnostics.Tracing.TraceEvent, 3.1.16
+  Copyright (c) Microsoft Corporation.
+  License: MIT.
+  Source: https://github.com/microsoft/perfview/tree/53b9a9da15f57af15ce7d53f53a06daf4f80cef2
+  Notice: .notices/TraceEvent-MIT.txt
+
+Microsoft.Diagnostics.NETCore.Client, 0.2.510501
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/diagnostics/tree/8c08c89a0643d31db91e119b1adb463be3e0ffe5
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+Microsoft.Extensions and System.Windows.Extensions packages, 10.0.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/dotnet/tree/b0f34d51fccc69fd334253924abd8d6853fad7aa
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+Microsoft.Extensions packages, 6.0.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/runtime/tree/4822e3c3aa77eb82b2fb33c9321f923cf11ddde6
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+System.IO.FileSystem.AccessControl, 5.0.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/runtime/tree/cf258a14b70ad9069470a108f13765e0e5988f51
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+System.Reflection.TypeExtensions, 4.7.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/corefx/tree/0f7f38c4fd323b26da10cce95f857f77f0f09b48
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+Other System.* and Microsoft.Win32 NuGet packages, 10.0.9
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/dotnet/tree/901ca941248413c79832d2fdbd709da0c4386353
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+
+FAN CONTROL COMPONENTS
+======================
+
+LibreHardwareMonitor, pinned commit 30770e0371bb359d1432cfa2447ef3082871af8f
+  License: MPL-2.0.
+  Source: FanControlTrayAppDotNET/vendor/LibreHardwareMonitor
+  Notice: .notices/MPL-2.0.txt
+
+DiskInfoToolkit, pinned commit 66aa99f2750c843fd11280398c2cf1ff4a41ef09
+  Copyright (c) Florian K.
+  License: MPL-2.0.
+  Source: FanControlTrayAppDotNET/vendor/DiskInfoToolkit
+  Notice: .notices/MPL-2.0.txt
+
+BlackSharp.Core, 1.1.0
+  Copyright (c) Florian K.
+  License: MPL-2.0.
+  Source: https://github.com/Blacktempel/BlackSharp/tree/35f908a3d5cefaf8d4557709273d25e166593109
+  Notice: .notices/MPL-2.0.txt
+
+HIDSharp, pinned commit abab3fcca7657a4b4f56a505d99b93ebc1179e68
+  Copyright 2010-2019 James F. Bellinger.
+  License: Apache-2.0.
+  Source: FanControlTrayAppDotNET/vendor/HIDSharp
+  Notices:
+    .notices/HIDSharp-Apache-2.0.txt
+    .notices/HIDSharp-NOTICE.txt
+
+NCalc, pinned commit ddaaf5ba0fa2c8b06dd6fdcbb3cddc502432465b
+  Copyright (c) 2011 Sebastien Ros and contributors.
+  Copyright (c) 2025 Eugene Mayevski (Allied Bits).
+  License: MIT.
+  Source: FanControlTrayAppDotNET/vendor/NCalc
+  Notice: .notices/NCalc-MIT.txt
+
+AlliedBits.Parlot, 1.5.7
+  Copyright (c) 2020 Sebastien Ros.
+  License: BSD-3-Clause.
+  Source: https://github.com/Allied-Bits-Ltd/parlot/tree/2e9a962fe1d49992008c1cc93669975bcc02e241
+  Notice: .notices/Parlot-BSD-3-Clause.txt
+
+ExtendedNumerics.BigDecimal, 3003.2.0.161
+  Copyright (c) 2024 Adam White.
+  License: MIT.
+  Source: https://github.com/AdamWhiteHat/BigDecimal/tree/d9d2bd4dfc67fd297310a05a085087bb6e98cde8
+  Notice: .notices/BigDecimal-MIT.txt
+
+Mono.Posix.NETStandard, 1.0.0
+  Copyright (c) Mono contributors.
+  License: primarily MIT and BSD for the redistributed runtime and class
+  library portions; see the complete upstream license inventory.
+  Source: https://github.com/mono/mono/tree/b9fb4d885725514cacb8b7732cac6f8b3fa83645/mcs/class/Mono.Posix
+  Notice: .notices/Mono-LICENSE.txt
+
+Aga.Controls
+  Copyright (c) 2009 Andrey Gliznetsov.
+  License: BSD.
+  Source: included in the LibreHardwareMonitor submodule.
+  Notice: .notices/Aga.Controls-BSD.txt
+
+PawnIO modules included by LibreHardwareMonitor
+  License: LGPL-2.1-or-later.
+  Source: https://github.com/namazso/PawnIO.Modules/tree/0.1.6
+  Notice: .notices/PawnIO-Modules-LGPL-2.1.txt
+
+PawnIO Setup is not distributed by TrayAppDotNET. When PawnIO is absent, the
+Fan Control app downloads the official 2.1.0 installer from its publisher and
+accepts it only if its SHA-256 digest is
+a3a46226c5e2824f4cdd42be0eecbabfc672c86f7889710f5ab1e6ad385b47a0.
+The PawnIO driver is GPL-2.0-or-later with an exception for independent
+programs communicating only through the device IO control interface.
+  Installer: https://github.com/namazso/PawnIO.Setup/releases/tag/2.1.0
+  Driver source: https://github.com/namazso/PawnIO/tree/2.1.0
+
+
+ASSETS
+======
+
+Fluent UI System Icons and generated TrayAppDotNET application icons
+  Copyright (c) 2020 Microsoft Corporation and identified contributors.
+  License: MIT.
+  Modifications: source fill colors are normalized to white; Task Manager
+  combines the desktop-tower and pulse icons; raster ICO sizes are generated
+  from the SVG sources.
+  Source files: tools/AppIconGenerator/SVG
+  Notices:
+    .notices/Fluent-UI-System-Icons-MIT.txt
+    .notices/Fluent-UI-System-Icons-NOTICE.txt
+
+World SVG map
+  Copyright (c) Fla-shop.com.
+  License: CC-BY-4.0.
+  Creator and source: https://www.fla-shop.com
+  License: https://creativecommons.org/licenses/by/4.0/
+  Repository file:
+    BrightnessTrayAppDotNET/src/Visuals/map_fla-shop.com_ccby4.0.svg
+  No modifications to the map artwork are asserted by this repository.
+
+Custom fan artwork and font
+  Copyright (C) 2026 alchemyyy.
+  License: GPL-3.0-or-later.
+  Files: FanControlTrayAppDotNET/font/*.svg,
+    FanControlTrayAppDotNET/src/Visuals/FanFont.ttf, and
+    FanControlTrayAppDotNET/src/Visuals/FAN_GLYPH.png
+  FontForge was used to create the fan font. See:
+    FanControlTrayAppDotNET/font/README.md
+
+
+REPOSITORY TOOLS AND BUILD-ONLY COMPONENTS
+==========================================
+
+PlantUML MIT distribution, 1.2026.2
+  Copyright (c) 2009-2026 Arnaud Roques.
+  License: MIT.
+  Source: https://github.com/plantuml/plantuml/tree/v1.2026.2
+  Notice: .notices/PlantUML-MIT.txt
+  The two checked-in JAR copies have the official release SHA-256 digest:
+    397fe169dd408b0f039e8b7be2a12c2d52d35a3399802921b8c84f29cf39e45a
+  PlantUML-generated diagrams are owned and licensed according to their PUML
+  source, not by PlantUML.
+
+mdBook documentation generator, 0.5.2
+  License: MPL-2.0.
+  Source: https://github.com/rust-lang/mdBook/tree/v0.5.2
+  Notice: .notices/MPL-2.0.txt
+  `documentation/download_mdbook.bat` downloads the publisher's Windows x64
+  release archive and verifies its published SHA-256 digest:
+    e78fa1159bfc381d03f9c6659c48c883706497dc63c9153007a8a4c8df8da166
+  The downloaded executable is not tracked or included in release archives.
+
+HotAvalonia, 3.1.1, and Fody, 6.9.2
+  These MIT-licensed packages are Debug/build-time dependencies and are not
+  included in Release Native AOT output.
+  Notices:
+    .notices/HotAvalonia-MIT.txt
+    .notices/Fody-MIT.txt
+
+Roslyn, xUnit, Microsoft test packages, Cloudflare development packages, and
+the remaining package-lock dependencies are build, test, or deployment tools.
+They are not copied into TrayAppDotNET release archives. Their package
+manifests retain their upstream license metadata.

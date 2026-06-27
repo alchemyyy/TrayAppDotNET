@@ -1,0 +1,84 @@
+@startuml ddc_recovery_state
+!include dark-theme.puml
+title DDC recovery state machine\nFresh helper escalation, durable identity, no healthy-row sweep
+
+state Healthy : SliderState != Failed\n!IsReadDegraded\nbrightness target completes only after matching read-back
+state Failed : SliderState == Failed\nLastDDCError set\nentry target invalidated\nnormal + immediate queues dropped\nimmutable recovery identity retained
+state ReadDegraded : SliderState != Failed\nIsReadDegraded == true\nslider operable\nevery user write still attempts read-back
+
+[*] --> Healthy
+
+Healthy --> Healthy : native read/write FAIL\nResetDDCTransport retires only this helper\nretry with a fresh process context
+Healthy --> Failed : current write retries exhausted\nOR current verification exhausted\nOR Refresh re-probe exhausted\nOR known-DDC monitor disappears
+
+Failed --> Failed : DDCRecoveryRequested(id)\nworker performs immediate targeted pass
+Failed --> Failed : targeted read fails\noptional last-verified write probe also fails
+Failed --> ReadDegraded : targeted read fails\nverified projected bus value exists\nwrite transport accepted\npost-write read still fails
+Failed --> Healthy : targeted or post-write read succeeds\nPromoteRecovered + restore projections\npublish MonitorsRefreshed\nforce final owner target through SET + read-back
+
+ReadDegraded --> ReadDegraded : targeted read still fails\nupdate LastDDCError only\nno periodic write probe
+ReadDegraded --> Healthy : targeted read succeeds\nPromoteRecovered clears IsReadDegraded\npublish MonitorsRefreshed\nforce final owner target through SET + read-back
+ReadDegraded --> Failed : active SET retries exhaust\nwrite transport is no longer usable
+
+note bottom of Failed
+  MonitorService raises DDCRecoveryRequested synchronously on demotion.
+  MonitorsRefreshed also rechecks candidate state. The first worker
+  pass is immediate; later passes wait 2 seconds while candidates remain.
+
+  Candidate snapshot failure is not authoritative emptiness: the global
+  recovery-needed flag remains set and the next delayed pass retries.
+  Only a successful empty snapshot clears the flag and stops the worker.
+
+  Profile-restored IsPoweredOn is not a recovery gate. Only a power-off
+  VCP accepted in this application lifetime suppresses candidate probing.
+
+  Promotion preserves pre-failure Disabled and CurveReleased ownership;
+  remaining rows resolve against the current curve/disabled-period flags.
+
+  MonitorsRefreshed subscribers reconcile ownership synchronously before
+  recovery replay resolves CurveActive / CurveSleeping / CurveReleased.
+  The recovery GET proves readability only. Even a matching reply receives
+  one forced SET plus the normal matching read-back verification.
+
+  A readable promotion clears stale runtime power-off suppression after an
+  external wake. Background curve writes cannot clear an active gate; a
+  direct brightness assignment is explicit newer intent and can clear it.
+end note
+
+note bottom of ReadDegraded
+  ReadDegraded is an explicit compatibility compromise for panels
+  whose DDC write transport is accepted while replies are broken.
+  Transport acceptance is never persisted as applied. Read recovery
+  or a normal target's matching read-back is required for proof.
+end note
+
+note as N_HELPER
+  Fresh-process escalation:
+  - Failed brightness GET/SET, transport-probe SET, and power SET reset transport
+  - The stable-identity helper is removed and disposed
+  - The next attempt launches a new helper and dxva2 process context
+  - Helper-side identity resolution uses lightweight Win32 + EDID only
+  - A positive operation timeout is mandatory in the tray process
+end note
+
+note as N_ISOLATION
+  Recovery isolation and responsiveness:
+  - Candidate monitors run in parallel; each monitor remains serialized
+  - Healthy rows receive no collateral recovery reads
+  - Failed rows keep DeviceID / instance / serial / adapter identity
+  - Native hangs/timeouts kill only the affected helper process
+  - Recovery has no terminal attempt count while a candidate remains
+  - Promotion adds one verified replay, never a periodic SET loop
+end note
+
+note as N_REMAINING
+  Remaining boundaries:
+  - Each candidate still performs its own complete parent enumeration
+  - Runtime power-off intent suppresses probing; stale IsPoweredOn does not
+  - ReadDegraded cannot prove application until replies recover
+  - Native failure categories remain flattened into error strings
+  - Endless recovery is limited to previously successful DDC rows
+  - Per-op timeout is bounded; whole-sequence deadline is not
+end note
+
+@enduml

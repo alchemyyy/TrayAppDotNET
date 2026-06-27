@@ -1,0 +1,159 @@
+@startuml 01_flyout_keep_open_control_flow
+!include dark-theme.puml
+title Shared flyout keep-open control flow\nSettingsFlyoutKeepOpenCoordinator + FlyoutWindowCommon
+
+participant "App-specific App\n(Brightness / Volume / Fan)" as APP
+participant "SettingsWindowCommon\nor app settings window" as SET
+participant "SettingsFlyoutKeepOpenCoordinator\n(common)" as COORD
+participant "FlyoutWindowCommon\n(common base)" as FLY
+participant "Owned settings child\n(ColorPickerWindow, etc.)" as CHILD
+participant "Avalonia dispatcher\n(event queue)" as DISP
+
+note over COORD $TINT_BLUE
+  Invariant
+  ----
+  Keep the tray flyout open while any window in the
+  settings focus group is active:
+
+    settings window
+    OR settings-owned child window
+    OR the flyout itself
+
+  If the settings window is closed or minimized,
+  release the hold immediately.
+end note
+
+== Opening settings from the flyout or tray ==
+
+alt settings button pointer press inside flyout
+  APP -> FLY : SuppressNextAutoHideWhenPressed(settingsButton)
+  note right of FLY
+    The guard is armed before click/release handlers run.
+    The next auto-hide attempt from the flyout base or
+    coordinator is ignored, then the guard clears.
+  end note
+end
+
+APP -> COORD : Attach(settingsWindow)
+COORD -> SET : subscribe Activated / Deactivated\nWindowState PropertyChanged / Closed
+COORD -> COORD : sync settingsWindow.OwnedWindows
+note right of COORD
+  First attach does not call Release().
+  Replacing an existing attached settings window still
+  detaches the old focus group before attaching the new one.
+end note
+
+APP -> COORD : HoldOpen()
+alt flyout is not visible
+  COORD -> APP : showFlyoutWithoutActivation()
+  APP -> FLY : ShowAt(..., activate: false)
+end
+COORD -> FLY : subscribe Deactivated / Closed
+COORD -> FLY : KeepOpenForSettingsWindow = true
+APP -> SET : Show(); Activate()
+
+SET -> COORD : Activated
+COORD -> COORD : HoldOpen()
+COORD -> FLY : ClearNextAutoHideSuppression()
+
+== Focus moves between settings and flyout ==
+
+SET -> COORD : Deactivated
+COORD -> DISP : queue focus-group evaluation\n(DispatcherPriority.Input)
+FLY -> COORD : Activated
+DISP -> COORD : EvaluateFocusGroup()
+
+alt flyout is active
+  COORD -> FLY : KeepOpenForSettingsWindow = true
+else no group window is active
+  COORD -> FLY : KeepOpenForSettingsWindow = false
+  COORD -> FLY : HideFromCoordinator()
+end
+
+== Color swatch opens an owned picker ==
+
+SET -> CHILD : picker.Show(owner: settingsWindow)
+SET -> COORD : Deactivated
+COORD -> COORD : sync settingsWindow.OwnedWindows
+COORD -> CHILD : subscribe Activated / Deactivated\nWindowState PropertyChanged / Closed
+COORD -> DISP : queue focus-group evaluation
+CHILD -> COORD : Activated
+COORD -> COORD : HoldOpen()
+DISP -> COORD : EvaluateFocusGroup()
+
+alt owned child is active
+  COORD -> FLY : KeepOpenForSettingsWindow = true
+  note right of FLY $TINT_GREEN
+    The flyout stays visible while the color picker
+    owns focus because the picker is part of the
+    settings focus group.
+  end note
+else child is closed or focus left the app
+  COORD -> COORD : continue with normal inactive-group path
+end
+
+== Focus leaves the whole settings group ==
+
+FLY -> COORD : Deactivated
+COORD -> DISP : queue focus-group evaluation
+DISP -> COORD : EvaluateFocusGroup()
+
+COORD -> COORD : check settings is attached,\nvisible, and not minimized
+COORD -> COORD : sync owned children
+
+alt settings OR owned child OR flyout is active
+  COORD -> FLY : KeepOpenForSettingsWindow = true
+else group is inactive
+  alt flyout.CanHideFromCoordinator
+    COORD -> FLY : KeepOpenForSettingsWindow = false
+    COORD -> FLY : HideFromCoordinator()
+    alt next auto-hide suppression is set
+      FLY -> FLY : clear suppression\nand stay visible
+    end
+  else undocked flyout or flyout child window is open
+    COORD -> FLY : KeepOpenForSettingsWindow = false
+    note right of FLY
+      FlyoutWindowCommon keeps authority over cases
+      it marks as non-hideable:
+        - undocked flyouts
+        - flyout-owned child UI such as menus
+    end note
+  end
+end
+
+== Settings is minimized or closed ==
+
+alt settings WindowState changes to Minimized
+  SET -> COORD : PropertyChanged(WindowState)
+  COORD -> COORD : Release()
+else settings is closed
+  SET -> COORD : Closed
+  COORD -> COORD : Release()
+  COORD -> SET : unsubscribe settings events
+end
+
+COORD -> FLY : KeepOpenForSettingsWindow = false
+alt flyout.CanHideFromCoordinator
+  COORD -> FLY : HideFromCoordinator()
+end
+COORD -> FLY : unsubscribe flyout events
+COORD -> CHILD : unsubscribe owned child events
+
+== Flyout base behavior ==
+
+FLY -> FLY : Deactivated
+alt IsWarmPriming
+  FLY -> FLY : ignore
+else !ShouldAutoHideWhenDeactivated
+  FLY -> FLY : ignore\n(undocked)
+else HasOpenChildWindow
+  FLY -> FLY : ignore until child closes
+else KeepOpenForSettingsWindow
+  FLY -> FLY : ignore\n(settings group owns hold)
+else next auto-hide suppression is set
+  FLY -> FLY : clear suppression\nand ignore this auto-hide
+else normal auto-hide
+  FLY -> FLY : HideFlyout()
+end
+
+@enduml

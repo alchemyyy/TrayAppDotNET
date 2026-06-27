@@ -1,0 +1,14 @@
+root = true
+
+[*.cs]
+# Preserve intentional multiline initializers during ReSharper formatting
+resharper_csharp_keep_existing_initializer_arrangement = true
+resharper_csharp_place_simple_initializer_on_single_line = false
+
+# Keep literals self-documenting in multi-argument calls and constructors
+resharper_csharp_arguments_skip_single = true
+resharper_csharp_arguments_literal = named
+resharper_csharp_arguments_string_literal = named
+
+# Keep attributes on a separate line from their declarations
+resharper_csharp_place_attribute_on_same_line = never
