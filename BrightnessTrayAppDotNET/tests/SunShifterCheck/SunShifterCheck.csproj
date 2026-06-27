@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Match the main project's TFM exactly so referencing it doesn't trigger
+         downlevel-compatibility shims. The main project is WPF/WinExe; this app
+         only consumes its non-UI types (Models, Services). -->
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RootNamespace>BrightnessTrayAppDotNET.Tests</RootNamespace>
+    <AssemblyName>SunShifterCheck</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Skip the repo-root Directory.Build.props BuildInfo codegen. The main project
+         already emits its own BuildInfo class; a duplicate from this project would
+         mostly waste a build-counter increment on Release. -->
+    <EmitBuildInfo>false</EmitBuildInfo>
+
+    <!-- Suppress the "WindowsBase" version-conflict warning that surfaces because the
+         main project ships a WPF reference assembly while the SDK provides a runtime
+         one. The chosen primary reference is correct; the warning is noise. -->
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
+                      AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;Platform=x64" />
+  </ItemGroup>
+</Project>

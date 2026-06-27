@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <CopyRetryCount Condition="'$(CopyRetryCount)' == ''">20</CopyRetryCount>
+    <CopyRetryDelayMilliseconds Condition="'$(CopyRetryDelayMilliseconds)' == ''">250</CopyRetryDelayMilliseconds>
+    <OverwriteReadOnlyFiles Condition="'$(OverwriteReadOnlyFiles)' == ''">true</OverwriteReadOnlyFiles>
+    <ErrorOnDuplicatePublishOutputFiles Condition="'$(ErrorOnDuplicatePublishOutputFiles)' == ''">false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TrayAppDotNETUseRootOutput)' == 'true'">
+    <TrayAppDotNETOutputRoot Condition="'$(TrayAppDotNETOutputRoot)' == ''">$(TrayAppDotNETRoot)bin\</TrayAppDotNETOutputRoot>
+    <OutDir>$(TrayAppDotNETOutputRoot)$(Configuration)\</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+    <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+    <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TrayAppDotNETDefaultGCHeapHardLimitBytes>104857600</TrayAppDotNETDefaultGCHeapHardLimitBytes>
+    <TrayAppDotNETDefaultGCHeapHardLimitBytes Condition="'$(MSBuildProjectName)' == 'FanControlTrayAppDotNET'">157286400</TrayAppDotNETDefaultGCHeapHardLimitBytes>
+    <TrayAppDotNETGCHeapHardLimitBytes Condition="'$(TrayAppDotNETGCHeapHardLimitBytes)' == ''">$(TrayAppDotNETDefaultGCHeapHardLimitBytes)</TrayAppDotNETGCHeapHardLimitBytes>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(OutputType)' == 'WinExe'">
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="$(TrayAppDotNETGCHeapHardLimitBytes)" />
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
+</Project>

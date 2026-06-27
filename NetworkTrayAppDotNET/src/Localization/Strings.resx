@@ -1,0 +1,629 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ColorPicker_ArgbHexLabel" xml:space="preserve">
+    <value>argb hex:</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_Alpha" xml:space="preserve">
+    <value>alpha</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_B" xml:space="preserve">
+    <value>b</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_G" xml:space="preserve">
+    <value>g</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_Hue" xml:space="preserve">
+    <value>hue</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_R" xml:space="preserve">
+    <value>r</value>
+  </data>
+  <data name="ColorPicker_CloseTooltip" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ColorPicker_DefaultButton" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
+    <value>ColorPicker</value>
+  </data>
+  <data name="ColorPicker_ResetButton" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="ColorPicker_RgbaHexLabel" xml:space="preserve">
+    <value>rgba hex:</value>
+  </data>
+  <data name="SettingsWindow_Caption_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="SettingsWindow_Caption_Maximize" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="SettingsWindow_Caption_Minimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_Confirm" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_DefaultMessage" xml:space="preserve">
+    <value>Are you sure?</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_DefaultTitle" xml:space="preserve">
+    <value>Clear all saved display data?</value>
+  </data>
+  <data name="SettingsWindow_Header" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
+    <value>Open settings folder</value>
+  </data>
+  <data name="SettingsWindow_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_About_AuthorLabel" xml:space="preserve">
+    <value>Author</value>
+  </data>
+  <data name="Settings_About_BuildLabel" xml:space="preserve">
+    <value>Build</value>
+  </data>
+  <data name="Settings_About_GithubLabel" xml:space="preserve">
+    <value>Github</value>
+  </data>
+  <data name="Settings_About_RuntimeLabel" xml:space="preserve">
+    <value>Runtime</value>
+  </data>
+  <data name="Settings_About_SectionHeader" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_About_Tagline" xml:space="preserve">
+    <value>Network tray integration for Windows.</value>
+  </data>
+  <data name="Settings_Common_Page_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_Common_Page_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Common_Page_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="Settings_Common_Page_Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
+    <value>Tray Icon</value>
+  </data>
+  <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
+    <value>Alt + double-click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
+    <value>Alt + left-click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
+    <value>Alt + right-click</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
+    <value>Nothing</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_OpenAdapterSettings" xml:space="preserve">
+    <value>Open adapter settings</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_OpenSettings" xml:space="preserve">
+    <value>Open app settings</value>
+  </data>
+  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
+    <value>Ctrl + double-click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
+    <value>Ctrl + left-click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
+    <value>Ctrl + right-click</value>
+  </data>
+  <data name="Settings_TrayIcon_DoubleLeftClick_Title" xml:space="preserve">
+    <value>Double-click</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
+    <value>Classic (at cursor)</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
+    <value>Where the right-click menu appears. Classic opens at the cursor; Modern docks in the bottom-right corner like a Windows 11 flyout.</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
+    <value>Modern (corner flyout)</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
+    <value>Menu position</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedActions_Description" xml:space="preserve">
+    <value>Modifier keys held during a tray click can trigger a different action. Leave as Nothing to fall through to the unmodified click.</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
+    <value>Modifier-click actions</value>
+  </data>
+  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_Network_AdapterSettingsStyle_ControlPanel" xml:space="preserve">
+    <value>Control Panel (ncpa.cpl)</value>
+  </data>
+  <data name="Settings_Network_AdapterSettingsStyle_Description" xml:space="preserve">
+    <value>Choose which window opens for "Adapter Settings". Explorer is the modern shell view; Control Panel is the classic ncpa.cpl applet.</value>
+  </data>
+  <data name="Settings_Network_AdapterSettingsStyle_Explorer" xml:space="preserve">
+    <value>Explorer (Network Connections)</value>
+  </data>
+  <data name="Settings_Network_AdapterSettingsStyle_Title" xml:space="preserve">
+    <value>Adapter settings window</value>
+  </data>
+  <data name="Settings_Network_ConnectedColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme connected color</value>
+  </data>
+  <data name="Settings_Network_ConnectedColor_Description" xml:space="preserve">
+    <value>Color used when an interface has internet access (Ethernet or Wi-Fi).</value>
+  </data>
+  <data name="Settings_Network_ConnectedColor_LightTooltip" xml:space="preserve">
+    <value>Light theme connected color</value>
+  </data>
+  <data name="Settings_Network_ConnectedColor_Title" xml:space="preserve">
+    <value>Connected color</value>
+  </data>
+  <data name="Settings_Network_DisconnectedColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme disconnected color</value>
+  </data>
+  <data name="Settings_Network_DisconnectedColor_Description" xml:space="preserve">
+    <value>Color used when no network interface is available.</value>
+  </data>
+  <data name="Settings_Network_DisconnectedColor_LightTooltip" xml:space="preserve">
+    <value>Light theme disconnected color</value>
+  </data>
+  <data name="Settings_Network_DisconnectedColor_Title" xml:space="preserve">
+    <value>Disconnected color</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_AvailableNetworks" xml:space="preserve">
+    <value>Available Networks (ms-availablenetworks)</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_Description" xml:space="preserve">
+    <value>What opens on tray left-click. Windows 10 / 11 use undocumented shell COM and may fail on some builds; the URI options always work.</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_QuickSettings" xml:space="preserve">
+    <value>Quick Settings (Action Center)</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_Settings" xml:space="preserve">
+    <value>Settings &gt; Network &amp; Wi-Fi</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_Title" xml:space="preserve">
+    <value>Left-click flyout</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_Windows10" xml:space="preserve">
+    <value>Windows 10 network flyout</value>
+  </data>
+  <data name="Settings_Network_FlyoutStyle_Windows11" xml:space="preserve">
+    <value>Windows 11 control center</value>
+  </data>
+  <data name="Settings_Network_NoInternetColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme no-internet color</value>
+  </data>
+  <data name="Settings_Network_NoInternetColor_Description" xml:space="preserve">
+    <value>Color used when an interface is connected locally but has no internet access.</value>
+  </data>
+  <data name="Settings_Network_NoInternetColor_LightTooltip" xml:space="preserve">
+    <value>Light theme no-internet color</value>
+  </data>
+  <data name="Settings_Network_NoInternetColor_Title" xml:space="preserve">
+    <value>No-internet color</value>
+  </data>
+  <data name="Settings_Network_SectionHeader" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="Settings_Network_StateColors_Description" xml:space="preserve">
+    <value>Per-state tray icon color. Each variant falls back to the per-theme default when unset.</value>
+  </data>
+  <data name="Settings_Network_StateColors_Header" xml:space="preserve">
+    <value>Tray icon colors</value>
+  </data>
+  <data name="Settings_General_Apply_Button" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Settings_General_Autosave_Description" xml:space="preserve">
+    <value>Automatically save changes.</value>
+  </data>
+  <data name="Settings_General_Autosave_Title" xml:space="preserve">
+    <value>Auto-save</value>
+  </data>
+  <data name="Settings_General_Cancel_Button" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Settings_General_CurrentlyRunning_Format" xml:space="preserve">
+    <value>Currently running from "{0}".</value>
+  </data>
+  <data name="Settings_General_InstallConfirm_Message_Format" xml:space="preserve">
+    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps.</value>
+  </data>
+  <data name="Settings_General_InstallConfirm_Title" xml:space="preserve">
+    <value>Install NetworkTrayAppDotNET?</value>
+  </data>
+  <data name="Settings_General_InstallFailed_Title" xml:space="preserve">
+    <value>Install failed</value>
+  </data>
+  <data name="Settings_General_InstallSystemWideConfirm_Message_Format" xml:space="preserve">
+    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps. Requires admin.</value>
+  </data>
+  <data name="Settings_General_InstallSystemWideConfirm_Title" xml:space="preserve">
+    <value>Install NetworkTrayAppDotNET system-wide?</value>
+  </data>
+  <data name="Settings_General_Install_Button" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Settings_General_Installation_Header" xml:space="preserve">
+    <value>Installation</value>
+  </data>
+  <data name="Settings_General_InstalledOlderBuild_Format" xml:space="preserve">
+    <value>Installed (older build) at "{0}".{1}</value>
+  </data>
+  <data name="Settings_General_InstalledOutOfDate_Format" xml:space="preserve">
+    <value>Installed build {0}, running build {1}. Click Update to overwrite.{2}</value>
+  </data>
+  <data name="Settings_General_InstalledWithBuild_Format" xml:space="preserve">
+    <value>Installed (build {0}) at "{1}".</value>
+  </data>
+  <data name="Settings_General_Installed_Format" xml:space="preserve">
+    <value>Installed at "{0}".</value>
+  </data>
+  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
+    <value>Local user</value>
+  </data>
+  <data name="Settings_General_NotInstalled_Format" xml:space="preserve">
+    <value>Not installed. Will be placed at "{0}".{1}</value>
+  </data>
+  <data name="Settings_General_RequiresAdmin_Suffix" xml:space="preserve">
+    <value> (requires admin)</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_Description" xml:space="preserve">
+    <value>Launch NetworkTrayAppDotNET when you sign in to Windows.</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_OnDescriptionFormat" xml:space="preserve">
+    <value>{0}
+Target: {1}</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_OnHeaderLine" xml:space="preserve">
+    <value>Autostart shortcut placed in shell:startup.</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_Title" xml:space="preserve">
+    <value>Run on startup automatically</value>
+  </data>
+  <data name="Settings_General_Seconds_Suffix" xml:space="preserve">
+    <value>s</value>
+  </data>
+  <data name="Settings_General_SectionHeader" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
+    <value>System wide</value>
+  </data>
+  <data name="Settings_General_UninstallIncomplete_Message" xml:space="preserve">
+    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the install location and Windows Settings &gt; Apps.</value>
+  </data>
+  <data name="Settings_General_UninstallIncomplete_Title" xml:space="preserve">
+    <value>Uninstall incomplete</value>
+  </data>
+  <data name="Settings_General_Uninstall_Button" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="Settings_General_Update_Button" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
+    <value>Windows Store</value>
+  </data>
+  <data name="Settings_General_StoreRunning" xml:space="preserve">
+    <value>Running from the Microsoft Store install.</value>
+  </data>
+  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
+    <value>Not installed from the Microsoft Store.</value>
+  </data>
+  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
+    <value>delete this hotkey</value>
+  </data>
+  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
+    <value>Exists</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Enter" xml:space="preserve">
+    <value>Enter</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Escape" xml:space="preserve">
+    <value>Esc</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PageDown" xml:space="preserve">
+    <value>PageDown</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PageUp" xml:space="preserve">
+    <value>PageUp</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Space" xml:space="preserve">
+    <value>Space</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Alt" xml:space="preserve">
+    <value>Alt</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_AltShift" xml:space="preserve">
+    <value>Alt+Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_AltShiftWin" xml:space="preserve">
+    <value>Alt+Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_AltWin" xml:space="preserve">
+    <value>Alt+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Ctrl" xml:space="preserve">
+    <value>Ctrl</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAlt" xml:space="preserve">
+    <value>Ctrl+Alt</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAltShift" xml:space="preserve">
+    <value>Ctrl+Alt+Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAltShiftWin" xml:space="preserve">
+    <value>Ctrl+Alt+Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAltWin" xml:space="preserve">
+    <value>Ctrl+Alt+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlShift" xml:space="preserve">
+    <value>Ctrl+Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlShiftWin" xml:space="preserve">
+    <value>Ctrl+Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlWin" xml:space="preserve">
+    <value>Ctrl+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Shift" xml:space="preserve">
+    <value>Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_ShiftWin" xml:space="preserve">
+    <value>Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Win" xml:space="preserve">
+    <value>Win</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
+    <value>Open this settings window.</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Settings_Hotkeys_Remove_Button" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
+    <value>Search:</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
+    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). All actions start unbound.</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
+    <value>Keyboard shortcuts</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
+    <value>Hotkey service not available.</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
+    <value>Registered.</value>
+  </data>
+  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
+    <value>Override the default background color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
+    <value>Background color</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
+    <value>Controls the overall size of the tray context menu. All elements scale from font size.</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
+    <value>Font size</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_DarkVariant" xml:space="preserve">
+    <value>dark</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_Format" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_LightVariant" xml:space="preserve">
+    <value>light</value>
+  </data>
+  <data name="Settings_Theme_Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
+    <value>Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
+    <value>Rounded corners</value>
+  </data>
+  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
+    <value>Controls whether tooltip fades and other UI animations are allowed.</value>
+  </data>
+  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
+    <value>Animations</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_Description" xml:space="preserve">
+    <value>Milliseconds to wait before showing a tooltip.</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_Title" xml:space="preserve">
+    <value>Tooltip delay</value>
+  </data>
+  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
+    <value>Override the default text color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
+    <value>Light theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
+    <value>Text color</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
+    <value>Follow Windows, or force light / dark mode for this app.</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
+    <value>Theme style</value>
+  </data>
+  <data name="Tray_AdapterSettings" xml:space="preserve">
+    <value>Adapter Settings</value>
+  </data>
+  <data name="Tray_Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="Tray_NetworkSettings" xml:space="preserve">
+    <value>Network Settings</value>
+  </data>
+  <data name="Tray_Settings" xml:space="preserve">
+    <value>App Settings</value>
+  </data>
+  <data name="Tray_Tooltip_Default" xml:space="preserve">
+    <value>Network Tray</value>
+  </data>
+  <data name="Uninstaller_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Uninstaller_Caption_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Uninstaller_DefaultDescription" xml:space="preserve">
+    <value>This will remove the installed copy of NetworkTrayAppDotNET and its registration in Windows Apps. Choose what to do with your settings.</value>
+  </data>
+  <data name="Uninstaller_DeleteSettings_DefaultDescription" xml:space="preserve">
+    <value>Also remove %LOCALAPPDATA%\TrayAppDotNET\NetworkTrayAppDotNET, including settings.xml.</value>
+  </data>
+  <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
+    <value>Also remove "{0}" including settings.xml.</value>
+  </data>
+  <data name="Uninstaller_DeleteSettings_Title" xml:space="preserve">
+    <value>Delete my settings</value>
+  </data>
+  <data name="Uninstaller_Description_Format" xml:space="preserve">
+    <value>This will remove NetworkTrayAppDotNET installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
+  </data>
+  <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
+    <value>Leave settings.xml in place so a future install picks them up.</value>
+  </data>
+  <data name="Uninstaller_KeepSettings_Title" xml:space="preserve">
+    <value>Keep my settings</value>
+  </data>
+  <data name="Uninstaller_SectionHeader" xml:space="preserve">
+    <value>Uninstall NetworkTrayAppDotNET</value>
+  </data>
+  <data name="Uninstaller_Title" xml:space="preserve">
+    <value>Uninstall NetworkTrayAppDotNET</value>
+  </data>
+  <data name="Uninstaller_UninstallButton" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="Uninstaller_UninstallingButton" xml:space="preserve">
+    <value>Uninstalling...</value>
+  </data>
+</root>

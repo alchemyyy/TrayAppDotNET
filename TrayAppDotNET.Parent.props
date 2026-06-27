@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <TrayAppDotNETRoot>$(MSBuildThisFileDirectory)</TrayAppDotNETRoot>
+    <TrayAppDotNETCommonRoot>$(MSBuildThisFileDirectory)TrayAppDotNETCommon</TrayAppDotNETCommonRoot>
+    <TrayAppDotNETCommonProject>$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <TrayAppDotNETIsRootSolutionBuild Condition="'$(SolutionDir)' == '$(TrayAppDotNETRoot)'">true</TrayAppDotNETIsRootSolutionBuild>
+    <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == '' and '$(TrayAppDotNETIsRootSolutionBuild)' == 'true'">true</TrayAppDotNETAggregateBuild>
+    <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == ''">false</TrayAppDotNETAggregateBuild>
+    <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
+    <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
+    <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>
+    <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,872 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ColorPicker_ArgbHexLabel" xml:space="preserve">
+    <value>argb hex:</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_Alpha" xml:space="preserve">
+    <value>alpha</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_B" xml:space="preserve">
+    <value>b</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_G" xml:space="preserve">
+    <value>g</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_Hue" xml:space="preserve">
+    <value>hue</value>
+  </data>
+  <data name="ColorPicker_ChannelLabel_R" xml:space="preserve">
+    <value>r</value>
+  </data>
+  <data name="ColorPicker_CloseTooltip" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ColorPicker_DefaultButton" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="ColorPicker_DefaultTitle" xml:space="preserve">
+    <value>ColorPicker</value>
+  </data>
+  <data name="ColorPicker_ResetButton" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="ColorPicker_RgbaHexLabel" xml:space="preserve">
+    <value>rgba hex:</value>
+  </data>
+  <data name="SettingsWindow_Caption_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="SettingsWindow_Caption_Maximize" xml:space="preserve">
+    <value>Maximize</value>
+  </data>
+  <data name="SettingsWindow_Caption_Minimize" xml:space="preserve">
+    <value>Minimize</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_Confirm" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Flyout_DeleteGroup_Confirm" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Flyout_DeleteGroup_MessageFormat" xml:space="preserve">
+    <value>Delete {0}? Fans in this group will be moved out of the group.</value>
+  </data>
+  <data name="Flyout_DeleteGroup_Title" xml:space="preserve">
+    <value>Delete group</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_DefaultMessage" xml:space="preserve">
+    <value>Are you sure?</value>
+  </data>
+  <data name="SettingsWindow_ConfirmOverlay_DefaultTitle" xml:space="preserve">
+    <value>Clear all saved display data?</value>
+  </data>
+  <data name="SettingsWindow_Header" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
+    <value>Open settings folder</value>
+  </data>
+  <data name="SettingsWindow_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="UpdateNotification_BodyFormat" xml:space="preserve">
+    <value>{0} is available. Click to open update actions.</value>
+  </data>
+  <data name="UpdateNotification_Title" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="Settings_About_AuthorLabel" xml:space="preserve">
+    <value>Author</value>
+  </data>
+  <data name="Settings_About_BuildLabel" xml:space="preserve">
+    <value>Build</value>
+  </data>
+  <data name="Settings_About_CheckForUpdates_Button" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="Settings_About_CheckForUpdates_Description" xml:space="preserve">
+    <value>Periodically ask GitHub if a newer release is available.</value>
+  </data>
+  <data name="Settings_About_CheckForUpdates_Title" xml:space="preserve">
+    <value>Check for updates automatically</value>
+  </data>
+  <data name="Settings_About_GithubLabel" xml:space="preserve">
+    <value>Github</value>
+  </data>
+  <data name="Settings_About_InstallUpdate_Available" xml:space="preserve">
+    <value>Install update</value>
+  </data>
+  <data name="Settings_About_InstallUpdate_Stale" xml:space="preserve">
+    <value>Version stale</value>
+  </data>
+  <data name="Settings_About_InstallUpdate_UpToDate" xml:space="preserve">
+    <value>Up to date</value>
+  </data>
+  <data name="Settings_About_RelativeTime_DaysFormat" xml:space="preserve">
+    <value>{0}d ago</value>
+  </data>
+  <data name="Settings_About_RelativeTime_HoursFormat" xml:space="preserve">
+    <value>{0}h ago</value>
+  </data>
+  <data name="Settings_About_RelativeTime_JustNow" xml:space="preserve">
+    <value>just now</value>
+  </data>
+  <data name="Settings_About_RelativeTime_MinutesFormat" xml:space="preserve">
+    <value>{0}m ago</value>
+  </data>
+  <data name="Settings_About_RuntimeLabel" xml:space="preserve">
+    <value>Runtime</value>
+  </data>
+  <data name="Settings_About_SectionHeader" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_About_ShowUpdateButton_Description" xml:space="preserve">
+    <value>Float an Update! button in the top-right of the flyout while a new version is available.</value>
+  </data>
+  <data name="Settings_About_ShowUpdateButton_Title" xml:space="preserve">
+    <value>Show update button in flyout</value>
+  </data>
+  <data name="Settings_About_ShowUpdateNotifications_Description" xml:space="preserve">
+    <value>Raise a tray notification when a new version is detected.</value>
+  </data>
+  <data name="Settings_About_ShowUpdateNotifications_Title" xml:space="preserve">
+    <value>Show notification for updates</value>
+  </data>
+  <data name="Settings_About_Tagline" xml:space="preserve">
+    <value>A WPF tray app skeleton.</value>
+  </data>
+  <data name="Settings_About_UpdateActions_Title" xml:space="preserve">
+    <value>Update actions</value>
+  </data>
+  <data name="Settings_About_UpdateInterval_Description" xml:space="preserve">
+    <value>How often the background update check runs. The timer resets every time you click Check for updates.</value>
+  </data>
+  <data name="Settings_About_UpdateInterval_MinutesSuffix" xml:space="preserve">
+    <value> min</value>
+  </data>
+  <data name="Settings_About_UpdateInterval_Title" xml:space="preserve">
+    <value>Update check interval</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_AvailableFormat" xml:space="preserve">
+    <value>Update available: {0}</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_Checking" xml:space="preserve">
+    <value>Checking for updates...</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_LastCheckedFormat" xml:space="preserve">
+    <value>You're up to date. Last checked {0}.</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_NeverChecked" xml:space="preserve">
+    <value>No update check has run yet.</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_Unavailable" xml:space="preserve">
+    <value>Update service is not available.</value>
+  </data>
+  <data name="Settings_About_Updates_Header" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="Settings_Common_Page_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_Common_Page_Flyout" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Common_Page_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_Common_Page_FanProperties" xml:space="preserve">
+    <value>Fan Properties</value>
+  </data>
+  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Common_Page_Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
+    <value>Reopen the flyout in its previously-undocked window if it was undocked when the app last closed.</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
+    <value>Restore undocked flyout on startup</value>
+  </data>
+  <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
+    <value>Show the undock button in the flyout header. Disabling hides the button and forces the flyout back into its docked position.</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_Title" xml:space="preserve">
+    <value>Allow flyout to be undocked</value>
+  </data>
+  <data name="UpdateDialog_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="UpdateDialog_CaptionClose_Tooltip" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="UpdateDialog_DefaultDescription" xml:space="preserve">
+    <value>A newer release is available. Install it to update the running app.</value>
+  </data>
+  <data name="UpdateDialog_DefaultTitle" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="UpdateDialog_Install" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="UpdateDialog_NoChangelog" xml:space="preserve">
+    <value>(no changelog provided)</value>
+  </data>
+  <data name="UpdateDialog_TitleFormat" xml:space="preserve">
+    <value>Update available: {0}</value>
+  </data>
+  <data name="Settings_General_Apply_Button" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Settings_General_Autosave_Description" xml:space="preserve">
+    <value>Automatically save changes.</value>
+  </data>
+  <data name="Settings_General_Autosave_Title" xml:space="preserve">
+    <value>Auto-save</value>
+  </data>
+  <data name="Settings_General_Cancel_Button" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Settings_General_CurrentlyRunning_Format" xml:space="preserve">
+    <value>Currently running from "{0}".</value>
+  </data>
+  <data name="Settings_General_InstallConfirm_Message_Format" xml:space="preserve">
+    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps.</value>
+  </data>
+  <data name="Settings_General_InstallConfirm_Title" xml:space="preserve">
+    <value>Install FanControlTrayAppDotNET?</value>
+  </data>
+  <data name="Settings_General_InstallFailed_Title" xml:space="preserve">
+    <value>Install failed</value>
+  </data>
+  <data name="Settings_General_InstallSystemWideConfirm_Message_Format" xml:space="preserve">
+    <value>This will copy the running exe to "{0}" and register it in Windows Settings &gt; Apps. Requires admin.</value>
+  </data>
+  <data name="Settings_General_InstallSystemWideConfirm_Title" xml:space="preserve">
+    <value>Install FanControlTrayAppDotNET system-wide?</value>
+  </data>
+  <data name="Settings_General_Install_Button" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Settings_General_Installation_Header" xml:space="preserve">
+    <value>Installation</value>
+  </data>
+  <data name="Settings_General_InstalledOlderBuild_Format" xml:space="preserve">
+    <value>Installed (older build) at "{0}".{1}</value>
+  </data>
+  <data name="Settings_General_InstalledOutOfDate_Format" xml:space="preserve">
+    <value>Installed build {0}, running build {1}. Click Update to overwrite.{2}</value>
+  </data>
+  <data name="Settings_General_InstalledWithBuild_Format" xml:space="preserve">
+    <value>Installed (build {0}) at "{1}".</value>
+  </data>
+  <data name="Settings_General_Installed_Format" xml:space="preserve">
+    <value>Installed at "{0}".</value>
+  </data>
+  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
+    <value>Local user</value>
+  </data>
+  <data name="Settings_General_NotInstalled_Format" xml:space="preserve">
+    <value>Not installed. Will be placed at "{0}".{1}</value>
+  </data>
+  <data name="Settings_General_RequiresAdmin_Suffix" xml:space="preserve">
+    <value> (requires admin)</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_Description" xml:space="preserve">
+    <value>Launch FanControlTrayAppDotNET when you sign in to Windows.</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_OnDescriptionFormat" xml:space="preserve">
+    <value>{0}
+Target: {1}</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_OnHeaderLine" xml:space="preserve">
+    <value>Autostart shortcut placed in shell:startup.</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_Title" xml:space="preserve">
+    <value>Run on startup automatically</value>
+  </data>
+  <data name="Settings_General_DefaultToRPMMode_Title" xml:space="preserve">
+    <value>Default to RPM Mode</value>
+  </data>
+  <data name="Settings_General_DefaultToRPMMode_Description" xml:space="preserve">
+    <value>Newly discovered fans will report speeds in RPM rather than duty cycle %. Existing fans keep their per-fan setting.</value>
+  </data>
+  <data name="Settings_FanProperties_SectionHeader" xml:space="preserve">
+    <value>Fan Properties</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultJumpstartDutyCycle_Title" xml:space="preserve">
+    <value>Default Jumpstart Duty Cycle</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultJumpstartDutyCycle_Description" xml:space="preserve">
+    <value>Initial duty cycle applied for one tick to overcome fan stiction. Always in duty cycle %; skipped when a fan's startup speed is already higher.</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultDeltaMaxDutyCycle_Title" xml:space="preserve">
+    <value>Default Delta Max Duty Cycle</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultDeltaMaxDutyCycle_Description" xml:space="preserve">
+    <value>Maximum allowed change in fan speed per second, expressed in duty cycle %. Caps how aggressively curves ramp fans up or down.</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultAssignedCurve_Title" xml:space="preserve">
+    <value>Default Assigned Curve</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultAssignedCurve_Description" xml:space="preserve">
+    <value>Curve assigned to newly discovered fans. Select None to leave new fans in hardware control.</value>
+  </data>
+  <data name="Settings_FanProperties_Reassign_Header" xml:space="preserve">
+    <value>Fan reassignment</value>
+  </data>
+  <data name="Settings_FanProperties_Reassign_Title" xml:space="preserve">
+    <value>Reassign fan settings</value>
+  </data>
+  <data name="Settings_FanProperties_Reassign_Description" xml:space="preserve">
+    <value>Drag setting cards onto fixed fan slots, then Apply to swap per-fan settings.</value>
+  </data>
+  <data name="Settings_FanProperties_NoFans" xml:space="preserve">
+    <value>No live fans detected.</value>
+  </data>
+  <data name="Settings_FanProperties_FanSettingsCard_Tooltip" xml:space="preserve">
+    <value>Drag or Ctrl+Up/Down to reorder</value>
+  </data>
+  <data name="Settings_FanProperties_Apply_Button" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Settings_FanProperties_NonFunctioning_Header" xml:space="preserve">
+    <value>Forced non-functioning fans</value>
+  </data>
+  <data name="Settings_FanProperties_NonFunctioning_DescriptionFormat" xml:space="preserve">
+    <value>Treat this fan as non-functioning. {0}</value>
+  </data>
+  <data name="Flyout_FanButton_Tooltip" xml:space="preserve">
+    <value>Click for fan options</value>
+  </data>
+  <data name="Flyout_ModeLock_Tooltip" xml:space="preserve">
+    <value>Toggle between manual and curve control</value>
+  </data>
+  <data name="Settings_General_Seconds_Suffix" xml:space="preserve">
+    <value>s</value>
+  </data>
+  <data name="Settings_General_SectionHeader" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
+    <value>System wide</value>
+  </data>
+  <data name="Settings_General_UninstallIncomplete_Message" xml:space="preserve">
+    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the install location and Windows Settings &gt; Apps.</value>
+  </data>
+  <data name="Settings_General_UninstallIncomplete_Title" xml:space="preserve">
+    <value>Uninstall incomplete</value>
+  </data>
+  <data name="Settings_General_Uninstall_Button" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="Settings_General_Update_Button" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
+    <value>delete this hotkey</value>
+  </data>
+  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
+    <value>Exists</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Enter" xml:space="preserve">
+    <value>Enter</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Escape" xml:space="preserve">
+    <value>Esc</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PageDown" xml:space="preserve">
+    <value>PageDown</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_PageUp" xml:space="preserve">
+    <value>PageUp</value>
+  </data>
+  <data name="Settings_Hotkeys_Key_Space" xml:space="preserve">
+    <value>Space</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Alt" xml:space="preserve">
+    <value>Alt</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_AltShift" xml:space="preserve">
+    <value>Alt+Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_AltShiftWin" xml:space="preserve">
+    <value>Alt+Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_AltWin" xml:space="preserve">
+    <value>Alt+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Ctrl" xml:space="preserve">
+    <value>Ctrl</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAlt" xml:space="preserve">
+    <value>Ctrl+Alt</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAltShift" xml:space="preserve">
+    <value>Ctrl+Alt+Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAltShiftWin" xml:space="preserve">
+    <value>Ctrl+Alt+Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlAltWin" xml:space="preserve">
+    <value>Ctrl+Alt+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlShift" xml:space="preserve">
+    <value>Ctrl+Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlShiftWin" xml:space="preserve">
+    <value>Ctrl+Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_CtrlWin" xml:space="preserve">
+    <value>Ctrl+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Shift" xml:space="preserve">
+    <value>Shift</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_ShiftWin" xml:space="preserve">
+    <value>Shift+Win</value>
+  </data>
+  <data name="Settings_Hotkeys_Modifier_Win" xml:space="preserve">
+    <value>Win</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
+    <value>Show the fan flyout above the tray icon.</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
+    <value>Open flyout</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
+    <value>Open this settings window.</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Settings_Hotkeys_Remove_Button" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
+    <value>Search:</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
+    <value>Bind a system-wide keyboard shortcut to each action. Bindings require at least one modifier key (Ctrl, Alt, Shift, or Win). All actions start unbound.</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
+    <value>Keyboard shortcuts</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
+    <value>Hotkey service not available.</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
+    <value>Registered.</value>
+  </data>
+  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
+    <value>Override the default background color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
+    <value>Background color</value>
+  </data>
+  <data name="Settings_Theme_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
+    <value>Controls the overall size of the tray context menu. All elements scale from font size.</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
+    <value>Font size</value>
+  </data>
+  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Theme_CardBorders_Description" xml:space="preserve">
+    <value>Show outlines around fan and group cards.</value>
+  </data>
+  <data name="Settings_Theme_CardBorders_Title" xml:space="preserve">
+    <value>Card borders</value>
+  </data>
+  <data name="Settings_Theme_HoverCardBorders_Description" xml:space="preserve">
+    <value>When card borders are off, show an outline only on the card under the pointer.</value>
+  </data>
+  <data name="Settings_Theme_HoverCardBorders_Title" xml:space="preserve">
+    <value>Hover card border</value>
+  </data>
+  <data name="Settings_Theme_HideGroupedFanCardBorders_Description" xml:space="preserve">
+    <value>Hide individual fan-card outlines when a fan is inside a group.</value>
+  </data>
+  <data name="Settings_Theme_HideGroupedFanCardBorders_Title" xml:space="preserve">
+    <value>Hide grouped fan card borders</value>
+  </data>
+  <data name="Settings_Theme_CardBorderColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme card border color</value>
+  </data>
+  <data name="Settings_Theme_CardBorderColor_Description" xml:space="preserve">
+    <value>Override the outline color for fan and group cards. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_CardBorderColor_LightTooltip" xml:space="preserve">
+    <value>Light theme card border color</value>
+  </data>
+  <data name="Settings_Theme_CardBorderColor_Title" xml:space="preserve">
+    <value>Card border color</value>
+  </data>
+  <data name="Settings_Theme_CardSpacing_Description" xml:space="preserve">
+    <value>Controls the vertical spacing between fan cards and group cards.</value>
+  </data>
+  <data name="Settings_Theme_CardSpacing_Title" xml:space="preserve">
+    <value>Card spacing</value>
+  </data>
+  <data name="Settings_Theme_CardHorizontalInset_Description" xml:space="preserve">
+    <value>Controls the left and right spacing between root-level cards and the flyout edge.</value>
+  </data>
+  <data name="Settings_Theme_CardHorizontalInset_Title" xml:space="preserve">
+    <value>Card side inset</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarCardSpacing_Description" xml:space="preserve">
+    <value>Controls the spacing between the flyout title bar and the first row of cards.</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarCardSpacing_Title" xml:space="preserve">
+    <value>Title bar card spacing</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme flyout background color</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_Description" xml:space="preserve">
+    <value>Override the background color behind the fan and group cards. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme flyout background color</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_Title" xml:space="preserve">
+    <value>Flyout background</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme flyout title bar background color</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_Description" xml:space="preserve">
+    <value>Override the background color for the flyout title bar. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme flyout title bar background color</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_Title" xml:space="preserve">
+    <value>Flyout title bar background</value>
+  </data>
+  <data name="Settings_Theme_FanCardBackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme fan card background color</value>
+  </data>
+  <data name="Settings_Theme_FanCardBackgroundColor_Description" xml:space="preserve">
+    <value>Override the background color for individual fan cards. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_FanCardBackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme fan card background color</value>
+  </data>
+  <data name="Settings_Theme_FanCardBackgroundColor_Title" xml:space="preserve">
+    <value>Fan card background</value>
+  </data>
+  <data name="Settings_Theme_GroupedFanCardBackground_Description" xml:space="preserve">
+    <value>Paint fan cards inside groups with the group card background instead of the fan card background.</value>
+  </data>
+  <data name="Settings_Theme_GroupedFanCardBackground_Title" xml:space="preserve">
+    <value>Use group background in groups</value>
+  </data>
+  <data name="Settings_Theme_GroupCardBackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme group card background color</value>
+  </data>
+  <data name="Settings_Theme_GroupCardBackgroundColor_Description" xml:space="preserve">
+    <value>Override the background color for grouped fan cards. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_GroupCardBackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme group card background color</value>
+  </data>
+  <data name="Settings_Theme_GroupCardBackgroundColor_Title" xml:space="preserve">
+    <value>Group card background</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_DarkVariant" xml:space="preserve">
+    <value>dark</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_Format" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Settings_Theme_PickerTitle_LightVariant" xml:space="preserve">
+    <value>light</value>
+  </data>
+  <data name="Settings_Theme_Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
+    <value>Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
+    <value>Rounded corners</value>
+  </data>
+  <data name="Settings_Theme_SquareFlyoutTitleBarCorners_Description" xml:space="preserve">
+    <value>Keep the flyout title bar square even when rounded corners are enabled.</value>
+  </data>
+  <data name="Settings_Theme_SquareFlyoutTitleBarCorners_Title" xml:space="preserve">
+    <value>Square title bar corners</value>
+  </data>
+  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
+    <value>Override the default tray icon color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
+    <value>Light theme tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
+    <value>Static icon color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
+    <value>Override the default text color. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
+    <value>Light theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
+    <value>Text color</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
+    <value>Follow Windows, or force light / dark mode for this app.</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
+    <value>Theme style</value>
+  </data>
+  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Tray_Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+  <data name="Tray_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Tray_Tooltip_Default" xml:space="preserve">
+    <value>FanControlTrayAppDotNET</value>
+  </data>
+  <data name="Tray_Tooltip_CPUTemp_Format" xml:space="preserve">
+    <value>CPU Temp: {0}C</value>
+  </data>
+  <data name="Tray_Tooltip_GPUTemp_Format" xml:space="preserve">
+    <value>GPU Temp: {0}C</value>
+  </data>
+  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
+    <value>Undock the flyout. Drag to move it; drop near the tray icon to redock.</value>
+  </data>
+  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
+    <value>Redock the flyout to the tray corner.</value>
+  </data>
+  <data name="Settings_General_StoreRunning" xml:space="preserve">
+    <value>Currently running from a Windows Store package.</value>
+  </data>
+  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
+    <value>Not installed via the Windows Store.</value>
+  </data>
+  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
+    <value>Windows Store</value>
+  </data>
+  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
+    <value>Tray Icon</value>
+  </data>
+  <data name="Settings_TrayIcon_MouseWheel_Title" xml:space="preserve">
+    <value>Mouse wheel</value>
+  </data>
+  <data name="Settings_TrayIcon_MouseWheel_Description" xml:space="preserve">
+    <value>Enable scrolling the mouse wheel while hovering the tray icon. Does *not* use an always-active global mouse hook.</value>
+  </data>
+  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
+    <value>Menu position</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
+    <value>Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts.</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
+    <value>Classic</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
+    <value>Modern</value>
+  </data>
+  <data name="Settings_TrayIcon_Tooltip_Header" xml:space="preserve">
+    <value>Tooltip</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowCPUTemp_Title" xml:space="preserve">
+    <value>Show CPU temperature</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowCPUTemp_Description" xml:space="preserve">
+    <value>Append the current CPU package temperature to the tray icon tooltip.</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowGPUTemp_Title" xml:space="preserve">
+    <value>Show GPU temperature</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowGPUTemp_Description" xml:space="preserve">
+    <value>Append the current GPU core temperature to the tray icon tooltip.</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
+    <value>Modified actions</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedActions_Description" xml:space="preserve">
+    <value>Assign actions to modified clicks on the tray icon. Entries set to Nothing fall back to the default behavior.</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_Nothing" xml:space="preserve">
+    <value>Nothing</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickAction_OpenSettings" xml:space="preserve">
+    <value>Open Settings</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
+    <value>Ctrl + left click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
+    <value>Alt + left click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
+    <value>Ctrl + right click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
+    <value>Alt + right click</value>
+  </data>
+  <data name="Settings_TrayIcon_DoubleLeftClick_Title" xml:space="preserve">
+    <value>Double left click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlDoubleLeftClick_Title" xml:space="preserve">
+    <value>Ctrl + double left click</value>
+  </data>
+  <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
+    <value>Alt + double left click</value>
+  </data>
+  <data name="Uninstaller_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Uninstaller_Caption_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Uninstaller_DefaultDescription" xml:space="preserve">
+    <value>This will remove the installed copy of FanControlTrayAppDotNET and its registration in Windows Apps. Choose what to do with your settings.</value>
+  </data>
+  <data name="Uninstaller_DeleteSettings_DefaultDescription" xml:space="preserve">
+    <value>Also remove %LOCALAPPDATA%\TrayAppDotNET\FanControlTrayAppDotNET, including settings.xml.</value>
+  </data>
+  <data name="Uninstaller_DeleteSettings_Description_Format" xml:space="preserve">
+    <value>Also remove "{0}" including settings.xml.</value>
+  </data>
+  <data name="Uninstaller_DeleteSettings_Title" xml:space="preserve">
+    <value>Delete my settings</value>
+  </data>
+  <data name="Uninstaller_Description_Format" xml:space="preserve">
+    <value>This will remove FanControlTrayAppDotNET installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
+  </data>
+  <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
+    <value>Leave settings.xml in place so a future install picks them up.</value>
+  </data>
+  <data name="Uninstaller_KeepSettings_Title" xml:space="preserve">
+    <value>Keep my settings</value>
+  </data>
+  <data name="Uninstaller_SectionHeader" xml:space="preserve">
+    <value>Uninstall FanControlTrayAppDotNET</value>
+  </data>
+  <data name="Uninstaller_Title" xml:space="preserve">
+    <value>Uninstall FanControlTrayAppDotNET</value>
+  </data>
+  <data name="Uninstaller_UninstallButton" xml:space="preserve">
+    <value>Uninstall</value>
+  </data>
+  <data name="Uninstaller_UninstallingButton" xml:space="preserve">
+    <value>Uninstalling...</value>
+  </data>
+</root>

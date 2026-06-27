@@ -1,0 +1,111 @@
+<ui:FlyoutWindowCommon
+    x:Class="BrightnessTrayAppDotNET.UI.Flyout.BrightnessFlyoutWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    xmlns:ui="clr-namespace:TrayAppDotNETCommon.UI;assembly=TrayAppDotNETCommon"
+    Width="{DynamicResource Flyout.WindowWidth}"
+    SizeToContent="Height"
+    WindowDecorations="None"
+    Background="Transparent"
+    ShowInTaskbar="False"
+    CanResize="False"
+    Topmost="True"
+    FontFamily="Segoe UI">
+
+    <ui:FlyoutWindowCommon.Resources>
+        <sys:Double x:Key="Flyout.WindowWidth">330</sys:Double>
+        <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
+        <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
+        <sys:Double x:Key="Flyout.SnapTolerancePercent">0.02</sys:Double>
+        <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">10</sys:Double>
+        <sys:Double x:Key="Flyout.SliderRowHeight">24</sys:Double>
+        <sys:Double x:Key="Flyout.RowIconSize">32</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderButtonSize">32</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderButtonFontSize">20</sys:Double>
+        <sys:Double x:Key="Flyout.UpdateButtonWidth">80</sys:Double>
+        <sys:Double x:Key="Flyout.UpdateButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.CoarseWheelStep">10</sys:Double>
+        <sys:Double x:Key="Flyout.WorkAreaMinHeight">220</sys:Double>
+        <sys:Double x:Key="Flyout.PixelMinSize">1</sys:Double>
+        <sys:Int32 x:Key="Flyout.OffscreenPosition">-32000</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaX">0</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaY">0</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaWidth">1920</sys:Int32>
+        <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
+
+        <Thickness x:Key="Flyout.ZeroThickness">0</Thickness>
+        <CornerRadius x:Key="Flyout.ZeroCornerRadius">0</CornerRadius>
+
+        <Thickness x:Key="Flyout.RootBorderThickness">1</Thickness>
+        <CornerRadius x:Key="Flyout.RootCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="Flyout.RootInnerCornerRadius">7</CornerRadius>
+        <Thickness x:Key="Flyout.RootInnerPadding">16,16,12,8</Thickness>
+        <sys:Double x:Key="Flyout.RootShadowOffsetY">4</sys:Double>
+        <sys:Double x:Key="Flyout.RootShadowBlur">30</sys:Double>
+
+        <Thickness x:Key="Flyout.RowsMargin">0</Thickness>
+        <Thickness x:Key="Flyout.EmptyDisplaysPadding">8,18</Thickness>
+        <sys:Double x:Key="Flyout.EmptyDisplaysFontSize">13</sys:Double>
+
+        <sys:Double x:Key="Flyout.RowTitleFontSize">15</sys:Double>
+        <Thickness x:Key="Flyout.RowStopwatchMargin">0,-4,4,0</Thickness>
+        <Thickness x:Key="Flyout.RowCurveButtonMargin">0,-4,50,-2</Thickness>
+        <sys:Double x:Key="Flyout.RowCurveIconSize">26</sys:Double>
+        <Thickness x:Key="Flyout.RowPowerButtonMargin">0,0,50,0</Thickness>
+        <sys:Double x:Key="Flyout.SliderValueFontSize">20</sys:Double>
+        <sys:Double x:Key="Flyout.SliderValueMinWidth">32</sys:Double>
+        <Thickness x:Key="Flyout.SliderValueMargin">8,-4,0,0</Thickness>
+        <Thickness x:Key="Flyout.RowMargin">0,0,0,6</Thickness>
+
+        <CornerRadius x:Key="Flyout.FooterCornerRadius">0,0,7,7</CornerRadius>
+        <Thickness x:Key="Flyout.FooterMargin">-16,0,-12,-8</Thickness>
+        <Thickness x:Key="Flyout.FooterPaddingCrowded">4,12,4,8</Thickness>
+        <Thickness x:Key="Flyout.FooterPaddingNormal">12,6,12,6</Thickness>
+        <sys:Double x:Key="Flyout.FooterIconButtonWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.FooterIconButtonHeight">40</sys:Double>
+        <sys:Double x:Key="Flyout.FooterIconButtonFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.FooterCurveIconButtonWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.FooterCurveIconButtonHeight">40</sys:Double>
+        <sys:Double x:Key="Flyout.FooterCurveIconSize">22</sys:Double>
+
+        <sys:Double x:Key="Flyout.ProfileGlyphFontSize">16</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileIndicatorWidth">16</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileIndicatorHeight">2</sys:Double>
+        <CornerRadius x:Key="Flyout.ProfileIndicatorCornerRadius">1</CornerRadius>
+        <Thickness x:Key="Flyout.ProfileIndicatorMargin">0,0,0,4</Thickness>
+        <sys:Double x:Key="Flyout.ProfileButtonWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileButtonHeight">40</sys:Double>
+        <sys:Double x:Key="Flyout.SaveProfileGlyphFontSize">16</sys:Double>
+
+        <Thickness x:Key="Flyout.RowIconMargin">0,0,8,0</Thickness>
+        <sys:Double x:Key="Flyout.NightLightIconSize">22</sys:Double>
+        <sys:Double x:Key="Flyout.MasterIconFontSize">21</sys:Double>
+        <sys:Double x:Key="Flyout.MonitorIconFontSize">20</sys:Double>
+
+        <sys:Double x:Key="Flyout.StopwatchBoxHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.StopwatchBoxWidth">58</sys:Double>
+        <sys:Double x:Key="Flyout.StopwatchButtonWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.StopwatchButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.StopwatchButtonFontSize">18</sys:Double>
+        <Thickness x:Key="Flyout.StopwatchButtonMargin">4,0,0,0</Thickness>
+
+        <sys:Double x:Key="Flyout.CurveDisabledGlyphFontSize">28</sys:Double>
+        <sys:Double x:Key="Flyout.CurveDisabledGlyphSize">32</sys:Double>
+        <Thickness x:Key="Flyout.UpdateButtonPadding">8,3</Thickness>
+        <sys:Double x:Key="Flyout.UpdateButtonFontSize">12</sys:Double>
+        <Thickness x:Key="Flyout.UpdateButtonMargin">0,-10,40,0</Thickness>
+        <Thickness x:Key="Flyout.UndockButtonMargin">0,-10,-5,0</Thickness>
+        <CornerRadius x:Key="Flyout.UndockButtonCornerRadius">4</CornerRadius>
+
+        <sys:Double x:Key="Flyout.ConfirmTitleFontSize">16</sys:Double>
+        <sys:Double x:Key="Flyout.ConfirmMessageFontSize">12</sys:Double>
+        <sys:Double x:Key="Flyout.ConfirmButtonsSpacing">8</sys:Double>
+        <sys:Double x:Key="Flyout.ConfirmPanelSpacing">12</sys:Double>
+        <Thickness x:Key="Flyout.ConfirmBorderThickness">1</Thickness>
+        <CornerRadius x:Key="Flyout.ConfirmCornerRadius">6</CornerRadius>
+        <Thickness x:Key="Flyout.ConfirmPadding">16</Thickness>
+        <sys:Double x:Key="Flyout.ConfirmWidth">300</sys:Double>
+    </ui:FlyoutWindowCommon.Resources>
+
+</ui:FlyoutWindowCommon>
