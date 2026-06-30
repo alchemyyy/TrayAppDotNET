@@ -47,6 +47,7 @@ public abstract class TimeConstants
     protected internal const int UpdateCheckIntervalDefaultMs = 3_600_000;
     protected internal const int UpdateCheckIntervalMinMs = 60_000;
     protected internal const int UpdateCheckIntervalMaxMs = 86_400_000;
+    protected internal const int UpdateCheckFailureRetryMs = 600_000;
 
     // Extra grace beyond the configured interval before the UI flips "Install update" to "Version stale".
     protected internal const int UpdateStaleGraceMs = 5_000;

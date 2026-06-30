@@ -157,6 +157,9 @@
   <data name="Settings_About_InstallUpdate_Available" xml:space="preserve">
     <value>Install update</value>
   </data>
+  <data name="Settings_About_InstallUpdate_CheckFailed" xml:space="preserve">
+    <value>Check failed</value>
+  </data>
   <data name="Settings_About_InstallUpdate_Stale" xml:space="preserve">
     <value>Version stale</value>
   </data>
@@ -216,6 +219,12 @@
   </data>
   <data name="Settings_About_UpdateStatus_LastCheckedFormat" xml:space="preserve">
     <value>You're up to date. Last checked {0}.</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_FailedFormat" xml:space="preserve">
+    <value>Update check failed. Last tried {0}.</value>
+  </data>
+  <data name="Settings_About_UpdateStatus_CancelledFormat" xml:space="preserve">
+    <value>Update check was canceled {0}.</value>
   </data>
   <data name="Settings_About_UpdateStatus_NeverChecked" xml:space="preserve">
     <value>No update check has run yet.</value>

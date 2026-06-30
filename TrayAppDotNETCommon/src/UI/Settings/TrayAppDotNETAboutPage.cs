@@ -297,6 +297,16 @@ public sealed class TrayAppDotNETAboutPage
                 L("Settings_About_UpdateStatus_AvailableFormat", "Update available: {0}"), update.ReleaseName);
         if (service.LastCheckTimeUtc == null)
             return L("Settings_About_UpdateStatus_NeverChecked", "No update check has run yet.");
+        if (service.LastResult == UpdateCheckResult.Failed)
+            return string.Format(
+                CultureInfo.CurrentCulture,
+                L("Settings_About_UpdateStatus_FailedFormat", "Update check failed. Last tried {0}."),
+                FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
+        if (service.LastResult == UpdateCheckResult.Cancelled)
+            return string.Format(
+                CultureInfo.CurrentCulture,
+                L("Settings_About_UpdateStatus_CancelledFormat", "Update check was canceled {0}."),
+                FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
         return string.Format(
             CultureInfo.CurrentCulture,
             L("Settings_About_UpdateStatus_LastCheckedFormat", "You're up to date. Last checked {0}."),
@@ -306,6 +316,8 @@ public sealed class TrayAppDotNETAboutPage
     private string UpdateInstallButtonText(UpdateCheckService? service)
     {
         if (service?.AvailableUpdate != null) return L("Settings_About_InstallUpdate_Available", "Install update");
+        if (service?.LastResult == UpdateCheckResult.Failed)
+            return L("Settings_About_InstallUpdate_CheckFailed", "Check failed");
         if (service != null && ComputeStaleness(service))
             return L("Settings_About_InstallUpdate_Stale", "Version stale");
         return L("Settings_About_InstallUpdate_UpToDate", "Up to date");
