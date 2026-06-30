@@ -148,14 +148,6 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
-
-        stack.Children.Add(BoolCard(
-            L("Settings_General_DefaultToRPMMode_Title", "Default to RPM mode"),
-            L("Settings_General_DefaultToRPMMode_Description", "Newly discovered fans start in RPM mode."),
-            _settings.DefaultToRPMMode,
-            v => _settings.DefaultToRPMMode = v,
-            p));
 
         commonSection.AddInstallationSection(stack,
         [
@@ -188,6 +180,14 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 },
             },
         ]);
+        CreateKeepWarmSettingsSection(p).AddCards(stack);
+
+        stack.Children.Add(BoolCard(
+            L("Settings_General_DefaultToRPMMode_Title", "Default to RPM mode"),
+            L("Settings_General_DefaultToRPMMode_Description", "Newly discovered fans start in RPM mode."),
+            _settings.DefaultToRPMMode,
+            v => _settings.DefaultToRPMMode = v,
+            p));
 
         return stack;
     }

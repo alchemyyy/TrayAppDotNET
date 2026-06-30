@@ -12,7 +12,6 @@ public sealed partial class NetworkSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
         commonSection.AddInstallationSection(
             stack,
             [
@@ -48,6 +47,7 @@ public sealed partial class NetworkSettingsWindow
             new TrayAppDotNETStoreInstallOptions(
                 Loc("Settings_General_WindowsStore_Title"),
                 StoreInstallDescription));
+        CreateKeepWarmSettingsSection(p).AddCards(stack);
 
         return stack;
     }

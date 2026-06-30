@@ -21,6 +21,40 @@ public sealed partial class BrightnessSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
+
+        commonSection.AddInstallationSection(stack,
+        [
+            new TrayAppDotNETInstallCardOptions
+            {
+                Scope = BrightnessInstallScope.LocalAppData,
+                Title = L("Settings_General_LocalUser_Title", "Local user"),
+                ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
+                Elevated = false,
+                Install = static () => AppServices.Installation.InstallToLocalAppData(),
+                UninstallAsync = refresh =>
+                {
+                    _showUninstaller(
+                        AppServices.InstallLayout.LocalAppDataInstallDirectory,
+                        BrightnessInstallScope.LocalAppData);
+                    return Task.CompletedTask;
+                },
+            },
+            new TrayAppDotNETInstallCardOptions
+            {
+                Scope = BrightnessInstallScope.ProgramFiles,
+                Title = L("Settings_General_SystemWide_Title", "System-wide"),
+                ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
+                Elevated = true,
+                Install = static () => AppServices.Installation.InstallSystemWide(),
+                UninstallAsync = refresh =>
+                {
+                    _showUninstaller(
+                        AppServices.InstallLayout.ProgramFilesInstallDirectory,
+                        BrightnessInstallScope.ProgramFiles);
+                    return Task.CompletedTask;
+                },
+            },
+        ]);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(BoolCard(
@@ -99,40 +133,6 @@ public sealed partial class BrightnessSettingsWindow
         _profileSlotPanel = new StackPanel();
         RebuildProfileSlots();
         stack.Children.Add(RawCard(_profileSlotPanel, p));
-
-        commonSection.AddInstallationSection(stack,
-        [
-            new TrayAppDotNETInstallCardOptions
-            {
-                Scope = BrightnessInstallScope.LocalAppData,
-                Title = L("Settings_General_LocalUser_Title", "Local user"),
-                ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
-                Elevated = false,
-                Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                UninstallAsync = refresh =>
-                {
-                    _showUninstaller(
-                        AppServices.InstallLayout.LocalAppDataInstallDirectory,
-                        BrightnessInstallScope.LocalAppData);
-                    return Task.CompletedTask;
-                },
-            },
-            new TrayAppDotNETInstallCardOptions
-            {
-                Scope = BrightnessInstallScope.ProgramFiles,
-                Title = L("Settings_General_SystemWide_Title", "System-wide"),
-                ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
-                Elevated = true,
-                Install = static () => AppServices.Installation.InstallSystemWide(),
-                UninstallAsync = refresh =>
-                {
-                    _showUninstaller(
-                        AppServices.InstallLayout.ProgramFilesInstallDirectory,
-                        BrightnessInstallScope.ProgramFiles);
-                    return Task.CompletedTask;
-                },
-            },
-        ]);
 
         return stack;
     }
