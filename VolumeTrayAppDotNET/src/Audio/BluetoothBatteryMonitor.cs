@@ -17,6 +17,7 @@ namespace VolumeTrayAppDotNET.Audio;
 internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPropertyChanged, IDisposable
 {
     private static readonly Guid BluetoothClassGuid = new("e0cbf06c-cd8b-4647-bb8a-263b43f0f974");
+    private const string RefreshThrottleKey = "bluetooth-battery-refresh";
 
     // Present devnodes that classify a container as Bluetooth, keyed by PnP instance id. This
     // includes both Bluetooth-class devnodes and battery-bearing devnodes that carry
@@ -28,6 +29,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
 
     // Current, present Bluetooth containers from the latest successful reconciliation pass.
     private readonly HashSet<Guid> _activeBluetoothContainers = [];
+    private readonly AsyncThrottler<string> _refreshThrottler = new(0, StringComparer.Ordinal);
 
     private DispatcherTimer? _pollTimer;
     private bool _isRunning;
@@ -88,7 +90,34 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     public void Refresh()
     {
         if (_disposed) return;
-        Reconcile();
+        _ = _refreshThrottler.RunAsync(RefreshThrottleKey, async ctx =>
+        {
+            ReconciliationResult result = await Task.Run(BuildCurrentState, ctx.CancellationToken)
+                .ConfigureAwait(false);
+            if (_disposed || ctx.HasReplacement) return;
+
+            if (!result.HasData)
+            {
+                TADNLog.LogDebug(
+                    "BluetoothBatteryMonitor.Reconcile: cfgmgr32 returned no present devnodes; keeping previous state.");
+                return;
+            }
+
+            try
+            {
+                await dispatcher.InvokeAsync(() =>
+                {
+                    if (_disposed) return;
+                    ApplyCurrentState(result.CurrentIds, result.CurrentContainers, result.CurrentBatteries);
+                    TADNLog.LogDebug(
+                        $"BluetoothBatteryMonitor.Reconcile: scanned={result.ScannedCount} bluetoothClass={result.BluetoothClassMatches} battery={result.BatteryMatches} activeContainers={_activeBluetoothContainers.Count}");
+                }, DispatcherPriority.Background);
+            }
+            catch
+            {
+                /* dispatcher shut down */
+            }
+        });
     }
 
     /// <summary>
@@ -122,17 +151,11 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
 
     private void OnPollTick(object? sender, EventArgs e) => Refresh();
 
-    private void Reconcile()
+    private static ReconciliationResult BuildCurrentState()
     {
-        if (_disposed) return;
-
         List<string> ids = EnumeratePresentDevnodeIds();
         if (ids.Count == 0)
-        {
-            TADNLog.LogDebug(
-                "BluetoothBatteryMonitor.Reconcile: cfgmgr32 returned no present devnodes; keeping previous state.");
-            return;
-        }
+            return ReconciliationResult.Empty;
 
         Dictionary<string, Guid> currentIds = new(StringComparer.Ordinal);
         Dictionary<Guid, int> currentBatteries = [];
@@ -166,10 +189,14 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             batteryMatches++;
         }
 
-        ApplyCurrentState(currentIds, currentContainers, currentBatteries);
-
-        TADNLog.LogDebug(
-            $"BluetoothBatteryMonitor.Reconcile: scanned={ids.Count} bluetoothClass={bluetoothClassMatches} battery={batteryMatches} activeContainers={_activeBluetoothContainers.Count}");
+        return new ReconciliationResult(
+            currentIds,
+            currentContainers,
+            currentBatteries,
+            ids.Count,
+            bluetoothClassMatches,
+            batteryMatches,
+            HasData: true);
     }
 
     private void ApplyCurrentState(
@@ -316,8 +343,29 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         _pollTimer?.Stop();
         if (_pollTimer != null) _pollTimer.Tick -= OnPollTick;
         _pollTimer = null;
+        Safe.Dispose(_refreshThrottler);
         _idToContainer.Clear();
         _batteries.Clear();
         _activeBluetoothContainers.Clear();
+    }
+
+    private sealed record ReconciliationResult(
+        Dictionary<string, Guid> CurrentIds,
+        HashSet<Guid> CurrentContainers,
+        Dictionary<Guid, int> CurrentBatteries,
+        int ScannedCount,
+        int BluetoothClassMatches,
+        int BatteryMatches,
+        bool HasData)
+    {
+        public static ReconciliationResult Empty { get; } =
+            new(
+                new Dictionary<string, Guid>(StringComparer.Ordinal),
+                [],
+                [],
+                0,
+                0,
+                0,
+                HasData: false);
     }
 }

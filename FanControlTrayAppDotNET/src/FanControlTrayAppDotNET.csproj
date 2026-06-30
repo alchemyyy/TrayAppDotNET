@@ -48,8 +48,6 @@
 
   <ItemGroup>
     <PackageReference Include="NCalc.Core" Version="$(NCalcPackageVersion)" />
-    <PackageReference Include="NCalc.Domain" Version="$(NCalcPackageVersion)" />
-    <PackageReference Include="NCalc.Parser" Version="$(NCalcPackageVersion)" />
     <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="10.0.9" PrivateAssets="all" IsImplicitlyDefined="true" />
     <Using Include="TrayAppDotNETCommon.TADNLog" Alias="TADNLog" />
     <Using Include="TrayAppDotNETCommon" />
@@ -60,7 +58,6 @@
     <Using Include="TrayAppDotNETCommon.Services.Install" />
     <Using Include="TrayAppDotNETCommon.UI" />
     <Using Include="TrayAppDotNETCommon.UI.Controls" />
-    <Using Include="TrayAppDotNETCommon.UI.Drag" />
     <Using Include="TrayAppDotNETCommon.UI.Hotkeys" />
     <Using Include="TrayAppDotNETCommon.UI.Models" />
     <Using Include="TrayAppDotNETCommon.UI.Tray" />

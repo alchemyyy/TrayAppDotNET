@@ -11,13 +11,17 @@ namespace FanControlTrayAppDotNET.Services;
 //   * Fans collection, an ObservableCollection<Fan> the flyout binds to
 //
 // What this pass does NOT do yet:
-//   * Writeback to fan controls (curve evaluation, manual slider, jumpstart, delta limiting)
+//   * Curve evaluation, jumpstart, delta limiting
 //   * Disabled/Detached state classification beyond a naive check
-//   * Fan-control writeback (curve evaluation, manual slider, jumpstart, delta limiting)
 public sealed class LHMService : IDisposable
 {
     private readonly Dispatcher _dispatcher;
     private readonly AppSettings? _settings;
+    private readonly object _hardwareLock = new();
+    private readonly object _controlWriteQueueLock = new();
+    private readonly Dictionary<string, ISensor> _controlSensorsByKey = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, FanControlWriteRequest> _pendingControlWrites =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly Computer _computer = new()
     {
         IsCpuEnabled = true,
@@ -33,6 +37,7 @@ public sealed class LHMService : IDisposable
     private Task? _pollTask;
     private bool _disposed;
     private bool _discoveryChanged;
+    private bool _controlWriteWorkerScheduled;
 
     public ObservableCollection<Fan> Fans { get; } = [];
 
@@ -75,10 +80,13 @@ public sealed class LHMService : IDisposable
     {
         if (_pollingCancellationToken != null) return;
 
-        _computer.Open();
-        // Cold enumeration runs on whatever thread starts us (the UI thread at startup). That's
-        // fine because it only mutates Fans / DataSources once and the UI hasn't bound yet.
-        RebuildFromHardware();
+        lock (_hardwareLock)
+        {
+            _computer.Open();
+            // Cold enumeration runs on whatever thread starts us (the UI thread at startup). That's
+            // fine because it only mutates Fans / DataSources once and the UI hasn't bound yet.
+            RebuildFromHardware();
+        }
 
         _pollingCancellationToken = new CancellationTokenSource();
         _pollTask = Task.Run(() => PollLoop(_pollingCancellationToken.Token));
@@ -103,12 +111,18 @@ public sealed class LHMService : IDisposable
     {
         while (!token.IsCancellationRequested)
         {
+            List<SensorReading> readings = [];
             try
             {
-                foreach (IHardware hardware in _computer.Hardware)
+                lock (_hardwareLock)
                 {
-                    hardware.Update();
-                    foreach (IHardware sub in hardware.SubHardware) sub.Update();
+                    foreach (IHardware hardware in _computer.Hardware)
+                    {
+                        hardware.Update();
+                        foreach (IHardware sub in hardware.SubHardware) sub.Update();
+                    }
+
+                    readings = CaptureSensorReadings();
                 }
             }
             catch (Exception ex) { TADNLog.Log($"LHMService poll (hardware update) failed: {ex.Message}"); }
@@ -117,7 +131,7 @@ public sealed class LHMService : IDisposable
             {
                 await _dispatcher.InvokeAsync(() =>
                 {
-                    PushSensorReadings();
+                    PushSensorReadings(readings);
                     PollTickCompleted?.Invoke();
                 }, DispatcherPriority.Background, token);
             }
@@ -134,6 +148,7 @@ public sealed class LHMService : IDisposable
     private void RebuildFromHardware()
     {
         _discoveryChanged = false;
+        _controlSensorsByKey.Clear();
         foreach (IHardware hardware in _computer.Hardware)
         {
             hardware.Update();
@@ -175,6 +190,7 @@ public sealed class LHMService : IDisposable
 
             if (sensor.SensorType == SensorType.Control)
             {
+                _controlSensorsByKey[key] = sensor;
                 EnsureFanForControlSensor(hardware, sensor, key);
             }
         }
@@ -188,50 +204,58 @@ public sealed class LHMService : IDisposable
 
     // Walk every sensor and push its current value into the matching DataSource. Fans get their
     // CurrentRPM and CurrentDutyCycle updated from the paired Fan-type and Control-type sensors.
-    private void PushSensorReadings()
+    private List<SensorReading> CaptureSensorReadings()
     {
+        List<SensorReading> readings = [];
         foreach (IHardware hardware in _computer.Hardware)
-        {
-            PushFromHardware(hardware);
-        }
+            CaptureFromHardware(hardware, readings);
+        return readings;
     }
 
-    private void PushFromHardware(IHardware hardware)
+    private static void CaptureFromHardware(IHardware hardware, List<SensorReading> readings)
     {
         foreach (ISensor sensor in hardware.Sensors)
         {
             if (sensor.Value is not float value) continue;
 
             string key = BuildSensorKey(hardware, sensor);
-            DataSource? source = DataSource.Find(key);
-            source?.SetValue((long)Math.Round(value * 1000.0));
+            readings.Add(new SensorReading(key, hardware.Name, sensor.Name, sensor.SensorType, value));
+        }
 
-            switch (sensor.SensorType)
+        foreach (IHardware sub in hardware.SubHardware) CaptureFromHardware(sub, readings);
+    }
+
+    private void PushSensorReadings(IReadOnlyList<SensorReading> readings)
+    {
+        foreach (SensorReading reading in readings)
+        {
+            DataSource? source = DataSource.Find(reading.Key);
+            source?.SetValue((long)Math.Round(reading.Value * 1000.0));
+
+            switch (reading.SensorType)
             {
                 case SensorType.Control:
                 {
-                    Fan? fan = FindFanByControlKey(key);
+                    Fan? fan = FindFanByControlKey(reading.Key);
                     if (fan != null)
                     {
-                        fan.CurrentDutyCycle = value;
+                        fan.CurrentDutyCycle = reading.Value;
                         UpdateFanFunctionalState(fan);
                     }
                     break;
                 }
                 case SensorType.Fan:
                 {
-                    Fan? fan = FindFanByFanSensor(hardware, sensor);
+                    Fan? fan = FindFanByFanSensor(reading.HardwareName, reading.SensorName);
                     if (fan != null)
                     {
-                        fan.CurrentRPM = (int)Math.Round(value);
+                        fan.CurrentRPM = (int)Math.Round(reading.Value);
                         UpdateFanFunctionalState(fan);
                     }
                     break;
                 }
             }
         }
-
-        foreach (IHardware sub in hardware.SubHardware) PushFromHardware(sub);
     }
 
     // Promote a Control sensor into a Fan model entry if we haven't seen this key before.
@@ -256,6 +280,7 @@ public sealed class LHMService : IDisposable
         fan.PropertyChanged += OnFanPropertyChanged;
         Fans.Add(fan);
         _settings?.UpsertPersistedFan(fan);
+        QueueFanControlWriteForCurrentState(fan);
         _discoveryChanged = true;
     }
 
@@ -283,8 +308,115 @@ public sealed class LHMService : IDisposable
         if (!PersistedFanProperties.Contains(e.PropertyName)) return;
 
         UpdateFanFunctionalState(fan);
+        if (IsControlWriteProperty(e.PropertyName))
+            QueueFanControlWriteForCurrentState(fan);
         _settings?.UpsertPersistedFan(fan);
         PersistLiveState(save: true);
+    }
+
+    private static bool IsControlWriteProperty(string propertyName) =>
+        propertyName is nameof(Fan.FanDisplayedValue)
+            or nameof(Fan.CurrentControlMode)
+            or nameof(Fan.RPMMode)
+            or nameof(Fan.MaxRPM)
+            or nameof(Fan.ForcedNonFunctioning)
+            or nameof(Fan.ForceNonFunctional);
+
+    public void QueueFanControlWriteForCurrentState(Fan fan)
+    {
+        if (_disposed || string.IsNullOrWhiteSpace(fan.DataSourceKey)) return;
+
+        FanControlWriteRequest request = fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Manual }
+            ? FanControlWriteRequest.Software(fan.DataSourceKey, ResolveManualDutyCyclePercent(fan))
+            : FanControlWriteRequest.Default(fan.DataSourceKey);
+
+        lock (_controlWriteQueueLock)
+        {
+            _pendingControlWrites[request.DataSourceKey] = request;
+            if (_controlWriteWorkerScheduled) return;
+
+            _controlWriteWorkerScheduled = true;
+            _ = Task.Run(ProcessQueuedControlWrites);
+        }
+    }
+
+    private void ProcessQueuedControlWrites()
+    {
+        while (!_disposed)
+        {
+            List<FanControlWriteRequest> batch;
+            lock (_controlWriteQueueLock)
+            {
+                if (_pendingControlWrites.Count == 0)
+                {
+                    _controlWriteWorkerScheduled = false;
+                    return;
+                }
+
+                batch = [.. _pendingControlWrites.Values];
+                _pendingControlWrites.Clear();
+            }
+
+            foreach (FanControlWriteRequest request in batch)
+            {
+                if (_disposed) return;
+                try { ApplyControlWrite(request); }
+                catch (Exception ex)
+                {
+                    TADNLog.Log(
+                        $"LHMService control write failed for {request.DataSourceKey}: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    private void ApplyControlWrite(FanControlWriteRequest request)
+    {
+        lock (_hardwareLock)
+        {
+            if (!_controlSensorsByKey.TryGetValue(request.DataSourceKey, out ISensor? sensor))
+            {
+                TADNLog.Log($"LHMService control write skipped; sensor not found: {request.DataSourceKey}");
+                return;
+            }
+
+            IControl? control = sensor.Control;
+            if (control == null)
+            {
+                TADNLog.Log($"LHMService control write skipped; sensor has no control: {request.DataSourceKey}");
+                return;
+            }
+
+            if (request.UseDefault)
+            {
+                control.SetDefault();
+                return;
+            }
+
+            float value = ClampToSoftwareRange(control, request.DutyCyclePercent);
+            control.SetSoftware(value);
+        }
+    }
+
+    private static double ResolveManualDutyCyclePercent(Fan fan)
+    {
+        double value = Math.Clamp(fan.FanDisplayedValue, 0, Math.Max(1, fan.FanSliderMaximum));
+        if (fan.RPMMode)
+        {
+            double rpmReference = Math.Max(1, fan.FanSliderMaximum);
+            value = value / rpmReference * 100.0;
+        }
+
+        return Math.Clamp(value, 0.0, 100.0);
+    }
+
+    private static float ClampToSoftwareRange(IControl control, double dutyCyclePercent)
+    {
+        float min = float.IsNaN(control.MinSoftwareValue) ? 0.0f : control.MinSoftwareValue;
+        float max = float.IsNaN(control.MaxSoftwareValue) ? 100.0f : control.MaxSoftwareValue;
+        if (max < min) (min, max) = (max, min);
+
+        return (float)Math.Clamp(dutyCyclePercent, min, max);
     }
 
     private static void UpdateFanFunctionalState(Fan fan)
@@ -323,12 +455,12 @@ public sealed class LHMService : IDisposable
     // Heuristic pairing: a Fan-type sensor named "Fan #1" pairs with the Control-type sensor
     // "Fan Control #1" on the same hardware. Refined pairing (by index, by physical header) is
     // future-pass work.
-    private Fan? FindFanByFanSensor(IHardware hardware, ISensor fanSensor)
+    private Fan? FindFanByFanSensor(string hardwareName, string sensorName)
     {
         foreach (Fan fan in Fans)
         {
-            if (!string.Equals(fan.ControllerModel, hardware.Name, StringComparison.OrdinalIgnoreCase)) continue;
-            if (fan.FansName.Contains(fanSensor.Name, StringComparison.OrdinalIgnoreCase)) return fan;
+            if (!string.Equals(fan.ControllerModel, hardwareName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (fan.FansName.Contains(sensorName, StringComparison.OrdinalIgnoreCase)) return fan;
         }
         return null;
     }
@@ -366,6 +498,32 @@ public sealed class LHMService : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
-        try { _computer.Close(); } catch { /* swallow shutdown noise */ }
+        try
+        {
+            lock (_hardwareLock)
+            {
+                _computer.Close();
+            }
+        }
+        catch { /* swallow shutdown noise */ }
     }
+
+    private readonly record struct FanControlWriteRequest(
+        string DataSourceKey,
+        double DutyCyclePercent,
+        bool UseDefault)
+    {
+        public static FanControlWriteRequest Software(string dataSourceKey, double dutyCyclePercent) =>
+            new(dataSourceKey, dutyCyclePercent, UseDefault: false);
+
+        public static FanControlWriteRequest Default(string dataSourceKey) =>
+            new(dataSourceKey, 0.0, UseDefault: true);
+    }
+
+    private readonly record struct SensorReading(
+        string Key,
+        string HardwareName,
+        string SensorName,
+        SensorType SensorType,
+        float Value);
 }
