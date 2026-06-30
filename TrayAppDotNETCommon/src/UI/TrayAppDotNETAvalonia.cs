@@ -105,6 +105,12 @@ public static class TrayAppDotNETAvalonia
     {
         ArgumentNullException.ThrowIfNull(action);
 
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Dispatcher.UIThread.Post(() =>
         {

@@ -83,6 +83,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool _isUndocked;
     private bool _showNonFunctioningFans;
     private bool _suppressFanRebuild;
+    private bool _isUpdateDownloadInFlight;
     private bool _isDraggingWindow;
     private bool _undockButtonPointerCaptured;
     private bool _undockButtonDragOccurred;
@@ -123,6 +124,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _lhmService.PollTickCompleted += OnPollTickCompleted;
             WireFanPropertySubscriptions();
         }
+
+        if (AppServices.UpdateCheckService is { } updateService)
+            updateService.StateChanged += NotifyUpdateStateChanged;
 
         KeyDown += (_, e) =>
         {
@@ -351,6 +355,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         };
 
         _cellStack = new StackPanel { Spacing = 0 };
+        bool hasUpdateCard = IsUpdateCardVisible;
+        if (hasUpdateCard)
+            _cellStack.Children.Add(BuildUpdateCard(p, theme, isLight));
+
         foreach (FanFlyoutCell cell in _cells)
             _cellStack.Children.Add(BuildCell(cell, p, theme, isLight));
 
@@ -368,9 +376,86 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         empty.Opacity = Layout.EmptyTextOpacity;
         empty.HorizontalAlignment = HorizontalAlignment.Center;
         empty.VerticalAlignment = VerticalAlignment.Center;
-        empty.IsVisible = _cells.Count == 0;
+        empty.IsVisible = _cells.Count == 0 && !hasUpdateCard;
         holder.Children.Add(empty);
         return holder;
+    }
+
+    private Border BuildUpdateCard(FlyoutControlPalette p, AppTheme theme, bool isLight)
+    {
+        UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
+        string releaseName = update?.ReleaseName ?? L("UpdateDialog_DefaultTitle", "Update available");
+
+        Grid row = new()
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
+            },
+        };
+
+        Border icon = new()
+        {
+            Width = Layout.FanButtonWidth,
+            Height = Layout.FanButtonHeight,
+            Margin = Layout.FanButtonUngroupedMargin,
+            Child = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.INFO, p, Layout.FanButtonFontSize),
+            IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(icon, 0);
+        row.Children.Add(icon);
+
+        StackPanel text = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = Layout.FanNameStackUngroupedMargin,
+        };
+        TextBlock title = TrayAppDotNETFlyoutUI.Text(
+            L("UpdateNotification_Title", "Update available"),
+            p,
+            Layout.FanNameFontSize,
+            FontWeight.SemiBold);
+        title.TextTrimming = TextTrimming.CharacterEllipsis;
+        TextBlock subtitle = TrayAppDotNETFlyoutUI.Text(
+            string.Format(CultureInfo.CurrentCulture,
+                L("UpdateNotification_BodyFormat", "{0} is available."),
+                releaseName),
+            p,
+            Layout.FanSubtitleFontSize,
+            color: p.SecondaryForeground);
+        subtitle.Margin = Layout.SubtitleMargin;
+        subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
+        text.Children.Add(title);
+        text.Children.Add(subtitle);
+        Grid.SetColumn(text, 1);
+        row.Children.Add(text);
+
+        Border install = TrayAppDotNETFlyoutUI.TextButton(
+            L("Settings_About_InstallUpdate_Available", "Install update"),
+            p,
+            ShowUpdateConfirmation,
+            Layout.FanSubtitleFontSize,
+            new Thickness(8, 4));
+        install.VerticalAlignment = VerticalAlignment.Center;
+        install.Margin = Layout.TelemetryMargin;
+        Grid.SetColumn(install, 2);
+        row.Children.Add(install);
+
+        Thickness borderThickness = _settings.EnableCardBorders ? Layout.CardBorderThickness : Layout.ZeroThickness;
+        return TrayAppDotNETFlyoutUI.Card(
+            row,
+            theme.ResolveFanCardBackground(_settings, isLight),
+            theme.ResolveFlyoutCardBorder(_settings, isLight),
+            Rounded(Layout.CardCornerRadius),
+            Layout.CardPadding,
+            Layout.CardMargin(
+                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
+                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
+                Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
+            borderThickness);
     }
 
     private Border BuildCell(FanFlyoutCell cell, FlyoutControlPalette p, AppTheme theme, bool isLight,
@@ -2823,6 +2908,77 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         window.Activate();
     }
 
+    private async void ShowUpdateConfirmation()
+    {
+        if (_isUpdateDownloadInFlight) return;
+        UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
+        if (update == null) return;
+
+        bool ok = await ConfirmAsync(
+            string.Format(CultureInfo.CurrentCulture, L("UpdateDialog_TitleFormat", "Install {0}?"),
+                update.ReleaseName),
+            string.IsNullOrWhiteSpace(update.Changelog)
+                ? L("UpdateDialog_NoChangelog", "No changelog was provided for this release.")
+                : update.Changelog,
+            L("UpdateDialog_Install", "Install"),
+            L("UpdateDialog_Cancel", "Cancel"));
+        if (!ok) return;
+
+        StartUpdateDownload();
+    }
+
+    private void StartUpdateDownload()
+    {
+        if (_isUpdateDownloadInFlight) return;
+        UpdateCheckService? service = AppServices.UpdateCheckService;
+        UpdateInfo? info = service?.AvailableUpdate;
+        if (service == null || info == null) return;
+
+        _isUpdateDownloadInFlight = true;
+        _ = Task.Run(async () =>
+        {
+            bool ok = false;
+            try
+            {
+                ok = await service.DownloadAndStageAsync(info).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"FanFlyoutWindow.StartUpdateDownload: {ex.Message}");
+            }
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (ok)
+                {
+                    TADNLog.Flush();
+                    if (Application.Current?.ApplicationLifetime
+                        is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                        desktop.Shutdown();
+                }
+                else
+                {
+                    _isUpdateDownloadInFlight = false;
+                    _ = ConfirmAsync(
+                        L("Settings_About_InstallUpdate_CheckFailed", "Check failed"),
+                        L("UpdateDialog_DownloadFailed",
+                            "The update could not be downloaded. Check the log for details."),
+                        L("SettingsWindow_ConfirmOverlay_OK", "OK"),
+                        L("UpdateDialog_Cancel", "Cancel"));
+                }
+            });
+        });
+    }
+
+    private bool IsUpdateCardVisible =>
+        _settings.ShowUpdateButtonInFlyout && AppServices.UpdateCheckService?.AvailableUpdate != null;
+
+    private void NotifyUpdateStateChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        RebuildVisual();
+        QueuePositionNearTray();
+    });
+
     private void OpenCurveEditor(Fan fan)
     {
         Curve curve = fan.AssignedCurve ?? CreateCurveForFan(fan);
@@ -3763,6 +3919,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         base.OnClosed(e);
         ForceCloseAllFanPropertiesWindows();
         _settings.Changed -= OnSettingsChanged;
+        if (AppServices.UpdateCheckService is { } updateService)
+            updateService.StateChanged -= NotifyUpdateStateChanged;
         if (_lhmService != null)
         {
             _lhmService.PollTickCompleted -= OnPollTickCompleted;

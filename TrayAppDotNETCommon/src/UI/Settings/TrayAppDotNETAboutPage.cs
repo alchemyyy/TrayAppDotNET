@@ -241,6 +241,7 @@ public sealed class TrayAppDotNETAboutPage
 
         if (staged)
         {
+            TADNLog.Flush();
             _options.Shutdown();
         }
         else

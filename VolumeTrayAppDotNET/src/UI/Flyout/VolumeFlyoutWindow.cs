@@ -42,6 +42,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool _isUndocked;
     private bool _isRebuilding;
     private bool _isUpdateDownloadInFlight;
+    private bool _isUpdateDialogOpen;
     private bool _isDraggingWindow;
     private bool _undockButtonPointerCaptured;
     private bool _undockButtonDragOccurred;
@@ -153,7 +154,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         NotifyWarmDismissed();
     }
 
-    protected override bool HasOpenChildWindow => IsFlyoutMenuOpen;
+    protected override bool HasOpenChildWindow => IsFlyoutMenuOpen || _isUpdateDialogOpen;
 
     protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
 
@@ -443,6 +444,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (IsUpdateButtonVisible)
         {
             Border update = TextButton(L("Flyout_Update_ButtonText", "Update!"), p, ShowUpdateConfirmation);
+            SuppressNextAutoHideWhenPressed(update);
             update.Width = Layout.HeaderUpdateWidth;
             update.Height = Layout.HeaderUpdateHeight;
             update.BorderThickness = Layout.HeaderUpdateBorderThickness;
@@ -1810,7 +1812,18 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         TrayAppDotNETUpdateConfirmationWindow dialog =
             new(info, VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight()),
                 _settings.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
-        bool result = await dialog.ShowDialog<bool>(this);
+        _isUpdateDialogOpen = true;
+        bool result;
+        try
+        {
+            result = await dialog.ShowDialog<bool>(this);
+        }
+        finally
+        {
+            _isUpdateDialogOpen = false;
+            NotifyChildWindowClosedFromDeactivation();
+        }
+
         if (!result) return;
 
         _isUpdateDownloadInFlight = true;
@@ -1819,7 +1832,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             bool staged = await svc.DownloadAndStageAsync(info);
             if (staged && Application.Current?.ApplicationLifetime
                     is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                TADNLog.Flush();
                 desktop.Shutdown();
+            }
             else
                 _isUpdateDownloadInFlight = false;
         }
