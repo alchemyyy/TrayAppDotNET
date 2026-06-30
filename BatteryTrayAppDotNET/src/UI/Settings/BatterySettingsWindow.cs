@@ -129,7 +129,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
             TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
             stack.Children.Add(commonSection.BuildStartupCard());
-            CreateKeepWarmSettingsSection(p).AddCards(stack);
             commonSection.AddInstallationSection(
                 stack,
                 [
@@ -167,6 +166,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 new TrayAppDotNETStoreInstallOptions(
                     L("Settings_General_WindowsStore_Title", "Windows Store"),
                     StoreInstallDescription));
+            CreateKeepWarmSettingsSection(p).AddCards(stack);
 
             return stack;
         });

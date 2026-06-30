@@ -15,7 +15,6 @@ public sealed partial class VolumeSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
         commonSection.AddInstallationSection(
             stack,
             [
@@ -55,6 +54,7 @@ public sealed partial class VolumeSettingsWindow
             new TrayAppDotNETStoreInstallOptions(
                 Loc("Settings_General_WindowsStore_Title"),
                 StoreInstallDescription));
+        CreateKeepWarmSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_General_Notifications_Header"), p));
         stack.Children.Add(BoolCard(
