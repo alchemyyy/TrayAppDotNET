@@ -1193,31 +1193,57 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
     private bool RefreshEndpointVolumeState(bool forceNotify = false)
     {
+        if (!TryReadEndpointVolumeState(out float volume, out bool muted)) return false;
+        return ApplyEndpointVolumeState(volume, muted, forceNotify);
+    }
+
+    private bool TryReadEndpointVolumeState(out float volume, out bool muted)
+    {
+        volume = 0f;
+        muted = false;
         if (_disposed) return false;
 
         IAudioEndpointVolume? endpointVolume = _endpointVolume;
         if (endpointVolume == null) return false;
-
         try
         {
-            endpointVolume.GetMasterVolumeLevelScalar(out float volume);
-            endpointVolume.GetMute(out bool muted);
-            if (float.IsNaN(volume) || float.IsInfinity(volume)) return false;
+            endpointVolume.GetMasterVolumeLevelScalar(out float currentVolume);
+            endpointVolume.GetMute(out bool currentMuted);
+            if (float.IsNaN(currentVolume) || float.IsInfinity(currentVolume)) return false;
 
-            float clamped = Math.Clamp(volume, 0f, 1f);
-            bool volumeChanged = forceNotify || Math.Abs(clamped - _volume) >= VolumeEqualityEpsilon;
-            bool muteChanged = forceNotify || muted != _isMuted;
-
-            _volume = clamped;
-            _isMuted = muted;
-
-            if (volumeChanged) OnPropertyChanged(nameof(Volume));
-            if (muteChanged) OnPropertyChanged(nameof(IsMuted));
+            volume = Math.Clamp(currentVolume, 0f, 1f);
+            muted = currentMuted;
             return true;
         }
         catch
         {
             return false;
+        }
+    }
+
+    private bool ApplyEndpointVolumeState(float volume, bool muted, bool forceNotify = false)
+    {
+        if (_disposed) return false;
+
+        bool volumeChanged = forceNotify || Math.Abs(volume - _volume) >= VolumeEqualityEpsilon;
+        bool muteChanged = forceNotify || muted != _isMuted;
+
+        _volume = volume;
+        _isMuted = muted;
+
+        if (volumeChanged) OnPropertyChanged(nameof(Volume));
+        if (muteChanged) OnPropertyChanged(nameof(IsMuted));
+        return volumeChanged || muteChanged;
+    }
+
+    private void RefreshEndpointVolumeStateFromCallback()
+    {
+        if (!TryReadEndpointVolumeState(out float volume, out bool muted)) return;
+
+        try { _dispatcher.InvokeAsync(() => ApplyEndpointVolumeState(volume, muted)); }
+        catch
+        {
+            /* dispatcher torn down */
         }
     }
 
@@ -2157,10 +2183,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // Suppress echoes from our own writes.
             if (data.guidEventContext == AudioEventContext.Value) return 0;
 
-            owner._dispatcher.InvokeAsync(() =>
-            {
-                owner.RefreshEndpointVolumeState();
-            });
+            owner.RefreshEndpointVolumeStateFromCallback();
             return 0;
         }
     }

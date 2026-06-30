@@ -49,7 +49,6 @@
     <Using Include="TrayAppDotNETCommon.Services.Install" />
     <Using Include="TrayAppDotNETCommon.UI" />
     <Using Include="TrayAppDotNETCommon.UI.Controls" />
-    <Using Include="TrayAppDotNETCommon.UI.Drag" />
     <Using Include="TrayAppDotNETCommon.UI.Hotkeys" />
     <Using Include="TrayAppDotNETCommon.UI.Models" />
     <Using Include="TrayAppDotNETCommon.UI.Tray" />
