@@ -54,6 +54,7 @@ public abstract class TimeConstants
 
     // Per-request HTTP timeout for both the release-metadata GET and the asset download GET.
     protected internal const int UpdateNetworkTimeoutMs = 30_000;
+    protected internal const int UpdateManualCheckTimeoutMs = 45_000;
 
     // Short delay before kicking the very first check on startup so it doesn't compete with app startup work.
     protected internal const int UpdateCheckStartupDelayMs = 5_000;

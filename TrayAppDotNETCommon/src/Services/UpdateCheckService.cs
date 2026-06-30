@@ -103,6 +103,8 @@ public sealed class UpdateCheckOptions
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckIntervalMaxMs);
     public TimeSpan NetworkTimeout { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateNetworkTimeoutMs);
+    public TimeSpan ManualCheckTimeout { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateManualCheckTimeoutMs);
     public TimeSpan FailureRetryInterval { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckFailureRetryMs);
     public int AssetDownloadMaxAttempts { get; init; } = TimeConstants.UpdateAssetDownloadMaxAttempts;
@@ -186,7 +188,13 @@ public sealed class UpdateCheckService : IDisposable
         {
             TaskCompletionSource? running = Volatile.Read(ref _pollDone);
             Volatile.Read(ref _manualKick)?.TrySetResult();
-            if (running != null) await running.Task.ConfigureAwait(false);
+            if (running != null && !await WaitForRunningPollAsync(running.Task).ConfigureAwait(false))
+            {
+                await MarkCheckFailedAsync(
+                    "UpdateCheckService.CheckNowAsync: timed out waiting for in-flight update check.")
+                    .ConfigureAwait(false);
+            }
+
             return _available;
         }
 
@@ -196,7 +204,14 @@ public sealed class UpdateCheckService : IDisposable
         Volatile.Write(ref _pollDone, pollDone);
         try
         {
-            await PollOnceAsync(CancellationToken.None).ConfigureAwait(false);
+            using CancellationTokenSource timeoutCts = new(_options.ManualCheckTimeout);
+            await PollOnceAsync(timeoutCts.Token).ConfigureAwait(false);
+            if (timeoutCts.IsCancellationRequested)
+            {
+                await MarkCheckFailedAsync(
+                    "UpdateCheckService.CheckNowAsync: manual update check timed out.")
+                    .ConfigureAwait(false);
+            }
         }
         finally
         {
@@ -217,6 +232,7 @@ public sealed class UpdateCheckService : IDisposable
         string? zipPath = null;
         string? extractDirectory = null;
         string? scriptPath = null;
+        string? scriptLogPath = null;
         bool launched = false;
         try
         {
@@ -233,6 +249,7 @@ public sealed class UpdateCheckService : IDisposable
             zipPath = Path.Combine(stagingDirectory, updateId + ".zip");
             extractDirectory = Path.Combine(stagingDirectory, updateId);
             scriptPath = Path.Combine(stagingDirectory, updateId + ".bat");
+            scriptLogPath = Path.Combine(stagingDirectory, updateId + ".log");
 
             bool downloaded = await DownloadAssetWithRetryAsync(info.AssetUrl, zipPath, token)
                 .ConfigureAwait(false);
@@ -279,14 +296,15 @@ public sealed class UpdateCheckService : IDisposable
                 extractDirectory,
                 zipPath,
                 targetDirectory,
-                currentExe);
+                currentExe,
+                scriptLogPath);
             await File.WriteAllTextAsync(scriptPath, scriptContents, Encoding.ASCII, token)
                 .ConfigureAwait(false);
 
             ProcessStartInfo psi = new()
             {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"\"{scriptPath}\"\"",
+                FileName = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe",
+                Arguments = $"/d /c call \"{scriptPath}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
@@ -294,6 +312,14 @@ public sealed class UpdateCheckService : IDisposable
             };
             using Process? cmd = Process.Start(psi);
             launched = cmd != null;
+            if (launched)
+            {
+                TADNLog.Log(
+                    $"UpdateCheckService.DownloadAndStageAsync: launched update script {scriptPath}; "
+                    + $"installer log {scriptLogPath}");
+                TADNLog.Flush();
+            }
+
             return launched;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -312,6 +338,16 @@ public sealed class UpdateCheckService : IDisposable
 
             await SetCheckingAsync(false).ConfigureAwait(false);
         }
+    }
+
+    private async Task<bool> WaitForRunningPollAsync(Task runningTask)
+    {
+        Task timeoutTask = Task.Delay(_options.ManualCheckTimeout);
+        Task completed = await Task.WhenAny(runningTask, timeoutTask).ConfigureAwait(false);
+        if (completed != runningTask) return false;
+
+        await runningTask.ConfigureAwait(false);
+        return true;
     }
 
     public static int ParseVersionFromTag(string tag)
@@ -441,6 +477,17 @@ public sealed class UpdateCheckService : IDisposable
         {
             if (_isChecking == value) return;
             _isChecking = value;
+            StateChanged?.Invoke();
+        }).ConfigureAwait(false);
+    }
+
+    private async Task MarkCheckFailedAsync(string message)
+    {
+        TADNLog.Log(message);
+        await InvokeIfRunningAsync(() =>
+        {
+            _lastCheckTimeUtc = DateTime.UtcNow;
+            _lastResult = UpdateCheckResult.Failed;
             StateChanged?.Invoke();
         }).ConfigureAwait(false);
     }
@@ -590,28 +637,47 @@ public sealed class UpdateCheckService : IDisposable
         string sourceDirectory,
         string downloadedZip,
         string targetDirectory,
-        string currentExe)
+        string currentExe,
+        string logPath)
     {
         StringBuilder sb = new();
         sb.AppendLine("@echo off");
-        sb.AppendLine("setlocal");
+        sb.AppendLine("setlocal EnableExtensions EnableDelayedExpansion");
         sb.AppendLine($"set TARGETPID={pid}");
         sb.AppendLine($"set \"SOURCE={sourceDirectory}\"");
         sb.AppendLine($"set \"ZIP={downloadedZip}\"");
         sb.AppendLine($"set \"TARGET={targetDirectory}\"");
         sb.AppendLine($"set \"EXE={currentExe}\"");
+        sb.AppendLine($"set \"LOG={logPath}\"");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Update installer started.");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Waiting for PID %TARGETPID%.");
+        sb.AppendLine("set WAITCOUNT=0");
         sb.AppendLine(":waitloop");
         sb.AppendLine("tasklist /FI \"PID eq %TARGETPID%\" 2>NUL | find \"%TARGETPID%\" >NUL");
         sb.AppendLine("if not errorlevel 1 (");
+        sb.AppendLine("  set /a WAITCOUNT+=1");
+        sb.AppendLine("  if !WAITCOUNT! GEQ 60 (");
+        sb.AppendLine("    >> \"%LOG%\" echo [%DATE% %TIME%] PID %TARGETPID% still running after wait limit.");
+        sb.AppendLine("    >> \"%LOG%\" echo [%DATE% %TIME%] Terminating PID %TARGETPID%.");
+        sb.AppendLine("    taskkill /PID %TARGETPID% /T /F >> \"%LOG%\" 2>&1");
+        sb.AppendLine("    timeout /t 1 /nobreak >NUL");
+        sb.AppendLine("    goto afterwait");
+        sb.AppendLine("  )");
         sb.AppendLine("  timeout /t 1 /nobreak >NUL");
         sb.AppendLine("  goto waitloop");
         sb.AppendLine(")");
+        sb.AppendLine(":afterwait");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Copying from \"%SOURCE%\" to \"%TARGET%\".");
         sb.AppendLine("timeout /t 1 /nobreak >NUL");
-        sb.AppendLine("robocopy \"%SOURCE%\" \"%TARGET%\" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NC /NS >NUL");
+        sb.AppendLine("robocopy \"%SOURCE%\" \"%TARGET%\" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NC /NS >> \"%LOG%\" 2>&1");
         sb.AppendLine("set COPYRC=%ERRORLEVEL%");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Robocopy exit code %COPYRC%.");
         sb.AppendLine("if %COPYRC% GEQ 8 goto cleanup");
-        sb.AppendLine("start \"\" \"%EXE%\"");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Restarting \"%EXE%\".");
+        sb.AppendLine("start \"\" /D \"%TARGET%\" \"%EXE%\"");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Start exit code %ERRORLEVEL%.");
         sb.AppendLine(":cleanup");
+        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Cleaning staging files.");
         sb.AppendLine("rmdir /S /Q \"%SOURCE%\" 2>NUL");
         sb.AppendLine("del \"%ZIP%\" 2>NUL");
         sb.AppendLine("(goto) 2>nul & del \"%~f0\"");
@@ -715,6 +781,8 @@ public sealed class UpdateCheckService : IDisposable
             throw new ArgumentOutOfRangeException(nameof(options.AssetDownloadMaxAttempts));
         if (options.NetworkTimeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options.NetworkTimeout));
+        if (options.ManualCheckTimeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options.ManualCheckTimeout));
         if (options.FailureRetryInterval <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options.FailureRetryInterval));
         if (options.StartupDelay < TimeSpan.Zero)

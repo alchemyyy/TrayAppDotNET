@@ -1151,6 +1151,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             {
                 if (ok)
                 {
+                    WPFLog.Flush();
                     if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
                         lifetime.Shutdown();
                 }
