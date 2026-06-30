@@ -103,6 +103,8 @@ public sealed class UpdateCheckOptions
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckIntervalMaxMs);
     public TimeSpan NetworkTimeout { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateNetworkTimeoutMs);
+    public TimeSpan FailureRetryInterval { get; init; } =
+        TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckFailureRetryMs);
     public int AssetDownloadMaxAttempts { get; init; } = TimeConstants.UpdateAssetDownloadMaxAttempts;
     public TimeSpan AssetDownloadInitialBackoff { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
@@ -359,7 +361,7 @@ public sealed class UpdateCheckService : IDisposable
                 }
             }
 
-            TimeSpan interval = NormalizedInterval(_options.PollInterval());
+            TimeSpan interval = NextPollInterval();
             TaskCompletionSource kick = new(TaskCreationOptions.RunContinuationsAsynchronously);
             Volatile.Write(ref _manualKick, kick);
             try
@@ -374,6 +376,15 @@ public sealed class UpdateCheckService : IDisposable
                 Volatile.Write(ref _manualKick, null);
             }
         }
+    }
+
+    private TimeSpan NextPollInterval()
+    {
+        TimeSpan normal = NormalizedInterval(_options.PollInterval());
+        if (_lastResult != UpdateCheckResult.Failed) return normal;
+
+        TimeSpan retry = NormalizedInterval(_options.FailureRetryInterval);
+        return retry < normal ? retry : normal;
     }
 
     private TimeSpan NormalizedInterval(TimeSpan requested)
@@ -447,7 +458,12 @@ public sealed class UpdateCheckService : IDisposable
         using HttpResponseMessage resp = await _http
             .SendAsync(req, HttpCompletionOption.ResponseContentRead, token)
             .ConfigureAwait(false);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+            throw new HttpRequestException(
+                $"Manifest request to {_options.VersionsManifestUrl} failed with HTTP "
+                + $"{(int)resp.StatusCode} ({resp.ReasonPhrase}).",
+                null,
+                resp.StatusCode);
 
         await using Stream stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         VersionsManifest manifest = TrayXmlSerializer.Read<VersionsManifest>(stream);
@@ -699,6 +715,8 @@ public sealed class UpdateCheckService : IDisposable
             throw new ArgumentOutOfRangeException(nameof(options.AssetDownloadMaxAttempts));
         if (options.NetworkTimeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options.NetworkTimeout));
+        if (options.FailureRetryInterval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(options.FailureRetryInterval));
         if (options.StartupDelay < TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options.StartupDelay));
         if (options.MinPollInterval <= TimeSpan.Zero)
