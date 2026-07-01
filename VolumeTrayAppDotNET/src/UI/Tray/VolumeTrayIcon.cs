@@ -81,8 +81,14 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         }
     }
 
+    /// <summary>
+    /// Forces the next dirty-check render path to create a new icon input.
+    /// </summary>
     public void InvalidateCache() => _isDirty = true;
 
+    /// <summary>
+    /// Creates and caches a tray icon for the current dirty render state.
+    /// </summary>
     public NativeIcon? CreateIcon()
     {
         if (!TryCreateRenderInput(out TrayIconRenderInput? input) || input == null) return null;
@@ -90,16 +96,28 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         return _renderer.Render(input);
     }
 
+    /// <summary>
+    /// Creates the render input for the current tray icon state.
+    /// </summary>
+    public TrayIconRenderInput CreateRenderInput() =>
+        new(ResolveGlyphs(), ResolveColor(), BackdropOpacityValue);
+
+    /// <summary>
+    /// Creates a render input only when the renderer's dirty state requires it.
+    /// </summary>
     public bool TryCreateRenderInput(out TrayIconRenderInput? input)
     {
         input = null;
         if (!_isDirty) return false;
 
         _isDirty = false;
-        input = new TrayIconRenderInput(ResolveGlyphs(), ResolveColor(), BackdropOpacityValue);
+        input = CreateRenderInput();
         return true;
     }
 
+    /// <summary>
+    /// Renders a caller-owned tray icon from a precomputed render input.
+    /// </summary>
     public NativeIcon? RenderIcon(TrayIconRenderInput input) => _renderer.RenderOwned(input);
 
     private TrayIconGlyphLayer ResolveGlyphs()
