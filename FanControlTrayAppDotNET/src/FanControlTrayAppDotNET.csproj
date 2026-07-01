@@ -172,14 +172,9 @@
 
   <Target Name="PublishAfterBuild" AfterTargets="Build" Condition="'$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
-      <_OldBuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_OldBuildNumber>
-      <_OldBuildNumber Condition="'$(_OldBuildNumber)' == ''">0</_OldBuildNumber>
-      <_NewBuildNumber>$([MSBuild]::Add($(_OldBuildNumber), 1))</_NewBuildNumber>
       <_PublishOutputPath>$(OutputPath)</_PublishOutputPath>
       <_PublishOutputPath Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
     </PropertyGroup>
-    <WriteLinesToFile File="$(BuildNumberFile)" Lines="$(_NewBuildNumber)" Overwrite="true" />
-    <Message Importance="High" Text="Build number: $(_NewBuildNumber)" />
     <Message Importance="High" Text="Publishing Native AOT release..." />
     <RemoveDir Directories="$(_PublishOutputPath)" Condition="Exists('$(_PublishOutputPath)')" ContinueOnError="WarnAndContinue" />
     <MakeDir Directories="$(_PublishOutputPath)" />
