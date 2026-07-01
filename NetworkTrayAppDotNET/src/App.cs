@@ -21,15 +21,14 @@ internal static class NetworkAvaloniaRunner
     {
         return TrayAppDotNETAvalonia.StartWithExplicitShutdown<NetworkAvaloniaApp>(
             args,
-            // Preserve the old WPF RenderMode.SoftwareOnly mitigation for the native network flyout path.
+            // Defaults to the old software-rendering mitigation unless the user selects GPU preferred.
             builder =>
             {
-                builder = builder.With(new Win32PlatformOptions
-                {
-                    RenderingMode = [Win32RenderingMode.Software],
-                    CompositionMode = [Win32CompositionMode.RedirectionSurface],
-                });
-
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
+                    builder,
+                    AppSettings.GetDefaultPath,
+                    TADNLog.Log,
+                    TrayAppDotNETRenderingBackend.Software);
                 builder = builder.UseHotReload();
 
                 return builder;

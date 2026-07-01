@@ -1544,4 +1544,7 @@ Night Light: {0}%</value>
   <data name="UpdateNotification_Title" xml:space="preserve">
     <value>BrightnessTrayAppDotNET update available</value>
   </data>
+  <data name="Settings_General_RenderingBackend_Description" xml:space="preserve">
+    <value>"GPU preferred" uses Avalonia's Windows GPU path with software fallback. "Software" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required.</value>
+  </data>
 </root>

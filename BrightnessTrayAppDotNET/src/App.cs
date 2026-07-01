@@ -35,7 +35,10 @@ internal static class BrightnessAvaloniaRunner
             args,
             builder =>
             {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(builder);
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
+                    builder,
+                    AppSettings.GetDefaultPath,
+                    WPFLog.Log);
                 builder = builder.UseHotReload();
 
                 return builder;

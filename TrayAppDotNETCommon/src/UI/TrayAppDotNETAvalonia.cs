@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Xml;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -56,16 +57,74 @@ public static class TrayAppDotNETAvalonia
     public static FontManagerOptions DefaultFontOptions() =>
         new() { DefaultFamilyName = DefaultFontFamilyName, };
 
-    /// <summary>Applies the rendering backend selected by MSBuild properties.</summary>
-    public static AppBuilder UseConfiguredRenderingBackend(AppBuilder builder)
+    /// <summary>Applies the rendering backend selected in persisted user settings.</summary>
+    public static AppBuilder UseConfiguredRenderingBackend(
+        AppBuilder builder,
+        Func<string> getSettingsPath,
+        Action<string>? log = null,
+        TrayAppDotNETRenderingBackend defaultBackend = TrayAppDotNETRenderingBackend.GPUPreferred)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(getSettingsPath);
+
+        TrayAppDotNETRenderingBackend backend = LoadRenderingBackendOrDefault(getSettingsPath, log, defaultBackend);
+        return UseRenderingBackend(builder, backend);
+    }
+
+    /// <summary>Applies an explicit Avalonia rendering backend choice.</summary>
+    public static AppBuilder UseRenderingBackend(AppBuilder builder, TrayAppDotNETRenderingBackend backend)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-#if TRAY_APP_DOTNET_SOFTWARE_RENDERING
-        return UseWin32SoftwareRendering(builder);
-#else
-        return builder;
-#endif
+        return backend switch
+        {
+            TrayAppDotNETRenderingBackend.Software => UseWin32SoftwareRendering(builder),
+            TrayAppDotNETRenderingBackend.GPUPreferred => builder,
+            _ => builder,
+        };
+    }
+
+    /// <summary>Reads only the rendering backend value from settings XML without hydrating app settings.</summary>
+    public static TrayAppDotNETRenderingBackend LoadRenderingBackendOrDefault(
+        Func<string> getSettingsPath,
+        Action<string>? log = null,
+        TrayAppDotNETRenderingBackend defaultBackend = TrayAppDotNETRenderingBackend.GPUPreferred)
+    {
+        ArgumentNullException.ThrowIfNull(getSettingsPath);
+
+        try
+        {
+            string settingsPath = getSettingsPath();
+            if (!File.Exists(settingsPath)) return defaultBackend;
+
+            XmlReaderSettings readerSettings = new()
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreComments = true,
+                IgnoreProcessingInstructions = true,
+                IgnoreWhitespace = true,
+            };
+
+            using XmlReader reader = XmlReader.Create(settingsPath, readerSettings);
+            while (reader.Read())
+            {
+                if (reader.NodeType != XmlNodeType.Element ||
+                    !string.Equals(reader.LocalName, nameof(AppSettingsCommon.RenderingBackend), StringComparison.Ordinal))
+                    continue;
+
+                string text = reader.ReadElementContentAsString();
+                if (Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend))
+                    return backend;
+
+                return defaultBackend;
+            }
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"TrayAppDotNETAvalonia.LoadRenderingBackendOrDefault: {ex.Message}");
+        }
+
+        return defaultBackend;
     }
 
     /// <summary>Forces Avalonia's Win32 backend onto CPU software rendering.</summary>

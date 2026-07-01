@@ -143,6 +143,8 @@ public sealed partial class VolumeSettingsWindow
             CardRadius = RadiusLarge,
             Localize = L,
             Save = Save,
+            ConfirmAsync = ConfirmAsync,
+            ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
             SupportsTrayContextMenu = true,

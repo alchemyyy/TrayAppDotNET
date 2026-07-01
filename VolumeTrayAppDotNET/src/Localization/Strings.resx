@@ -1361,4 +1361,7 @@ Target: {1}</value>
   <data name="Settings_About_BluetoothCodecNotDisplaying_Description" xml:space="preserve">
     <value>This is a Windows Bluetooth limitation. The `Microsoft.Windows.Bluetooth.BthA2dp` ETW provider only emits the `A2dpStreaming` event on AVDTP `SET_CONFIGURATION` or `RECONFIGURE` -- i.e. when audio actually begins streaming, not at the moment a Bluetooth endpoint connects. While the headset is connected but idle, no codec event fires and the suffix remains empty. As soon as something pushes audio to the endpoint, the event fires and the codec text populates. There is no on-demand query path and it is not possible to accurately deduce codecs from sample rates and other parameters.</value>
   </data>
+  <data name="Settings_General_RenderingBackend_Description" xml:space="preserve">
+    <value>"GPU preferred" uses Avalonia's Windows GPU path with software fallback. "Software" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required.</value>
+  </data>
 </root>

@@ -256,6 +256,8 @@ public sealed partial class BrightnessSettingsWindow
             CardRadius = RadiusLarge,
             Localize = L,
             Save = Save,
+            ConfirmAsync = ConfirmAsync,
+            ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
             SupportsTrayContextMenu = true,

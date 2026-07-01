@@ -257,6 +257,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
+    public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;
 
     // Monitor Options
     public int BrightnessUpdateRateMs { get; set; } = TimeConstants.BrightnessUpdateRateDefaultMs;

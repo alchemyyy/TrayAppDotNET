@@ -199,6 +199,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             CardRadius = RadiusLarge,
             Localize = L,
             Save = Save,
+            ConfirmAsync = ConfirmAsync,
+            ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
             SupportsTrayContextMenu = true,
