@@ -18,16 +18,14 @@ public sealed partial class BrightnessSettingsWindow
 
         double toLatitude = _settings.EnvironmentalLatitude;
         double toLongitude = _settings.EnvironmentalLongitude;
-        if (!IsValidCoordinate(toLatitude, toLongitude)) return stored;
-
-        if (string.IsNullOrEmpty(stored.LastSunShiftDate)
+        if (!IsValidCoordinate(toLatitude, toLongitude)
+            || string.IsNullOrEmpty(stored.LastSunShiftDate)
             || !DateTime.TryParseExact(
                 stored.LastSunShiftDate,
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out DateTime fromDate))
-            return stored;
+                out DateTime fromDate)) return stored;
 
         double fromLatitude;
         double fromLongitude;
@@ -87,8 +85,10 @@ public sealed partial class BrightnessSettingsWindow
                        || AppServices.BrightnessFlyout?.IsNightLightCurveEnabled == true;
         _previewSweepButton.IsEnabled = engaged;
         if (!engaged)
+        {
             _previewSweepButton.Text =
                 L("Settings_Environmental_PreviewSweep_Idle_Button", "Live preview next 24 hours");
+        }
         else if (_previewSweepButton.Text != L("Settings_Environmental_PreviewSweep_Cancel_Button", "Cancel"))
             _previewSweepButton.Text = L("Settings_Environmental_PreviewSweep_Active_Button", "Preview next 24 hours");
     }
@@ -266,7 +266,7 @@ public sealed partial class BrightnessSettingsWindow
                 e.Handled = true;
                 break;
             case Key.Enter:
-                if (_sunOverlayCalendar?.SelectedDate is DateTime selected)
+                if (_sunOverlayCalendar?.SelectedDate is { } selected)
                     ApplyEnvironmentalSunOverlayDate(selected);
                 CloseEnvironmentalSunOverlayCalendar();
                 e.Handled = true;

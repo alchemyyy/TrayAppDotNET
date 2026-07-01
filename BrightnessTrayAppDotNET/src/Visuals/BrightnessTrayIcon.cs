@@ -5,7 +5,7 @@ using TrayAppDotNETCommon.UI.Tray;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
-internal sealed class BrightnessTrayIcon : IDisposable
+internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
 {
     private static readonly string[] IconFontFamilies =
     [
@@ -14,7 +14,7 @@ internal sealed class BrightnessTrayIcon : IDisposable
     ];
 
     private readonly Lock _gate = new();
-    private readonly AppTheme _theme;
+    private readonly AppTheme _theme = theme ?? AppTheme.Default;
     private SKTypeface? _iconTypeface;
     private NativeIcon? _currentIcon;
     private bool _isDirty = true;
@@ -24,8 +24,6 @@ internal sealed class BrightnessTrayIcon : IDisposable
     private Color? _customColor;
     private Color? _brightColor;
     private Color? _dimColor;
-
-    public BrightnessTrayIcon(AppTheme? theme) => _theme = theme ?? AppTheme.Default;
 
     public bool IsLightTheme
     {
@@ -228,11 +226,13 @@ internal sealed class BrightnessTrayIcon : IDisposable
 
     private void DrawGlyph(SKCanvas canvas, string glyph, double fontSize, int canvasSize, SKColor color)
     {
-        using SKFont font = new(IconTypeface, (float)fontSize)
-        {
-            Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.Normal, Subpixel = false,
-        };
-        using SKPaint paint = new() { IsAntialias = true, Color = color, };
+        using SKFont font = new(IconTypeface, (float)fontSize);
+        font.Edging = SKFontEdging.Antialias;
+        font.Hinting = SKFontHinting.Normal;
+        font.Subpixel = false;
+        using SKPaint paint = new();
+        paint.IsAntialias = true;
+        paint.Color = color;
 
         GlyphPlacement placement = MeasureGlyph(font, paint, glyph, canvasSize);
         canvas.DrawText(glyph, placement.X, placement.Y, font, paint);
@@ -242,10 +242,10 @@ internal sealed class BrightnessTrayIcon : IDisposable
     {
         if (offsetXPercent >= 100 && offsetYPercent >= 100) return null;
 
-        using SKFont font = new(IconTypeface, (float)fontSize)
-        {
-            Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.Normal, Subpixel = false,
-        };
+        using SKFont font = new(IconTypeface, (float)fontSize);
+        font.Edging = SKFontEdging.Antialias;
+        font.Hinting = SKFontHinting.Normal;
+        font.Subpixel = false;
         using SKPath glyphPath = font.GetTextPath(GlyphCatalog.FILLED_CIRCLE_SMALL, new SKPoint(0, 0));
         if (glyphPath.IsEmpty) return null;
 
@@ -260,13 +260,10 @@ internal sealed class BrightnessTrayIcon : IDisposable
         using SKPath offsetPath = CreateTranslatedPath(glyphPath, centerOffsetX + offsetX, centerOffsetY + offsetY);
 
         SKPath result = new();
-        if (!basePath.Op(offsetPath, SKPathOp.Intersect, result) || result.IsEmpty)
-        {
-            result.Dispose();
-            return null;
-        }
+        if (basePath.Op(offsetPath, SKPathOp.Intersect, result) && !result.IsEmpty) return result;
+        result.Dispose();
+        return null;
 
-        return result;
     }
 
     private SKTypeface IconTypeface => _iconTypeface ??= ResolveIconTypeface();
@@ -307,8 +304,8 @@ internal sealed class BrightnessTrayIcon : IDisposable
 
     private static Color Blend(Color from, Color to, double t)
     {
-        byte Lerp(byte a, byte b) => (byte)Math.Round(a + (b - a) * t);
         return Color.FromArgb(Lerp(from.A, to.A), Lerp(from.R, to.R), Lerp(from.G, to.G), Lerp(from.B, to.B));
+        byte Lerp(byte a, byte b) => (byte)Math.Round(a + (b - a) * t);
     }
 
     public void Dispose()
