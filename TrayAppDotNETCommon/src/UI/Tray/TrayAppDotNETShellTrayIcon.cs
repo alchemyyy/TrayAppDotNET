@@ -598,6 +598,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 OnNotifyIconMouseMove();
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_POPUPOPEN:
+                _tooltipKeepOpenRequested = true;
                 SyncTooltip();
                 PostEvent(TooltipPopup, nameof(TooltipPopup));
                 break;
