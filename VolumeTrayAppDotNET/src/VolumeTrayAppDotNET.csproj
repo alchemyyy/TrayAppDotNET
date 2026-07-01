@@ -32,8 +32,9 @@
     <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
     <OptimizationPreference>Size</OptimizationPreference>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <DebugType>none</DebugType>
-    <DebugSymbols>false</DebugSymbols>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <StripSymbols>false</StripSymbols>
     <!-- TraceEvent uses dynamic ETW payload helpers that Native AOT flags inside the package. -->
     <NoWarn>$(NoWarn);IL2067;IL2104;IL3050;IL3053</NoWarn>
   </PropertyGroup>

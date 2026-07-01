@@ -26,6 +26,7 @@ internal static class VolumeAvaloniaRunner
             args,
             builder =>
             {
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(builder);
                 builder = builder.UseHotReload();
 
                 return builder;

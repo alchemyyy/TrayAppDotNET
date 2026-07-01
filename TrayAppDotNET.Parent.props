@@ -8,6 +8,8 @@
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == ''">false</TrayAppDotNETAggregateBuild>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
+    <TrayAppDotNETSoftwareRendering Condition="'$(TrayAppDotNETSoftwareRendering)' == ''">true</TrayAppDotNETSoftwareRendering>
+    <DefineConstants Condition="'$(TrayAppDotNETSoftwareRendering)' == 'true'">$(DefineConstants);TRAY_APP_DOTNET_SOFTWARE_RENDERING</DefineConstants>
     <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>
     <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>

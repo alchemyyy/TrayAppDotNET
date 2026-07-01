@@ -34,8 +34,9 @@
     <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
     <OptimizationPreference>Size</OptimizationPreference>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <DebugType>none</DebugType>
-    <DebugSymbols>false</DebugSymbols>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <StripSymbols>false</StripSymbols>
     <!-- Native AOT analyzes the full dependency closure. These are package-internal diagnostics
          from LHM/DiskInfoToolkit/HidSharp/System.Management/NCalc parser paths. -->
     <NoWarn>$(NoWarn);IL2026;IL2055;IL2067;IL2072;IL2075;IL2077;IL2090;IL2091;IL2104;IL3050;IL3052;IL3053</NoWarn>

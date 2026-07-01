@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "BrightnessTrayAppDotNET": {
+      "commandName": "Project",
+      "commandLineArgs": "--monitored",
+      "environmentVariables": {
+        "TrayAppDotNET_NO_WATCHER": "1",
+        "BTAWPF_NO_WATCHER": "1"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "BatteryTrayAppDotNET": {
+      "commandName": "Project",
+      "commandLineArgs": "--monitored",
+      "environmentVariables": {
+        "TrayAppDotNET_NO_WATCHER": "1"
+      }
+    }
+  }
+}

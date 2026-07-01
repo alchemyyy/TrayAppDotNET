@@ -35,6 +35,7 @@ internal static class BrightnessAvaloniaRunner
             args,
             builder =>
             {
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(builder);
                 builder = builder.UseHotReload();
 
                 return builder;

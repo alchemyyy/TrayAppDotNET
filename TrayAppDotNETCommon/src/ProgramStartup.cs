@@ -31,6 +31,8 @@ public sealed record TrayAppDotNETProgramOptions(
 public static class TrayAppDotNETProgram
 {
     private const int TerminateRunningCopiesTimeoutMs = 5000;
+    private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
+    private const string LegacyBrightnessNoWatcherEnvironmentVariable = "BTAWPF_NO_WATCHER";
 
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
 
@@ -127,7 +129,7 @@ public static class TrayAppDotNETProgram
 
         if (isWatcher) return CrashHandler.RunWatcher();
 
-        if (!isMonitored && !Debugger.IsAttached)
+        if (!isMonitored && !Debugger.IsAttached && !NoWatcherRequested())
         {
             if (!CrashHandler.LaunchWatcherDetached())
                 return 1;
@@ -229,12 +231,27 @@ public static class TrayAppDotNETProgram
 
     private static bool ShouldLaunchWatcherBeforeConfiguring(string[] args) =>
         !Debugger.IsAttached &&
+        !NoWatcherRequested() &&
         !HasArg(args, "--monitored") &&
         !HasArg(args, "--install") &&
         !HasArg(args, "--installlocal") &&
         !HasArg(args, "--installsystem") &&
         !HasArg(args, "--admin-action") &&
         !HasArg(args, "--uninstall");
+
+    private static bool NoWatcherRequested() =>
+        IsTruthyEnvironmentValue(Environment.GetEnvironmentVariable(NoWatcherEnvironmentVariable)) ||
+        IsTruthyEnvironmentValue(Environment.GetEnvironmentVariable(LegacyBrightnessNoWatcherEnvironmentVariable));
+
+    private static bool IsTruthyEnvironmentValue(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        return !value.Equals("0", StringComparison.OrdinalIgnoreCase) &&
+               !value.Equals("false", StringComparison.OrdinalIgnoreCase) &&
+               !value.Equals("no", StringComparison.OrdinalIgnoreCase) &&
+               !value.Equals("off", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static void NoopLog(string _) { }
 

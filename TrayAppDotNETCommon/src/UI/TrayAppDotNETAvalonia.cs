@@ -56,6 +56,30 @@ public static class TrayAppDotNETAvalonia
     public static FontManagerOptions DefaultFontOptions() =>
         new() { DefaultFamilyName = DefaultFontFamilyName, };
 
+    /// <summary>Applies the rendering backend selected by MSBuild properties.</summary>
+    public static AppBuilder UseConfiguredRenderingBackend(AppBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+#if TRAY_APP_DOTNET_SOFTWARE_RENDERING
+        return UseWin32SoftwareRendering(builder);
+#else
+        return builder;
+#endif
+    }
+
+    /// <summary>Forces Avalonia's Win32 backend onto CPU software rendering.</summary>
+    public static AppBuilder UseWin32SoftwareRendering(AppBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        return builder.With(new Win32PlatformOptions
+        {
+            RenderingMode = [Win32RenderingMode.Software],
+            CompositionMode = [Win32CompositionMode.RedirectionSurface],
+        });
+    }
+
     public static void InitializeDefaults(
         Application app,
         TrayAppDotNETAnimationMode animationMode = TrayAppDotNETAnimationMode.System,
