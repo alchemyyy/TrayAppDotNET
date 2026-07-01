@@ -64,26 +64,31 @@ jobs:
           $targets = @(
             [pscustomobject]@{
               Name = "BatteryTrayAppDotNET"
+              VersionName = "Battery"
               Path = "BatteryTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.battery }}")
             },
             [pscustomobject]@{
               Name = "BrightnessTrayAppDotNET"
+              VersionName = "Brightness"
               Path = "BrightnessTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.brightness }}")
             },
             [pscustomobject]@{
               Name = "FanControlTrayAppDotNET"
+              VersionName = "FanControl"
               Path = "FanControlTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.fan_control }}")
             },
             [pscustomobject]@{
               Name = "NetworkTrayAppDotNET"
+              VersionName = "Network"
               Path = "NetworkTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.network }}")
             },
             [pscustomobject]@{
               Name = "VolumeTrayAppDotNET"
+              VersionName = "Volume"
               Path = "VolumeTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.volume }}")
             }
@@ -126,5 +131,7 @@ jobs:
             exit 0
           }
 
-          git commit -m "Increment selected build numbers"
+          $versionNames = @($selectedTargets | ForEach-Object { $_.VersionName })
+          $commitMessage = "Increment version: " + ($versionNames -join ", ")
+          git commit -m $commitMessage
           git push origin "HEAD:$env:TARGET_BRANCH"
