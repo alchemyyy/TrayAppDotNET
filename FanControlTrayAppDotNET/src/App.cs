@@ -39,6 +39,7 @@ internal sealed class FanAvaloniaApp : Application
     private ProcessRunningService? _processRunningService;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private FanTrayIcon? _trayIconRenderer;
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private FanTrayMenuWindow? _trayMenuWindow;
     private FanFlyoutWindow? _fanFlyout;
     private FanSettingsWindow? _settingsWindow;
@@ -313,18 +314,45 @@ internal sealed class FanAvaloniaApp : Application
     {
         if (_trayIcon == null) return;
 
-        _trayIcon.SetTooltip(BuildTrayTooltip());
-        if (_trayIconRenderer?.CreateIcon() is { } icon)
+        string tooltip = BuildTrayTooltip();
+        if (_trayIconRenderer != null)
         {
-            _trayIcon.SetIcon(icon);
+            FanTrayIcon renderer = _trayIconRenderer;
+            if (renderer.TryCreateRenderInput(out FanTrayIconRenderInput? input) && input != null)
+            {
+                _trayIcon.SetTooltip(tooltip);
+                _trayIconRenderQueue.Request(
+                    () => renderer.RenderIcon(input),
+                    icon => ApplyRenderedTrayIcon(icon, tooltip));
+                return;
+            }
+
+            _trayIcon.SetTooltip(tooltip);
             return;
         }
 
         if (_trayIconRenderer == null && AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
         {
             using (fallbackIcon)
-                _trayIcon.SetIcon(fallbackIcon);
+                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
+            return;
         }
+
+        _trayIcon.SetTooltip(tooltip);
+    }
+
+    /// <summary>
+    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
+    /// </summary>
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    {
+        if (_trayIcon == null)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
     }
 
     private string BuildTrayTooltip()
@@ -678,6 +706,7 @@ internal sealed class FanAvaloniaApp : Application
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
 
+            _trayIconRenderQueue.Dispose();
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;
 

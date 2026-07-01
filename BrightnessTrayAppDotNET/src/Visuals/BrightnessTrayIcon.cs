@@ -13,6 +13,7 @@ internal sealed class BrightnessTrayIcon : IDisposable
         GlyphCatalog.SEGOE_MDL2_ASSETS,
     ];
 
+    private readonly Lock _gate = new();
     private readonly AppTheme _theme;
     private SKTypeface? _iconTypeface;
     private NativeIcon? _currentIcon;
@@ -97,24 +98,47 @@ internal sealed class BrightnessTrayIcon : IDisposable
 
     public NativeIcon? CreateIcon()
     {
-        if (!_isDirty) return null;
+        if (!TryCreateRenderInput(out BrightnessTrayIconRenderInput? input) || input == null) return null;
 
-        try
+        NativeIcon? icon = RenderIcon(input);
+        if (icon == null) return null;
+
+        lock (_gate)
         {
-            int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            int visualBrightness = _iconStyle == TrayIconStyle.Static ? 50 : _brightnessPercent;
-            byte[] png = RenderPng(size, visualBrightness, ResolveColor(visualBrightness));
-            NativeIcon icon = NativeIcon.FromIconImage(png, size);
             NativeIcon? oldIcon = _currentIcon;
             _currentIcon = icon;
             oldIcon?.Dispose();
-            _isDirty = false;
             return _currentIcon;
+        }
+    }
+
+    public bool TryCreateRenderInput(out BrightnessTrayIconRenderInput? input)
+    {
+        input = null;
+        if (!_isDirty) return false;
+
+        int visualBrightness = _iconStyle == TrayIconStyle.Static ? 50 : _brightnessPercent;
+        input = new BrightnessTrayIconRenderInput(visualBrightness, ResolveColor(visualBrightness));
+        _isDirty = false;
+        return true;
+    }
+
+    public NativeIcon? RenderIcon(BrightnessTrayIconRenderInput input)
+    {
+        try
+        {
+            lock (_gate)
+            {
+                int size = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
+                byte[] png = RenderPng(size, input.VisualBrightness, input.ForegroundColor);
+                return NativeIcon.FromIconImage(png, size);
+            }
         }
         catch (Exception ex)
         {
             WPFLog.Log($"BrightnessTrayIcon.CreateIcon: {ex.Message}");
-            return _currentIcon ?? AppTheme.LoadAppNativeIcon();
+            lock (_gate)
+                return _currentIcon?.Clone() ?? AppTheme.LoadAppNativeIcon();
         }
     }
 
@@ -289,11 +313,16 @@ internal sealed class BrightnessTrayIcon : IDisposable
 
     public void Dispose()
     {
-        _currentIcon?.Dispose();
-        _currentIcon = null;
-        _iconTypeface?.Dispose();
-        _iconTypeface = null;
+        lock (_gate)
+        {
+            _currentIcon?.Dispose();
+            _currentIcon = null;
+            _iconTypeface?.Dispose();
+            _iconTypeface = null;
+        }
     }
 
     private readonly record struct GlyphPlacement(float X, float Y);
 }
+
+internal sealed record BrightnessTrayIconRenderInput(int VisualBrightness, Color ForegroundColor);

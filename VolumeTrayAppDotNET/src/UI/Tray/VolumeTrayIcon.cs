@@ -52,8 +52,10 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         {
             float clamped = Math.Clamp(value, 0f, 1f);
             if (Math.Abs(field - clamped) < 0.0001f) return;
+            string oldGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
             field = clamped;
-            _isDirty = true;
+            string newGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
+            if (oldGlyph != newGlyph) _isDirty = true;
         }
     }
 
@@ -83,14 +85,22 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
 
     public NativeIcon? CreateIcon()
     {
-        if (!_isDirty) return null;
+        if (!TryCreateRenderInput(out TrayIconRenderInput? input) || input == null) return null;
+
+        return _renderer.Render(input);
+    }
+
+    public bool TryCreateRenderInput(out TrayIconRenderInput? input)
+    {
+        input = null;
+        if (!_isDirty) return false;
 
         _isDirty = false;
-        return _renderer.Render(
-            ResolveGlyphs(),
-            ResolveColor(),
-            BackdropOpacityValue);
+        input = new TrayIconRenderInput(ResolveGlyphs(), ResolveColor(), BackdropOpacityValue);
+        return true;
     }
+
+    public NativeIcon? RenderIcon(TrayIconRenderInput input) => _renderer.RenderOwned(input);
 
     private TrayIconGlyphLayer ResolveGlyphs()
     {

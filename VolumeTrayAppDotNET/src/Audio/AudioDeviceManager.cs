@@ -49,6 +49,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // Volatile gives the bg thread the latest-published reference; AudioDevice[] is immutable
     // once written so a torn enumeration is impossible.
     private volatile AudioDevice[] _devicesSnapshot = [];
+    private int _peakSampleDispatchPending;
+    private int _peakRenderDispatchPending;
     private readonly AppSettings? _settings;
 
     // Shared rate-limiter for SetMasterVolume(Level)Scalar writes. Sliders update _volume + raise
@@ -330,17 +332,33 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
         }
 
-        _dispatcher.InvokeAsync(() =>
+        if (Interlocked.Exchange(ref _peakSampleDispatchPending, 1) != 0) return;
+
+        try
         {
-            for (int i = _devices.Count - 1; i >= 0; i--)
+            _dispatcher.InvokeAsync(() =>
             {
-                try { _devices[i].OnNewSample(steps); }
-                catch
+                try
                 {
-                    /* device may have died between callbacks */
+                    for (int i = _devices.Count - 1; i >= 0; i--)
+                    {
+                        try { _devices[i].OnNewSample(steps); }
+                        catch
+                        {
+                            /* device may have died between callbacks */
+                        }
+                    }
                 }
-            }
-        });
+                finally
+                {
+                    Interlocked.Exchange(ref _peakSampleDispatchPending, 0);
+                }
+            });
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _peakSampleDispatchPending, 0);
+        }
     }
 
     /// <summary>
@@ -360,17 +378,33 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         int percent = _settings?.MeterPeakChangeCeiling ?? AppSettings.MeterPeakChangeCeilingDefault;
         float maxStep = percent / 100f;
 
-        _dispatcher.InvokeAsync(() =>
+        if (Interlocked.Exchange(ref _peakRenderDispatchPending, 1) != 0) return;
+
+        try
         {
-            for (int i = _devices.Count - 1; i >= 0; i--)
+            _dispatcher.InvokeAsync(() =>
             {
-                try { _devices[i].OnRenderTick(maxStep); }
-                catch
+                try
                 {
-                    /* device may have died between callbacks */
+                    for (int i = _devices.Count - 1; i >= 0; i--)
+                    {
+                        try { _devices[i].OnRenderTick(maxStep); }
+                        catch
+                        {
+                            /* device may have died between callbacks */
+                        }
+                    }
                 }
-            }
-        });
+                finally
+                {
+                    Interlocked.Exchange(ref _peakRenderDispatchPending, 0);
+                }
+            });
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _peakRenderDispatchPending, 0);
+        }
     }
 
     /// <summary>

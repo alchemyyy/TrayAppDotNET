@@ -50,6 +50,7 @@ internal sealed class NetworkAvaloniaApp : Application
     private UpdateCheckService? _updateCheckService;
     private NetworkMonitor? _networkMonitor;
     private NetworkTrayIcon? _networkIconRenderer;
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private DispatcherTimer? _refreshTimer;
     private bool _shuttingDown;
     private int _lastNotifiedUpdateVersion;
@@ -341,19 +342,48 @@ internal sealed class NetworkAvaloniaApp : Application
     private void RequestTrayRefresh()
     {
         if (_trayIcon == null) return;
-        _trayIcon.SetTooltip(_networkMonitor?.GetTooltipText()
-                             ?? L("Tray_Tooltip_Default", Constants.ApplicationName));
+        string tooltip = _networkMonitor?.GetTooltipText()
+                         ?? L("Tray_Tooltip_Default", Constants.ApplicationName);
 
         if (_networkMonitor != null && _networkIconRenderer != null)
         {
-            _networkIconRenderer.State = _networkMonitor.CurrentState;
-            if (_networkIconRenderer.CreateIcon() is { } icon) _trayIcon.SetIcon(icon);
+            NetworkTrayIcon renderer = _networkIconRenderer;
+            renderer.State = _networkMonitor.CurrentState;
+            if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
+            {
+                _trayIcon.SetTooltip(tooltip);
+                _trayIconRenderQueue.Request(
+                    () => renderer.RenderIcon(input),
+                    icon => ApplyRenderedTrayIcon(icon, tooltip));
+                return;
+            }
+
+            _trayIcon.SetTooltip(tooltip);
+            return;
         }
-        else if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
+
+        if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
         {
             using (fallbackIcon)
-                _trayIcon.SetIcon(fallbackIcon);
+                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
+            return;
         }
+
+        _trayIcon.SetTooltip(tooltip);
+    }
+
+    /// <summary>
+    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
+    /// </summary>
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    {
+        if (_trayIcon == null)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
     }
 
     private void OnTrayLeftClick()
@@ -648,6 +678,7 @@ internal sealed class NetworkAvaloniaApp : Application
                 _networkMonitor = null;
             }
 
+            _trayIconRenderQueue.Dispose();
             Safe.Dispose(_networkIconRenderer);
             _networkIconRenderer = null;
 

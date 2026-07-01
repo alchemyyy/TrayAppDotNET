@@ -64,14 +64,25 @@ internal sealed class BatteryTrayIcon(AppTheme? theme) : IDisposable
 
     public NativeIcon? CreateIcon()
     {
-        if (!_isDirty) return null;
+        if (!TryCreateRenderInput(out TrayIconRenderInput? input) || input == null) return null;
+
+        return _renderer.Render(input);
+    }
+
+    public bool TryCreateRenderInput(out TrayIconRenderInput? input)
+    {
+        input = null;
+        if (!_isDirty) return false;
 
         _isDirty = false;
-        return _renderer.Render(
+        input = new TrayIconRenderInput(
             new TrayIconGlyphLayer(null, ResolveGlyph(_snapshot)),
             ResolveColor(_snapshot),
-            backdropOpacity: 0);
+            BackdropOpacity: 0);
+        return true;
     }
+
+    public NativeIcon? RenderIcon(TrayIconRenderInput input) => _renderer.RenderOwned(input);
 
     private Color ResolveColor(BatterySnapshot snapshot)
     {

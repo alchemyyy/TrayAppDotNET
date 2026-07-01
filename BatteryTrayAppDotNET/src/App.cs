@@ -43,6 +43,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private BatteryMonitorService? _batteryMonitor;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BatteryTrayIcon? _trayIconRenderer;
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private BatteryFlyoutWindow? _batteryFlyout;
     private BatteryTrayMenuWindow? _trayMenuWindow;
     private BatterySettingsWindow? _settingsWindow;
@@ -324,18 +325,46 @@ internal sealed class BatteryAvaloniaApp : Application
         if (_trayIcon == null) return;
 
         BatterySnapshot snapshot = _batteryMonitor?.Snapshot ?? BatterySnapshot.Unknown;
-        _trayIcon.SetTooltip(BuildTrayTooltip(snapshot));
+        string tooltip = BuildTrayTooltip(snapshot);
         if (_trayIconRenderer != null)
         {
-            _trayIconRenderer.SetSnapshot(snapshot);
-            if (_trayIconRenderer.CreateIcon() is { } icon)
-                _trayIcon.SetIcon(icon);
+            BatteryTrayIcon renderer = _trayIconRenderer;
+            renderer.SetSnapshot(snapshot);
+            if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
+            {
+                _trayIcon.SetTooltip(tooltip);
+                _trayIconRenderQueue.Request(
+                    () => renderer.RenderIcon(input),
+                    icon => ApplyRenderedTrayIcon(icon, tooltip));
+                return;
+            }
+
+            _trayIcon.SetTooltip(tooltip);
+            return;
         }
-        else if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
+
+        if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
         {
             using (fallbackIcon)
-                _trayIcon.SetIcon(fallbackIcon);
+                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
+            return;
         }
+
+        _trayIcon.SetTooltip(tooltip);
+    }
+
+    /// <summary>
+    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
+    /// </summary>
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    {
+        if (_trayIcon == null)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
     }
 
     private static string BuildTrayTooltip(BatterySnapshot snapshot)
@@ -639,6 +668,7 @@ internal sealed class BatteryAvaloniaApp : Application
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
 
+            _trayIconRenderQueue.Dispose();
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;
 

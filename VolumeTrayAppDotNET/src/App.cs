@@ -43,6 +43,7 @@ internal sealed class VolumeAvaloniaApp : Application
     private AudioDevice? _trackedDevice;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private VolumeTrayIcon? _trayIconRenderer;
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private VolumeTrayMenuWindow? _trayMenuWindow;
     private VolumeFlyoutWindow? _volumeFlyout;
     private VolumeSettingsWindow? _settingsWindow;
@@ -363,21 +364,30 @@ internal sealed class VolumeAvaloniaApp : Application
 
         if (_trackedDevice == null)
         {
+            string missingTooltip = L("TrayTooltip_NoAudioDevice", "No audio device");
             _audioManager?.RequestMissingDefaultRecovery("tray-null-default");
             if (_trayIconRenderer != null)
             {
-                _trayIconRenderer.Volume = 0;
-                _trayIconRenderer.IsMuted = true;
-                if (_trayIconRenderer.CreateIcon() is { } missingIcon)
-                    _trayIcon.SetIcon(missingIcon);
+                VolumeTrayIcon renderer = _trayIconRenderer;
+                renderer.Volume = 0;
+                renderer.IsMuted = true;
+                if (renderer.TryCreateRenderInput(out TrayIconRenderInput? missingInput) && missingInput != null)
+                {
+                    _trayIcon.SetTooltip(missingTooltip);
+                    _trayIconRenderQueue.Request(
+                        () => renderer.RenderIcon(missingInput),
+                        icon => ApplyRenderedTrayIcon(icon, missingTooltip));
+                    return;
+                }
             }
             else if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
             {
                 using (fallbackIcon)
-                    _trayIcon.SetIcon(fallbackIcon);
+                    _trayIcon.SetIconAndTooltip(fallbackIcon, missingTooltip);
+                return;
             }
 
-            _trayIcon.SetTooltip(L("TrayTooltip_NoAudioDevice", "No audio device"));
+            _trayIcon.SetTooltip(missingTooltip);
             return;
         }
 
@@ -386,14 +396,36 @@ internal sealed class VolumeAvaloniaApp : Application
             ? string.Format(L("TrayTooltip_Muted_Format", "{0}: muted"), _trackedDevice.FriendlyName)
             : string.Format(L("TrayTooltip_Volume_Format", "{0}: {1}%"), _trackedDevice.FriendlyName, percent);
 
-        _trayIcon.SetTooltip(tooltip);
         if (_trayIconRenderer != null)
         {
-            _trayIconRenderer.Volume = _trackedDevice.Volume;
-            _trayIconRenderer.IsMuted = _trackedDevice.IsMuted;
-            if (_trayIconRenderer.CreateIcon() is { } icon)
-                _trayIcon.SetIcon(icon);
+            VolumeTrayIcon renderer = _trayIconRenderer;
+            renderer.Volume = _trackedDevice.Volume;
+            renderer.IsMuted = _trackedDevice.IsMuted;
+            if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
+            {
+                _trayIcon.SetTooltip(tooltip);
+                _trayIconRenderQueue.Request(
+                    () => renderer.RenderIcon(input),
+                    icon => ApplyRenderedTrayIcon(icon, tooltip));
+                return;
+            }
         }
+
+        _trayIcon.SetTooltip(tooltip);
+    }
+
+    /// <summary>
+    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
+    /// </summary>
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    {
+        if (_trayIcon == null)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
     }
 
     private void OnTrayLeftClick()
@@ -677,6 +709,7 @@ internal sealed class VolumeAvaloniaApp : Application
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
 
+            _trayIconRenderQueue.Dispose();
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;
 

@@ -55,6 +55,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     private MonitorBrightnessRangeProvider? _brightnessRangeProvider;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BrightnessTrayIcon? _trayIconRenderer;
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(WPFLog.Log);
     private BrightnessTrayMenuWindow? _trayMenuWindow;
     private BrightnessFlyoutWindow? _brightnessFlyout;
     private BrightnessSettingsWindow? _settingsWindow;
@@ -830,21 +831,46 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (_trayIcon == null) return;
 
         (int brightness, string tooltip) = GetBrightnessAndTooltip();
-        _trayIcon.SetTooltip(tooltip);
 
         if (_trayIconRenderer != null)
         {
-            _trayIconRenderer.BrightnessPercent = brightness;
-            if (_trayIconRenderer.CreateIcon() is { } icon)
-                _trayIcon.SetIcon(icon);
+            BrightnessTrayIcon renderer = _trayIconRenderer;
+            renderer.BrightnessPercent = brightness;
+            if (renderer.TryCreateRenderInput(out BrightnessTrayIconRenderInput? input) && input != null)
+            {
+                _trayIcon.SetTooltip(tooltip);
+                _trayIconRenderQueue.Request(
+                    () => renderer.RenderIcon(input),
+                    icon => ApplyRenderedTrayIcon(icon, tooltip));
+                return;
+            }
+
+            _trayIcon.SetTooltip(tooltip);
             return;
         }
 
         if (AppTheme.LoadAppNativeIcon() is { } fallbackIcon)
         {
             using (fallbackIcon)
-                _trayIcon.SetIcon(fallbackIcon);
+                _trayIcon.SetIconAndTooltip(fallbackIcon, tooltip);
+            return;
         }
+
+        _trayIcon.SetTooltip(tooltip);
+    }
+
+    /// <summary>
+    /// Applies a rendered tray icon, disposing it if the tray has already shut down.
+    /// </summary>
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    {
+        if (_trayIcon == null)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
     }
 
     private (int Brightness, string Tooltip) GetBrightnessAndTooltip()
@@ -1205,6 +1231,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
 
+            _trayIconRenderQueue.Dispose();
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;
 

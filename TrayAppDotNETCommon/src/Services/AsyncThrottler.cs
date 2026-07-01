@@ -62,7 +62,7 @@ public sealed class AsyncThrottler<TKey>(
         }
 
         if (startDriver)
-            _ = DriveSlotAsync(key, slot);
+            _ = Task.Run(() => DriveSlotAsync(key, slot));
 
         return completionSource.Task;
     }

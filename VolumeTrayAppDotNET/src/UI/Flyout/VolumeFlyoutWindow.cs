@@ -47,7 +47,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool _undockButtonPointerCaptured;
     private bool _undockButtonDragOccurred;
     private int _hoveredDeviceStateButtonCount;
+    private int _activeVolumeSliderDragCount;
     private bool _deviceOrderingRebuildPending;
+    private bool _rebuildPending;
     private FlyoutLayout? _layout;
     private Border? _undockButton;
     private TextBlock? _undockButtonGlyph;
@@ -150,6 +152,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         CloseOpenMenu();
         StopFlyoutActivity();
+        _activeVolumeSliderDragCount = 0;
+        _rebuildPending = false;
         base.Hide();
         NotifyWarmDismissed();
     }
@@ -310,8 +314,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void Rebuild()
     {
         if (_layout == null) return;
-        if (_isRebuilding) return;
+        if (_activeVolumeSliderDragCount > 0 || _isRebuilding)
+        {
+            _rebuildPending = true;
+            return;
+        }
+
         _isRebuilding = true;
+        _rebuildPending = false;
         try
         {
             double? previousScrollOffset = _cellsScrollViewer?.Offset.Y;
@@ -393,6 +403,27 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             _isRebuilding = false;
         }
+
+        FlushPendingRebuild();
+    }
+
+    private void BeginVolumeSliderDrag()
+    {
+        _activeVolumeSliderDragCount++;
+    }
+
+    private void EndVolumeSliderDrag()
+    {
+        _activeVolumeSliderDragCount = Math.Max(0, _activeVolumeSliderDragCount - 1);
+        FlushPendingRebuild();
+    }
+
+    private void FlushPendingRebuild()
+    {
+        if (!_rebuildPending || _isRebuilding || _activeVolumeSliderDragCount > 0) return;
+
+        _rebuildPending = false;
+        Dispatcher.UIThread.Post(Rebuild);
     }
 
     private void RestoreCellsScrollOffset(ScrollViewer scroll, double offset)
@@ -629,6 +660,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Grid.SetColumn(percentHost, 2);
         grid.Children.Add(percentHost);
 
+        bool isUserAdjusting = false;
+        bool hasDeferredVolume = false;
+        slider.UserAdjustmentStarted += (_, _) => isUserAdjusting = true;
+        slider.UserAdjustmentCompleted += (_, _) =>
+        {
+            isUserAdjusting = false;
+            if (!hasDeferredVolume) return;
+            hasDeferredVolume = false;
+            ApplyGroupVolume();
+        };
+        slider.ValueChanged += (_, value) =>
+        {
+            if (!isUserAdjusting) return;
+            percent.Text = ScalarText((float)(value / 100.0));
+        };
+
         group.PropertyChanged += OnGroupChanged;
         _cleanup.Add(() => group.PropertyChanged -= OnGroupChanged);
         return grid;
@@ -637,13 +684,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             if (e.PropertyName == nameof(AudioAppGroup.Volume))
             {
-                slider.Value = group.Volume * 100.0;
-                percent.Text = ScalarText(group.Volume);
+                if (isUserAdjusting)
+                {
+                    hasDeferredVolume = true;
+                    return;
+                }
+
+                ApplyGroupVolume();
             }
             else if (e.PropertyName == nameof(AudioAppGroup.PeakValues))
                 slider.PeakValues = SliderPeaks(group.PeakValues);
             else if (e.PropertyName is nameof(AudioAppGroup.IsMuted) or nameof(AudioAppGroup.State)
                      or nameof(AudioAppGroup.Icon)) Dispatcher.UIThread.Post(Rebuild);
+        }
+
+        void ApplyGroupVolume()
+        {
+            slider.Value = group.Volume * 100.0;
+            percent.Text = ScalarText(group.Volume);
         }
     }
 
@@ -929,6 +987,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Grid.SetColumn(percentHost, 2);
         row.Children.Add(percentHost);
 
+        bool isUserAdjusting = false;
+        bool hasDeferredVolume = false;
+        slider.UserAdjustmentStarted += (_, _) => isUserAdjusting = true;
+        slider.UserAdjustmentCompleted += (_, _) =>
+        {
+            isUserAdjusting = false;
+            if (!hasDeferredVolume) return;
+            hasDeferredVolume = false;
+            ApplyDeviceVolume();
+        };
+        slider.ValueChanged += (_, value) =>
+        {
+            if (!isUserAdjusting) return;
+            percent.Text = ScalarText((float)(value / 100.0));
+        };
+
         device.PropertyChanged += OnDeviceChanged;
         _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
         UpdateMutedActiveVisuals();
@@ -938,8 +1012,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             if (e.PropertyName == nameof(AudioDevice.Volume))
             {
-                slider.Value = device.Volume * 100.0;
-                percent.Text = ScalarText(device.Volume);
+                if (isUserAdjusting)
+                {
+                    hasDeferredVolume = true;
+                    return;
+                }
+
+                ApplyDeviceVolume();
             }
             else if (e.PropertyName == nameof(AudioDevice.PeakValues))
                 slider.PeakValues = SliderPeaks(device.PeakValues);
@@ -954,6 +1033,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             double opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
             slider.Opacity = opacity;
             percentHost.Opacity = opacity;
+        }
+
+        void ApplyDeviceVolume()
+        {
+            slider.Value = device.Volume * 100.0;
+            percent.Text = ScalarText(device.Volume);
         }
     }
 
@@ -982,10 +1067,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         bool updating = false;
         bool dragging = false;
-        slider.DragStarted += (_, _) => dragging = true;
+        slider.DragStarted += (_, _) =>
+        {
+            if (dragging) return;
+            dragging = true;
+            BeginVolumeSliderDrag();
+        };
         slider.DragCompleted += (_, _) =>
         {
-            dragging = false;
+            if (dragging)
+            {
+                dragging = false;
+                EndVolumeSliderDrag();
+            }
+
             playFeedback(true);
         };
         slider.ValueChanged += (_, value) =>
@@ -2485,6 +2580,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+
+        _activeVolumeSliderDragCount = 0;
+        _rebuildPending = false;
 
         foreach (Action cleanup in _cleanup)
         {

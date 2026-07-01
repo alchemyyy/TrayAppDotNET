@@ -12,30 +12,26 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
 
     private readonly AsyncThrottler<string> _feedbackThrottler = new(0, StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, long> _dingActiveUntilTicks = new(StringComparer.Ordinal);
-    private readonly Dispatcher _uiDispatcher;
+    private readonly Lock _soundGate = new();
     private readonly AppSettings? _settings;
-    private WAVTemplate? _wavTemplate;
+    private readonly Task<WAVTemplate?> _wavTemplateTask;
     private System.Media.SoundPlayer? _currentAppSound;
     private bool _disposed;
 
     public AppVolumeFeedbackPlayer(Dispatcher uiDispatcher, AppSettings? settings)
     {
-        _uiDispatcher = uiDispatcher;
+        _ = uiDispatcher;
         _settings = settings;
-        EnsureAppFeedbackData();
+        _wavTemplateTask = Task.Run(LoadAppFeedbackData);
     }
 
     public void PlayForDevice(AudioDevice device, bool immediate = false)
     {
+        if (_disposed) return;
         if (_settings?.PlayDeviceVolumeChangeSound != true) return;
         if (device.IsCaptureDevice) return;
 
-        EnsureAppFeedbackData();
-        WAVTemplate? wav = _wavTemplate;
-        if (wav == null) return;
-
         string throttleKey = DeviceDingThrottleKey + ":" + device.Id;
-        int dingWindowMs = wav.DurationMs + TimeConstants.VolumeFeedbackDingMeterBypassGraceMs;
         _ = _feedbackThrottler.RunAsync(throttleKey, async ctx =>
         {
             if (!immediate)
@@ -51,6 +47,11 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
             if (ShouldSuppressDeviceDing(device)) return;
             if (!device.IsActive || string.IsNullOrEmpty(device.Id)) return;
 
+            WAVTemplate? wav = await _wavTemplateTask.ConfigureAwait(false);
+            if (_disposed || ctx.CancellationToken.IsCancellationRequested) return;
+            if (wav == null) return;
+
+            int dingWindowMs = wav.DurationMs + TimeConstants.VolumeFeedbackDingMeterBypassGraceMs;
             _dingActiveUntilTicks[device.Id] = Environment.TickCount64 + dingWindowMs;
             try { EndpointSoundPlayback.PlayAsync(device.Id, wav); }
             catch
@@ -62,10 +63,8 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
 
     public void PlayForApp(AudioAppGroup group, bool immediate = false)
     {
+        if (_disposed) return;
         if (_settings?.PlayAppVolumeChangeSound != true) return;
-
-        EnsureAppFeedbackData();
-        if (_wavTemplate == null) return;
 
         float scalarVolume = group.Volume;
         _ = _feedbackThrottler.RunAsync(AppDingThrottleKey, async ctx =>
@@ -81,10 +80,14 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
             else if (ctx.HasReplacement) return;
 
             if (ShouldSuppressAppDing(group)) return;
-            try { await _uiDispatcher.InvokeAsync(() => PlayAppFeedbackNow(scalarVolume)); }
+            WAVTemplate? wav = await _wavTemplateTask.ConfigureAwait(false);
+            if (_disposed || ctx.CancellationToken.IsCancellationRequested) return;
+            if (wav == null) return;
+
+            try { PlayAppFeedbackNow(scalarVolume, wav); }
             catch
             {
-                /* dispatcher torn down */
+                /* feedback is best-effort */
             }
         });
     }
@@ -106,11 +109,8 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
         return group.PeakValues.Max > settings.DingSuppressionPeakThresholdPercent * 0.01f;
     }
 
-    private void PlayAppFeedbackNow(float scalarVolume)
+    private void PlayAppFeedbackNow(float scalarVolume, WAVTemplate template)
     {
-        WAVTemplate? template = _wavTemplate;
-        if (template == null) return;
-
         try
         {
             byte[] scaled = template.CloneScaled(scalarVolume);
@@ -118,8 +118,11 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
             System.Media.SoundPlayer player = new(stream);
             player.Play();
 
-            _currentAppSound?.Dispose();
-            _currentAppSound = player;
+            lock (_soundGate)
+            {
+                _currentAppSound?.Dispose();
+                _currentAppSound = player;
+            }
         }
         catch
         {
@@ -147,15 +150,13 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
         return !ctx.HasReplacement && shouldCancel?.Invoke() != true;
     }
 
-    private void EnsureAppFeedbackData()
+    private static WAVTemplate? LoadAppFeedbackData()
     {
-        if (_wavTemplate != null) return;
-
         string wavPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.Windows),
             "Media",
             AppFeedbackWavName);
-        _wavTemplate = WAVTemplate.FromFile(wavPath);
+        return WAVTemplate.FromFile(wavPath);
     }
 
     public void Dispose()
@@ -169,21 +170,22 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
             /* shutdown best-effort */
         }
 
-        if (_currentAppSound != null)
+        lock (_soundGate)
         {
-            try
+            if (_currentAppSound != null)
             {
-                _currentAppSound.Stop();
-                _currentAppSound.Dispose();
-            }
-            catch
-            {
-                /* shutdown best-effort */
-            }
+                try
+                {
+                    _currentAppSound.Stop();
+                    _currentAppSound.Dispose();
+                }
+                catch
+                {
+                    /* shutdown best-effort */
+                }
 
-            _currentAppSound = null;
+                _currentAppSound = null;
+            }
         }
-
-        _wavTemplate = null;
     }
 }

@@ -5,6 +5,11 @@ namespace TrayAppDotNETCommon.UI.Tray;
 
 public sealed record TrayIconGlyphLayer(string? BackdropGlyph, string ForegroundGlyph);
 
+public sealed record TrayIconRenderInput(
+    TrayIconGlyphLayer Glyphs,
+    Color ForegroundColor,
+    double BackdropOpacity);
+
 public sealed class TrayIconRenderOptions
 {
     public required IReadOnlyList<string> IconFontFamilies { get; init; }
@@ -19,9 +24,11 @@ public sealed class TrayIconRenderOptions
 
 public sealed class TrayIconRenderer : IDisposable
 {
+    private readonly Lock _gate = new();
     private readonly TrayIconRenderOptions _options;
     private SKTypeface? _typeface;
     private NativeIcon? _currentIcon;
+    private TrayIconRenderCacheKey? _currentRequest;
 
     public TrayIconRenderer(TrayIconRenderOptions options)
     {
@@ -34,27 +41,64 @@ public sealed class TrayIconRenderer : IDisposable
     private SKTypeface IconTypeface => _typeface ??= ResolveIconTypeface();
 
     public NativeIcon? Render(TrayIconGlyphLayer glyphs, Color foregroundColor, double backdropOpacity)
+        => Render(new TrayIconRenderInput(glyphs, foregroundColor, backdropOpacity));
+
+    public NativeIcon? Render(TrayIconRenderInput input)
     {
         try
         {
-            int iconSize = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            byte[] png = RenderLayeredPng(
-                iconSize,
-                glyphs.BackdropGlyph,
-                glyphs.ForegroundGlyph,
-                foregroundColor,
-                backdropOpacity);
-            NativeIcon icon = NativeIcon.FromIconImage(png, iconSize);
-            NativeIcon? oldIcon = _currentIcon;
-            _currentIcon = icon;
-            oldIcon?.Dispose();
-            return _currentIcon;
+            lock (_gate)
+            {
+                NativeIcon? icon = RenderOwnedCore(input, useCache: true);
+                if (icon == null) return null;
+
+                NativeIcon? oldIcon = _currentIcon;
+                _currentIcon = icon;
+                oldIcon?.Dispose();
+                return _currentIcon;
+            }
         }
         catch (Exception ex)
         {
             _options.Log?.Invoke($"TrayIconRenderer.Render: {ex.Message}");
-            return _currentIcon ?? _options.FallbackIcon?.Invoke();
+            lock (_gate)
+                return _currentIcon ?? _options.FallbackIcon?.Invoke();
         }
+    }
+
+    /// <summary>
+    /// Renders a caller-owned icon for background render pipelines.
+    /// </summary>
+    public NativeIcon? RenderOwned(TrayIconRenderInput input)
+    {
+        try
+        {
+            lock (_gate)
+                return RenderOwnedCore(input, useCache: false);
+        }
+        catch (Exception ex)
+        {
+            _options.Log?.Invoke($"TrayIconRenderer.RenderOwned: {ex.Message}");
+            return _options.FallbackIcon?.Invoke();
+        }
+    }
+
+    private NativeIcon? RenderOwnedCore(TrayIconRenderInput input, bool useCache)
+    {
+        int iconSize = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
+        TrayIconRenderCacheKey request = new(iconSize, input);
+        if (useCache && _currentRequest == request)
+            return null;
+
+        byte[] png = RenderLayeredPng(
+            iconSize,
+            input.Glyphs.BackdropGlyph,
+            input.Glyphs.ForegroundGlyph,
+            input.ForegroundColor,
+            input.BackdropOpacity);
+        NativeIcon icon = NativeIcon.FromIconImage(png, iconSize);
+        if (useCache) _currentRequest = request;
+        return icon;
     }
 
     private byte[] RenderLayeredPng(
@@ -134,11 +178,19 @@ public sealed class TrayIconRenderer : IDisposable
 
     public void Dispose()
     {
-        _currentIcon?.Dispose();
-        _currentIcon = null;
-        _typeface?.Dispose();
-        _typeface = null;
+        lock (_gate)
+        {
+            _currentIcon?.Dispose();
+            _currentIcon = null;
+            _currentRequest = null;
+            _typeface?.Dispose();
+            _typeface = null;
+        }
     }
+
+    private sealed record TrayIconRenderCacheKey(
+        int Size,
+        TrayIconRenderInput Input);
 
     private readonly record struct GlyphPlacement(float FontSize, SKRect Bounds, float X, float Y)
     {
