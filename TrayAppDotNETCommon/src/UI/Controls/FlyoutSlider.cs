@@ -356,7 +356,8 @@ public sealed class FlyoutSlider : Control
             ? ProgressOverrideColor ?? ProgressColor
             : ProgressColor;
 
-        DrawRoundedRect(context, new Rect(0, trackY, width, TrackHeight), TrackColor);
+        Rect track = new(0, trackY, width, TrackHeight);
+        DrawRoundedRect(context, track, TrackColor);
         if (SecondaryValue.HasValue && SecondaryOpacity > 0)
         {
             Color secondaryProgressColor = SecondaryProgressColor ?? ProgressColor;
@@ -387,6 +388,39 @@ public sealed class FlyoutSlider : Control
             DrawRoundedRect(context, new Rect(0, trackY, baseWidth, TrackHeight), MeterPeakColor);
         }
 
+        Rect thumb = ThumbRect(width, height, thumbWidth, thumbHeight, Value);
+
+        if (PreviewValue.HasValue && IsVisibleTranslucent(PreviewOpacity))
+            DrawThumbFillCutoutAtValue(
+                context,
+                track,
+                width,
+                height,
+                thumbWidth,
+                thumbHeight,
+                PreviewValue.Value,
+                Thumb);
+
+        if (SecondaryValue.HasValue && SecondaryOpacity > 0)
+        {
+            SliderThumbGlyphOption secondaryThumb = SecondaryThumb ?? Thumb;
+            double secondaryThumbWidth = Math.Max(1, secondaryThumb.Width);
+            double secondaryThumbHeight = Math.Max(1, secondaryThumb.Height);
+            if (IsVisibleTranslucent(SecondaryOpacity))
+                DrawThumbFillCutoutAtValue(
+                    context,
+                    track,
+                    width,
+                    height,
+                    secondaryThumbWidth,
+                    secondaryThumbHeight,
+                    SecondaryValue.Value,
+                    secondaryThumb);
+        }
+
+        if (IsVisibleTranslucent(ThumbOpacity))
+            DrawThumbFillCutout(context, track, thumb, Thumb);
+
         if (PreviewValue.HasValue && PreviewOpacity > 0)
             DrawThumbAtValue(context, width, height, thumbWidth, thumbHeight, PreviewValue.Value, PreviewOpacity, Thumb);
 
@@ -406,7 +440,6 @@ public sealed class FlyoutSlider : Control
                 secondaryThumb);
         }
 
-        Rect thumb = ThumbRect(width, height, thumbWidth, thumbHeight, Value);
         DrawThumb(context, thumb, ThumbOpacity, Thumb);
 
         if (IndicatorValue.HasValue && IndicatorOpacity > 0 && !string.IsNullOrEmpty(IndicatorGlyph))
@@ -586,9 +619,48 @@ public sealed class FlyoutSlider : Control
         SliderThumbGlyphOption thumb) =>
         DrawThumb(context, ThumbRect(width, height, thumbWidth, thumbHeight, value), opacity, thumb);
 
-    private void DrawThumb(DrawingContext context, Rect thumbBounds, double opacity, SliderThumbGlyphOption thumb)
+    /// <summary>
+    /// Draws a track-colored thumb silhouette over filled regions before translucent thumbs render.
+    /// </summary>
+    private void DrawThumbFillCutoutAtValue(
+        DrawingContext context,
+        Rect clip,
+        double width,
+        double height,
+        double thumbWidth,
+        double thumbHeight,
+        double value,
+        SliderThumbGlyphOption thumb) =>
+        DrawThumbFillCutout(context, clip, ThumbRect(width, height, thumbWidth, thumbHeight, value), thumb);
+
+    /// <summary>
+    /// Draws a track-colored thumb silhouette over filled regions before translucent thumbs render.
+    /// </summary>
+    private void DrawThumbFillCutout(
+        DrawingContext context,
+        Rect clip,
+        Rect thumbBounds,
+        SliderThumbGlyphOption thumb)
     {
-        Color color = WithOpacity(ThumbColor, opacity);
+        using (context.PushClip(clip))
+            DrawThumbShape(context, thumbBounds, thumb, TrackColor);
+    }
+
+    /// <summary>
+    /// Draws a thumb with the requested opacity.
+    /// </summary>
+    private void DrawThumb(DrawingContext context, Rect thumbBounds, double opacity, SliderThumbGlyphOption thumb) =>
+        DrawThumbShape(context, thumbBounds, thumb, WithOpacity(ThumbColor, opacity));
+
+    /// <summary>
+    /// Draws the slider thumb geometry with an explicit color.
+    /// </summary>
+    private static void DrawThumbShape(
+        DrawingContext context,
+        Rect thumbBounds,
+        SliderThumbGlyphOption thumb,
+        Color color)
+    {
         if (thumb.IsCapsule)
         {
             context.DrawRectangle(new SolidColorBrush(color), null, new RoundedRect(thumbBounds, CapsuleRadius));
@@ -618,6 +690,12 @@ public sealed class FlyoutSlider : Control
             context.DrawText(text, new Point(x, y));
     }
 
+    /// <summary>
+    /// Returns true when a visible thumb needs the fill cut out behind it.
+    /// </summary>
+    private static bool IsVisibleTranslucent(double opacity) =>
+        opacity > 0 && opacity < 0.999;
+
     private void DrawIndicator(DrawingContext context, double width, double height, double value)
     {
         double centerX = ValuePosition(width, value);
@@ -646,7 +724,7 @@ public sealed class FlyoutSlider : Control
         context.DrawRectangle(new SolidColorBrush(color), null, new RoundedRect(rect, radius));
 
     /// <summary>
-    /// Draws a slider progress segment in the requested track lane.
+    /// Draws a full-height slider progress segment.
     /// </summary>
     private static void DrawProgress(
         DrawingContext context,

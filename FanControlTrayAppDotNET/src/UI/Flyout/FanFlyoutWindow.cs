@@ -1041,7 +1041,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void ConfigureFanSliderMultipleValues(Fan fan, FlyoutSlider slider)
     {
         ClearSliderMultipleValues(slider);
-        if (!_settings.ShowMultipleSliderValues) return;
+        if (!ShouldShowMultipleSliderValues(fan.CurrentControlMode)) return;
 
         double? curveSliderValue = ResolveFanCurveSliderValue(fan, requireCurveMode: false);
         if (!curveSliderValue.HasValue) return;
@@ -1067,7 +1067,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void ConfigureGroupSliderMultipleValues(FanFlyoutCell cell, FlyoutSlider slider)
     {
         ClearSliderMultipleValues(slider);
-        if (!_settings.ShowMultipleSliderValues) return;
+        if (!ShouldShowMultipleSliderValues(cell.GroupCurrentControlMode)) return;
 
         double? curveSliderValue = ResolveGroupCurveSliderValue(cell, requireCurveMode: false);
         if (!curveSliderValue.HasValue) return;
@@ -1089,6 +1089,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         slider.SecondaryThumb = ResolveSliderThumbOption();
         slider.SecondaryOpacity = InactiveSliderValueOpacity;
     }
+
+    /// <summary>
+    /// Resolves whether the current setting allows dual slider values for the active control mode.
+    /// </summary>
+    private bool ShouldShowMultipleSliderValues(FanControlMode controlMode) =>
+        _settings.ShowMultipleSliderValuesMode switch
+        {
+            MultipleSliderValuesDisplayMode.Enabled => true,
+            MultipleSliderValuesDisplayMode.OnlyInManual => controlMode == FanControlMode.Manual,
+            _ => false,
+        };
 
     /// <summary>
     /// Restores single-value rendering on a slider.

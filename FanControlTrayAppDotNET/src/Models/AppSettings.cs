@@ -38,6 +38,13 @@ public enum ContextMenuPosition
     Modern,
 }
 
+public enum MultipleSliderValuesDisplayMode
+{
+    Disabled,
+    Enabled,
+    OnlyInManual,
+}
+
 /// <summary>
 /// Root application settings class.
 /// Skeleton scaffold with a few illustrative fields - extend with project-specific settings in your fork.
@@ -116,7 +123,17 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public double FlyoutLeft { get; set; }
     public double FlyoutTop { get; set; }
     public bool ShowNonFunctioningFans { get; set; } = true;
-    public bool ShowMultipleSliderValues { get; set; } = true;
+
+    [XmlIgnore]
+    public MultipleSliderValuesDisplayMode ShowMultipleSliderValuesMode { get; set; } =
+        MultipleSliderValuesDisplayMode.OnlyInManual;
+
+    [XmlElement("ShowMultipleSliderValues")]
+    public string SerializedShowMultipleSliderValuesMode
+    {
+        get => ShowMultipleSliderValuesMode.ToString();
+        set => ShowMultipleSliderValuesMode = ParseMultipleSliderValuesDisplayMode(value);
+    }
 
     // Tray icon tooltip composition. The flyout tooltip is always the application name; these
     // toggles add CPU / GPU temperature lines fed by LHMService DataSources. Both on by default.
@@ -235,6 +252,19 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
         ApplyLoadedSliderThumb(catalog, _loadedCurveSliderThumb, name => CurveSliderThumbGlyph = name);
 
         SliderThumbOptions = catalog;
+    }
+
+    /// <summary>
+    /// Parses the current enum value and the prior bool-shaped setting value.
+    /// </summary>
+    private static MultipleSliderValuesDisplayMode ParseMultipleSliderValuesDisplayMode(string? value)
+    {
+        if (bool.TryParse(value, out bool enabled))
+            return enabled ? MultipleSliderValuesDisplayMode.Enabled : MultipleSliderValuesDisplayMode.Disabled;
+
+        return Enum.TryParse(value, ignoreCase: true, out MultipleSliderValuesDisplayMode mode)
+            ? mode
+            : MultipleSliderValuesDisplayMode.OnlyInManual;
     }
 
     private static void ApplyLoadedSliderThumb(

@@ -304,12 +304,13 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             _settings.ShowNonFunctioningFans,
             v => _settings.ShowNonFunctioningFans = v,
             p));
-        stack.Children.Add(BoolCard(
+        stack.Children.Add(StringComboCard(
             L("Settings_Flyout_ShowMultipleSliderValues_Title", "Show multiple slider values"),
             L("Settings_Flyout_ShowMultipleSliderValues_Description",
-                "Show both the manual and curve slider thumbs when possible"),
-            _settings.ShowMultipleSliderValues,
-            v => _settings.ShowMultipleSliderValues = v,
+                "Show both the manual and curve slider thumbs when possible. Only in manual means this only appears when the slider is in manual mode."),
+            MultipleSliderValuesOptions(),
+            _settings.ShowMultipleSliderValuesMode,
+            v => _settings.ShowMultipleSliderValuesMode = v,
             p));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_Flyout_Layout_Header", "Layout"), p));
@@ -988,6 +989,16 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     [
         (TrayClickAction.Nothing, "Nothing"),
         (TrayClickAction.OpenSettings, "Open settings"),
+    ];
+
+    /// <summary>
+    /// Creates flyout multiple slider value display options.
+    /// </summary>
+    private static IReadOnlyList<(MultipleSliderValuesDisplayMode Value, string Text)> MultipleSliderValuesOptions() =>
+    [
+        (MultipleSliderValuesDisplayMode.Disabled, "Disabled"),
+        (MultipleSliderValuesDisplayMode.Enabled, "Enabled"),
+        (MultipleSliderValuesDisplayMode.OnlyInManual, "Only in manual"),
     ];
 
     private TrayAppDotNETGeneralSettingsSection CreateGeneralSettingsSection(SettingsPalette p) =>
