@@ -23,6 +23,7 @@ internal static class FanAvaloniaRunner
             args,
             builder =>
             {
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(builder);
                 builder = builder.UseHotReload();
 
                 return builder;
