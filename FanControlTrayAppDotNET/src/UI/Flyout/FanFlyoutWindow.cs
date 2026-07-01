@@ -1048,8 +1048,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         if (fan.CurrentControlMode == FanControlMode.Manual)
         {
-            slider.ProgressLane = FlyoutSliderValueLane.Upper;
-            slider.SecondaryProgressLane = FlyoutSliderValueLane.Lower;
             slider.SecondaryValue = curveSliderValue.Value;
             slider.SecondaryThumb = ResolveCurveSliderThumbOption();
             slider.SecondaryOpacity = InactiveSliderValueOpacity;
@@ -1058,8 +1056,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         if (IsFanControlRelinquished(fan)) return;
 
-        slider.ProgressLane = FlyoutSliderValueLane.Lower;
-        slider.SecondaryProgressLane = FlyoutSliderValueLane.Upper;
         slider.SecondaryValue = Math.Clamp(fan.FanDisplayedValue, 0, fan.FanSliderMaximum);
         slider.SecondaryThumb = ResolveSliderThumbOption();
         slider.SecondaryOpacity = InactiveSliderValueOpacity;
@@ -1078,8 +1074,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         if (cell.GroupCurrentControlMode == FanControlMode.Manual)
         {
-            slider.ProgressLane = FlyoutSliderValueLane.Upper;
-            slider.SecondaryProgressLane = FlyoutSliderValueLane.Lower;
             slider.SecondaryValue = curveSliderValue.Value;
             slider.SecondaryThumb = ResolveCurveSliderThumbOption();
             slider.SecondaryOpacity = InactiveSliderValueOpacity;
@@ -1088,8 +1082,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         if (IsGroupControlRelinquished(cell)) return;
 
-        slider.ProgressLane = FlyoutSliderValueLane.Lower;
-        slider.SecondaryProgressLane = FlyoutSliderValueLane.Upper;
         slider.SecondaryValue = Math.Clamp(
             cell.GroupFanDisplayedValue,
             0,
@@ -1103,8 +1095,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private static void ClearSliderMultipleValues(FlyoutSlider slider)
     {
-        slider.ProgressLane = FlyoutSliderValueLane.Full;
-        slider.SecondaryProgressLane = FlyoutSliderValueLane.Full;
         slider.SecondaryValue = null;
         slider.SecondaryThumb = null;
         slider.SecondaryProgressColor = null;
