@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using BrightnessTrayAppDotNET.UI.Settings.Environmental;
@@ -211,7 +213,7 @@ public sealed partial class BrightnessSettingsWindow
         _previewSweepButton.HorizontalAlignment = HorizontalAlignment.Right;
         _previewSweepButton.Margin = new Thickness(0, -2, 0, 4);
         ApplyEnvironmentalButtonFont(_previewSweepButton);
-        _previewSweepButton.Click += (_, _) => AppServices.BrightnessFlyout?.TogglePreviewSweep();
+        _previewSweepButton.Click += (_, _) => ToggleEnvironmentalPreviewSweep();
         TrayAppDotNETToolTip.SetTip(
             _previewSweepButton,
             L("Settings_Environmental_PreviewSweep_ToolTip", "Animate the full day's curve over 10 seconds."));
@@ -265,40 +267,80 @@ public sealed partial class BrightnessSettingsWindow
                     break;
             }
         };
-        _sunOverlayDateBox.PointerWheelChanged += (_, e) =>
-        {
-            if (!_sunOverlayDateBox.IsKeyboardFocusWithin) return;
-            int direction = e.Delta.Y > 0 ? 1 : -1;
-            StepEnvironmentalSunOverlayDate(e.KeyModifiers.HasFlag(KeyModifiers.Control)
-                ? d => d.AddMonths(direction)
-                : d => d.AddDays(direction));
-            e.Handled = true;
-        };
+        _sunOverlayDateBox.AddHandler(
+            InputElement.PointerWheelChangedEvent,
+            OnEnvironmentalSunOverlayDateBoxPointerWheelChanged,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         dateControl.Children.Add(_sunOverlayDateBox);
 
-        SettingsButton calendar = Button(GlyphCatalog.CALENDAR, p);
-        calendar.Width = 28;
-        calendar.Height = 32;
-        calendar.MinHeight = 32;
-        calendar.Padding = new Thickness(0);
-        calendar.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        calendar.Label.FontSize = 13;
-        calendar.Click += (_, _) =>
-        {
-            CommitEnvironmentalSunOverlayDate();
-            _sunOverlayDateBox.Focus();
-            _sunOverlayDateBox.SelectAll();
-        };
+        SettingsButton calendarButton = Button(GlyphCatalog.CALENDAR, p);
+        calendarButton.Width = 28;
+        calendarButton.Height = 32;
+        calendarButton.MinHeight = 32;
+        calendarButton.Padding = new Thickness(0);
+        calendarButton.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        calendarButton.Label.FontSize = 13;
+        calendarButton.Click += (_, _) => ToggleEnvironmentalSunOverlayCalendar();
         TrayAppDotNETToolTip.SetTip(
-            calendar,
+            calendarButton,
             L("Settings_Environmental_PickDate_ToolTip",
-                "Type a preview date. Use arrow keys or the mouse wheel to step it."));
-        Grid.SetColumn(calendar, 1);
-        dateControl.Children.Add(calendar);
+                "Pick a preview date."));
+        Grid.SetColumn(calendarButton, 1);
+        dateControl.Children.Add(calendarButton);
+
+        _sunOverlayCalendar = BuildEnvironmentalSunOverlayCalendar();
+        _sunOverlayDatePopup = BuildEnvironmentalSunOverlayDatePopup(p, calendarButton, _sunOverlayCalendar);
+        dateControl.Children.Add(_sunOverlayDatePopup);
 
         Grid.SetColumn(dateControl, 1);
         grid.Children.Add(dateControl);
         return grid;
+    }
+
+    /// <summary>
+    /// Builds the calendar used by the environmental preview date popup.
+    /// </summary>
+    private Calendar BuildEnvironmentalSunOverlayCalendar()
+    {
+        Calendar calendar = new()
+        {
+            DisplayDate = _environmentalSunOverlayDate,
+            FirstDayOfWeek = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek,
+            IsTodayHighlighted = true,
+            SelectedDate = _environmentalSunOverlayDate,
+            SelectionMode = CalendarSelectionMode.SingleDate,
+        };
+        calendar.SelectedDatesChanged += OnEnvironmentalSunOverlayCalendarSelectedDatesChanged;
+        calendar.PointerReleased += OnEnvironmentalSunOverlayCalendarPointerReleased;
+        calendar.KeyDown += OnEnvironmentalSunOverlayCalendarKeyDown;
+        return calendar;
+    }
+
+    /// <summary>
+    /// Builds the popup shell that anchors the preview date calendar to its button.
+    /// </summary>
+    private static Popup BuildEnvironmentalSunOverlayDatePopup(SettingsPalette p, Control target, Calendar calendar)
+    {
+        Border popupBorder = new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(p.Background),
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(p.Border),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(6),
+            Margin = new Thickness(8),
+            Child = calendar,
+        };
+
+        return new Popup
+        {
+            PlacementTarget = target,
+            Placement = PlacementMode.BottomEdgeAlignedRight,
+            VerticalOffset = 4,
+            IsLightDismissEnabled = true,
+            Child = popupBorder,
+        };
     }
 
     private Border BuildEnvironmentalSmoothnessCard(SettingsPalette p)

@@ -57,6 +57,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private bool _isUpdateDownloadInFlight;
     private bool _deferredSliderGestureRebuild;
     private bool _previewSweepAnimationFrameQueued;
+    private EnvironmentalCurve? _previewSweepCurveOverride;
+    private EnvironmentalCurve? _previewSweepDisabledPeriodOverride;
+    private EnvironmentalCurve? _previewDateCurveOverride;
+    private EnvironmentalCurve? _previewDateDisabledPeriodOverride;
+    private bool _previewDateHardwareActive;
+    private bool _previewDateSuspendedCurveService;
+    private bool _previewSweepSuspendedCurveService;
     private double _previewSweepStartFraction;
     private int _previewedProfileIndex = -1;
 
@@ -441,7 +448,60 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void RequestCurveReevaluation() => _curveService.RequestEvaluation();
 
+    /// <summary>
+    /// Applies a date-preview curve at the current time until cleared.
+    /// </summary>
+    public void ApplyPreviewDateCurve(EnvironmentalCurve previewCurve, EnvironmentalCurve disabledPeriodCurve)
+    {
+        if (!IsBrightnessCurveEnabled && !IsNightLightCurveEnabled) return;
+
+        _previewDateCurveOverride = previewCurve;
+        _previewDateDisabledPeriodOverride = disabledPeriodCurve;
+        _previewDateHardwareActive = true;
+        if (!_previewDateSuspendedCurveService)
+        {
+            _curveService.Suspend();
+            _previewDateSuspendedCurveService = true;
+        }
+
+        if (_previewSweepTimer != null)
+        {
+            _previewSweepCurveOverride = previewCurve;
+            _previewSweepDisabledPeriodOverride = disabledPeriodCurve;
+        }
+        else
+            ApplyPreviewDateCurveAtCurrentTime();
+    }
+
+    /// <summary>
+    /// Clears any active date-preview curve and reapplies the live environmental curves.
+    /// </summary>
+    public void ClearPreviewDateCurve()
+    {
+        if (!_previewDateHardwareActive && !_previewDateSuspendedCurveService) return;
+
+        if (_previewSweepTimer != null)
+            CancelPreviewSweep();
+
+        _previewDateCurveOverride = null;
+        _previewDateDisabledPeriodOverride = null;
+        _previewDateHardwareActive = false;
+        if (_previewDateSuspendedCurveService)
+        {
+            _previewDateSuspendedCurveService = false;
+            _curveService.Resume();
+        }
+        else
+            _curveService.RequestEvaluation();
+    }
+
     public void TogglePreviewSweep()
+        => TogglePreviewSweep(previewCurve: null, disabledPeriodCurve: null);
+
+    /// <summary>
+    /// Toggles the 24-hour preview sweep, optionally sampling a caller-supplied preview curve.
+    /// </summary>
+    public void TogglePreviewSweep(EnvironmentalCurve? previewCurve, EnvironmentalCurve? disabledPeriodCurve)
     {
         if (_previewSweepTimer != null)
         {
@@ -450,7 +510,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         if (!IsBrightnessCurveEnabled && !IsNightLightCurveEnabled) return;
-        RunPreviewSweep();
+        RunPreviewSweep(previewCurve, disabledPeriodCurve);
     }
 
     public void CancelPreviewSweep()
@@ -1526,6 +1586,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         foreach (ProfileButtonItem item in ProfileButtons)
             item.IsSelected = item.Index == newIndex;
+        ClearPreviewDateCurve();
         ClearProfilePreview();
         CheckAndUpdateUnsavedChanges();
         _curveService.Evaluate();
@@ -1534,6 +1595,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnProfilesListChanged()
     {
+        ClearPreviewDateCurve();
         BuildProfileButtonItems();
         RebuildVisual();
     }
@@ -2088,6 +2150,15 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (!IsNightLightCurveEnabled) _curveService.DisengageNightLightCurveStates();
         if (IsBrightnessCurveEnabled) CaptureOffsetsFromMaster();
         UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
+        if (_previewDateHardwareActive)
+        {
+            if (!IsBrightnessCurveEnabled && !IsNightLightCurveEnabled)
+                ClearPreviewDateCurve();
+            else
+                ApplyPreviewDateCurveAtCurrentTime();
+            return;
+        }
+
         _curveService.Start();
         _curveService.Evaluate();
     }
@@ -2110,9 +2181,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private int FlipIfNightLightInverted(int value) =>
         (_settings?.InvertNightLightSlider ?? false) ? 100 - value : value;
 
-    private void RunPreviewSweep()
+    private void RunPreviewSweep(EnvironmentalCurve? previewCurve, EnvironmentalCurve? disabledPeriodCurve)
     {
-        _curveService.Suspend();
+        _previewSweepCurveOverride = previewCurve ?? _previewDateCurveOverride;
+        _previewSweepDisabledPeriodOverride = disabledPeriodCurve ?? _previewDateDisabledPeriodOverride;
+        _previewSweepSuspendedCurveService = !_previewDateHardwareActive;
+        if (_previewSweepSuspendedCurveService)
+            _curveService.Suspend();
         _previewSweepStartFraction = EnvironmentalCurveSampler.CurrentDayFraction();
         _previewSweepStopwatch = Stopwatch.StartNew();
         int rateMs = Math.Max(TimeConstants.BrightnessUpdateRateMinMs,
@@ -2153,7 +2228,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         bool finished = s >= 1.0;
         if (finished) s = 1.0;
         double t = WrapSweepFraction(s);
-        if (!_curveService.ApplyAt(t))
+        bool applied = _previewSweepCurveOverride != null && _previewSweepDisabledPeriodOverride != null
+            ? _curveService.ApplyAt(t, _previewSweepCurveOverride, _previewSweepDisabledPeriodOverride)
+            : _curveService.ApplyAt(t);
+        if (!applied)
         {
             FinishPreviewSweep();
             return;
@@ -2179,9 +2257,28 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         _previewSweepStopwatch = null;
+        _previewSweepCurveOverride = null;
+        _previewSweepDisabledPeriodOverride = null;
         _previewSweepAnimationFrameQueued = false;
+        bool resumeLiveCurveService = _previewSweepSuspendedCurveService;
+        _previewSweepSuspendedCurveService = false;
         PreviewSweepStateChanged?.Invoke(false);
-        _curveService.Resume();
+        if (resumeLiveCurveService)
+            _curveService.Resume();
+        else if (_previewDateHardwareActive)
+            ApplyPreviewDateCurveAtCurrentTime();
+    }
+
+    /// <summary>
+    /// Applies the active date-preview curve at the current local time.
+    /// </summary>
+    private void ApplyPreviewDateCurveAtCurrentTime()
+    {
+        if (_previewDateCurveOverride == null || _previewDateDisabledPeriodOverride == null) return;
+
+        double t = EnvironmentalCurveSampler.CurrentDayFraction();
+        if (!_curveService.ApplyAt(t, _previewDateCurveOverride, _previewDateDisabledPeriodOverride))
+            ClearPreviewDateCurve();
     }
 
     private void BuildProfileButtonItems()
@@ -2699,6 +2796,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        ClearPreviewDateCurve();
         CancelPreviewSweep();
         StopCurveStopwatchTimer();
         MasterMonitor.PropertyChanged -= OnMonitorPropertyChanged;
