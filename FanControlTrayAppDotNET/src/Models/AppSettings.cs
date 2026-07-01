@@ -116,6 +116,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public double FlyoutLeft { get; set; }
     public double FlyoutTop { get; set; }
     public bool ShowNonFunctioningFans { get; set; } = true;
+    public bool ShowMultipleSliderValues { get; set; } = true;
 
     // Tray icon tooltip composition. The flyout tooltip is always the application name; these
     // toggles add CPU / GPU temperature lines fed by LHMService DataSources. Both on by default.

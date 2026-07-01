@@ -304,6 +304,13 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             _settings.ShowNonFunctioningFans,
             v => _settings.ShowNonFunctioningFans = v,
             p));
+        stack.Children.Add(BoolCard(
+            L("Settings_Flyout_ShowMultipleSliderValues_Title", "Show multiple slider values"),
+            L("Settings_Flyout_ShowMultipleSliderValues_Description",
+                "Show both the manual and curve slider thumbs when possible"),
+            _settings.ShowMultipleSliderValues,
+            v => _settings.ShowMultipleSliderValues = v,
+            p));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_Flyout_Layout_Header", "Layout"), p));
         stack.Children.Add(IntCard("Card spacing", "Vertical spacing between fan cards.", _settings.FlyoutCardSpacing,

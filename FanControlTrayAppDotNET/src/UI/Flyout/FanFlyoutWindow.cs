@@ -39,6 +39,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly List<Control> _dragDebugVisuals = [];
 
     private const double RelinquishedControlOpacity = 0.42;
+    private const double InactiveSliderValueOpacity = 0.2;
 
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private StackPanel? _cellStack;
@@ -623,6 +624,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 fan.FanSliderMaximum,
                 fan.RPMMode ? 50 : 2,
                 ResolveFanSliderThumb(fan));
+            ConfigureFanSliderMultipleValues(fan, slider);
             bool sliderDragging = false;
             slider.DragStarted += (_, _) =>
             {
@@ -645,6 +647,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     valueText?.Text = FanSliderValueText(fan, currentCurveSliderValue);
                     slider.Thumb = ResolveFanSliderThumb(fan);
                     slider.Value = FanSliderValue(fan, currentCurveSliderValue);
+                    ConfigureFanSliderMultipleValues(fan, slider);
                     if (valueText != null) ApplyFanRelinquishedControlVisual(fan, name, valueText, slider);
                     ApplyControlModeGlyphVisual(modeGlyph, fan.CurrentControlMode);
                     TrayAppDotNETToolTip.SetTip(mode, ControlModeTooltip(fan.CurrentControlMode));
@@ -655,6 +658,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 fan.FanDisplayedValue = next;
                 valueText?.Text = fan.FanDisplayedValueText;
                 slider.Thumb = ResolveFanSliderThumb(fan);
+                ConfigureFanSliderMultipleValues(fan, slider);
                 if (valueText != null) ApplyFanRelinquishedControlVisual(fan, name, valueText, slider);
                 ApplyControlModeGlyphVisual(modeGlyph, fan.CurrentControlMode);
                 TrayAppDotNETToolTip.SetTip(mode, ControlModeTooltip(fan.CurrentControlMode));
@@ -805,6 +809,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             FanFlyoutCell.GroupFanSliderMaximum,
             2,
             ResolveGroupSliderThumb(cell));
+        ConfigureGroupSliderMultipleValues(cell, slider);
         bool sliderDragging = false;
         slider.DragStarted += (_, _) =>
         {
@@ -827,6 +832,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 valueText?.Text = GroupSliderValueText(cell, currentCurveSliderValue);
                 slider.Thumb = ResolveGroupSliderThumb(cell);
                 slider.Value = GroupSliderValue(cell, currentCurveSliderValue);
+                ConfigureGroupSliderMultipleValues(cell, slider);
                 ApplyControlModeGlyphVisual(modeGlyph, cell.GroupCurrentControlMode);
                 TrayAppDotNETToolTip.SetTip(mode, ControlModeTooltip(cell.GroupCurrentControlMode));
                 if (valueText != null) ApplyGroupRelinquishedControlVisual(cell, name, valueText, slider);
@@ -837,6 +843,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Math.Clamp((int)Math.Round(value), 0, FanFlyoutCell.GroupFanSliderMaximum);
             ApplyGroupManualValueToFans(cell);
             valueText?.Text = cell.GroupFanDisplayedValueText;
+            slider.Thumb = ResolveGroupSliderThumb(cell);
+            ConfigureGroupSliderMultipleValues(cell, slider);
             if (sliderDragging) AppServices.LHMService?.PersistLiveState(save: false);
             else SaveGroupChanges();
         };
@@ -950,6 +958,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         refs.Slider.Maximum = Math.Max(1, fan.FanSliderMaximum);
         refs.Slider.Thumb = ResolveFanSliderThumb(fan);
         refs.Slider.Value = FanSliderValue(fan, curveSliderValue);
+        ConfigureFanSliderMultipleValues(fan, refs.Slider);
         ApplyFanRelinquishedControlVisual(fan, refs.Name, refs.Value, refs.Slider);
     }
 
@@ -961,6 +970,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             refs.Value.Text = GroupSliderValueText(cell, curveSliderValue);
             refs.Slider.Thumb = ResolveGroupSliderThumb(cell);
             refs.Slider.Value = GroupSliderValue(cell, curveSliderValue);
+            ConfigureGroupSliderMultipleValues(cell, refs.Slider);
             refs.ActiveCurve.Text = cell.ActiveCurveText;
             ApplyControlModeGlyphVisual(refs.ModeGlyph, cell.GroupCurrentControlMode);
             TrayAppDotNETToolTip.SetTip(refs.ModeButton, ControlModeTooltip(cell.GroupCurrentControlMode));
@@ -1025,6 +1035,81 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ? ResolveSliderThumbOption()
             : ResolveCurveSliderThumbOption();
 
+    /// <summary>
+    /// Configures the optional dimmed manual or curve value for a fan slider.
+    /// </summary>
+    private void ConfigureFanSliderMultipleValues(Fan fan, FlyoutSlider slider)
+    {
+        ClearSliderMultipleValues(slider);
+        if (!_settings.ShowMultipleSliderValues) return;
+
+        double? curveSliderValue = ResolveFanCurveSliderValue(fan, requireCurveMode: false);
+        if (!curveSliderValue.HasValue) return;
+
+        if (fan.CurrentControlMode == FanControlMode.Manual)
+        {
+            slider.ProgressLane = FlyoutSliderValueLane.Upper;
+            slider.SecondaryProgressLane = FlyoutSliderValueLane.Lower;
+            slider.SecondaryValue = curveSliderValue.Value;
+            slider.SecondaryThumb = ResolveCurveSliderThumbOption();
+            slider.SecondaryOpacity = InactiveSliderValueOpacity;
+            return;
+        }
+
+        if (IsFanControlRelinquished(fan)) return;
+
+        slider.ProgressLane = FlyoutSliderValueLane.Lower;
+        slider.SecondaryProgressLane = FlyoutSliderValueLane.Upper;
+        slider.SecondaryValue = Math.Clamp(fan.FanDisplayedValue, 0, fan.FanSliderMaximum);
+        slider.SecondaryThumb = ResolveSliderThumbOption();
+        slider.SecondaryOpacity = InactiveSliderValueOpacity;
+    }
+
+    /// <summary>
+    /// Configures the optional dimmed manual or curve value for a group slider.
+    /// </summary>
+    private void ConfigureGroupSliderMultipleValues(FanFlyoutCell cell, FlyoutSlider slider)
+    {
+        ClearSliderMultipleValues(slider);
+        if (!_settings.ShowMultipleSliderValues) return;
+
+        double? curveSliderValue = ResolveGroupCurveSliderValue(cell, requireCurveMode: false);
+        if (!curveSliderValue.HasValue) return;
+
+        if (cell.GroupCurrentControlMode == FanControlMode.Manual)
+        {
+            slider.ProgressLane = FlyoutSliderValueLane.Upper;
+            slider.SecondaryProgressLane = FlyoutSliderValueLane.Lower;
+            slider.SecondaryValue = curveSliderValue.Value;
+            slider.SecondaryThumb = ResolveCurveSliderThumbOption();
+            slider.SecondaryOpacity = InactiveSliderValueOpacity;
+            return;
+        }
+
+        if (IsGroupControlRelinquished(cell)) return;
+
+        slider.ProgressLane = FlyoutSliderValueLane.Lower;
+        slider.SecondaryProgressLane = FlyoutSliderValueLane.Upper;
+        slider.SecondaryValue = Math.Clamp(
+            cell.GroupFanDisplayedValue,
+            0,
+            FanFlyoutCell.GroupFanSliderMaximum);
+        slider.SecondaryThumb = ResolveSliderThumbOption();
+        slider.SecondaryOpacity = InactiveSliderValueOpacity;
+    }
+
+    /// <summary>
+    /// Restores single-value rendering on a slider.
+    /// </summary>
+    private static void ClearSliderMultipleValues(FlyoutSlider slider)
+    {
+        slider.ProgressLane = FlyoutSliderValueLane.Full;
+        slider.SecondaryProgressLane = FlyoutSliderValueLane.Full;
+        slider.SecondaryValue = null;
+        slider.SecondaryThumb = null;
+        slider.SecondaryProgressColor = null;
+    }
+
     private static int FanSliderValue(Fan fan, double? curveSliderValue)
     {
         if (IsFanControlRelinquished(fan))
@@ -1061,9 +1146,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static double GroupCurrentDutyCycleValue(FanFlyoutCell cell) =>
         cell.Fans.Count == 0 ? 0.0 : Math.Clamp(cell.Fans.Average(CurrentDutyCycleValue), 0.0, 100.0);
 
-    private static double? ResolveFanCurveSliderValue(Fan fan)
+    private static double? ResolveFanCurveSliderValue(Fan fan) =>
+        ResolveFanCurveSliderValue(fan, requireCurveMode: true);
+
+    private static double? ResolveFanCurveSliderValue(Fan fan, bool requireCurveMode)
     {
-        if (fan.CurrentControlMode == FanControlMode.Manual) return null;
+        if (requireCurveMode && fan.CurrentControlMode == FanControlMode.Manual) return null;
         Curve? curve = fan.AssignedCurve;
         DataSource? source = curve?.SelectedDataSource;
         if (curve == null || source == null) return null;
@@ -1073,9 +1161,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return Math.Clamp(sliderValue, 0.0, Math.Max(1, fan.FanSliderMaximum));
     }
 
-    private static double? ResolveGroupCurveSliderValue(FanFlyoutCell cell)
+    private static double? ResolveGroupCurveSliderValue(FanFlyoutCell cell) =>
+        ResolveGroupCurveSliderValue(cell, requireCurveMode: true);
+
+    private static double? ResolveGroupCurveSliderValue(FanFlyoutCell cell, bool requireCurveMode)
     {
-        if (cell.GroupCurrentControlMode == FanControlMode.Manual) return null;
+        if (requireCurveMode && cell.GroupCurrentControlMode == FanControlMode.Manual) return null;
         Curve? curve = cell.GroupSettings?.AssignedCurve;
         DataSource? source = curve?.SelectedDataSource;
         if (curve == null || source == null) return null;
