@@ -4,27 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       battery:
-        description: Increment BatteryTrayAppDotNET/buildnumber.txt.
+        description: BatteryTrayAppDotNET
         required: true
         default: false
         type: boolean
       brightness:
-        description: Increment BrightnessTrayAppDotNET/buildnumber.txt.
+        description: BrightnessTrayAppDotNET
         required: true
         default: false
         type: boolean
       fan_control:
-        description: Increment FanControlTrayAppDotNET/buildnumber.txt.
+        description: FanControlTrayAppDotNET
         required: true
         default: false
         type: boolean
       network:
-        description: Increment NetworkTrayAppDotNET/buildnumber.txt.
+        description: NetworkTrayAppDotNET
         required: true
         default: false
         type: boolean
       volume:
-        description: Increment VolumeTrayAppDotNET/buildnumber.txt.
+        description: VolumeTrayAppDotNET
         required: true
         default: false
         type: boolean
@@ -63,27 +63,27 @@ jobs:
 
           $targets = @(
             [pscustomobject]@{
-              Name = "Battery"
+              Name = "BatteryTrayAppDotNET"
               Path = "BatteryTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.battery }}")
             },
             [pscustomobject]@{
-              Name = "Brightness"
+              Name = "BrightnessTrayAppDotNET"
               Path = "BrightnessTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.brightness }}")
             },
             [pscustomobject]@{
-              Name = "Fan Control"
+              Name = "FanControlTrayAppDotNET"
               Path = "FanControlTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.fan_control }}")
             },
             [pscustomobject]@{
-              Name = "Network"
+              Name = "NetworkTrayAppDotNET"
               Path = "NetworkTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.network }}")
             },
             [pscustomobject]@{
-              Name = "Volume"
+              Name = "VolumeTrayAppDotNET"
               Path = "VolumeTrayAppDotNET/buildnumber.txt"
               Selected = [bool]::Parse("${{ inputs.volume }}")
             }
