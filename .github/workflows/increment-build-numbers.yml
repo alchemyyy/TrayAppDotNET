@@ -3,28 +3,28 @@ name: Increment Build Numbers
 on:
   workflow_dispatch:
     inputs:
-      battery:
-        description: BatteryTrayAppDotNET
+      force_battery:
+        description: Force BatteryTrayAppDotNET
         required: true
         default: false
         type: boolean
-      brightness:
-        description: BrightnessTrayAppDotNET
+      force_brightness:
+        description: Force BrightnessTrayAppDotNET
         required: true
         default: false
         type: boolean
-      fan_control:
-        description: FanControlTrayAppDotNET
+      force_fan_control:
+        description: Force FanControlTrayAppDotNET
         required: true
         default: false
         type: boolean
-      network:
-        description: NetworkTrayAppDotNET
+      force_network:
+        description: Force NetworkTrayAppDotNET
         required: true
         default: false
         type: boolean
-      volume:
-        description: VolumeTrayAppDotNET
+      force_volume:
+        description: Force VolumeTrayAppDotNET
         required: true
         default: false
         type: boolean
@@ -38,7 +38,7 @@ concurrency:
 
 jobs:
   increment:
-    name: Increment Selected Build Numbers
+    name: Increment Needed Build Numbers
     runs-on: [self-hosted, Windows, X64, trayapp]
     timeout-minutes: 10
 
@@ -52,6 +52,7 @@ jobs:
       - name: Increment And Commit
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         env:
+          GH_TOKEN: ${{ github.token }}
           TARGET_BRANCH: ${{ github.ref_name }}
           TARGET_REF_TYPE: ${{ github.ref_type }}
         run: |
@@ -65,38 +66,145 @@ jobs:
             [pscustomobject]@{
               Name = "BatteryTrayAppDotNET"
               VersionName = "Battery"
+              Folder = "BatteryTrayAppDotNET"
               Path = "BatteryTrayAppDotNET/buildnumber.txt"
-              Selected = [bool]::Parse("${{ inputs.battery }}")
+              Forced = [bool]::Parse("${{ inputs.force_battery }}")
+              AutoSelected = $false
+              Selected = $false
             },
             [pscustomobject]@{
               Name = "BrightnessTrayAppDotNET"
               VersionName = "Brightness"
+              Folder = "BrightnessTrayAppDotNET"
               Path = "BrightnessTrayAppDotNET/buildnumber.txt"
-              Selected = [bool]::Parse("${{ inputs.brightness }}")
+              Forced = [bool]::Parse("${{ inputs.force_brightness }}")
+              AutoSelected = $false
+              Selected = $false
             },
             [pscustomobject]@{
               Name = "FanControlTrayAppDotNET"
               VersionName = "FanControl"
+              Folder = "FanControlTrayAppDotNET"
               Path = "FanControlTrayAppDotNET/buildnumber.txt"
-              Selected = [bool]::Parse("${{ inputs.fan_control }}")
+              Forced = [bool]::Parse("${{ inputs.force_fan_control }}")
+              AutoSelected = $false
+              Selected = $false
             },
             [pscustomobject]@{
               Name = "NetworkTrayAppDotNET"
               VersionName = "Network"
+              Folder = "NetworkTrayAppDotNET"
               Path = "NetworkTrayAppDotNET/buildnumber.txt"
-              Selected = [bool]::Parse("${{ inputs.network }}")
+              Forced = [bool]::Parse("${{ inputs.force_network }}")
+              AutoSelected = $false
+              Selected = $false
             },
             [pscustomobject]@{
               Name = "VolumeTrayAppDotNET"
               VersionName = "Volume"
+              Folder = "VolumeTrayAppDotNET"
               Path = "VolumeTrayAppDotNET/buildnumber.txt"
-              Selected = [bool]::Parse("${{ inputs.volume }}")
+              Forced = [bool]::Parse("${{ inputs.force_volume }}")
+              AutoSelected = $false
+              Selected = $false
             }
           )
 
+          <#
+          .SYNOPSIS
+          Returns changed files under a path since the release base commit.
+          #>
+          function Get-ChangedFilesSinceRelease {
+            param(
+              [Parameter(Mandatory = $true)]
+              [string] $CommitRange,
+
+              [Parameter(Mandatory = $true)]
+              [string] $Path
+            )
+
+            [string[]] $changedFiles = & git log --name-only --format= $CommitRange -- $Path
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to inspect changes for path: $Path"
+            }
+
+            [System.Collections.Generic.List[string]] $normalizedFiles = [System.Collections.Generic.List[string]]::new()
+            foreach ($changedFile in $changedFiles) {
+              [string] $normalizedFile = $changedFile.Trim().Replace("\", "/")
+              if ($normalizedFile -eq "") {
+                continue
+              }
+
+              $normalizedFiles.Add($normalizedFile)
+            }
+
+            return @($normalizedFiles | Sort-Object -Unique)
+          }
+
+          & git fetch --tags --force origin
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to fetch tags from origin."
+          }
+
+          [string] $releaseTag = (& gh release list --exclude-drafts --limit 100 --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[0].tagName').Trim()
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to query published releases."
+          }
+
+          if ($releaseTag -eq "" -or $releaseTag -eq "null") {
+            throw "No published non-draft release was found."
+          }
+
+          [string] $baseCommit = (& git rev-list -n 1 $releaseTag).Trim()
+          if ($LASTEXITCODE -ne 0 -or $baseCommit -eq "") {
+            throw "Failed to resolve release tag to a commit: $releaseTag"
+          }
+
+          & git merge-base --is-ancestor $baseCommit HEAD
+          if ($LASTEXITCODE -ne 0) {
+            throw "Latest published release tag '$releaseTag' is not an ancestor of HEAD."
+          }
+
+          [string] $commitRange = "$baseCommit..HEAD"
+          Write-Host "Latest published release: $releaseTag ($baseCommit)"
+
+          [string[]] $commonChangedFiles = @(Get-ChangedFilesSinceRelease -CommitRange $commitRange -Path "TrayAppDotNETCommon")
+          [bool] $commonChanged = $commonChangedFiles.Count -gt 0
+          if ($commonChanged) {
+            Write-Host "TrayAppDotNETCommon changed after $releaseTag; all app build numbers will increment."
+          }
+
+          foreach ($target in $targets) {
+            [string[]] $appChangedFiles = @(
+              Get-ChangedFilesSinceRelease -CommitRange $commitRange -Path $target.Folder |
+                Where-Object { $_ -ne $target.Path }
+            )
+
+            $target.AutoSelected = $commonChanged -or $appChangedFiles.Count -gt 0
+            $target.Selected = $target.Forced -or $target.AutoSelected
+
+            if ($target.Forced) {
+              Write-Host "$($target.Name): selected by force input."
+              continue
+            }
+
+            if ($commonChanged) {
+              Write-Host "$($target.Name): selected because TrayAppDotNETCommon changed."
+              continue
+            }
+
+            if ($appChangedFiles.Count -gt 0) {
+              Write-Host "$($target.Name): selected because $($target.Folder) changed."
+              continue
+            }
+
+            Write-Host "$($target.Name): no relevant changes detected."
+          }
+
           $selectedTargets = @($targets | Where-Object { $_.Selected })
           if ($selectedTargets.Count -eq 0) {
-            throw "Select at least one build number to increment."
+            Write-Host "No app build numbers need to be incremented."
+            exit 0
           }
 
           foreach ($target in $selectedTargets) {
