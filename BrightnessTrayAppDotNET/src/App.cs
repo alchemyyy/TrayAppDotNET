@@ -549,6 +549,8 @@ internal sealed class BrightnessAvaloniaApp : Application
                 AdjustAllMonitorBrightness(delta);
                 break;
         }
+
+        _trayIcon?.ShowTooltip();
     }
 
     private static TrayWheelTarget ResolveWheelTarget(AppSettings settings)
