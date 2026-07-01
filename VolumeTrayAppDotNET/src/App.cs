@@ -47,6 +47,7 @@ internal sealed class VolumeAvaloniaApp : Application
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private VolumeTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
+    private TrayIconRenderInput? _appliedTrayIconRenderInput;
     private VolumeTrayMenuWindow? _trayMenuWindow;
     private VolumeFlyoutWindow? _volumeFlyout;
     private VolumeSettingsWindow? _settingsWindow;
@@ -377,9 +378,12 @@ internal sealed class VolumeAvaloniaApp : Application
                 if (renderer.TryCreateRenderInput(out TrayIconRenderInput? missingInput) && missingInput != null)
                 {
                     _trayIcon.SetTooltip(missingTooltip);
+                    if (missingInput == _appliedTrayIconRenderInput)
+                        return;
+
                     _trayIconRenderQueue.Request(
                         () => renderer.RenderIcon(missingInput),
-                        icon => ApplyRenderedTrayIcon(icon, missingTooltip));
+                        icon => ApplyRenderedTrayIcon(icon, missingTooltip, missingInput));
                     return;
                 }
             }
@@ -387,6 +391,7 @@ internal sealed class VolumeAvaloniaApp : Application
             {
                 using (fallbackIcon)
                     _trayIcon.SetIconAndTooltip(fallbackIcon, missingTooltip);
+                ClearTrayIconRenderState();
                 return;
             }
 
@@ -407,9 +412,12 @@ internal sealed class VolumeAvaloniaApp : Application
             if (renderer.TryCreateRenderInput(out TrayIconRenderInput? input) && input != null)
             {
                 _trayIcon.SetTooltip(tooltip);
+                if (input == _appliedTrayIconRenderInput)
+                    return;
+
                 _trayIconRenderQueue.Request(
                     () => renderer.RenderIcon(input),
-                    icon => ApplyRenderedTrayIcon(icon, tooltip));
+                    icon => ApplyRenderedTrayIcon(icon, tooltip, input));
                 return;
             }
         }
@@ -420,7 +428,7 @@ internal sealed class VolumeAvaloniaApp : Application
     /// <summary>
     /// Applies a rendered tray icon, disposing it if the tray has already shut down.
     /// </summary>
-    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip, TrayIconRenderInput input)
     {
         if (_trayIcon == null)
         {
@@ -429,7 +437,13 @@ internal sealed class VolumeAvaloniaApp : Application
         }
 
         _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
+        _appliedTrayIconRenderInput = input;
     }
+
+    /// <summary>
+    /// Clears tracked render inputs when a non-renderer icon is applied.
+    /// </summary>
+    private void ClearTrayIconRenderState() => _appliedTrayIconRenderInput = null;
 
     private void OnTrayLeftClick()
     {

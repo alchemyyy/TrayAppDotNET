@@ -240,7 +240,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         // the dispatcher inside the monitor, so the propagation handler runs on the UI thread.
         _codecMonitor = new BluetoothCodecMonitor(dispatcher);
         _codecMonitor.CodecChanged += OnBluetoothCodecChanged;
-        _codecMonitor.Start();
+        try { _codecMonitor.Start(); }
+        catch (Exception ex) { TADNLog.Log($"AudioDeviceManager: Bluetooth codec monitor disabled: {ex.Message}"); }
         PropagateCodecToBluetoothDevices(_codecMonitor.CurrentCodec);
 
         // Bluetooth battery monitor. No elevation requirement; a cfgmgr32 reconciliation pass
