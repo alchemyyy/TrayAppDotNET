@@ -1,0 +1,130 @@
+name: Increment Build Numbers
+
+on:
+  workflow_dispatch:
+    inputs:
+      battery:
+        description: Increment BatteryTrayAppDotNET/buildnumber.txt.
+        required: true
+        default: false
+        type: boolean
+      brightness:
+        description: Increment BrightnessTrayAppDotNET/buildnumber.txt.
+        required: true
+        default: false
+        type: boolean
+      fan_control:
+        description: Increment FanControlTrayAppDotNET/buildnumber.txt.
+        required: true
+        default: false
+        type: boolean
+      network:
+        description: Increment NetworkTrayAppDotNET/buildnumber.txt.
+        required: true
+        default: false
+        type: boolean
+      volume:
+        description: Increment VolumeTrayAppDotNET/buildnumber.txt.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-build-numbers-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  increment:
+    name: Increment Selected Build Numbers
+    runs-on: [self-hosted, Windows, X64, trayapp]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Increment And Commit
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+          TARGET_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ($env:TARGET_REF_TYPE -ne "branch") {
+            throw "Run this workflow from a branch, not a $env:TARGET_REF_TYPE ref."
+          }
+
+          $targets = @(
+            [pscustomobject]@{
+              Name = "Battery"
+              Path = "BatteryTrayAppDotNET/buildnumber.txt"
+              Selected = [bool]::Parse("${{ inputs.battery }}")
+            },
+            [pscustomobject]@{
+              Name = "Brightness"
+              Path = "BrightnessTrayAppDotNET/buildnumber.txt"
+              Selected = [bool]::Parse("${{ inputs.brightness }}")
+            },
+            [pscustomobject]@{
+              Name = "Fan Control"
+              Path = "FanControlTrayAppDotNET/buildnumber.txt"
+              Selected = [bool]::Parse("${{ inputs.fan_control }}")
+            },
+            [pscustomobject]@{
+              Name = "Network"
+              Path = "NetworkTrayAppDotNET/buildnumber.txt"
+              Selected = [bool]::Parse("${{ inputs.network }}")
+            },
+            [pscustomobject]@{
+              Name = "Volume"
+              Path = "VolumeTrayAppDotNET/buildnumber.txt"
+              Selected = [bool]::Parse("${{ inputs.volume }}")
+            }
+          )
+
+          $selectedTargets = @($targets | Where-Object { $_.Selected })
+          if ($selectedTargets.Count -eq 0) {
+            throw "Select at least one build number to increment."
+          }
+
+          foreach ($target in $selectedTargets) {
+            if (-not (Test-Path -LiteralPath $target.Path -PathType Leaf)) {
+              throw "Missing build number file: $($target.Path)"
+            }
+
+            $buildNumberText = (Get-Content -LiteralPath $target.Path -Raw).Trim()
+            if ($buildNumberText -notmatch '^\d+$') {
+              throw "Invalid build number in $($target.Path): '$buildNumberText'"
+            }
+
+            $buildNumber = [int64]$buildNumberText
+            if ($buildNumber -eq [int64]::MaxValue) {
+              throw "Build number cannot be incremented further: $($target.Path)"
+            }
+
+            $nextBuildNumber = $buildNumber + 1
+            Set-Content -LiteralPath $target.Path -Value $nextBuildNumber -NoNewline
+            Write-Host "$($target.Name): $buildNumber -> $nextBuildNumber"
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          $selectedPaths = @($selectedTargets | ForEach-Object { $_.Path })
+          git add -- $selectedPaths
+
+          $status = git status --porcelain -- $selectedPaths
+          if ([string]::IsNullOrWhiteSpace($status)) {
+            Write-Host "No selected build number files changed."
+            exit 0
+          }
+
+          git commit -m "Increment selected build numbers"
+          git push origin "HEAD:$env:TARGET_BRANCH"
