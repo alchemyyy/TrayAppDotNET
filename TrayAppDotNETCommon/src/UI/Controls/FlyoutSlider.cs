@@ -13,13 +13,6 @@ public readonly record struct FlyoutSliderPeakValues(float Min, float Max)
     public static readonly FlyoutSliderPeakValues Zero = new(0f, 0f);
 }
 
-public enum FlyoutSliderValueLane
-{
-    Full,
-    Upper,
-    Lower,
-}
-
 public sealed class FlyoutSlider : Control
 {
     private const double TrackHeight = 4;
@@ -101,17 +94,6 @@ public sealed class FlyoutSlider : Control
         }
     }
 
-    public FlyoutSliderValueLane ProgressLane
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            InvalidateVisual();
-        }
-    }
-
     public Color? ProgressOverrideColor
     {
         get;
@@ -142,17 +124,6 @@ public sealed class FlyoutSlider : Control
             if (ReferenceEquals(field, value)) return;
             field = value;
             InvalidateMeasure();
-            InvalidateVisual();
-        }
-    }
-
-    public FlyoutSliderValueLane SecondaryProgressLane
-    {
-        get;
-        set
-        {
-            if (field == value) return;
-            field = value;
             InvalidateVisual();
         }
     }
@@ -395,13 +366,12 @@ public sealed class FlyoutSlider : Control
                 trackY,
                 width,
                 secondaryProgressWidth,
-                SecondaryProgressLane,
                 secondaryProgressColor,
                 SecondaryOpacity);
         }
 
         if (progressWidth > 0)
-            DrawProgress(context, trackY, width, progressWidth, ProgressLane, progressColor, 1);
+            DrawProgress(context, trackY, width, progressWidth, progressColor, 1);
 
         double peakExtent = ValuePosition(width, Value);
         double peakRadius = TrackHeight / 2.0;
@@ -683,26 +653,16 @@ public sealed class FlyoutSlider : Control
         double trackY,
         double width,
         double progressWidth,
-        FlyoutSliderValueLane lane,
         Color color,
         double opacity)
     {
         if (progressWidth <= 0 || opacity <= 0) return;
 
-        double laneHeight = lane == FlyoutSliderValueLane.Full
-            ? TrackHeight
-            : Math.Max(1, TrackHeight / 2.0);
-        double laneY = lane switch
-        {
-            FlyoutSliderValueLane.Lower => trackY + TrackHeight - laneHeight,
-            _ => trackY,
-        };
-
         DrawRoundedRect(
             context,
-            new Rect(0, laneY, Math.Min(width, progressWidth), laneHeight),
+            new Rect(0, trackY, Math.Min(width, progressWidth), TrackHeight),
             WithOpacity(color, opacity),
-            laneHeight / 2.0);
+            TrackHeight / 2.0);
     }
 
     private void SetColor(ref Color field, Color value)
