@@ -67,7 +67,9 @@ public class AppSettings : AppSettingsCommon
     public NullableThemeColor NetworkDisconnectedColor { get; set; } = new();
 
     public AppSettings()
-        : base(updateCheckIntervalDefaultMs: 0) =>
+        : base(
+            updateCheckIntervalDefaultMs: 0,
+            renderingBackendDefault: TrayAppDotNETRenderingBackend.Software) =>
         WireColorCallbacks();
 
     public override void OnTrayXmlDeserialized()

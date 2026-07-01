@@ -26,7 +26,10 @@ internal static class VolumeAvaloniaRunner
             args,
             builder =>
             {
-                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(builder);
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
+                    builder,
+                    AppSettings.GetDefaultPath,
+                    TADNLog.Log);
                 builder = builder.UseHotReload();
 
                 return builder;

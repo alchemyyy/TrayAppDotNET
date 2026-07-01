@@ -81,6 +81,8 @@ public sealed partial class NetworkSettingsWindow
             CardRadius = RadiusLarge,
             Localize = L,
             Save = Save,
+            ConfirmAsync = ConfirmAsync,
+            ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsTrayContextMenu = true,
         });

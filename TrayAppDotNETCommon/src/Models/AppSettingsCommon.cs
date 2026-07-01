@@ -20,6 +20,13 @@ public enum TrayAppDotNETAnimationMode
     Enabled,
 }
 
+/// <summary>Startup-time Avalonia rendering backend selection.</summary>
+public enum TrayAppDotNETRenderingBackend
+{
+    GPUPreferred,
+    Software,
+}
+
 public interface ITrayAppDotNETUpdateSettings
 {
     bool CheckForUpdatesEnabled { get; set; }
@@ -30,11 +37,15 @@ public interface ITrayAppDotNETUpdateSettings
 
 public interface ITrayAppDotNETKeepWarmSettings
 {
+    TrayAppDotNETRenderingBackend RenderingBackend { get; set; }
     bool KeepFlyoutWarm { get; set; }
     bool KeepTrayContextMenuWarm { get; set; }
 }
 
-public abstract class AppSettingsCommon(int updateCheckIntervalDefaultMs) : INotifyPropertyChanged,
+public abstract class AppSettingsCommon(
+    int updateCheckIntervalDefaultMs,
+    TrayAppDotNETRenderingBackend renderingBackendDefault = TrayAppDotNETRenderingBackend.GPUPreferred)
+    : INotifyPropertyChanged,
     ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings, ITrayXmlSerializationCallbacks
 {
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -99,6 +110,12 @@ public abstract class AppSettingsCommon(int updateCheckIntervalDefaultMs) : INot
             ref field,
             Math.Clamp(value, TimeConstants.ToolTipShowDelayMinMs, TimeConstants.ToolTipShowDelayMaxMs));
     } = TimeConstants.ToolTipShowDelayDefaultMs;
+
+    public TrayAppDotNETRenderingBackend RenderingBackend
+    {
+        get;
+        set => SetField(ref field, value);
+    } = renderingBackendDefault;
 
     public bool CheckForUpdatesEnabled
     {

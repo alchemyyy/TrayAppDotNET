@@ -162,6 +162,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
+    public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;
 
     // Empty by default; defaults are seeded by EnsureDefaultHotkeys() after construction or load.
     // Keep defaults out of the initializer so load paths do not duplicate seeded bindings.
