@@ -539,17 +539,36 @@ public sealed class EnvironmentalCurveService : IDisposable
     {
         if (_disposed) return false;
 
-        // No _isSuspended gate here: the preview-sweep tick (today's only caller) calls Suspend()
-        // exactly to silence the periodic timer, then repeatedly calls ApplyAt for the duration of the
+        // No _isSuspended gate here: preview-sweep callers call Suspend()
+        // exactly to silence the periodic timer, then repeatedly call ApplyAt for the duration of the
         // sweep. An early-return on _isSuspended (proposed in audit_07 F-12 as a defensive measure for
         // a hypothetical second caller) would break the preview. If a second caller is ever added,
         // give it a distinct gate rather than overloading _isSuspended.
 
         EnvironmentalCurve? curve = ResolveLiveCurve();
         EnvironmentalCurve? stored = ResolveStoredCurve();
-        if (curve == null || stored == null) return false;
+        return ApplyAtCore(t, curve, stored);
+    }
 
-        bool inDisabled = EnvironmentalCurveSampler.IsInDisabledPeriod(stored, t);
+    /// <summary>
+    /// Applies a caller-supplied preview curve at a caller-provided day fraction.
+    /// Used by the settings page when its preview date has shifted the displayed curve
+    /// away from the runtime's live-today curve.
+    /// </summary>
+    public bool ApplyAt(double t, EnvironmentalCurve curve, EnvironmentalCurve disabledPeriodCurve)
+    {
+        if (_disposed) return false;
+        return ApplyAtCore(t, curve, disabledPeriodCurve);
+    }
+
+    /// <summary>
+    /// Applies a resolved curve and disabled-period source at a caller-provided day fraction.
+    /// </summary>
+    private bool ApplyAtCore(double t, EnvironmentalCurve? curve, EnvironmentalCurve? disabledPeriodCurve)
+    {
+        if (curve == null || disabledPeriodCurve == null) return false;
+
+        bool inDisabled = EnvironmentalCurveSampler.IsInDisabledPeriod(disabledPeriodCurve, t);
         bool sleepEntering = inDisabled && !_isInDisabledPeriod;
         SetDisabledPeriod(inDisabled);
         // Same per-tick reconciliation Evaluate uses, so the simulated sleep enter/exit drives the

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.UI.Flyout;
@@ -26,6 +27,8 @@ public sealed partial class BrightnessSettingsWindow
     private TextBox? _disabledPeriodStartBox;
     private TextBox? _disabledPeriodEndBox;
     private TextBox? _sunOverlayDateBox;
+    private Calendar? _sunOverlayCalendar;
+    private Popup? _sunOverlayDatePopup;
     private TextBox? _latitudeBox;
     private TextBox? _longitudeBox;
     private StackPanel? _legendPanel;
@@ -41,6 +44,7 @@ public sealed partial class BrightnessSettingsWindow
     private DateTime _environmentalSunOverlayDate = DateTime.Today;
     private int _environmentalProfileIndex = -1;
     private bool _suppressEnvironmentalEvents;
+    private bool _suppressSunOverlayCalendarEvents;
     private bool _environmentalEventsAttached;
     private bool _environmentalCurveRuntimeNotifyQueued;
     private bool _environmentalCurveColorCallbacksWired;

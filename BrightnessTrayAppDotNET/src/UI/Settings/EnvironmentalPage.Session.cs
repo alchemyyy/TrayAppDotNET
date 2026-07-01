@@ -74,6 +74,8 @@ public sealed partial class BrightnessSettingsWindow
     private void StopEnvironmentalPageSession()
     {
         FlushDebouncedCurveSave();
+        ClearEnvironmentalPreviewHardwareState();
+        ReleaseEnvironmentalSunOverlayCalendar();
 
         if (!_environmentalEventsAttached) return;
 
@@ -194,16 +196,24 @@ public sealed partial class BrightnessSettingsWindow
 
     private void ApplyEnvironmentalPreviewState(DateTime previewDate)
     {
-        if (_environmentalCurveEditor == null) return;
+        if (_environmentalCurveEditor == null)
+        {
+            ClearEnvironmentalPreviewHardwareState();
+            return;
+        }
 
         EnvironmentalCurve? stored = SelectedEnvironmentalCurve();
-        if (stored == null) return;
+        if (stored == null)
+        {
+            ClearEnvironmentalPreviewHardwareState();
+            return;
+        }
 
         stored.EnsureNormalized();
         bool inPreview = previewDate.Date != DateTime.Today;
         DateTime target = inPreview ? previewDate.Date : DateTime.Today;
         _environmentalCurveEditor.SetPreviewMode(inPreview);
-        _previewSweepButton?.IsVisible = !inPreview;
+        _previewSweepButton?.IsVisible = true;
         _environmentalCurveDisplay = ResolveDisplayCurve(stored, target);
         _environmentalCurveEditor.SetCurves(_environmentalCurveDisplay);
 
@@ -220,5 +230,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             _suppressEnvironmentalEvents = false;
         }
+
+        ApplyEnvironmentalPreviewHardwareState(target);
     }
 }
