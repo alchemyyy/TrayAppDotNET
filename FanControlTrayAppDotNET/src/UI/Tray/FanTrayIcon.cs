@@ -6,6 +6,7 @@ namespace FanControlTrayAppDotNET.UI;
 
 internal sealed class FanTrayIcon : IDisposable
 {
+    private readonly Lock _gate = new();
     private readonly AppTheme _theme;
     private SKTypeface? _fanTypeface;
     private NativeIcon? _currentIcon;
@@ -39,23 +40,46 @@ internal sealed class FanTrayIcon : IDisposable
 
     public NativeIcon? CreateIcon()
     {
-        if (!_isDirty) return null;
+        if (!TryCreateRenderInput(out FanTrayIconRenderInput? input) || input == null) return null;
 
-        try
+        NativeIcon? icon = RenderIcon(input);
+        if (icon == null) return null;
+
+        lock (_gate)
         {
-            int iconSize = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
-            byte[] png = RenderPng(iconSize, ResolveColor());
-            NativeIcon icon = NativeIcon.FromIconImage(png, iconSize);
             NativeIcon? old = _currentIcon;
             _currentIcon = icon;
             old?.Dispose();
-            _isDirty = false;
             return _currentIcon;
+        }
+    }
+
+    public bool TryCreateRenderInput(out FanTrayIconRenderInput? input)
+    {
+        input = null;
+        if (!_isDirty) return false;
+
+        _isDirty = false;
+        input = new FanTrayIconRenderInput(ResolveColor());
+        return true;
+    }
+
+    public NativeIcon? RenderIcon(FanTrayIconRenderInput input)
+    {
+        try
+        {
+            lock (_gate)
+            {
+                int iconSize = TrayAppDotNETTrayIconMetrics.GetTaskbarSmallIconSize();
+                byte[] png = RenderPng(iconSize, input.ForegroundColor);
+                return NativeIcon.FromIconImage(png, iconSize);
+            }
         }
         catch (Exception ex)
         {
             TADNLog.Log($"FanTrayIcon.CreateIcon: {ex.Message}");
-            return _currentIcon ?? AppTheme.LoadAppNativeIcon();
+            lock (_gate)
+                return _currentIcon?.Clone() ?? AppTheme.LoadAppNativeIcon();
         }
     }
 
@@ -111,9 +135,14 @@ internal sealed class FanTrayIcon : IDisposable
 
     public void Dispose()
     {
-        _currentIcon?.Dispose();
-        _currentIcon = null;
-        _fanTypeface?.Dispose();
-        _fanTypeface = null;
+        lock (_gate)
+        {
+            _currentIcon?.Dispose();
+            _currentIcon = null;
+            _fanTypeface?.Dispose();
+            _fanTypeface = null;
+        }
     }
 }
+
+internal sealed record FanTrayIconRenderInput(Color ForegroundColor);

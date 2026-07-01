@@ -116,11 +116,22 @@ internal sealed class NetworkTrayIcon : IDisposable
 
     public NativeIcon? CreateIcon()
     {
-        if (!_isDirty) return null;
+        if (!TryCreateRenderInput(out TrayIconRenderInput? input) || input == null) return null;
+
+        return _renderer.Render(input);
+    }
+
+    public bool TryCreateRenderInput(out TrayIconRenderInput? input)
+    {
+        input = null;
+        if (!_isDirty) return false;
 
         _isDirty = false;
-        return _renderer.Render(ResolveGlyphs(_state), ResolveColor(_state), BackdropOpacity);
+        input = new TrayIconRenderInput(ResolveGlyphs(_state), ResolveColor(_state), BackdropOpacity);
+        return true;
     }
+
+    public NativeIcon? RenderIcon(TrayIconRenderInput input) => _renderer.RenderOwned(input);
 
     private TrayIconGlyphLayer ResolveGlyphs(NetworkIconState state) =>
         state switch

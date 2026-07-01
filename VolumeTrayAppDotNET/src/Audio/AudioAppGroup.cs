@@ -35,6 +35,8 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
     private bool _isPeakMeterVisible;
     private bool _batchingSessionPeakUpdates;
     private bool _aggregatePeakDirty;
+    private bool _applyingVolume;
+    private bool _applyingMute;
     private bool _disposed;
 
     public string AppID { get; } = appID;
@@ -79,8 +81,16 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
         {
             // Fan out to every session. Each AudioSession.Volume.set already filters near-equal writes
             // and tolerates COM failures, so no extra guard is needed here.
-            foreach (AudioSession session in _sessions)
-                session.Volume = value;
+            _applyingVolume = true;
+            try
+            {
+                foreach (AudioSession session in _sessions)
+                    session.Volume = value;
+            }
+            finally
+            {
+                _applyingVolume = false;
+            }
 
             OnPropertyChanged();
         }
@@ -91,8 +101,16 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
         get => _sessions.Count > 0 && _sessions[0].IsMuted;
         set
         {
-            foreach (AudioSession session in _sessions)
-                session.IsMuted = value;
+            _applyingMute = true;
+            try
+            {
+                foreach (AudioSession session in _sessions)
+                    session.IsMuted = value;
+            }
+            finally
+            {
+                _applyingMute = false;
+            }
 
             OnPropertyChanged();
         }
@@ -263,11 +281,11 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
         switch (e.PropertyName)
         {
             case nameof(AudioSession.Volume):
-                if (ReferenceEquals(sender, _sessions.Count > 0 ? _sessions[0] : null))
+                if (!_applyingVolume && ReferenceEquals(sender, _sessions.Count > 0 ? _sessions[0] : null))
                     OnPropertyChanged(nameof(Volume));
                 break;
             case nameof(AudioSession.IsMuted):
-                if (ReferenceEquals(sender, _sessions.Count > 0 ? _sessions[0] : null))
+                if (!_applyingMute && ReferenceEquals(sender, _sessions.Count > 0 ? _sessions[0] : null))
                     OnPropertyChanged(nameof(IsMuted));
                 break;
             case nameof(AudioSession.PeakValues):

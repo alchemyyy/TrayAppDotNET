@@ -30,6 +30,7 @@ public static class Shell32
         NIN_BALLOONTIMEOUT = 0x404,
         NIN_BALLOONUSERCLICK = 0x405,
         NIN_POPUPOPEN = 0x406,
+        NIN_POPUPCLOSE = 0x407,
     }
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true, SetLastError = true)]

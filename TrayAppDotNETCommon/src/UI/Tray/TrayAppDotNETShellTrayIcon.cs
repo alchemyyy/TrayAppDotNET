@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Services;
 
 namespace TrayAppDotNETCommon.UI.Tray;
 
@@ -14,6 +15,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private readonly Guid _iconGUID;
     private readonly Win32Window _window = new();
+    private readonly AsyncThrottler<TrayUpdateKind> _trayUpdateThrottler = new(cooldownMs: 0);
+    private readonly List<NativeIcon> _retiredIcons = [];
     private NativeIcon? _currentIcon;
     private bool _isCreated;
     private bool _isVisible;
@@ -23,9 +26,13 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private bool _isListeningForInput;
     private bool _taskbarRecoveryQueued;
     private bool _trayIconLocationValid;
+    private bool _forceFullIconUpdate;
     private long _lastTrayIconLocationRefreshTick;
     private RECT _trayIconLocation;
     private string _tooltipText = string.Empty;
+    private bool _tooltipDirty;
+    private bool _tooltipShowRequested;
+    private bool _tooltipKeepOpenRequested;
 
     public TrayAppDotNETShellTrayIcon(string trayIconGUID, string messageWindowClassPrefix)
     {
@@ -75,48 +82,101 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         if (_disposed) return;
 
-        NativeIcon clone;
-        try
+        NativeIcon? clone = CloneIcon(icon, nameof(SetIcon));
+        if (clone == null) return;
+
+        ReplaceCurrentIcon(clone);
+        RequestIconAndTooltipUpdate();
+    }
+
+    /// <summary>
+    /// Applies a caller-owned tray icon without cloning it.
+    /// </summary>
+    public void SetOwnedIcon(NativeIcon icon)
+    {
+        if (_disposed)
         {
-            clone = icon.Clone();
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log($"TrayAppDotNETShellTrayIcon.SetIcon: {ex.Message}");
+            icon.Dispose();
             return;
         }
 
-        NativeIcon? oldIcon = _currentIcon;
-        _currentIcon = clone;
-        Update();
-        oldIcon?.Dispose();
+        ReplaceCurrentIcon(icon);
+        RequestIconAndTooltipUpdate();
+    }
+
+    /// <summary>
+    /// Applies a tray icon and tooltip through one shell update.
+    /// </summary>
+    public void SetIconAndTooltip(NativeIcon icon, string text)
+    {
+        if (_disposed) return;
+
+        NativeIcon? clone = CloneIcon(icon, nameof(SetIconAndTooltip));
+        if (clone == null) return;
+
+        SetTooltipText(text);
+        ReplaceCurrentIcon(clone);
+        RequestIconAndTooltipUpdate();
+    }
+
+    /// <summary>
+    /// Applies a caller-owned tray icon and tooltip without cloning the icon.
+    /// </summary>
+    public void SetOwnedIconAndTooltip(NativeIcon icon, string text)
+    {
+        if (_disposed)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        SetTooltipText(text);
+        ReplaceCurrentIcon(icon);
+        RequestIconAndTooltipUpdate();
     }
 
     public void SetTooltip(string text)
     {
-        if (_disposed || text == _tooltipText) return;
-        _tooltipText = text;
-        Update();
+        if (_disposed || (text == _tooltipText && !_tooltipDirty)) return;
+        SetTooltipText(text);
+        RequestTooltipUpdate();
+        RequestMouseInputRegistrationRefresh();
     }
 
     public void ShowTooltip()
     {
-        if (_disposed || !_isCreated || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
+        if (_disposed || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
 
-        NOTIFYICONDATAW data = new()
-        {
-            cbSize = Marshal.SizeOf<NOTIFYICONDATAW>(),
-            hWnd = _window.Handle,
-            uFlags = NotifyIconFlags.NIF_TIP | NotifyIconFlags.NIF_SHOWTIP | NotifyIconFlags.NIF_GUID,
-            szTip = _tooltipText.Length > 127 ? _tooltipText[..127] : _tooltipText,
-            guidItem = _iconGUID,
-        };
+        _tooltipKeepOpenRequested = true;
+        _tooltipShowRequested = true;
+        RequestTooltipUpdate();
+        RequestMouseInputRegistrationRefresh();
+    }
 
-        if (!Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_MODIFY, ref data))
+    private Task RunTooltipShowAsync(ThrottlerContext context)
+    {
+        TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Dispatcher.UIThread.Post(() =>
         {
-            int error = Marshal.GetLastWin32Error();
-            TADNLog.Log($"TrayAppDotNETShellTrayIcon.ShowTooltip: NIM_MODIFY failed (0x{error:X8}).");
-        }
+            if (_disposed || context.CancellationToken.IsCancellationRequested)
+            {
+                completionSource.TrySetResult();
+                return;
+            }
+
+            try
+            {
+                SyncTooltip();
+                _trayUpdateThrottler.Drop(TrayUpdateKind.Tooltip);
+                completionSource.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                completionSource.TrySetException(ex);
+            }
+        }, DispatcherPriority.Input);
+
+        return completionSource.Task;
     }
 
     public bool TryGetIconRect(out PixelRect rect)
@@ -128,6 +188,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (Shell32.Shell_NotifyIconGetRect(ref id, out RECT nativeRect) == 0)
         {
+            _isCreated = true;
             CacheTrayIconLocation(nativeRect);
             rect = new PixelRect(
                 nativeRect.Left,
@@ -164,18 +225,14 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         }
     }
 
-    private NOTIFYICONDATAW MakeData() =>
+    private NOTIFYICONDATAW MakeData(NotifyIconFlags flags) =>
         new()
         {
             cbSize = Marshal.SizeOf<NOTIFYICONDATAW>(),
             hWnd = _window.Handle,
-            uFlags = NotifyIconFlags.NIF_MESSAGE
-                     | NotifyIconFlags.NIF_ICON
-                     | NotifyIconFlags.NIF_TIP
-                     | NotifyIconFlags.NIF_SHOWTIP
-                     | NotifyIconFlags.NIF_GUID,
-            uCallbackMessage = WM_CALLBACKMOUSEMSG,
-            hIcon = _currentIcon?.Handle ?? IntPtr.Zero,
+            uFlags = flags | NotifyIconFlags.NIF_GUID,
+            uCallbackMessage = (flags & NotifyIconFlags.NIF_MESSAGE) != 0 ? (uint)WM_CALLBACKMOUSEMSG : 0,
+            hIcon = (flags & NotifyIconFlags.NIF_ICON) != 0 ? _currentIcon?.Handle ?? IntPtr.Zero : IntPtr.Zero,
             szTip = _tooltipText.Length > 127 ? _tooltipText[..127] : _tooltipText,
             guidItem = _iconGUID,
         };
@@ -184,39 +241,300 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         if (_disposed) return;
 
-        NOTIFYICONDATAW data = MakeData();
         if (!_isVisible)
         {
-            StopListeningForInput();
-            if (_isCreated)
+            DeleteTrayIcon();
+            return;
+        }
+
+        RequestIconAndTooltipUpdate();
+    }
+
+    private void SyncTooltip()
+    {
+        if (_disposed || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
+        if (!_tooltipDirty && !_tooltipShowRequested) return;
+
+        NOTIFYICONDATAW data = MakeData(NotifyIconFlags.NIF_TIP | NotifyIconFlags.NIF_SHOWTIP);
+        if (TryNotify(Shell32.NotifyIconMessage.NIM_MODIFY, ref data, out int error))
+        {
+            _isCreated = true;
+            _tooltipDirty = false;
+            _tooltipShowRequested = false;
+            RequestMouseInputRegistrationRefresh();
+            return;
+        }
+
+        TADNLog.Log($"TrayAppDotNETShellTrayIcon.SyncTooltip: NIM_MODIFY failed (0x{error:X8}).");
+        _forceFullIconUpdate = true;
+        RequestIconAndTooltipUpdate();
+    }
+
+    private void RequestTooltipUpdate()
+    {
+        if (_disposed || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
+
+        _ = _trayUpdateThrottler.RunAsync(TrayUpdateKind.Tooltip, RunTooltipShowAsync);
+    }
+
+    private void SetTooltipText(string text)
+    {
+        if (_tooltipText == text) return;
+        _tooltipText = text;
+        _tooltipDirty = true;
+    }
+
+    private void RequestIconAndTooltipUpdate()
+    {
+        if (_disposed || !_isVisible || _currentIcon == null) return;
+
+        _ = _trayUpdateThrottler.RunAsync(TrayUpdateKind.Icon, RunIconUpdateAsync);
+    }
+
+    private Task RunIconUpdateAsync(ThrottlerContext context)
+    {
+        TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_disposed || context.CancellationToken.IsCancellationRequested)
             {
-                _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
-                _isCreated = false;
+                completionSource.TrySetResult();
+                return;
             }
 
-            return;
-        }
+            try
+            {
+                NativeIcon? updateIcon = _currentIcon;
+                UpdateIconAndTooltip();
+                if (ReferenceEquals(updateIcon, _currentIcon))
+                    _trayUpdateThrottler.Drop(TrayUpdateKind.Icon);
+                completionSource.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                completionSource.TrySetException(ex);
+            }
+        }, DispatcherPriority.Background);
 
-        if (_isCreated && Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_MODIFY, ref data))
+        return completionSource.Task;
+    }
+
+    private void UpdateIconAndTooltip()
+    {
+        if (_disposed || !_isVisible || _currentIcon == null) return;
+
+        bool forceFullUpdate = _forceFullIconUpdate;
+        NOTIFYICONDATAW iconData = MakeData(
+            forceFullUpdate
+                ? NotifyIconFlags.NIF_MESSAGE
+                  | NotifyIconFlags.NIF_ICON
+                  | NotifyIconFlags.NIF_TIP
+                  | NotifyIconFlags.NIF_SHOWTIP
+                : NotifyIconFlags.NIF_ICON);
+
+        if (_isCreated)
         {
-            RefreshMouseInputRegistration();
+            if (TryModifyTrayIcon(
+                    ref iconData,
+                    clearsTooltipDirty: forceFullUpdate,
+                    setVersion: false,
+                    out int modifyError))
+                return;
+
+            NOTIFYICONDATAW addData = MakeData(
+                NotifyIconFlags.NIF_MESSAGE
+                | NotifyIconFlags.NIF_ICON
+                | NotifyIconFlags.NIF_TIP
+                | NotifyIconFlags.NIF_SHOWTIP);
+            if (TryAddTrayIcon(ref addData, preserveCreatedOnFailure: true, out int recoveryAddError))
+                return;
+
+            if (TryModifyTrayIcon(
+                    ref addData,
+                    clearsTooltipDirty: true,
+                    setVersion: true,
+                    out int retryModifyError))
+                return;
+
+            TADNLog.Log(
+                "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: "
+                + $"NIM_MODIFY failed (0x{modifyError:X8}); recovery NIM_ADD failed (0x{recoveryAddError:X8}); "
+                + $"retry NIM_MODIFY failed (0x{retryModifyError:X8}).");
             return;
         }
 
-        StopListeningForInput();
-        _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
-        bool added = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_ADD, ref data);
-        _isCreated = added;
-        if (!added)
+        if (TryModifyTrayIcon(
+                ref iconData,
+                clearsTooltipDirty: forceFullUpdate,
+                setVersion: true,
+                out int preAddModifyError))
+            return;
+
+        NOTIFYICONDATAW fullData = MakeData(
+            NotifyIconFlags.NIF_MESSAGE
+            | NotifyIconFlags.NIF_ICON
+            | NotifyIconFlags.NIF_TIP
+            | NotifyIconFlags.NIF_SHOWTIP);
+        if (TryAddTrayIcon(ref fullData, preserveCreatedOnFailure: false, out int addError))
+            return;
+
+        if (TryModifyTrayIcon(
+                ref fullData,
+                clearsTooltipDirty: true,
+                setVersion: true,
+                out int modifyRecoveryError))
+            return;
+
+        _isCreated = false;
+
+        TADNLog.Log(
+            "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: "
+            + $"pre-add NIM_MODIFY failed (0x{preAddModifyError:X8}); NIM_ADD failed (0x{addError:X8}); "
+            + $"recovery NIM_MODIFY failed (0x{modifyRecoveryError:X8}).");
+    }
+
+    private bool TryModifyTrayIcon(
+        ref NOTIFYICONDATAW data,
+        bool clearsTooltipDirty,
+        bool setVersion,
+        out int error)
+    {
+        if (!TryNotify(Shell32.NotifyIconMessage.NIM_MODIFY, ref data, out error))
+            return false;
+
+        _isCreated = true;
+        _forceFullIconUpdate = false;
+        if (clearsTooltipDirty)
         {
-            int error = Marshal.GetLastWin32Error();
-            TADNLog.Log($"TrayAppDotNETShellTrayIcon.Update: NIM_ADD failed (0x{error:X8}).");
-            return;
+            _tooltipDirty = false;
+            _tooltipShowRequested = false;
         }
 
+        if (setVersion) SetTrayIconVersion(ref data);
+        CompleteIconUpdate();
+        if (!clearsTooltipDirty) RequestTooltipUpdateAfterIconChange();
+        return true;
+    }
+
+    private bool TryAddTrayIcon(ref NOTIFYICONDATAW data, bool preserveCreatedOnFailure, out int error)
+    {
+        if (!TryNotify(Shell32.NotifyIconMessage.NIM_ADD, ref data, out error))
+        {
+            if (!preserveCreatedOnFailure) _isCreated = false;
+            return false;
+        }
+
+        _isCreated = true;
+        _forceFullIconUpdate = false;
+        _tooltipDirty = false;
+        _tooltipShowRequested = false;
+        SetTrayIconVersion(ref data);
+        RefreshMouseInputRegistration();
+        CompleteIconUpdate();
+        return true;
+    }
+
+    private static void SetTrayIconVersion(ref NOTIFYICONDATAW data)
+    {
         data.uTimeoutOrVersion = Shell32.NOTIFYICON_VERSION_4;
         _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_SETVERSION, ref data);
-        RefreshMouseInputRegistration();
+    }
+
+    private void CompleteIconUpdate()
+    {
+        DisposeRetiredIcons();
+        InvalidateTrayIconLocationForRefresh();
+        RequestMouseInputRegistrationRefresh();
+    }
+
+    private static bool TryNotify(Shell32.NotifyIconMessage message, ref NOTIFYICONDATAW data, out int error)
+    {
+        if (Shell32.Shell_NotifyIconW(message, ref data))
+        {
+            error = 0;
+            return true;
+        }
+
+        error = Marshal.GetLastWin32Error();
+        return false;
+    }
+
+    private static NativeIcon? CloneIcon(NativeIcon icon, string caller)
+    {
+        try
+        {
+            return icon.Clone();
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"TrayAppDotNETShellTrayIcon.{caller}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void ReplaceCurrentIcon(NativeIcon icon)
+    {
+        NativeIcon? oldIcon = _currentIcon;
+        _currentIcon = icon;
+        if (oldIcon != null) _retiredIcons.Add(oldIcon);
+    }
+
+    private void DeleteTrayIcon()
+    {
+        StopListeningForInput();
+        ClearTrayIconLocation();
+        _trayUpdateThrottler.Drop(TrayUpdateKind.Icon);
+        _trayUpdateThrottler.Drop(TrayUpdateKind.MouseInput);
+        _trayUpdateThrottler.Drop(TrayUpdateKind.Tooltip);
+        _tooltipShowRequested = false;
+        _tooltipKeepOpenRequested = false;
+        if (!_isCreated) return;
+
+        NOTIFYICONDATAW data = MakeData(0);
+        _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
+        _isCreated = false;
+    }
+
+    private void DisposeRetiredIcons()
+    {
+        foreach (NativeIcon icon in _retiredIcons)
+            icon.Dispose();
+
+        _retiredIcons.Clear();
+    }
+
+    private void RequestMouseInputRegistrationRefresh()
+    {
+        if (_disposed || !_isVisible || !_isCreated) return;
+
+        _ = _trayUpdateThrottler.RunAsync(TrayUpdateKind.MouseInput, RunMouseInputRefreshAsync);
+    }
+
+    private Task RunMouseInputRefreshAsync(ThrottlerContext context)
+    {
+        TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_disposed || context.CancellationToken.IsCancellationRequested)
+            {
+                completionSource.TrySetResult();
+                return;
+            }
+
+            try
+            {
+                SyncTooltip();
+                RefreshMouseInputRegistration();
+                _trayUpdateThrottler.Drop(TrayUpdateKind.MouseInput);
+                completionSource.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                completionSource.TrySetException(ex);
+            }
+        }, DispatcherPriority.Input);
+
+        return completionSource.Task;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -230,10 +548,20 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (msg == User32.WM_INPUT)
         {
-            if (_isScrollEnabled
-                && InputHelper.ProcessMouseInputMessage(lParam, out int wheelDelta)
-                && wheelDelta != 0
-                && UpdateInputRegistrationForCursor(ExtractMessagePoint(User32.GetMessagePos())))
+            if (!_isScrollEnabled || !_isVisible || _disposed || !TryUpdateTrayIconLocation())
+            {
+                StopListeningForInput();
+                handled = true;
+                return IntPtr.Zero;
+            }
+
+            if (!UpdateInputRegistrationForCursor(ExtractMessagePoint(User32.GetMessagePos())))
+            {
+                handled = true;
+                return IntPtr.Zero;
+            }
+
+            if (InputHelper.ProcessMouseInputMessage(lParam, out int wheelDelta) && wheelDelta != 0)
                 PostEvent(Scrolled, wheelDelta, nameof(Scrolled));
 
             handled = true;
@@ -242,6 +570,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (msg != WM_CALLBACKMOUSEMSG) return IntPtr.Zero;
 
+        _isCreated = true;
         short notificationCode = (short)lParam.ToInt32();
         switch (notificationCode)
         {
@@ -269,7 +598,11 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 OnNotifyIconMouseMove();
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_POPUPOPEN:
+                SyncTooltip();
                 PostEvent(TooltipPopup, nameof(TooltipPopup));
+                break;
+            case (short)Shell32.NotifyIconNotification.NIN_POPUPCLOSE:
+                ClearTooltipKeepOpenIfPointerLeft();
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_BALLOONUSERCLICK:
                 PostEvent(BalloonClicked, nameof(BalloonClicked));
@@ -282,12 +615,13 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void OnNotifyIconMouseMove()
     {
+        SyncTooltip();
         RefreshMouseInputRegistration();
     }
 
     private void RefreshMouseInputRegistration()
     {
-        if (!_isScrollEnabled || !_isVisible || _disposed || _window.Handle == IntPtr.Zero)
+        if (!_isScrollEnabled || !_isVisible || !_isCreated || _disposed || _window.Handle == IntPtr.Zero)
         {
             StopListeningForInput();
             return;
@@ -322,8 +656,9 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         };
 
         if (Shell32.Shell_NotifyIconGetRect(ref id, out RECT location) != 0)
-            return false;
+            return _trayIconLocationValid;
 
+        _isCreated = true;
         CacheTrayIconLocation(location);
         return true;
     }
@@ -342,13 +677,49 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         _lastTrayIconLocationRefreshTick = 0;
     }
 
+    private void InvalidateTrayIconLocationForRefresh()
+    {
+        _lastTrayIconLocationRefreshTick = 0;
+    }
+
     private bool UpdateInputRegistrationForCursor(User32.POINT cursor)
     {
         bool inBounds = _trayIconLocation.Contains(cursor);
         if (inBounds) StartListeningForInput();
-        else StopListeningForInput();
+        else
+        {
+            _tooltipKeepOpenRequested = false;
+            StopListeningForInput();
+        }
 
         return inBounds;
+    }
+
+    /// <summary>
+    /// Re-shows a hover-requested tooltip after a shell icon swap.
+    /// </summary>
+    private void RequestTooltipUpdateAfterIconChange()
+    {
+        if (_tooltipKeepOpenRequested)
+            _tooltipShowRequested = true;
+
+        RequestTooltipUpdate();
+    }
+
+    /// <summary>
+    /// Stops preserving the tooltip once the cursor has left the tray icon.
+    /// </summary>
+    private void ClearTooltipKeepOpenIfPointerLeft()
+    {
+        if (!_tooltipKeepOpenRequested) return;
+        if (!TryUpdateTrayIconLocation() || !User32.GetCursorPos(out User32.POINT cursor))
+        {
+            _tooltipKeepOpenRequested = false;
+            return;
+        }
+
+        if (!_trayIconLocation.Contains(cursor))
+            _tooltipKeepOpenRequested = false;
     }
 
     private void StartListeningForInput()
@@ -448,13 +819,22 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (_isCreated)
         {
-            NOTIFYICONDATAW data = MakeData();
+            NOTIFYICONDATAW data = MakeData(0);
             _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
             _isCreated = false;
         }
 
         _currentIcon?.Dispose();
         _currentIcon = null;
+        DisposeRetiredIcons();
+        _trayUpdateThrottler.Dispose();
         _window.Dispose();
+    }
+
+    private enum TrayUpdateKind
+    {
+        Icon,
+        MouseInput,
+        Tooltip,
     }
 }
