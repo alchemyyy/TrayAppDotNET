@@ -13,6 +13,13 @@ public readonly record struct FlyoutSliderPeakValues(float Min, float Max)
     public static readonly FlyoutSliderPeakValues Zero = new(0f, 0f);
 }
 
+public enum FlyoutSliderValueLane
+{
+    Full,
+    Upper,
+    Lower,
+}
+
 public sealed class FlyoutSlider : Control
 {
     private const double TrackHeight = 4;
@@ -94,6 +101,17 @@ public sealed class FlyoutSlider : Control
         }
     }
 
+    public FlyoutSliderValueLane ProgressLane
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            InvalidateVisual();
+        }
+    }
+
     public Color? ProgressOverrideColor
     {
         get;
@@ -104,6 +122,57 @@ public sealed class FlyoutSlider : Control
             InvalidateVisual();
         }
     }
+
+    public double? SecondaryValue
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            InvalidateVisual();
+        }
+    }
+
+    public SliderThumbGlyphOption? SecondaryThumb
+    {
+        get;
+        set
+        {
+            if (ReferenceEquals(field, value)) return;
+            field = value;
+            InvalidateMeasure();
+            InvalidateVisual();
+        }
+    }
+
+    public FlyoutSliderValueLane SecondaryProgressLane
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            InvalidateVisual();
+        }
+    }
+
+    public Color? SecondaryProgressColor
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            InvalidateVisual();
+        }
+    }
+
+    public double SecondaryOpacity
+    {
+        get;
+        set => SetUnitInterval(ref field, value);
+    } = 0.33;
 
     public double? PreviewValue
     {
@@ -291,7 +360,8 @@ public sealed class FlyoutSlider : Control
     {
         double width = double.IsInfinity(availableSize.Width) ? 180 : availableSize.Width;
         double hitHeight = TrackHeight + HitTestVerticalPadding * 2.0;
-        double height = Math.Max(hitHeight, Math.Max(1, Thumb.Height));
+        double secondaryThumbHeight = SecondaryThumb?.Height ?? 0;
+        double height = Math.Max(hitHeight, Math.Max(1, Math.Max(Thumb.Height, secondaryThumbHeight)));
         return new Size(width, height);
     }
 
@@ -316,8 +386,22 @@ public sealed class FlyoutSlider : Control
             : ProgressColor;
 
         DrawRoundedRect(context, new Rect(0, trackY, width, TrackHeight), TrackColor);
+        if (SecondaryValue.HasValue && SecondaryOpacity > 0)
+        {
+            Color secondaryProgressColor = SecondaryProgressColor ?? ProgressColor;
+            double secondaryProgressWidth = ValuePosition(width, SecondaryValue.Value);
+            DrawProgress(
+                context,
+                trackY,
+                width,
+                secondaryProgressWidth,
+                SecondaryProgressLane,
+                secondaryProgressColor,
+                SecondaryOpacity);
+        }
+
         if (progressWidth > 0)
-            DrawRoundedRect(context, new Rect(0, trackY, Math.Min(width, progressWidth), TrackHeight), progressColor);
+            DrawProgress(context, trackY, width, progressWidth, ProgressLane, progressColor, 1);
 
         double peakExtent = ValuePosition(width, Value);
         double peakRadius = TrackHeight / 2.0;
@@ -334,10 +418,26 @@ public sealed class FlyoutSlider : Control
         }
 
         if (PreviewValue.HasValue && PreviewOpacity > 0)
-            DrawThumbAtValue(context, width, height, thumbWidth, thumbHeight, PreviewValue.Value, PreviewOpacity);
+            DrawThumbAtValue(context, width, height, thumbWidth, thumbHeight, PreviewValue.Value, PreviewOpacity, Thumb);
+
+        if (SecondaryValue.HasValue && SecondaryOpacity > 0)
+        {
+            SliderThumbGlyphOption secondaryThumb = SecondaryThumb ?? Thumb;
+            double secondaryThumbWidth = Math.Max(1, secondaryThumb.Width);
+            double secondaryThumbHeight = Math.Max(1, secondaryThumb.Height);
+            DrawThumbAtValue(
+                context,
+                width,
+                height,
+                secondaryThumbWidth,
+                secondaryThumbHeight,
+                SecondaryValue.Value,
+                SecondaryOpacity,
+                secondaryThumb);
+        }
 
         Rect thumb = ThumbRect(width, height, thumbWidth, thumbHeight, Value);
-        DrawThumb(context, thumb, ThumbOpacity);
+        DrawThumb(context, thumb, ThumbOpacity, Thumb);
 
         if (IndicatorValue.HasValue && IndicatorOpacity > 0 && !string.IsNullOrEmpty(IndicatorGlyph))
             DrawIndicator(context, width, height, IndicatorValue.Value);
@@ -512,38 +612,39 @@ public sealed class FlyoutSlider : Control
         double thumbWidth,
         double thumbHeight,
         double value,
-        double opacity) =>
-        DrawThumb(context, ThumbRect(width, height, thumbWidth, thumbHeight, value), opacity);
+        double opacity,
+        SliderThumbGlyphOption thumb) =>
+        DrawThumb(context, ThumbRect(width, height, thumbWidth, thumbHeight, value), opacity, thumb);
 
-    private void DrawThumb(DrawingContext context, Rect thumb, double opacity)
+    private void DrawThumb(DrawingContext context, Rect thumbBounds, double opacity, SliderThumbGlyphOption thumb)
     {
         Color color = WithOpacity(ThumbColor, opacity);
-        if (Thumb.IsCapsule)
+        if (thumb.IsCapsule)
         {
-            context.DrawRectangle(new SolidColorBrush(color), null, new RoundedRect(thumb, CapsuleRadius));
+            context.DrawRectangle(new SolidColorBrush(color), null, new RoundedRect(thumbBounds, CapsuleRadius));
             return;
         }
 
         FormattedText text = new(
-            Thumb.Glyph,
+            thumb.Glyph,
             CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
-            new Typeface(Thumb.FontFamily),
-            Thumb.FontSize,
+            new Typeface(thumb.FontFamily),
+            thumb.FontSize,
             new SolidColorBrush(color));
 
-        double x = thumb.Center.X - text.Width / 2.0;
-        double y = thumb.Center.Y - text.Height / 2.0;
+        double x = thumbBounds.Center.X - text.Width / 2.0;
+        double y = thumbBounds.Center.Y - text.Height / 2.0;
 
-        if (Math.Abs(Thumb.XScale - 1.0) < 0.001)
+        if (Math.Abs(thumb.XScale - 1.0) < 0.001)
         {
             context.DrawText(text, new Point(x, y));
             return;
         }
 
-        using (context.PushTransform(Matrix.CreateTranslation(-thumb.Center.X, -thumb.Center.Y)))
-        using (context.PushTransform(Matrix.CreateScale(Thumb.XScale, 1.0)))
-        using (context.PushTransform(Matrix.CreateTranslation(thumb.Center.X, thumb.Center.Y)))
+        using (context.PushTransform(Matrix.CreateTranslation(-thumbBounds.Center.X, -thumbBounds.Center.Y)))
+        using (context.PushTransform(Matrix.CreateScale(thumb.XScale, 1.0)))
+        using (context.PushTransform(Matrix.CreateTranslation(thumbBounds.Center.X, thumbBounds.Center.Y)))
             context.DrawText(text, new Point(x, y));
     }
 
@@ -573,6 +674,36 @@ public sealed class FlyoutSlider : Control
     private static void DrawRoundedRect(DrawingContext context, Rect rect, Color color,
         double radius = TrackHeight / 2.0) =>
         context.DrawRectangle(new SolidColorBrush(color), null, new RoundedRect(rect, radius));
+
+    /// <summary>
+    /// Draws a slider progress segment in the requested track lane.
+    /// </summary>
+    private static void DrawProgress(
+        DrawingContext context,
+        double trackY,
+        double width,
+        double progressWidth,
+        FlyoutSliderValueLane lane,
+        Color color,
+        double opacity)
+    {
+        if (progressWidth <= 0 || opacity <= 0) return;
+
+        double laneHeight = lane == FlyoutSliderValueLane.Full
+            ? TrackHeight
+            : Math.Max(1, TrackHeight / 2.0);
+        double laneY = lane switch
+        {
+            FlyoutSliderValueLane.Lower => trackY + TrackHeight - laneHeight,
+            _ => trackY,
+        };
+
+        DrawRoundedRect(
+            context,
+            new Rect(0, laneY, Math.Min(width, progressWidth), laneHeight),
+            WithOpacity(color, opacity),
+            laneHeight / 2.0);
+    }
 
     private void SetColor(ref Color field, Color value)
     {
