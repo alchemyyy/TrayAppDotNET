@@ -24,9 +24,15 @@ public static class TrayAppDotNETAnimationPolicy
         bool disableAnimations = !ResolveAnimationsEnabled(mode);
         bool styleInstalled = application.Styles.Contains(DisabledToolTipTransitionsStyle);
 
-        if (disableAnimations && !styleInstalled)
-            application.Styles.Add(DisabledToolTipTransitionsStyle);
-        else if (!disableAnimations && styleInstalled) application.Styles.Remove(DisabledToolTipTransitionsStyle);
+        switch (disableAnimations)
+        {
+            case true when !styleInstalled:
+                application.Styles.Add(DisabledToolTipTransitionsStyle);
+                break;
+            case false when styleInstalled:
+                application.Styles.Remove(DisabledToolTipTransitionsStyle);
+                break;
+        }
     }
 
     public static bool ResolveAnimationsEnabled(TrayAppDotNETAnimationMode mode) => mode switch
