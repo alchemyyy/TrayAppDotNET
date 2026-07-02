@@ -279,8 +279,7 @@ public sealed partial class BrightnessSettingsWindow
     /// </summary>
     private void CloseEnvironmentalSunOverlayCalendar()
     {
-        if (_sunOverlayDatePopup != null)
-            _sunOverlayDatePopup.IsOpen = false;
+        _sunOverlayDatePopup?.IsOpen = false;
         _sunOverlayDateBox?.Focus();
     }
 
@@ -289,8 +288,7 @@ public sealed partial class BrightnessSettingsWindow
     /// </summary>
     private void ReleaseEnvironmentalSunOverlayCalendar()
     {
-        if (_sunOverlayDatePopup != null)
-            _sunOverlayDatePopup.IsOpen = false;
+        _sunOverlayDatePopup?.IsOpen = false;
 
         if (_sunOverlayCalendar != null)
         {
