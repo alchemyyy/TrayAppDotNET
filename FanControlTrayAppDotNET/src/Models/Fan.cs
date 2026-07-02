@@ -518,10 +518,7 @@ public class Fan : INotifyPropertyChanged
     private static List<Trigger> CloneTriggers(IEnumerable<Trigger> triggers)
     {
         List<Trigger> cloned = [];
-        foreach (Trigger trigger in triggers)
-        {
-            cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled, });
-        }
+        foreach (Trigger trigger in triggers) cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled, });
 
         return cloned;
     }

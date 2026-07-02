@@ -493,9 +493,7 @@ internal sealed class FanDragInstrumentation
                         builder.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
                     }
                     else
-                    {
                         builder.Append(c);
-                    }
 
                     break;
             }

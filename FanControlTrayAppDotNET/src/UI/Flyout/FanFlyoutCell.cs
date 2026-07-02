@@ -67,8 +67,10 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
 
             string first = Fans[0].AssignedCurveDisplayLabel;
             foreach (Fan fan in Fans)
+            {
                 if (!string.Equals(first, fan.AssignedCurveDisplayLabel, StringComparison.Ordinal))
                     return "Mixed curves";
+            }
 
             return first;
         }

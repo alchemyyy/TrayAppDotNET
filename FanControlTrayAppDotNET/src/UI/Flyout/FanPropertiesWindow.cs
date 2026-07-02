@@ -344,9 +344,7 @@ public sealed partial class FanPropertiesWindow : Window
         foreach (Curve curve in Curve.Curves.Values
                      .Where(c => !string.IsNullOrWhiteSpace(c.CurveName))
                      .OrderBy(c => c.CurveName, StringComparer.OrdinalIgnoreCase))
-        {
             _curveCombo.Items.Add(new SettingsComboBoxItem(curve.CurveName, curve.CurveName, Palette()));
-        }
     }
 
     private void SaveFromControls()
@@ -395,9 +393,7 @@ public sealed partial class FanPropertiesWindow : Window
         _fan.Offset = ReadInt(_offsetBox);
 
         if (_detachedModeRadio.IsChecked == true)
-        {
             _fan.ForcedNonFunctioning = true;
-        }
         else
         {
             _fan.ForcedNonFunctioning = false;
@@ -687,7 +683,7 @@ public sealed partial class FanPropertiesWindow : Window
     }
 
     private static string SelectedTag(SettingsComboBox combo) =>
-        combo.SelectedItem is SettingsComboBoxItem item ? item.Tag as string ?? string.Empty : string.Empty;
+        combo.SelectedItem is { } item ? item.Tag as string ?? string.Empty : string.Empty;
 
     private static int ReadInt(SettingsNumberBox box) =>
         box.Value.HasValue ? (int)Math.Round(box.Value.Value) : 0;

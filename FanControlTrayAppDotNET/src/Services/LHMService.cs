@@ -17,8 +17,8 @@ public sealed class LHMService : IDisposable
 {
     private readonly Dispatcher _dispatcher;
     private readonly AppSettings? _settings;
-    private readonly object _hardwareLock = new();
-    private readonly object _controlWriteQueueLock = new();
+    private readonly Lock _hardwareLock = new();
+    private readonly Lock _controlWriteQueueLock = new();
     private readonly Dictionary<string, ISensor> _controlSensorsByKey = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, FanControlWriteRequest> _pendingControlWrites =
         new(StringComparer.OrdinalIgnoreCase);
@@ -216,7 +216,7 @@ public sealed class LHMService : IDisposable
     {
         foreach (ISensor sensor in hardware.Sensors)
         {
-            if (sensor.Value is not float value) continue;
+            if (sensor.Value is not { } value) continue;
 
             string key = BuildSensorKey(hardware, sensor);
             readings.Add(new SensorReading(key, hardware.Name, sensor.Name, sensor.SensorType, value));
@@ -271,10 +271,7 @@ public sealed class LHMService : IDisposable
             FansName = sensor.Name,
         };
         ApplyDefaultsToNewFan(fan);
-        if (_settings?.FindPersistedFan(key) is { } persisted)
-        {
-            fan.ApplyUserSettings(persisted);
-        }
+        if (_settings?.FindPersistedFan(key) is { } persisted) fan.ApplyUserSettings(persisted);
         UpdateFanFunctionalState(fan);
 
         fan.PropertyChanged += OnFanPropertyChanged;
@@ -446,9 +443,7 @@ public sealed class LHMService : IDisposable
     private Fan? FindFanByControlKey(string key)
     {
         foreach (Fan fan in Fans)
-        {
             if (string.Equals(fan.DataSourceKey, key, StringComparison.OrdinalIgnoreCase)) return fan;
-        }
         return null;
     }
 
@@ -500,10 +495,7 @@ public sealed class LHMService : IDisposable
         Stop();
         try
         {
-            lock (_hardwareLock)
-            {
-                _computer.Close();
-            }
+            lock (_hardwareLock) _computer.Close();
         }
         catch { /* swallow shutdown noise */ }
     }

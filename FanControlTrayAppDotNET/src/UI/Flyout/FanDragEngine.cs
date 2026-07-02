@@ -96,8 +96,10 @@ internal static class FanDragEngine
 
         double sourceExtent = SourceRootExtent(snapshot);
         if (!HasRootSource(snapshot))
+        {
             return OffsetRange(snapshot, Math.Clamp(targetIndex, 0, snapshot.Slots.Count), snapshot.Slots.Count,
                 sourceExtent);
+        }
 
         int sourceIndex = snapshot.DragSourceTopLevelIndex;
         int target = Math.Clamp(targetIndex, 0, snapshot.Slots.Count - 1);
@@ -196,8 +198,10 @@ internal static class FanDragEngine
     public static int IndexOfFan(FanFlyoutCell cell, Fan fan)
     {
         for (int i = 0; i < cell.Fans.Count; i++)
+        {
             if (ReferenceEquals(cell.Fans[i], fan))
                 return i;
+        }
 
         return -1;
     }

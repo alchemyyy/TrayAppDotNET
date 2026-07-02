@@ -707,10 +707,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             status.Text = GlyphCatalog.WARNING;
             TrayAppDotNETToolTip.SetTip(status, error);
         }
-        else if (binding.IsBound)
-        {
-            TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_Registered"));
-        }
+        else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_Registered"));
 
         SettingsButton delete = Button("x", p);
         delete.Width = 32;
@@ -961,8 +958,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         bool hadDrag = dragged != null;
         _draggedSlotRow?.RenderTransform = null;
         if (_fanSlotPanel != null)
+        {
             foreach (Control child in _fanSlotPanel.Children)
                 child.RenderTransform = null;
+        }
+
         _draggedSlotRow = null;
         _draggedSlot = null;
         _draggedSlotTargetIndex = -1;
