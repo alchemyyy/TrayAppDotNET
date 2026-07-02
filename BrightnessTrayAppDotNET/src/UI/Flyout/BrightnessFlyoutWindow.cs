@@ -56,6 +56,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private bool _isUpdateButtonVisible;
     private bool _isUpdateDownloadInFlight;
     private bool _deferredSliderGestureRebuild;
+    private bool _isRebuildingVisual;
+    private bool _rebuildVisualPending;
+    private bool _rebuildVisualQueued;
     private bool _previewSweepAnimationFrameQueued;
     private EnvironmentalCurve? _previewSweepCurveOverride;
     private EnvironmentalCurve? _previewSweepDisabledPeriodOverride;
@@ -359,7 +362,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         bool available = AppServices.UpdateCheckService?.AvailableUpdate != null;
         _isUpdateButtonVisible = toggleOn && available;
         OnPropertyChanged(nameof(IsUpdateButtonVisible));
-        RebuildVisual();
+        QueueRebuildVisual();
     });
 
     public void RequestUpdatePrompt()
@@ -553,63 +556,135 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
     }
 
+    /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
     private void RebuildVisual()
     {
-        if (_layout == null) return;
-
-        _profilePreviewRows.Clear();
-
-        bool isLight = BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings);
-        SettingsPalette settingsPalette = CreateSettingsPalette(_theme, _settings, isLight);
-        FlyoutControlPalette palette = CreateFlyoutPalette(_theme, _settings, settingsPalette, isLight);
-        bool rounded = _settings?.EnableRoundedCorners ?? true;
-
-        Grid rootGrid = new();
-        rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-
-        ScrollViewer rows = BuildRows(palette);
-        Grid.SetRow(rows, 0);
-        rootGrid.Children.Add(rows);
-
-        Border footer = BuildFooter(palette, rounded);
-        Grid.SetRow(footer, 1);
-        rootGrid.Children.Add(footer);
-
-        AddFloatingButtons(rootGrid, palette);
-
-        _confirmOverlay = BuildConfirmOverlay(settingsPalette, rounded);
-        _confirmOverlay.IsVisible = false;
-        Grid.SetRowSpan(_confirmOverlay, 2);
-        rootGrid.Children.Add(_confirmOverlay);
-
-        _rootCard = new Border
+        try { RebuildVisualCore(); }
+        catch (Exception ex)
         {
-            Background = TrayAppDotNETFlyoutUI.Brush(_theme.ResolveBackground(_settings, isLight)),
-            BorderBrush = TrayAppDotNETFlyoutUI.Brush(_theme.Border.For(isLight)),
-            BorderThickness = Layout.RootBorderThickness,
-            CornerRadius = Rounded(Layout.RootCornerRadius),
-            ClipToBounds = false,
-            BoxShadow = new BoxShadows(new BoxShadow
-            {
-                OffsetY = Layout.RootShadowOffsetY,
-                Blur = Layout.RootShadowBlur,
-                Color = _theme.FlyoutShadow.For(isLight),
-            }),
-            Child = new Border
+            _rebuildVisualPending = false;
+            _rebuildVisualQueued = false;
+            WPFLog.Log($"BrightnessFlyoutWindow.RebuildVisual: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Builds the visual tree before replacing the existing content.</summary>
+    private void RebuildVisualCore()
+    {
+        if (_layout == null) return;
+        if (_isRebuildingVisual)
+        {
+            _rebuildVisualPending = true;
+            return;
+        }
+
+        _isRebuildingVisual = true;
+        _rebuildVisualPending = false;
+        _rebuildVisualQueued = false;
+
+        try
+        {
+            _profilePreviewRows.Clear();
+
+            bool isLight = BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings);
+            SettingsPalette settingsPalette = CreateSettingsPalette(_theme, _settings, isLight);
+            FlyoutControlPalette palette = CreateFlyoutPalette(_theme, _settings, settingsPalette, isLight);
+            bool rounded = _settings?.EnableRoundedCorners ?? true;
+
+            Grid rootGrid = new();
+            rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+            ScrollViewer rows = BuildRows(palette);
+            Grid.SetRow(rows, 0);
+            rootGrid.Children.Add(rows);
+
+            Border footer = BuildFooter(palette, rounded);
+            Grid.SetRow(footer, 1);
+            rootGrid.Children.Add(footer);
+
+            AddFloatingButtons(rootGrid, palette);
+
+            _confirmOverlay = BuildConfirmOverlay(settingsPalette, rounded);
+            _confirmOverlay.IsVisible = false;
+            Grid.SetRowSpan(_confirmOverlay, 2);
+            rootGrid.Children.Add(_confirmOverlay);
+
+            _rootCard = new Border
             {
                 Background = TrayAppDotNETFlyoutUI.Brush(_theme.ResolveBackground(_settings, isLight)),
-                CornerRadius = Rounded(Layout.RootInnerCornerRadius),
-                ClipToBounds = true,
-                Padding = Layout.RootInnerPadding,
-                Child = rootGrid,
-            },
-        };
-        _rootCard.PointerPressed += OnRootPointerPressed;
-        _rootCard.PointerMoved += OnRootPointerMoved;
-        _rootCard.PointerReleased += OnRootPointerReleased;
-        _rootCard.PointerCaptureLost += OnRootPointerCaptureLost;
-        Content = _rootCard;
+                BorderBrush = TrayAppDotNETFlyoutUI.Brush(_theme.Border.For(isLight)),
+                BorderThickness = Layout.RootBorderThickness,
+                CornerRadius = Rounded(Layout.RootCornerRadius),
+                ClipToBounds = false,
+                BoxShadow = new BoxShadows(new BoxShadow
+                {
+                    OffsetY = Layout.RootShadowOffsetY,
+                    Blur = Layout.RootShadowBlur,
+                    Color = _theme.FlyoutShadow.For(isLight),
+                }),
+                Child = new Border
+                {
+                    Background = TrayAppDotNETFlyoutUI.Brush(_theme.ResolveBackground(_settings, isLight)),
+                    CornerRadius = Rounded(Layout.RootInnerCornerRadius),
+                    ClipToBounds = true,
+                    Padding = Layout.RootInnerPadding,
+                    Child = rootGrid,
+                },
+            };
+            _rootCard.PointerPressed += OnRootPointerPressed;
+            _rootCard.PointerMoved += OnRootPointerMoved;
+            _rootCard.PointerReleased += OnRootPointerReleased;
+            _rootCard.PointerCaptureLost += OnRootPointerCaptureLost;
+            Content = _rootCard;
+        }
+        finally
+        {
+            _isRebuildingVisual = false;
+        }
+
+        FlushPendingRebuildVisual();
+    }
+
+    /// <summary>Queues one coalesced visual rebuild and defers hidden warm-window churn.</summary>
+    private void QueueRebuildVisual()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(QueueRebuildVisual, DispatcherPriority.Background);
+            return;
+        }
+
+        if (_layout == null) return;
+        if (!IsVisible && !IsWarmPriming)
+        {
+            _rebuildVisualPending = true;
+            return;
+        }
+
+        if (_isRebuildingVisual)
+        {
+            _rebuildVisualPending = true;
+            return;
+        }
+
+        if (_rebuildVisualQueued) return;
+
+        _rebuildVisualQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _rebuildVisualQueued = false;
+            RebuildVisual();
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>Flushes a rebuild requested while another rebuild was active.</summary>
+    private void FlushPendingRebuildVisual()
+    {
+        if (!_rebuildVisualPending || _isRebuildingVisual) return;
+
+        _rebuildVisualPending = false;
+        QueueRebuildVisual();
     }
 
     private ScrollViewer BuildRows(FlyoutControlPalette palette)
@@ -1321,7 +1396,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         _deferredSliderGestureRebuild = false;
-        RebuildVisual();
+        QueueRebuildVisual();
     }
 
     private void BeginMasterSliderGesture()
@@ -1502,7 +1577,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         CheckAndUpdateUnsavedChanges();
         BrightnessUpdated?.Invoke();
-        RebuildVisual();
+        QueueRebuildVisual();
         QueuePositionNearTray();
     }
 
@@ -1590,14 +1665,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ClearProfilePreview();
         CheckAndUpdateUnsavedChanges();
         _curveService.Evaluate();
-        RebuildVisual();
+        QueueRebuildVisual();
     }
 
     private void OnProfilesListChanged()
     {
         ClearPreviewDateCurve();
         BuildProfileButtonItems();
-        RebuildVisual();
+        QueueRebuildVisual();
     }
 
     private void UpdateSaveButtonState(bool hasUnsavedChanges)
@@ -1611,7 +1686,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             return;
         }
 
-        RebuildVisual();
+        QueueRebuildVisual();
     }
 
     private void CheckAndUpdateUnsavedChanges()
@@ -1664,7 +1739,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             hardwareWriteSuspension?.Dispose();
         }
 
-        RebuildVisual();
+        QueueRebuildVisual();
     }
 
     private void SaveCurrentProfile()
@@ -1925,7 +2000,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
         _curveService.Start();
         _curveService.Evaluate();
-        RebuildVisual();
+        QueueRebuildVisual();
     });
 
     private void OnMonitorIconClick(MonitorInfo monitor)
