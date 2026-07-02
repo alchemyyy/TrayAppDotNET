@@ -121,6 +121,49 @@ public class FanGroup : INotifyPropertyChanged
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
+/// <summary>
+/// Persisted probe-card layout.
+/// </summary>
+public class ProbeCard
+{
+    [XmlAttribute] public string Name { get; set; } = string.Empty;
+
+    [XmlAttribute] public int DisplayOrder { get; set; } = -1;
+
+    [XmlArray("Probes")]
+    [XmlArrayItem("Probe")]
+    public List<ProbeCardProbe> Probes { get; set; } = [];
+
+    [XmlIgnore]
+    public string DisplayName =>
+        string.IsNullOrWhiteSpace(Name) ? "Probe Card" : Name;
+
+    /// <summary>
+    /// Finds a selected probe by its data-source key.
+    /// </summary>
+    public ProbeCardProbe? FindProbe(string? dataSourceKey)
+    {
+        if (string.IsNullOrWhiteSpace(dataSourceKey)) return null;
+        foreach (ProbeCardProbe probe in Probes)
+        {
+            if (string.Equals(probe.DataSourceKey, dataSourceKey, StringComparison.OrdinalIgnoreCase))
+                return probe;
+        }
+
+        return null;
+    }
+}
+
+/// <summary>
+/// Persisted probe selection for a probe card.
+/// </summary>
+public class ProbeCardProbe
+{
+    [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
+
+    [XmlAttribute] public string TransformString { get; set; } = string.Empty;
+}
+
 // User-editable fan settings only. Hardware identity and live telemetry intentionally do not live
 // here so these records can be applied or swapped between Fan instances safely.
 public class FanUserSettings
