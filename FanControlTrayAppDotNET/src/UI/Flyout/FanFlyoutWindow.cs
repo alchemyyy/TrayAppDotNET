@@ -131,11 +131,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape)
-            {
-                Hide();
-                e.Handled = true;
-            }
+            if (e.Key != Key.Escape) return;
+            Hide();
+            e.Handled = true;
         };
         if (EnableFanDragInstrumentation)
             AddHandler(KeyDownEvent, OnDragInstrumentationKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -268,7 +266,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Content = _rootCard;
     }
 
-    private Border BuildHeader(FlyoutControlPalette p)
+    private Border BuildHeader(FlyoutControlPalette flyoutControlPalette)
     {
         Grid grid = new()
         {
@@ -291,21 +289,22 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             grid,
             0,
             GlyphCatalog.SETTINGS,
-            p,
+            flyoutControlPalette,
             () => _openSettings(null),
             L("Tray_Settings", "Settings"),
             configureButton: SuppressNextAutoHideWhenPressed);
-        AddHeaderButton(grid, 1, GlyphCatalog.CURVE_WINDOW, p, OpenHeaderCurveEditor,
+        AddHeaderButton(grid, 1, GlyphCatalog.CURVE_WINDOW, flyoutControlPalette, OpenHeaderCurveEditor,
             "Fan curve editor", fontSize: Layout.HeaderManagerButtonFontSize,
             configureButton: SuppressNextAutoHideWhenPressed);
-        _nonFunctioningFansButtonGlyph = AddHeaderButton(grid, 2, NonFunctioningFansGlyph, p, ToggleNonFunctioningFans,
+        _nonFunctioningFansButtonGlyph = AddHeaderButton(grid, 2, NonFunctioningFansGlyph, flyoutControlPalette, ToggleNonFunctioningFans,
             "Show/hide non-functioning fans");
-        AddGroupButton(grid, p);
-        AddProfileButton(grid, 5, 1, p);
-        AddProfileButton(grid, 6, 2, p);
-        AddProfileButton(grid, 7, 3, p);
+        AddGroupButton(grid, 3, flyoutControlPalette);
+        AddProbeButton(grid, 4, flyoutControlPalette);
+        AddProfileButton(grid, 5, 1, flyoutControlPalette);
+        AddProfileButton(grid, 6, 2, flyoutControlPalette);
+        AddProfileButton(grid, 7, 3, flyoutControlPalette);
 
-        _undockButton = BuildUndockButton(p);
+        _undockButton = BuildUndockButton(flyoutControlPalette);
         _undockButton.IsVisible = _settings.AllowFlyoutUndock;
         Grid.SetColumn(_undockButton, 8);
         grid.Children.Add(_undockButton);
@@ -1217,22 +1216,49 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return text;
     }
 
-    private void AddGroupButton(Grid grid, FlyoutControlPalette p)
+    private void AddGroupButton(Grid grid, int column, FlyoutControlPalette p)
     {
         Grid icon = new()
         {
             Width = Layout.HeaderAddGroupIconSize, Height = Layout.HeaderAddGroupIconSize, IsHitTestVisible = false,
         };
-        icon.Children.Add(TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize));
-        TextBlock add = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
-        add.HorizontalAlignment = HorizontalAlignment.Right;
-        add.VerticalAlignment = VerticalAlignment.Top;
-        icon.Children.Add(add);
+        TextBlock groupGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize);
+        groupGlyph.RenderTransform = new TranslateTransform(-1, 0);
+        TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
+        plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
+        plusGlyph.VerticalAlignment = VerticalAlignment.Top;
+        plusGlyph.RenderTransform = new TranslateTransform(2, -2);
+        icon.Children.Add(groupGlyph);
+        icon.Children.Add(plusGlyph);
 
         Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, p, _ => AddGroup(), Layout.HeaderButtonWidth,
             Layout.HeaderButtonHeight, 0, tooltip: "Add group");
         button.Child = icon;
-        Grid.SetColumn(button, 3);
+        Grid.SetColumn(button, column);
+        grid.Children.Add(button);
+    }
+
+    private void AddProbeButton(Grid grid, int column, FlyoutControlPalette p)
+    {
+        Grid icon = new()
+        {
+            Width = Layout.HeaderAddGroupIconSize,
+            Height = Layout.HeaderAddGroupIconSize,
+            IsHitTestVisible = false,
+        };
+        TextBlock probeGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddGroupFontSize);
+        probeGlyph.RenderTransform = new TranslateTransform(-1, 0);
+        TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
+        plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
+        plusGlyph.VerticalAlignment = VerticalAlignment.Top;
+        plusGlyph.RenderTransform = new TranslateTransform(2, -2);
+        icon.Children.Add(probeGlyph);
+        icon.Children.Add(plusGlyph);
+
+        Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, p, _ => AddGroup(), Layout.HeaderButtonWidth,
+            Layout.HeaderButtonHeight, 0, tooltip: "Add probe card");
+        button.Child = icon;
+        Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
 

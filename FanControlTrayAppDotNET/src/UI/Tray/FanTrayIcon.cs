@@ -4,15 +4,13 @@ using SkiaSharp;
 
 namespace FanControlTrayAppDotNET.UI;
 
-internal sealed class FanTrayIcon : IDisposable
+internal sealed class FanTrayIcon(AppTheme? theme) : IDisposable
 {
     private readonly Lock _gate = new();
-    private readonly AppTheme _theme;
+    private readonly AppTheme _theme = theme ?? AppTheme.Default;
     private SKTypeface? _fanTypeface;
     private NativeIcon? _currentIcon;
     private bool _isDirty = true;
-
-    public FanTrayIcon(AppTheme? theme) => _theme = theme ?? AppTheme.Default;
 
     public bool IsLightTheme
     {

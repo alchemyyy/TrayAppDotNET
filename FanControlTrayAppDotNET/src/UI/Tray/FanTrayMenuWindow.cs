@@ -4,27 +4,19 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace FanControlTrayAppDotNET.UI;
 
-public sealed class FanTrayMenuWindow : TrayMenuWindow
+public sealed class FanTrayMenuWindow(
+    AppSettings settings,
+    SettingsPalette palette,
+    bool rounded,
+    int fontSize,
+    Action openSettings,
+    Action exit)
+    : TrayMenuWindow(BuildEntries(openSettings, exit),
+        new TrayMenuWindowOptions
+        {
+            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = ResolveMenuShadowColor(settings),
+        })
 {
-    public FanTrayMenuWindow(
-        AppSettings settings,
-        SettingsPalette palette,
-        bool rounded,
-        int fontSize,
-        Action openSettings,
-        Action exit)
-        : base(
-            BuildEntries(openSettings, exit),
-            new TrayMenuWindowOptions
-            {
-                Palette = palette,
-                Rounded = rounded,
-                FontSize = fontSize,
-                ShadowColor = ResolveMenuShadowColor(settings),
-            })
-    {
-    }
-
     internal void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,

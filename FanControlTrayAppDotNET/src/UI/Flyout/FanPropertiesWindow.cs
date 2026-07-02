@@ -69,38 +69,38 @@ public sealed partial class FanPropertiesWindow : Window
         InitializeComponent();
         InitializeComponentState();
 
-        SettingsPalette p = FanSettingsWindow.CreatePalette(
+        SettingsPalette palette = FanSettingsWindow.CreatePalette(
             AppServices.Theme,
             _settings,
             AppTheme.ResolveEffectiveIsLightTheme(_settings));
         bool rounded = _settings.EnableRoundedCorners;
 
-        _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", p, 13, FontWeight.SemiBold);
-        _fanIDText = ValueText(p);
-        _sensorControllerText = ValueText(p);
-        _nameBox = TrayAppDotNETSettingsUI.TextBox(p, Layout.TextBoxWidth);
-        _groupCombo = TrayAppDotNETSettingsUI.ComboBox(p, Layout.TextBoxWidth, autoSizeToText: true);
-        _curveCombo = TrayAppDotNETSettingsUI.ComboBox(p, Layout.CurveComboWidth, autoSizeToText: true);
-        _curveModeRadio = CompactRadio("Curve", p);
-        _manualModeRadio = CompactRadio("Manual", p);
-        _detachedModeRadio = CompactRadio("Detached", p);
-        _jumpstartBox = Number(p, 0, 100, "%");
-        _clampHighBox = Number(p, 0, 100, "%");
-        _clampLowBox = Number(p, 0, 100, "%");
-        _warnLowBox = Number(p, 0, 100, "%");
-        _warnHighBox = Number(p, 0, 100, "%");
-        _deltaMaxBox = Number(p, 0, 100, "%/s");
-        _offsetBox = Number(p, -100, 100, "%");
-        _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", p);
+        _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", palette, 13, FontWeight.SemiBold);
+        _fanIDText = ValueText(palette);
+        _sensorControllerText = ValueText(palette);
+        _nameBox = TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth);
+        _groupCombo = TrayAppDotNETSettingsUI.ComboBox(palette, Layout.TextBoxWidth, autoSizeToText: true);
+        _curveCombo = TrayAppDotNETSettingsUI.ComboBox(palette, Layout.CurveComboWidth, autoSizeToText: true);
+        _curveModeRadio = CompactRadio("Curve", palette);
+        _manualModeRadio = CompactRadio("Manual", palette);
+        _detachedModeRadio = CompactRadio("Detached", palette);
+        _jumpstartBox = Number(palette, 0, 100, "%");
+        _clampHighBox = Number(palette, 0, 100, "%");
+        _clampLowBox = Number(palette, 0, 100, "%");
+        _warnLowBox = Number(palette, 0, 100, "%");
+        _warnHighBox = Number(palette, 0, 100, "%");
+        _deltaMaxBox = Number(palette, 0, 100, "%/s");
+        _offsetBox = Number(palette, -100, 100, "%");
+        _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", palette);
 
-        _pinButton = CaptionButton(GlyphCatalog.PIN, p);
-        SettingsButton closeButton = CaptionButton(GlyphCatalog.EXIT, p);
+        _pinButton = CaptionButton(GlyphCatalog.PIN, palette);
+        SettingsButton closeButton = CaptionButton(GlyphCatalog.EXIT, palette);
         _pinButton.Click += (_, _) => IsPinned = !IsPinned;
         closeButton.Click += (_, _) => RequestClose();
 
-        Grid titleBar = BuildTitleBar(p, _pinButton, closeButton);
-        Grid body = BuildBody(p);
-        Grid footer = BuildFooter(p);
+        Grid titleBar = BuildTitleBar(palette, _pinButton, closeButton);
+        Grid body = BuildBody(palette);
+        Grid footer = BuildFooter(palette);
 
         Grid chrome = new();
         chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TitleBarHeight)));
@@ -114,8 +114,8 @@ public sealed partial class FanPropertiesWindow : Window
 
         Content = new Border
         {
-            Background = TrayAppDotNETSettingsUI.Brush(p.Background),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(p.Border),
+            Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
             Child = chrome,

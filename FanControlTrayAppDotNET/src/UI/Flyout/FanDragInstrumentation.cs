@@ -5,27 +5,20 @@ using Avalonia.Input;
 
 namespace FanControlTrayAppDotNET.UI;
 
-internal sealed class FanDragInstrumentation
+internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = null, Action<string>? log = null)
 {
     public const string LatestFileName = "fan-drag-trace-latest.jsonl";
     public const string HistoryFileName = "fan-drag-trace-history.jsonl";
 
     private static int s_nextSessionId;
 
-    private readonly Func<string> _directoryProvider;
-    private readonly Action<string>? _log;
+    private readonly Func<string> _directoryProvider = directoryProvider ?? DefaultTraceDirectory;
     private readonly List<string> _lines = [];
 
     private Point? _lastMovementPoint;
     private int _sessionId;
     private int _nextFrameIndex;
     private int _keyCount;
-
-    public FanDragInstrumentation(Func<string>? directoryProvider = null, Action<string>? log = null)
-    {
-        _directoryProvider = directoryProvider ?? DefaultTraceDirectory;
-        _log = log;
-    }
 
     public bool IsActive { get; private set; }
 
@@ -148,11 +141,11 @@ internal sealed class FanDragInstrumentation
             File.WriteAllLines(LatestTracePath, _lines, Encoding.UTF8);
             if (appendHistory)
                 File.AppendAllLines(Path.Combine(directory, HistoryFileName), _lines, Encoding.UTF8);
-            _log?.Invoke($"Fan drag instrumentation wrote {LatestTracePath}");
+            log?.Invoke($"Fan drag instrumentation wrote {LatestTracePath}");
         }
         catch (Exception ex)
         {
-            _log?.Invoke($"Fan drag instrumentation flush failed: {ex.Message}");
+            log?.Invoke($"Fan drag instrumentation flush failed: {ex.Message}");
         }
     }
 

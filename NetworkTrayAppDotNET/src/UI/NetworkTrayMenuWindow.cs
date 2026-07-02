@@ -3,34 +3,29 @@ using NetworkTrayAppDotNET.Models;
 
 namespace NetworkTrayAppDotNET.UI;
 
-public sealed class NetworkTrayMenuWindow : TrayMenuWindow
+public sealed class NetworkTrayMenuWindow(
+    SettingsPalette palette,
+    bool rounded,
+    int fontSize,
+    string networkSettingsText,
+    string adapterSettingsText,
+    string settingsText,
+    string exitText,
+    Action openNetworkSettings,
+    Action openAdapterSettings,
+    Action openSettings,
+    Action exit)
+    : TrayMenuWindow(BuildEntries(
+            networkSettingsText,
+            adapterSettingsText,
+            settingsText,
+            exitText,
+            openNetworkSettings,
+            openAdapterSettings,
+            openSettings,
+            exit),
+        new TrayMenuWindowOptions { Palette = palette, Rounded = rounded, FontSize = fontSize, })
 {
-    public NetworkTrayMenuWindow(
-        SettingsPalette palette,
-        bool rounded,
-        int fontSize,
-        string networkSettingsText,
-        string adapterSettingsText,
-        string settingsText,
-        string exitText,
-        Action openNetworkSettings,
-        Action openAdapterSettings,
-        Action openSettings,
-        Action exit)
-        : base(
-            BuildEntries(
-                networkSettingsText,
-                adapterSettingsText,
-                settingsText,
-                exitText,
-                openNetworkSettings,
-                openAdapterSettings,
-                openSettings,
-                exit),
-            new TrayMenuWindowOptions { Palette = palette, Rounded = rounded, FontSize = fontSize, })
-    {
-    }
-
     public void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
