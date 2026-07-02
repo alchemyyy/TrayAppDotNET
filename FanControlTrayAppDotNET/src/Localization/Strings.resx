@@ -408,7 +408,7 @@ Target: {1}</value>
     <value>Apply</value>
   </data>
   <data name="Settings_FanProperties_NonFunctioning_Header" xml:space="preserve">
-    <value>Forced non-functioning fans</value>
+    <value>Manually tag fans as non-functioning</value>
   </data>
   <data name="Settings_FanProperties_NonFunctioning_DescriptionFormat" xml:space="preserve">
     <value>Treat this fan as non-functioning. {0}</value>
