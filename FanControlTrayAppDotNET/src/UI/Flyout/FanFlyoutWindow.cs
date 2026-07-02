@@ -277,6 +277,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
                 new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
                 new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
+                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
                 new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
@@ -300,13 +301,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             "Show/hide non-functioning fans");
         AddGroupButton(grid, 3, flyoutControlPalette);
         AddProbeButton(grid, 4, flyoutControlPalette);
-        AddProfileButton(grid, 5, 1, flyoutControlPalette);
-        AddProfileButton(grid, 6, 2, flyoutControlPalette);
-        AddProfileButton(grid, 7, 3, flyoutControlPalette);
+        AddProfileButton(grid, 6, 1, flyoutControlPalette);
+        AddProfileButton(grid, 7, 2, flyoutControlPalette);
+        AddProfileButton(grid, 8, 3, flyoutControlPalette);
 
         _undockButton = BuildUndockButton(flyoutControlPalette);
         _undockButton.IsVisible = _settings.AllowFlyoutUndock;
-        Grid.SetColumn(_undockButton, 8);
+        Grid.SetColumn(_undockButton, 9);
         grid.Children.Add(_undockButton);
         return new Border
         {
@@ -1223,7 +1224,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Width = Layout.HeaderAddGroupIconSize, Height = Layout.HeaderAddGroupIconSize, IsHitTestVisible = false,
         };
         TextBlock groupGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize);
-        groupGlyph.RenderTransform = new TranslateTransform(-1, 0);
         TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
         plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
         plusGlyph.VerticalAlignment = VerticalAlignment.Top;
@@ -1246,8 +1246,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Height = Layout.HeaderAddGroupIconSize,
             IsHitTestVisible = false,
         };
-        TextBlock probeGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddGroupFontSize);
-        probeGlyph.RenderTransform = new TranslateTransform(-1, 0);
+        TextBlock probeGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddGroupFontSize - 2);
         TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
         plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
         plusGlyph.VerticalAlignment = VerticalAlignment.Top;
