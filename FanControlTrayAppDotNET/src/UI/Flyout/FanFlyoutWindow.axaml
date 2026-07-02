@@ -48,7 +48,9 @@
         <sys:Double x:Key="Flyout.HeaderManagerButtonFontSize">17</sys:Double>
         <sys:Double x:Key="Flyout.HeaderAddGroupIconSize">22</sys:Double>
         <sys:Double x:Key="Flyout.HeaderAddGroupFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderAddProbeFontSize">16</sys:Double>
         <sys:Double x:Key="Flyout.HeaderAddGlyphFontSize">9</sys:Double>
+        <TranslateTransform x:Key="Flyout.HeaderAddGlyphTransform" X="2" Y="-2" />
         <sys:Double x:Key="Flyout.ProfileLabelFontSize">14</sys:Double>
         <sys:Double x:Key="Flyout.ProfileUnderlineWidth">16</sys:Double>
         <sys:Double x:Key="Flyout.ProfileUnderlineHeight">2</sys:Double>
@@ -104,6 +106,21 @@
         <Thickness x:Key="Flyout.GroupModeMargin">-4,-3,12,0</Thickness>
         <Thickness x:Key="Flyout.GroupSliderRowMargin">-5,2,0,2</Thickness>
         <Thickness x:Key="Flyout.GroupValueGridMargin">8,-4,0,0</Thickness>
+
+        <sys:Double x:Key="Flyout.ProbeButtonWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeButtonFontSize">16</sys:Double>
+        <Thickness x:Key="Flyout.ProbeButtonMargin">-4,0,12,0</Thickness>
+        <sys:Double x:Key="Flyout.ProbeNameFontSize">14</sys:Double>
+        <Thickness x:Key="Flyout.ProbeNameStackMargin">-6,0,10,0</Thickness>
+        <Thickness x:Key="Flyout.ProbeRowsMargin">0,4,0,0</Thickness>
+        <Thickness x:Key="Flyout.ProbeRowMargin">0,0,0,2</Thickness>
+        <sys:Double x:Key="Flyout.ProbeRowGlyphWidth">16</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeRowGlyphFontSize">13</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeRowTextFontSize">12</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeRowValueMinWidth">66</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeEmptyFontSize">11</sys:Double>
+        <sys:Double x:Key="Flyout.ProbeEmptyOpacity">0.7</sys:Double>
 
         <sys:Double x:Key="Flyout.ConfirmTitleFontSize">14</sys:Double>
         <Thickness x:Key="Flyout.ConfirmTitleMargin">0,0,0,8</Thickness>

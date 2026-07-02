@@ -210,6 +210,10 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     [XmlArrayItem("Group")]
     public List<FanGroup> FanGroups { get; set; } = [];
 
+    [XmlArray("ProbeCards")]
+    [XmlArrayItem("ProbeCard")]
+    public List<ProbeCard> ProbeCards { get; set; } = [];
+
     [XmlArray("FanProfiles")]
     [XmlArrayItem("Profile")]
     public List<FanProfile> FanProfiles { get; set; } = [];

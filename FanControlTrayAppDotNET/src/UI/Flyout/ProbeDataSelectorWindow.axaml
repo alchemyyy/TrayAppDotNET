@@ -1,0 +1,57 @@
+<Window
+    x:Class="FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    Title="Probe Data Selector"
+    Width="{DynamicResource ProbeSelector.WindowWidth}"
+    Height="{DynamicResource ProbeSelector.WindowHeight}"
+    MinWidth="{DynamicResource ProbeSelector.WindowWidth}"
+    MinHeight="{DynamicResource ProbeSelector.WindowHeight}"
+    MaxWidth="{DynamicResource ProbeSelector.WindowWidth}"
+    MaxHeight="{DynamicResource ProbeSelector.WindowHeight}"
+    CanResize="False"
+    Background="Transparent"
+    ShowInTaskbar="False"
+    Topmost="True"
+    WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <sys:Double x:Key="ProbeSelector.WindowWidth">940</sys:Double>
+        <sys:Double x:Key="ProbeSelector.WindowHeight">450</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TabRowHeight">28</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TabFontSize">9</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TabMinHeight">24</sys:Double>
+        <sys:Double x:Key="ProbeSelector.CardTitleFontSize">10</sys:Double>
+        <sys:Double x:Key="ProbeSelector.CardValueFontSize">11</sys:Double>
+        <sys:Double x:Key="ProbeSelector.GridCardWidth">232</sys:Double>
+        <sys:Double x:Key="ProbeSelector.EmptyFontSize">11</sys:Double>
+        <sys:Double x:Key="ProbeSelector.ActionButtonWidth">24</sys:Double>
+        <sys:Double x:Key="ProbeSelector.ActionButtonHeight">24</sys:Double>
+        <sys:Double x:Key="ProbeSelector.GearFontSize">11</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TransformLabelFontSize">10</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TransformBoxWidth">154</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TransformBoxHeight">28</sys:Double>
+
+        <Thickness x:Key="ProbeSelector.ZeroThickness">0</Thickness>
+        <Thickness x:Key="ProbeSelector.RootBorderThickness">1</Thickness>
+        <Thickness x:Key="ProbeSelector.ContentMargin">4</Thickness>
+        <Thickness x:Key="ProbeSelector.TabMargin">0,0,2,0</Thickness>
+        <Thickness x:Key="ProbeSelector.TabPadding">2,0</Thickness>
+        <Thickness x:Key="ProbeSelector.BodyMargin">0,4,0,0</Thickness>
+        <Thickness x:Key="ProbeSelector.CardMargin">0,0,0,4</Thickness>
+        <Thickness x:Key="ProbeSelector.CardPadding">6,5</Thickness>
+        <Thickness x:Key="ProbeSelector.TextColumnMargin">0,0,4,0</Thickness>
+        <Thickness x:Key="ProbeSelector.ValueRowMargin">0,2,4,0</Thickness>
+        <Thickness x:Key="ProbeSelector.ToggleMargin">0,2,4,0</Thickness>
+        <Thickness x:Key="ProbeSelector.ActionButtonMargin">0,2,0,0</Thickness>
+        <Thickness x:Key="ProbeSelector.TransformRowMargin">0,6,0,0</Thickness>
+        <Thickness x:Key="ProbeSelector.TransformLabelMargin">0,0,6,0</Thickness>
+        <Thickness x:Key="ProbeSelector.TransformBoxPadding">4,0</Thickness>
+
+        <CornerRadius x:Key="ProbeSelector.RootCornerRadius">6</CornerRadius>
+        <CornerRadius x:Key="ProbeSelector.CardCornerRadius">5</CornerRadius>
+        <CornerRadius x:Key="ProbeSelector.TabCornerRadius">5,5,0,0</CornerRadius>
+        <CornerRadius x:Key="ProbeSelector.ZeroCornerRadius">0</CornerRadius>
+    </Window.Resources>
+</Window>
