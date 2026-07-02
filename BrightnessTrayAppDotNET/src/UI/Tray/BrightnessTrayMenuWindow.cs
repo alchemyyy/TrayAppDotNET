@@ -8,39 +8,34 @@ namespace BrightnessTrayAppDotNET.UI.Tray;
 
 internal sealed record BrightnessTrayMenuProfile(int Index, string Label, bool IsSelected);
 
-internal sealed class BrightnessTrayMenuWindow : TrayMenuWindow
+internal sealed class BrightnessTrayMenuWindow(
+    IReadOnlyList<BrightnessTrayMenuProfile> profiles,
+    IReadOnlyList<MonitorInfo> monitors,
+    AppSettings settings,
+    SettingsPalette palette,
+    Color shadowColor,
+    bool rounded,
+    int fontSize,
+    Action<int> selectProfile,
+    Action powerOffAllMonitors,
+    Action<MonitorInfo> powerOffMonitor,
+    Action openSettings,
+    Action exit)
+    : TrayMenuWindow(BuildEntries(
+            profiles,
+            monitors,
+            settings,
+            selectProfile,
+            powerOffAllMonitors,
+            powerOffMonitor,
+            openSettings,
+            exit),
+        new TrayMenuWindowOptions
+        {
+            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = shadowColor,
+        })
 {
     private const string CheckGlyph = "\uE73E";
-
-    public BrightnessTrayMenuWindow(
-        IReadOnlyList<BrightnessTrayMenuProfile> profiles,
-        IReadOnlyList<MonitorInfo> monitors,
-        AppSettings settings,
-        SettingsPalette palette,
-        Color shadowColor,
-        bool rounded,
-        int fontSize,
-        Action<int> selectProfile,
-        Action powerOffAllMonitors,
-        Action<MonitorInfo> powerOffMonitor,
-        Action openSettings,
-        Action exit)
-        : base(
-            BuildEntries(
-                profiles,
-                monitors,
-                settings,
-                selectProfile,
-                powerOffAllMonitors,
-                powerOffMonitor,
-                openSettings,
-                exit),
-            new TrayMenuWindowOptions
-            {
-                Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = shadowColor,
-            })
-    {
-    }
 
     public void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,

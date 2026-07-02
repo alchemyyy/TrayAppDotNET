@@ -127,7 +127,7 @@ public sealed partial class NetworkSettingsWindow
             }
 
             uint vk = TrayAppDotNETHotkeyKeys.VirtualKeyFromKey(e.Key);
-            if (vk == 0 || vk == 0x7B)
+            if (vk is 0 or 0x7B)
             {
                 e.Handled = true;
                 return;

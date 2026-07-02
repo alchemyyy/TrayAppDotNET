@@ -17,26 +17,21 @@ public static class TrayAppDotNETWarmWindowDefaults
     public const int OffscreenPosition = -32000;
 }
 
-public sealed class TrayAppDotNETWarmWindowSlot<TWindow> : IDisposable
+public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
+    Func<bool> isKeepWarmEnabled,
+    Action<Exception>? logError = null)
+    : IDisposable
     where TWindow : Window
 {
-    private readonly Func<bool> _isKeepWarmEnabled;
-    private readonly Action<Exception>? _logError;
     private DispatcherTimer? _evictionTimer;
     private bool _disposed;
     private bool _evicting;
-
-    public TrayAppDotNETWarmWindowSlot(Func<bool> isKeepWarmEnabled, Action<Exception>? logError = null)
-    {
-        _isKeepWarmEnabled = isKeepWarmEnabled;
-        _logError = logError;
-    }
 
     public TWindow? Cached { get; private set; }
 
     public async Task PrimeAsync(Func<TWindow> createWindow)
     {
-        if (_disposed || !_isKeepWarmEnabled()) return;
+        if (_disposed || !isKeepWarmEnabled()) return;
 
         TWindow window = TakeOrCreate(createWindow);
         if (window.IsVisible) return;
@@ -65,7 +60,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow> : IDisposable
     public void MarkDismissed()
     {
         if (_disposed) return;
-        if (_isKeepWarmEnabled())
+        if (isKeepWarmEnabled())
         {
             CancelIdleEviction();
             return;
@@ -77,7 +72,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow> : IDisposable
     public void ApplyKeepWarmPolicy(Func<TWindow> createWindow)
     {
         if (_disposed) return;
-        if (_isKeepWarmEnabled())
+        if (isKeepWarmEnabled())
         {
             CancelIdleEviction();
             _ = PrimeAsync(createWindow);
@@ -114,14 +109,14 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow> : IDisposable
         }
         catch (Exception ex)
         {
-            _logError?.Invoke(ex);
+            logError?.Invoke(ex);
         }
         finally
         {
             _evicting = false;
             Detach(window);
             if (ReferenceEquals(Cached, window)) Cached = null;
-            TrayAppDotNETWarmWindowResourcePurger.RequestAfterEviction(_logError);
+            TrayAppDotNETWarmWindowResourcePurger.RequestAfterEviction(logError);
         }
     }
 
@@ -164,7 +159,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow> : IDisposable
     {
         CancelIdleEviction();
         if (Cached is { IsVisible: true }) return;
-        if (_isKeepWarmEnabled()) return;
+        if (isKeepWarmEnabled()) return;
 
         EvictNow();
     }

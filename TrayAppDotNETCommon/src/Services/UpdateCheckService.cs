@@ -626,7 +626,7 @@ public sealed class UpdateCheckService : IDisposable
     private static bool IsTerminalHttpStatus(HttpStatusCode status)
     {
         int code = (int)status;
-        return code == HttpUnauthorized || code == HttpForbidden || code == HttpNotFound;
+        return code is HttpUnauthorized or HttpForbidden or HttpNotFound;
     }
 
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
