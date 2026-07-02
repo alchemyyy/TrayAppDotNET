@@ -40,9 +40,9 @@
 
         <sys:Double x:Key="Flyout.HeaderHeight">38</sys:Double>
         <Thickness x:Key="Flyout.HeaderMargin">4,0,4,0</Thickness>
-        <sys:Double x:Key="Flyout.HeaderWideColumnWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderWideColumnWidth">37</sys:Double>
         <sys:Double x:Key="Flyout.HeaderNarrowColumnWidth">32</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderButtonWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderButtonWidth">37</sys:Double>
         <sys:Double x:Key="Flyout.HeaderButtonHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.HeaderButtonFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.HeaderManagerButtonFontSize">17</sys:Double>

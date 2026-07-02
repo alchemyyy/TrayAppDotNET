@@ -17,6 +17,11 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
     public new const string EXIT = CommonGlyphCatalog.EXIT;
     public new const string WARNING = CommonGlyphCatalog.WARNING;
     public const string FAN = "\U000F1111"; // FanFont.ttf U+F1111
+    public const string VOLTAGE = "\uE945"; // Lightning Bolt
+    public const string LOAD = "\uEAFC"; // Market
+    public const string WATTAGE = "\uECAD"; // Calories
+    public const string TEMPERATURE = PROBE; // Frigid
+    public const string CLOCK = "\uE916"; // Stopwatch
 
     public const string CURVE_WINDOW = "\uE9E9"; // Equalizer
     public const string ADD = "\uE710"; // Add
