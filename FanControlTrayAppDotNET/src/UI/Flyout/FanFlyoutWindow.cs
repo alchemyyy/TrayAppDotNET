@@ -91,6 +91,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool _isCompletingDrag;
     private bool _dragMovingDown = true;
     private bool _pendingFanRebuild;
+    private bool _fanRebuildQueued;
+    private bool _isRebuildingVisual;
     private int _activeSliderDrags;
     private int? _lastRequestedProfile;
     private TaskCompletionSource<bool>? _confirmTcs;
@@ -182,8 +184,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         _lastTrayIcon = trayIcon;
         ApplyWorkAreaMaxHeight();
-        RebuildCells();
-        RebuildVisual();
+        ExecuteFanRebuild(reposition: false);
         if (!IsVisible)
         {
             Opacity = 0;
@@ -211,59 +212,84 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         NotifyWarmDismissed();
     }
 
+    /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
     private void RebuildVisual()
     {
-        if (_layout == null) return;
-
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
-        AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-        SettingsPalette sp = FanSettingsWindow.CreatePalette(theme, _settings, isLight);
-        FlyoutControlPalette p = CreateFlyoutPalette(theme, sp, isLight);
-        _fanRowRefs.Clear();
-        _groupHeaderRefs.Clear();
-
-        DockPanel body = new() { LastChildFill = true };
-        Control header = BuildHeader(p);
-        DockPanel.SetDock(header, Dock.Top);
-        body.Children.Add(header);
-        body.Children.Add(BuildCellList(p, theme, isLight));
-
-        Grid rootGrid = new();
-        rootGrid.Children.Add(body);
-        _confirmOverlay = BuildConfirmOverlay(sp, isLight);
-        _confirmOverlay.IsVisible = false;
-        rootGrid.Children.Add(_confirmOverlay);
-        _dragOverlay = new Canvas { IsHitTestVisible = false };
-        rootGrid.Children.Add(_dragOverlay);
-
-        _rootCard = new Border
+        try { RebuildVisualCore(); }
+        catch (Exception ex)
         {
-            Focusable = true,
-            Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
-            BorderBrush = TrayAppDotNETFlyoutUI.Brush(theme.Border.For(isLight)),
-            BorderThickness = Layout.RootBorderThickness,
-            CornerRadius = Rounded(Layout.RootCornerRadius),
-            ClipToBounds = false,
-            BoxShadow = new BoxShadows(new BoxShadow
+            _fanRebuildQueued = false;
+            TADNLog.Log($"FanFlyoutWindow.RebuildVisual: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Builds the visual tree before replacing the existing content.</summary>
+    private void RebuildVisualCore()
+    {
+        if (_layout == null) return;
+        if (_isRebuildingVisual)
+        {
+            _pendingFanRebuild = true;
+            return;
+        }
+
+        _isRebuildingVisual = true;
+        try
+        {
+            bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+            AppTheme theme = AppServices.Theme ?? AppTheme.Default;
+            SettingsPalette sp = FanSettingsWindow.CreatePalette(theme, _settings, isLight);
+            FlyoutControlPalette p = CreateFlyoutPalette(theme, sp, isLight);
+            _fanRowRefs.Clear();
+            _groupHeaderRefs.Clear();
+
+            DockPanel body = new() { LastChildFill = true };
+            Control header = BuildHeader(p);
+            DockPanel.SetDock(header, Dock.Top);
+            body.Children.Add(header);
+            body.Children.Add(BuildCellList(p, theme, isLight));
+
+            Grid rootGrid = new();
+            rootGrid.Children.Add(body);
+            _confirmOverlay = BuildConfirmOverlay(sp, isLight);
+            _confirmOverlay.IsVisible = false;
+            rootGrid.Children.Add(_confirmOverlay);
+            _dragOverlay = new Canvas { IsHitTestVisible = false };
+            rootGrid.Children.Add(_dragOverlay);
+
+            _rootCard = new Border
             {
-                OffsetY = Layout.RootShadowOffsetY,
-                Blur = Layout.RootShadowBlur,
-                Color = theme.FlyoutShadow.For(isLight),
-            }),
-            Child = new Border
-            {
+                Focusable = true,
                 Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
-                CornerRadius = Rounded(Layout.RootInnerCornerRadius),
-                ClipToBounds = true,
-                Margin = Layout.RootInnerMargin,
-                Child = rootGrid,
-            },
-        };
-        _rootCard.PointerPressed += OnRootPointerPressed;
-        _rootCard.PointerMoved += OnRootPointerMoved;
-        _rootCard.PointerReleased += OnRootPointerReleased;
-        _rootCard.PointerCaptureLost += OnRootPointerCaptureLost;
-        Content = _rootCard;
+                BorderBrush = TrayAppDotNETFlyoutUI.Brush(theme.Border.For(isLight)),
+                BorderThickness = Layout.RootBorderThickness,
+                CornerRadius = Rounded(Layout.RootCornerRadius),
+                ClipToBounds = false,
+                BoxShadow = new BoxShadows(new BoxShadow
+                {
+                    OffsetY = Layout.RootShadowOffsetY,
+                    Blur = Layout.RootShadowBlur,
+                    Color = theme.FlyoutShadow.For(isLight),
+                }),
+                Child = new Border
+                {
+                    Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
+                    CornerRadius = Rounded(Layout.RootInnerCornerRadius),
+                    ClipToBounds = true,
+                    Margin = Layout.RootInnerMargin,
+                    Child = rootGrid,
+                },
+            };
+            _rootCard.PointerPressed += OnRootPointerPressed;
+            _rootCard.PointerMoved += OnRootPointerMoved;
+            _rootCard.PointerReleased += OnRootPointerReleased;
+            _rootCard.PointerCaptureLost += OnRootPointerCaptureLost;
+            Content = _rootCard;
+        }
+        finally
+        {
+            _isRebuildingVisual = false;
+        }
     }
 
     private Border BuildHeader(FlyoutControlPalette flyoutControlPalette)
@@ -1426,10 +1452,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         SaveGroupChanges();
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
-        _pendingFanRebuild = false;
+        ExecuteFanRebuild(reposition: true);
     }
 
     private Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
@@ -1474,9 +1497,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _settings.Save();
         _settings.RaiseChanged();
         OnPropertyChanged(nameof(NonFunctioningFansGlyph));
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
+        ExecuteFanRebuild(reposition: true);
     }
 
     private void UpdateNonFunctioningFansButtonVisual() =>
@@ -1504,8 +1525,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         _lhmService.PersistLiveState();
-        RebuildCells();
-        RebuildVisual();
+        ExecuteFanRebuild(reposition: false);
     }
 
     private void AddGroup()
@@ -1515,9 +1535,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _groupNames.Insert(0, groupName);
         GetOrCreateGroupSettings(groupName).DisplayOrder = 0;
         SaveGroupChanges();
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
+        ExecuteFanRebuild(reposition: true);
     }
 
     private void ToggleFanMode(Fan fan)
@@ -1568,8 +1586,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _lhmService.PersistLiveState(save: false);
         _settings.Save();
         _settings.RaiseChanged();
-        RebuildCells();
-        RebuildVisual();
+        ExecuteFanRebuild(reposition: false);
         _ = _lastRequestedProfile;
     }
 
@@ -2635,9 +2652,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ClearDragState();
         }
 
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
+        ExecuteFanRebuild(reposition: true);
     }
 
     private void CancelDrag()
@@ -2903,8 +2918,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         CancelInlineEdit(box);
-        RebuildCells();
-        RebuildVisual();
+        ExecuteFanRebuild(reposition: false);
     }
 
     private void CommitGroupNameEdit(TextBox box)
@@ -3010,8 +3024,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         SaveGroupChanges();
-        RebuildCells();
-        RebuildVisual();
+        ExecuteFanRebuild(reposition: false);
     }
 
     private void ToggleFanPropertiesWindow(Fan fan)
@@ -3105,11 +3118,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool IsUpdateCardVisible =>
         _settings.ShowUpdateButtonInFlyout && AppServices.UpdateCheckService?.AvailableUpdate != null;
 
-    private void NotifyUpdateStateChanged() => Dispatcher.UIThread.Post(() =>
-    {
-        RebuildVisual();
-        QueuePositionNearTray();
-    });
+    private void NotifyUpdateStateChanged() => RequestFanRebuild();
 
     private void OpenCurveEditor(Fan fan)
     {
@@ -3278,9 +3287,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void OnFansChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         WireFanPropertySubscriptions();
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
+        RequestFanRebuild();
     }
 
     private void WireFanPropertySubscriptions()
@@ -3313,7 +3320,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 or nameof(Fan.FanSliderMaximum)
                 or nameof(Fan.CurrentControlMode))
         {
-            Dispatcher.UIThread.Post(() => RefreshFanRowVisuals(fan, e.PropertyName));
+            if (!IsVisible) return;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!IsVisible) return;
+                try { RefreshFanRowVisuals(fan, e.PropertyName); }
+                catch (Exception ex)
+                {
+                    TADNLog.Log($"FanFlyoutWindow.RefreshFanRowVisuals: {ex.GetType().Name}: {ex.Message}");
+                }
+            }, DispatcherPriority.Background);
             return;
         }
 
@@ -3351,8 +3367,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         _showNonFunctioningFans = _settings.ShowNonFunctioningFans;
         UpdateNonFunctioningFansButtonVisual();
-        RebuildCells();
-        RebuildVisual();
+        RequestFanRebuild();
     });
 
     private bool IsPointerGestureActive =>
@@ -3362,26 +3377,78 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         || _isDraggingWindow
         || _undockButtonPointerCaptured;
 
-    private void RequestFanRebuild() => Dispatcher.UIThread.Post(() =>
+    /// <summary>Queues one coalesced fan rebuild and defers hidden warm-window churn.</summary>
+    private void RequestFanRebuild()
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RequestFanRebuild, DispatcherPriority.Background);
+            return;
+        }
+
+        if (!IsVisible && !IsWarmPriming)
+        {
+            _pendingFanRebuild = true;
+            return;
+        }
+
         if (IsPointerGestureActive)
         {
             _pendingFanRebuild = true;
             return;
         }
 
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
-    });
+        if (_isRebuildingVisual)
+        {
+            _pendingFanRebuild = true;
+            return;
+        }
 
+        if (_fanRebuildQueued) return;
+
+        _fanRebuildQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _fanRebuildQueued = false;
+            if (!IsVisible && !IsWarmPriming)
+            {
+                _pendingFanRebuild = true;
+                return;
+            }
+
+            if (IsPointerGestureActive || _isRebuildingVisual)
+            {
+                _pendingFanRebuild = true;
+                return;
+            }
+
+            ExecuteFanRebuild(reposition: true);
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>Runs a fan rebuild and keeps failures contained to the flyout.</summary>
+    private void ExecuteFanRebuild(bool reposition)
+    {
+        try
+        {
+            RebuildCells();
+            RebuildVisual();
+            _pendingFanRebuild = false;
+            if (reposition) QueuePositionNearTray();
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"FanFlyoutWindow.ExecuteFanRebuild: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Runs a deferred rebuild after pointer gestures complete.</summary>
     private void FlushPendingFanRebuild()
     {
         if (!_pendingFanRebuild || IsPointerGestureActive) return;
-        _pendingFanRebuild = false;
-        RebuildCells();
-        RebuildVisual();
-        QueuePositionNearTray();
+        if (!IsVisible && !IsWarmPriming) return;
+
+        ExecuteFanRebuild(reposition: true);
     }
 
     private void LoadGroupCatalog()
