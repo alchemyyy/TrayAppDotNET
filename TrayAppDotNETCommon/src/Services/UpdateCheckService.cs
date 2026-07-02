@@ -133,6 +133,8 @@ public sealed class UpdateCheckService : IDisposable
         "MonoPosixHelper.dll",
     ];
 
+    private sealed record UpdateCopyPlan(IReadOnlyList<string> RelativeFilePaths, bool StopSiblingApps);
+
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
 
@@ -304,7 +306,7 @@ public sealed class UpdateCheckService : IDisposable
             if (!File.Exists(expectedExe))
                 throw new InvalidOperationException($"Update package did not contain {Path.GetFileName(currentExe)}.");
 
-            bool stopSiblingApps = await SharedNativeDLLsNeedCopyAsync(
+            UpdateCopyPlan copyPlan = await BuildUpdateCopyPlanAsync(
                     extractDirectory,
                     targetDirectory,
                     token)
@@ -316,7 +318,7 @@ public sealed class UpdateCheckService : IDisposable
                 targetDirectory,
                 currentExe,
                 scriptLogPath,
-                stopSiblingApps);
+                copyPlan);
             await File.WriteAllTextAsync(scriptPath, scriptContents, Encoding.ASCII, token)
                 .ConfigureAwait(false);
 
@@ -651,81 +653,110 @@ public sealed class UpdateCheckService : IDisposable
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
         ex.StatusCode is { } statusCode && IsTerminalHttpStatus(statusCode);
 
-    /// <summary>Determines whether shared native sidecars must be overwritten during update copy.</summary>
-    private static async Task<bool> SharedNativeDLLsNeedCopyAsync(
+    /// <summary>Builds the exact file list the updater should copy.</summary>
+    private static async Task<UpdateCopyPlan> BuildUpdateCopyPlanAsync(
         string sourceDirectory,
         string targetDirectory,
         CancellationToken token)
     {
-        bool needsCopy = false;
-        foreach (string fileName in SharedNativeDLLFileNames)
+        string normalizedSourceDirectory = Path.GetFullPath(sourceDirectory);
+        List<string> relativeFilePaths = [];
+        bool stopSiblingApps = false;
+
+        string[] sourceFiles = [.. Directory.EnumerateFiles(
+            normalizedSourceDirectory,
+            "*",
+            SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase)];
+        foreach (string sourceFile in sourceFiles)
         {
-            string sourceFile = Path.Combine(sourceDirectory, fileName);
-            if (!File.Exists(sourceFile)) continue;
+            token.ThrowIfCancellationRequested();
 
-            string targetFile = Path.Combine(targetDirectory, fileName);
-            if (!File.Exists(targetFile)) continue;
-
-            try
+            string relativePath = Path.GetRelativePath(normalizedSourceDirectory, sourceFile);
+            if (!IsSharedNativeDLLRootFile(relativePath))
             {
-                FileInfo sourceInfo = new(sourceFile);
-                FileInfo targetInfo = new(targetFile);
-                if (sourceInfo.Length != targetInfo.Length)
-                {
-                    TADNLog.Log(
-                        $"UpdateCheckService.SharedNativeDLLsNeedCopyAsync: {fileName} size differs; "
-                        + "sibling apps must stop.");
-                    needsCopy = true;
-                    continue;
-                }
+                relativeFilePaths.Add(relativePath);
+                continue;
+            }
 
-                string sourceHash = await Sha256FileAsync(sourceFile, token).ConfigureAwait(false);
-                string targetHash = await Sha256FileAsync(targetFile, token).ConfigureAwait(false);
-                if (!string.Equals(sourceHash, targetHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    TADNLog.Log(
-                        $"UpdateCheckService.SharedNativeDLLsNeedCopyAsync: {fileName} hash differs; "
-                        + "sibling apps must stop.");
-                    needsCopy = true;
-                    continue;
-                }
+            SharedNativeDLLCopyDecision decision = await SharedNativeDLLCopyDecisionAsync(
+                    sourceFile,
+                    Path.Combine(targetDirectory, relativePath),
+                    Path.GetFileName(relativePath),
+                    token)
+                .ConfigureAwait(false);
+            if (decision == SharedNativeDLLCopyDecision.Skip) continue;
 
-                NormalizeSourceTimestampForRobocopy(sourceFile, targetInfo, fileName);
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log(
-                    $"UpdateCheckService.SharedNativeDLLsNeedCopyAsync: {fileName} comparison failed: "
-                    + $"{ex.Message}; sibling apps must stop.");
-                needsCopy = true;
-            }
+            relativeFilePaths.Add(relativePath);
+            if (decision == SharedNativeDLLCopyDecision.CopyAndStopSiblings)
+                stopSiblingApps = true;
         }
 
-        return needsCopy;
+        return new UpdateCopyPlan(relativeFilePaths, stopSiblingApps);
     }
 
-    /// <summary>Aligns equal shared DLL timestamps so robocopy does not recopy locked files.</summary>
-    private static void NormalizeSourceTimestampForRobocopy(
+    /// <summary>Determines how a shared native sidecar should be handled by the update copy plan.</summary>
+    private static async Task<SharedNativeDLLCopyDecision> SharedNativeDLLCopyDecisionAsync(
         string sourceFile,
-        FileInfo targetInfo,
-        string fileName)
+        string targetFile,
+        string fileName,
+        CancellationToken token)
     {
+        if (!File.Exists(targetFile))
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} is missing; "
+                + "sibling apps must stop.");
+            return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
+        }
+
         try
         {
-            File.SetLastWriteTimeUtc(sourceFile, targetInfo.LastWriteTimeUtc);
+            FileInfo sourceInfo = new(sourceFile);
+            FileInfo targetInfo = new(targetFile);
+            if (sourceInfo.Length != targetInfo.Length)
+            {
+                TADNLog.Log(
+                    $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} size differs; "
+                    + "sibling apps must stop.");
+                return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
+            }
+
+            string sourceHash = await Sha256FileAsync(sourceFile, token).ConfigureAwait(false);
+            string targetHash = await Sha256FileAsync(targetFile, token).ConfigureAwait(false);
+            if (!string.Equals(sourceHash, targetHash, StringComparison.OrdinalIgnoreCase))
+            {
+                TADNLog.Log(
+                    $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} hash differs; "
+                    + "sibling apps must stop.");
+                return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
+            }
+
+            TADNLog.Log($"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} is unchanged; skipping.");
+            return SharedNativeDLLCopyDecision.Skip;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             TADNLog.Log(
-                $"UpdateCheckService.NormalizeSourceTimestampForRobocopy: {fileName} timestamp sync failed: "
-                + $"{ex.Message}");
-            throw;
+                $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} comparison failed: "
+                + $"{ex.Message}; sibling apps must stop.");
+            return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
         }
     }
+
+    private enum SharedNativeDLLCopyDecision
+    {
+        Skip,
+        CopyAndStopSiblings,
+    }
+
+    /// <summary>Returns true for root-level native sidecars shared by every Native AOT tray app.</summary>
+    private static bool IsSharedNativeDLLRootFile(string relativePath) =>
+        string.IsNullOrEmpty(Path.GetDirectoryName(relativePath))
+        && SharedNativeDLLFileNames.Contains(Path.GetFileName(relativePath), StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Builds the detached batch updater that replaces the installed payload and restarts apps.</summary>
     private static string BuildUpdateScript(
@@ -735,7 +766,7 @@ public sealed class UpdateCheckService : IDisposable
         string targetDirectory,
         string currentExe,
         string logPath,
-        bool stopSiblingApps)
+        UpdateCopyPlan copyPlan)
     {
         string targetPID = pid.ToString(CultureInfo.InvariantCulture);
         string sourceBAT = EscapeBATValue(sourceDirectory);
@@ -743,7 +774,9 @@ public sealed class UpdateCheckService : IDisposable
         string targetBAT = EscapeBATValue(targetDirectory);
         string exeBAT = EscapeBATValue(currentExe);
         string logBAT = EscapeBATValue(logPath);
-        string stopSiblingAppsBAT = stopSiblingApps ? "1" : "0";
+        string stopSiblingAppsBAT = copyPlan.StopSiblingApps ? "1" : "0";
+        string plannedFileCount = copyPlan.RelativeFilePaths.Count.ToString(CultureInfo.InvariantCulture);
+        string copyCommands = BuildBATCopyCommands(copyPlan.RelativeFilePaths);
         string targetWaitSeconds = UpdateScriptTargetWaitSeconds.ToString(CultureInfo.InvariantCulture);
         string terminateAttempts = UpdateScriptTerminateAttempts.ToString(CultureInfo.InvariantCulture);
         string stepDelayCommand = BATDelayCommand(UpdateScriptStepDelaySeconds);
@@ -847,11 +880,29 @@ public sealed class UpdateCheckService : IDisposable
         exit /b 0
 
         :copy_update_payload
-        >> "%LOG%" echo [%DATE% %TIME%] Copying from "%SOURCE%" to "%TARGET%".
+        >> "%LOG%" echo [%DATE% %TIME%] Copying {plannedFileCount} planned file(s) from "%SOURCE%" to "%TARGET%".
         {stepDelayCommand}
-        robocopy "%SOURCE%" "%TARGET%" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NC /NS >> "%LOG%" 2>&1
+        set COPYFAILED=0
+        {copyCommands}
+        if "%COPYFAILED%"=="1" (
+          >> "%LOG%" echo [%DATE% %TIME%] One or more file copies failed.
+          exit /b 8
+        )
+        >> "%LOG%" echo [%DATE% %TIME%] Planned file copy completed.
+        exit /b 0
+
+        :copy_file
+        set "REL=%~1"
+        set "SRCFILE=%SOURCE%\%REL%"
+        set "DSTFILE=%TARGET%\%REL%"
+        for %%D in ("%DSTFILE%") do if not exist "%%~dpD" mkdir "%%~dpD" >> "%LOG%" 2>&1
+        >> "%LOG%" echo [%DATE% %TIME%] Copying "%REL%".
+        copy /Y "%SRCFILE%" "%DSTFILE%" >> "%LOG%" 2>&1
         set COPYRC=%ERRORLEVEL%
-        >> "%LOG%" echo [%DATE% %TIME%] Robocopy exit code %COPYRC%.
+        if %COPYRC% GEQ 1 (
+          >> "%LOG%" echo [%DATE% %TIME%] Failed to copy "%REL%" with exit code %COPYRC%.
+          set COPYFAILED=1
+        )
         exit /b %COPYRC%
 
         :restart_recorded_apps
@@ -883,6 +934,24 @@ public sealed class UpdateCheckService : IDisposable
     /// <summary>Escapes a value embedded in a batch file variable assignment.</summary>
     private static string EscapeBATValue(string value) =>
         value.Replace("%", "%%", StringComparison.Ordinal);
+
+    /// <summary>Builds one explicit batch copy call for each planned update file.</summary>
+    private static string BuildBATCopyCommands(IReadOnlyList<string> relativeFilePaths)
+    {
+        if (relativeFilePaths.Count == 0)
+            return "rem No files were selected for update copy.";
+
+        StringBuilder sb = new();
+        foreach (string relativePath in relativeFilePaths)
+        {
+            sb.Append("call :copy_file \"");
+            sb.Append(EscapeBATValue(relativePath));
+            sb.Append('"');
+            sb.Append('\n');
+        }
+
+        return sb.ToString().TrimEnd();
+    }
 
     /// <summary>Builds a batch-compatible delay command that does not read console input.</summary>
     private static string BATDelayCommand(int seconds)
