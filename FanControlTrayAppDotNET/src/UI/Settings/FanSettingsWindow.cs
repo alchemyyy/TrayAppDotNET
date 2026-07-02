@@ -24,6 +24,10 @@ public enum FanSettingsPage
 
 public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 {
+    private const int NonFunctioningFanColumnCount = 2;
+    private const double NonFunctioningFanColumnGap = 8.0;
+    private const double NonFunctioningFanCardBottomGap = 6.0;
+
     private readonly AppSettings _settings;
     private readonly Action<string, FanInstallScope> _showUninstaller;
     private readonly List<FanSettingsSlotEntry> _fanSlots = [];
@@ -258,10 +262,29 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         stack.Children.Add(apply);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_FanProperties_NonFunctioning_Header", "Non-functioning fans"), p));
-        foreach (Fan fan in GetLiveFans())
+            L("Settings_FanProperties_NonFunctioning_Header", "Manually tag fans as non-functioning"), p));
+
+        List<Fan> liveFans = GetLiveFans();
+        if (liveFans.Count == 0)
         {
-            stack.Children.Add(BoolCard(
+            stack.Children.Add(RawCard(TrayAppDotNETSettingsUI.DescriptionText(
+                L("Settings_FanProperties_NoFans", "No live fans detected."), p), p));
+            return stack;
+        }
+
+        Grid nonFunctioningFanGrid = new();
+        for (int i = 0; i < NonFunctioningFanColumnCount; i++)
+            nonFunctioningFanGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+
+        for (int i = 0; i < liveFans.Count; i++)
+        {
+            if (i % NonFunctioningFanColumnCount == 0)
+                nonFunctioningFanGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+            Fan fan = liveFans[i];
+            int column = i % NonFunctioningFanColumnCount;
+            int row = i / NonFunctioningFanColumnCount;
+            Border card = BoolCard(
                 fan.DisplayName,
                 fan.ControllerDisplayLabel,
                 fan.ForcedNonFunctioning,
@@ -270,12 +293,18 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                     fan.ForcedNonFunctioning = value;
                     AppServices.LHMService?.PersistLiveState(save: false);
                 },
-                p));
+                p);
+            card.Margin = new Thickness(
+                column == 0 ? 0 : NonFunctioningFanColumnGap / 2.0,
+                0,
+                column == NonFunctioningFanColumnCount - 1 ? 0 : NonFunctioningFanColumnGap / 2.0,
+                NonFunctioningFanCardBottomGap);
+            Grid.SetColumn(card, column);
+            Grid.SetRow(card, row);
+            nonFunctioningFanGrid.Children.Add(card);
         }
 
-        if (GetLiveFans().Count == 0)
-            stack.Children.Add(RawCard(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_FanProperties_NoFans", "No live fans detected."), p), p));
+        stack.Children.Add(nonFunctioningFanGrid);
 
         return stack;
     }

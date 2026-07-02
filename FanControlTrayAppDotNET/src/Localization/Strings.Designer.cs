@@ -651,7 +651,7 @@ namespace FanControlTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Forced non-functioning fans.
+        ///   Looks up a localized string similar to Manually tag fans as non-functioning.
         /// </summary>
         public static string Settings_FanProperties_NonFunctioning_Header {
             get {
