@@ -124,6 +124,15 @@ public sealed class UpdateCheckService : IDisposable
     private const int UpdateScriptStepDelaySeconds = 1;
     private const int UpdateScriptTerminateDelaySeconds = 1;
 
+    private static readonly string[] SharedNativeDLLFileNames =
+    [
+        "av_libglesv2.dll",
+        "libHarfBuzzSharp.dll",
+        "libSkiaSharp.dll",
+        "libMonoPosixHelper.dll",
+        "MonoPosixHelper.dll",
+    ];
+
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
 
@@ -295,13 +304,19 @@ public sealed class UpdateCheckService : IDisposable
             if (!File.Exists(expectedExe))
                 throw new InvalidOperationException($"Update package did not contain {Path.GetFileName(currentExe)}.");
 
+            bool stopSiblingApps = await SharedNativeDLLsNeedCopyAsync(
+                    extractDirectory,
+                    targetDirectory,
+                    token)
+                .ConfigureAwait(false);
             string scriptContents = BuildUpdateScript(
                 Environment.ProcessId,
                 extractDirectory,
                 zipPath,
                 targetDirectory,
                 currentExe,
-                scriptLogPath);
+                scriptLogPath,
+                stopSiblingApps);
             await File.WriteAllTextAsync(scriptPath, scriptContents, Encoding.ASCII, token)
                 .ConfigureAwait(false);
 
@@ -636,6 +651,82 @@ public sealed class UpdateCheckService : IDisposable
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
         ex.StatusCode is { } statusCode && IsTerminalHttpStatus(statusCode);
 
+    /// <summary>Determines whether shared native sidecars must be overwritten during update copy.</summary>
+    private static async Task<bool> SharedNativeDLLsNeedCopyAsync(
+        string sourceDirectory,
+        string targetDirectory,
+        CancellationToken token)
+    {
+        bool needsCopy = false;
+        foreach (string fileName in SharedNativeDLLFileNames)
+        {
+            string sourceFile = Path.Combine(sourceDirectory, fileName);
+            if (!File.Exists(sourceFile)) continue;
+
+            string targetFile = Path.Combine(targetDirectory, fileName);
+            if (!File.Exists(targetFile)) continue;
+
+            try
+            {
+                FileInfo sourceInfo = new(sourceFile);
+                FileInfo targetInfo = new(targetFile);
+                if (sourceInfo.Length != targetInfo.Length)
+                {
+                    TADNLog.Log(
+                        $"UpdateCheckService.SharedNativeDLLsNeedCopyAsync: {fileName} size differs; "
+                        + "sibling apps must stop.");
+                    needsCopy = true;
+                    continue;
+                }
+
+                string sourceHash = await Sha256FileAsync(sourceFile, token).ConfigureAwait(false);
+                string targetHash = await Sha256FileAsync(targetFile, token).ConfigureAwait(false);
+                if (!string.Equals(sourceHash, targetHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    TADNLog.Log(
+                        $"UpdateCheckService.SharedNativeDLLsNeedCopyAsync: {fileName} hash differs; "
+                        + "sibling apps must stop.");
+                    needsCopy = true;
+                    continue;
+                }
+
+                NormalizeSourceTimestampForRobocopy(sourceFile, targetInfo, fileName);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log(
+                    $"UpdateCheckService.SharedNativeDLLsNeedCopyAsync: {fileName} comparison failed: "
+                    + $"{ex.Message}; sibling apps must stop.");
+                needsCopy = true;
+            }
+        }
+
+        return needsCopy;
+    }
+
+    /// <summary>Aligns equal shared DLL timestamps so robocopy does not recopy locked files.</summary>
+    private static void NormalizeSourceTimestampForRobocopy(
+        string sourceFile,
+        FileInfo targetInfo,
+        string fileName)
+    {
+        try
+        {
+            File.SetLastWriteTimeUtc(sourceFile, targetInfo.LastWriteTimeUtc);
+        }
+        catch (Exception ex)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.NormalizeSourceTimestampForRobocopy: {fileName} timestamp sync failed: "
+                + $"{ex.Message}");
+            throw;
+        }
+    }
+
     /// <summary>Builds the detached batch updater that replaces the installed payload and restarts apps.</summary>
     private static string BuildUpdateScript(
         int pid,
@@ -643,7 +734,8 @@ public sealed class UpdateCheckService : IDisposable
         string downloadedZip,
         string targetDirectory,
         string currentExe,
-        string logPath)
+        string logPath,
+        bool stopSiblingApps)
     {
         string targetPID = pid.ToString(CultureInfo.InvariantCulture);
         string sourceBAT = EscapeBATValue(sourceDirectory);
@@ -651,6 +743,7 @@ public sealed class UpdateCheckService : IDisposable
         string targetBAT = EscapeBATValue(targetDirectory);
         string exeBAT = EscapeBATValue(currentExe);
         string logBAT = EscapeBATValue(logPath);
+        string stopSiblingAppsBAT = stopSiblingApps ? "1" : "0";
         string targetWaitSeconds = UpdateScriptTargetWaitSeconds.ToString(CultureInfo.InvariantCulture);
         string terminateAttempts = UpdateScriptTerminateAttempts.ToString(CultureInfo.InvariantCulture);
         string stepDelayCommand = BATDelayCommand(UpdateScriptStepDelaySeconds);
@@ -665,6 +758,7 @@ public sealed class UpdateCheckService : IDisposable
         set "TARGET={targetBAT}"
         set "EXE={exeBAT}"
         set "LOG={logBAT}"
+        set STOP_SIBLING_APPS={stopSiblingAppsBAT}
         set "RESTARTLIST=%~dpn0.restart"
         set "RUNNINGFLAG=%~dpn0.running"
         set COPYRC=1
@@ -674,8 +768,12 @@ public sealed class UpdateCheckService : IDisposable
         > "%RESTARTLIST%" echo %EXE%
         >> "%LOG%" echo [%DATE% %TIME%] Update installer started.
         call :wait_for_target_exit
-        call :record_running_apps
-        call :terminate_running_apps
+        if "%STOP_SIBLING_APPS%"=="1" (
+          call :record_running_apps
+          call :terminate_running_apps
+        ) else (
+          >> "%LOG%" echo [%DATE% %TIME%] Shared native DLLs are unchanged; sibling apps can keep running.
+        )
         call :copy_update_payload
         set COPYRC=%ERRORLEVEL%
         if %COPYRC% GEQ 8 (
