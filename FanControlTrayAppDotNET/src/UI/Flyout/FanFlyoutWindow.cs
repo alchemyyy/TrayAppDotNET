@@ -472,10 +472,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     content.Children.Add(BuildFanRow(fan, cell, p, grouped: true, interactive));
             }
         }
-        else if (cell.Fans.Count == 1)
-        {
-            content.Children.Add(BuildFanRow(cell.Fans[0], cell, p, grouped: false, interactive));
-        }
+        else if (cell.Fans.Count == 1) content.Children.Add(BuildFanRow(cell.Fans[0], cell, p, grouped: false, interactive));
 
         Color background = cell.HasGroupHeader
             ? theme.ResolveGroupCardBackground(_settings, isLight)
@@ -801,7 +798,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         sliderRow.ColumnDefinitions.Add(
             new ColumnDefinition(new GridLength(FanFlyoutCell.GroupFanDisplayedValueSlotWidth)));
-        TextBlock? valueText = null;
+
         double? groupCurveSliderValue = ResolveGroupCurveSliderValue(cell);
         FlyoutSlider slider = CreateSlider(
             p,
@@ -824,6 +821,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 SaveGroupChanges();
             FlushPendingFanRebuild();
         };
+        TextBlock? valueText = null;
         slider.ValueChanged += (_, value) =>
         {
             if (cell.GroupCurrentControlMode != FanControlMode.Manual)
@@ -936,9 +934,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (propertyName is null or nameof(Fan.FanDisplayedValue) or nameof(Fan.FanDisplayedValueText)
                 or nameof(Fan.FanSliderMaximum) or nameof(Fan.CurrentControlMode) or nameof(Fan.CurrentRPM)
                 or nameof(Fan.CurrentDutyCycle))
-            {
                 RefreshFanSliderVisual(fan, refs);
-            }
 
             if (propertyName is null or nameof(Fan.CurrentControlMode))
             {
@@ -1397,8 +1393,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (_lhmService != null)
         {
             foreach (Fan fan in _lhmService.Fans)
+            {
                 if (string.Equals(fan.Group, cell.GroupName, StringComparison.OrdinalIgnoreCase))
                     fan.Group = null;
+            }
         }
 
         SaveGroupChanges();
@@ -1635,8 +1633,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         foreach ((Fan fan, int fanSequence) in ungrouped)
+        {
             slots.Add((new FanFlyoutCell(null, [fan]), NormalizeDisplayOrder(fan.FlyoutDisplayOrder), fanSequence,
                 fan.DisplayName));
+        }
 
         return
         [
@@ -1789,8 +1789,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         if (_draggedFan != null && style == FanDragGhostStyle.GroupedFan)
+        {
             return BuildFanRow(_draggedFan, new FanFlyoutCell(null, [_draggedFan]),
                 palette, grouped: true, interactive: false);
+        }
 
         return _draggedGroupCell != null
             ? BuildCell(_draggedGroupCell, palette, theme, isLight, interactive: false)
@@ -1839,12 +1841,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         ApplyDragGhostSurface(style);
-        if (_dragGhost.Child is Control child)
+        if (_dragGhost.Child is { } child)
             child.Width = width;
 
         _dragGhost.Width = width;
         Canvas.SetLeft(_dragGhost, ResolveDragGhostLeft(style, placement, source));
-        _dragGhostHeight = MeasureDragGhostHeight(_dragGhost.Child as Control, width, Math.Max(1, source.Bounds.Height));
+        _dragGhostHeight = MeasureDragGhostHeight(_dragGhost.Child, width, Math.Max(1, source.Bounds.Height));
         _dragGhost.Height = _dragGhostHeight;
         _dragPointerOffsetY = Math.Clamp(_dragPointerOffsetRatio * _dragGhostHeight, 0.0, _dragGhostHeight);
         MoveDragGhost(current);
@@ -1945,7 +1947,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         int count = Math.Min(_cells.Count, _cellStack.Children.Count);
         for (int i = 0; i < count; i++)
         {
-            if (_cellStack.Children[i] is not Control visual) continue;
+            if (_cellStack.Children[i] is not { } visual) continue;
             Point? top = visual.TranslatePoint(new Point(0, 0), _cellStack);
             if (top == null) continue;
             double renderOffsetY = RenderTransformOffsetY(visual);
@@ -2019,7 +2021,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         List<(Fan Fan, Control Visual, double Top, double Height, int FanIndex)> snapshot = [];
         for (int childIndex = 0; childIndex < content.Children.Count; childIndex++)
         {
-            if (content.Children[childIndex] is not Control child) continue;
+            if (content.Children[childIndex] is not { } child) continue;
             if (child.Tag is not Fan fan) continue;
             int fanIndex = IndexOfFan(cell, fan);
             if (fanIndex < 0) continue;
@@ -2031,8 +2033,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         for (int i = 0; i < snapshot.Count; i++)
+        {
             _dragFanSlots.Add(new FanDragFanSlot(cell, snapshot[i].Fan, snapshot[i].Visual, snapshot[i].Top,
                 snapshot[i].Height, snapshot[i].FanIndex));
+        }
     }
 
     private static double RenderTransformOffsetY(Control control) =>
@@ -2118,9 +2122,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_dragSourceTopLevelControl != null) _dragSourceTopLevelControl.Opacity = opacity;
         else
-        {
             _dragSourceControl?.Opacity = opacity;
-        }
     }
 
     private void MoveDragGhost(Point current)
@@ -2674,8 +2676,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             fan.CurrentControlMode = groupCell.GroupSettings.CurrentControlMode;
             if (fan.CurrentControlMode == FanControlMode.Manual)
+            {
                 fan.FanDisplayedValue =
                     Math.Clamp(groupCell.GroupSettings.FanDisplayedValue, 0, fan.FanSliderMaximum);
+            }
         }
 
         List<FanFlyoutCell> arranged = MoveFanIntoGroup([.. _cells], fan, groupCell, groupFanIndex);
@@ -2936,17 +2940,24 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         box.Tag = null;
         box.IsVisible = false;
         if (box.Parent is Grid grid)
+        {
             foreach (Control control in grid.Children)
+            {
                 if (control is TextBlock or Viewbox)
                     control.IsVisible = true;
+            }
+        }
     }
 
     private static T? FindVisualAncestor<T>(Visual visual)
         where T : Visual
     {
         for (Visual? current = visual; current != null; current = current.GetVisualParent())
+        {
             if (current is T match)
                 return match;
+        }
+
         return null;
     }
 
@@ -2961,14 +2972,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _groupSettingsByName[newName] = group;
         }
         else
-        {
             GetOrCreateGroupSettings(newName);
-        }
 
         if (_lhmService != null)
+        {
             foreach (Fan fan in _lhmService.Fans)
+            {
                 if (string.Equals(fan.Group, oldName, StringComparison.OrdinalIgnoreCase))
                     fan.Group = newName;
+            }
+        }
+
         SaveGroupChanges();
         RebuildCells();
         RebuildVisual();
@@ -3177,8 +3191,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (!IsVisible) return;
         List<FanPropertiesWindow> visible = [];
         foreach (Fan fan in _fanPropertiesOrder)
+        {
             if (_fanPropertiesWindows.TryGetValue(fan, out FanPropertiesWindow? window) && window.IsVisible)
                 visible.Add(window);
+        }
+
         if (visible.Count == 0) return;
         double flyoutHeight = Bounds.Height > 0 ? Bounds.Height : 300;
         int rows = Math.Min(Layout.FanPropertiesRowsPerColumn, visible.Count);
@@ -3392,6 +3409,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         if (_lhmService != null)
+        {
             foreach (Fan fan in _lhmService.Fans)
             {
                 if (string.IsNullOrWhiteSpace(fan.Group)) continue;
@@ -3399,6 +3417,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     string.Equals(fan.Group, ignoredName, StringComparison.OrdinalIgnoreCase)) continue;
                 used.Add(fan.Group);
             }
+        }
 
         if (!used.Contains(normalizedBase)) return normalizedBase;
         int suffix = 2;
@@ -3437,8 +3456,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             if (_lhmService == null) return;
             foreach (Fan fan in _lhmService.Fans)
+            {
                 if (string.IsNullOrWhiteSpace(fan.Group) && fan.FlyoutDisplayOrder >= 0)
                     fan.FlyoutDisplayOrder += offset;
+            }
         }
         finally
         {

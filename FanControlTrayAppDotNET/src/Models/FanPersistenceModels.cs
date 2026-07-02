@@ -26,9 +26,7 @@ public class FanGroup : INotifyPropertyChanged
             if (!string.IsNullOrEmpty(oldName)
                 && FanGroups.TryGetValue(oldName, out FanGroup? registered)
                 && ReferenceEquals(registered, this))
-            {
                 FanGroups.Remove(oldName);
-            }
 
             Register(this);
             OnPropertyChanged();
