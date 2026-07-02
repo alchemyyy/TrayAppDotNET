@@ -119,6 +119,10 @@ public sealed class UpdateCheckService : IDisposable
     private const int HttpNotFound = 404;
     private const int PollFlagIdle = 0;
     private const int PollFlagBusy = 1;
+    private const int UpdateScriptTargetWaitSeconds = 60;
+    private const int UpdateScriptTerminateAttempts = 20;
+    private const int UpdateScriptStepDelaySeconds = 1;
+    private const int UpdateScriptTerminateDelaySeconds = 1;
 
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
@@ -632,6 +636,7 @@ public sealed class UpdateCheckService : IDisposable
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
         ex.StatusCode is { } statusCode && IsTerminalHttpStatus(statusCode);
 
+    /// <summary>Builds the detached batch updater that replaces the installed payload and restarts apps.</summary>
     private static string BuildUpdateScript(
         int pid,
         string sourceDirectory,
@@ -640,48 +645,152 @@ public sealed class UpdateCheckService : IDisposable
         string currentExe,
         string logPath)
     {
-        StringBuilder sb = new();
-        sb.AppendLine("@echo off");
-        sb.AppendLine("setlocal EnableExtensions EnableDelayedExpansion");
-        sb.AppendLine($"set TARGETPID={pid}");
-        sb.AppendLine($"set \"SOURCE={sourceDirectory}\"");
-        sb.AppendLine($"set \"ZIP={downloadedZip}\"");
-        sb.AppendLine($"set \"TARGET={targetDirectory}\"");
-        sb.AppendLine($"set \"EXE={currentExe}\"");
-        sb.AppendLine($"set \"LOG={logPath}\"");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Update installer started.");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Waiting for PID %TARGETPID%.");
-        sb.AppendLine("set WAITCOUNT=0");
-        sb.AppendLine(":waitloop");
-        sb.AppendLine("tasklist /FI \"PID eq %TARGETPID%\" 2>NUL | find \"%TARGETPID%\" >NUL");
-        sb.AppendLine("if not errorlevel 1 (");
-        sb.AppendLine("  set /a WAITCOUNT+=1");
-        sb.AppendLine("  if !WAITCOUNT! GEQ 60 (");
-        sb.AppendLine("    >> \"%LOG%\" echo [%DATE% %TIME%] PID %TARGETPID% still running after wait limit.");
-        sb.AppendLine("    >> \"%LOG%\" echo [%DATE% %TIME%] Terminating PID %TARGETPID%.");
-        sb.AppendLine("    taskkill /PID %TARGETPID% /T /F >> \"%LOG%\" 2>&1");
-        sb.AppendLine("    timeout /t 1 /nobreak >NUL");
-        sb.AppendLine("    goto afterwait");
-        sb.AppendLine("  )");
-        sb.AppendLine("  timeout /t 1 /nobreak >NUL");
-        sb.AppendLine("  goto waitloop");
-        sb.AppendLine(")");
-        sb.AppendLine(":afterwait");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Copying from \"%SOURCE%\" to \"%TARGET%\".");
-        sb.AppendLine("timeout /t 1 /nobreak >NUL");
-        sb.AppendLine("robocopy \"%SOURCE%\" \"%TARGET%\" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NC /NS >> \"%LOG%\" 2>&1");
-        sb.AppendLine("set COPYRC=%ERRORLEVEL%");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Robocopy exit code %COPYRC%.");
-        sb.AppendLine("if %COPYRC% GEQ 8 goto cleanup");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Restarting \"%EXE%\".");
-        sb.AppendLine("start \"\" /D \"%TARGET%\" \"%EXE%\"");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Start exit code %ERRORLEVEL%.");
-        sb.AppendLine(":cleanup");
-        sb.AppendLine(">> \"%LOG%\" echo [%DATE% %TIME%] Cleaning staging files.");
-        sb.AppendLine("rmdir /S /Q \"%SOURCE%\" 2>NUL");
-        sb.AppendLine("del \"%ZIP%\" 2>NUL");
-        sb.AppendLine("(goto) 2>nul & del \"%~f0\"");
-        return sb.ToString();
+        string targetPID = pid.ToString(CultureInfo.InvariantCulture);
+        string sourceBAT = EscapeBATValue(sourceDirectory);
+        string zipBAT = EscapeBATValue(downloadedZip);
+        string targetBAT = EscapeBATValue(targetDirectory);
+        string exeBAT = EscapeBATValue(currentExe);
+        string logBAT = EscapeBATValue(logPath);
+        string targetWaitSeconds = UpdateScriptTargetWaitSeconds.ToString(CultureInfo.InvariantCulture);
+        string terminateAttempts = UpdateScriptTerminateAttempts.ToString(CultureInfo.InvariantCulture);
+        string stepDelayCommand = BATDelayCommand(UpdateScriptStepDelaySeconds);
+        string terminateDelayCommand = BATDelayCommand(UpdateScriptTerminateDelaySeconds);
+
+        return $"""
+        @echo off
+        setlocal EnableExtensions
+        set TARGETPID={targetPID}
+        set "SOURCE={sourceBAT}"
+        set "ZIP={zipBAT}"
+        set "TARGET={targetBAT}"
+        set "EXE={exeBAT}"
+        set "LOG={logBAT}"
+        set "RESTARTLIST=%~dpn0.restart"
+        set "RUNNINGFLAG=%~dpn0.running"
+        set COPYRC=1
+        set PROCESSRC=1
+        if exist "%RESTARTLIST%" del /f /q "%RESTARTLIST%" >NUL 2>&1
+        if exist "%RUNNINGFLAG%" del /f /q "%RUNNINGFLAG%" >NUL 2>&1
+        > "%RESTARTLIST%" echo %EXE%
+        >> "%LOG%" echo [%DATE% %TIME%] Update installer started.
+        call :wait_for_target_exit
+        call :record_running_apps
+        call :terminate_running_apps
+        call :copy_update_payload
+        set COPYRC=%ERRORLEVEL%
+        if %COPYRC% GEQ 8 (
+          set PROCESSRC=%COPYRC%
+          >> "%LOG%" echo [%DATE% %TIME%] Copy failed; restarting recorded apps from the existing install root.
+        ) else (
+          set PROCESSRC=0
+          >> "%LOG%" echo [%DATE% %TIME%] Copy succeeded; restarting recorded apps.
+        )
+        call :restart_recorded_apps
+        goto cleanup
+
+        :wait_for_target_exit
+        >> "%LOG%" echo [%DATE% %TIME%] Waiting for PID %TARGETPID%.
+        set WAITCOUNT=0
+        :waitloop
+        tasklist /FI "PID eq %TARGETPID%" /FO CSV /NH 2>NUL | find "%TARGETPID%" >NUL
+        if errorlevel 1 goto afterwait
+        set /a WAITCOUNT+=1 >NUL
+        if %WAITCOUNT% GEQ {targetWaitSeconds} goto force_target_exit
+        {stepDelayCommand}
+        goto waitloop
+        :force_target_exit
+        >> "%LOG%" echo [%DATE% %TIME%] PID %TARGETPID% still running after wait limit.
+        >> "%LOG%" echo [%DATE% %TIME%] Terminating PID %TARGETPID%.
+        taskkill /PID %TARGETPID% /T /F >> "%LOG%" 2>&1
+        {stepDelayCommand}
+        :afterwait
+        exit /b 0
+
+        :record_running_apps
+        >> "%LOG%" echo [%DATE% %TIME%] Recording running sibling TrayAppDotNET apps from "%TARGET%".
+        for %%F in ("%TARGET%\*TrayAppDotNET.exe") do (
+          if exist "%%~fF" (
+            if /I not "%%~fF"=="%EXE%" (
+              tasklist /FI "IMAGENAME eq %%~nxF" /FO CSV /NH 2>NUL | find /I "%%~nxF" >NUL
+              if not errorlevel 1 (
+                >> "%LOG%" echo [%DATE% %TIME%] Recording "%%~fF" for restart.
+                >> "%RESTARTLIST%" echo %%~fF
+              )
+            )
+          )
+        )
+        exit /b 0
+
+        :terminate_running_apps
+        >> "%LOG%" echo [%DATE% %TIME%] Terminating known TrayAppDotNET app names from "%TARGET%".
+        for /L %%I in (1,1,{terminateAttempts}) do (
+          if exist "%RUNNINGFLAG%" del /f /q "%RUNNINGFLAG%" >NUL 2>&1
+          call :terminate_running_once
+          if not exist "%RUNNINGFLAG%" exit /b 0
+          {terminateDelayCommand}
+        )
+        if exist "%RUNNINGFLAG%" (
+          >> "%LOG%" echo [%DATE% %TIME%] WARNING: one or more TrayAppDotNET app names remained after termination attempts.
+          del /f /q "%RUNNINGFLAG%" >NUL 2>&1
+        )
+        exit /b 0
+
+        :terminate_running_once
+        for %%F in ("%TARGET%\*TrayAppDotNET.exe") do (
+          if exist "%%~fF" (
+            tasklist /FI "IMAGENAME eq %%~nxF" /FO CSV /NH 2>NUL | find /I "%%~nxF" >NUL
+            if not errorlevel 1 (
+              > "%RUNNINGFLAG%" echo 1
+              >> "%LOG%" echo [%DATE% %TIME%] Terminating "%%~nxF".
+              taskkill /IM "%%~nxF" /T /F >> "%LOG%" 2>&1
+            )
+          )
+        )
+        exit /b 0
+
+        :copy_update_payload
+        >> "%LOG%" echo [%DATE% %TIME%] Copying from "%SOURCE%" to "%TARGET%".
+        {stepDelayCommand}
+        robocopy "%SOURCE%" "%TARGET%" /E /R:3 /W:1 /NFL /NDL /NJH /NJS /NC /NS >> "%LOG%" 2>&1
+        set COPYRC=%ERRORLEVEL%
+        >> "%LOG%" echo [%DATE% %TIME%] Robocopy exit code %COPYRC%.
+        exit /b %COPYRC%
+
+        :restart_recorded_apps
+        if not exist "%RESTARTLIST%" exit /b 0
+        for /F "usebackq delims=" %%P in ("%RESTARTLIST%") do call :start_recorded_app "%%~fP"
+        exit /b 0
+
+        :start_recorded_app
+        if not exist "%~1" (
+          >> "%LOG%" echo [%DATE% %TIME%] Skipping missing executable "%~1".
+          exit /b 0
+        )
+        set "APPDIR=%~dp1"
+        >> "%LOG%" echo [%DATE% %TIME%] Starting "%~1".
+        start "" /D "%APPDIR%" "%~1"
+        >> "%LOG%" echo [%DATE% %TIME%] Start exit code %ERRORLEVEL%.
+        exit /b 0
+
+        :cleanup
+        >> "%LOG%" echo [%DATE% %TIME%] Cleaning staging files.
+        if exist "%RUNNINGFLAG%" del /f /q "%RUNNINGFLAG%" >NUL 2>&1
+        if exist "%RESTARTLIST%" del /f /q "%RESTARTLIST%" >NUL 2>&1
+        rmdir /S /Q "%SOURCE%" 2>NUL
+        del "%ZIP%" 2>NUL
+        (goto) 2>nul & del "%~f0" & exit /b %PROCESSRC%
+        """;
+    }
+
+    /// <summary>Escapes a value embedded in a batch file variable assignment.</summary>
+    private static string EscapeBATValue(string value) =>
+        value.Replace("%", "%%", StringComparison.Ordinal);
+
+    /// <summary>Builds a batch-compatible delay command that does not read console input.</summary>
+    private static string BATDelayCommand(int seconds)
+    {
+        int pingCount = Math.Max(2, seconds + 1);
+        return $"ping -n {pingCount.ToString(CultureInfo.InvariantCulture)} 127.0.0.1 >NUL";
     }
 
     private static void ExtractZip(string zipPath, string destinationDirectory)
