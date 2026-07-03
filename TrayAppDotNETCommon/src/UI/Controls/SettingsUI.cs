@@ -12,6 +12,102 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
+internal static class SettingsUILayout
+{
+    private static readonly ControlAXAMLResources R = new(
+        "avares://TrayAppDotNETCommon/UI/Controls/SettingsUI.axaml",
+        "SettingsUI");
+
+    public static Thickness NavItemMargin => R.Thickness("NavItemMargin");
+    public static Thickness NavActionMargin => R.Thickness("NavActionMargin");
+    public static double NavIndicatorWidth => R.Double("NavIndicatorWidth");
+    public static double NavIndicatorHeight => R.Double("NavIndicatorHeight");
+    public static CornerRadius NavIndicatorRadius => R.CornerRadius("NavIndicatorRadius");
+    public static Thickness NavIndicatorMargin => R.Thickness("NavIndicatorMargin");
+    public static CornerRadius NavItemRadius => R.CornerRadius("NavItemRadius");
+    public static Thickness NavItemPadding => R.Thickness("NavItemPadding");
+    public static Thickness NavItemInnerMargin => R.Thickness("NavItemInnerMargin");
+    public static CornerRadius ButtonRadius => R.CornerRadius("ButtonRadius");
+    public static double ButtonMinHeight => R.Double("ButtonMinHeight");
+    public static Thickness ButtonPadding => R.Thickness("ButtonPadding");
+    public static double EnabledOpacity => R.Double("EnabledOpacity");
+    public static double DisabledOpacity => R.Double("DisabledOpacity");
+    public static double ControlDisabledOpacity => R.Double("ControlDisabledOpacity");
+    public static double ToggleWidth => R.Double("ToggleWidth");
+    public static double ToggleHeight => R.Double("ToggleHeight");
+    public static CornerRadius ToggleTrackRadius => R.CornerRadius("ToggleTrackRadius");
+    public static Thickness ToggleBorderThickness => R.Thickness("ToggleBorderThickness");
+    public static double ToggleThumbWidth => R.Double("ToggleThumbWidth");
+    public static double ToggleThumbHeight => R.Double("ToggleThumbHeight");
+    public static double ToggleThumbHoverSize => R.Double("ToggleThumbHoverSize");
+    public static double ToggleThumbCheckedSize => R.Double("ToggleThumbCheckedSize");
+    public static CornerRadius ToggleThumbRadius => R.CornerRadius("ToggleThumbRadius");
+    public static Thickness ToggleThumbUncheckedMargin => R.Thickness("ToggleThumbUncheckedMargin");
+    public static Thickness ToggleThumbCheckedMargin => R.Thickness("ToggleThumbCheckedMargin");
+    public static double SwatchWidth => R.Double("SwatchWidth");
+    public static double SwatchHeight => R.Double("SwatchHeight");
+    public static CornerRadius SwatchRadius => R.CornerRadius("SwatchRadius");
+    public static Thickness SwatchBorderThickness => R.Thickness("SwatchBorderThickness");
+    public static Thickness SwatchMargin => R.Thickness("SwatchMargin");
+    public static double SwatchFallbackOpacity => R.Double("SwatchFallbackOpacity");
+    public static double ScrollWheelStep => R.Double("ScrollWheelStep");
+    public static double ScrollBarTotalWidth => R.Double("ScrollBarTotalWidth");
+    public static double ScrollBarCollapsedTrackWidth => R.Double("ScrollBarCollapsedTrackWidth");
+    public static double ScrollBarThumbMargin => R.Double("ScrollBarThumbMargin");
+    public static double ScrollBarMinThumbHeight => R.Double("ScrollBarMinThumbHeight");
+    public static Thickness ComboItemPadding => R.Thickness("ComboItemPadding");
+    public static double ComboIndicatorWidth => R.Double("ComboIndicatorWidth");
+    public static double ComboIndicatorHeight => R.Double("ComboIndicatorHeight");
+    public static CornerRadius ComboIndicatorRadius => R.CornerRadius("ComboIndicatorRadius");
+    public static double ComboIndicatorColumnWidth => R.Double("ComboIndicatorColumnWidth");
+    public static double ComboIndicatorGapWidth => R.Double("ComboIndicatorGapWidth");
+    public static CornerRadius ComboItemRadius => R.CornerRadius("ComboItemRadius");
+    public static Thickness ComboItemInnerPadding => R.Thickness("ComboItemInnerPadding");
+    public static double ComboArrowColumnWidth => R.Double("ComboArrowColumnWidth");
+    public static double ComboDefaultMinWidth => R.Double("ComboDefaultMinWidth");
+    public static double ComboPopupMaxHeight => R.Double("ComboPopupMaxHeight");
+    public static double ComboAutoSizeExtraPadding => R.Double("ComboAutoSizeExtraPadding");
+    public static Thickness ComboContentPadding => R.Thickness("ComboContentPadding");
+    public static double ComboHeight => R.Double("ComboHeight");
+    public static Thickness ComboBorderThickness => R.Thickness("ComboBorderThickness");
+    public static CornerRadius ComboRadius => R.CornerRadius("ComboRadius");
+    public static Thickness ComboPopupScrollPadding => R.Thickness("ComboPopupScrollPadding");
+    public static Thickness ComboPopupBorderThickness => R.Thickness("ComboPopupBorderThickness");
+    public static CornerRadius ComboPopupRadius => R.CornerRadius("ComboPopupRadius");
+    public static Thickness ComboPopupPadding => R.Thickness("ComboPopupPadding");
+    public static Thickness ComboPopupMargin => R.Thickness("ComboPopupMargin");
+    public static double NumberBoxHeight => R.Double("NumberBoxHeight");
+    public static double NumberBoxSpinnerColumnWidth => R.Double("NumberBoxSpinnerColumnWidth");
+    public static Thickness NumberTextBorderThickness => R.Thickness("NumberTextBorderThickness");
+    public static double NumberTextFontSize => R.Double("NumberTextFontSize");
+    public static Thickness NumberTextPadding => R.Thickness("NumberTextPadding");
+    public static Thickness NumberSuffixMargin => R.Thickness("NumberSuffixMargin");
+    public static CornerRadius NumberValueRadius => R.CornerRadius("NumberValueRadius");
+    public static double NumberSuffixPlaceholderOpacity => R.Double("NumberSuffixPlaceholderOpacity");
+    public static double NumberSuffixFontSize => R.Double("NumberSuffixFontSize");
+    public static double NumberValueFontSize => R.Double("NumberValueFontSize");
+    public static double NumberAutoWidthReserve => R.Double("NumberAutoWidthReserve");
+    public static CornerRadius SpinnerButtonRadius => R.CornerRadius("SpinnerButtonRadius");
+    public static double SpinnerGlyphFontSize => R.Double("SpinnerGlyphFontSize");
+    public static double SectionHeaderFontSize => R.Double("SectionHeaderFontSize");
+    public static Thickness SectionHeaderMargin => R.Thickness("SectionHeaderMargin");
+    public static double SubsectionHeaderFontSize => R.Double("SubsectionHeaderFontSize");
+    public static Thickness SubsectionHeaderMargin => R.Thickness("SubsectionHeaderMargin");
+    public static double TitleFontSize => R.Double("TitleFontSize");
+    public static double DescriptionFontSize => R.Double("DescriptionFontSize");
+    public static double DescriptionOpacity => R.Double("DescriptionOpacity");
+    public static Thickness DescriptionMargin => R.Thickness("DescriptionMargin");
+    public static Thickness CardRightControlMargin => R.Thickness("CardRightControlMargin");
+    public static CornerRadius CardRadius => R.CornerRadius("CardRadius");
+    public static Thickness CardPadding => R.Thickness("CardPadding");
+    public static Thickness CardMargin => R.Thickness("CardMargin");
+    public static double TextBoxHeight => R.Double("TextBoxHeight");
+    public static double TextBoxFontSize => R.Double("TextBoxFontSize");
+    public static Thickness TextBoxBorderThickness => R.Thickness("TextBoxBorderThickness");
+    public static Thickness TextBoxPadding => R.Thickness("TextBoxPadding");
+    public static double CaptionGlyphFontSize => R.Double("CaptionGlyphFontSize");
+}
+
 public readonly record struct SettingsPalette(
     Color Background,
     Color Foreground,
@@ -59,20 +155,20 @@ public sealed class SettingsNavItem : Border
     {
         _palette = palette;
         Background = Brushes.Transparent;
-        Margin = new Thickness(4, 0);
+        Margin = SettingsUILayout.NavItemMargin;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
         _indicator = new Border
         {
-            Width = 3,
-            Height = 16,
-            CornerRadius = indicatorRadius ?? new CornerRadius(1.5),
+            Width = SettingsUILayout.NavIndicatorWidth,
+            Height = SettingsUILayout.NavIndicatorHeight,
+            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorRadius,
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
+            Margin = SettingsUILayout.NavIndicatorMargin,
         };
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
@@ -89,9 +185,9 @@ public sealed class SettingsNavItem : Border
         _outer = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = itemRadius ?? new CornerRadius(4),
-            Padding = new Thickness(12, 10),
-            Margin = new Thickness(0, 2),
+            CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
+            Padding = SettingsUILayout.NavItemPadding,
+            Margin = SettingsUILayout.NavItemInnerMargin,
             Child = row,
         };
         Child = _outer;
@@ -162,20 +258,20 @@ public sealed class SettingsNavAction : Border
     {
         _palette = palette;
         Background = Brushes.Transparent;
-        Margin = new Thickness(4, 2);
+        Margin = SettingsUILayout.NavActionMargin;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
         Border indicator = new()
         {
-            Width = 3,
-            Height = 16,
-            CornerRadius = indicatorRadius ?? new CornerRadius(1.5),
+            Width = SettingsUILayout.NavIndicatorWidth,
+            Height = SettingsUILayout.NavIndicatorHeight,
+            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorRadius,
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
+            Margin = SettingsUILayout.NavIndicatorMargin,
         };
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
@@ -192,8 +288,8 @@ public sealed class SettingsNavAction : Border
         _outer = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = itemRadius ?? new CornerRadius(4),
-            Padding = new Thickness(12, 10),
+            CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
+            Padding = SettingsUILayout.NavItemPadding,
             Child = row,
         };
         Child = _outer;
@@ -266,9 +362,9 @@ public sealed class SettingsButton : Border
         _label.VerticalAlignment = VerticalAlignment.Center;
 
         Background = transparentBase ? Brushes.Transparent : TrayAppDotNETSettingsUI.Brush(palette.ControlBackground);
-        CornerRadius = new CornerRadius(4);
-        MinHeight = 32;
-        Padding = new Thickness(12, 6);
+        CornerRadius = SettingsUILayout.ButtonRadius;
+        MinHeight = SettingsUILayout.ButtonMinHeight;
+        Padding = SettingsUILayout.ButtonPadding;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
         Child = navGutter ? CreateNavContent(_label) : _label;
@@ -334,7 +430,7 @@ public sealed class SettingsButton : Border
 
     private void UpdateVisual()
     {
-        Opacity = IsEnabled ? 1.0 : 0.4;
+        Opacity = IsEnabled ? SettingsUILayout.EnabledOpacity : SettingsUILayout.DisabledOpacity;
         if (_isPressed)
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Pressed);
         else if (_isPointerOver)
@@ -352,12 +448,12 @@ public sealed class SettingsButton : Border
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.Children.Add(new Border
         {
-            Width = 3,
-            Height = 16,
-            CornerRadius = new CornerRadius(1.5),
+            Width = SettingsUILayout.NavIndicatorWidth,
+            Height = SettingsUILayout.NavIndicatorHeight,
+            CornerRadius = SettingsUILayout.NavIndicatorRadius,
             Background = Brushes.Transparent,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 8, 0),
+            Margin = SettingsUILayout.NavIndicatorMargin,
         });
 
         Grid.SetColumn(label, 1);
@@ -377,29 +473,32 @@ public sealed class SettingsToggle : Border
     public SettingsToggle(SettingsPalette palette)
     {
         _palette = palette;
-        Width = 40;
-        Height = 20;
+        Width = SettingsUILayout.ToggleWidth;
+        Height = SettingsUILayout.ToggleHeight;
         Background = Brushes.Transparent;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
 
-        Grid grid = new() { Width = 40, Height = 20, IsHitTestVisible = false };
+        Grid grid = new()
+        {
+            Width = SettingsUILayout.ToggleWidth, Height = SettingsUILayout.ToggleHeight, IsHitTestVisible = false
+        };
         _track = new Border
         {
-            Width = 40,
-            Height = 20,
-            CornerRadius = new CornerRadius(10),
-            BorderThickness = new Thickness(1),
+            Width = SettingsUILayout.ToggleWidth,
+            Height = SettingsUILayout.ToggleHeight,
+            CornerRadius = SettingsUILayout.ToggleTrackRadius,
+            BorderThickness = SettingsUILayout.ToggleBorderThickness,
             IsHitTestVisible = false,
         };
         _thumb = new Border
         {
-            Width = 10,
-            Height = 10,
-            CornerRadius = new CornerRadius(7),
+            Width = SettingsUILayout.ToggleThumbWidth,
+            Height = SettingsUILayout.ToggleThumbHeight,
+            CornerRadius = SettingsUILayout.ToggleThumbRadius,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(5, 0, 0, 0),
+            Margin = SettingsUILayout.ToggleThumbUncheckedMargin,
             IsHitTestVisible = false,
         };
         grid.Children.Add(_track);
@@ -459,27 +558,31 @@ public sealed class SettingsToggle : Border
 
     private void UpdateVisual()
     {
-        Opacity = IsEnabled ? 1.0 : 0.45;
+        Opacity = IsEnabled ? SettingsUILayout.EnabledOpacity : SettingsUILayout.ControlDisabledOpacity;
 
         if (_isChecked)
         {
             _track.Background = TrayAppDotNETSettingsUI.Brush(_palette.ToggleOnTrack);
             _track.BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.ToggleOnTrack);
             _thumb.Background = TrayAppDotNETSettingsUI.Brush(_palette.ToggleOnThumb);
-            _thumb.Width = _isPointerOver ? 12 : 14;
-            _thumb.Height = _isPointerOver ? 12 : 14;
+            _thumb.Width = _isPointerOver
+                ? SettingsUILayout.ToggleThumbHoverSize
+                : SettingsUILayout.ToggleThumbCheckedSize;
+            _thumb.Height = _isPointerOver
+                ? SettingsUILayout.ToggleThumbHoverSize
+                : SettingsUILayout.ToggleThumbCheckedSize;
             _thumb.HorizontalAlignment = HorizontalAlignment.Right;
-            _thumb.Margin = new Thickness(0, 0, 3, 0);
+            _thumb.Margin = SettingsUILayout.ToggleThumbCheckedMargin;
             return;
         }
 
         _track.Background = Brushes.Transparent;
         _track.BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Foreground);
         _thumb.Background = TrayAppDotNETSettingsUI.Brush(_palette.Foreground);
-        _thumb.Width = _isPointerOver ? 12 : 10;
-        _thumb.Height = _isPointerOver ? 12 : 10;
+        _thumb.Width = _isPointerOver ? SettingsUILayout.ToggleThumbHoverSize : SettingsUILayout.ToggleThumbWidth;
+        _thumb.Height = _isPointerOver ? SettingsUILayout.ToggleThumbHoverSize : SettingsUILayout.ToggleThumbHeight;
         _thumb.HorizontalAlignment = HorizontalAlignment.Left;
-        _thumb.Margin = new Thickness(5, 0, 0, 0);
+        _thumb.Margin = SettingsUILayout.ToggleThumbUncheckedMargin;
     }
 }
 
@@ -491,12 +594,12 @@ public sealed class SettingsSwatch : Border
     public SettingsSwatch(SettingsPalette palette)
     {
         _palette = palette;
-        Width = 32;
-        Height = 28;
-        CornerRadius = new CornerRadius(4);
-        BorderThickness = new Thickness(1);
+        Width = SettingsUILayout.SwatchWidth;
+        Height = SettingsUILayout.SwatchHeight;
+        CornerRadius = SettingsUILayout.SwatchRadius;
+        BorderThickness = SettingsUILayout.SwatchBorderThickness;
         BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
-        Margin = new Thickness(0, 0, 6, 0);
+        Margin = SettingsUILayout.SwatchMargin;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
 
@@ -535,7 +638,7 @@ public sealed class SettingsSwatch : Border
     public void SetColor(Color? color, Color fallback)
     {
         Background = TrayAppDotNETSettingsUI.Brush(color ?? fallback);
-        Opacity = color.HasValue ? 1.0 : 0.35;
+        Opacity = color.HasValue ? SettingsUILayout.EnabledOpacity : SettingsUILayout.SwatchFallbackOpacity;
     }
 
     private void UpdateBorder() =>
@@ -544,7 +647,6 @@ public sealed class SettingsSwatch : Border
 
 public sealed class SettingsScrollHost : Grid
 {
-    private const double WheelStep = 72;
     private readonly ScrollViewer _scrollViewer;
 
     public SettingsScrollHost(Control content, SettingsPalette palette, Thickness padding)
@@ -594,7 +696,10 @@ public sealed class SettingsScrollHost : Grid
             return;
         }
 
-        double next = Math.Clamp(_scrollViewer.Offset.Y - (e.Delta.Y * WheelStep), 0, maxOffset);
+        double next = Math.Clamp(
+            _scrollViewer.Offset.Y - (e.Delta.Y * SettingsUILayout.ScrollWheelStep),
+            0,
+            maxOffset);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, next);
         e.Handled = true;
     }
@@ -604,11 +709,6 @@ public sealed class SettingsScrollHost : Grid
 
 internal sealed class SettingsScrollBar : Control
 {
-    private const double TotalWidth = 22;
-    private const double CollapsedTrackWidth = 12;
-    private const double ThumbMargin = 4;
-    private const double MinThumbHeight = 24;
-
     private readonly SettingsPalette _palette;
     private ScrollViewer? _viewer;
     private bool _isPointerOver;
@@ -618,7 +718,7 @@ internal sealed class SettingsScrollBar : Control
     public SettingsScrollBar(SettingsPalette palette)
     {
         _palette = palette;
-        Width = TotalWidth;
+        Width = SettingsUILayout.ScrollBarTotalWidth;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = false;
         IsHitTestVisible = true;
@@ -726,7 +826,9 @@ internal sealed class SettingsScrollBar : Control
 
     private bool IsExpanded => _isPointerOver || _isDragging;
 
-    private double TrackWidth => IsExpanded ? TotalWidth : CollapsedTrackWidth;
+    private double TrackWidth => IsExpanded
+        ? SettingsUILayout.ScrollBarTotalWidth
+        : SettingsUILayout.ScrollBarCollapsedTrackWidth;
 
     private double MaxOffset => _viewer == null ? 0 : Math.Max(0, _viewer.Extent.Height - _viewer.Viewport.Height);
 
@@ -739,11 +841,11 @@ internal sealed class SettingsScrollBar : Control
         double extent = Math.Max(viewport, _viewer.Extent.Height);
         double thumbHeight = extent <= 0
             ? 0
-            : Math.Min(height, Math.Max(MinThumbHeight, height * viewport / extent));
+            : Math.Min(height, Math.Max(SettingsUILayout.ScrollBarMinThumbHeight, height * viewport / extent));
         double available = Math.Max(0, height - thumbHeight);
         double top = MaxOffset <= 0 ? 0 : Math.Clamp(_viewer.Offset.Y / MaxOffset * available, 0, available);
-        double width = Math.Max(2, TrackWidth - (ThumbMargin * 2));
-        double left = TotalWidth - TrackWidth + ThumbMargin;
+        double width = Math.Max(2, TrackWidth - (SettingsUILayout.ScrollBarThumbMargin * 2));
+        double left = SettingsUILayout.ScrollBarTotalWidth - TrackWidth + SettingsUILayout.ScrollBarThumbMargin;
         return new Rect(left, top, width, thumbHeight);
     }
 
@@ -787,16 +889,16 @@ public sealed class SettingsComboBoxItem : Border
         _contentFactory = contentFactory;
 
         Background = Brushes.Transparent;
-        Padding = new Thickness(4, 2);
+        Padding = SettingsUILayout.ComboItemPadding;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
         _selectionBar = new Border
         {
-            Width = 3,
-            Height = 16,
-            CornerRadius = new CornerRadius(1.5),
+            Width = SettingsUILayout.ComboIndicatorWidth,
+            Height = SettingsUILayout.ComboIndicatorHeight,
+            CornerRadius = SettingsUILayout.ComboIndicatorRadius,
             Background = Brushes.Transparent,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -805,8 +907,8 @@ public sealed class SettingsComboBoxItem : Border
         content.VerticalAlignment = VerticalAlignment.Center;
 
         Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(3)));
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboIndicatorColumnWidth)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboIndicatorGapWidth)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         row.Children.Add(_selectionBar);
         Grid.SetColumn(content, 2);
@@ -815,8 +917,8 @@ public sealed class SettingsComboBoxItem : Border
         _inner = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(12, 8),
+            CornerRadius = SettingsUILayout.ComboItemRadius,
+            Padding = SettingsUILayout.ComboItemInnerPadding,
             Child = row,
         };
         Child = _inner;
@@ -903,11 +1005,6 @@ public enum SettingsComboBoxAutoSizeMode
 
 public sealed class SettingsComboBox : Grid
 {
-    private const double ArrowColumnWidth = 36;
-    private const double DefaultMinWidth = 153;
-    private const double PopupMaxHeight = 320;
-    private const double AutoSizeExtraPadding = 4;
-
     private readonly SettingsPalette _palette;
     private readonly SettingsComboBoxItemCollection _items;
     private readonly Border _surface;
@@ -921,11 +1018,11 @@ public sealed class SettingsComboBox : Grid
     private bool _isPressed;
     private bool _isDropDownOpen;
     private SettingsComboBoxItem? _selectedItem;
-    private Thickness _contentPadding = new(12, 0);
+    private Thickness _contentPadding = SettingsUILayout.ComboContentPadding;
 
     public SettingsComboBox(
         SettingsPalette palette,
-        double width = DefaultMinWidth,
+        double width = 153,
         bool autoSizeToText = false,
         SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem)
     {
@@ -934,9 +1031,9 @@ public sealed class SettingsComboBox : Grid
         _autoSizeMode = autoSizeMode;
         _items = new SettingsComboBoxItemCollection(this);
 
-        MinWidth = DefaultMinWidth;
+        MinWidth = SettingsUILayout.ComboDefaultMinWidth;
         Width = autoSizeToText ? double.NaN : width;
-        Height = 32;
+        Height = SettingsUILayout.ComboHeight;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
         ClipToBounds = false;
@@ -951,7 +1048,7 @@ public sealed class SettingsComboBox : Grid
 
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ArrowColumnWidth)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboArrowColumnWidth)));
         row.Children.Add(_selectionPresenter);
         SetColumn(arrow, 1);
         row.Children.Add(arrow);
@@ -960,23 +1057,26 @@ public sealed class SettingsComboBox : Grid
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            CornerRadius = new CornerRadius(4),
+            BorderThickness = SettingsUILayout.ComboBorderThickness,
+            CornerRadius = SettingsUILayout.ComboRadius,
             Child = row,
         };
         Children.Add(_surface);
 
         _itemsPanel = new StackPanel();
-        SettingsScrollHost scrollHost = new(_itemsPanel, palette, new Thickness(0)) { MaxHeight = PopupMaxHeight, };
+        SettingsScrollHost scrollHost = new(_itemsPanel, palette, SettingsUILayout.ComboPopupScrollPadding)
+        {
+            MaxHeight = SettingsUILayout.ComboPopupMaxHeight,
+        };
 
         _popupBorder = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(0, 4),
-            Margin = new Thickness(8),
+            BorderThickness = SettingsUILayout.ComboPopupBorderThickness,
+            CornerRadius = SettingsUILayout.ComboPopupRadius,
+            Padding = SettingsUILayout.ComboPopupPadding,
+            Margin = SettingsUILayout.ComboPopupMargin,
             Child = scrollHost,
         };
 
@@ -1068,7 +1168,7 @@ public sealed class SettingsComboBox : Grid
         {
             if (_autoSizeToText == value) return;
             _autoSizeToText = value;
-            Width = value ? double.NaN : Math.Max(DefaultMinWidth, Bounds.Width);
+            Width = value ? double.NaN : Math.Max(SettingsUILayout.ComboDefaultMinWidth, Bounds.Width);
             UpdateAutoWidth();
         }
     }
@@ -1164,7 +1264,7 @@ public sealed class SettingsComboBox : Grid
             _itemsPanel.Children.Add(item);
         }
 
-        _popupBorder.MinWidth = Math.Max(DefaultMinWidth, Bounds.Width);
+        _popupBorder.MinWidth = Math.Max(SettingsUILayout.ComboDefaultMinWidth, Bounds.Width);
     }
 
     private void UpdateSurface()
@@ -1186,8 +1286,12 @@ public sealed class SettingsComboBox : Grid
             : MeasureLongestItemWidth();
 
         double desired = Math.Ceiling(Math.Max(
-            DefaultMinWidth,
-            contentWidth + _contentPadding.Left + _contentPadding.Right + ArrowColumnWidth + AutoSizeExtraPadding));
+            SettingsUILayout.ComboDefaultMinWidth,
+            contentWidth
+            + _contentPadding.Left
+            + _contentPadding.Right
+            + SettingsUILayout.ComboArrowColumnWidth
+            + SettingsUILayout.ComboAutoSizeExtraPadding));
         Width = desired;
     }
 
@@ -1264,21 +1368,21 @@ public sealed class SettingsNumberBox : Grid
         _maximum = max;
         _baseWidth = Math.Max(1, width);
         MinWidth = _baseWidth;
-        Height = 32;
+        Height = SettingsUILayout.NumberBoxHeight;
         Focusable = true;
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
-        ColumnDefinitions.Add(new ColumnDefinition(new GridLength(22)));
+        ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.NumberBoxSpinnerColumnWidth)));
 
         _textBox = new TextBox
         {
             Background = Brushes.Transparent,
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
+            BorderThickness = SettingsUILayout.NumberTextBorderThickness,
             FontFamily = TrayAppDotNETSettingsUI.UIFont,
-            FontSize = 14,
+            FontSize = SettingsUILayout.NumberTextFontSize,
             MinWidth = 0,
-            Padding = new Thickness(6, 0, 2, 0),
+            Padding = SettingsUILayout.NumberTextPadding,
             TextAlignment = TextAlignment.Right,
             VerticalContentAlignment = VerticalAlignment.Center,
             CaretBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
@@ -1308,8 +1412,8 @@ public sealed class SettingsNumberBox : Grid
             }
         };
 
-        _suffixText = TrayAppDotNETSettingsUI.Text(suffix, palette, 13);
-        _suffixText.Margin = new Thickness(2, 0, 8, 0);
+        _suffixText = TrayAppDotNETSettingsUI.Text(suffix, palette, SettingsUILayout.NumberSuffixFontSize);
+        _suffixText.Margin = SettingsUILayout.NumberSuffixMargin;
         _suffixText.VerticalAlignment = VerticalAlignment.Center;
         _suffixText.IsHitTestVisible = false;
 
@@ -1323,8 +1427,8 @@ public sealed class SettingsNumberBox : Grid
         _valueBorder = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
-            CornerRadius = new CornerRadius(4),
-            Height = 32,
+            CornerRadius = SettingsUILayout.NumberValueRadius,
+            Height = SettingsUILayout.NumberBoxHeight,
             Child = valueGrid,
         };
         Children.Add(_valueBorder);
@@ -1683,7 +1787,9 @@ public sealed class SettingsNumberBox : Grid
         bool placeholderShowing = !string.IsNullOrEmpty(PlaceholderText)
                                   && string.IsNullOrEmpty(_textBox.Text)
                                   && !_isTextFocused;
-        _suffixText.Opacity = placeholderShowing ? 0.45 : 1.0;
+        _suffixText.Opacity = placeholderShowing
+            ? SettingsUILayout.NumberSuffixPlaceholderOpacity
+            : SettingsUILayout.EnabledOpacity;
     }
 
     private void UpdateAutoWidth()
@@ -1699,14 +1805,16 @@ public sealed class SettingsNumberBox : Grid
 
         double suffixWidth = string.IsNullOrEmpty(Suffix)
             ? 0
-            : MeasureTextWidth(Suffix, 13) + _suffixText.Margin.Left + _suffixText.Margin.Right;
+            : MeasureTextWidth(Suffix, SettingsUILayout.NumberSuffixFontSize)
+              + _suffixText.Margin.Left
+              + _suffixText.Margin.Right;
         MinWidth = Math.Max(_baseWidth, Math.Ceiling(
-            MeasureTextWidth(valueText, 14)
+            MeasureTextWidth(valueText, SettingsUILayout.NumberValueFontSize)
             + _textBox.Padding.Left
             + _textBox.Padding.Right
             + suffixWidth
-            + 22
-            + 10));
+            + SettingsUILayout.NumberBoxSpinnerColumnWidth
+            + SettingsUILayout.NumberAutoWidthReserve));
     }
 
     private static double MeasureTextWidth(string text, double fontSize)
@@ -1737,14 +1845,14 @@ internal sealed class SettingsSpinnerButton : Border
     {
         _palette = palette;
         Background = Brushes.Transparent;
-        CornerRadius = new CornerRadius(2);
+        CornerRadius = SettingsUILayout.SpinnerButtonRadius;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = false;
         Child = new TextBlock
         {
             Text = glyph,
             FontFamily = TrayAppDotNETSettingsUI.IconFont,
-            FontSize = 8,
+            FontSize = SettingsUILayout.SpinnerGlyphFontSize,
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1816,10 +1924,10 @@ public static class TrayAppDotNETSettingsUI
         {
             Text = text,
             FontFamily = UIFont,
-            FontSize = 22,
+            FontSize = SettingsUILayout.SectionHeaderFontSize,
             FontWeight = FontWeight.SemiBold,
             Foreground = Brush(palette.Foreground),
-            Margin = new Thickness(0, 0, 0, 16),
+            Margin = SettingsUILayout.SectionHeaderMargin,
         };
 
     public static TextBlock SubsectionHeader(string text, SettingsPalette palette) =>
@@ -1827,10 +1935,10 @@ public static class TrayAppDotNETSettingsUI
         {
             Text = text,
             FontFamily = UIFont,
-            FontSize = 14,
+            FontSize = SettingsUILayout.SubsectionHeaderFontSize,
             FontWeight = FontWeight.SemiBold,
             Foreground = Brush(palette.Foreground),
-            Margin = new Thickness(0, 16, 0, 8),
+            Margin = SettingsUILayout.SubsectionHeaderMargin,
         };
 
     public static TextBlock TitleText(string text, SettingsPalette palette) =>
@@ -1838,7 +1946,7 @@ public static class TrayAppDotNETSettingsUI
         {
             Text = text,
             FontFamily = UIFont,
-            FontSize = 14,
+            FontSize = SettingsUILayout.TitleFontSize,
             Foreground = Brush(palette.Foreground),
             TextWrapping = TextWrapping.Wrap,
         };
@@ -1848,11 +1956,11 @@ public static class TrayAppDotNETSettingsUI
         {
             Text = text,
             FontFamily = UIFont,
-            FontSize = 12,
+            FontSize = SettingsUILayout.DescriptionFontSize,
             Foreground = Brush(palette.SecondaryForeground),
-            Opacity = 0.8,
+            Opacity = SettingsUILayout.DescriptionOpacity,
             TextWrapping = TextWrapping.Wrap,
-            Margin = margin ?? new Thickness(0, 2, 8, 0),
+            Margin = margin ?? SettingsUILayout.DescriptionMargin,
         };
 
     public static StackPanel PageStack(string title, SettingsPalette palette)
@@ -1882,7 +1990,7 @@ public static class TrayAppDotNETSettingsUI
         if (rightControl != null)
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
-            rightControl.Margin = new Thickness(16, 0, 0, 0);
+            rightControl.Margin = SettingsUILayout.CardRightControlMargin;
             Grid.SetColumn(rightControl, 1);
             grid.Children.Add(rightControl);
         }
@@ -1890,12 +1998,12 @@ public static class TrayAppDotNETSettingsUI
         Border card = new()
         {
             Background = Brush(palette.CardBackground),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(16, 12),
-            Margin = new Thickness(0, 0, 0, 6),
+            CornerRadius = SettingsUILayout.CardRadius,
+            Padding = SettingsUILayout.CardPadding,
+            Margin = SettingsUILayout.CardMargin,
             Child = grid,
         };
-        ApplyDisabledOpacity(card, 0.45);
+        ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
         return card;
     }
 
@@ -1904,12 +2012,12 @@ public static class TrayAppDotNETSettingsUI
         Border card = new()
         {
             Background = Brush(palette.CardBackground),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(16, 12),
-            Margin = new Thickness(0, 0, 0, 6),
+            CornerRadius = SettingsUILayout.CardRadius,
+            Padding = SettingsUILayout.CardPadding,
+            Margin = SettingsUILayout.CardMargin,
             Child = content,
         };
-        ApplyDisabledOpacity(card, 0.45);
+        ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
         return card;
     }
 
@@ -1922,8 +2030,8 @@ public static class TrayAppDotNETSettingsUI
         new(text, palette, transparentBase: true, navGutter: true)
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(12, 10),
-            Margin = new Thickness(4, 2),
+            Padding = SettingsUILayout.NavItemPadding,
+            Margin = SettingsUILayout.NavActionMargin,
         };
 
     public static SettingsToggle Toggle(SettingsPalette palette, bool isChecked, EventHandler<bool> changed)
@@ -1963,15 +2071,15 @@ public static class TrayAppDotNETSettingsUI
         TextBox textBox = new()
         {
             Width = width,
-            Height = 32,
+            Height = SettingsUILayout.TextBoxHeight,
             Text = text,
             FontFamily = UIFont,
-            FontSize = 14,
+            FontSize = SettingsUILayout.TextBoxFontSize,
             Background = Brush(palette.ControlBackground),
             Foreground = Brush(palette.Foreground),
             BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(4, 0),
+            BorderThickness = SettingsUILayout.TextBoxBorderThickness,
+            Padding = SettingsUILayout.TextBoxPadding,
             VerticalContentAlignment = VerticalAlignment.Center,
             CaretBrush = Brush(palette.Foreground),
             SelectionBrush = Brush(AppTheme.ResolveTextSelectionHighlight(palette.Accent)),
@@ -2053,7 +2161,7 @@ public static class TrayAppDotNETSettingsUI
         {
             Text = glyph,
             FontFamily = IconFont,
-            FontSize = 10,
+            FontSize = SettingsUILayout.CaptionGlyphFontSize,
             Foreground = Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -2064,9 +2172,9 @@ public static class TrayAppDotNETSettingsUI
         control.PropertyChanged += (_, e) =>
         {
             if (e.Property == InputElement.IsEnabledProperty)
-                control.Opacity = control.IsEnabled ? 1.0 : disabledOpacity;
+                control.Opacity = control.IsEnabled ? SettingsUILayout.EnabledOpacity : disabledOpacity;
         };
-        control.Opacity = control.IsEnabled ? 1.0 : disabledOpacity;
+        control.Opacity = control.IsEnabled ? SettingsUILayout.EnabledOpacity : disabledOpacity;
     }
 
     private static void AttachSurfaceStates(Control control, Color normal, Color hover, Color focusedOrPressed)
@@ -2105,6 +2213,6 @@ public static class TrayAppDotNETSettingsUI
             focused = false;
             Update();
         };
-        ApplyDisabledOpacity(control, 0.4);
+        ApplyDisabledOpacity(control, SettingsUILayout.DisabledOpacity);
     }
 }

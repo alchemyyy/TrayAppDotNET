@@ -9,6 +9,41 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
+internal static class ColorPickerLayout
+{
+    private static readonly ControlAXAMLResources R = new(
+        "avares://TrayAppDotNETCommon/UI/Controls/ColorPickerWindow.axaml",
+        "ColorPicker");
+
+    public static double WindowWidth => R.Double("WindowWidth");
+    public static double WindowMinWidth => R.Double("WindowMinWidth");
+    public static double PickerPlaneWidth => R.Double("PickerPlaneWidth");
+    public static double PrimarySliderWidth => R.Double("PrimarySliderWidth");
+    public static double ChannelSliderWidth => R.Double("ChannelSliderWidth");
+    public static double ChannelBandHeight => R.Double("ChannelBandHeight");
+    public static double TitleBarHeight => R.Double("TitleBarHeight");
+    public static Thickness RootBorderThickness => R.Thickness("RootBorderThickness");
+    public static Thickness TitleMargin => R.Thickness("TitleMargin");
+    public static Thickness BodyMargin => R.Thickness("BodyMargin");
+    public static double BodyGapHeight => R.Double("BodyGapHeight");
+    public static double FooterGapHeight => R.Double("FooterGapHeight");
+    public static Thickness FooterMargin => R.Thickness("FooterMargin");
+    public static double ButtonGapWidth => R.Double("ButtonGapWidth");
+    public static Thickness ActionButtonPadding => R.Thickness("ActionButtonPadding");
+    public static double PrimaryColumnGapWidth => R.Double("PrimaryColumnGapWidth");
+    public static double SecondaryColumnGapWidth => R.Double("SecondaryColumnGapWidth");
+    public static double ChannelColumnGapWidth => R.Double("ChannelColumnGapWidth");
+    public static double LabelFontSize => R.Double("LabelFontSize");
+    public static Thickness FooterLabelMargin => R.Thickness("FooterLabelMargin");
+    public static double ChannelValueWidth => R.Double("ChannelValueWidth");
+    public static Thickness ChannelValueMargin => R.Thickness("ChannelValueMargin");
+    public static double HexBoxWidth => R.Double("HexBoxWidth");
+    public static double HexRowGapWidth => R.Double("HexRowGapWidth");
+    public static double CloseButtonWidth => R.Double("CloseButtonWidth");
+    public static double CloseButtonHeight => R.Double("CloseButtonHeight");
+    public static double CloseButtonFontSize => R.Double("CloseButtonFontSize");
+}
+
 public sealed record TrayAppDotNETColorPickerStrings(
     string DefaultTitle,
     string CloseTooltip,
@@ -24,9 +59,6 @@ public sealed record TrayAppDotNETColorPickerStrings(
 
 public sealed class TrayAppDotNETColorPickerWindow : Window
 {
-    private const double PickerPlaneWidth = 160;
-    private const double ChannelBandHeight = 120;
-
     private readonly SettingsPalette _palette;
     private readonly TrayAppDotNETColorPickerStrings _strings;
     private readonly bool _hasAlpha;
@@ -74,8 +106,8 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         _defaultColor = fallback;
 
         Title = string.IsNullOrWhiteSpace(title) ? strings.DefaultTitle : title;
-        Width = 408;
-        MinWidth = 200;
+        Width = ColorPickerLayout.WindowWidth;
+        MinWidth = ColorPickerLayout.WindowMinWidth;
         SizeToContent = SizeToContent.Height;
         CanResize = false;
         ShowInTaskbar = false;
@@ -87,13 +119,13 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
         _svPicker = new TrayAppDotNETSaturationValuePicker(palette)
         {
-            Width = PickerPlaneWidth,
+            Width = ColorPickerLayout.PickerPlaneWidth,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
         };
         _hueSlider = new TrayAppDotNETColorSlider(TrayAppDotNETColorSliderKind.Hue, palette)
         {
-            Width = 32,
+            Width = ColorPickerLayout.PrimarySliderWidth,
             Minimum = 0,
             Maximum = 360,
             SmallChange = 1,
@@ -101,7 +133,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         };
         _alphaSlider = new TrayAppDotNETColorSlider(TrayAppDotNETColorSliderKind.Alpha, palette)
         {
-            Width = 32,
+            Width = ColorPickerLayout.PrimarySliderWidth,
             Minimum = 0,
             Maximum = 255,
             SmallChange = 1,
@@ -147,7 +179,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     private Border BuildContent(string title)
     {
         Grid root = new();
-        root.RowDefinitions.Add(new RowDefinition(new GridLength(32)));
+        root.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.TitleBarHeight)));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         Control titleBar = BuildTitleBar(title);
@@ -162,14 +194,14 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
-            BorderThickness = new Thickness(1),
+            BorderThickness = ColorPickerLayout.RootBorderThickness,
             Child = root,
         };
     }
 
     private Grid BuildTitleBar(string title)
     {
-        Grid titleBar = new() { Background = Brushes.Transparent, Height = 32 };
+        Grid titleBar = new() { Background = Brushes.Transparent, Height = ColorPickerLayout.TitleBarHeight };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         titleBar.PointerPressed += (_, e) =>
@@ -180,7 +212,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, _palette);
         titleText.VerticalAlignment = VerticalAlignment.Center;
-        titleText.Margin = new Thickness(16, 0, 0, 0);
+        titleText.Margin = ColorPickerLayout.TitleMargin;
         Grid.SetColumn(titleText, 0);
         titleBar.Children.Add(titleText);
 
@@ -196,9 +228,9 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
     private Grid BuildBody()
     {
-        Grid body = new() { Margin = new Thickness(20, 12, 20, 16), };
+        Grid body = new() { Margin = ColorPickerLayout.BodyMargin, };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        body.RowDefinitions.Add(new RowDefinition(new GridLength(16)));
+        body.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.BodyGapHeight)));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         Grid pickerGrid = BuildPickerGrid();
@@ -216,7 +248,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     {
         Grid grid = SharedPickerColumns();
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        grid.RowDefinitions.Add(new RowDefinition(new GridLength(ChannelBandHeight)));
+        grid.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.ChannelBandHeight)));
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         Grid.SetRow(_rValueLabel, 0);
@@ -253,9 +285,9 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     {
         Grid grid = SharedPickerColumns();
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        grid.RowDefinitions.Add(new RowDefinition(new GridLength(6)));
+        grid.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.FooterGapHeight)));
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        grid.Margin = new Thickness(0, -34, 0, 0);
+        grid.Margin = ColorPickerLayout.FooterMargin;
 
         Grid rgbaRow = HexRow(_strings.RgbaHexLabel, _rgbaBox);
         Grid.SetRow(rgbaRow, 0);
@@ -269,13 +301,13 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
         Grid buttons = new() { VerticalAlignment = VerticalAlignment.Center, };
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        buttons.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8)));
+        buttons.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ButtonGapWidth)));
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
         SettingsButton defaultButton = TrayAppDotNETSettingsUI.Button(_strings.DefaultButton, _palette);
         SettingsButton resetButton = TrayAppDotNETSettingsUI.Button(_strings.ResetButton, _palette);
-        defaultButton.Padding = new Thickness(20, 8);
-        resetButton.Padding = new Thickness(20, 8);
+        defaultButton.Padding = ColorPickerLayout.ActionButtonPadding;
+        resetButton.Padding = ColorPickerLayout.ActionButtonPadding;
         defaultButton.HorizontalAlignment = HorizontalAlignment.Stretch;
         resetButton.HorizontalAlignment = HorizontalAlignment.Stretch;
         defaultButton.Click += (_, _) => ApplyColor(_defaultColor, ColorApplySource.None, force: true);
@@ -297,16 +329,16 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     private static Grid SharedPickerColumns()
     {
         Grid grid = new();
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(PickerPlaneWidth)));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(16)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.PickerPlaneWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.PrimaryColumnGapWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.SecondaryColumnGapWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(14)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ChannelColumnGapWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(14)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ChannelColumnGapWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(14)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ChannelColumnGapWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         return grid;
     }
@@ -322,9 +354,9 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
     private void AddFooterLabel(Grid grid, string text, int column)
     {
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, _palette, 14, FontWeight.SemiBold);
+        TextBlock label = TrayAppDotNETSettingsUI.Text(text, _palette, ColorPickerLayout.LabelFontSize, FontWeight.SemiBold);
         label.HorizontalAlignment = HorizontalAlignment.Center;
-        label.Margin = new Thickness(0, 6, 0, 0);
+        label.Margin = ColorPickerLayout.FooterLabelMargin;
         Grid.SetRow(label, 2);
         Grid.SetColumn(label, column);
         grid.Children.Add(label);
@@ -332,17 +364,17 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
     private TextBlock ChannelValueLabel(string text)
     {
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, _palette, 14, FontWeight.SemiBold);
+        TextBlock label = TrayAppDotNETSettingsUI.Text(text, _palette, ColorPickerLayout.LabelFontSize, FontWeight.SemiBold);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         label.TextAlignment = TextAlignment.Center;
-        label.Width = 22;
-        label.Margin = new Thickness(0, 0, 0, 4);
+        label.Width = ColorPickerLayout.ChannelValueWidth;
+        label.Margin = ColorPickerLayout.ChannelValueMargin;
         return label;
     }
 
     private TextBox HexBox()
     {
-        TextBox box = TrayAppDotNETSettingsUI.TextBox(_palette, 94);
+        TextBox box = TrayAppDotNETSettingsUI.TextBox(_palette, ColorPickerLayout.HexBoxWidth);
         box.FontFamily = new FontFamily("Consolas, Courier New");
         return box;
     }
@@ -351,10 +383,11 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     {
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(8)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.HexRowGapWidth)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        TextBlock label = TrayAppDotNETSettingsUI.Text(labelText, _palette, 14, FontWeight.SemiBold);
+        TextBlock label = TrayAppDotNETSettingsUI.Text(labelText, _palette, ColorPickerLayout.LabelFontSize,
+            FontWeight.SemiBold);
         label.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
@@ -367,7 +400,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     private TrayAppDotNETColorSlider CreateChannelSlider() =>
         new(TrayAppDotNETColorSliderKind.Channel, _palette)
         {
-            Width = 22,
+            Width = ColorPickerLayout.ChannelSliderWidth,
             Minimum = 0,
             Maximum = 255,
             SmallChange = 1,
@@ -992,8 +1025,8 @@ internal sealed class TrayAppDotNETCaptionCloseButton : Border
     public TrayAppDotNETCaptionCloseButton(SettingsPalette palette)
     {
         _palette = palette;
-        Width = 46;
-        Height = 32;
+        Width = ColorPickerLayout.CloseButtonWidth;
+        Height = ColorPickerLayout.CloseButtonHeight;
         Background = Brushes.Transparent;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = true;
@@ -1002,7 +1035,7 @@ internal sealed class TrayAppDotNETCaptionCloseButton : Border
         {
             Text = GlyphCatalog.CHROME_CLOSE,
             FontFamily = TrayAppDotNETSettingsUI.IconFont,
-            FontSize = 10,
+            FontSize = ColorPickerLayout.CloseButtonFontSize,
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,

@@ -4,6 +4,19 @@ using Avalonia.Layout;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
+internal static class SettingsCardsLayout
+{
+    private static readonly ControlAXAMLResources R = new(
+        "avares://TrayAppDotNETCommon/UI/Controls/Cards.axaml",
+        "SettingsCards");
+
+    public static double NumberBoxWidth => R.Double("NumberBoxWidth");
+    public static Thickness RightControlMargin => R.Thickness("RightControlMargin");
+    public static Thickness CardPadding => R.Thickness("CardPadding");
+    public static Thickness CardMargin => R.Thickness("CardMargin");
+    public static double DisabledOpacity => R.Double("DisabledOpacity");
+}
+
 public static class TrayAppDotNETSettingsCards
 {
     public static StackPanel PageStack(string title, SettingsPalette palette)
@@ -51,7 +64,13 @@ public static class TrayAppDotNETSettingsCards
         Action save,
         string suffix = "")
     {
-        SettingsNumberBox input = TrayAppDotNETSettingsUI.NumberBox(palette, value, min, max, 100, suffix);
+        SettingsNumberBox input = TrayAppDotNETSettingsUI.NumberBox(
+            palette,
+            value,
+            min,
+            max,
+            SettingsCardsLayout.NumberBoxWidth,
+            suffix);
         input.ValueChanged += (_, e) =>
         {
             if (!e.NewValue.HasValue) return;
@@ -117,7 +136,7 @@ public static class TrayAppDotNETSettingsCards
         if (rightControl != null)
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
-            rightControl.Margin = new Thickness(16, 0, 0, 0);
+            rightControl.Margin = SettingsCardsLayout.RightControlMargin;
             Grid.SetColumn(rightControl, 1);
             grid.Children.Add(rightControl);
         }
@@ -131,11 +150,11 @@ public static class TrayAppDotNETSettingsCards
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.CardBackground),
             CornerRadius = cardRadius,
-            Padding = new Thickness(16, 12),
-            Margin = new Thickness(0, 0, 0, 6),
+            Padding = SettingsCardsLayout.CardPadding,
+            Margin = SettingsCardsLayout.CardMargin,
             Child = content,
         };
-        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, 0.45);
+        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, SettingsCardsLayout.DisabledOpacity);
         return card;
     }
 
@@ -165,7 +184,7 @@ public static class TrayAppDotNETSettingsCards
         if (rightControl != null)
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
-            rightControl.Margin = new Thickness(16, 0, 0, 0);
+            rightControl.Margin = SettingsCardsLayout.RightControlMargin;
             Grid.SetColumn(rightControl, 1);
             grid.Children.Add(rightControl);
         }
