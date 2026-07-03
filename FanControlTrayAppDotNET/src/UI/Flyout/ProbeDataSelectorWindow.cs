@@ -17,8 +17,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private const string NicknameTargetBoxName = "NicknameTargetRegex";
     private const string NicknameReplacementBoxName = "NicknameReplacement";
     private const bool EnableReorderCardHoverCue = false;
-    private const double TruncateToggleTrackHeightRatio = 0.5;
-    private const double TruncateToggleThumbSizeRatio = 1.0 / 3.0;
 
     private static readonly ProbeSelectorTab[] Tabs =
     [
@@ -441,7 +439,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (_draggedSelectedProbe == null || _selectedProbeListPanel == null) return;
 
             Point current = e.GetPosition(_selectedProbeListPanel);
-            if (Math.Abs(current.Y - _selectedProbeDragStart.Y) < 4) return;
+            if (Math.Abs(current.Y - _selectedProbeDragStart.Y) < Layout.ReorderDragThreshold) return;
 
             double draggedMidpoint = current.Y - _draggedSelectedProbePointerOffsetY
                 + _draggedSelectedProbeHeight / 2.0;
@@ -490,8 +488,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         row.Background = TrayAppDotNETSettingsUI.Brush(background);
         row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
         row.BorderThickness = dragging ? Layout.RootBorderThickness : Layout.RootBorderThickness;
-        row.Opacity = dragging ? 0.82 : 1.0;
-        row.SetValue(ZIndexProperty, dragging ? 1 : 0);
+        row.Opacity = dragging ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
+        row.SetValue(ZIndexProperty, dragging ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
     }
 
     /// <summary>
@@ -874,7 +872,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (_draggedNicknameRule == null || _nicknameRuleListPanel == null) return;
 
             Point current = e.GetPosition(_nicknameRuleListPanel);
-            if (Math.Abs(current.Y - _nicknameRuleDragStart.Y) < 4) return;
+            if (Math.Abs(current.Y - _nicknameRuleDragStart.Y) < Layout.ReorderDragThreshold) return;
 
             double draggedMidpoint = current.Y - _draggedNicknameRulePointerOffsetY
                 + _draggedNicknameRuleHeight / 2.0;
@@ -941,8 +939,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         row.Background = TrayAppDotNETSettingsUI.Brush(background);
         row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
         row.BorderThickness = Layout.RootBorderThickness;
-        row.Opacity = dragging ? 0.82 : 1.0;
-        row.SetValue(ZIndexProperty, dragging ? 1 : 0);
+        row.Opacity = dragging ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
+        row.SetValue(ZIndexProperty, dragging ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
     }
 
     /// <summary>
@@ -1443,7 +1441,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         };
         Action updateVisual = () =>
         {
-            toggleButton.Opacity = toggleButton.IsEnabled ? 1.0 : 0.45;
+            toggleButton.Opacity = toggleButton.IsEnabled ? Layout.FullOpacity : Layout.DisabledToggleOpacity;
             track.Background = current
                 ? TrayAppDotNETSettingsUI.Brush(_palette.ToggleOnTrack)
                 : Brushes.Transparent;
@@ -1535,8 +1533,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private void ApplyGearButtonTransformVisual(SettingsButton button, bool transformIsActive)
     {
         button.IsEnabled = true;
-        button.Opacity = 1.0;
-        button.Label.Opacity = transformIsActive ? 1.0 : Layout.TransformInactiveGearOpacity;
+        button.Opacity = Layout.FullOpacity;
+        button.Label.Opacity = transformIsActive ? Layout.FullOpacity : Layout.TransformInactiveGearOpacity;
         button.Label.Foreground = TrayAppDotNETSettingsUI.Brush(
             transformIsActive ? _palette.Foreground : _palette.SecondaryForeground);
     }
@@ -2155,6 +2153,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         double TruncateToggleFontSize,
         double TruncateToggleWidth,
         double TruncateToggleTrackWidth,
+        double TruncateToggleTrackHeightRatio,
+        double TruncateToggleThumbSizeRatio,
         double TransformLabelFontSize,
         double TransformBoxWidth,
         double TransformInlineBoxWidth,
@@ -2175,6 +2175,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
         double NicknameDeleteButtonWidth,
         double NicknameDeleteButtonHeight,
         double NicknameDeleteButtonFontSize,
+        double ReorderDragThreshold,
+        double ReorderDraggingOpacity,
+        int ReorderDraggingZIndex,
+        int ReorderNormalZIndex,
+        double DisabledToggleOpacity,
+        double FullOpacity,
         Thickness ZeroThickness,
         Thickness RootBorderThickness,
         Thickness ContentMargin,
@@ -2265,6 +2271,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 r.Double("TruncateToggleFontSize"),
                 r.Double("TruncateToggleWidth"),
                 r.Double("TruncateToggleTrackWidth"),
+                r.Double("TruncateToggleTrackHeightRatio"),
+                r.Double("TruncateToggleThumbSizeRatio"),
                 r.Double("TransformLabelFontSize"),
                 r.Double("TransformBoxWidth"),
                 r.Double("TransformInlineBoxWidth"),
@@ -2285,6 +2293,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 r.Double("NicknameDeleteButtonWidth"),
                 r.Double("NicknameDeleteButtonHeight"),
                 r.Double("NicknameDeleteButtonFontSize"),
+                r.Double("ReorderDragThreshold"),
+                r.Double("ReorderDraggingOpacity"),
+                r.Int("ReorderDraggingZIndex"),
+                r.Int("ReorderNormalZIndex"),
+                r.Double("DisabledToggleOpacity"),
+                r.Double("FullOpacity"),
                 r.Thickness("ZeroThickness"),
                 r.Thickness("RootBorderThickness"),
                 r.Thickness("ContentMargin"),

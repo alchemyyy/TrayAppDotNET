@@ -1,0 +1,41 @@
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <sys:Double x:Key="SettingsWindow.TitleBarHeight">32</sys:Double>
+    <sys:Double x:Key="SettingsWindow.TitleBarDragZoneHeight">72</sys:Double>
+    <sys:Double x:Key="SettingsWindow.DefaultSidebarWidth">230</sys:Double>
+    <sys:Double x:Key="SettingsWindow.HeaderFontSize">22</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CaptionButtonWidth">46</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CaptionButtonGlyphFontSize">10</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmTitleFontSize">16</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmButtonMinWidth">96</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmDialogMinWidth">360</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmDialogMaxWidth">460</sys:Double>
+    <sys:Double x:Key="SettingsWindow.PixelMinSize">1</sys:Double>
+    <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaX">0</sys:Int32>
+    <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaY">0</sys:Int32>
+    <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaWidth">1920</sys:Int32>
+    <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaHeight">1080</sys:Int32>
+
+    <CornerRadius x:Key="SettingsWindow.ZeroCornerRadius">0</CornerRadius>
+    <CornerRadius x:Key="SettingsWindow.RadiusTiny">1.5</CornerRadius>
+    <CornerRadius x:Key="SettingsWindow.RadiusMedium">4</CornerRadius>
+    <CornerRadius x:Key="SettingsWindow.RadiusLarge">6</CornerRadius>
+    <CornerRadius x:Key="SettingsWindow.OuterCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="SettingsWindow.InnerCornerRadius">7</CornerRadius>
+
+    <Thickness x:Key="SettingsWindow.ZeroThickness">0</Thickness>
+    <Thickness x:Key="SettingsWindow.HeaderMargin">24,8,20,20</Thickness>
+    <Thickness x:Key="SettingsWindow.NavMargin">8,0</Thickness>
+    <Thickness x:Key="SettingsWindow.FooterMargin">8,0,8,12</Thickness>
+    <Thickness x:Key="SettingsWindow.ScrollHostMargin">24,4,30,28</Thickness>
+    <Thickness x:Key="SettingsWindow.RootBorderThickness">1</Thickness>
+    <Thickness x:Key="SettingsWindow.InnerBorderMargin">1</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmTitleMargin">0,0,0,8</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmMessageMargin">0,0,0,16</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmCancelMargin">0,0,8,0</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmDialogBorderThickness">1</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmDialogPadding">24</Thickness>
+</ResourceDictionary>

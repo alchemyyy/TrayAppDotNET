@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
@@ -20,16 +21,16 @@ public sealed class FlyoutUndockButtonOptions
     public Action<bool>? DraggingChanged { get; init; }
     public Func<string> UndockTooltip { get; init; } = static () => "Undock";
     public Func<string> RedockTooltip { get; init; } = static () => "Redock";
-    public double Width { get; init; } = 40;
-    public double Height { get; init; } = 32;
-    public double FontSize { get; init; } = 18;
+    public double Width { get; init; } = FlyoutUndockButtonResourceReader.Double("Width");
+    public double Height { get; init; } = FlyoutUndockButtonResourceReader.Double("Height");
+    public double FontSize { get; init; } = FlyoutUndockButtonResourceReader.Double("FontSize");
     public string? FontFamily { get; init; }
     public FontWeight? FontWeight { get; init; }
-    public double DragThreshold { get; init; } = 4;
+    public double DragThreshold { get; init; } = FlyoutUndockButtonResourceReader.Double("DragThreshold");
     public bool IsEnabled { get; init; } = true;
     public bool IsVisible { get; init; } = true;
-    public Thickness Margin { get; init; } = new(0);
-    public CornerRadius CornerRadius { get; init; } = new(4);
+    public Thickness Margin { get; init; } = FlyoutUndockButtonResourceReader.Thickness("Margin");
+    public CornerRadius CornerRadius { get; init; } = FlyoutUndockButtonResourceReader.CornerRadius("CornerRadius");
 }
 
 public sealed class FlyoutUndockButtonController
@@ -214,4 +215,60 @@ public sealed class FlyoutUndockButtonController
         IsDragging = value;
         _draggingChanged?.Invoke(value);
     }
+}
+
+internal static class FlyoutUndockButtonResourceReader
+{
+    private const string ResourcePath =
+        "avares://TrayAppDotNETCommon/UI/FlyoutUndockButtonController.axaml";
+
+    private const string ResourcePrefix = "FlyoutUndockButton.";
+
+    private static readonly Lazy<ResourceDictionary> Resources = new(LoadResources);
+
+    /// <summary>
+    /// Reads a double layout resource.
+    /// </summary>
+    public static double Double(string name) =>
+        Resource(name) switch
+        {
+            double value => value,
+            int value => value,
+            string value => double.Parse(value, System.Globalization.CultureInfo.InvariantCulture),
+            object value => Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture),
+        };
+
+    /// <summary>
+    /// Reads a thickness layout resource.
+    /// </summary>
+    public static Thickness Thickness(string name) =>
+        Resource(name) is Thickness value
+            ? value
+            : throw InvalidType(name, nameof(Thickness));
+
+    /// <summary>
+    /// Reads a corner radius layout resource.
+    /// </summary>
+    public static CornerRadius CornerRadius(string name) =>
+        Resource(name) is CornerRadius value
+            ? value
+            : throw InvalidType(name, nameof(CornerRadius));
+
+    private static ResourceDictionary LoadResources()
+    {
+        Uri resourceUri = new(ResourcePath);
+        object? resources = AvaloniaXamlLoader.Load(resourceUri);
+        return resources as ResourceDictionary ??
+               throw new InvalidOperationException($"Resource dictionary '{ResourcePath}' could not be loaded.");
+    }
+
+    private static object Resource(string name)
+    {
+        string key = ResourcePrefix + name;
+        object? value = Resources.Value[key];
+        return value ?? throw new InvalidOperationException($"Missing resource '{key}'.");
+    }
+
+    private static InvalidOperationException InvalidType(string name, string expectedType) =>
+        new($"Resource '{ResourcePrefix}{name}' is not a {expectedType}.");
 }

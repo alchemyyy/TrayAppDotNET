@@ -37,6 +37,8 @@
         <sys:Double x:Key="ProbeSelector.TruncateToggleFontSize">10</sys:Double>
         <sys:Double x:Key="ProbeSelector.TruncateToggleWidth">100</sys:Double>
         <sys:Double x:Key="ProbeSelector.TruncateToggleTrackWidth">32</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TruncateToggleTrackHeightRatio">0.5</sys:Double>
+        <sys:Double x:Key="ProbeSelector.TruncateToggleThumbSizeRatio">0.3333333333333333</sys:Double>
         <sys:Double x:Key="ProbeSelector.TransformLabelFontSize">10</sys:Double>
         <sys:Double x:Key="ProbeSelector.TransformBoxWidth">154</sys:Double>
         <sys:Double x:Key="ProbeSelector.TransformInlineBoxWidth">132</sys:Double>
@@ -57,6 +59,12 @@
         <sys:Double x:Key="ProbeSelector.NicknameDeleteButtonWidth">26</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameDeleteButtonHeight">24</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameDeleteButtonFontSize">10</sys:Double>
+        <sys:Double x:Key="ProbeSelector.ReorderDragThreshold">4</sys:Double>
+        <sys:Double x:Key="ProbeSelector.ReorderDraggingOpacity">0.82</sys:Double>
+        <sys:Int32 x:Key="ProbeSelector.ReorderDraggingZIndex">1</sys:Int32>
+        <sys:Int32 x:Key="ProbeSelector.ReorderNormalZIndex">0</sys:Int32>
+        <sys:Double x:Key="ProbeSelector.DisabledToggleOpacity">0.45</sys:Double>
+        <sys:Double x:Key="ProbeSelector.FullOpacity">1</sys:Double>
 
         <Thickness x:Key="ProbeSelector.ZeroThickness">0</Thickness>
         <Thickness x:Key="ProbeSelector.RootBorderThickness">1</Thickness>
