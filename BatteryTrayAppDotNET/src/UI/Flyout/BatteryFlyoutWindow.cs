@@ -64,10 +64,14 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private readonly FlyoutWindowDragHelper _dragHelper = new();
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private FlyoutUndockButtonController? _undockButtonController;
+    private FlyoutUndockButtonController? _buildingUndockButtonController;
     private bool _isPowerModeChanging;
     private bool _isEnergySaverChanging;
     private bool _isUndocked;
     private bool _isDraggingWindow;
+    private bool _isRebuilding;
+    private bool _rebuildPending;
+    private bool _rebuildQueued;
 
     public BatteryFlyoutWindow(BatteryMonitorService batteryMonitor, AppSettings settings, Action openSettings)
     {
@@ -145,7 +149,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     protected override void HideFlyout() => Hide();
 
-    private void OnBatteryStateChanged() => Dispatcher.UIThread.Post(Rebuild);
+    private void OnBatteryStateChanged() => QueueRebuild();
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
@@ -155,7 +159,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         {
             if (!IsVisible) return;
             _batteryMonitor.ForceRefresh();
-            Rebuild();
+            QueueRebuild();
         }, DispatcherPriority.Background);
     }
 
@@ -167,99 +171,186 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             return;
         }
 
-        Rebuild();
+        QueueRebuild();
     });
 
+    /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
     private void Rebuild()
     {
-        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
-        AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-        SettingsPalette p = BatterySettingsPalette.Create(theme, _settings, isLight);
-        FlyoutControlPalette fp = ToFlyoutPalette(p, theme, isLight);
-        Color flyoutBackground = theme.ResolveFlyoutBackground(_settings, isLight);
-        Color titleBarBackground = theme.ResolveFlyoutTitleBarBackground(_settings, isLight);
-        BatterySnapshot snapshot = _batteryMonitor.Snapshot;
-        _undockButtonController = null;
-
-        StackPanel body = new()
+        try { RebuildCore(); }
+        catch (Exception ex)
         {
-            Width = BatteryContentWidth,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 16, 0, 16),
-            Spacing = 10,
-        };
+            _rebuildPending = false;
+            _rebuildQueued = false;
+            TADNLog.Log($"BatteryFlyoutWindow.Rebuild: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
 
-        TextBlock title = Text($"Battery: {FormatChargePercent(snapshot)}", p, BatteryTitleFontSize, FontWeight.SemiBold);
-        title.Margin = new Thickness(0, BatteryTitleTopOffset, 0, 0);
-        body.Children.Add(title);
-
-        body.Children.Add(BatteryBar(snapshot, p));
-
-        TextBlock status = Text(BuildStatus(snapshot), p, 14);
-        status.HorizontalAlignment = HorizontalAlignment.Center;
-        status.Foreground = Brush(p.SecondaryForeground);
-        body.Children.Add(status);
-
-        body.Children.Add(Separator(p));
-
-        if (snapshot.EstimatedTimeRemaining.HasValue && !snapshot.IsFullyCharged)
+    /// <summary>
+    /// Rebuilds the flyout content transactionally so a failed build keeps the previous UI alive.
+    /// </summary>
+    private void RebuildCore()
+    {
+        if (_isRebuilding)
         {
-            body.Children.Add(DetailBlock(
-                snapshot.IsCharging ? "Time until full" : "Estimated life",
-                FormatTimeSpan(snapshot.EstimatedTimeRemaining.Value),
-                p));
-            body.Children.Add(Separator(p));
+            _rebuildPending = true;
+            return;
         }
 
-        Grid details = new()
+        _rebuildQueued = false;
+        _rebuildPending = false;
+        _isRebuilding = true;
+        _buildingUndockButtonController = null;
+
+        try
         {
-            RowSpacing = 6,
-            ColumnDefinitions =
+            bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+            AppTheme theme = AppServices.Theme ?? AppTheme.Default;
+            SettingsPalette p = BatterySettingsPalette.Create(theme, _settings, isLight);
+            FlyoutControlPalette fp = ToFlyoutPalette(p, theme, isLight);
+            Color flyoutBackground = theme.ResolveFlyoutBackground(_settings, isLight);
+            Color titleBarBackground = theme.ResolveFlyoutTitleBarBackground(_settings, isLight);
+            BatterySnapshot snapshot = _batteryMonitor.Snapshot;
+
+            StackPanel body = new()
             {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-            },
-        };
+                Width = BatteryContentWidth,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 16, 0, 16),
+                Spacing = 10,
+            };
 
-        AddDetailRow(details, 0, "Power source", snapshot.IsOnExternalPower ? "External" : "Battery", p);
-        AddDetailRow(details, 1, "Battery power", FormatPower(snapshot.CurrentBatteryPowerWatts), p);
-        AddDetailRow(details, 2, "Remaining", FormatCapacity(snapshot.RemainingCapacityMilliwattHours), p);
-        AddDetailRow(details, 3, "Full charge", FormatCapacity(snapshot.FullChargeCapacityMilliwattHours), p);
-        AddDetailRow(details, 4, "Designed", FormatCapacity(snapshot.DesignedCapacityMilliwattHours), p);
-        AddDetailRow(details, 5, "Health", snapshot.HealthPercent.HasValue ? $"{snapshot.HealthPercent.Value:F0}%" : "N/A", p);
-        body.Children.Add(BuildBottomSection(details, snapshot, fp, p));
+            TextBlock title = Text(
+                $"Battery: {FormatChargePercent(snapshot)}",
+                p,
+                BatteryTitleFontSize,
+                FontWeight.SemiBold);
+            title.Margin = new Thickness(0, BatteryTitleTopOffset, 0, 0);
+            body.Children.Add(title);
 
-        DockPanel root = new() { LastChildFill = true };
-        Control header = BuildHeader(fp, titleBarBackground);
-        DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
-        root.Children.Add(header);
-        root.Children.Add(body);
+            body.Children.Add(BatteryBar(snapshot, p));
 
-        Grid content = new();
-        content.Children.Add(root);
-        if (_settings.FlyoutHeaderAtBottom && _settings.AllowFlyoutUndock)
+            TextBlock status = Text(BuildStatus(snapshot), p, 14);
+            status.HorizontalAlignment = HorizontalAlignment.Center;
+            status.Foreground = Brush(p.SecondaryForeground);
+            body.Children.Add(status);
+
+            body.Children.Add(Separator(p));
+
+            if (snapshot.EstimatedTimeRemaining.HasValue && !snapshot.IsFullyCharged)
+            {
+                body.Children.Add(DetailBlock(
+                    snapshot.IsCharging ? "Time until full" : "Estimated life",
+                    FormatTimeSpan(snapshot.EstimatedTimeRemaining.Value),
+                    p));
+                body.Children.Add(Separator(p));
+            }
+
+            Grid details = new()
+            {
+                RowSpacing = 6,
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Star),
+                },
+            };
+
+            AddDetailRow(details, 0, "Power source", snapshot.IsOnExternalPower ? "External" : "Battery", p);
+            AddDetailRow(details, 1, "Battery power", FormatPower(snapshot.CurrentBatteryPowerWatts), p);
+            AddDetailRow(details, 2, "Remaining", FormatCapacity(snapshot.RemainingCapacityMilliwattHours), p);
+            AddDetailRow(details, 3, "Full charge", FormatCapacity(snapshot.FullChargeCapacityMilliwattHours), p);
+            AddDetailRow(details, 4, "Designed", FormatCapacity(snapshot.DesignedCapacityMilliwattHours), p);
+            AddDetailRow(
+                details,
+                5,
+                "Health",
+                snapshot.HealthPercent.HasValue ? $"{snapshot.HealthPercent.Value:F0}%" : "N/A",
+                p);
+            body.Children.Add(BuildBottomSection(details, snapshot, fp, p));
+
+            DockPanel root = new() { LastChildFill = true };
+            Control header = BuildHeader(fp, titleBarBackground);
+            DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
+            root.Children.Add(header);
+            root.Children.Add(body);
+
+            Grid content = new();
+            content.Children.Add(root);
+            if (_settings.FlyoutHeaderAtBottom && _settings.AllowFlyoutUndock)
+            {
+                Border floatingUndock = BuildUndockButton(fp, FloatingUndockMargin);
+                floatingUndock.HorizontalAlignment = HorizontalAlignment.Right;
+                floatingUndock.VerticalAlignment = VerticalAlignment.Top;
+                content.Children.Add(floatingUndock);
+            }
+
+            Border chrome = new()
+            {
+                Background = Brush(flyoutBackground),
+                BorderBrush = Brush(p.Border),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(_settings.EnableRoundedCorners ? 8 : 0),
+                Child = content,
+            };
+            chrome.PointerPressed += OnChromePointerPressed;
+            chrome.PointerMoved += OnChromePointerMoved;
+            chrome.PointerReleased += OnChromePointerReleased;
+            chrome.PointerCaptureLost += OnChromePointerCaptureLost;
+
+            Content = chrome;
+            _undockButtonController = _buildingUndockButtonController;
+            QueuePositionNearTray();
+        }
+        finally
         {
-            Border floatingUndock = BuildUndockButton(fp, FloatingUndockMargin);
-            floatingUndock.HorizontalAlignment = HorizontalAlignment.Right;
-            floatingUndock.VerticalAlignment = VerticalAlignment.Top;
-            content.Children.Add(floatingUndock);
+            _buildingUndockButtonController = null;
+            _isRebuilding = false;
         }
 
-        Border chrome = new()
-        {
-            Background = Brush(flyoutBackground),
-            BorderBrush = Brush(p.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(_settings.EnableRoundedCorners ? 8 : 0),
-            Child = content,
-        };
-        chrome.PointerPressed += OnChromePointerPressed;
-        chrome.PointerMoved += OnChromePointerMoved;
-        chrome.PointerReleased += OnChromePointerReleased;
-        chrome.PointerCaptureLost += OnChromePointerCaptureLost;
+        FlushPendingRebuild();
+    }
 
-        Content = chrome;
-        QueuePositionNearTray();
+    /// <summary>
+    /// Queues one coalesced rebuild and defers hidden warm-window churn until the next show.
+    /// </summary>
+    private void QueueRebuild()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(QueueRebuild, DispatcherPriority.Background);
+            return;
+        }
+
+        if (!IsVisible && !IsWarmPriming)
+        {
+            _rebuildPending = true;
+            return;
+        }
+
+        if (_isRebuilding)
+        {
+            _rebuildPending = true;
+            return;
+        }
+
+        if (_rebuildQueued) return;
+
+        _rebuildQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _rebuildQueued = false;
+            Rebuild();
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>Runs a deferred rebuild after the current rebuild completes.</summary>
+    private void FlushPendingRebuild()
+    {
+        if (!_rebuildPending || _isRebuilding) return;
+
+        _rebuildPending = false;
+        QueueRebuild();
     }
 
     private Border BuildHeader(FlyoutControlPalette p, Color titleBarBackground)
@@ -381,7 +472,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private Border BuildUndockButton(FlyoutControlPalette p, Thickness? margin = null)
     {
-        _undockButtonController = new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
+        FlyoutUndockButtonController controller = new(new FlyoutUndockButtonOptions
         {
             Owner = this,
             DragHelper = _dragHelper,
@@ -403,12 +494,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Margin = margin ?? new Thickness(0),
             CornerRadius = Rounded(TitleBarButtonCornerRadius),
         });
-        _undockButtonController.Glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        _undockButtonController.Glyph.FontWeight = FontWeight.Normal;
-        _undockButtonController.Glyph.Foreground = Brush(p.IconForeground);
-        _undockButtonController.Glyph.LineHeight = TitleBarUndockLineHeight;
-        UseDefaultGlyphRendering(_undockButtonController.Glyph);
-        return _undockButtonController.Button;
+        controller.Glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        controller.Glyph.FontWeight = FontWeight.Normal;
+        controller.Glyph.Foreground = Brush(p.IconForeground);
+        controller.Glyph.LineHeight = TitleBarUndockLineHeight;
+        UseDefaultGlyphRendering(controller.Glyph);
+        _buildingUndockButtonController = controller;
+        return controller.Button;
     }
 
     private static void UseDefaultGlyphRendering(TextBlock glyph)
@@ -713,7 +805,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             enabled =>
             {
                 if (enabled) SetPowerMode(mode);
-                else Dispatcher.UIThread.Post(Rebuild, DispatcherPriority.Background);
+                else QueueRebuild();
             },
             text,
             enabled: !_isPowerModeChanging,

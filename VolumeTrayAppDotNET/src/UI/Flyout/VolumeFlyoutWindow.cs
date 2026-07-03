@@ -50,6 +50,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private int _activeVolumeSliderDragCount;
     private bool _deviceOrderingRebuildPending;
     private bool _rebuildPending;
+    private bool _rebuildQueued;
+    private List<Action>? _buildingCleanup;
     private FlyoutLayout? _layout;
     private Border? _undockButton;
     private TextBlock? _undockButtonGlyph;
@@ -164,7 +166,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     protected override void HideFlyout() => Hide();
 
-    public void NotifyUpdateStateChanged() => Dispatcher.UIThread.Post(Rebuild);
+    public void NotifyUpdateStateChanged() => QueueRebuild();
 
     private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
     {
@@ -174,17 +176,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             return;
         }
 
-        Rebuild();
+        QueueRebuild();
     });
 
     private void OnAudioManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AudioDeviceManager.DefaultDevice))
-            Dispatcher.UIThread.Post(Rebuild);
+            QueueRebuild();
     }
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
-        Dispatcher.UIThread.Post(Rebuild);
+        QueueRebuild();
 
     private void PositionNearTray() => Position = ResolvePosition(_lastTrayIcon);
 
@@ -313,6 +315,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void Rebuild()
     {
+        try { RebuildCore(); }
+        catch (Exception ex)
+        {
+            _rebuildPending = false;
+            _rebuildQueued = false;
+            TADNLog.Log($"VolumeFlyoutWindow.Rebuild: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the flyout content transactionally so a failed build keeps the previous UI alive.
+    /// </summary>
+    private void RebuildCore()
+    {
         if (_layout == null) return;
         if (_activeVolumeSliderDragCount > 0 || _isRebuilding)
         {
@@ -320,20 +336,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             return;
         }
 
+        _rebuildQueued = false;
         _isRebuilding = true;
         _rebuildPending = false;
+        List<Action> buildCleanup = [];
+        _buildingCleanup = buildCleanup;
         try
         {
             double? previousScrollOffset = _cellsScrollViewer?.Offset.Y;
-            foreach (Action cleanup in _cleanup)
-            {
-                try { cleanup(); }
-                catch { }
-            }
-
-            _cleanup.Clear();
-            _hoveredDeviceStateButtonCount = 0;
-            _deviceOrderingRebuildPending = false;
             CloseOpenMenu();
 
             bool isLight = ResolveEffectiveIsLight();
@@ -396,15 +406,83 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             chrome.PointerCaptureLost += OnChromePointerCaptureLost;
 
             Content = chrome;
+            RunCleanup(_cleanup);
+            _cleanup.Clear();
+            _cleanup.AddRange(buildCleanup);
+            buildCleanup.Clear();
+            _hoveredDeviceStateButtonCount = 0;
+            _deviceOrderingRebuildPending = false;
 
             QueuePositionNearTray();
         }
+        catch
+        {
+            RunCleanup(buildCleanup);
+            buildCleanup.Clear();
+            throw;
+        }
         finally
         {
+            _buildingCleanup = null;
             _isRebuilding = false;
         }
 
         FlushPendingRebuild();
+    }
+
+    /// <summary>
+    /// Queues one coalesced rebuild and defers hidden warm-window churn until the next show.
+    /// </summary>
+    private void QueueRebuild()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(QueueRebuild, DispatcherPriority.Background);
+            return;
+        }
+
+        if (_layout == null) return;
+        if (!IsVisible && !IsWarmPriming)
+        {
+            _rebuildPending = true;
+            return;
+        }
+
+        if (_activeVolumeSliderDragCount > 0 || _isRebuilding)
+        {
+            _rebuildPending = true;
+            return;
+        }
+
+        if (_rebuildQueued) return;
+
+        _rebuildQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _rebuildQueued = false;
+            Rebuild();
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Adds a cleanup action to the current rebuild transaction or the active content.
+    /// </summary>
+    private void AddCleanup(Action cleanup)
+    {
+        List<Action> cleanupTarget = _buildingCleanup ?? _cleanup;
+        cleanupTarget.Add(cleanup);
+    }
+
+    /// <summary>
+    /// Runs event-detach cleanup without allowing teardown failures to escape the dispatcher.
+    /// </summary>
+    private static void RunCleanup(List<Action> cleanupActions)
+    {
+        for (int i = 0; i < cleanupActions.Count; i++)
+        {
+            try { cleanupActions[i](); }
+            catch (Exception ex) { TADNLog.Log($"VolumeFlyoutWindow cleanup failed: {ex.Message}"); }
+        }
     }
 
     private void BeginVolumeSliderDrag()
@@ -423,7 +501,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (!_rebuildPending || _isRebuilding || _activeVolumeSliderDragCount > 0) return;
 
         _rebuildPending = false;
-        Dispatcher.UIThread.Post(Rebuild);
+        QueueRebuild();
     }
 
     private void RestoreCellsScrollOffset(ScrollViewer scroll, double offset)
@@ -677,7 +755,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
 
         group.PropertyChanged += OnGroupChanged;
-        _cleanup.Add(() => group.PropertyChanged -= OnGroupChanged);
+        AddCleanup(() => group.PropertyChanged -= OnGroupChanged);
         return grid;
 
         void OnGroupChanged(object? sender, PropertyChangedEventArgs e)
@@ -695,7 +773,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             else if (e.PropertyName == nameof(AudioAppGroup.PeakValues))
                 slider.PeakValues = SliderPeaks(group.PeakValues);
             else if (e.PropertyName is nameof(AudioAppGroup.IsMuted) or nameof(AudioAppGroup.State)
-                     or nameof(AudioAppGroup.Icon)) Dispatcher.UIThread.Post(Rebuild);
+                     or nameof(AudioAppGroup.Icon)) QueueRebuild();
         }
 
         void ApplyGroupVolume()
@@ -767,14 +845,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         group.PropertyChanged += OnGroupChanged;
-        _cleanup.Add(() => group.PropertyChanged -= OnGroupChanged);
+        AddCleanup(() => group.PropertyChanged -= OnGroupChanged);
         return cell;
 
         void OnGroupChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName is nameof(AudioAppGroup.IsMuted) or nameof(AudioAppGroup.Icon)
                 or nameof(AudioAppGroup.State))
-                Dispatcher.UIThread.Post(Rebuild);
+                QueueRebuild();
         }
     }
 
@@ -938,7 +1016,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         AddTitleButton(row, col, BuildDrawerButton(device, groups, p));
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         return row;
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
@@ -947,9 +1025,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 name.Text = device.FriendlyName;
             else if ((e.PropertyName is nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications))
                      && !IsDefaultDeviceButtonVisible(device))
-                RunOnUiThread(QueueDeviceOrderingRebuild);
+                RunOnUIThread(QueueDeviceOrderingRebuild);
             else if (DeviceRebuildProperties.Contains(e.PropertyName ?? string.Empty))
-                Dispatcher.UIThread.Post(Rebuild);
+                QueueRebuild();
         }
     }
 
@@ -1004,7 +1082,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         UpdateMutedActiveVisuals();
         return row;
 
@@ -1023,9 +1101,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             else if (e.PropertyName == nameof(AudioDevice.PeakValues))
                 slider.PeakValues = SliderPeaks(device.PeakValues);
             else if (e.PropertyName == nameof(AudioDevice.IsMuted))
-                RunOnUiThread(UpdateMutedActiveVisuals);
+                RunOnUIThread(UpdateMutedActiveVisuals);
             else if (e.PropertyName is nameof(AudioDevice.IsActive) or nameof(AudioDevice.State))
-                Dispatcher.UIThread.Post(Rebuild);
+                QueueRebuild();
         }
 
         void UpdateMutedActiveVisuals()
@@ -1243,7 +1321,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
 
         return button;
 
@@ -1255,7 +1333,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 or nameof(AudioDevice.IsCaptureSleeping)
                 or nameof(AudioDevice.IsListeningToThisDevice))) return;
 
-            RunOnUiThread(UpdateVisual);
+            RunOnUIThread(UpdateVisual);
         }
 
         void UpdateVisual()
@@ -1326,7 +1404,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         UpdateVisual();
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
@@ -1334,7 +1412,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             if (e.PropertyName is not (nameof(AudioDevice.IsExclusiveModeAllowed)
                 or nameof(AudioDevice.IsExclusiveControlHeld))) return;
 
-            RunOnUiThread(UpdateVisual);
+            RunOnUIThread(UpdateVisual);
         }
 
         void UpdateVisual()
@@ -1390,13 +1468,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         UpdateVisual();
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName != nameof(AudioDevice.EqualizerAPOState)) return;
-            RunOnUiThread(UpdateVisual);
+            RunOnUIThread(UpdateVisual);
         }
 
         void UpdateVisual()
@@ -1423,13 +1501,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         UpdateVisual();
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName != nameof(AudioDevice.IsListeningToThisDevice)) return;
-            RunOnUiThread(UpdateVisual);
+            RunOnUIThread(UpdateVisual);
         }
 
         void UpdateVisual() => button.Opacity = device.IsListeningToThisDevice ? 1.0 : 0.4;
@@ -1464,7 +1542,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         UpdateVisual();
 
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         return button;
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
@@ -1474,7 +1552,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 or nameof(AudioDevice.IsActive)
                 or nameof(AudioDevice.State))) return;
 
-            RunOnUiThread(() =>
+            RunOnUIThread(() =>
             {
                 UpdateVisual();
                 if (e.PropertyName is nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications))
@@ -1518,7 +1596,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             _hoveredDeviceStateButtonCount = Math.Max(0, _hoveredDeviceStateButtonCount - 1);
             FlushDeviceOrderingRebuild();
         };
-        _cleanup.Add(() =>
+        AddCleanup(() =>
         {
             if (!pointerOver) return;
             pointerOver = false;
@@ -1539,7 +1617,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (!_deviceOrderingRebuildPending || _hoveredDeviceStateButtonCount > 0) return;
 
         _deviceOrderingRebuildPending = false;
-        Dispatcher.UIThread.Post(Rebuild);
+        QueueRebuild();
     }
 
     private Border BuildDrawerButton(AudioDevice device, IReadOnlyList<AudioAppGroup> groups, FlyoutPalette p)
@@ -1612,7 +1690,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
         _undockButton = button;
         _undockButtonGlyph = text;
-        _cleanup.Add(() =>
+        AddCleanup(() =>
         {
             if (ReferenceEquals(_undockButton, button))
             {
@@ -1788,10 +1866,27 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                && point.Y <= control.Bounds.Height;
     }
 
-    private static void RunOnUiThread(Action action)
+    /// <summary>
+    /// Runs a UI action without letting observer update failures escape Avalonia callbacks.
+    /// </summary>
+    private static void RunOnUIThread(Action action)
     {
-        if (Dispatcher.UIThread.CheckAccess()) action();
-        else Dispatcher.UIThread.Post(action);
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            RunUIAction(action);
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() => RunUIAction(action), DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Executes one UI update and logs failures.
+    /// </summary>
+    private static void RunUIAction(Action action)
+    {
+        try { action(); }
+        catch (Exception ex) { TADNLog.Log($"VolumeFlyoutWindow UI action failed: {ex.GetType().Name}: {ex.Message}"); }
     }
 
     private void BeginUndockButtonDrag(Control source, PointerPressedEventArgs e)
@@ -2177,9 +2272,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void HookDeviceForRebuild(AudioDevice device)
     {
         device.PropertyChanged += OnDeviceChanged;
-        _cleanup.Add(() => device.PropertyChanged -= OnDeviceChanged);
+        AddCleanup(() => device.PropertyChanged -= OnDeviceChanged);
         ((INotifyCollectionChanged)device.Groups).CollectionChanged += OnDeviceGroupsChanged;
-        _cleanup.Add(() => ((INotifyCollectionChanged)device.Groups).CollectionChanged -= OnDeviceGroupsChanged);
+        AddCleanup(() => ((INotifyCollectionChanged)device.Groups).CollectionChanged -= OnDeviceGroupsChanged);
 
         foreach (AudioAppGroup group in device.Groups)
             HookGroupForRebuild(group);
@@ -2188,17 +2283,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName != nameof(AudioDevice.Groups)) return;
-            Dispatcher.UIThread.Post(Rebuild);
+            QueueRebuild();
         }
     }
 
     private void OnDeviceGroupsChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
-        Dispatcher.UIThread.Post(Rebuild);
+        QueueRebuild();
 
     private void HookGroupForRebuild(AudioAppGroup group)
     {
         group.PropertyChanged += OnGroupChanged;
-        _cleanup.Add(() => group.PropertyChanged -= OnGroupChanged);
+        AddCleanup(() => group.PropertyChanged -= OnGroupChanged);
         return;
 
         void OnGroupChanged(object? sender, PropertyChangedEventArgs e)
@@ -2206,7 +2301,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             string propertyName = e.PropertyName ?? string.Empty;
             if (propertyName is nameof(AudioAppGroup.State) or nameof(AudioAppGroup.Icon)
                 or nameof(AudioAppGroup.DisplayName) or nameof(AudioAppGroup.IsMuted))
-                Dispatcher.UIThread.Post(Rebuild);
+                QueueRebuild();
         }
     }
 

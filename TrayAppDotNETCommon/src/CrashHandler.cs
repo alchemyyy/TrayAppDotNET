@@ -43,6 +43,14 @@ public static class CrashHandler
     public static void Configure(CrashHandlerOptions options) =>
         _options = options ?? throw new ArgumentNullException(nameof(options));
 
+    /// <summary>Logs a recoverable failure through the configured crash log sink.</summary>
+    public static void LogNonFatal(string message)
+    {
+        CrashHandlerOptions options = Options;
+        options.Log(message);
+        options.FlushLog();
+    }
+
     public static void WireCrashHandlers()
     {
         CrashHandlerOptions options = Options;

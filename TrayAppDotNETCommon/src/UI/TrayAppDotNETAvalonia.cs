@@ -15,6 +15,7 @@ namespace TrayAppDotNETCommon.UI;
 public static class TrayAppDotNETAvalonia
 {
     public const string DefaultFontFamilyName = "Segoe UI";
+    private static int _dispatcherUnhandledExceptionHandlerWired;
 
     public static AppBuilder Configure<TApp>(Func<AppBuilder, AppBuilder>? configureAfterPlatformDetect = null)
         where TApp : Application, new()
@@ -171,17 +172,41 @@ public static class TrayAppDotNETAvalonia
             desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
     }
 
+    /// <summary>Wires process and Avalonia dispatcher exception handling for tray apps.</summary>
     public static void WireCrashHandlers(
         Action? processExit = null,
         Action<UnobservedTaskExceptionEventArgs>? unobservedTaskException = null)
     {
         CrashHandler.WireCrashHandlers();
+        WireDispatcherUnhandledExceptionHandler();
 
         if (processExit != null)
             AppDomain.CurrentDomain.ProcessExit += (_, _) => processExit();
 
         if (unobservedTaskException != null)
             TaskScheduler.UnobservedTaskException += (_, args) => unobservedTaskException(args);
+    }
+
+    /// <summary>Prevents dispatcher callback failures from killing the tray message thread.</summary>
+    private static void WireDispatcherUnhandledExceptionHandler()
+    {
+        if (Interlocked.Exchange(ref _dispatcherUnhandledExceptionHandlerWired, 1) == 1) return;
+
+        Dispatcher.UIThread.UnhandledException += (_, args) =>
+        {
+            try
+            {
+                CrashHandler.LogNonFatal(
+                    $"Avalonia DispatcherUnhandledException: {args.Exception.GetType().Name}: {args.Exception.Message}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    "TrayAppDotNETAvalonia dispatcher exception logging failed: " + ex);
+            }
+
+            args.Handled = true;
+        };
     }
 
     public static Task InvokeOnUIThreadAsync(Action action)
