@@ -46,6 +46,7 @@
         <sys:Double x:Key="Flyout.HeaderButtonHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.HeaderButtonFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.HeaderManagerButtonFontSize">17</sys:Double>
+        <Thickness x:Key="Flyout.UpdateInstallButtonPadding">8,4</Thickness>
         <sys:Double x:Key="Flyout.HeaderAddGroupIconSize">22</sys:Double>
         <sys:Double x:Key="Flyout.HeaderAddGroupFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.HeaderAddProbeFontSize">16</sys:Double>
@@ -75,12 +76,15 @@
         <Thickness x:Key="Flyout.FanButtonUngroupedMargin">-4,0,12,0</Thickness>
         <sys:Double x:Key="Flyout.FanNameFontSize">14</sys:Double>
         <sys:Double x:Key="Flyout.FanSubtitleFontSize">10</sys:Double>
+        <sys:Double x:Key="Flyout.SubtitleOpacity">0.8</sys:Double>
         <Thickness x:Key="Flyout.SubtitleMargin">0,-2,0,0</Thickness>
         <Thickness x:Key="Flyout.FanNameStackGroupedMargin">-2,0,10,0</Thickness>
         <Thickness x:Key="Flyout.FanNameStackUngroupedMargin">-6,0,10,0</Thickness>
         <Thickness x:Key="Flyout.TelemetryMargin">6,0,0,0</Thickness>
         <sys:Double x:Key="Flyout.RpmFontSize">14</sys:Double>
+        <sys:Double x:Key="Flyout.RpmOpacity">0.7</sys:Double>
         <sys:Double x:Key="Flyout.ControllerFontSize">9</sys:Double>
+        <sys:Double x:Key="Flyout.ControllerOpacity">0.45</sys:Double>
         <Thickness x:Key="Flyout.ControllerMargin">0,-2,0,0</Thickness>
         <sys:Double x:Key="Flyout.ModeButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.ModeButtonHeight">24</sys:Double>
@@ -101,6 +105,7 @@
         <sys:Double x:Key="Flyout.GroupExpandFontSize">13</sys:Double>
         <Thickness x:Key="Flyout.GroupHeaderButtonMargin">2,-6,-2,0</Thickness>
         <sys:Double x:Key="Flyout.GroupNameFontSize">13</sys:Double>
+        <sys:Double x:Key="Flyout.GroupNameOpacity">0.85</sys:Double>
         <Thickness x:Key="Flyout.GroupTitleMargin">-6,0,10,0</Thickness>
         <sys:Double x:Key="Flyout.GroupDeleteFontSize">11</sys:Double>
         <Thickness x:Key="Flyout.GroupModeMargin">-4,-3,12,0</Thickness>
@@ -132,12 +137,19 @@
         <sys:Double x:Key="Flyout.ConfirmMinWidth">260</sys:Double>
         <sys:Double x:Key="Flyout.ConfirmMaxWidth">300</sys:Double>
 
+        <sys:Double x:Key="Flyout.FullOpacity">1</sys:Double>
+        <sys:Double x:Key="Flyout.RelinquishedControlOpacity">0.42</sys:Double>
+        <sys:Double x:Key="Flyout.InactiveSliderValueOpacity">0.2</sys:Double>
         <sys:Double x:Key="Flyout.DragGhostOpacity">0.84</sys:Double>
         <sys:Double x:Key="Flyout.DragGhostShadowOffsetY">2</sys:Double>
         <sys:Double x:Key="Flyout.DragGhostShadowBlur">18</sys:Double>
         <sys:Double x:Key="Flyout.DropMarkerHeight">3</sys:Double>
         <CornerRadius x:Key="Flyout.DropMarkerCornerRadius">2</CornerRadius>
         <sys:Double x:Key="Flyout.DragSourceOpacity">0</sys:Double>
+        <sys:Double x:Key="Flyout.DragDebugMarkerHeight">1</sys:Double>
+        <sys:Double x:Key="Flyout.DragDebugMarkerOpacity">0.85</sys:Double>
+        <sys:Double x:Key="Flyout.DragDebugPointerHeight">2</sys:Double>
+        <sys:Double x:Key="Flyout.DragDebugPointerOpacity">0.95</sys:Double>
 
         <sys:Double x:Key="Flyout.InlineEditorFontSize">14</sys:Double>
         <Thickness x:Key="Flyout.InlineEditorBorderThickness">0</Thickness>

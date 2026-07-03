@@ -41,9 +41,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly FanDragInstrumentation _dragInstrumentation = new(log: static message => TADNLog.Log(message));
     private readonly List<Control> _dragDebugVisuals = [];
 
-    private const double RelinquishedControlOpacity = 0.42;
-    private const double InactiveSliderValueOpacity = 0.2;
-
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private StackPanel? _cellStack;
     private Canvas? _dragOverlay;
@@ -525,7 +522,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             p,
             ShowUpdateConfirmation,
             Layout.FanSubtitleFontSize,
-            new Thickness(8, 4));
+            Layout.UpdateInstallButtonPadding);
         install.VerticalAlignment = VerticalAlignment.Center;
         install.Margin = Layout.TelemetryMargin;
         Grid.SetColumn(install, 2);
@@ -883,7 +880,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ? $"{fan.CurrentDutyCycle.ToString("0", CultureInfo.InvariantCulture)}%"
             : fan.AssignedCurveDisplayLabel;
         TextBlock subtitle = TrayAppDotNETFlyoutUI.Text(subtitleText, p, Layout.FanSubtitleFontSize);
-        subtitle.Opacity = 0.8;
+        subtitle.Opacity = Layout.SubtitleOpacity;
         subtitle.Margin = Layout.SubtitleMargin;
         subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
         StackPanel nameStack = new()
@@ -904,10 +901,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Margin = Layout.TelemetryMargin,
         };
         TextBlock rpm = TrayAppDotNETFlyoutUI.Text($"{fan.CurrentRPM} RPM", p, Layout.RpmFontSize);
-        rpm.Opacity = 0.7;
+        rpm.Opacity = Layout.RpmOpacity;
         rpm.HorizontalAlignment = HorizontalAlignment.Right;
         TextBlock controller = TrayAppDotNETFlyoutUI.Text(fan.ControllerDisplayLabel, p, Layout.ControllerFontSize);
-        controller.Opacity = 0.45;
+        controller.Opacity = Layout.ControllerOpacity;
         controller.HorizontalAlignment = HorizontalAlignment.Right;
         controller.TextTrimming = TextTrimming.CharacterEllipsis;
         controller.Margin = Layout.ControllerMargin;
@@ -1081,7 +1078,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid nameGrid = new();
         TextBlock name = TrayAppDotNETFlyoutUI.Text(cell.GroupName ?? string.Empty, p, Layout.GroupNameFontSize,
             FontWeight.SemiBold);
-        name.Opacity = 0.85;
+        name.Opacity = Layout.GroupNameOpacity;
         name.Tag = cell;
         name.PointerPressed += GroupNameTextPointerPressed;
         TextBox edit = InlineTextBox(cell.GroupName ?? string.Empty, p);
@@ -1092,7 +1089,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         nameGrid.Children.Add(name);
         nameGrid.Children.Add(edit);
         TextBlock activeCurve = TrayAppDotNETFlyoutUI.Text(cell.ActiveCurveText, p, Layout.FanSubtitleFontSize);
-        activeCurve.Opacity = 0.8;
+        activeCurve.Opacity = Layout.SubtitleOpacity;
         activeCurve.Margin = Layout.SubtitleMargin;
         StackPanel title = new() { VerticalAlignment = VerticalAlignment.Center, Margin = Layout.GroupTitleMargin, };
         title.Children.Add(nameGrid);
@@ -1387,33 +1384,33 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static string ControlModeTooltip(FanControlMode mode) =>
         mode == FanControlMode.Manual ? "Manual" : "Curve";
 
-    private static void ApplyControlModeGlyphVisual(TextBlock? glyph, FanControlMode mode)
+    private void ApplyControlModeGlyphVisual(TextBlock? glyph, FanControlMode mode)
     {
         if (glyph == null) return;
         glyph.Text = ControlModeGlyph(mode);
-        glyph.Opacity = mode == FanControlMode.Manual ? 1.0 : RelinquishedControlOpacity;
+        glyph.Opacity = mode == FanControlMode.Manual ? Layout.FullOpacity : Layout.RelinquishedControlOpacity;
     }
 
-    private static void ApplyFanRelinquishedControlVisual(
+    private void ApplyFanRelinquishedControlVisual(
         Fan fan,
         TextBlock name,
         TextBlock value,
         FlyoutSlider slider)
     {
-        double opacity = IsFanControlRelinquished(fan) ? RelinquishedControlOpacity : 1.0;
-        name.Opacity = 1.0;
+        double opacity = IsFanControlRelinquished(fan) ? Layout.RelinquishedControlOpacity : Layout.FullOpacity;
+        name.Opacity = Layout.FullOpacity;
         value.Opacity = opacity;
         slider.Opacity = opacity;
     }
 
-    private static void ApplyGroupRelinquishedControlVisual(
+    private void ApplyGroupRelinquishedControlVisual(
         FanFlyoutCell cell,
         TextBlock name,
         TextBlock value,
         FlyoutSlider slider)
     {
-        double opacity = IsGroupControlRelinquished(cell) ? RelinquishedControlOpacity : 1.0;
-        name.Opacity = cell.HasGroupHeader ? 0.85 : 1.0;
+        double opacity = IsGroupControlRelinquished(cell) ? Layout.RelinquishedControlOpacity : Layout.FullOpacity;
+        name.Opacity = cell.HasGroupHeader ? Layout.GroupNameOpacity : Layout.FullOpacity;
         value.Opacity = opacity;
         slider.Opacity = opacity;
     }
@@ -1451,7 +1448,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             slider.SecondaryValue = curveSliderValue.Value;
             slider.SecondaryThumb = ResolveCurveSliderThumbOption();
-            slider.SecondaryOpacity = InactiveSliderValueOpacity;
+            slider.SecondaryOpacity = Layout.InactiveSliderValueOpacity;
             return;
         }
 
@@ -1459,7 +1456,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         slider.SecondaryValue = Math.Clamp(fan.FanDisplayedValue, 0, fan.FanSliderMaximum);
         slider.SecondaryThumb = ResolveSliderThumbOption();
-        slider.SecondaryOpacity = InactiveSliderValueOpacity;
+        slider.SecondaryOpacity = Layout.InactiveSliderValueOpacity;
     }
 
     /// <summary>
@@ -1477,7 +1474,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             slider.SecondaryValue = curveSliderValue.Value;
             slider.SecondaryThumb = ResolveCurveSliderThumbOption();
-            slider.SecondaryOpacity = InactiveSliderValueOpacity;
+            slider.SecondaryOpacity = Layout.InactiveSliderValueOpacity;
             return;
         }
 
@@ -1488,7 +1485,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             0,
             FanFlyoutCell.GroupFanSliderMaximum);
         slider.SecondaryThumb = ResolveSliderThumbOption();
-        slider.SecondaryOpacity = InactiveSliderValueOpacity;
+        slider.SecondaryOpacity = Layout.InactiveSliderValueOpacity;
     }
 
     /// <summary>
@@ -2261,7 +2258,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Width = ghostWidth,
             Height = _dragGhostHeight,
-            Opacity = 1.0,
+            Opacity = Layout.FullOpacity,
             BoxShadow = new BoxShadows(new BoxShadow
             {
                 OffsetY = Layout.DragGhostShadowOffsetY,
@@ -2368,7 +2365,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_dragGhost == null) return;
 
-        _dragGhost.Opacity = 1.0;
+        _dragGhost.Opacity = Layout.FullOpacity;
         if (style == FanDragGhostStyle.GroupedFan)
         {
             AppTheme theme = AppServices.Theme ?? AppTheme.Default;
@@ -2854,7 +2851,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             _groupDropPreview = CreateGroupedFanDropPlaceholder();
             if (_groupDropPreview == null) return false;
-            _groupDropPreview.Opacity = 1.0;
+            _groupDropPreview.Opacity = Layout.FullOpacity;
             _groupDropPreview.IsHitTestVisible = false;
         }
 
@@ -2913,7 +2910,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Point? top = _cellStack.TranslatePoint(new Point(0, marker.Y), _dragOverlay);
             if (top == null) continue;
-            AddDragDebugLine(0, top.Value.Y, overlayWidth, Brushes.Red, 1.0, 0.85);
+            AddDragDebugLine(0, top.Value.Y, overlayWidth, Brushes.Red, Layout.DragDebugMarkerHeight,
+                Layout.DragDebugMarkerOpacity);
         }
 
         Point? pointer = _cellStack.TranslatePoint(current, _dragOverlay);
@@ -2921,7 +2919,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         double ghostLeft = Canvas.GetLeft(_dragGhost);
         if (double.IsNaN(ghostLeft)) ghostLeft = 0;
-        AddDragDebugLine(ghostLeft, pointer.Value.Y, Math.Max(1, _dragGhost.Width), Brushes.Yellow, 2.0, 0.95);
+        AddDragDebugLine(ghostLeft, pointer.Value.Y, Math.Max(1, _dragGhost.Width), Brushes.Yellow,
+            Layout.DragDebugPointerHeight, Layout.DragDebugPointerOpacity);
     }
 
     private void AddDragDebugLine(double left, double top, double width, IBrush brush, double height, double opacity)
@@ -4672,6 +4671,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         double HeaderButtonHeight,
         double HeaderButtonFontSize,
         double HeaderManagerButtonFontSize,
+        Thickness UpdateInstallButtonPadding,
         double HeaderAddGroupIconSize,
         double HeaderAddGroupFontSize,
         double HeaderAddProbeFontSize,
@@ -4699,12 +4699,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Thickness FanButtonUngroupedMargin,
         double FanNameFontSize,
         double FanSubtitleFontSize,
+        double SubtitleOpacity,
         Thickness SubtitleMargin,
         Thickness FanNameStackGroupedMargin,
         Thickness FanNameStackUngroupedMargin,
         Thickness TelemetryMargin,
         double RpmFontSize,
+        double RpmOpacity,
         double ControllerFontSize,
+        double ControllerOpacity,
         Thickness ControllerMargin,
         double ModeButtonWidth,
         double ModeButtonHeight,
@@ -4724,6 +4727,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         double GroupExpandFontSize,
         Thickness GroupHeaderButtonMargin,
         double GroupNameFontSize,
+        double GroupNameOpacity,
         Thickness GroupTitleMargin,
         double GroupDeleteFontSize,
         Thickness GroupModeMargin,
@@ -4752,12 +4756,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Thickness ConfirmPadding,
         double ConfirmMinWidth,
         double ConfirmMaxWidth,
+        double FullOpacity,
+        double RelinquishedControlOpacity,
+        double InactiveSliderValueOpacity,
         double DragGhostOpacity,
         double DragGhostShadowOffsetY,
         double DragGhostShadowBlur,
         double DropMarkerHeight,
         CornerRadius DropMarkerCornerRadius,
         double DragSourceOpacity,
+        double DragDebugMarkerHeight,
+        double DragDebugMarkerOpacity,
+        double DragDebugPointerHeight,
+        double DragDebugPointerOpacity,
         double InlineEditorFontSize,
         Thickness InlineEditorBorderThickness,
         Thickness InlineEditorPadding)
@@ -4804,6 +4815,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 r.Double("HeaderButtonHeight"),
                 r.Double("HeaderButtonFontSize"),
                 r.Double("HeaderManagerButtonFontSize"),
+                r.Thickness("UpdateInstallButtonPadding"),
                 r.Double("HeaderAddGroupIconSize"),
                 r.Double("HeaderAddGroupFontSize"),
                 r.Double("HeaderAddProbeFontSize"),
@@ -4831,12 +4843,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 r.Thickness("FanButtonUngroupedMargin"),
                 r.Double("FanNameFontSize"),
                 r.Double("FanSubtitleFontSize"),
+                r.Double("SubtitleOpacity"),
                 r.Thickness("SubtitleMargin"),
                 r.Thickness("FanNameStackGroupedMargin"),
                 r.Thickness("FanNameStackUngroupedMargin"),
                 r.Thickness("TelemetryMargin"),
                 r.Double("RpmFontSize"),
+                r.Double("RpmOpacity"),
                 r.Double("ControllerFontSize"),
+                r.Double("ControllerOpacity"),
                 r.Thickness("ControllerMargin"),
                 r.Double("ModeButtonWidth"),
                 r.Double("ModeButtonHeight"),
@@ -4856,6 +4871,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 r.Double("GroupExpandFontSize"),
                 r.Thickness("GroupHeaderButtonMargin"),
                 r.Double("GroupNameFontSize"),
+                r.Double("GroupNameOpacity"),
                 r.Thickness("GroupTitleMargin"),
                 r.Double("GroupDeleteFontSize"),
                 r.Thickness("GroupModeMargin"),
@@ -4884,12 +4900,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 r.Thickness("ConfirmPadding"),
                 r.Double("ConfirmMinWidth"),
                 r.Double("ConfirmMaxWidth"),
+                r.Double("FullOpacity"),
+                r.Double("RelinquishedControlOpacity"),
+                r.Double("InactiveSliderValueOpacity"),
                 r.Double("DragGhostOpacity"),
                 r.Double("DragGhostShadowOffsetY"),
                 r.Double("DragGhostShadowBlur"),
                 r.Double("DropMarkerHeight"),
                 r.CornerRadius("DropMarkerCornerRadius"),
                 r.Double("DragSourceOpacity"),
+                r.Double("DragDebugMarkerHeight"),
+                r.Double("DragDebugMarkerOpacity"),
+                r.Double("DragDebugPointerHeight"),
+                r.Double("DragDebugPointerOpacity"),
                 r.Double("InlineEditorFontSize"),
                 r.Thickness("InlineEditorBorderThickness"),
                 r.Thickness("InlineEditorPadding"));

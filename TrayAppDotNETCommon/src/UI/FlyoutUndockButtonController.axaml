@@ -1,0 +1,12 @@
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <sys:Double x:Key="FlyoutUndockButton.Width">40</sys:Double>
+    <sys:Double x:Key="FlyoutUndockButton.Height">32</sys:Double>
+    <sys:Double x:Key="FlyoutUndockButton.FontSize">18</sys:Double>
+    <sys:Double x:Key="FlyoutUndockButton.DragThreshold">4</sys:Double>
+    <Thickness x:Key="FlyoutUndockButton.Margin">0</Thickness>
+    <CornerRadius x:Key="FlyoutUndockButton.CornerRadius">4</CornerRadius>
+</ResourceDictionary>

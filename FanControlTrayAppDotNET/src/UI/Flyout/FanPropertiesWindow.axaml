@@ -28,6 +28,7 @@
         <sys:Double x:Key="FanProperties.CurveComboWidth">112</sys:Double>
         <sys:Double x:Key="FanProperties.NumberBoxWidth">82</sys:Double>
         <sys:Double x:Key="FanProperties.RowLabelColumnWidth">82</sys:Double>
+        <sys:Double x:Key="FanProperties.TitleFontSize">13</sys:Double>
 
         <Thickness x:Key="FanProperties.RootBorderThickness">1</Thickness>
         <CornerRadius x:Key="FanProperties.RootCornerRadius">8</CornerRadius>
@@ -38,6 +39,7 @@
         <Thickness x:Key="FanProperties.LeftMargin">0,0,6,0</Thickness>
         <Thickness x:Key="FanProperties.RightMargin">10,0,0,0</Thickness>
         <Thickness x:Key="FanProperties.CurveComboMargin">0,8,0,0</Thickness>
+        <Thickness x:Key="FanProperties.EditCurveButtonMargin">0,8,0,0</Thickness>
         <Thickness x:Key="FanProperties.FooterMargin">10,6,10,10</Thickness>
         <Thickness x:Key="FanProperties.ResetMargin">0,0,8,0</Thickness>
         <Thickness x:Key="FanProperties.RadioMargin">0,0,6,0</Thickness>
