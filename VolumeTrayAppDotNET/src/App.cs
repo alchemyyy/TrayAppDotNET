@@ -580,8 +580,7 @@ internal sealed class VolumeAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _volumeFlyout,
-            () => ShowVolumeFlyout(activate: false));
+            () => _volumeFlyout);
 
     private void OnVolumeFlyoutClosed(object? sender, EventArgs e)
     {

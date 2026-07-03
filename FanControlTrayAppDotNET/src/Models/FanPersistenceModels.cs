@@ -58,12 +58,27 @@ public class FanGroup : INotifyPropertyChanged
     }
 
     [XmlAttribute]
+    public bool RPMMode
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            if (!field && FanDisplayedValue > 100)
+                FanDisplayedValue = 100;
+
+            OnPropertyChanged();
+        }
+    }
+
+    [XmlAttribute]
     public int FanDisplayedValue
     {
         get;
         set
         {
-            int normalized = Math.Clamp(value, 0, 100);
+            int normalized = Math.Clamp(value, 0, RPMMode ? int.MaxValue : 100);
             if (field == normalized) return;
             field = normalized;
             OnPropertyChanged();
@@ -91,6 +106,9 @@ public class FanGroup : INotifyPropertyChanged
             string normalized = value ?? string.Empty;
             if (field == normalized) return;
             field = normalized;
+            Curve? curve = Curve.Find(normalized);
+            if (curve != null)
+                RPMMode = curve.RPMMode;
             OnPropertyChanged();
             OnPropertyChanged(nameof(AssignedCurve));
             OnPropertyChanged(nameof(AssignedCurveDisplayLabel));

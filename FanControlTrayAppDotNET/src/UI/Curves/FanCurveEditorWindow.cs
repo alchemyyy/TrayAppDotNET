@@ -400,7 +400,7 @@ public sealed partial class FanCurveEditorWindow : Window
     /// <summary>
     /// Builds one explicit settings-card column for the control grid.
     /// </summary>
-    private StackPanel BuildControlGridColumn(params Border[] cards)
+    private static StackPanel BuildControlGridColumn(params Border[] cards)
     {
         StackPanel column = new()
         {
@@ -952,6 +952,7 @@ public sealed partial class FanCurveEditorWindow : Window
         double oldMax = _curve.ActiveYMaximum;
         if (_curve.RPMMode == enabled) return;
         _curve.RPMMode = enabled;
+        SyncAssignedCardRPMModes();
         ClampCurveLimits();
         MarkPendingNodeRescale(oldMax, _curve.ActiveYMaximum);
         LoadControlState();
@@ -1059,6 +1060,16 @@ public sealed partial class FanCurveEditorWindow : Window
         _settings.SyncFanControlRegistriesForSave();
         _settings.Save();
         _settings.RaiseChanged();
+    }
+
+    /// <summary>
+    /// Applies this curve's RPM mode to every fan or group currently assigned to it.
+    /// </summary>
+    private void SyncAssignedCardRPMModes()
+    {
+        IEnumerable<Fan>? liveFans = AppServices.LHMService?.Fans;
+        IEnumerable<Fan> fans = liveFans ?? _settings.Fans;
+        FanCurveModeSync.ApplyToCurveAssignments(_curve, fans, FanGroup.FanGroups.Values);
     }
 
     private static int DefaultMaxRPM(Fan fan)

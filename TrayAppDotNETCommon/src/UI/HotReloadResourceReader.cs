@@ -56,8 +56,10 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
     private object Resource(string name)
     {
         string key = _prefix + name;
-        object? value = _owner.Resources[key];
-        return value ?? throw new InvalidOperationException($"Missing hot-reload resource '{key}'.");
+        if (_owner.TryFindResource(key, out object? value) && value != null)
+            return value;
+
+        throw new InvalidOperationException($"Missing hot-reload resource '{key}'.");
     }
 
     private InvalidOperationException InvalidType(string name, string expectedType) =>

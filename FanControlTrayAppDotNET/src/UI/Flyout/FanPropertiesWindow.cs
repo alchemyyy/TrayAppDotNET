@@ -408,14 +408,19 @@ public sealed partial class FanPropertiesWindow : Window
 
     private void ApplyCurveSelection(string curveName)
     {
+        Curve? curve = Curve.Find(curveName);
+        IEnumerable<Fan>? liveFans = AppServices.LHMService?.Fans;
+        IEnumerable<Fan> fans = liveFans ?? [_fan];
         if (!string.IsNullOrWhiteSpace(_fan.Group) && FanGroup.Find(_fan.Group) is { } group)
         {
             group.AssignedCurveName = curveName;
+            FanCurveModeSync.ApplyToGroup(group, fans, curve);
             FanGroup.Register(group);
             return;
         }
 
         _fan.AssignedCurveName = curveName;
+        FanCurveModeSync.ApplyToFan(_fan, curve);
     }
 
     private void OpenCurveEditor()

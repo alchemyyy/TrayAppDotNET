@@ -563,8 +563,7 @@ internal sealed class FanAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _fanFlyout,
-            () => ShowFanFlyout(activate: false));
+            () => _fanFlyout);
 
     private void OnFanFlyoutClosed(object? sender, EventArgs e)
     {

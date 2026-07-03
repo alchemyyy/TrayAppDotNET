@@ -81,9 +81,9 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         Dispatcher.UIThread.Post(
             () =>
             {
+                ClearNextAutoHideSuppression();
                 if (!IsVisible || IsActive) return;
                 if (!ShouldHideWhenInactive()) return;
-                if (ConsumeNextAutoHideSuppression()) return;
                 HideFlyout();
             },
             DispatcherPriority.Input);

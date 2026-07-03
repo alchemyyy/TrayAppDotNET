@@ -6,8 +6,7 @@ namespace TrayAppDotNETCommon.UI;
 
 public sealed class SettingsFlyoutKeepOpenCoordinator(
     Func<Window?> window,
-    Func<FlyoutWindowCommon?> flyoutWindow,
-    Action showFlyoutWithoutActivation)
+    Func<FlyoutWindowCommon?> flyoutWindow)
     : IDisposable
 {
     private Window? _attachedSettingsWindow;
@@ -40,25 +39,35 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
         AttachSettingsChildWindows(settingsWindow);
 
-        if (flyoutWindow() is not { IsVisible: true })
-            showFlyoutWithoutActivation();
-
-        if (flyoutWindow() is { } flyout)
+        FlyoutWindowCommon? flyout = flyoutWindow();
+        if (flyout is not { IsVisible: true })
         {
-            AttachFlyout(flyout);
-            flyout.KeepOpenForSettingsWindow = true;
+            if (_attachedFlyoutWindow != null)
+                _attachedFlyoutWindow.KeepOpenForSettingsWindow = false;
+            DetachFlyout();
+            return;
         }
+
+        AttachFlyout(flyout);
+        flyout.KeepOpenForSettingsWindow = true;
     }
 
     public void Release()
+    {
+        Release(hideFlyout: true, activateFlyout: false);
+    }
+
+    private void Release(bool hideFlyout, bool activateFlyout)
     {
         FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? flyoutWindow();
 
         if (flyout != null)
         {
             flyout.KeepOpenForSettingsWindow = false;
-            if (flyout is { IsVisible: true, CanHideFromCoordinator: true })
+            if (hideFlyout && flyout is { IsVisible: true, CanHideFromCoordinator: true })
                 flyout.HideFromCoordinator();
+            else if (activateFlyout && flyout is { IsVisible: true, CanHideFromCoordinator: true })
+                flyout.Activate();
         }
 
         DetachFlyout();
@@ -67,7 +76,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
     public void Detach()
     {
-        Release();
+        Release(hideFlyout: false, activateFlyout: false);
         DetachSettingsWindow();
     }
 
@@ -128,7 +137,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
     private void OnSettingsWindowClosed(object? sender, EventArgs e)
     {
-        Release();
+        Release(hideFlyout: false, activateFlyout: true);
         DetachSettingsWindow();
     }
 

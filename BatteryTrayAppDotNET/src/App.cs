@@ -486,8 +486,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _batteryFlyout,
-            () => ShowBatteryFlyout(activate: false));
+            () => _batteryFlyout);
 
     private void ScheduleKeepWarmPriming()
     {

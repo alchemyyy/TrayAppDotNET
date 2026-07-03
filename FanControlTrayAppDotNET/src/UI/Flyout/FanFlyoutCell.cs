@@ -20,10 +20,10 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
     public FanFlyoutCell(FanGroup? groupSettings, IEnumerable<Fan> fans)
     {
         GroupSettings = groupSettings;
+        Fans = new ObservableCollection<Fan>(fans);
         if (GroupSettings != null)
             GroupSettings.PropertyChanged += OnGroupSettingsPropertyChanged;
 
-        Fans = new ObservableCollection<Fan>(fans);
         Fans.CollectionChanged += OnFansCollectionChanged;
     }
 
@@ -59,11 +59,24 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
         set => GroupSettings?.FanDisplayedValue = value;
     }
 
-    public string GroupFanDisplayedValueText => $"{GroupFanDisplayedValue}%";
+    public bool GroupRPMMode
+    {
+        get => GroupSettings?.AssignedCurve?.RPMMode ?? GroupSettings?.RPMMode ?? false;
+        set => GroupSettings?.RPMMode = value;
+    }
+
+    public string GroupFanDisplayedValueText => $"{GroupFanDisplayedValue}{GroupFanDisplayedValueSuffix}";
+
+    public string GroupFanDisplayedValueSuffix => GroupRPMMode ? " RPM" : "%";
 
     public static int GroupFanDisplayedValueSlotWidth => IntResource("GroupDisplayedValueWidth");
 
     public static int GroupFanSliderMaximum => IntResource("GroupSliderMaximumValue");
+
+    public int GroupDisplayedValueSlotWidth =>
+        GroupRPMMode ? IntResource("GroupRPMDisplayedValueWidth") : GroupFanDisplayedValueSlotWidth;
+
+    public int GroupSliderMaximum => GroupRPMMode ? ResolveGroupRPMMaximum() : GroupFanSliderMaximum;
 
     public string ActiveCurveText
     {
@@ -89,6 +102,8 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(IsEmptyGroup));
         OnPropertyChanged(nameof(ActiveCurveText));
+        OnPropertyChanged(nameof(GroupSliderMaximum));
+        OnPropertyChanged(nameof(GroupDisplayedValueSlotWidth));
     }
 
     private void OnGroupSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -113,15 +128,48 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
                 OnPropertyChanged(nameof(GroupFanDisplayedValue));
                 OnPropertyChanged(nameof(GroupFanDisplayedValueText));
                 break;
+            case nameof(FanGroup.RPMMode):
+                OnPropertyChanged(nameof(GroupRPMMode));
+                OnPropertyChanged(nameof(GroupFanDisplayedValueText));
+                OnPropertyChanged(nameof(GroupFanDisplayedValueSuffix));
+                OnPropertyChanged(nameof(GroupSliderMaximum));
+                OnPropertyChanged(nameof(GroupDisplayedValueSlotWidth));
+                break;
             case nameof(FanGroup.AssignedCurveName):
             case nameof(FanGroup.AssignedCurveDisplayLabel):
                 OnPropertyChanged(nameof(ActiveCurveText));
+                OnPropertyChanged(nameof(GroupRPMMode));
+                OnPropertyChanged(nameof(GroupFanDisplayedValueText));
+                OnPropertyChanged(nameof(GroupFanDisplayedValueSuffix));
+                OnPropertyChanged(nameof(GroupSliderMaximum));
+                OnPropertyChanged(nameof(GroupDisplayedValueSlotWidth));
                 break;
         }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    /// <summary>
+    /// Resolves the largest useful RPM bound for this grouped slider.
+    /// </summary>
+    private int ResolveGroupRPMMaximum()
+    {
+        Curve? curve = GroupSettings?.AssignedCurve;
+        int maximum = curve?.MaxRPM > 0 ? curve.MaxRPM : 100;
+        foreach (Fan fan in Fans)
+        {
+            int fanMaximum = fan.MaxRPM > 0
+                ? fan.MaxRPM
+                : fan.CurrentRPM > 0
+                    ? Math.Max(100, fan.CurrentRPM)
+                    : maximum;
+            if (fanMaximum > maximum)
+                maximum = fanMaximum;
+        }
+
+        return Math.Max(100, maximum);
+    }
 
     /// <summary>
     /// Reads an integer layout resource for flyout-cell shared sizing.
