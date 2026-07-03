@@ -29,7 +29,7 @@
         <sys:Double x:Key="ProbeSelector.ValueGlyphFontSize">12</sys:Double>
         <sys:Double x:Key="ProbeSelector.GridCardWidth">464</sys:Double>
         <sys:Double x:Key="ProbeSelector.EmptyFontSize">12</sys:Double>
-        <sys:Double x:Key="ProbeSelector.SectionTitleFontSize">12</sys:Double>
+        <sys:Double x:Key="ProbeSelector.SectionTitleFontSize">13</sys:Double>
         <sys:Double x:Key="ProbeSelector.ActionButtonWidth">36</sys:Double>
         <sys:Double x:Key="ProbeSelector.ActionButtonHeight">36</sys:Double>
         <sys:Double x:Key="ProbeSelector.GearFontSize">18</sys:Double>
@@ -52,8 +52,8 @@
         <sys:Double x:Key="ProbeSelector.NicknameAddButtonHeight">28</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameTargetTextBoxWidth">286</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameReplacementTextBoxWidth">90</sys:Double>
-        <sys:Double x:Key="ProbeSelector.NicknameTextBoxHeight">24</sys:Double>
-        <sys:Double x:Key="ProbeSelector.NicknameArrowFontSize">12</sys:Double>
+        <sys:Double x:Key="ProbeSelector.NicknameTextBoxHeight">30</sys:Double>
+        <sys:Double x:Key="ProbeSelector.NicknameArrowFontSize">13</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameDeleteButtonWidth">26</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameDeleteButtonHeight">24</sys:Double>
         <sys:Double x:Key="ProbeSelector.NicknameDeleteButtonFontSize">10</sys:Double>

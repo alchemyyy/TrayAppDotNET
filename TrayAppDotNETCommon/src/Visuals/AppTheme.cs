@@ -141,6 +141,8 @@ public class AppTheme : IDisposable
     public ThemeColor IconForeground { get; set; } = new("222222", "DDDDDD");
     public ThemeColor CardBackground { get; set; } = new("FBFBFB", "2B2B2B");
     public ThemeColor TextBoxFocused { get; set; } = new("F5F5F5", "363636");
+    public ThemeColor SearchListItemSelected { get; set; } = new("F7F7F7", "E8E8E8");
+    public ThemeColor SearchListItemHover { get; set; } = new("EDEDED", "BDBDBD");
     public ThemeColor ToggleSwitchOnTrack { get; set; } = new("5B5B5B");
     public ThemeColor ToggleSwitchOnThumb { get; set; } = new("FFFFFF");
     public ThemeColor CloseButtonHover { get; set; } = new("C42B1C");

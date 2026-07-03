@@ -12,7 +12,7 @@ public sealed class FanCurveEditor : Control
 {
     private readonly record struct DisplayNode(CurveNode Raw, double X, double Y);
 
-    private const double AxisGutterWidth = 42.0;
+    private const double YAxisLabelGap = 2.0;
     private const double XAxisHeight = 24.0;
     private const double PlotInsetX = 10.0;
     private const double PlotInsetY = 8.0;
@@ -280,16 +280,19 @@ public sealed class FanCurveEditor : Control
 
     private void DrawGrid(DrawingContext context, Rect plot, Rect bounds)
     {
+        double yAxisGutterWidth = Math.Max(0.0, plot.Left - PlotInsetX);
         for (int i = 0; i <= VerticalGridDivisions; i++)
         {
-            double yValue = YMaximum - ((YMaximum - YMinimum) * i / VerticalGridDivisions);
+            double yValue = YGridValue(i);
             double y = ScreenY(yValue, plot);
             DrawLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
                 WithOpacity(_palette.GridLine, 0.4), 1.0);
 
-            FormattedText left = Text(FormatAxisValue(yValue), LabelFontSize,
+            FormattedText left = Text(FormatYAxisValue(yValue), LabelFontSize,
                 WithOpacity(_palette.SecondaryForeground, 0.75));
-            context.DrawText(left, new Point(AxisGutterWidth - left.Width - 2.0, y - left.Height / 2.0));
+            context.DrawText(
+                left,
+                new Point(yAxisGutterWidth - left.Width - YAxisLabelGap, y - left.Height / 2.0));
         }
 
         for (int i = 0; i <= HorizontalGridDivisions; i++)
@@ -318,7 +321,7 @@ public sealed class FanCurveEditor : Control
         DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
             WithOpacity(_palette.SecondaryForeground, 0.65), 1.0, 4.0, 3.0);
 
-        string label = $"Min {FormatAxisValue(min)}{_curve.ActiveYSuffix}";
+        string label = $"Min {FormatYAxisValue(min)}";
         FormattedText text = Text(label, LabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.75));
         context.DrawText(text, new Point(plot.Left + 6.0, Math.Clamp(y + 3.0, plot.Top, plot.Bottom - text.Height)));
     }
@@ -418,8 +421,8 @@ public sealed class FanCurveEditor : Control
 
         string xUnit = _dataSource?.DisplayUnit ?? string.Empty;
         string textValue = string.IsNullOrWhiteSpace(xUnit)
-            ? $"{FormatDataValue(displayNode.X)}  {FormatAxisValue(displayNode.Y)}{_curve?.ActiveYSuffix}"
-            : $"{FormatDataValue(displayNode.X)} {xUnit}  {FormatAxisValue(displayNode.Y)}{_curve?.ActiveYSuffix}";
+            ? $"{FormatDataValue(displayNode.X)}  {FormatYAxisValue(displayNode.Y)}"
+            : $"{FormatDataValue(displayNode.X)} {xUnit}  {FormatYAxisValue(displayNode.Y)}";
         FormattedText text = Text(textValue, 12.0, _palette.Curve, monospace: true);
         double width = text.Width + 12.0;
         double height = text.Height + 5.0;
@@ -590,12 +593,33 @@ public sealed class FanCurveEditor : Control
 
     private Rect PlotRect()
     {
-        double left = AxisGutterWidth + PlotInsetX;
+        double left = CalculateYAxisGutterWidth() + PlotInsetX;
         double right = Math.Max(left, Bounds.Width - PlotInsetX);
         double top = PlotInsetY;
         double bottom = Math.Max(top, Bounds.Height - XAxisHeight - PlotInsetY);
         return new Rect(left, top, Math.Max(0.0, right - left), Math.Max(0.0, bottom - top));
     }
+
+    /// <summary>
+    /// Measures the active Y-axis labels so the plot can contract only when needed.
+    /// </summary>
+    private double CalculateYAxisGutterWidth()
+    {
+        double width = 0.0;
+        for (int i = 0; i <= VerticalGridDivisions; i++)
+        {
+            FormattedText text = Text(FormatYAxisValue(YGridValue(i)), LabelFontSize, Colors.Transparent);
+            width = Math.Max(width, text.Width);
+        }
+
+        return Math.Ceiling(width + YAxisLabelGap);
+    }
+
+    /// <summary>
+    /// Calculates the value for a Y-axis grid division.
+    /// </summary>
+    private double YGridValue(int index) =>
+        YMaximum - ((YMaximum - YMinimum) * index / VerticalGridDivisions);
 
     private double XMinimum => _dataSource?.DisplayMinimum ?? 0.0;
 
@@ -717,11 +741,18 @@ public sealed class FanCurveEditor : Control
             Brush(color));
 
     private static string FormatAxisValue(double value)
+        => Math.Round(value).ToString(CultureInfo.InvariantCulture);
+
+    private string FormatYAxisValue(double value)
     {
-        double abs = Math.Abs(value);
-        if (abs >= 100 || Math.Abs(value - Math.Round(value)) < 0.001)
-            return Math.Round(value).ToString(CultureInfo.InvariantCulture);
-        return value.ToString("0.##", CultureInfo.InvariantCulture);
+        string text = FormatAxisValue(value);
+        return _curve?.ActiveYSuffix switch
+        {
+            "%" => $"{text}%",
+            "RPM" => $"{text} RPM",
+            string suffix when !string.IsNullOrWhiteSpace(suffix) => $"{text} {suffix}",
+            _ => text,
+        };
     }
 
     private static string FormatDataValue(double value)

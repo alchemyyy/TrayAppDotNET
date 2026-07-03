@@ -1073,6 +1073,8 @@ internal sealed class BrightnessAvaloniaApp : Application
             theme.ToggleSwitchOnTrack.For(isLight),
             theme.ToggleSwitchOnThumb.For(isLight),
             theme.TextBoxFocused.For(isLight),
+            theme.SearchListItemSelected.For(isLight),
+            theme.SearchListItemHover.For(isLight),
             theme.SliderProgress.For(isLight),
             theme.SliderTrack.For(isLight),
             theme.SliderThumb.For(isLight),

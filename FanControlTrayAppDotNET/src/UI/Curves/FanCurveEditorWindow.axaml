@@ -1,0 +1,74 @@
+<Window
+    x:Class="FanControlTrayAppDotNET.UI.Curves.FanCurveEditorWindow"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    Title="Fan Curve"
+    Width="{DynamicResource FanCurveEditor.WindowWidth}"
+    Height="{DynamicResource FanCurveEditor.WindowHeight}"
+    MinWidth="{DynamicResource FanCurveEditor.MinWindowWidth}"
+    MinHeight="{DynamicResource FanCurveEditor.MinWindowHeight}"
+    CanResize="False"
+    WindowStartupLocation="CenterOwner"
+    Background="Transparent">
+
+    <Window.Resources>
+        <sys:Double x:Key="FanCurveEditor.WindowWidth">880</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.WindowHeight">650</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.MinWindowWidth">820</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.MinWindowHeight">500</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.GraphWidth">500</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.GraphHeight">270</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.LeftColumnWidth">340</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceSelectedHeight">32</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceSelectedFontSize">14</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceListHeight">NaN</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceSearchBoxHeight">32</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceClearButtonWidth">32</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceClearButtonHeight">32</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceClearButtonFontSize">10</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DataSourceListItemFontSize">13</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.ControlGridCardWidth">176</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.ControlGridWideCardWidth">276</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.RPMNumberBoxWidth">84</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.DutyNumberBoxWidth">64</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.SmoothnessNumberBoxWidth">64</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.TitleFontSize">16</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.RowLabelWidth">86</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.SmallButtonWidth">38</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.SmallButtonHeight">28</sys:Double>
+        <sys:Double x:Key="FanCurveEditor.SmallButtonFontSize">12</sys:Double>
+
+        <Thickness x:Key="FanCurveEditor.RootBorderThickness">1</Thickness>
+        <CornerRadius x:Key="FanCurveEditor.RootCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="FanCurveEditor.CardCornerRadius">6</CornerRadius>
+        <CornerRadius x:Key="FanCurveEditor.ZeroCornerRadius">0</CornerRadius>
+        <Thickness x:Key="FanCurveEditor.ZeroThickness">0</Thickness>
+        <Thickness x:Key="FanCurveEditor.TitleMargin">16,14,16,6</Thickness>
+        <Thickness x:Key="FanCurveEditor.MainMargin">16,4,16,16</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceTitleMargin">0</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceSelectedMargin">0,0,0,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceSelectedPadding">12,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceListMargin">0,6,0,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceSearchBoxPadding">6,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceClearButtonMargin">4,0,0,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceSearchRowMargin">0,0,0,4</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceListBorderThickness">1</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceListContentMargin">4,4,22,2</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceListItemPadding">8,5</Thickness>
+        <Thickness x:Key="FanCurveEditor.DataSourceListItemMargin">0,0,0,2</Thickness>
+        <Thickness x:Key="FanCurveEditor.ControlGridMargin">0</Thickness>
+        <Thickness x:Key="FanCurveEditor.ControlGridCardMargin">0,0,6,6</Thickness>
+        <Thickness x:Key="FanCurveEditor.ControlGridTitleMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.ControlGridControlMargin">0</Thickness>
+        <Thickness x:Key="FanCurveEditor.SyncButtonGroupMargin">6,0,0,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.SyncNoButtonMargin">4,0,0,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.ToggleMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="FanCurveEditor.CardPadding">10,8</Thickness>
+        <Thickness x:Key="FanCurveEditor.CardMargin">0,0,0,6</Thickness>
+        <Thickness x:Key="FanCurveEditor.SmallButtonPadding">0</Thickness>
+        <CornerRadius x:Key="FanCurveEditor.DataSourceSelectedCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="FanCurveEditor.DataSourceListCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="FanCurveEditor.DataSourceListItemCornerRadius">3</CornerRadius>
+    </Window.Resources>
+</Window>

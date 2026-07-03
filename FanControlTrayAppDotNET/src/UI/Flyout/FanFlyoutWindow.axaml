@@ -112,8 +112,8 @@
         <sys:Double x:Key="Flyout.ProbeButtonFontSize">16</sys:Double>
         <Thickness x:Key="Flyout.ProbeButtonMargin">-4,0,12,0</Thickness>
         <sys:Double x:Key="Flyout.ProbeNameFontSize">14</sys:Double>
-        <Thickness x:Key="Flyout.ProbeNameStackMargin">-6,0,10,0</Thickness>
-        <Thickness x:Key="Flyout.ProbeRowsMargin">6,2,6,0</Thickness>
+        <Thickness x:Key="Flyout.ProbeNameStackMargin">-7,-4,10,0</Thickness>
+        <Thickness x:Key="Flyout.ProbeRowsMargin">6,0,6,0</Thickness>
         <Thickness x:Key="Flyout.ProbeRowMargin">0,0,0,2</Thickness>
         <sys:Double x:Key="Flyout.ProbeRowGlyphWidth">16</sys:Double>
         <sys:Double x:Key="Flyout.ProbeRowGlyphFontSize">13</sys:Double>

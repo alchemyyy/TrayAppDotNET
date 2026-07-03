@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -6,11 +7,8 @@ using Avalonia.Media;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
-public sealed class FanCurveEditorWindow : Window
+public sealed partial class FanCurveEditorWindow : Window
 {
-    private const double GraphWidth = 540.0;
-    private const double GraphHeight = 270.0;
-    private const double LeftColumnWidth = 260.0;
     private const int SmoothnessMin = 0;
     private const int SmoothnessMax = 100;
 
@@ -19,7 +17,9 @@ public sealed class FanCurveEditorWindow : Window
     private readonly AppSettings _settings;
     private readonly SettingsPalette _palette;
     private readonly FanCurveEditor _editor;
-    private readonly SettingsComboBox _dataSourceCombo;
+    private readonly Border _dataSourceSelectionBox;
+    private readonly TextBlock _dataSourceSelectionText;
+    private readonly SettingsSearchableListBox _dataSourceList;
     private readonly SettingsToggle _rpmModeToggle;
     private readonly SettingsNumberBox _maxRpmBox;
     private readonly SettingsNumberBox _minRpmBox;
@@ -30,6 +30,7 @@ public sealed class FanCurveEditorWindow : Window
     private readonly Border _maxRpmRow;
     private readonly SettingsButton _syncYesButton;
     private readonly SettingsButton _syncNoButton;
+    private FanCurveLayout? _layout;
     private bool _suppressEvents;
     private bool _rpmSyncPending;
     private double _rpmSyncOldMax;
@@ -42,7 +43,9 @@ public sealed class FanCurveEditorWindow : Window
         _settings = null!;
         _palette = default;
         _editor = null!;
-        _dataSourceCombo = null!;
+        _dataSourceSelectionBox = null!;
+        _dataSourceSelectionText = null!;
+        _dataSourceList = null!;
         _rpmModeToggle = null!;
         _maxRpmBox = null!;
         _minRpmBox = null!;
@@ -53,6 +56,9 @@ public sealed class FanCurveEditorWindow : Window
         _maxRpmRow = null!;
         _syncYesButton = null!;
         _syncNoButton = null!;
+
+        InitializeComponent();
+        InitializeComponentState();
     }
 
     public FanCurveEditorWindow(Fan fan, Curve curve, AppSettings settings)
@@ -60,6 +66,10 @@ public sealed class FanCurveEditorWindow : Window
         _fan = fan;
         _curve = curve;
         _settings = settings;
+
+        InitializeComponent();
+        InitializeComponentState();
+
         _palette = FanSettingsWindow.CreatePalette(
             AppServices.Theme,
             settings,
@@ -72,18 +82,11 @@ public sealed class FanCurveEditorWindow : Window
         Curve.Register(_curve);
 
         Title = $"Fan Curve: {_curve.CurveName}";
-        Width = 880;
-        Height = 392;
-        MinWidth = 820;
-        MinHeight = 360;
-        CanResize = false;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = Brushes.Transparent;
 
         _editor = new FanCurveEditor
         {
-            Width = GraphWidth,
-            Height = GraphHeight,
+            Width = Layout.GraphWidth,
+            Height = Layout.GraphHeight,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Palette = FanCurveEditorPalette.FromSettingsPalette(
@@ -93,13 +96,20 @@ public sealed class FanCurveEditorWindow : Window
         };
         _editor.CurveChanged += OnEditorCurveChanged;
 
-        _dataSourceCombo = TrayAppDotNETSettingsUI.ComboBox(_palette, 210, autoSizeToText: false);
+        _dataSourceSelectionText = DataSourceSelectionText();
+        _dataSourceSelectionBox = DataSourceSelectionBox(_dataSourceSelectionText);
+        _dataSourceList = DataSourceList();
         _rpmModeToggle = TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRpmModeChanged);
-        _maxRpmBox = Number(_curve.MaxRPM, 1, Math.Max(10000, _curve.MaxRPM), "RPM", width: 100);
-        _minRpmBox = Number(_curve.MinRPM, 0, Math.Max(10000, _curve.MaxRPM), "RPM", width: 100);
-        _maxDutyBox = Number(_curve.MaxDutyCycle, 1, 100, "%", width: 82);
-        _minDutyBox = Number(_curve.MinDutyCycle, 0, 100, "%", width: 82);
-        _smoothnessBox = Number(_curve.SmoothingFactor, SmoothnessMin, SmoothnessMax, string.Empty, width: 82);
+        _maxRpmBox = Number(_curve.MaxRPM, 1, Math.Max(10000, _curve.MaxRPM), "RPM", Layout.RPMNumberBoxWidth);
+        _minRpmBox = Number(_curve.MinRPM, 0, Math.Max(10000, _curve.MaxRPM), "RPM", Layout.RPMNumberBoxWidth);
+        _maxDutyBox = Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.DutyNumberBoxWidth);
+        _minDutyBox = Number(_curve.MinDutyCycle, 0, 100, "%", Layout.DutyNumberBoxWidth);
+        _smoothnessBox = Number(
+            _curve.SmoothingFactor,
+            SmoothnessMin,
+            SmoothnessMax,
+            string.Empty,
+            Layout.SmoothnessNumberBoxWidth);
         _preventDecreasingToggle =
             TrayAppDotNETSettingsUI.Toggle(_palette, _curve.PreventDecreasing, OnPreventDecreasingChanged);
         _syncYesButton = SmallButton("Yes");
@@ -118,62 +128,64 @@ public sealed class FanCurveEditorWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        _editor.CurveChanged -= OnEditorCurveChanged;
+        if (_editor != null)
+            _editor.CurveChanged -= OnEditorCurveChanged;
+
         base.OnClosed(e);
     }
+
+    private void InitializeComponentState() => _layout = FanCurveLayout.From(this);
+
+    private FanCurveLayout Layout =>
+        _layout ?? throw new InvalidOperationException("Fan curve editor layout resources have not been loaded.");
 
     private Border BuildContent()
     {
         Grid shell = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
-            Margin = new Thickness(0),
+            Margin = Layout.ZeroThickness,
         };
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
-        TextBlock title = TrayAppDotNETSettingsUI.Text(Title ?? "Fan Curve", _palette, 16, FontWeight.SemiBold);
-        title.Margin = new Thickness(16, 14, 16, 6);
+        TextBlock title = TrayAppDotNETSettingsUI.Text(
+            Title ?? "Fan Curve",
+            _palette,
+            Layout.TitleFontSize,
+            FontWeight.SemiBold);
+        title.Margin = Layout.TitleMargin;
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         shell.Children.Add(title);
 
-        Grid main = new() { Margin = new Thickness(16, 4, 16, 16) };
-        main.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(LeftColumnWidth)));
+        Grid main = new() { Margin = Layout.MainMargin };
+        main.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.LeftColumnWidth)));
         main.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        main.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        main.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
-        StackPanel left = new()
-        {
-            Width = LeftColumnWidth,
-            VerticalAlignment = VerticalAlignment.Top,
-        };
-        left.Children.Add(ControlBlock("Data source", _dataSourceCombo));
-        left.Children.Add(ToggleRow("RPM mode", _rpmModeToggle));
-        left.Children.Add(_maxRpmRow);
-        left.Children.Add(ControlBlock("Min RPM", _minRpmBox));
-        left.Children.Add(ControlBlock("Max duty", _maxDutyBox));
-        left.Children.Add(ControlBlock("Min duty", _minDutyBox));
-        left.Children.Add(ControlBlock("Smoothness", _smoothnessBox));
-        left.Children.Add(ToggleRow("No decreasing", _preventDecreasingToggle));
-
-        SettingsButton close = TrayAppDotNETSettingsUI.Button("Close", _palette);
-        close.Width = 76;
-        close.HorizontalAlignment = HorizontalAlignment.Left;
-        close.Margin = new Thickness(0, 8, 0, 0);
-        close.Click += (_, _) => Close();
-        left.Children.Add(close);
-
-        main.Children.Add(left);
+        Border dataSource = DataSourceBlock();
+        Grid.SetColumn(dataSource, 0);
+        Grid.SetRow(dataSource, 0);
+        main.Children.Add(dataSource);
 
         Grid graphHost = new()
         {
-            Width = GraphWidth,
-            Height = GraphHeight,
+            Width = Layout.GraphWidth,
+            Height = Layout.GraphHeight,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
         };
         graphHost.Children.Add(_editor);
         Grid.SetColumn(graphHost, 1);
+        Grid.SetRow(graphHost, 0);
         main.Children.Add(graphHost);
+
+        WrapPanel controlGrid = BuildControlGrid();
+        Grid.SetColumn(controlGrid, 0);
+        Grid.SetColumnSpan(controlGrid, 2);
+        Grid.SetRow(controlGrid, 1);
+        main.Children.Add(controlGrid);
 
         Grid.SetRow(main, 1);
         shell.Children.Add(main);
@@ -181,23 +193,227 @@ public sealed class FanCurveEditorWindow : Window
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = _settings.EnableRoundedCorners ? new CornerRadius(8) : new CornerRadius(0),
+            BorderThickness = Layout.RootBorderThickness,
+            CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
             Child = shell,
         };
     }
 
     private Border BuildMaxRpmRow()
     {
-        StackPanel syncButtons = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0) };
+        StackPanel syncButtons = new() { Orientation = Orientation.Horizontal, Margin = Layout.SyncButtonGroupMargin };
         syncButtons.Children.Add(_syncYesButton);
-        _syncNoButton.Margin = new Thickness(4, 0, 0, 0);
+        _syncNoButton.Margin = Layout.SyncNoButtonMargin;
         syncButtons.Children.Add(_syncNoButton);
 
-        StackPanel row = LabeledRow("Max RPM");
-        row.Children.Add(_maxRpmBox);
-        row.Children.Add(syncButtons);
-        return CompactCard(row);
+        StackPanel controls = new()
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        _maxRpmBox.Margin = Layout.ControlGridControlMargin;
+        controls.Children.Add(_maxRpmBox);
+        controls.Children.Add(syncButtons);
+
+        Grid row = ControlGridCardContent("Max RPM");
+        Grid.SetColumn(controls, 1);
+        row.Children.Add(controls);
+        Border card = CompactCard(row);
+        ConfigureControlGridCard(card, isWide: true);
+        return card;
+    }
+
+    /// <summary>
+    /// Builds the data-source selected value, search box, and list block.
+    /// </summary>
+    private Border DataSourceBlock()
+    {
+        Grid content = new()
+        {
+            VerticalAlignment = VerticalAlignment.Stretch,
+        };
+        content.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        content.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        content.Children.Add(DataSourceSelectedRow());
+        _dataSourceList.Margin = Layout.DataSourceListMargin;
+        _dataSourceList.Width = double.NaN;
+        _dataSourceList.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _dataSourceList.VerticalAlignment = VerticalAlignment.Stretch;
+        Grid.SetRow(_dataSourceList, 1);
+        content.Children.Add(_dataSourceList);
+        Border card = CompactCard(content);
+        card.Height = Layout.GraphHeight;
+        return card;
+    }
+
+    /// <summary>
+    /// Builds the data-source label and selected value row.
+    /// </summary>
+    private Grid DataSourceSelectedRow()
+    {
+        Grid row = new();
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelWidth)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        TextBlock title = TrayAppDotNETSettingsUI.TitleText("Data source", _palette);
+        title.Margin = Layout.DataSourceTitleMargin;
+        title.VerticalAlignment = VerticalAlignment.Center;
+        title.TextTrimming = TextTrimming.CharacterEllipsis;
+        row.Children.Add(title);
+        _dataSourceSelectionBox.Margin = Layout.DataSourceSelectedMargin;
+        Grid.SetColumn(_dataSourceSelectionBox, 1);
+        row.Children.Add(_dataSourceSelectionBox);
+        return row;
+    }
+
+    /// <summary>
+    /// Creates the selected data-source text.
+    /// </summary>
+    private TextBlock DataSourceSelectionText()
+    {
+        TextBlock text = TrayAppDotNETSettingsUI.Text(string.Empty, _palette, Layout.DataSourceSelectedFontSize);
+        text.TextTrimming = TextTrimming.CharacterEllipsis;
+        text.VerticalAlignment = VerticalAlignment.Center;
+        return text;
+    }
+
+    /// <summary>
+    /// Creates the selected data-source display box.
+    /// </summary>
+    private Border DataSourceSelectionBox(TextBlock text)
+    {
+        Border box = new()
+        {
+            Height = Layout.DataSourceSelectedHeight,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground),
+            CornerRadius = _settings.EnableRoundedCorners
+                ? Layout.DataSourceSelectedCornerRadius
+                : Layout.ZeroCornerRadius,
+            Padding = Layout.DataSourceSelectedPadding,
+            Child = text,
+        };
+        box.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(box).Properties.IsLeftButtonPressed) return;
+            _dataSourceList.FocusSearch();
+            e.Handled = true;
+        };
+        return box;
+    }
+
+    /// <summary>
+    /// Creates the searchable data-source list.
+    /// </summary>
+    private SettingsSearchableListBox DataSourceList()
+    {
+        SettingsSearchableListBox list = new(_palette)
+        {
+            Width = double.NaN,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ListHeight = Layout.DataSourceListHeight,
+            SearchBoxHeight = Layout.DataSourceSearchBoxHeight,
+            SearchBoxPadding = Layout.DataSourceSearchBoxPadding,
+            ClearButtonWidth = Layout.DataSourceClearButtonWidth,
+            ClearButtonHeight = Layout.DataSourceClearButtonHeight,
+            ClearButtonFontSize = Layout.DataSourceClearButtonFontSize,
+            ClearButtonMargin = Layout.DataSourceClearButtonMargin,
+            SearchRowMargin = Layout.DataSourceSearchRowMargin,
+            ListBorderThickness = Layout.DataSourceListBorderThickness,
+            ListCornerRadius = _settings.EnableRoundedCorners
+                ? Layout.DataSourceListCornerRadius
+                : Layout.ZeroCornerRadius,
+            ListContentMargin = Layout.DataSourceListContentMargin,
+            ItemPadding = Layout.DataSourceListItemPadding,
+            ItemMargin = Layout.DataSourceListItemMargin,
+            ItemCornerRadius = _settings.EnableRoundedCorners
+                ? Layout.DataSourceListItemCornerRadius
+                : Layout.ZeroCornerRadius,
+            ItemFontSize = Layout.DataSourceListItemFontSize,
+            PlaceholderText = "Search data sources",
+        };
+        return list;
+    }
+
+    /// <summary>
+    /// Builds the wrapping grid of curve options below the data-source card.
+    /// </summary>
+    private WrapPanel BuildControlGrid()
+    {
+        WrapPanel grid = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = Layout.ControlGridMargin,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        grid.Children.Add(ToggleGridBlock("RPM mode", _rpmModeToggle));
+        grid.Children.Add(_maxRpmRow);
+        grid.Children.Add(ControlGridBlock("Min RPM", _minRpmBox));
+        grid.Children.Add(ControlGridBlock("Max duty", _maxDutyBox));
+        grid.Children.Add(ControlGridBlock("Min duty", _minDutyBox));
+        grid.Children.Add(ControlGridBlock("Smoothness", _smoothnessBox));
+        grid.Children.Add(ToggleGridBlock("Monotonic", _preventDecreasingToggle));
+        return grid;
+    }
+
+    /// <summary>
+    /// Builds a wrapping-grid card for a labeled control.
+    /// </summary>
+    private Border ControlGridBlock(string label, Control control)
+    {
+        Grid content = ControlGridCardContent(label);
+        control.Margin = Layout.ControlGridControlMargin;
+        control.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(control, 1);
+        content.Children.Add(control);
+        Border card = CompactCard(content);
+        ConfigureControlGridCard(card, isWide: false);
+        return card;
+    }
+
+    /// <summary>
+    /// Builds a wrapping-grid card for a toggle option.
+    /// </summary>
+    private Border ToggleGridBlock(string label, SettingsToggle toggle)
+    {
+        Grid content = ControlGridCardContent(label);
+        toggle.Margin = Layout.ControlGridControlMargin;
+        toggle.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(toggle, 1);
+        content.Children.Add(toggle);
+        Border card = CompactCard(content);
+        ConfigureControlGridCard(card, isWide: false);
+        return card;
+    }
+
+    /// <summary>
+    /// Creates a two-column card body for the wrapping control grid.
+    /// </summary>
+    private Grid ControlGridCardContent(string label)
+    {
+        Grid content = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        content.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
+        content.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        TextBlock text = TrayAppDotNETSettingsUI.TitleText(label, _palette);
+        text.Margin = Layout.ControlGridTitleMargin;
+        text.HorizontalAlignment = HorizontalAlignment.Left;
+        text.TextTrimming = TextTrimming.CharacterEllipsis;
+        text.VerticalAlignment = VerticalAlignment.Center;
+        content.Children.Add(text);
+        return content;
+    }
+
+    /// <summary>
+    /// Applies wrapping-grid sizing to a control card.
+    /// </summary>
+    private void ConfigureControlGridCard(Border card, bool isWide)
+    {
+        card.Width = isWide ? Layout.ControlGridWideCardWidth : Layout.ControlGridCardWidth;
+        card.Margin = Layout.ControlGridCardMargin;
     }
 
     private Border ControlBlock(string label, Control control)
@@ -210,7 +426,7 @@ public sealed class FanCurveEditorWindow : Window
     private Border ToggleRow(string label, SettingsToggle toggle)
     {
         StackPanel row = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        toggle.Margin = new Thickness(0, 0, 8, 0);
+        toggle.Margin = Layout.ToggleMargin;
         row.Children.Add(toggle);
         TextBlock text = TrayAppDotNETSettingsUI.TitleText(label, _palette);
         text.VerticalAlignment = VerticalAlignment.Center;
@@ -221,7 +437,7 @@ public sealed class FanCurveEditorWindow : Window
     private StackPanel LabeledRow(string label)
     {
         TextBlock text = TrayAppDotNETSettingsUI.TitleText(label, _palette);
-        text.Width = 86;
+        text.Width = Layout.RowLabelWidth;
         text.VerticalAlignment = VerticalAlignment.Center;
         text.TextTrimming = TextTrimming.CharacterEllipsis;
         return new StackPanel
@@ -236,9 +452,9 @@ public sealed class FanCurveEditorWindow : Window
         new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.CardBackground),
-            CornerRadius = _settings.EnableRoundedCorners ? new CornerRadius(6) : new CornerRadius(0),
-            Padding = new Thickness(10, 8),
-            Margin = new Thickness(0, 0, 0, 6),
+            CornerRadius = _settings.EnableRoundedCorners ? Layout.CardCornerRadius : Layout.ZeroCornerRadius,
+            Padding = Layout.CardPadding,
+            Margin = Layout.CardMargin,
             Child = content,
         };
 
@@ -252,26 +468,131 @@ public sealed class FanCurveEditorWindow : Window
     private SettingsButton SmallButton(string text)
     {
         SettingsButton button = TrayAppDotNETSettingsUI.Button(text, _palette);
-        button.Width = 38;
-        button.MinHeight = 28;
-        button.Height = 28;
-        button.Padding = new Thickness(0);
-        button.Label.FontSize = 12;
+        button.Width = Layout.SmallButtonWidth;
+        button.MinHeight = Layout.SmallButtonHeight;
+        button.Height = Layout.SmallButtonHeight;
+        button.Padding = Layout.SmallButtonPadding;
+        button.Label.FontSize = Layout.SmallButtonFontSize;
         button.IsEnabled = false;
         return button;
     }
 
+    private sealed record FanCurveLayout(
+        double GraphWidth,
+        double GraphHeight,
+        double LeftColumnWidth,
+        double DataSourceSelectedHeight,
+        double DataSourceSelectedFontSize,
+        double DataSourceListHeight,
+        double DataSourceSearchBoxHeight,
+        double DataSourceClearButtonWidth,
+        double DataSourceClearButtonHeight,
+        double DataSourceClearButtonFontSize,
+        double DataSourceListItemFontSize,
+        double ControlGridCardWidth,
+        double ControlGridWideCardWidth,
+        double RPMNumberBoxWidth,
+        double DutyNumberBoxWidth,
+        double SmoothnessNumberBoxWidth,
+        double TitleFontSize,
+        double RowLabelWidth,
+        double SmallButtonWidth,
+        double SmallButtonHeight,
+        double SmallButtonFontSize,
+        Thickness RootBorderThickness,
+        CornerRadius RootCornerRadius,
+        CornerRadius CardCornerRadius,
+        CornerRadius DataSourceSelectedCornerRadius,
+        CornerRadius DataSourceListCornerRadius,
+        CornerRadius DataSourceListItemCornerRadius,
+        CornerRadius ZeroCornerRadius,
+        Thickness ZeroThickness,
+        Thickness TitleMargin,
+        Thickness MainMargin,
+        Thickness DataSourceTitleMargin,
+        Thickness DataSourceSelectedMargin,
+        Thickness DataSourceSelectedPadding,
+        Thickness DataSourceListMargin,
+        Thickness DataSourceSearchBoxPadding,
+        Thickness DataSourceClearButtonMargin,
+        Thickness DataSourceSearchRowMargin,
+        Thickness DataSourceListBorderThickness,
+        Thickness DataSourceListContentMargin,
+        Thickness DataSourceListItemPadding,
+        Thickness DataSourceListItemMargin,
+        Thickness ControlGridMargin,
+        Thickness ControlGridCardMargin,
+        Thickness ControlGridTitleMargin,
+        Thickness ControlGridControlMargin,
+        Thickness SyncButtonGroupMargin,
+        Thickness SyncNoButtonMargin,
+        Thickness ToggleMargin,
+        Thickness CardPadding,
+        Thickness CardMargin,
+        Thickness SmallButtonPadding)
+    {
+        public static FanCurveLayout From(Control owner)
+        {
+            HotReloadResourceReader r = new(owner, "FanCurveEditor");
+            return new FanCurveLayout(
+                r.Double("GraphWidth"),
+                r.Double("GraphHeight"),
+                r.Double("LeftColumnWidth"),
+                r.Double("DataSourceSelectedHeight"),
+                r.Double("DataSourceSelectedFontSize"),
+                r.Double("DataSourceListHeight"),
+                r.Double("DataSourceSearchBoxHeight"),
+                r.Double("DataSourceClearButtonWidth"),
+                r.Double("DataSourceClearButtonHeight"),
+                r.Double("DataSourceClearButtonFontSize"),
+                r.Double("DataSourceListItemFontSize"),
+                r.Double("ControlGridCardWidth"),
+                r.Double("ControlGridWideCardWidth"),
+                r.Double("RPMNumberBoxWidth"),
+                r.Double("DutyNumberBoxWidth"),
+                r.Double("SmoothnessNumberBoxWidth"),
+                r.Double("TitleFontSize"),
+                r.Double("RowLabelWidth"),
+                r.Double("SmallButtonWidth"),
+                r.Double("SmallButtonHeight"),
+                r.Double("SmallButtonFontSize"),
+                r.Thickness("RootBorderThickness"),
+                r.CornerRadius("RootCornerRadius"),
+                r.CornerRadius("CardCornerRadius"),
+                r.CornerRadius("DataSourceSelectedCornerRadius"),
+                r.CornerRadius("DataSourceListCornerRadius"),
+                r.CornerRadius("DataSourceListItemCornerRadius"),
+                r.CornerRadius("ZeroCornerRadius"),
+                r.Thickness("ZeroThickness"),
+                r.Thickness("TitleMargin"),
+                r.Thickness("MainMargin"),
+                r.Thickness("DataSourceTitleMargin"),
+                r.Thickness("DataSourceSelectedMargin"),
+                r.Thickness("DataSourceSelectedPadding"),
+                r.Thickness("DataSourceListMargin"),
+                r.Thickness("DataSourceSearchBoxPadding"),
+                r.Thickness("DataSourceClearButtonMargin"),
+                r.Thickness("DataSourceSearchRowMargin"),
+                r.Thickness("DataSourceListBorderThickness"),
+                r.Thickness("DataSourceListContentMargin"),
+                r.Thickness("DataSourceListItemPadding"),
+                r.Thickness("DataSourceListItemMargin"),
+                r.Thickness("ControlGridMargin"),
+                r.Thickness("ControlGridCardMargin"),
+                r.Thickness("ControlGridTitleMargin"),
+                r.Thickness("ControlGridControlMargin"),
+                r.Thickness("SyncButtonGroupMargin"),
+                r.Thickness("SyncNoButtonMargin"),
+                r.Thickness("ToggleMargin"),
+                r.Thickness("CardPadding"),
+                r.Thickness("CardMargin"),
+                r.Thickness("SmallButtonPadding"));
+        }
+    }
+
     private void WireControls()
     {
-        _dataSourceCombo.SelectionChanged += (_, _) =>
-        {
-            if (_suppressEvents) return;
-            string key = SelectedDataSourceKey();
-            _curve.SelectedDataSourceKey = key;
-            EnsureCurveNodesOnDataSourceAxis();
-            RefreshEditorBinding();
-            Save();
-        };
+        _dataSourceList.SelectionChanged += OnDataSourceSelectionChanged;
         _maxRpmBox.ValueChanged += (_, e) =>
         {
             if (_suppressEvents || !e.NewValue.HasValue) return;
@@ -311,6 +632,21 @@ public sealed class FanCurveEditorWindow : Window
         };
     }
 
+    /// <summary>
+    /// Applies data-source list selection to the curve.
+    /// </summary>
+    private void OnDataSourceSelectionChanged(object? sender, EventArgs e)
+    {
+        UpdateDataSourceSelectionText();
+        if (_suppressEvents) return;
+
+        string key = SelectedDataSourceKey();
+        _curve.SelectedDataSourceKey = key;
+        EnsureCurveNodesOnDataSourceAxis();
+        RefreshEditorBinding();
+        Save();
+    }
+
     private void LoadControlState()
     {
         _suppressEvents = true;
@@ -327,7 +663,7 @@ public sealed class FanCurveEditorWindow : Window
             _minDutyBox.Value = _curve.MinDutyCycle;
             _smoothnessBox.Value = _curve.SmoothingFactor;
             _preventDecreasingToggle.IsChecked = _curve.PreventDecreasing;
-            SelectDataSourceCombo(_curve.SelectedDataSourceKey);
+            SelectDataSourceList(_curve.SelectedDataSourceKey);
             SetRpmSyncButtonsEnabled(_rpmSyncPending);
         }
         finally
@@ -338,19 +674,26 @@ public sealed class FanCurveEditorWindow : Window
 
     private void PopulateDataSources()
     {
-        _dataSourceCombo.Items.Clear();
+        _dataSourceList.Items.Clear();
+        DeviceNicknameResolver deviceNicknameResolver = DeviceNicknameResolver.Create(_settings);
+        ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
         foreach (DataSource source in DataSource.DataSources.Values
-                     .OrderBy(s => s.ControllerName, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase))
+                     .OrderBy(source => DataSourceDeviceName(source, deviceNicknameResolver),
+                         StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(source => DataSourceProbeName(source, probeNicknameResolver),
+                         StringComparer.OrdinalIgnoreCase))
         {
-            string unit = source.DisplayUnit;
-            string label = string.IsNullOrWhiteSpace(unit)
-                ? source.DisplayName
-                : $"{source.DisplayName} ({unit})";
-            _dataSourceCombo.Items.Add(new SettingsComboBoxItem(source.DataSourceKey, label, _palette));
+            string label = DataSourceListLabel(source, deviceNicknameResolver, probeNicknameResolver);
+            _dataSourceList.Items.Add(new SettingsSearchableListBoxItem(
+                source.DataSourceKey,
+                label,
+                DataSourceSearchText(source, label)));
         }
 
-        _dataSourceCombo.IsEnabled = _dataSourceCombo.Items.Count > 0;
+        bool hasSources = _dataSourceList.Items.Count > 0;
+        _dataSourceList.IsEnabled = hasSources;
+        _dataSourceSelectionBox.IsEnabled = hasSources;
+        UpdateDataSourceSelectionText();
     }
 
     private void EnsureCurveDataSource()
@@ -398,22 +741,102 @@ public sealed class FanCurveEditorWindow : Window
         _curve.BumpVersion();
     }
 
-    private void SelectDataSourceCombo(string? key)
+    /// <summary>
+    /// Selects a data source in the searchable list by key.
+    /// </summary>
+    private void SelectDataSourceList(string? key)
     {
         string normalized = key ?? string.Empty;
-        foreach (SettingsComboBoxItem item in _dataSourceCombo.Items)
+        foreach (SettingsSearchableListBoxItem item in _dataSourceList.Items)
         {
             if (!string.Equals(item.Tag?.ToString(), normalized, StringComparison.OrdinalIgnoreCase)) continue;
-            _dataSourceCombo.SelectedItem = item;
+            _dataSourceList.SelectedItem = item;
             return;
         }
 
-        if (_dataSourceCombo.Items.Count > 0)
-            _dataSourceCombo.SelectedIndex = 0;
+        _dataSourceList.SelectedItem = _dataSourceList.Items.Count > 0 ? _dataSourceList.Items[0] : null;
+    }
+
+    /// <summary>
+    /// Builds searchable text for a data source.
+    /// </summary>
+    private static string DataSourceSearchText(DataSource source, string label) =>
+        string.Join(
+            ' ',
+            source.ControllerName,
+            source.ControllerHardwareType,
+            source.DataSourceType.ToString(),
+            source.DataSourceKey,
+            label,
+            source.DisplayUnit);
+
+    /// <summary>
+    /// Builds the display label for a data-source list item.
+    /// </summary>
+    private static string DataSourceListLabel(
+        DataSource source,
+        DeviceNicknameResolver deviceNicknameResolver,
+        ProbeNicknameResolver probeNicknameResolver) =>
+        $"{DataSourceDeviceName(source, deviceNicknameResolver)}: "
+        + $"{DataSourceProbeName(source, probeNicknameResolver)}: "
+        + DataSourceValueText(source);
+
+    /// <summary>
+    /// Resolves the display device name for a data source.
+    /// </summary>
+    private static string DataSourceDeviceName(DataSource source, DeviceNicknameResolver deviceNicknameResolver)
+    {
+        string deviceName = deviceNicknameResolver.Resolve(source);
+        if (!string.IsNullOrWhiteSpace(deviceName)) return deviceName;
+        if (!string.IsNullOrWhiteSpace(source.ControllerName)) return source.ControllerName;
+        return "Data source";
+    }
+
+    /// <summary>
+    /// Resolves the display probe name for a data source.
+    /// </summary>
+    private static string DataSourceProbeName(DataSource source, ProbeNicknameResolver probeNicknameResolver)
+    {
+        string probeName = probeNicknameResolver.Resolve(source.DisplayName);
+        return string.IsNullOrWhiteSpace(probeName) ? source.DisplayName : probeName;
+    }
+
+    /// <summary>
+    /// Formats the current value for a data-source list item.
+    /// </summary>
+    private static string DataSourceValueText(DataSource source)
+    {
+        if (ProbeValueFormatter.IsProbeDataSource(source))
+            return ProbeValueFormatter.FormatValue(source, probe: null);
+
+        string formatted = FormatDataValue(source.DisplayValue);
+        string unit = source.DisplayUnit;
+        return string.IsNullOrWhiteSpace(unit) ? formatted : $"{formatted} {unit}";
+    }
+
+    /// <summary>
+    /// Formats generic curve data values without noisy precision.
+    /// </summary>
+    private static string FormatDataValue(double value)
+    {
+        double abs = Math.Abs(value);
+        if (abs >= 100 || Math.Abs(value - Math.Round(value)) < 0.001)
+            return Math.Round(value).ToString(CultureInfo.InvariantCulture);
+        return value.ToString("0.0", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Updates the selected data-source display text.
+    /// </summary>
+    private void UpdateDataSourceSelectionText()
+    {
+        SettingsSearchableListBoxItem? item = _dataSourceList.SelectedItem;
+        _dataSourceSelectionText.Text = item?.Text ?? "No data source";
+        _dataSourceSelectionText.Opacity = item == null ? 0.65 : 1.0;
     }
 
     private string SelectedDataSourceKey() =>
-        _dataSourceCombo.SelectedItem?.Tag?.ToString() ?? string.Empty;
+        _dataSourceList.SelectedItem?.Tag?.ToString() ?? string.Empty;
 
     private DataSource? CurrentDataSource() => DataSource.Find(_curve.SelectedDataSourceKey);
 

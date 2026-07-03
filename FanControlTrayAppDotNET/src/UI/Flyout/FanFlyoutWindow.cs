@@ -601,7 +601,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         DeviceNicknameResolver nicknameResolver = DeviceNicknameResolver.Create(_settings);
         ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
         StackPanel content = new() { Spacing = 0 };
-        content.Children.Add(BuildProbeHeader(probeCard, p));
+        content.Children.Add(BuildProbeHeader(probeCard, p));//, ProbeCardDominantDeviceName(probeCard, nicknameResolver)));
 
         if (!probeCard.IsCollapsed)
         {
@@ -652,7 +652,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// <summary>
     /// Builds the probe-card header with a selector button and editable title.
     /// </summary>
-    private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p)
+    private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p)//, string deviceName)
     {
         Grid row = new()
         {
@@ -692,6 +692,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         edit.LostFocus += ProbeNameEditLostFocus;
         nameGrid.Children.Add(name);
         nameGrid.Children.Add(edit);
+        // TextBlock device = TrayAppDotNETFlyoutUI.Text(deviceName, p, Layout.FanSubtitleFontSize);
+        // device.Opacity = 0.8;
+        // device.Margin = Layout.SubtitleMargin;
+        // device.TextTrimming = TextTrimming.CharacterEllipsis;
 
         StackPanel nameStack = new()
         {
@@ -699,6 +703,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Margin = Layout.ProbeNameStackMargin,
         };
         nameStack.Children.Add(nameGrid);
+        // nameStack.Children.Add(device);
         Grid.SetColumn(nameStack, 1);
         row.Children.Add(nameStack);
 
@@ -718,6 +723,55 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid.SetColumn(delete, 3);
         row.Children.Add(delete);
         return row;
+    }
+
+    /// <summary>
+    /// Resolves the device name represented by the most selected probes in a probe card.
+    /// </summary>
+    private static string ProbeCardDominantDeviceName(ProbeCard probeCard, DeviceNicknameResolver nicknameResolver)
+    {
+        Dictionary<string, int> counts = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, int> firstIndexes = new(StringComparer.OrdinalIgnoreCase);
+        string bestDeviceName = string.Empty;
+        int bestCount = 0;
+        int bestIndex = int.MaxValue;
+        int index = 0;
+
+        foreach (ProbeCardProbe probe in probeCard.Probes)
+        {
+            if (!probe.IsSelected || string.IsNullOrWhiteSpace(probe.DataSourceKey)) continue;
+
+            DataSource? source = DataSource.Find(probe.DataSourceKey);
+            if (source == null) continue;
+
+            string deviceName = nicknameResolver.Resolve(source);
+            if (string.IsNullOrWhiteSpace(deviceName)) continue;
+
+            if (!firstIndexes.ContainsKey(deviceName))
+                firstIndexes[deviceName] = index;
+
+            int count = counts.GetValueOrDefault(deviceName) + 1;
+            counts[deviceName] = count;
+            int firstIndex = firstIndexes[deviceName];
+            if (count < bestCount)
+            {
+                index++;
+                continue;
+            }
+
+            if (count == bestCount && firstIndex >= bestIndex)
+            {
+                index++;
+                continue;
+            }
+
+            bestDeviceName = deviceName;
+            bestCount = count;
+            bestIndex = firstIndex;
+            index++;
+        }
+
+        return bestDeviceName;
     }
 
     /// <summary>
