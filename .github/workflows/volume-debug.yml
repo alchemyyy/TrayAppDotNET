@@ -25,7 +25,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          submodules: recursive
+          # Submodules are checked out manually below.
+          # actions/checkout updates submodules before stale self-hosted runner
+          # config can be cleared.
+          submodules: false
+
+      - name: Checkout Submodules
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Clear cached submodule config from reused self-hosted workspaces.
+          # --checkout forces the recorded commit instead of merge/rebase.
+          git submodule deinit --force --all
+          git submodule sync --recursive
+          git submodule update --init --force --checkout --depth=1 --recursive
 
       - name: Verify .NET SDK
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
@@ -48,8 +61,11 @@ jobs:
           --output ".artifacts/debug/VolumeTrayAppDotNET"
           -p:Platform=x64
           -p:EnableWindowsTargeting=true
+          # Debug artifacts are built for CI only, so avoid local app shutdowns
+          # and publish side effects.
           -p:SkipKillRunningInstance=true
           -p:SkipPublishAfterBuild=true
+          # Keep uploaded debug artifacts small.
           -p:DebugType=none
           -p:DebugSymbols=false
           -p:ContinuousIntegrationBuild=true

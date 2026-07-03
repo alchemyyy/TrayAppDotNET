@@ -52,7 +52,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          submodules: recursive
+          # Submodules are checked out manually below.
+          # actions/checkout updates submodules before stale self-hosted runner
+          # config can be cleared.
+          submodules: false
+
+      - name: Checkout Submodules
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Clear cached submodule config from reused self-hosted workspaces.
+          # --checkout forces the recorded commit instead of merge/rebase.
+          git submodule deinit --force --all
+          git submodule sync --recursive
+          git submodule update --init --force --checkout --depth=1 --recursive
 
       - name: Verify Release Toolchain
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
@@ -101,6 +114,8 @@ jobs:
         id: stage-release-package
         if: ${{ inputs.publish_staging_root != '' }}
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        # Local staging is a best-effort optimization for publish fan-in.
+        # Upload still runs if staging fails.
         continue-on-error: true
         run: |
           $ErrorActionPreference = "Stop"
