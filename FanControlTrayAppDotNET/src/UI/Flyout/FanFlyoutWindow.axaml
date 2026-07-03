@@ -79,7 +79,7 @@
         <Thickness x:Key="Flyout.FanNameStackGroupedMargin">-2,0,10,0</Thickness>
         <Thickness x:Key="Flyout.FanNameStackUngroupedMargin">-6,0,10,0</Thickness>
         <Thickness x:Key="Flyout.TelemetryMargin">6,0,0,0</Thickness>
-        <sys:Double x:Key="Flyout.RpmFontSize">14</sys:Double>
+        <sys:Double x:Key="Flyout.RPMFontSize">14</sys:Double>
         <sys:Double x:Key="Flyout.ControllerFontSize">9</sys:Double>
         <Thickness x:Key="Flyout.ControllerMargin">0,-2,0,0</Thickness>
         <sys:Double x:Key="Flyout.ModeButtonWidth">32</sys:Double>

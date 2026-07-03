@@ -21,20 +21,20 @@ public sealed partial class FanCurveEditorWindow : Window
     private readonly TextBlock _dataSourceSelectionText;
     private readonly SettingsSearchableListBox _dataSourceList;
     private readonly SettingsToggle _rpmModeToggle;
-    private readonly SettingsNumberBox _maxRpmBox;
-    private readonly SettingsNumberBox _minRpmBox;
+    private readonly SettingsNumberBox _maxRPMBox;
+    private readonly SettingsNumberBox _minRPMBox;
     private readonly SettingsNumberBox _maxDutyBox;
     private readonly SettingsNumberBox _minDutyBox;
     private readonly SettingsNumberBox _smoothnessBox;
     private readonly SettingsToggle _preventDecreasingToggle;
-    private readonly Border _maxRpmRow;
-    private readonly SettingsButton _syncYesButton;
-    private readonly SettingsButton _syncNoButton;
+    private readonly Border _maxRPMRow;
+    private readonly SettingsButton _rescaleCurveButton;
     private FanCurveLayout? _layout;
     private bool _suppressEvents;
-    private bool _rpmSyncPending;
-    private double _rpmSyncOldMax;
-    private double _rpmSyncNewMax;
+    private bool _rescaleCurvePending;
+    private bool _hasPreservedNonMonotonicNodes;
+    private double _rescaleCurveOldMax;
+    private double _rescaleCurveNewMax;
 
     public FanCurveEditorWindow()
     {
@@ -47,15 +47,14 @@ public sealed partial class FanCurveEditorWindow : Window
         _dataSourceSelectionText = null!;
         _dataSourceList = null!;
         _rpmModeToggle = null!;
-        _maxRpmBox = null!;
-        _minRpmBox = null!;
+        _maxRPMBox = null!;
+        _minRPMBox = null!;
         _maxDutyBox = null!;
         _minDutyBox = null!;
         _smoothnessBox = null!;
         _preventDecreasingToggle = null!;
-        _maxRpmRow = null!;
-        _syncYesButton = null!;
-        _syncNoButton = null!;
+        _maxRPMRow = null!;
+        _rescaleCurveButton = null!;
 
         InitializeComponent();
         InitializeComponentState();
@@ -75,7 +74,7 @@ public sealed partial class FanCurveEditorWindow : Window
             settings,
             AppTheme.ResolveEffectiveIsLightTheme(settings));
 
-        _curve.EnsureEditorDefaults(DefaultMaxRpm(fan));
+        _curve.EnsureEditorDefaults(DefaultMaxRPM(fan));
         ClampCurveLimits();
         EnsureCurveDataSource();
         EnsureCurveNodesOnDataSourceAxis();
@@ -89,37 +88,48 @@ public sealed partial class FanCurveEditorWindow : Window
             Height = Layout.GraphHeight,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
+            EditorLayout = FanCurveEditorLayout.From(this),
             Palette = FanCurveEditorPalette.FromSettingsPalette(
                 _palette,
                 AppServices.Theme ?? AppTheme.Default,
                 AppTheme.ResolveEffectiveIsLightTheme(settings)),
         };
         _editor.CurveChanged += OnEditorCurveChanged;
+        _editor.GraphEditStarting += OnEditorGraphEditStarting;
+        _hasPreservedNonMonotonicNodes = _curve.PreventDecreasing;
 
         _dataSourceSelectionText = DataSourceSelectionText();
         _dataSourceSelectionBox = DataSourceSelectionBox(_dataSourceSelectionText);
         _dataSourceList = DataSourceList();
-        _rpmModeToggle = TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRpmModeChanged);
-        _maxRpmBox = Number(_curve.MaxRPM, 1, Math.Max(10000, _curve.MaxRPM), "RPM", Layout.RPMNumberBoxWidth);
-        _minRpmBox = Number(_curve.MinRPM, 0, Math.Max(10000, _curve.MaxRPM), "RPM", Layout.RPMNumberBoxWidth);
-        _maxDutyBox = Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.DutyNumberBoxWidth);
-        _minDutyBox = Number(_curve.MinDutyCycle, 0, 100, "%", Layout.DutyNumberBoxWidth);
+        _rpmModeToggle = TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged);
+        _maxRPMBox = Number(
+            _curve.MaxRPM,
+            1,
+            Math.Max(10000, _curve.MaxRPM),
+            "RPM",
+            Layout.MaxRPMNumberBoxMinWidth);
+        _minRPMBox = Number(
+            _curve.MinRPM,
+            0,
+            Math.Max(10000, _curve.MaxRPM),
+            "RPM",
+            Layout.MinRPMNumberBoxMinWidth);
+        _maxDutyBox = Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.MaxDutyNumberBoxMinWidth);
+        _minDutyBox = Number(_curve.MinDutyCycle, 0, 100, "%", Layout.MinDutyNumberBoxMinWidth);
         _smoothnessBox = Number(
             _curve.SmoothingFactor,
             SmoothnessMin,
             SmoothnessMax,
             string.Empty,
-            Layout.SmoothnessNumberBoxWidth);
+            Layout.SmoothnessNumberBoxMinWidth);
         _preventDecreasingToggle =
             TrayAppDotNETSettingsUI.Toggle(_palette, _curve.PreventDecreasing, OnPreventDecreasingChanged);
-        _syncYesButton = SmallButton("Yes");
-        _syncNoButton = SmallButton("No");
-        _syncYesButton.Click += (_, _) => ApplyRpmNodeSync();
-        _syncNoButton.Click += (_, _) => ClearRpmSyncPending();
+        _rescaleCurveButton = RescaleCurveButton();
+        _rescaleCurveButton.Click += (_, _) => ApplyPendingNodeRescale();
 
         PopulateDataSources();
         WireControls();
-        _maxRpmRow = BuildMaxRpmRow();
+        _maxRPMRow = BuildMaxRPMRow();
 
         Content = BuildContent();
         LoadControlState();
@@ -129,7 +139,10 @@ public sealed partial class FanCurveEditorWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         if (_editor != null)
+        {
             _editor.CurveChanged -= OnEditorCurveChanged;
+            _editor.GraphEditStarting -= OnEditorGraphEditStarting;
+        }
 
         base.OnClosed(e);
     }
@@ -181,7 +194,7 @@ public sealed partial class FanCurveEditorWindow : Window
         Grid.SetRow(graphHost, 0);
         main.Children.Add(graphHost);
 
-        WrapPanel controlGrid = BuildControlGrid();
+        Grid controlGrid = BuildControlGrid();
         Grid.SetColumn(controlGrid, 0);
         Grid.SetColumnSpan(controlGrid, 2);
         Grid.SetRow(controlGrid, 1);
@@ -199,28 +212,41 @@ public sealed partial class FanCurveEditorWindow : Window
         };
     }
 
-    private Border BuildMaxRpmRow()
+    private Border BuildMaxRPMRow()
     {
-        StackPanel syncButtons = new() { Orientation = Orientation.Horizontal, Margin = Layout.SyncButtonGroupMargin };
-        syncButtons.Children.Add(_syncYesButton);
-        _syncNoButton.Margin = Layout.SyncNoButtonMargin;
-        syncButtons.Children.Add(_syncNoButton);
-
-        StackPanel controls = new()
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        _maxRpmBox.Margin = Layout.ControlGridControlMargin;
-        controls.Children.Add(_maxRpmBox);
-        controls.Children.Add(syncButtons);
+        _maxRPMBox.Margin = Layout.ControlGridNumberBoxMargin;
+        _maxRPMBox.HorizontalAlignment = HorizontalAlignment.Right;
 
         Grid row = ControlGridCardContent("Max RPM");
-        Grid.SetColumn(controls, 1);
-        row.Children.Add(controls);
+        Grid.SetColumn(_maxRPMBox, 1);
+        row.Children.Add(_maxRPMBox);
         Border card = CompactCard(row);
-        ConfigureControlGridCard(card, isWide: true);
+        ConfigureControlGridCard(card, isWide: false);
+        return card;
+    }
+
+    /// <summary>
+    /// Builds the RPM-mode card with the axis-rescale action below the toggle row.
+    /// </summary>
+    private Border BuildRPMModeRow()
+    {
+        Grid toggleRow = ControlGridCardContent("RPM mode");
+        _rpmModeToggle.Margin = Layout.ControlGridControlMargin;
+        _rpmModeToggle.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(_rpmModeToggle, 1);
+        toggleRow.Children.Add(_rpmModeToggle);
+
+        StackPanel content = new()
+        {
+            Orientation = Orientation.Vertical,
+        };
+        content.Children.Add(toggleRow);
+        _rescaleCurveButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _rescaleCurveButton.Margin = Layout.RescaleCurveButtonMargin;
+        content.Children.Add(_rescaleCurveButton);
+
+        Border card = CompactCard(content);
+        ConfigureControlGridCard(card, isWide: false);
         return card;
     }
 
@@ -336,43 +362,74 @@ public sealed partial class FanCurveEditorWindow : Window
     }
 
     /// <summary>
-    /// Builds the wrapping grid of curve options below the data-source card.
+    /// Builds the single-row settings grid below the data-source card.
     /// </summary>
-    private WrapPanel BuildControlGrid()
+    private Grid BuildControlGrid()
     {
-        WrapPanel grid = new()
+        Grid grid = new()
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = Layout.ControlGridMargin,
             VerticalAlignment = VerticalAlignment.Top,
         };
-        grid.Children.Add(ToggleGridBlock("RPM mode", _rpmModeToggle));
-        grid.Children.Add(_maxRpmRow);
-        grid.Children.Add(ControlGridBlock("Min RPM", _minRpmBox));
-        grid.Children.Add(ControlGridBlock("Max duty", _maxDutyBox));
-        grid.Children.Add(ControlGridBlock("Min duty", _minDutyBox));
-        grid.Children.Add(ControlGridBlock("Smoothness", _smoothnessBox));
-        grid.Children.Add(ToggleGridBlock("Monotonic", _preventDecreasingToggle));
+        for (int i = 0; i < 4; i++)
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        StackPanel rpmModeColumn = BuildControlGridColumn(BuildRPMModeRow());
+        StackPanel rpmLimitColumn = BuildControlGridColumn(
+            NumberGridBlock("Min RPM", _minRPMBox),
+            _maxRPMRow);
+        StackPanel dutyLimitColumn = BuildControlGridColumn(
+            NumberGridBlock("Min duty", _minDutyBox),
+            NumberGridBlock("Max duty", _maxDutyBox));
+        StackPanel shapeColumn = BuildControlGridColumn(
+            NumberGridBlock("Smoothness", _smoothnessBox),
+            ToggleGridBlock("Monotonic", _preventDecreasingToggle));
+
+        Grid.SetColumn(rpmModeColumn, 0);
+        Grid.SetColumn(rpmLimitColumn, 1);
+        Grid.SetColumn(dutyLimitColumn, 2);
+        Grid.SetColumn(shapeColumn, 3);
+        grid.Children.Add(rpmModeColumn);
+        grid.Children.Add(rpmLimitColumn);
+        grid.Children.Add(dutyLimitColumn);
+        grid.Children.Add(shapeColumn);
         return grid;
     }
 
     /// <summary>
-    /// Builds a wrapping-grid card for a labeled control.
+    /// Builds one explicit settings-card column for the control grid.
     /// </summary>
-    private Border ControlGridBlock(string label, Control control)
+    private StackPanel BuildControlGridColumn(params Border[] cards)
+    {
+        StackPanel column = new()
+        {
+            Orientation = Orientation.Vertical,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        for (int i = 0; i < cards.Length; i++)
+            column.Children.Add(cards[i]);
+
+        return column;
+    }
+
+    /// <summary>
+    /// Builds a settings-grid card for a number box.
+    /// </summary>
+    private Border NumberGridBlock(string label, SettingsNumberBox box)
     {
         Grid content = ControlGridCardContent(label);
-        control.Margin = Layout.ControlGridControlMargin;
-        control.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid.SetColumn(control, 1);
-        content.Children.Add(control);
+        box.Margin = Layout.ControlGridNumberBoxMargin;
+        box.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(box, 1);
+        content.Children.Add(box);
         Border card = CompactCard(content);
         ConfigureControlGridCard(card, isWide: false);
         return card;
     }
 
     /// <summary>
-    /// Builds a wrapping-grid card for a toggle option.
+    /// Builds a settings-grid card for a toggle option.
     /// </summary>
     private Border ToggleGridBlock(string label, SettingsToggle toggle)
     {
@@ -387,7 +444,7 @@ public sealed partial class FanCurveEditorWindow : Window
     }
 
     /// <summary>
-    /// Creates a two-column card body for the wrapping control grid.
+    /// Creates a two-column card body for the control grid.
     /// </summary>
     private Grid ControlGridCardContent(string label)
     {
@@ -408,11 +465,12 @@ public sealed partial class FanCurveEditorWindow : Window
     }
 
     /// <summary>
-    /// Applies wrapping-grid sizing to a control card.
+    /// Applies control-grid sizing to a control card.
     /// </summary>
     private void ConfigureControlGridCard(Border card, bool isWide)
     {
         card.Width = isWide ? Layout.ControlGridWideCardWidth : Layout.ControlGridCardWidth;
+        card.MinHeight = Layout.ControlGridCardMinHeight;
         card.Margin = Layout.ControlGridCardMargin;
     }
 
@@ -458,21 +516,23 @@ public sealed partial class FanCurveEditorWindow : Window
             Child = content,
         };
 
-    private SettingsNumberBox Number(int value, int min, int max, string suffix, double width)
+    private SettingsNumberBox Number(int value, int min, int max, string suffix, double minimumWidth)
     {
-        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(_palette, value, min, max, width, suffix);
+        SettingsNumberBox box = TrayAppDotNETSettingsUI.NumberBox(_palette, value, min, max, minimumWidth, suffix);
         box.HandleMouseWheelWhenMouseOver = true;
         return box;
     }
 
-    private SettingsButton SmallButton(string text)
+    /// <summary>
+    /// Creates the graph node rescale action button.
+    /// </summary>
+    private SettingsButton RescaleCurveButton()
     {
-        SettingsButton button = TrayAppDotNETSettingsUI.Button(text, _palette);
-        button.Width = Layout.SmallButtonWidth;
-        button.MinHeight = Layout.SmallButtonHeight;
-        button.Height = Layout.SmallButtonHeight;
-        button.Padding = Layout.SmallButtonPadding;
-        button.Label.FontSize = Layout.SmallButtonFontSize;
+        SettingsButton button = TrayAppDotNETSettingsUI.Button("Rescale Curve", _palette);
+        button.MinHeight = Layout.RescaleCurveButtonHeight;
+        button.Height = Layout.RescaleCurveButtonHeight;
+        button.Padding = Layout.RescaleCurveButtonPadding;
+        button.Label.FontSize = Layout.RescaleCurveButtonFontSize;
         button.IsEnabled = false;
         return button;
     }
@@ -491,14 +551,16 @@ public sealed partial class FanCurveEditorWindow : Window
         double DataSourceListItemFontSize,
         double ControlGridCardWidth,
         double ControlGridWideCardWidth,
-        double RPMNumberBoxWidth,
-        double DutyNumberBoxWidth,
-        double SmoothnessNumberBoxWidth,
+        double ControlGridCardMinHeight,
+        double MinRPMNumberBoxMinWidth,
+        double MaxRPMNumberBoxMinWidth,
+        double MinDutyNumberBoxMinWidth,
+        double MaxDutyNumberBoxMinWidth,
+        double SmoothnessNumberBoxMinWidth,
         double TitleFontSize,
         double RowLabelWidth,
-        double SmallButtonWidth,
-        double SmallButtonHeight,
-        double SmallButtonFontSize,
+        double RescaleCurveButtonHeight,
+        double RescaleCurveButtonFontSize,
         Thickness RootBorderThickness,
         CornerRadius RootCornerRadius,
         CornerRadius CardCornerRadius,
@@ -524,12 +586,12 @@ public sealed partial class FanCurveEditorWindow : Window
         Thickness ControlGridCardMargin,
         Thickness ControlGridTitleMargin,
         Thickness ControlGridControlMargin,
-        Thickness SyncButtonGroupMargin,
-        Thickness SyncNoButtonMargin,
+        Thickness ControlGridNumberBoxMargin,
+        Thickness RescaleCurveButtonMargin,
         Thickness ToggleMargin,
         Thickness CardPadding,
         Thickness CardMargin,
-        Thickness SmallButtonPadding)
+        Thickness RescaleCurveButtonPadding)
     {
         public static FanCurveLayout From(Control owner)
         {
@@ -548,14 +610,16 @@ public sealed partial class FanCurveEditorWindow : Window
                 r.Double("DataSourceListItemFontSize"),
                 r.Double("ControlGridCardWidth"),
                 r.Double("ControlGridWideCardWidth"),
-                r.Double("RPMNumberBoxWidth"),
-                r.Double("DutyNumberBoxWidth"),
-                r.Double("SmoothnessNumberBoxWidth"),
+                r.Double("ControlGridCardMinHeight"),
+                r.Double("MinRPMNumberBoxMinWidth"),
+                r.Double("MaxRPMNumberBoxMinWidth"),
+                r.Double("MinDutyNumberBoxMinWidth"),
+                r.Double("MaxDutyNumberBoxMinWidth"),
+                r.Double("SmoothnessNumberBoxMinWidth"),
                 r.Double("TitleFontSize"),
                 r.Double("RowLabelWidth"),
-                r.Double("SmallButtonWidth"),
-                r.Double("SmallButtonHeight"),
-                r.Double("SmallButtonFontSize"),
+                r.Double("RescaleCurveButtonHeight"),
+                r.Double("RescaleCurveButtonFontSize"),
                 r.Thickness("RootBorderThickness"),
                 r.CornerRadius("RootCornerRadius"),
                 r.CornerRadius("CardCornerRadius"),
@@ -581,38 +645,49 @@ public sealed partial class FanCurveEditorWindow : Window
                 r.Thickness("ControlGridCardMargin"),
                 r.Thickness("ControlGridTitleMargin"),
                 r.Thickness("ControlGridControlMargin"),
-                r.Thickness("SyncButtonGroupMargin"),
-                r.Thickness("SyncNoButtonMargin"),
+                r.Thickness("ControlGridNumberBoxMargin"),
+                r.Thickness("RescaleCurveButtonMargin"),
                 r.Thickness("ToggleMargin"),
                 r.Thickness("CardPadding"),
                 r.Thickness("CardMargin"),
-                r.Thickness("SmallButtonPadding"));
+                r.Thickness("RescaleCurveButtonPadding"));
         }
     }
 
     private void WireControls()
     {
         _dataSourceList.SelectionChanged += OnDataSourceSelectionChanged;
-        _maxRpmBox.ValueChanged += (_, e) =>
+        _maxRPMBox.ValueChanged += (_, e) =>
         {
             if (_suppressEvents || !e.NewValue.HasValue) return;
             int old = _curve.MaxRPM;
             _curve.MaxRPM = Math.Max(1, (int)Math.Round(e.NewValue.Value));
+            if (_curve.MinRPM > _curve.MaxRPM)
+                _curve.MinRPM = _curve.MaxRPM;
             ClampCurveLimits();
-            if (_curve.RPMMode) MarkRpmSyncPending(old, _curve.MaxRPM);
+            if (_curve.RPMMode) MarkPendingNodeRescale(old, _curve.MaxRPM);
             LoadControlState();
             NotifyCurveShapeChanged();
         };
-        _minRpmBox.ValueChanged += (_, e) =>
+        _minRPMBox.ValueChanged += (_, e) =>
         {
             if (_suppressEvents || !e.NewValue.HasValue) return;
-            _curve.MinRPM = Math.Clamp((int)Math.Round(e.NewValue.Value), 0, _curve.MaxRPM);
+            int oldMax = _curve.MaxRPM;
+            _curve.MinRPM = Math.Max(0, (int)Math.Round(e.NewValue.Value));
+            if (_curve.MinRPM > _curve.MaxRPM)
+                _curve.MaxRPM = _curve.MinRPM;
+            ClampCurveLimits();
+            if (_curve.RPMMode && oldMax != _curve.MaxRPM)
+                MarkPendingNodeRescale(oldMax, _curve.MaxRPM);
+            LoadControlState();
             NotifyCurveShapeChanged();
         };
         _maxDutyBox.ValueChanged += (_, e) =>
         {
             if (_suppressEvents || !e.NewValue.HasValue) return;
             _curve.MaxDutyCycle = Math.Clamp((int)Math.Round(e.NewValue.Value), 1, 100);
+            if (_curve.MinDutyCycle > _curve.MaxDutyCycle)
+                _curve.MinDutyCycle = _curve.MaxDutyCycle;
             ClampCurveLimits();
             LoadControlState();
             NotifyCurveShapeChanged();
@@ -620,7 +695,11 @@ public sealed partial class FanCurveEditorWindow : Window
         _minDutyBox.ValueChanged += (_, e) =>
         {
             if (_suppressEvents || !e.NewValue.HasValue) return;
-            _curve.MinDutyCycle = Math.Clamp((int)Math.Round(e.NewValue.Value), 0, _curve.MaxDutyCycle);
+            _curve.MinDutyCycle = Math.Clamp((int)Math.Round(e.NewValue.Value), 0, 100);
+            if (_curve.MinDutyCycle > _curve.MaxDutyCycle)
+                _curve.MaxDutyCycle = _curve.MinDutyCycle;
+            ClampCurveLimits();
+            LoadControlState();
             NotifyCurveShapeChanged();
         };
         _smoothnessBox.ValueChanged += (_, e) =>
@@ -653,18 +732,18 @@ public sealed partial class FanCurveEditorWindow : Window
         try
         {
             _rpmModeToggle.IsChecked = _curve.RPMMode;
-            _maxRpmRow.IsVisible = _curve.RPMMode;
-            _maxRpmBox.Maximum = Math.Max(10000, _curve.MaxRPM);
-            _maxRpmBox.Value = _curve.MaxRPM;
-            _minRpmBox.Maximum = _curve.MaxRPM;
-            _minRpmBox.Value = _curve.MinRPM;
+            _maxRPMRow.IsVisible = _curve.RPMMode;
+            _maxRPMBox.Maximum = Math.Max(10000, _curve.MaxRPM);
+            _maxRPMBox.Value = _curve.MaxRPM;
+            _minRPMBox.Maximum = Math.Max(10000, Math.Max(_curve.MinRPM, _curve.MaxRPM));
+            _minRPMBox.Value = _curve.MinRPM;
             _maxDutyBox.Value = _curve.MaxDutyCycle;
-            _minDutyBox.Maximum = _curve.MaxDutyCycle;
+            _minDutyBox.Maximum = 100;
             _minDutyBox.Value = _curve.MinDutyCycle;
             _smoothnessBox.Value = _curve.SmoothingFactor;
             _preventDecreasingToggle.IsChecked = _curve.PreventDecreasing;
             SelectDataSourceList(_curve.SelectedDataSourceKey);
-            SetRpmSyncButtonsEnabled(_rpmSyncPending);
+            UpdateRescaleCurveButtonState();
         }
         finally
         {
@@ -777,9 +856,19 @@ public sealed partial class FanCurveEditorWindow : Window
         DataSource source,
         DeviceNicknameResolver deviceNicknameResolver,
         ProbeNicknameResolver probeNicknameResolver) =>
-        $"{DataSourceDeviceName(source, deviceNicknameResolver)}: "
-        + $"{DataSourceProbeName(source, probeNicknameResolver)}: "
+        DataSourceSelectionLabel(source, deviceNicknameResolver, probeNicknameResolver)
+        + ": "
         + DataSourceValueText(source);
+
+    /// <summary>
+    /// Builds the selected data-source label without the live value.
+    /// </summary>
+    private static string DataSourceSelectionLabel(
+        DataSource source,
+        DeviceNicknameResolver deviceNicknameResolver,
+        ProbeNicknameResolver probeNicknameResolver) =>
+        $"{DataSourceDeviceName(source, deviceNicknameResolver)}: "
+        + DataSourceProbeName(source, probeNicknameResolver);
 
     /// <summary>
     /// Resolves the display device name for a data source.
@@ -831,8 +920,21 @@ public sealed partial class FanCurveEditorWindow : Window
     private void UpdateDataSourceSelectionText()
     {
         SettingsSearchableListBoxItem? item = _dataSourceList.SelectedItem;
-        _dataSourceSelectionText.Text = item?.Text ?? "No data source";
+        _dataSourceSelectionText.Text = item == null ? "No data source" : SelectedDataSourceDisplayText(item);
         _dataSourceSelectionText.Opacity = item == null ? 0.65 : 1.0;
+    }
+
+    /// <summary>
+    /// Resolves selected data-source text without displaying the live value.
+    /// </summary>
+    private string SelectedDataSourceDisplayText(SettingsSearchableListBoxItem item)
+    {
+        DataSource? source = DataSource.Find(item.Tag?.ToString());
+        if (source == null) return item.Text;
+
+        DeviceNicknameResolver deviceNicknameResolver = DeviceNicknameResolver.Create(_settings);
+        ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
+        return DataSourceSelectionLabel(source, deviceNicknameResolver, probeNicknameResolver);
     }
 
     private string SelectedDataSourceKey() =>
@@ -843,64 +945,91 @@ public sealed partial class FanCurveEditorWindow : Window
     private void RefreshEditorBinding() =>
         _editor.SetCurve(_curve, CurrentDataSource());
 
-    private void OnRpmModeChanged(object? sender, bool enabled)
+    private void OnRPMModeChanged(object? sender, bool enabled)
     {
         if (_suppressEvents) return;
 
         double oldMax = _curve.ActiveYMaximum;
         if (_curve.RPMMode == enabled) return;
         _curve.RPMMode = enabled;
-        if (enabled) MarkRpmSyncPending(oldMax, _curve.MaxRPM);
         ClampCurveLimits();
+        MarkPendingNodeRescale(oldMax, _curve.ActiveYMaximum);
         LoadControlState();
         NotifyCurveShapeChanged();
     }
 
-    private void MarkRpmSyncPending(double oldMax, double newMax)
+    /// <summary>
+    /// Marks graph nodes as eligible for proportional Y-axis rescaling.
+    /// </summary>
+    private void MarkPendingNodeRescale(double oldMax, double newMax)
     {
-        if (!_rpmSyncPending)
-            _rpmSyncOldMax = Math.Max(1.0, oldMax);
+        double old = _rescaleCurvePending ? _rescaleCurveOldMax : Math.Max(1.0, oldMax);
+        double next = Math.Max(1.0, newMax);
+        if (Math.Abs(next - old) < 0.001)
+        {
+            ClearPendingNodeRescale();
+            return;
+        }
 
-        _rpmSyncNewMax = Math.Max(1.0, newMax);
-        _rpmSyncPending = true;
-        SetRpmSyncButtonsEnabled(true);
+        _rescaleCurveOldMax = old;
+        _rescaleCurveNewMax = next;
+        _rescaleCurvePending = true;
+        UpdateRescaleCurveButtonState();
     }
 
-    private void ApplyRpmNodeSync()
+    /// <summary>
+    /// Applies pending proportional Y-axis rescaling to every graph node.
+    /// </summary>
+    private void ApplyPendingNodeRescale()
     {
-        if (!_rpmSyncPending) return;
+        if (!_rescaleCurvePending) return;
 
-        double ratio = _rpmSyncNewMax / Math.Max(1.0, _rpmSyncOldMax);
+        double ratio = _rescaleCurveNewMax / Math.Max(1.0, _rescaleCurveOldMax);
         foreach (CurveNode node in _curve.CurveNodes)
-            node.Y = Math.Clamp(node.Y * ratio, 0.0, _rpmSyncNewMax);
+            node.Y = Math.Clamp(node.Y * ratio, 0.0, _rescaleCurveNewMax);
 
         _curve.BumpVersion();
-        ClearRpmSyncPending();
+        ClearPendingNodeRescale();
         NotifyCurveShapeChanged();
     }
 
-    private void ClearRpmSyncPending()
+    /// <summary>
+    /// Clears pending graph node rescale state.
+    /// </summary>
+    private void ClearPendingNodeRescale()
     {
-        _rpmSyncPending = false;
-        _rpmSyncOldMax = 0.0;
-        _rpmSyncNewMax = 0.0;
-        SetRpmSyncButtonsEnabled(false);
+        _rescaleCurvePending = false;
+        _rescaleCurveOldMax = 0.0;
+        _rescaleCurveNewMax = 0.0;
+        UpdateRescaleCurveButtonState();
     }
 
-    private void SetRpmSyncButtonsEnabled(bool enabled)
-    {
-        _syncYesButton.IsEnabled = enabled;
-        _syncNoButton.IsEnabled = enabled;
-    }
+    /// <summary>
+    /// Updates the always-visible rescale button's enabled visual state.
+    /// </summary>
+    private void UpdateRescaleCurveButtonState() => _rescaleCurveButton.IsEnabled = _rescaleCurvePending;
 
     private void OnPreventDecreasingChanged(object? sender, bool enabled)
     {
         if (_suppressEvents) return;
 
-        if (_curve.PreventDecreasing && !enabled)
-            _curve.BurnInEffectiveNodes();
+        if (_curve.PreventDecreasing == enabled) return;
+
         _curve.PreventDecreasing = enabled;
+        _hasPreservedNonMonotonicNodes = enabled;
         NotifyCurveShapeChanged();
+    }
+
+    /// <summary>
+    /// Discards hidden non-monotonic node values only for direct graph edits.
+    /// </summary>
+    private void OnEditorGraphEditStarting()
+    {
+        if (!_curve.PreventDecreasing || !_hasPreservedNonMonotonicNodes) return;
+
+        _curve.BurnInEffectiveNodes();
+        _hasPreservedNonMonotonicNodes = false;
+        _editor.Redraw();
     }
 
     private void OnEditorCurveChanged()
@@ -932,7 +1061,7 @@ public sealed partial class FanCurveEditorWindow : Window
         _settings.RaiseChanged();
     }
 
-    private static int DefaultMaxRpm(Fan fan)
+    private static int DefaultMaxRPM(Fan fan)
     {
         if (fan.MaxRPM > 0) return fan.MaxRPM;
         if (fan.CurrentRPM > 0) return Math.Max(100, fan.CurrentRPM);

@@ -1278,7 +1278,7 @@ public sealed class SettingsNumberBox : Grid
             FontFamily = TrayAppDotNETSettingsUI.UIFont,
             FontSize = 14,
             MinWidth = 0,
-            Padding = new Thickness(8, 0, 2, 0),
+            Padding = new Thickness(6, 0, 2, 0),
             TextAlignment = TextAlignment.Right,
             VerticalContentAlignment = VerticalAlignment.Center,
             CaretBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
@@ -1381,25 +1381,24 @@ public sealed class SettingsNumberBox : Grid
         };
         _textBox.KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Up)
+            switch (e.Key)
             {
-                ChangeBy(ArrowStepFromModifiers(e.KeyModifiers));
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Down)
-            {
-                ChangeBy(-ArrowStepFromModifiers(e.KeyModifiers));
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Enter)
-            {
-                CommitTextOrRestore();
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                CancelTextEdit();
-                e.Handled = true;
+                case Key.Up:
+                    ChangeBy(ArrowStepFromModifiers(e.KeyModifiers));
+                    e.Handled = true;
+                    break;
+                case Key.Down:
+                    ChangeBy(-ArrowStepFromModifiers(e.KeyModifiers));
+                    e.Handled = true;
+                    break;
+                case Key.Enter:
+                    CommitTextOrRestore();
+                    e.Handled = true;
+                    break;
+                case Key.Escape:
+                    CancelTextEdit();
+                    e.Handled = true;
+                    break;
             }
         };
         PointerWheelChanged += (_, e) =>

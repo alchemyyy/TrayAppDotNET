@@ -903,7 +903,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = Layout.TelemetryMargin,
         };
-        TextBlock rpm = TrayAppDotNETFlyoutUI.Text($"{fan.CurrentRPM} RPM", p, Layout.RpmFontSize);
+        TextBlock rpm = TrayAppDotNETFlyoutUI.Text($"{fan.CurrentRPM} RPM", p, Layout.RPMFontSize);
         rpm.Opacity = 0.7;
         rpm.HorizontalAlignment = HorizontalAlignment.Right;
         TextBlock controller = TrayAppDotNETFlyoutUI.Text(fan.ControllerDisplayLabel, p, Layout.ControllerFontSize);
@@ -1577,7 +1577,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (curve.RPMMode)
         {
             if (cell.Fans.Count == 0) return null;
-            target = cell.Fans.Average(fan => target / FanRpmReference(fan, curve) * 100.0);
+            target = cell.Fans.Average(fan => target / FanRPMReference(fan, curve) * 100.0);
         }
 
         return Math.Clamp(target, 0.0, FanFlyoutCell.GroupFanSliderMaximum);
@@ -1587,13 +1587,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (fan.RPMMode == curve.RPMMode) return target;
 
-        double rpmReference = FanRpmReference(fan, curve);
+        double rpmReference = FanRPMReference(fan, curve);
         return fan.RPMMode
             ? target / 100.0 * rpmReference
             : target / rpmReference * 100.0;
     }
 
-    private static double FanRpmReference(Fan fan, Curve curve) =>
+    private static double FanRPMReference(Fan fan, Curve curve) =>
         Math.Max(1.0,
             fan.MaxRPM > 0
                 ? fan.MaxRPM
@@ -3612,12 +3612,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         string raw = (text ?? string.Empty).Trim();
         bool hasPercent = raw.Contains('%');
-        bool hasRpm = raw.Contains("RPM", StringComparison.OrdinalIgnoreCase);
+        bool hasRPM = raw.Contains("RPM", StringComparison.OrdinalIgnoreCase);
         string normalized = raw.Replace("%", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace("RPM", string.Empty, StringComparison.OrdinalIgnoreCase);
         if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
-            if (fan.RPMMode && !hasRpm && (hasPercent || sourceIsDutyCycle && parsed <= 100))
+            if (fan.RPMMode && !hasRPM && (hasPercent || sourceIsDutyCycle && parsed <= 100))
             {
                 double duty = Math.Clamp(parsed, 0, 100);
                 value = Math.Clamp((int)Math.Round(duty / 100.0 * Math.Max(1, fan.FanSliderMaximum)), 0,
@@ -3854,12 +3854,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static Curve CreateCurveForFan(Fan fan)
     {
         string name = UniqueCurveName($"{fan.DisplayName} Curve");
-        int maxRpm = fan.MaxRPM > 0 ? fan.MaxRPM : fan.CurrentRPM > 0 ? Math.Max(100, fan.CurrentRPM) : 3000;
+        int maxRPM = fan.MaxRPM > 0 ? fan.MaxRPM : fan.CurrentRPM > 0 ? Math.Max(100, fan.CurrentRPM) : 3000;
         Curve curve = new()
         {
             CurveName = name,
             RPMMode = fan.RPMMode,
-            MaxRPM = maxRpm,
+            MaxRPM = maxRPM,
             MinRPM = 0,
             MaxDutyCycle = 100,
             MinDutyCycle = 0,
@@ -4703,7 +4703,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Thickness FanNameStackGroupedMargin,
         Thickness FanNameStackUngroupedMargin,
         Thickness TelemetryMargin,
-        double RpmFontSize,
+        double RPMFontSize,
         double ControllerFontSize,
         Thickness ControllerMargin,
         double ModeButtonWidth,
@@ -4835,7 +4835,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 r.Thickness("FanNameStackGroupedMargin"),
                 r.Thickness("FanNameStackUngroupedMargin"),
                 r.Thickness("TelemetryMargin"),
-                r.Double("RpmFontSize"),
+                r.Double("RPMFontSize"),
                 r.Double("ControllerFontSize"),
                 r.Thickness("ControllerMargin"),
                 r.Double("ModeButtonWidth"),

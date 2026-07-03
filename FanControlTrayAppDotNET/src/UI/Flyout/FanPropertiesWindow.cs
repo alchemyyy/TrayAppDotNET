@@ -451,12 +451,12 @@ public sealed partial class FanPropertiesWindow : Window
     private Curve CreateCurveForFan()
     {
         string name = UniqueCurveName($"{_fan.DisplayName} Curve");
-        int maxRpm = _fan.MaxRPM > 0 ? _fan.MaxRPM : _fan.CurrentRPM > 0 ? Math.Max(100, _fan.CurrentRPM) : 3000;
+        int maxRPM = _fan.MaxRPM > 0 ? _fan.MaxRPM : _fan.CurrentRPM > 0 ? Math.Max(100, _fan.CurrentRPM) : 3000;
         Curve curve = new()
         {
             CurveName = name,
             RPMMode = _fan.RPMMode,
-            MaxRPM = maxRpm,
+            MaxRPM = maxRPM,
             MinRPM = 0,
             MaxDutyCycle = 100,
             MinDutyCycle = 0,

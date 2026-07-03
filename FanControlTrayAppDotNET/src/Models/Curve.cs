@@ -132,9 +132,9 @@ public class Curve : INotifyPropertyChanged
 
     public int ActiveYMinLine => RPMMode ? MinRPM : MinDutyCycle;
 
-    public void EnsureEditorDefaults(int defaultMaxRpm)
+    public void EnsureEditorDefaults(int defaultMaxRPM)
     {
-        if (MaxRPM <= 0) MaxRPM = Math.Max(1, defaultMaxRpm);
+        if (MaxRPM <= 0) MaxRPM = Math.Max(1, defaultMaxRPM);
         if (MaxDutyCycle <= 0) MaxDutyCycle = 100;
         MinRPM = Math.Clamp(MinRPM, 0, MaxRPM);
         MinDutyCycle = Math.Clamp(MinDutyCycle, 0, MaxDutyCycle);
@@ -147,9 +147,12 @@ public class Curve : INotifyPropertyChanged
         ordered.Sort((a, b) => a.X.CompareTo(b.X));
         if (!PreventDecreasing) return ordered;
 
-        double floor = double.NegativeInfinity;
-        foreach (CurveNode node in ordered)
+        if (ordered.Count == 0) return ordered;
+
+        double floor = ordered[0].Y;
+        for (int i = 1; i < ordered.Count; i++)
         {
+            CurveNode node = ordered[i];
             if (node.Y < floor) node.Y = floor;
             else floor = node.Y;
         }
