@@ -9,11 +9,35 @@ using TrayAppDotNETCommon.Services;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
+internal static class UpdateConfirmationLayout
+{
+    private static readonly ControlAXAMLResources R = new(
+        "avares://TrayAppDotNETCommon/UI/Controls/UpdateConfirmationWindow.axaml",
+        "UpdateConfirmation");
+
+    public static double WindowWidth => R.Double("WindowWidth");
+    public static double WindowMinWidth => R.Double("WindowMinWidth");
+    public static int MaxVisibleChangelogLines => R.Int("MaxVisibleChangelogLines");
+    public static double ChangelogLineHeight => R.Double("ChangelogLineHeight");
+    public static Thickness RootBorderThickness => R.Thickness("RootBorderThickness");
+    public static CornerRadius RootCornerRadius => R.CornerRadius("RootCornerRadius");
+    public static CornerRadius ZeroCornerRadius => R.CornerRadius("ZeroCornerRadius");
+    public static double TitleBarHeight => R.Double("TitleBarHeight");
+    public static Thickness BodyMargin => R.Thickness("BodyMargin");
+    public static Thickness DescriptionMargin => R.Thickness("DescriptionMargin");
+    public static Thickness ChangelogBorderThickness => R.Thickness("ChangelogBorderThickness");
+    public static CornerRadius ChangelogCornerRadius => R.CornerRadius("ChangelogCornerRadius");
+    public static Thickness ChangelogPadding => R.Thickness("ChangelogPadding");
+    public static Thickness ChangelogScrollPadding => R.Thickness("ChangelogScrollPadding");
+    public static double ChangelogMaxHeightExtra => R.Double("ChangelogMaxHeightExtra");
+    public static Thickness ButtonPadding => R.Thickness("ButtonPadding");
+    public static Thickness CancelButtonMargin => R.Thickness("CancelButtonMargin");
+    public static Thickness ButtonsMargin => R.Thickness("ButtonsMargin");
+    public static Thickness TitleMargin => R.Thickness("TitleMargin");
+}
+
 public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
 {
-    private const int MaxVisibleChangelogLines = 16;
-    private const double ChangelogLineHeightPx = 16;
-
     public TrayAppDotNETUpdateConfirmationWindow(UpdateInfo info, SettingsPalette palette, bool rounded)
         : this(
             string.Format(CultureInfo.CurrentCulture, L("UpdateDialog_TitleFormat", "Update available: {0}"),
@@ -39,8 +63,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         bool rounded)
     {
         Title = title;
-        Width = 520;
-        MinWidth = 420;
+        Width = UpdateConfirmationLayout.WindowWidth;
+        MinWidth = UpdateConfirmationLayout.WindowMinWidth;
         SizeToContent = SizeToContent.Height;
         WindowDecorations = WindowDecorations.None;
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
@@ -53,8 +77,10 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(rounded ? 8 : 0),
+            BorderThickness = UpdateConfirmationLayout.RootBorderThickness,
+            CornerRadius = rounded
+                ? UpdateConfirmationLayout.RootCornerRadius
+                : UpdateConfirmationLayout.ZeroCornerRadius,
             Child = BuildContent(title, description, changelog, confirmText, cancelText, palette, rounded),
         };
 
@@ -78,12 +104,12 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         bool rounded)
     {
         Grid root = new();
-        root.RowDefinitions.Add(new RowDefinition(new GridLength(32)));
+        root.RowDefinitions.Add(new RowDefinition(new GridLength(UpdateConfirmationLayout.TitleBarHeight)));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         root.Children.Add(BuildTitleBar(title, palette));
 
-        Grid body = new() { Margin = new Thickness(28, 8, 28, 20), };
+        Grid body = new() { Margin = UpdateConfirmationLayout.BodyMargin, };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -95,25 +121,30 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         body.Children.Add(header);
 
         TextBlock descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
-        descriptionText.Margin = new Thickness(0, 0, 0, 12);
+        descriptionText.Margin = UpdateConfirmationLayout.DescriptionMargin;
         Grid.SetRow(descriptionText, 1);
         body.Children.Add(descriptionText);
 
         TextBlock changelogText = TrayAppDotNETSettingsUI.Text(changelog, palette, 12);
         changelogText.FontFamily = new FontFamily("Consolas, Cascadia Mono, Segoe UI");
-        changelogText.LineHeight = ChangelogLineHeightPx;
+        changelogText.LineHeight = UpdateConfirmationLayout.ChangelogLineHeight;
         changelogText.TextWrapping = TextWrapping.Wrap;
 
         Border changelogBox = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(rounded ? 4 : 0),
-            Padding = new Thickness(12, 8),
+            BorderThickness = UpdateConfirmationLayout.ChangelogBorderThickness,
+            CornerRadius = rounded
+                ? UpdateConfirmationLayout.ChangelogCornerRadius
+                : UpdateConfirmationLayout.ZeroCornerRadius,
+            Padding = UpdateConfirmationLayout.ChangelogPadding,
             Child = new ScrollViewer
             {
-                MaxHeight = MaxVisibleChangelogLines * ChangelogLineHeightPx + 4,
+                MaxHeight =
+                    UpdateConfirmationLayout.MaxVisibleChangelogLines *
+                    UpdateConfirmationLayout.ChangelogLineHeight +
+                    UpdateConfirmationLayout.ChangelogMaxHeightExtra,
                 VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
                 Content = changelogText,
@@ -123,17 +154,17 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         body.Children.Add(changelogBox);
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
-        cancel.Padding = new Thickness(20, 8);
-        cancel.Margin = new Thickness(0, 0, 8, 0);
+        cancel.Padding = UpdateConfirmationLayout.ButtonPadding;
+        cancel.Margin = UpdateConfirmationLayout.CancelButtonMargin;
         cancel.Click += (_, _) => Close(false);
 
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
-        install.Padding = new Thickness(20, 8);
+        install.Padding = UpdateConfirmationLayout.ButtonPadding;
         install.Click += (_, _) => Close(true);
 
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(cancel, install);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
-        buttons.Margin = new Thickness(0, 20, 0, 0);
+        buttons.Margin = UpdateConfirmationLayout.ButtonsMargin;
         Grid.SetRow(buttons, 3);
         body.Children.Add(buttons);
 
@@ -151,7 +182,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
 
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, palette, 13);
         titleText.VerticalAlignment = VerticalAlignment.Center;
-        titleText.Margin = new Thickness(16, 0, 0, 0);
+        titleText.Margin = UpdateConfirmationLayout.TitleMargin;
         bar.Children.Add(titleText);
 
         TrayAppDotNETCaptionCloseButton close = new(palette);

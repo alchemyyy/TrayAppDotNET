@@ -1,0 +1,13 @@
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <Thickness x:Key="FlyoutCards.ZeroThickness">0</Thickness>
+    <CornerRadius x:Key="FlyoutCards.IconButtonRadius">4</CornerRadius>
+    <sys:Double x:Key="FlyoutCards.TextButtonFontSize">13</sys:Double>
+    <Thickness x:Key="FlyoutCards.TextButtonBorderThickness">1</Thickness>
+    <CornerRadius x:Key="FlyoutCards.TextButtonRadius">4</CornerRadius>
+    <Thickness x:Key="FlyoutCards.TextButtonPadding">10,5</Thickness>
+    <sys:Double x:Key="FlyoutCards.SlotCoverOpacity">0.22</sys:Double>
+</ResourceDictionary>

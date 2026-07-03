@@ -1,0 +1,101 @@
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <Thickness x:Key="SettingsUI.NavItemMargin">4,0</Thickness>
+    <Thickness x:Key="SettingsUI.NavActionMargin">4,2</Thickness>
+    <sys:Double x:Key="SettingsUI.NavIndicatorWidth">3</sys:Double>
+    <sys:Double x:Key="SettingsUI.NavIndicatorHeight">16</sys:Double>
+    <CornerRadius x:Key="SettingsUI.NavIndicatorRadius">1.5</CornerRadius>
+    <Thickness x:Key="SettingsUI.NavIndicatorMargin">0,0,8,0</Thickness>
+    <CornerRadius x:Key="SettingsUI.NavItemRadius">4</CornerRadius>
+    <Thickness x:Key="SettingsUI.NavItemPadding">12,10</Thickness>
+    <Thickness x:Key="SettingsUI.NavItemInnerMargin">0,2</Thickness>
+
+    <CornerRadius x:Key="SettingsUI.ButtonRadius">4</CornerRadius>
+    <sys:Double x:Key="SettingsUI.ButtonMinHeight">32</sys:Double>
+    <Thickness x:Key="SettingsUI.ButtonPadding">12,6</Thickness>
+    <sys:Double x:Key="SettingsUI.EnabledOpacity">1</sys:Double>
+    <sys:Double x:Key="SettingsUI.DisabledOpacity">0.4</sys:Double>
+    <sys:Double x:Key="SettingsUI.ControlDisabledOpacity">0.45</sys:Double>
+
+    <sys:Double x:Key="SettingsUI.ToggleWidth">40</sys:Double>
+    <sys:Double x:Key="SettingsUI.ToggleHeight">20</sys:Double>
+    <CornerRadius x:Key="SettingsUI.ToggleTrackRadius">10</CornerRadius>
+    <Thickness x:Key="SettingsUI.ToggleBorderThickness">1</Thickness>
+    <sys:Double x:Key="SettingsUI.ToggleThumbWidth">10</sys:Double>
+    <sys:Double x:Key="SettingsUI.ToggleThumbHeight">10</sys:Double>
+    <sys:Double x:Key="SettingsUI.ToggleThumbHoverSize">12</sys:Double>
+    <sys:Double x:Key="SettingsUI.ToggleThumbCheckedSize">14</sys:Double>
+    <CornerRadius x:Key="SettingsUI.ToggleThumbRadius">7</CornerRadius>
+    <Thickness x:Key="SettingsUI.ToggleThumbUncheckedMargin">5,0,0,0</Thickness>
+    <Thickness x:Key="SettingsUI.ToggleThumbCheckedMargin">0,0,3,0</Thickness>
+
+    <sys:Double x:Key="SettingsUI.SwatchWidth">32</sys:Double>
+    <sys:Double x:Key="SettingsUI.SwatchHeight">28</sys:Double>
+    <CornerRadius x:Key="SettingsUI.SwatchRadius">4</CornerRadius>
+    <Thickness x:Key="SettingsUI.SwatchBorderThickness">1</Thickness>
+    <Thickness x:Key="SettingsUI.SwatchMargin">0,0,6,0</Thickness>
+    <sys:Double x:Key="SettingsUI.SwatchFallbackOpacity">0.35</sys:Double>
+
+    <sys:Double x:Key="SettingsUI.ScrollWheelStep">72</sys:Double>
+    <sys:Double x:Key="SettingsUI.ScrollBarTotalWidth">22</sys:Double>
+    <sys:Double x:Key="SettingsUI.ScrollBarCollapsedTrackWidth">12</sys:Double>
+    <sys:Double x:Key="SettingsUI.ScrollBarThumbMargin">4</sys:Double>
+    <sys:Double x:Key="SettingsUI.ScrollBarMinThumbHeight">24</sys:Double>
+
+    <Thickness x:Key="SettingsUI.ComboItemPadding">4,2</Thickness>
+    <sys:Double x:Key="SettingsUI.ComboIndicatorWidth">3</sys:Double>
+    <sys:Double x:Key="SettingsUI.ComboIndicatorHeight">16</sys:Double>
+    <CornerRadius x:Key="SettingsUI.ComboIndicatorRadius">1.5</CornerRadius>
+    <sys:Double x:Key="SettingsUI.ComboIndicatorColumnWidth">3</sys:Double>
+    <sys:Double x:Key="SettingsUI.ComboIndicatorGapWidth">8</sys:Double>
+    <CornerRadius x:Key="SettingsUI.ComboItemRadius">4</CornerRadius>
+    <Thickness x:Key="SettingsUI.ComboItemInnerPadding">12,8</Thickness>
+    <sys:Double x:Key="SettingsUI.ComboArrowColumnWidth">36</sys:Double>
+    <sys:Double x:Key="SettingsUI.ComboDefaultMinWidth">153</sys:Double>
+    <sys:Double x:Key="SettingsUI.ComboPopupMaxHeight">320</sys:Double>
+    <sys:Double x:Key="SettingsUI.ComboAutoSizeExtraPadding">4</sys:Double>
+    <Thickness x:Key="SettingsUI.ComboContentPadding">12,0</Thickness>
+    <sys:Double x:Key="SettingsUI.ComboHeight">32</sys:Double>
+    <Thickness x:Key="SettingsUI.ComboBorderThickness">0</Thickness>
+    <CornerRadius x:Key="SettingsUI.ComboRadius">4</CornerRadius>
+    <Thickness x:Key="SettingsUI.ComboPopupScrollPadding">0</Thickness>
+    <Thickness x:Key="SettingsUI.ComboPopupBorderThickness">1</Thickness>
+    <CornerRadius x:Key="SettingsUI.ComboPopupRadius">6</CornerRadius>
+    <Thickness x:Key="SettingsUI.ComboPopupPadding">0,4</Thickness>
+    <Thickness x:Key="SettingsUI.ComboPopupMargin">8</Thickness>
+
+    <sys:Double x:Key="SettingsUI.NumberBoxHeight">32</sys:Double>
+    <sys:Double x:Key="SettingsUI.NumberBoxSpinnerColumnWidth">22</sys:Double>
+    <Thickness x:Key="SettingsUI.NumberTextBorderThickness">0</Thickness>
+    <sys:Double x:Key="SettingsUI.NumberTextFontSize">14</sys:Double>
+    <Thickness x:Key="SettingsUI.NumberTextPadding">6,0,2,0</Thickness>
+    <Thickness x:Key="SettingsUI.NumberSuffixMargin">2,0,8,0</Thickness>
+    <CornerRadius x:Key="SettingsUI.NumberValueRadius">4</CornerRadius>
+    <sys:Double x:Key="SettingsUI.NumberSuffixPlaceholderOpacity">0.45</sys:Double>
+    <sys:Double x:Key="SettingsUI.NumberSuffixFontSize">13</sys:Double>
+    <sys:Double x:Key="SettingsUI.NumberValueFontSize">14</sys:Double>
+    <sys:Double x:Key="SettingsUI.NumberAutoWidthReserve">32</sys:Double>
+    <CornerRadius x:Key="SettingsUI.SpinnerButtonRadius">2</CornerRadius>
+    <sys:Double x:Key="SettingsUI.SpinnerGlyphFontSize">8</sys:Double>
+
+    <sys:Double x:Key="SettingsUI.SectionHeaderFontSize">22</sys:Double>
+    <Thickness x:Key="SettingsUI.SectionHeaderMargin">0,0,0,16</Thickness>
+    <sys:Double x:Key="SettingsUI.SubsectionHeaderFontSize">14</sys:Double>
+    <Thickness x:Key="SettingsUI.SubsectionHeaderMargin">0,16,0,8</Thickness>
+    <sys:Double x:Key="SettingsUI.TitleFontSize">14</sys:Double>
+    <sys:Double x:Key="SettingsUI.DescriptionFontSize">12</sys:Double>
+    <sys:Double x:Key="SettingsUI.DescriptionOpacity">0.8</sys:Double>
+    <Thickness x:Key="SettingsUI.DescriptionMargin">0,2,8,0</Thickness>
+    <Thickness x:Key="SettingsUI.CardRightControlMargin">16,0,0,0</Thickness>
+    <CornerRadius x:Key="SettingsUI.CardRadius">6</CornerRadius>
+    <Thickness x:Key="SettingsUI.CardPadding">16,12</Thickness>
+    <Thickness x:Key="SettingsUI.CardMargin">0,0,0,6</Thickness>
+    <sys:Double x:Key="SettingsUI.TextBoxHeight">32</sys:Double>
+    <sys:Double x:Key="SettingsUI.TextBoxFontSize">14</sys:Double>
+    <Thickness x:Key="SettingsUI.TextBoxBorderThickness">0</Thickness>
+    <Thickness x:Key="SettingsUI.TextBoxPadding">4,0</Thickness>
+    <sys:Double x:Key="SettingsUI.CaptionGlyphFontSize">10</sys:Double>
+</ResourceDictionary>

@@ -1,0 +1,25 @@
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <sys:Double x:Key="UpdateConfirmation.WindowWidth">520</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.WindowMinWidth">420</sys:Double>
+    <sys:Int32 x:Key="UpdateConfirmation.MaxVisibleChangelogLines">16</sys:Int32>
+    <sys:Double x:Key="UpdateConfirmation.ChangelogLineHeight">16</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.RootBorderThickness">1</Thickness>
+    <CornerRadius x:Key="UpdateConfirmation.RootCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="UpdateConfirmation.ZeroCornerRadius">0</CornerRadius>
+    <sys:Double x:Key="UpdateConfirmation.TitleBarHeight">32</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.BodyMargin">28,8,28,20</Thickness>
+    <Thickness x:Key="UpdateConfirmation.DescriptionMargin">0,0,0,12</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ChangelogBorderThickness">1</Thickness>
+    <CornerRadius x:Key="UpdateConfirmation.ChangelogCornerRadius">4</CornerRadius>
+    <Thickness x:Key="UpdateConfirmation.ChangelogPadding">12,8</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ChangelogScrollPadding">0</Thickness>
+    <sys:Double x:Key="UpdateConfirmation.ChangelogMaxHeightExtra">4</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.ButtonPadding">20,8</Thickness>
+    <Thickness x:Key="UpdateConfirmation.CancelButtonMargin">0,0,8,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ButtonsMargin">0,20,0,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.TitleMargin">16,0,0,0</Thickness>
+</ResourceDictionary>

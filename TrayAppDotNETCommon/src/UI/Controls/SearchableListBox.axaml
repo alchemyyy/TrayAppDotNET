@@ -1,0 +1,24 @@
+<ResourceDictionary
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <sys:Double x:Key="SearchableListBox.Width">210</sys:Double>
+    <sys:Double x:Key="SearchableListBox.ListHeight">120</sys:Double>
+    <sys:Double x:Key="SearchableListBox.SearchBoxHeight">32</sys:Double>
+    <sys:Double x:Key="SearchableListBox.SearchBoxFontSize">14</sys:Double>
+    <Thickness x:Key="SearchableListBox.SearchBoxBorderThickness">0</Thickness>
+    <Thickness x:Key="SearchableListBox.SearchBoxPadding">6,0</Thickness>
+    <sys:Double x:Key="SearchableListBox.ClearButtonWidth">32</sys:Double>
+    <sys:Double x:Key="SearchableListBox.ClearButtonHeight">32</sys:Double>
+    <Thickness x:Key="SearchableListBox.ClearButtonPadding">0</Thickness>
+    <sys:Double x:Key="SearchableListBox.ClearButtonFontSize">10</sys:Double>
+    <sys:Double x:Key="SearchableListBox.ItemFontSize">13</sys:Double>
+    <Thickness x:Key="SearchableListBox.ItemPadding">8,5</Thickness>
+    <Thickness x:Key="SearchableListBox.ItemMargin">0,0,0,2</Thickness>
+    <CornerRadius x:Key="SearchableListBox.ItemRadius">3</CornerRadius>
+    <Thickness x:Key="SearchableListBox.ScrollHostPadding">0</Thickness>
+    <Thickness x:Key="SearchableListBox.ListBorderThickness">1</Thickness>
+    <CornerRadius x:Key="SearchableListBox.ListRadius">4</CornerRadius>
+    <sys:Double x:Key="SearchableListBox.EmptyOpacity">0.65</sys:Double>
+</ResourceDictionary>

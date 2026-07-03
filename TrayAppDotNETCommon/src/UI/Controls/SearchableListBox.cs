@@ -11,18 +11,37 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
+internal static class SearchableListBoxLayout
+{
+    private static readonly ControlAXAMLResources R = new(
+        "avares://TrayAppDotNETCommon/UI/Controls/SearchableListBox.axaml",
+        "SearchableListBox");
+
+    public static double Width => R.Double("Width");
+    public static double ListHeight => R.Double("ListHeight");
+    public static double SearchBoxHeight => R.Double("SearchBoxHeight");
+    public static double SearchBoxFontSize => R.Double("SearchBoxFontSize");
+    public static Thickness SearchBoxBorderThickness => R.Thickness("SearchBoxBorderThickness");
+    public static Thickness SearchBoxPadding => R.Thickness("SearchBoxPadding");
+    public static double ClearButtonWidth => R.Double("ClearButtonWidth");
+    public static double ClearButtonHeight => R.Double("ClearButtonHeight");
+    public static Thickness ClearButtonPadding => R.Thickness("ClearButtonPadding");
+    public static double ClearButtonFontSize => R.Double("ClearButtonFontSize");
+    public static double ItemFontSize => R.Double("ItemFontSize");
+    public static Thickness ItemPadding => R.Thickness("ItemPadding");
+    public static Thickness ItemMargin => R.Thickness("ItemMargin");
+    public static CornerRadius ItemRadius => R.CornerRadius("ItemRadius");
+    public static Thickness ScrollHostPadding => R.Thickness("ScrollHostPadding");
+    public static Thickness ListBorderThickness => R.Thickness("ListBorderThickness");
+    public static CornerRadius ListRadius => R.CornerRadius("ListRadius");
+    public static double EmptyOpacity => R.Double("EmptyOpacity");
+}
+
 /// <summary>
 /// Searchable settings list that commits selection by double-click or Enter.
 /// </summary>
 public sealed class SettingsSearchableListBox : Grid
 {
-    private const double DefaultWidth = 210;
-    private const double DefaultListHeight = 120;
-    private const double DefaultSearchBoxHeight = 32;
-    private const double DefaultClearButtonWidth = 32;
-    private const double DefaultClearButtonHeight = 32;
-    private const double DefaultClearButtonFontSize = 10;
-    private const double DefaultItemFontSize = 13;
     private const string DefaultPlaceholderText = "Search";
     private const string NoResultsText = "No results";
 
@@ -37,16 +56,16 @@ public sealed class SettingsSearchableListBox : Grid
     private List<SettingsSearchableListBoxItem> _visibleItems = [];
     private SettingsSearchableListBoxItem? _selectedItem;
     private SettingsSearchableListBoxItem? _activeItem;
-    private double _itemFontSize = DefaultItemFontSize;
-    private Thickness _itemPadding = new(8, 5);
-    private Thickness _itemMargin = new(0, 0, 0, 2);
-    private CornerRadius _itemCornerRadius = new(3);
+    private double _itemFontSize = SearchableListBoxLayout.ItemFontSize;
+    private Thickness _itemPadding = SearchableListBoxLayout.ItemPadding;
+    private Thickness _itemMargin = SearchableListBoxLayout.ItemMargin;
+    private CornerRadius _itemCornerRadius = SearchableListBoxLayout.ItemRadius;
 
     public SettingsSearchableListBox(SettingsPalette palette)
     {
         _palette = palette;
         _items = new SettingsSearchableListBoxItemCollection(this);
-        Width = DefaultWidth;
+        Width = SearchableListBoxLayout.Width;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
         Focusable = true;
@@ -55,14 +74,14 @@ public sealed class SettingsSearchableListBox : Grid
 
         _searchBox = new TextBox
         {
-            Height = DefaultSearchBoxHeight,
+            Height = SearchableListBoxLayout.SearchBoxHeight,
             FontFamily = TrayAppDotNETSettingsUI.UIFont,
-            FontSize = 14,
+            FontSize = SearchableListBoxLayout.SearchBoxFontSize,
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(6, 0),
+            BorderThickness = SearchableListBoxLayout.SearchBoxBorderThickness,
+            Padding = SearchableListBoxLayout.SearchBoxPadding,
             VerticalContentAlignment = VerticalAlignment.Center,
             PlaceholderText = DefaultPlaceholderText,
             CaretBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
@@ -78,12 +97,12 @@ public sealed class SettingsSearchableListBox : Grid
         _searchBox.KeyDown += OnKeyboardNavigation;
 
         _clearButton = TrayAppDotNETSettingsUI.Button(GlyphCatalog.CHROME_CLOSE, palette);
-        _clearButton.Width = DefaultClearButtonWidth;
-        _clearButton.Height = DefaultClearButtonHeight;
-        _clearButton.MinHeight = DefaultClearButtonHeight;
-        _clearButton.Padding = new Thickness(0);
+        _clearButton.Width = SearchableListBoxLayout.ClearButtonWidth;
+        _clearButton.Height = SearchableListBoxLayout.ClearButtonHeight;
+        _clearButton.MinHeight = SearchableListBoxLayout.ClearButtonHeight;
+        _clearButton.Padding = SearchableListBoxLayout.ClearButtonPadding;
         _clearButton.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        _clearButton.Label.FontSize = DefaultClearButtonFontSize;
+        _clearButton.Label.FontSize = SearchableListBoxLayout.ClearButtonFontSize;
         _clearButton.Click += (_, _) => ClearSearch();
 
         _searchRow = new Grid
@@ -100,18 +119,18 @@ public sealed class SettingsSearchableListBox : Grid
         Children.Add(_searchRow);
 
         _itemsPanel = new StackPanel();
-        _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(_itemsPanel, palette, new Thickness(0));
-        _scrollHost.Height = DefaultListHeight;
+        _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(_itemsPanel, palette, SearchableListBoxLayout.ScrollHostPadding);
+        _scrollHost.Height = SearchableListBoxLayout.ListHeight;
         _scrollHost.VerticalAlignment = VerticalAlignment.Stretch;
 
         _listBorder = new Border
         {
-            Height = DefaultListHeight,
+            Height = SearchableListBoxLayout.ListHeight,
             VerticalAlignment = VerticalAlignment.Stretch,
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
+            BorderThickness = SearchableListBoxLayout.ListBorderThickness,
+            CornerRadius = SearchableListBoxLayout.ListRadius,
             ClipToBounds = true,
             Child = _scrollHost,
         };
@@ -358,7 +377,7 @@ public sealed class SettingsSearchableListBox : Grid
         if (_visibleItems.Count == 0)
         {
             TextBlock empty = TrayAppDotNETSettingsUI.Text(NoResultsText, _palette, _itemFontSize);
-            empty.Opacity = 0.65;
+            empty.Opacity = SearchableListBoxLayout.EmptyOpacity;
             Border emptyHost = new()
             {
                 Background = Brushes.Transparent,

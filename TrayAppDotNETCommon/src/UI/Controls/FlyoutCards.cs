@@ -8,6 +8,21 @@ using Avalonia.VisualTree;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
+internal static class FlyoutCardsLayout
+{
+    private static readonly ControlAXAMLResources R = new(
+        "avares://TrayAppDotNETCommon/UI/Controls/FlyoutCards.axaml",
+        "FlyoutCards");
+
+    public static Thickness ZeroThickness => R.Thickness("ZeroThickness");
+    public static CornerRadius IconButtonRadius => R.CornerRadius("IconButtonRadius");
+    public static double TextButtonFontSize => R.Double("TextButtonFontSize");
+    public static Thickness TextButtonBorderThickness => R.Thickness("TextButtonBorderThickness");
+    public static CornerRadius TextButtonRadius => R.CornerRadius("TextButtonRadius");
+    public static Thickness TextButtonPadding => R.Thickness("TextButtonPadding");
+    public static double SlotCoverOpacity => R.Double("SlotCoverOpacity");
+}
+
 public readonly record struct FlyoutControlPalette(
     Color Foreground,
     Color SecondaryForeground,
@@ -118,8 +133,8 @@ public static class TrayAppDotNETFlyoutUI
         {
             Width = width,
             Height = height,
-            Margin = margin ?? new Thickness(0),
-            CornerRadius = new CornerRadius(4),
+            Margin = margin ?? FlyoutCardsLayout.ZeroThickness,
+            CornerRadius = FlyoutCardsLayout.IconButtonRadius,
             Background = Brushes.Transparent,
             Child = content,
             Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
@@ -144,10 +159,11 @@ public static class TrayAppDotNETFlyoutUI
         string text,
         FlyoutControlPalette palette,
         Action click,
-        double fontSize = 13,
+        double fontSize = double.NaN,
         Thickness? padding = null)
     {
-        TextBlock label = Text(text, palette, fontSize, FontWeight.SemiBold);
+        double effectiveFontSize = double.IsNaN(fontSize) ? FlyoutCardsLayout.TextButtonFontSize : fontSize;
+        TextBlock label = Text(text, palette, effectiveFontSize, FontWeight.SemiBold);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         label.VerticalAlignment = VerticalAlignment.Center;
 
@@ -155,9 +171,9 @@ public static class TrayAppDotNETFlyoutUI
         {
             Background = Brush(palette.ControlBackground),
             BorderBrush = Brush(palette.Border),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = padding ?? new Thickness(10, 5),
+            BorderThickness = FlyoutCardsLayout.TextButtonBorderThickness,
+            CornerRadius = FlyoutCardsLayout.TextButtonRadius,
+            Padding = padding ?? FlyoutCardsLayout.TextButtonPadding,
             Child = label,
             Cursor = new Cursor(StandardCursorType.Hand),
         };
@@ -175,10 +191,10 @@ public static class TrayAppDotNETFlyoutUI
     public static Border SlotCover(
         Color color,
         CornerRadius cornerRadius,
-        double opacity = 0.22) =>
+        double opacity = double.NaN) =>
         new()
         {
-            Background = Brush(color, opacity),
+            Background = Brush(color, double.IsNaN(opacity) ? FlyoutCardsLayout.SlotCoverOpacity : opacity),
             CornerRadius = cornerRadius,
             IsVisible = false,
             IsHitTestVisible = false,
