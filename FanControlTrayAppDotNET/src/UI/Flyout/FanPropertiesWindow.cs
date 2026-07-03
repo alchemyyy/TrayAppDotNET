@@ -75,7 +75,8 @@ public sealed partial class FanPropertiesWindow : Window
             AppTheme.ResolveEffectiveIsLightTheme(_settings));
         bool rounded = _settings.EnableRoundedCorners;
 
-        _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", palette, 13, FontWeight.SemiBold);
+        _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", palette, Layout.TitleFontSize,
+            FontWeight.SemiBold);
         _fanIDText = ValueText(palette);
         _sensorControllerText = ValueText(palette);
         _nameBox = TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth);
@@ -258,7 +259,7 @@ public sealed partial class FanPropertiesWindow : Window
         _curveCombo.Margin = Layout.CurveComboMargin;
         Grid.SetRow(_curveCombo, 1);
         right.Children.Add(_curveCombo);
-        _editCurveButton.Margin = new Thickness(0, 8, 0, 0);
+        _editCurveButton.Margin = Layout.EditCurveButtonMargin;
         _editCurveButton.HorizontalAlignment = HorizontalAlignment.Stretch;
         _editCurveButton.Click += (_, _) => OpenCurveEditor();
         Grid.SetRow(_editCurveButton, 2);
@@ -591,6 +592,7 @@ public sealed partial class FanPropertiesWindow : Window
         double CurveComboWidth,
         double NumberBoxWidth,
         double RowLabelColumnWidth,
+        double TitleFontSize,
         Thickness RootBorderThickness,
         CornerRadius RootCornerRadius,
         CornerRadius InnerCornerRadius,
@@ -600,6 +602,7 @@ public sealed partial class FanPropertiesWindow : Window
         Thickness LeftMargin,
         Thickness RightMargin,
         Thickness CurveComboMargin,
+        Thickness EditCurveButtonMargin,
         Thickness FooterMargin,
         Thickness ResetMargin,
         Thickness RadioMargin,
@@ -629,6 +632,7 @@ public sealed partial class FanPropertiesWindow : Window
                 r.Double("CurveComboWidth"),
                 r.Double("NumberBoxWidth"),
                 r.Double("RowLabelColumnWidth"),
+                r.Double("TitleFontSize"),
                 r.Thickness("RootBorderThickness"),
                 r.CornerRadius("RootCornerRadius"),
                 r.CornerRadius("InnerCornerRadius"),
@@ -638,6 +642,7 @@ public sealed partial class FanPropertiesWindow : Window
                 r.Thickness("LeftMargin"),
                 r.Thickness("RightMargin"),
                 r.Thickness("CurveComboMargin"),
+                r.Thickness("EditCurveButtonMargin"),
                 r.Thickness("FooterMargin"),
                 r.Thickness("ResetMargin"),
                 r.Thickness("RadioMargin"),

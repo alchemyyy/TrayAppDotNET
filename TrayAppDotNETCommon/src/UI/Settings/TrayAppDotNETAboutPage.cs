@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
@@ -71,15 +72,16 @@ public sealed class TrayAppDotNETAboutPage
     {
         StopUpdateRefresh();
 
+        TrayAppDotNETAboutPageLayout layout = TrayAppDotNETAboutPageLayout.Current;
         SettingsPalette p = _options.Palette;
         StackPanel stack = TrayAppDotNETSettingsCards.PageStack(L("Settings_About_SectionHeader", "About"), p);
 
         TextBlock appName = TrayAppDotNETSettingsUI.Text(_options.ApplicationName, p);
-        appName.Margin = new Thickness(0, 0, 0, 4);
+        appName.Margin = layout.AppNameMargin;
         stack.Children.Add(appName);
 
-        TextBlock tagline = TrayAppDotNETSettingsUI.DescriptionText(_options.Tagline, p, new Thickness(0, 0, 0, 24));
-        tagline.Opacity = 0.7;
+        TextBlock tagline = TrayAppDotNETSettingsUI.DescriptionText(_options.Tagline, p, layout.TaglineMargin);
+        tagline.Opacity = layout.TaglineOpacity;
         stack.Children.Add(tagline);
 
         stack.Children.Add(AboutRow(L("Settings_About_BuildLabel", "Build"),
@@ -162,11 +164,12 @@ public sealed class TrayAppDotNETAboutPage
 
     private Border BuildUpdateActionCard(SettingsPalette p)
     {
+        TrayAppDotNETAboutPageLayout layout = TrayAppDotNETAboutPageLayout.Current;
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(UpdateStatusText(CurrentService), p);
 
         SettingsButton check = Button(L("Settings_About_CheckForUpdates_Button", "Check for updates"), p);
         SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p);
-        check.Margin = new Thickness(0, 0, 8, 0);
+        check.Margin = layout.UpdateCheckButtonMargin;
 
         check.Click += async (_, _) => await CheckForUpdatesAsync();
         install.Click += async (_, _) => await InstallUpdateAsync();
@@ -385,8 +388,9 @@ public sealed class TrayAppDotNETAboutPage
 
     private static StackPanel AboutRow(string label, string value, SettingsPalette p, string? openUrl = null)
     {
-        TextBlock labelBlock = TrayAppDotNETSettingsUI.Text(label, p, 14, FontWeight.SemiBold);
-        labelBlock.Width = 80;
+        TrayAppDotNETAboutPageLayout layout = TrayAppDotNETAboutPageLayout.Current;
+        TextBlock labelBlock = TrayAppDotNETSettingsUI.Text(label, p, layout.AboutRowLabelFontSize, FontWeight.SemiBold);
+        labelBlock.Width = layout.AboutRowLabelWidth;
 
         TextBlock valueBlock = TrayAppDotNETSettingsUI.Text(value, p);
         valueBlock.TextWrapping = TextWrapping.Wrap;
@@ -405,10 +409,82 @@ public sealed class TrayAppDotNETAboutPage
         return new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 0, 0, 6),
+            Margin = layout.AboutRowMargin,
             Children = { labelBlock, valueBlock },
         };
     }
 
     private string L(string key, string fallback) => _options.Localize(key, fallback);
+}
+
+internal sealed record TrayAppDotNETAboutPageLayout(
+    Thickness AppNameMargin,
+    Thickness TaglineMargin,
+    double TaglineOpacity,
+    Thickness UpdateCheckButtonMargin,
+    double AboutRowLabelFontSize,
+    double AboutRowLabelWidth,
+    Thickness AboutRowMargin)
+{
+    public static TrayAppDotNETAboutPageLayout Current { get; } = FromResources();
+
+    private static TrayAppDotNETAboutPageLayout FromResources()
+    {
+        return new TrayAppDotNETAboutPageLayout(
+            TrayAppDotNETAboutPageResourceReader.Thickness("AppNameMargin"),
+            TrayAppDotNETAboutPageResourceReader.Thickness("TaglineMargin"),
+            TrayAppDotNETAboutPageResourceReader.Double("TaglineOpacity"),
+            TrayAppDotNETAboutPageResourceReader.Thickness("UpdateCheckButtonMargin"),
+            TrayAppDotNETAboutPageResourceReader.Double("AboutRowLabelFontSize"),
+            TrayAppDotNETAboutPageResourceReader.Double("AboutRowLabelWidth"),
+            TrayAppDotNETAboutPageResourceReader.Thickness("AboutRowMargin"));
+    }
+}
+
+internal static class TrayAppDotNETAboutPageResourceReader
+{
+    private const string ResourcePath =
+        "avares://TrayAppDotNETCommon/UI/Settings/TrayAppDotNETAboutPage.axaml";
+
+    private const string ResourcePrefix = "AboutPage.";
+
+    private static readonly Lazy<ResourceDictionary> Resources = new(LoadResources);
+
+    /// <summary>
+    /// Reads a double layout resource.
+    /// </summary>
+    public static double Double(string name) =>
+        Resource(name) switch
+        {
+            double value => value,
+            int value => value,
+            string value => double.Parse(value, CultureInfo.InvariantCulture),
+            object value => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+        };
+
+    /// <summary>
+    /// Reads a thickness layout resource.
+    /// </summary>
+    public static Thickness Thickness(string name) =>
+        Resource(name) is Thickness value
+            ? value
+            : throw InvalidType(name, nameof(Thickness));
+
+    private static ResourceDictionary LoadResources()
+    {
+        Uri resourceUri = new(ResourcePath);
+        object? resources = AvaloniaXamlLoader.Load(resourceUri);
+        return resources as ResourceDictionary ??
+               throw new InvalidOperationException($"Resource dictionary '{ResourcePath}' could not be loaded.");
+    }
+
+    private static object Resource(string name)
+    {
+        string key = ResourcePrefix + name;
+        object? value = Resources.Value[key];
+        return value ?? throw new InvalidOperationException($"Missing resource '{key}'.");
+    }
+
+    private static InvalidOperationException InvalidType(string name, string expectedType) =>
+        new($"Resource '{ResourcePrefix}{name}' is not a {expectedType}.");
 }
