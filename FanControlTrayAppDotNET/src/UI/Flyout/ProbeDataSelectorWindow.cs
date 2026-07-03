@@ -2,8 +2,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace FanControlTrayAppDotNET.UI;
 
@@ -12,6 +14,12 @@ namespace FanControlTrayAppDotNET.UI;
 /// </summary>
 public sealed partial class ProbeDataSelectorWindow : Window
 {
+    private const string NicknameTargetBoxName = "NicknameTargetRegex";
+    private const string NicknameReplacementBoxName = "NicknameReplacement";
+    private const bool EnableReorderCardHoverCue = false;
+    private const double TruncateToggleTrackHeightRatio = 0.5;
+    private const double TruncateToggleThumbSizeRatio = 1.0 / 3.0;
+
     private static readonly ProbeSelectorTab[] Tabs =
     [
         ProbeSelectorTab.Home,
@@ -28,7 +36,26 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private readonly SettingsPalette _palette;
     private readonly HashSet<string> _expandedTransformKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TextBlock>> _valueTextByKey = new(StringComparer.OrdinalIgnoreCase);
+    private TextBox? _focusedTransformTextBox;
+    private Control? _focusSink;
     private SelectorLayout? _layout;
+    private DeviceNicknameResolver _deviceNicknameResolver = DeviceNicknameResolver.Empty;
+    private ProbeNicknameResolver _probeNicknameResolver = ProbeNicknameResolver.Empty;
+    private StackPanel? _selectedProbeListPanel;
+    private ProbeCardProbe? _draggedSelectedProbe;
+    private Border? _draggedSelectedProbeRow;
+    private Point _selectedProbeDragStart;
+    private double _draggedSelectedProbePointerOffsetY;
+    private double _draggedSelectedProbeHeight;
+    private int _draggedSelectedProbeTargetIndex = -1;
+    private StackPanel? _nicknameRuleListPanel;
+    private List<DeviceNicknameRule>? _draggedNicknameRuleList;
+    private DeviceNicknameRule? _draggedNicknameRule;
+    private Border? _draggedNicknameRuleRow;
+    private Point _nicknameRuleDragStart;
+    private double _draggedNicknameRulePointerOffsetY;
+    private double _draggedNicknameRuleHeight;
+    private int _draggedNicknameRuleTargetIndex = -1;
     private ProbeSelectorTab _selectedTab = ProbeSelectorTab.Home;
 
     /// <summary>
@@ -43,6 +70,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         InitializeComponent();
         InitializeComponentState();
+        AddHandler(PointerPressedEvent, OnSelectorPointerPressed, RoutingStrategies.Tunnel,
+            handledEventsToo: true);
     }
 
     /// <summary>
@@ -60,6 +89,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         InitializeComponent();
         InitializeComponentState();
+        AddHandler(PointerPressedEvent, OnSelectorPointerPressed, RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         Title = $"Probe Data: {_probeCard.DisplayName}";
         AppServices.LHMService?.PollTickCompleted += OnPollTickCompleted;
         Closed += OnClosed;
@@ -77,6 +108,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private void RebuildContent()
     {
         _valueTextByKey.Clear();
+        _deviceNicknameResolver = DeviceNicknameResolver.Create(_settings);
+        _probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
 
         Grid shell = new()
         {
@@ -87,24 +120,43 @@ public sealed partial class ProbeDataSelectorWindow : Window
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         shell.Children.Add(BuildTabRow());
 
-        ScrollViewer body = new()
-        {
-            Margin = Layout.BodyMargin,
-            Content = BuildTabBody(),
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        };
+        Control body = BuildBodyHost();
         Grid.SetRow(body, 1);
         shell.Children.Add(body);
 
-        Content = new Border
+        Border root = new()
         {
+            Focusable = true,
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
             Child = shell,
         };
+        _focusSink = root;
+        Content = root;
+    }
+
+    /// <summary>
+    /// Builds the tab body host, leaving Home available for section-local scrolling.
+    /// </summary>
+    private Control BuildBodyHost()
+    {
+        Control content = BuildTabBody();
+        if (_selectedTab == ProbeSelectorTab.Home)
+        {
+            return new Border
+            {
+                Margin = Layout.BodyMargin,
+                Child = content,
+            };
+        }
+
+        SettingsScrollHost scrollHost = new(content, _palette, Layout.ZeroThickness)
+        {
+            Margin = Layout.BodyMargin,
+        };
+        return scrollHost;
     }
 
     /// <summary>
@@ -113,13 +165,19 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private Grid BuildTabRow()
     {
         Grid row = new();
-        for (int i = 0; i < Tabs.Length; i++)
-            row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        for (int i = 1; i < Tabs.Length; i++)
+            row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        for (int i = 0; i < Tabs.Length; i++)
+        Border homeTab = BuildTab(Tabs[0]);
+        Grid.SetColumn(homeTab, 0);
+        row.Children.Add(homeTab);
+
+        for (int i = 1; i < Tabs.Length; i++)
         {
             Border tab = BuildTab(Tabs[i]);
-            Grid.SetColumn(tab, i);
+            Grid.SetColumn(tab, i + 1);
             row.Children.Add(tab);
         }
 
@@ -146,6 +204,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             CornerRadius = _settings.EnableRoundedCorners ? Layout.TabCornerRadius : Layout.ZeroCornerRadius,
             Margin = Layout.TabMargin,
             Padding = Layout.TabPadding,
+            Width = Layout.TabWidth,
             MinHeight = Layout.TabMinHeight,
             Child = label,
             Cursor = new Cursor(StandardCursorType.Hand),
@@ -180,26 +239,859 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the selected-probes home tab.
     /// </summary>
-    private Control BuildHomeBody()
+    private Grid BuildHomeBody()
     {
-        WrapPanel grid = new();
+        Grid home = new()
+        {
+            UseLayoutRounding = true,
+        };
+        home.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
+        home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(NicknameColumnWidth())));
+
+        Border selectedProbeHost = new()
+        {
+            Padding = Layout.HomeNicknameColumnPadding,
+            Child = BuildSelectedProbesSection(),
+        };
+        Grid.SetColumn(selectedProbeHost, 0);
+        home.Children.Add(selectedProbeHost);
+
+        Border columnSeparator = BuildHomeColumnSeparator();
+        Grid.SetColumn(columnSeparator, 1);
+        home.Children.Add(columnSeparator);
+
+        Grid nicknames = new()
+        {
+            UseLayoutRounding = true,
+        };
+        nicknames.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.HomeDeviceNicknamesRowHeight)));
+        nicknames.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
+        nicknames.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+
+        Border deviceNicknameHost = new()
+        {
+            Padding = Layout.HomeNicknameColumnPadding,
+            Child = BuildDeviceNicknamesSection(),
+        };
+        Grid.SetRow(deviceNicknameHost, 0);
+        nicknames.Children.Add(deviceNicknameHost);
+
+        Border rowSeparator = BuildHomeNicknameRowSeparator();
+        Grid.SetRow(rowSeparator, 1);
+        nicknames.Children.Add(rowSeparator);
+
+        Border probeNicknameHost = new()
+        {
+            Padding = Layout.HomeNicknameColumnPadding,
+            Child = BuildProbeNicknamesSection(),
+        };
+        Grid.SetRow(probeNicknameHost, 2);
+        nicknames.Children.Add(probeNicknameHost);
+
+        Grid.SetColumn(nicknames, 2);
+        home.Children.Add(nicknames);
+        return home;
+    }
+
+    /// <summary>
+    /// Builds the full-height separator between home-tab columns.
+    /// </summary>
+    private Border BuildHomeColumnSeparator() =>
+        new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(Layout.HomeSectionSeparatorColor),
+            Margin = Layout.HomeColumnSeparatorMargin,
+            Width = Layout.HomeSectionSeparatorThickness,
+            MinWidth = Layout.HomeSectionSeparatorThickness,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            UseLayoutRounding = true,
+        };
+
+    /// <summary>
+    /// Builds the full-width separator between nickname sections.
+    /// </summary>
+    private Border BuildHomeNicknameRowSeparator() =>
+        new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(Layout.HomeSectionSeparatorColor),
+            Margin = Layout.HomeNicknameRowSeparatorMargin,
+            Height = Layout.HomeSectionSeparatorThickness,
+            MinHeight = Layout.HomeSectionSeparatorThickness,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            UseLayoutRounding = true,
+        };
+
+    /// <summary>
+    /// Builds the selected-probes column for the home tab.
+    /// </summary>
+    private Grid BuildSelectedProbesSection()
+    {
+        Grid section = new()
+        {
+            Margin = Layout.NicknameSectionMargin,
+        };
+        section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        section.Children.Add(BuildSelectedProbesHeader());
+
+        StackPanel selectedProbeList = new()
+        {
+            Margin = Layout.SelectedProbeGridMargin,
+        };
         List<ProbeCardProbe> selectedProbes =
         [
             .. _probeCard.Probes
-                .Where(static probe => !string.IsNullOrWhiteSpace(probe.DataSourceKey))
-                .OrderBy(probe => ProbeSortLabel(DataSource.Find(probe.DataSourceKey), probe),
-                    StringComparer.OrdinalIgnoreCase)
+                .Where(static probe => probe.IsSelected && !string.IsNullOrWhiteSpace(probe.DataSourceKey))
         ];
-        if (selectedProbes.Count == 0)
-            return EmptyText("No probes selected");
-
+        _selectedProbeListPanel = selectedProbeList;
         foreach (ProbeCardProbe probe in selectedProbes)
         {
             DataSource? source = DataSource.Find(probe.DataSourceKey);
-            grid.Children.Add(source == null ? BuildMissingProbeCard(probe) : BuildProbeChoiceCard(source));
+            Border card = source == null ? BuildMissingProbeCard(probe) : BuildProbeChoiceCard(source);
+            WireSelectedProbeDrag(card, probe);
+            selectedProbeList.Children.Add(card);
         }
 
-        return grid;
+        Control content = selectedProbes.Count == 0 ? EmptyText("No probes selected") : selectedProbeList;
+        SettingsScrollHost scrollHost = BuildVerticalScrollHost(content, Layout.HomeSectionScrollHostMargin);
+        Grid.SetRow(scrollHost, 1);
+        section.Children.Add(scrollHost);
+        return section;
+    }
+
+    /// <summary>
+    /// Builds the selected-probes column header.
+    /// </summary>
+    private Grid BuildSelectedProbesHeader()
+    {
+        Grid header = new();
+        header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        TextBlock title = TrayAppDotNETSettingsUI.Text("Selected Probes", _palette,
+            Layout.SectionTitleFontSize, FontWeight.SemiBold);
+        title.Margin = Layout.SectionHeaderMargin;
+        title.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(title);
+
+        SettingsButton clearDeadSensors = TrayAppDotNETSettingsUI.Button("Clear Dead Sensors", _palette);
+        clearDeadSensors.Width = Layout.HomeClearDeadSensorsButtonWidth;
+        clearDeadSensors.Height = Layout.HomeActionButtonHeight;
+        clearDeadSensors.MinHeight = Layout.HomeActionButtonHeight;
+        clearDeadSensors.Padding = Layout.HomeActionButtonPadding;
+        clearDeadSensors.Margin = Layout.HomeActionButtonTrailingMargin;
+        clearDeadSensors.Click += (_, _) => ClearDeadSensors();
+        Grid.SetColumn(clearDeadSensors, 1);
+        header.Children.Add(clearDeadSensors);
+        return header;
+    }
+
+    /// <summary>
+    /// Wires drag and keyboard reordering for a selected-probe row.
+    /// </summary>
+    private void WireSelectedProbeDrag(Border row, ProbeCardProbe probe)
+    {
+        row.Tag = probe;
+        row.Focusable = true;
+        row.Cursor = new Cursor(StandardCursorType.Hand);
+
+        bool pointerOver = false;
+        bool pointerPressed = false;
+        UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
+
+        row.PointerEntered += (_, e) =>
+        {
+            pointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
+            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
+        };
+        row.PointerExited += (_, _) =>
+        {
+            pointerOver = false;
+            pointerPressed = false;
+            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
+        };
+        row.PointerPressed += (_, e) =>
+        {
+            if (_selectedProbeListPanel == null) return;
+            if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
+
+            _draggedSelectedProbe = probe;
+            _draggedSelectedProbeRow = row;
+            _selectedProbeDragStart = e.GetPosition(_selectedProbeListPanel);
+            _draggedSelectedProbePointerOffsetY = e.GetPosition(row).Y;
+            _draggedSelectedProbeHeight = Math.Max(1, row.Bounds.Height);
+            _draggedSelectedProbeTargetIndex = SelectedProbeIndex(probe);
+            pointerPressed = true;
+            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
+            e.Pointer.Capture(row);
+            e.Handled = true;
+        };
+        row.PointerMoved += (_, e) =>
+        {
+            bool nextPointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
+            if (pointerOver != nextPointerOver && !pointerPressed)
+            {
+                pointerOver = nextPointerOver;
+                UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
+            }
+
+            if (_draggedSelectedProbe == null || _selectedProbeListPanel == null) return;
+
+            Point current = e.GetPosition(_selectedProbeListPanel);
+            if (Math.Abs(current.Y - _selectedProbeDragStart.Y) < 4) return;
+
+            double draggedMidpoint = current.Y - _draggedSelectedProbePointerOffsetY
+                + _draggedSelectedProbeHeight / 2.0;
+            _draggedSelectedProbeTargetIndex = SelectedProbeInsertionIndexFromMidpoint(draggedMidpoint);
+            ApplySelectedProbeDragPreview();
+            row.RenderTransform = new TranslateTransform(0, current.Y - _selectedProbeDragStart.Y);
+            e.Handled = true;
+        };
+        row.PointerReleased += (_, e) =>
+        {
+            pointerPressed = false;
+            EndSelectedProbeDrag(e.Pointer);
+        };
+        row.PointerCaptureLost += (_, _) =>
+        {
+            pointerPressed = false;
+            EndSelectedProbeDrag(null);
+        };
+        row.KeyDown += (_, e) =>
+        {
+            if ((e.KeyModifiers & KeyModifiers.Control) == 0) return;
+            if (e.Key is not (Key.Up or Key.Down)) return;
+
+            int direction = e.Key == Key.Up ? -1 : 1;
+            MoveSelectedProbeByKeyboard(probe, direction);
+            e.Handled = true;
+        };
+    }
+
+    /// <summary>
+    /// Updates selected-probe row visuals during reorder interactions.
+    /// </summary>
+    private void UpdateSelectedProbeDragVisual(
+        Border row,
+        ProbeCardProbe probe,
+        bool pointerOver,
+        bool pointerPressed)
+    {
+        bool dragging = ReferenceEquals(probe, _draggedSelectedProbe);
+        bool showHover = EnableReorderCardHoverCue && pointerOver;
+        Color background = pointerPressed
+            ? _palette.Pressed
+            : showHover
+                ? _palette.Hover
+                : _palette.CardBackground;
+        row.Background = TrayAppDotNETSettingsUI.Brush(background);
+        row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
+        row.BorderThickness = dragging ? Layout.RootBorderThickness : Layout.RootBorderThickness;
+        row.Opacity = dragging ? 0.82 : 1.0;
+        row.SetValue(ZIndexProperty, dragging ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Resolves a selected probe's active-list index.
+    /// </summary>
+    private int SelectedProbeIndex(ProbeCardProbe probe) =>
+        ActiveProbeSettingsInOrder().IndexOf(probe);
+
+    /// <summary>
+    /// Resolves the insertion index from the dragged row midpoint.
+    /// </summary>
+    private int SelectedProbeInsertionIndexFromMidpoint(double draggedMidpointY)
+    {
+        if (_selectedProbeListPanel == null) return -1;
+
+        int insertion = 0;
+        for (int i = 0; i < _selectedProbeListPanel.Children.Count; i++)
+        {
+            Control child = _selectedProbeListPanel.Children[i];
+            if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
+
+            Point? topLeft = child.TranslatePoint(new Point(0, 0), _selectedProbeListPanel);
+            if (topLeft == null) continue;
+            if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
+            else break;
+        }
+
+        int max = ActiveProbeSettingsInOrder().Count - (_draggedSelectedProbe != null ? 1 : 0);
+        return Math.Clamp(insertion, 0, Math.Max(0, max));
+    }
+
+    /// <summary>
+    /// Applies visual offsets to rows displaced by a drag reorder.
+    /// </summary>
+    private void ApplySelectedProbeDragPreview()
+    {
+        if (_selectedProbeListPanel == null || _draggedSelectedProbe == null || _draggedSelectedProbeRow == null)
+            return;
+
+        ResetSelectedProbeDragPreview();
+
+        int sourceIndex = SelectedProbeIndex(_draggedSelectedProbe);
+        if (sourceIndex < 0) return;
+
+        int targetIndex = Math.Clamp(_draggedSelectedProbeTargetIndex, 0,
+            Math.Max(0, ActiveProbeSettingsInOrder().Count - 1));
+        double offset = Math.Max(1, _draggedSelectedProbeHeight
+            + Math.Max(0, _draggedSelectedProbeRow.Margin.Bottom));
+        if (targetIndex < sourceIndex)
+        {
+            for (int i = targetIndex; i < sourceIndex; i++)
+                SetSelectedProbePreviewOffset(i, offset);
+        }
+        else if (targetIndex > sourceIndex)
+        {
+            for (int i = sourceIndex + 1; i <= targetIndex && i < _selectedProbeListPanel.Children.Count; i++)
+                SetSelectedProbePreviewOffset(i, -offset);
+        }
+    }
+
+    /// <summary>
+    /// Sets a reorder preview offset for a selected-probe row.
+    /// </summary>
+    private void SetSelectedProbePreviewOffset(int index, double offset)
+    {
+        if (_selectedProbeListPanel == null) return;
+        if (index < 0 || index >= _selectedProbeListPanel.Children.Count) return;
+        if (ReferenceEquals(_selectedProbeListPanel.Children[index], _draggedSelectedProbeRow)) return;
+
+        _selectedProbeListPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+    }
+
+    /// <summary>
+    /// Clears selected-probe reorder preview offsets.
+    /// </summary>
+    private void ResetSelectedProbeDragPreview()
+    {
+        if (_selectedProbeListPanel == null) return;
+        foreach (Control child in _selectedProbeListPanel.Children)
+        {
+            if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
+            child.RenderTransform = null;
+        }
+    }
+
+    /// <summary>
+    /// Ends a selected-probe drag reorder.
+    /// </summary>
+    private void EndSelectedProbeDrag(IPointer? pointer)
+    {
+        ProbeCardProbe? dragged = _draggedSelectedProbe;
+        int targetIndex = _draggedSelectedProbeTargetIndex;
+        bool hadDrag = dragged != null;
+
+        _draggedSelectedProbeRow?.RenderTransform = null;
+        if (_selectedProbeListPanel != null)
+        {
+            foreach (Control child in _selectedProbeListPanel.Children)
+                child.RenderTransform = null;
+        }
+
+        _draggedSelectedProbeRow = null;
+        _draggedSelectedProbe = null;
+        _draggedSelectedProbeTargetIndex = -1;
+        _draggedSelectedProbePointerOffsetY = 0;
+        _draggedSelectedProbeHeight = 0;
+        pointer?.Capture(null);
+
+        if (dragged != null && targetIndex >= 0)
+            ApplySelectedProbeOrder(dragged, targetIndex);
+
+        if (hadDrag) RebuildContent();
+    }
+
+    /// <summary>
+    /// Moves a selected probe with keyboard shortcuts.
+    /// </summary>
+    private void MoveSelectedProbeByKeyboard(ProbeCardProbe probe, int direction)
+    {
+        int currentIndex = SelectedProbeIndex(probe);
+        int nextIndex = currentIndex + direction;
+        int count = ActiveProbeSettingsInOrder().Count;
+        if (currentIndex < 0 || nextIndex < 0 || nextIndex >= count) return;
+
+        ApplySelectedProbeOrder(probe, nextIndex);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Applies active selected-probe order while preserving inactive probe settings.
+    /// </summary>
+    private void ApplySelectedProbeOrder(ProbeCardProbe dragged, int targetIndex)
+    {
+        List<ProbeCardProbe> activeProbes = ActiveProbeSettingsInOrder();
+        int currentIndex = activeProbes.IndexOf(dragged);
+        if (currentIndex < 0) return;
+
+        int clampedTargetIndex = Math.Clamp(targetIndex, 0, activeProbes.Count - 1);
+        if (currentIndex == clampedTargetIndex) return;
+
+        activeProbes.RemoveAt(currentIndex);
+        activeProbes.Insert(clampedTargetIndex, dragged);
+
+        List<ProbeCardProbe> inactiveProbes =
+        [
+            .. _probeCard.Probes.Where(static probe => !probe.IsSelected)
+        ];
+        _probeCard.Probes.Clear();
+        _probeCard.Probes.AddRange(activeProbes);
+        _probeCard.Probes.AddRange(inactiveProbes);
+        _changed(_probeCard);
+    }
+
+    /// <summary>
+    /// Returns selected active probe settings in persisted order.
+    /// </summary>
+    private List<ProbeCardProbe> ActiveProbeSettingsInOrder() =>
+        [
+            .. _probeCard.Probes
+                .Where(static probe => probe.IsSelected && !string.IsNullOrWhiteSpace(probe.DataSourceKey))
+        ];
+
+    /// <summary>
+    /// Builds the global device nickname editor section.
+    /// </summary>
+    private Grid BuildDeviceNicknamesSection()
+    {
+        return BuildNicknameSection(
+            "Device Nicknames",
+            _settings.DeviceNicknameRules,
+            LoadDefaultDeviceNicknames,
+            AddDeviceNicknameRule,
+            DeleteDeviceNicknameRule);
+    }
+
+    /// <summary>
+    /// Builds the global probe nickname editor section.
+    /// </summary>
+    private Grid BuildProbeNicknamesSection()
+    {
+        return BuildNicknameSection(
+            "Probe Nicknames",
+            _settings.ProbeNicknameRules,
+            LoadDefaultProbeNicknames,
+            AddProbeNicknameRule,
+            DeleteProbeNicknameRule);
+    }
+
+    /// <summary>
+    /// Builds a global nickname editor section.
+    /// </summary>
+    private Grid BuildNicknameSection(
+        string titleText,
+        List<DeviceNicknameRule> rulesList,
+        Action loadDefaultRules,
+        Action addRule,
+        Action<DeviceNicknameRule> deleteRule)
+    {
+        Grid section = new()
+        {
+            Margin = Layout.NicknameSectionMargin,
+        };
+        section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+
+        Grid header = new();
+        header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        TextBlock title = TrayAppDotNETSettingsUI.Text(titleText, _palette,
+            Layout.SectionTitleFontSize, FontWeight.SemiBold);
+        title.Margin = Layout.SectionHeaderMargin;
+        title.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(title);
+
+        SettingsButton loadDefaultButton = TrayAppDotNETSettingsUI.Button("Load Default Nicknames", _palette);
+        loadDefaultButton.Width = Layout.HomeLoadDefaultNicknamesButtonWidth;
+        loadDefaultButton.Height = Layout.HomeActionButtonHeight;
+        loadDefaultButton.MinHeight = Layout.HomeActionButtonHeight;
+        loadDefaultButton.Padding = Layout.HomeActionButtonPadding;
+        loadDefaultButton.Margin = Layout.HomeActionButtonMargin;
+        loadDefaultButton.Click += (_, _) => loadDefaultRules();
+        Grid.SetColumn(loadDefaultButton, 1);
+        header.Children.Add(loadDefaultButton);
+
+        SettingsButton addButton = TrayAppDotNETSettingsUI.Button("Add", _palette);
+        addButton.Width = Layout.NicknameAddButtonWidth;
+        addButton.Height = Layout.NicknameAddButtonHeight;
+        addButton.MinHeight = Layout.NicknameAddButtonHeight;
+        addButton.Padding = Layout.NicknameAddButtonPadding;
+        addButton.Margin = Layout.HomeActionButtonTrailingMargin;
+        addButton.Click += (_, _) => addRule();
+        Grid.SetColumn(addButton, 2);
+        header.Children.Add(addButton);
+        section.Children.Add(header);
+
+        StackPanel rules = new();
+        foreach (DeviceNicknameRule rule in rulesList)
+            rules.Children.Add(BuildNicknameRuleCard(rule, rulesList, rules, deleteRule));
+
+        Border rulesHost = new()
+        {
+            Margin = Layout.NicknameListMargin,
+            Padding = Layout.NicknameListPadding,
+            Child = rules,
+        };
+        SettingsScrollHost scrollHost = BuildVerticalScrollHost(rulesHost, Layout.HomeNicknameScrollHostMargin);
+        Grid.SetRow(scrollHost, 1);
+        section.Children.Add(scrollHost);
+        return section;
+    }
+
+    /// <summary>
+    /// Builds a custom vertical-only scrollbar host for a bounded section.
+    /// </summary>
+    private SettingsScrollHost BuildVerticalScrollHost(Control content, Thickness margin) =>
+        new SettingsScrollHost(content, _palette, Layout.ZeroThickness)
+        {
+            Margin = margin,
+        };
+
+    /// <summary>
+    /// Calculates the fixed home nickname column width from card width and padding.
+    /// </summary>
+    private double NicknameColumnWidth() =>
+        Layout.NicknameCardWidth + Layout.HomeNicknameColumnPadding.Left + Layout.HomeNicknameColumnPadding.Right;
+
+    /// <summary>
+    /// Builds one global nickname replacement rule card.
+    /// </summary>
+    private Border BuildNicknameRuleCard(
+        DeviceNicknameRule rule,
+        List<DeviceNicknameRule> rulesList,
+        StackPanel rulesPanel,
+        Action<DeviceNicknameRule> deleteRule)
+    {
+        Grid row = new()
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
+            },
+        };
+
+        TextBox target = NicknameTextBox(rule.TargetRegex, "Regex or {HardwareType.GPU}",
+            Layout.NicknameTargetTextBoxWidth);
+        target.Name = NicknameTargetBoxName;
+        target.Tag = rule;
+        target.LostFocus += NicknameTargetLostFocus;
+        target.KeyDown += NicknameRuleKeyDown;
+        row.Children.Add(target);
+
+        TextBlock arrow = TrayAppDotNETSettingsUI.Text(GlyphCatalog.ARROW_RIGHT, _palette, Layout.NicknameArrowFontSize);
+        arrow.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        arrow.Margin = Layout.NicknameArrowMargin;
+        arrow.VerticalAlignment = VerticalAlignment.Center;
+        arrow.Cursor = new Cursor(StandardCursorType.Hand);
+        Grid.SetColumn(arrow, 1);
+        row.Children.Add(arrow);
+
+        TextBox replacement = NicknameTextBox(rule.ReplacementString, "Replacement",
+            Layout.NicknameReplacementTextBoxWidth);
+        replacement.Name = NicknameReplacementBoxName;
+        replacement.Tag = rule;
+        replacement.LostFocus += NicknameReplacementLostFocus;
+        replacement.KeyDown += NicknameRuleKeyDown;
+        Grid.SetColumn(replacement, 2);
+        row.Children.Add(replacement);
+
+        SettingsButton delete = BuildNicknameDeleteButton();
+        delete.Click += (_, _) => deleteRule(rule);
+        Grid.SetColumn(delete, 3);
+        row.Children.Add(delete);
+
+        Border card = WrapNicknameCard(row);
+        WireNicknameRuleDrag(card, arrow, rule, rulesList, rulesPanel);
+        return card;
+    }
+
+    /// <summary>
+    /// Wires drag and keyboard reordering for a nickname rule row.
+    /// </summary>
+    private void WireNicknameRuleDrag(
+        Border row,
+        TextBlock dragHandle,
+        DeviceNicknameRule rule,
+        List<DeviceNicknameRule> rulesList,
+        StackPanel rulesPanel)
+    {
+        row.Tag = rule;
+        row.Focusable = true;
+
+        bool pointerOver = false;
+        bool pointerPressed = false;
+        UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
+
+        row.PointerEntered += (_, e) =>
+        {
+            pointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
+            UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
+        };
+        row.PointerExited += (_, _) =>
+        {
+            pointerOver = false;
+            pointerPressed = false;
+            UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
+        };
+        dragHandle.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(dragHandle).Properties.IsLeftButtonPressed) return;
+
+            _nicknameRuleListPanel = rulesPanel;
+            _draggedNicknameRuleList = rulesList;
+            _draggedNicknameRule = rule;
+            _draggedNicknameRuleRow = row;
+            _nicknameRuleDragStart = e.GetPosition(rulesPanel);
+            _draggedNicknameRulePointerOffsetY = e.GetPosition(row).Y;
+            _draggedNicknameRuleHeight = Math.Max(1, row.Bounds.Height);
+            _draggedNicknameRuleTargetIndex = rulesList.IndexOf(rule);
+            pointerPressed = true;
+            row.Focus();
+            UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
+            e.Pointer.Capture(row);
+            e.Handled = true;
+        };
+        row.PointerMoved += (_, e) =>
+        {
+            bool nextPointerOver = IsCardBackgroundPointerSource(row, e.Source as Visual);
+            if (pointerOver != nextPointerOver && !pointerPressed)
+            {
+                pointerOver = nextPointerOver;
+                UpdateNicknameRuleDragVisual(row, rule, pointerOver, pointerPressed);
+            }
+
+            if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
+            if (_draggedNicknameRule == null || _nicknameRuleListPanel == null) return;
+
+            Point current = e.GetPosition(_nicknameRuleListPanel);
+            if (Math.Abs(current.Y - _nicknameRuleDragStart.Y) < 4) return;
+
+            double draggedMidpoint = current.Y - _draggedNicknameRulePointerOffsetY
+                + _draggedNicknameRuleHeight / 2.0;
+            _draggedNicknameRuleTargetIndex = NicknameRuleInsertionIndexFromMidpoint(draggedMidpoint);
+            ApplyNicknameRuleDragPreview();
+            row.RenderTransform = new TranslateTransform(0, current.Y - _nicknameRuleDragStart.Y);
+            e.Handled = true;
+        };
+        row.PointerReleased += (_, e) =>
+        {
+            if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
+
+            pointerPressed = false;
+            EndNicknameRuleDrag(e.Pointer);
+            e.Handled = true;
+        };
+        row.PointerCaptureLost += (_, _) =>
+        {
+            if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
+
+            pointerPressed = false;
+            EndNicknameRuleDrag(null);
+        };
+        row.KeyDown += (_, e) =>
+        {
+            if (!ReferenceEquals(e.Source, row)) return;
+            if ((e.KeyModifiers & KeyModifiers.Control) == 0) return;
+            if (e.Key is not (Key.Up or Key.Down)) return;
+
+            int direction = e.Key == Key.Up ? -1 : 1;
+            MoveNicknameRuleByKeyboard(rule, rulesList, direction);
+            e.Handled = true;
+        };
+    }
+
+    /// <summary>
+    /// Determines whether a pointer event is over card chrome instead of child controls.
+    /// </summary>
+    private static bool IsCardBackgroundPointerSource(Border row, Visual? source)
+    {
+        if (source == null) return false;
+        if (ReferenceEquals(source, row)) return true;
+        if (source is not Grid) return false;
+
+        return ReferenceEquals(source.GetVisualParent(), row);
+    }
+
+    /// <summary>
+    /// Updates nickname rule row visuals during reorder interactions.
+    /// </summary>
+    private void UpdateNicknameRuleDragVisual(
+        Border row,
+        DeviceNicknameRule rule,
+        bool pointerOver,
+        bool pointerPressed)
+    {
+        bool dragging = ReferenceEquals(rule, _draggedNicknameRule);
+        bool showHover = EnableReorderCardHoverCue && pointerOver;
+        Color background = pointerPressed
+            ? _palette.Pressed
+            : showHover
+                ? _palette.Hover
+                : _palette.CardBackground;
+        row.Background = TrayAppDotNETSettingsUI.Brush(background);
+        row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
+        row.BorderThickness = Layout.RootBorderThickness;
+        row.Opacity = dragging ? 0.82 : 1.0;
+        row.SetValue(ZIndexProperty, dragging ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Resolves the insertion index from the dragged nickname rule midpoint.
+    /// </summary>
+    private int NicknameRuleInsertionIndexFromMidpoint(double draggedMidpointY)
+    {
+        if (_nicknameRuleListPanel == null || _draggedNicknameRuleList == null) return -1;
+
+        int insertion = 0;
+        for (int i = 0; i < _nicknameRuleListPanel.Children.Count; i++)
+        {
+            Control child = _nicknameRuleListPanel.Children[i];
+            if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
+
+            Point? topLeft = child.TranslatePoint(new Point(0, 0), _nicknameRuleListPanel);
+            if (topLeft == null) continue;
+            if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
+            else break;
+        }
+
+        int max = _draggedNicknameRuleList.Count - (_draggedNicknameRule != null ? 1 : 0);
+        return Math.Clamp(insertion, 0, Math.Max(0, max));
+    }
+
+    /// <summary>
+    /// Applies visual offsets to nickname rows displaced by a drag reorder.
+    /// </summary>
+    private void ApplyNicknameRuleDragPreview()
+    {
+        if (_nicknameRuleListPanel == null ||
+            _draggedNicknameRuleList == null ||
+            _draggedNicknameRule == null ||
+            _draggedNicknameRuleRow == null)
+            return;
+
+        ResetNicknameRuleDragPreview();
+
+        int sourceIndex = _draggedNicknameRuleList.IndexOf(_draggedNicknameRule);
+        if (sourceIndex < 0) return;
+
+        int targetIndex = Math.Clamp(_draggedNicknameRuleTargetIndex, 0,
+            Math.Max(0, _draggedNicknameRuleList.Count - 1));
+        double offset = Math.Max(1, _draggedNicknameRuleHeight
+            + Math.Max(0, _draggedNicknameRuleRow.Margin.Bottom));
+        if (targetIndex < sourceIndex)
+        {
+            for (int i = targetIndex; i < sourceIndex; i++)
+                SetNicknameRulePreviewOffset(i, offset);
+        }
+        else if (targetIndex > sourceIndex)
+        {
+            for (int i = sourceIndex + 1; i <= targetIndex && i < _nicknameRuleListPanel.Children.Count; i++)
+                SetNicknameRulePreviewOffset(i, -offset);
+        }
+    }
+
+    /// <summary>
+    /// Sets a reorder preview offset for a nickname rule row.
+    /// </summary>
+    private void SetNicknameRulePreviewOffset(int index, double offset)
+    {
+        if (_nicknameRuleListPanel == null) return;
+        if (index < 0 || index >= _nicknameRuleListPanel.Children.Count) return;
+        if (ReferenceEquals(_nicknameRuleListPanel.Children[index], _draggedNicknameRuleRow)) return;
+
+        _nicknameRuleListPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+    }
+
+    /// <summary>
+    /// Clears nickname rule reorder preview offsets.
+    /// </summary>
+    private void ResetNicknameRuleDragPreview()
+    {
+        if (_nicknameRuleListPanel == null) return;
+        foreach (Control child in _nicknameRuleListPanel.Children)
+        {
+            if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
+            child.RenderTransform = null;
+        }
+    }
+
+    /// <summary>
+    /// Ends a nickname rule drag reorder.
+    /// </summary>
+    private void EndNicknameRuleDrag(IPointer? pointer)
+    {
+        DeviceNicknameRule? dragged = _draggedNicknameRule;
+        List<DeviceNicknameRule>? rulesList = _draggedNicknameRuleList;
+        int targetIndex = _draggedNicknameRuleTargetIndex;
+        bool hadDrag = dragged != null;
+
+        _draggedNicknameRuleRow?.RenderTransform = null;
+        if (_nicknameRuleListPanel != null)
+        {
+            foreach (Control child in _nicknameRuleListPanel.Children)
+                child.RenderTransform = null;
+        }
+
+        _nicknameRuleListPanel = null;
+        _draggedNicknameRuleList = null;
+        _draggedNicknameRuleRow = null;
+        _draggedNicknameRule = null;
+        _draggedNicknameRuleTargetIndex = -1;
+        _draggedNicknameRulePointerOffsetY = 0;
+        _draggedNicknameRuleHeight = 0;
+        pointer?.Capture(null);
+
+        if (dragged != null && rulesList != null && targetIndex >= 0)
+            ApplyNicknameRuleOrder(rulesList, dragged, targetIndex);
+
+        if (hadDrag) RebuildContent();
+    }
+
+    /// <summary>
+    /// Moves a nickname rule with keyboard shortcuts.
+    /// </summary>
+    private void MoveNicknameRuleByKeyboard(
+        DeviceNicknameRule rule,
+        List<DeviceNicknameRule> rulesList,
+        int direction)
+    {
+        int currentIndex = rulesList.IndexOf(rule);
+        int nextIndex = currentIndex + direction;
+        if (currentIndex < 0 || nextIndex < 0 || nextIndex >= rulesList.Count) return;
+
+        rulesList.RemoveAt(currentIndex);
+        rulesList.Insert(nextIndex, rule);
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Applies nickname rule order to preserve replacement precedence.
+    /// </summary>
+    private void ApplyNicknameRuleOrder(
+        List<DeviceNicknameRule> rulesList,
+        DeviceNicknameRule dragged,
+        int targetIndex)
+    {
+        int currentIndex = rulesList.IndexOf(dragged);
+        if (currentIndex < 0) return;
+
+        int clampedTargetIndex = Math.Clamp(targetIndex, 0, rulesList.Count - 1);
+        if (currentIndex == clampedTargetIndex) return;
+
+        rulesList.RemoveAt(currentIndex);
+        rulesList.Insert(clampedTargetIndex, dragged);
+        _changed(_probeCard);
     }
 
     /// <summary>
@@ -212,8 +1104,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         [
             .. DataSource.DataSources.Values
                 .Where(source => source.DataSourceType == type && ProbeValueFormatter.IsProbeDataSource(source))
-                .OrderBy(static source => source.ControllerName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(static source => source.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(source => _deviceNicknameResolver.Resolve(source), NaturalStringComparer.OrdinalIgnoreCase)
+                .ThenBy(source => _probeNicknameResolver.Resolve(source.DisplayName), NaturalStringComparer.OrdinalIgnoreCase)
         ];
         if (sources.Count == 0)
             return EmptyText("No probes found");
@@ -229,9 +1121,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private Border BuildProbeChoiceCard(DataSource source)
     {
-        ProbeCardProbe? selectedProbe = _probeCard.FindProbe(source.DataSourceKey);
-        bool isSelected = selectedProbe != null;
-        bool isExpanded = isSelected && _expandedTransformKeys.Contains(source.DataSourceKey);
+        ProbeCardProbe? probeSettings = _probeCard.FindProbe(source.DataSourceKey);
+        bool isSelected = probeSettings?.IsSelected == true;
+        bool isExpanded = probeSettings != null && _expandedTransformKeys.Contains(source.DataSourceKey);
 
         Grid card = new();
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -239,49 +1131,35 @@ public sealed partial class ProbeDataSelectorWindow : Window
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        if (isExpanded) card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        TextBlock deviceName = TrayAppDotNETSettingsUI.Text(source.ControllerName, _palette, Layout.CardTitleFontSize,
-            FontWeight.SemiBold);
+        TextBlock deviceName = TrayAppDotNETSettingsUI.Text(_deviceNicknameResolver.Resolve(source),
+            _palette, Layout.CardTitleFontSize, FontWeight.SemiBold);
         deviceName.TextTrimming = TextTrimming.CharacterEllipsis;
         deviceName.Margin = Layout.TextColumnMargin;
-        Grid.SetColumnSpan(deviceName, 3);
+        deviceName.VerticalAlignment = VerticalAlignment.Center;
         card.Children.Add(deviceName);
 
-        TextBlock probeValue = TrayAppDotNETSettingsUI.Text(ProbeValueLine(source, selectedProbe),
+        TextBlock probeValue = TrayAppDotNETSettingsUI.Text(ProbeValueLine(source, probeSettings),
             _palette, Layout.CardValueFontSize);
         probeValue.TextTrimming = TextTrimming.CharacterEllipsis;
         probeValue.Margin = Layout.ValueRowMargin;
+        probeValue.VerticalAlignment = VerticalAlignment.Center;
         RegisterValueText(source.DataSourceKey, probeValue);
-        Grid.SetRow(probeValue, 1);
-        card.Children.Add(probeValue);
+        Grid valueRow = BuildProbeValueRow(source.DataSourceType, probeValue);
+        Grid.SetRow(valueRow, 1);
+        card.Children.Add(valueRow);
 
-        SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(_palette, isSelected,
-            (_, enabled) => ToggleProbe(source, enabled));
-        toggle.Margin = Layout.ToggleMargin;
-        toggle.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetRow(toggle, 1);
-        Grid.SetColumn(toggle, 1);
-        card.Children.Add(toggle);
+        Border enableToggle = BuildProbeEnableToggle(source, isSelected);
+        Border truncateToggle = BuildProbeTruncateToggle(source, probeSettings);
 
-        SettingsButton gear = BuildGearButton(isSelected);
+        SettingsButton gear = BuildGearButton(isExpanded || ProbeTransformIsActive(probeSettings));
         gear.Margin = Layout.ActionButtonMargin;
         gear.Click += (_, _) =>
         {
-            ToggleTransform(source.DataSourceKey);
+            ToggleTransform(source);
         };
-        Grid.SetRow(gear, 1);
-        Grid.SetColumn(gear, 2);
-        card.Children.Add(gear);
 
-        if (isExpanded && selectedProbe != null)
-        {
-            Grid transformRow = BuildTransformRow(selectedProbe);
-            Grid.SetRow(transformRow, 2);
-            Grid.SetColumnSpan(transformRow, 3);
-            card.Children.Add(transformRow);
-        }
-
+        AddProbeControls(card, enableToggle, truncateToggle, gear, probeSettings, isExpanded);
         return WrapCard(card);
     }
 
@@ -293,6 +1171,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid card = new();
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
@@ -300,16 +1179,172 @@ public sealed partial class ProbeDataSelectorWindow : Window
             FontWeight.SemiBold);
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         title.Margin = Layout.TextColumnMargin;
-        Grid.SetColumnSpan(title, 2);
+        title.VerticalAlignment = VerticalAlignment.Center;
         card.Children.Add(title);
 
         TextBlock value = TrayAppDotNETSettingsUI.Text("--", _palette, Layout.CardValueFontSize);
         value.Margin = Layout.ValueRowMargin;
-        Grid.SetRow(value, 1);
-        card.Children.Add(value);
+        value.VerticalAlignment = VerticalAlignment.Center;
+        Grid valueRow = BuildProbeValueRow(DataSourceTypeEnum.Unknown, value);
+        Grid.SetRow(valueRow, 1);
+        card.Children.Add(valueRow);
 
-        SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(_palette, true,
-            (_, enabled) =>
+        Border enableToggle = BuildMissingProbeEnableToggle(probe);
+        Border truncateToggle = BuildMissingProbeTruncateToggle(probe);
+
+        AddProbeControls(card, enableToggle, truncateToggle, null, null, false);
+        return WrapCard(card);
+    }
+
+    /// <summary>
+    /// Builds a probe value row.
+    /// </summary>
+    private Grid BuildProbeValueRow(DataSourceTypeEnum type, TextBlock value)
+    {
+        Grid row = new();
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+
+        TextBlock glyph = TrayAppDotNETSettingsUI.Text(
+            ProbeValueFormatter.GlyphFor(type),
+            _palette,
+            Layout.ValueGlyphFontSize);
+        glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        glyph.Width = Layout.ValueGlyphWidth;
+
+        //TODO: Move this hack to its own layer its currently repeated everywhere I need it
+        if (type == DataSourceTypeEnum.Load)
+        {
+            glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
+        }
+        glyph.Margin = Layout.ValueGlyphMargin;
+        glyph.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(glyph);
+
+        Grid.SetColumn(value, 1);
+        row.Children.Add(value);
+        return row;
+    }
+
+    /// <summary>
+    /// Adds independent transform and toggle control columns.
+    /// </summary>
+    private void AddProbeControls(
+        Grid card,
+        Control enableToggle,
+        Control truncateToggle,
+        SettingsButton? gear,
+        ProbeCardProbe? selectedProbe,
+        bool isExpanded)
+    {
+        Control? transformColumn = BuildProbeTransformColumn(gear, selectedProbe, isExpanded);
+        if (transformColumn != null)
+        {
+            Grid.SetColumn(transformColumn, 1);
+            Grid.SetRowSpan(transformColumn, 2);
+            card.Children.Add(transformColumn);
+        }
+
+        Grid toggleColumn = BuildProbeToggleColumn(enableToggle, truncateToggle);
+        Grid.SetColumn(toggleColumn, 2);
+        Grid.SetRowSpan(toggleColumn, 2);
+        card.Children.Add(toggleColumn);
+    }
+
+    /// <summary>
+    /// Builds the transform controls column.
+    /// </summary>
+    private Grid? BuildProbeTransformColumn(
+        SettingsButton? gear,
+        ProbeCardProbe? selectedProbe,
+        bool isExpanded)
+    {
+        if (gear == null) return null;
+
+        Grid row = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = Layout.ProbeControlRowMargin,
+        };
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        if (!isExpanded || selectedProbe == null)
+        {
+            row.Children.Add(gear);
+            return row;
+        }
+
+        Grid transformControls = BuildTransformControls(selectedProbe);
+        row.Children.Add(transformControls);
+
+        Grid.SetColumn(gear, 1);
+        row.Children.Add(gear);
+        return row;
+    }
+
+    /// <summary>
+    /// Builds the mini-toggle control column.
+    /// </summary>
+    private Grid BuildProbeToggleColumn(
+        Control enableToggle,
+        Control truncateToggle)
+    {
+        Grid controls = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = Layout.ProbeToggleColumnMargin,
+        };
+        controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        Grid enableRow = BuildProbeToggleRow(enableToggle);
+        controls.Children.Add(enableRow);
+
+        Grid truncateRow = BuildProbeToggleRow(truncateToggle);
+        Grid.SetRow(truncateRow, 1);
+        controls.Children.Add(truncateRow);
+        return controls;
+    }
+
+    /// <summary>
+    /// Builds one mini-toggle row.
+    /// </summary>
+    private static Grid BuildProbeToggleRow(Control toggle)
+    {
+        Grid row = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        row.Children.Add(toggle);
+        return row;
+    }
+
+    /// <summary>
+    /// Builds the per-probe enable toggle for a live selector card.
+    /// </summary>
+    private Border BuildProbeEnableToggle(DataSource source, bool isSelected)
+    {
+        return BuildLabeledMiniToggle(
+            "Enable",
+            isSelected,
+            true,
+            enabled => ToggleProbe(source, enabled));
+    }
+
+    /// <summary>
+    /// Builds the per-probe enable toggle for a missing selector card.
+    /// </summary>
+    private Border BuildMissingProbeEnableToggle(ProbeCardProbe probe)
+    {
+        return BuildLabeledMiniToggle(
+            "Enable",
+            true,
+            true,
+            enabled =>
             {
                 if (enabled) return;
                 _probeCard.Probes.Remove(probe);
@@ -317,32 +1352,158 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 _changed(_probeCard);
                 RebuildContent();
             });
-        toggle.Margin = Layout.ToggleMargin;
-        Grid.SetRow(toggle, 1);
-        Grid.SetColumn(toggle, 1);
-        card.Children.Add(toggle);
-        return WrapCard(card);
     }
 
     /// <summary>
-    /// Builds the transform editor row for a selected probe.
+    /// Builds the per-probe truncate toggle for a live selector card.
     /// </summary>
-    private Grid BuildTransformRow(ProbeCardProbe probe)
+    private Border BuildProbeTruncateToggle(DataSource source, ProbeCardProbe? probe)
     {
-        Grid row = new()
-        {
-            Margin = Layout.TransformRowMargin,
-        };
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        return BuildLabeledMiniToggle(
+            "Truncate",
+            probe?.TruncateValue == true,
+            true,
+            truncateValue => SetProbeTruncateValue(source, truncateValue));
+    }
 
-        TextBlock label = TrayAppDotNETSettingsUI.Text("Transform", _palette, Layout.TransformLabelFontSize);
+    /// <summary>
+    /// Builds the per-probe truncate toggle for a missing selector card.
+    /// </summary>
+    private Border BuildMissingProbeTruncateToggle(ProbeCardProbe probe)
+    {
+        return BuildLabeledMiniToggle(
+            "Truncate",
+            probe.TruncateValue,
+            true,
+            truncateValue =>
+            {
+                if (probe.TruncateValue == truncateValue) return;
+                probe.TruncateValue = truncateValue;
+                _changed(_probeCard);
+            });
+    }
+
+    /// <summary>
+    /// Builds a labeled mini toggle.
+    /// </summary>
+    private Border BuildLabeledMiniToggle(string labelText, bool isChecked, bool isEnabled, Action<bool> changed)
+    {
+        bool current = isChecked;
+
+        Border track = new()
+        {
+            Width = Layout.TruncateToggleTrackWidth,
+            Height = Layout.TruncateToggleTrackHeight,
+            CornerRadius = Layout.TruncateToggleTrackCornerRadius,
+            BorderThickness = Layout.RootBorderThickness,
+            IsHitTestVisible = false,
+        };
+        Border thumb = new()
+        {
+            Width = Layout.TruncateToggleThumbSize,
+            Height = Layout.TruncateToggleThumbSize,
+            CornerRadius = Layout.TruncateToggleThumbCornerRadius,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+        };
+
+        Grid toggle = new()
+        {
+            Width = Layout.TruncateToggleTrackWidth,
+            Height = Layout.TruncateToggleTrackHeight,
+            IsHitTestVisible = false,
+        };
+        toggle.Children.Add(track);
+        toggle.Children.Add(thumb);
+
+        TextBlock label = TrayAppDotNETSettingsUI.Text(labelText, _palette, Layout.TruncateToggleFontSize);
+        label.Foreground = TrayAppDotNETSettingsUI.Brush(_palette.SecondaryForeground);
+        label.Margin = Layout.TruncateToggleLabelMargin;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        label.IsHitTestVisible = false;
+
+        Grid row = new();
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.Children.Add(toggle);
+        Grid.SetColumn(label, 1);
+        row.Children.Add(label);
+
+        Border toggleButton = new()
+        {
+            IsEnabled = isEnabled,
+            Width = Layout.TruncateToggleWidth,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = Layout.TruncateToggleMargin,
+            Background = Brushes.Transparent,
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Focusable = true,
+            Child = row,
+        };
+        Action updateVisual = () =>
+        {
+            toggleButton.Opacity = toggleButton.IsEnabled ? 1.0 : 0.45;
+            track.Background = current
+                ? TrayAppDotNETSettingsUI.Brush(_palette.ToggleOnTrack)
+                : Brushes.Transparent;
+            track.BorderBrush = TrayAppDotNETSettingsUI.Brush(
+                current ? _palette.ToggleOnTrack : _palette.SecondaryForeground);
+            thumb.Background = TrayAppDotNETSettingsUI.Brush(
+                current ? _palette.ToggleOnThumb : _palette.SecondaryForeground);
+            thumb.HorizontalAlignment = current ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+            thumb.Margin = current
+                ? Layout.TruncateToggleThumbCheckedMargin
+                : Layout.TruncateToggleThumbUncheckedMargin;
+        };
+
+        toggleButton.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != IsEnabledProperty) return;
+            updateVisual();
+        };
+        toggleButton.PointerPressed += (_, e) =>
+        {
+            if (!toggleButton.IsEnabled) return;
+            if (!e.GetCurrentPoint(toggleButton).Properties.IsLeftButtonPressed) return;
+
+            current = !current;
+            changed(current);
+            updateVisual();
+            e.Handled = true;
+        };
+        toggleButton.KeyDown += (_, e) =>
+        {
+            if (!toggleButton.IsEnabled) return;
+            if (e.Key is not (Key.Enter or Key.Space)) return;
+
+            current = !current;
+            changed(current);
+            updateVisual();
+            e.Handled = true;
+        };
+
+        updateVisual();
+        return toggleButton;
+    }
+
+    /// <summary>
+    /// Builds the inline transform editor for a selected probe.
+    /// </summary>
+    private Grid BuildTransformControls(ProbeCardProbe probe)
+    {
+        Grid row = new();
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        TextBlock label = TrayAppDotNETSettingsUI.Text("X=", _palette, Layout.TransformLabelFontSize);
         label.Margin = Layout.TransformLabelMargin;
         label.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(label);
 
-        TextBox textBox = TransformTextBox(probe.TransformString);
+        TextBox textBox = TransformTextBox(probe.TransformString, Layout.TransformInlineBoxWidth);
         textBox.Tag = probe;
+        textBox.GotFocus += TransformTextBoxGotFocus;
         textBox.KeyDown += TransformTextBoxKeyDown;
         textBox.LostFocus += TransformTextBoxLostFocus;
         Grid.SetColumn(textBox, 1);
@@ -353,7 +1514,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the settings gear button for a selectable probe card.
     /// </summary>
-    private SettingsButton BuildGearButton(bool enabled)
+    private SettingsButton BuildGearButton(bool transformIsActive)
     {
         SettingsButton button = new(GlyphCatalog.SETTINGS, _palette, transparentBase: true)
         {
@@ -361,24 +1522,43 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Height = Layout.ActionButtonHeight,
             MinHeight = Layout.ActionButtonHeight,
             Padding = Layout.ZeroThickness,
-            IsEnabled = enabled,
         };
         button.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         button.Label.FontSize = Layout.GearFontSize;
+        ApplyGearButtonTransformVisual(button, transformIsActive);
         return button;
     }
 
     /// <summary>
+    /// Applies explicit active-transform visuals to icon-only gear buttons.
+    /// </summary>
+    private void ApplyGearButtonTransformVisual(SettingsButton button, bool transformIsActive)
+    {
+        button.IsEnabled = true;
+        button.Opacity = 1.0;
+        button.Label.Opacity = transformIsActive ? 1.0 : Layout.TransformInactiveGearOpacity;
+        button.Label.Foreground = TrayAppDotNETSettingsUI.Brush(
+            transformIsActive ? _palette.Foreground : _palette.SecondaryForeground);
+    }
+
+    /// <summary>
+    /// Checks whether a probe has an active transform expression.
+    /// </summary>
+    private static bool ProbeTransformIsActive(ProbeCardProbe? probe) =>
+        !string.IsNullOrWhiteSpace(probe?.TransformString);
+
+    /// <summary>
     /// Builds a transform text box.
     /// </summary>
-    private TextBox TransformTextBox(string text)
+    private TextBox TransformTextBox(string text, double width)
     {
         TextBox textBox = new()
         {
-            Width = Layout.TransformBoxWidth,
+            Width = width,
             Height = Layout.TransformBoxHeight,
+            MinHeight = Layout.TransformBoxMinHeight,
             Text = text,
-            PlaceholderText = "x",
+            PlaceholderText = "X",
             FontFamily = TrayAppDotNETSettingsUI.UIFont,
             FontSize = Layout.CardValueFontSize,
             Background = TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground),
@@ -398,12 +1578,82 @@ public sealed partial class ProbeDataSelectorWindow : Window
     }
 
     /// <summary>
+    /// Builds a device nickname rule text box.
+    /// </summary>
+    private TextBox NicknameTextBox(string text, string placeholder, double width)
+    {
+        TextBox textBox = new()
+        {
+            Width = width,
+            Height = Layout.NicknameTextBoxHeight,
+            MinHeight = Layout.NicknameTextBoxHeight,
+            MaxHeight = Layout.NicknameTextBoxHeight,
+            Text = text,
+            PlaceholderText = placeholder,
+            FontFamily = TrayAppDotNETSettingsUI.UIFont,
+            FontSize = Layout.CardValueFontSize,
+            Background = TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground),
+            Foreground = TrayAppDotNETSettingsUI.Brush(_palette.Foreground),
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = Layout.ZeroThickness,
+            Padding = Layout.NicknameTextBoxPadding,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
+        TrayAppDotNETSettingsUI.ApplyTextBoxResources(
+            textBox,
+            _palette,
+            TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground),
+            TrayAppDotNETSettingsUI.Brush(_palette.Hover),
+            TrayAppDotNETSettingsUI.Brush(_palette.TextBoxFocused));
+        return textBox;
+    }
+
+    /// <summary>
+    /// Builds the delete button for a device nickname rule.
+    /// </summary>
+    private SettingsButton BuildNicknameDeleteButton()
+    {
+        SettingsButton button = new(GlyphCatalog.CLOSE, _palette, transparentBase: true)
+        {
+            Width = Layout.NicknameDeleteButtonWidth,
+            Height = Layout.NicknameDeleteButtonHeight,
+            MinHeight = Layout.NicknameDeleteButtonHeight,
+            Padding = Layout.ZeroThickness,
+            Margin = Layout.NicknameDeleteButtonMargin,
+        };
+        button.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        button.Label.FontSize = Layout.NicknameDeleteButtonFontSize;
+        return button;
+    }
+
+    /// <summary>
     /// Wraps a selector card in the common card chrome.
     /// </summary>
-    private Border WrapCard(Control content) =>
-        new()
+    private Border WrapCard(Control content)
+    {
+        content.VerticalAlignment = VerticalAlignment.Top;
+        return new Border
         {
             Width = Layout.GridCardWidth,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = TrayAppDotNETSettingsUI.Brush(_palette.CardBackground),
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
+            BorderThickness = Layout.RootBorderThickness,
+            CornerRadius = _settings.EnableRoundedCorners ? Layout.CardCornerRadius : Layout.ZeroCornerRadius,
+            Padding = Layout.NicknameCardPadding,
+            Margin = Layout.CardMargin,
+            Child = content,
+        };
+    }
+
+    /// <summary>
+    /// Wraps a nickname rule row in the nickname card chrome.
+    /// </summary>
+    private Border WrapNicknameCard(Control content) =>
+        new()
+        {
+            Width = Layout.NicknameCardWidth,
             Background = TrayAppDotNETSettingsUI.Brush(_palette.CardBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = Layout.RootBorderThickness,
@@ -438,6 +1688,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 _probeCard.Probes.Add(new ProbeCardProbe { DataSourceKey = source.DataSourceKey });
                 _changed(_probeCard);
             }
+            else if (!probe.IsSelected)
+            {
+                probe.IsSelected = true;
+                _changed(_probeCard);
+            }
 
             RebuildContent();
             return;
@@ -445,8 +1700,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         if (probe != null)
         {
-            _probeCard.Probes.Remove(probe);
+            probe.IsSelected = false;
             _expandedTransformKeys.Remove(source.DataSourceKey);
+            RemoveProbeSettingsIfDefault(probe);
             _changed(_probeCard);
         }
 
@@ -454,14 +1710,256 @@ public sealed partial class ProbeDataSelectorWindow : Window
     }
 
     /// <summary>
-    /// Toggles the transform editor for a selected source.
+    /// Persists per-probe value truncation from a selector card.
     /// </summary>
-    private void ToggleTransform(string dataSourceKey)
+    private void SetProbeTruncateValue(DataSource source, bool truncateValue)
     {
-        if (_probeCard.FindProbe(dataSourceKey) == null) return;
-        if (!_expandedTransformKeys.Add(dataSourceKey))
-            _expandedTransformKeys.Remove(dataSourceKey);
+        ProbeCardProbe? probe = _probeCard.FindProbe(source.DataSourceKey);
+        if (probe == null)
+        {
+            if (!truncateValue) return;
+
+            _probeCard.Probes.Add(new ProbeCardProbe
+            {
+                DataSourceKey = source.DataSourceKey,
+                IsSelected = false,
+                TruncateValue = true,
+            });
+            _changed(_probeCard);
+            RebuildContent();
+            return;
+        }
+
+        if (probe.TruncateValue == truncateValue) return;
+
+        probe.TruncateValue = truncateValue;
+        if (!truncateValue)
+            RemoveProbeSettingsIfDefault(probe);
+        _changed(_probeCard);
+        RefreshVisibleValues();
+    }
+
+    /// <summary>
+    /// Removes inactive probe settings when no transform or truncate state is stored.
+    /// </summary>
+    private void RemoveProbeSettingsIfDefault(ProbeCardProbe probe)
+    {
+        if (probe.IsSelected) return;
+        if (probe.TruncateValue) return;
+        if (!string.IsNullOrWhiteSpace(probe.TransformString)) return;
+
+        _probeCard.Probes.Remove(probe);
+        _expandedTransformKeys.Remove(probe.DataSourceKey);
+    }
+
+    /// <summary>
+    /// Adds a new global device nickname rule.
+    /// </summary>
+    private void AddDeviceNicknameRule()
+    {
+        _settings.DeviceNicknameRules.Add(new DeviceNicknameRule());
+        _changed(_probeCard);
         RebuildContent();
+    }
+
+    /// <summary>
+    /// Adds a new global probe nickname rule.
+    /// </summary>
+    private void AddProbeNicknameRule()
+    {
+        _settings.ProbeNicknameRules.Add(new DeviceNicknameRule());
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Restores the default hardware-type device nickname rules.
+    /// </summary>
+    private void LoadDefaultDeviceNicknames()
+    {
+        if (!_settings.LoadDefaultDeviceNicknameRules()) return;
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Restores the default probe nickname rules.
+    /// </summary>
+    private void LoadDefaultProbeNicknames()
+    {
+        if (!_settings.LoadDefaultProbeNicknameRules()) return;
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Deletes a global device nickname rule.
+    /// </summary>
+    private void DeleteDeviceNicknameRule(DeviceNicknameRule rule)
+    {
+        if (!_settings.DeviceNicknameRules.Remove(rule)) return;
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Deletes a global probe nickname rule.
+    /// </summary>
+    private void DeleteProbeNicknameRule(DeviceNicknameRule rule)
+    {
+        if (!_settings.ProbeNicknameRules.Remove(rule)) return;
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Removes persisted probe sensors that were not found by live LHM discovery.
+    /// </summary>
+    private void ClearDeadSensors()
+    {
+        if (!DataSource.DataSources.Values.Any(static source => source.IsLiveHardwareSensor)) return;
+
+        HashSet<string> deadKeys = new(StringComparer.OrdinalIgnoreCase);
+        foreach (DataSource source in DataSource.DataSources.Values)
+        {
+            if (source.IsLiveHardwareSensor) continue;
+            if (!ProbeValueFormatter.IsProbeDataSource(source)) continue;
+            if (string.IsNullOrWhiteSpace(source.DataSourceKey)) continue;
+            deadKeys.Add(source.DataSourceKey);
+        }
+
+        if (deadKeys.Count == 0) return;
+
+        foreach (string deadKey in deadKeys)
+            DataSource.Unregister(deadKey);
+
+        foreach (ProbeCard probeCard in _settings.ProbeCards)
+            RemoveDeadProbeSelections(probeCard, deadKeys);
+        RemoveDeadProbeSelections(_probeCard, deadKeys);
+
+        foreach (string deadKey in deadKeys)
+        {
+            _expandedTransformKeys.Remove(deadKey);
+            _valueTextByKey.Remove(deadKey);
+        }
+
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Removes selected probes whose data source was cleared.
+    /// </summary>
+    private static void RemoveDeadProbeSelections(ProbeCard probeCard, HashSet<string> deadKeys)
+    {
+        for (int i = probeCard.Probes.Count - 1; i >= 0; i--)
+        {
+            if (!deadKeys.Contains(probeCard.Probes[i].DataSourceKey)) continue;
+            probeCard.Probes.RemoveAt(i);
+        }
+    }
+
+    /// <summary>
+    /// Commits a nickname rule field when Enter is pressed.
+    /// </summary>
+    private void NicknameRuleKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox textBox) return;
+        if (e.Key != Key.Enter) return;
+        CommitNicknameRuleTextBox(textBox);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Commits a nickname target regex when focus leaves its editor.
+    /// </summary>
+    private void NicknameTargetLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox) CommitNicknameRuleTextBox(textBox);
+    }
+
+    /// <summary>
+    /// Commits a nickname replacement string when focus leaves its editor.
+    /// </summary>
+    private void NicknameReplacementLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox) CommitNicknameRuleTextBox(textBox);
+    }
+
+    /// <summary>
+    /// Persists one nickname rule text-box edit.
+    /// </summary>
+    private void CommitNicknameRuleTextBox(TextBox textBox)
+    {
+        if (textBox.Tag is not DeviceNicknameRule rule) return;
+
+        string next = textBox.Text ?? string.Empty;
+        bool changed = textBox.Name switch
+        {
+            NicknameTargetBoxName => CommitNicknameTarget(rule, next.Trim()),
+            NicknameReplacementBoxName => CommitNicknameReplacement(rule, next),
+            _ => false,
+        };
+        if (!changed) return;
+
+        _changed(_probeCard);
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Applies a target regex edit to a nickname rule.
+    /// </summary>
+    private static bool CommitNicknameTarget(DeviceNicknameRule rule, string next)
+    {
+        if (string.Equals(rule.TargetRegex, next, StringComparison.Ordinal)) return false;
+        rule.TargetRegex = next;
+        return true;
+    }
+
+    /// <summary>
+    /// Applies a replacement-string edit to a nickname rule.
+    /// </summary>
+    private static bool CommitNicknameReplacement(DeviceNicknameRule rule, string next)
+    {
+        if (string.Equals(rule.ReplacementString, next, StringComparison.Ordinal)) return false;
+        rule.ReplacementString = next;
+        return true;
+    }
+
+    /// <summary>
+    /// Toggles the transform editor for a source without selecting the probe.
+    /// </summary>
+    private void ToggleTransform(DataSource source)
+    {
+        ProbeCardProbe? probe = _probeCard.FindProbe(source.DataSourceKey);
+        if (probe == null)
+        {
+            probe = new ProbeCardProbe
+            {
+                DataSourceKey = source.DataSourceKey,
+                IsSelected = false,
+            };
+            _probeCard.Probes.Add(probe);
+            _changed(_probeCard);
+        }
+
+        if (!_expandedTransformKeys.Add(source.DataSourceKey))
+        {
+            _expandedTransformKeys.Remove(source.DataSourceKey);
+            RemoveProbeSettingsIfDefault(probe);
+            _changed(_probeCard);
+        }
+
+        RebuildContent();
+    }
+
+    /// <summary>
+    /// Tracks the active transform text box for outside-click commit behavior.
+    /// </summary>
+    private void TransformTextBoxGotFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+            _focusedTransformTextBox = textBox;
     }
 
     /// <summary>
@@ -480,7 +1978,42 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void TransformTextBoxLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (sender is TextBox textBox) CommitTransformTextBox(textBox);
+        if (sender is not TextBox textBox) return;
+
+        CommitTransformTextBox(textBox);
+        if (ReferenceEquals(_focusedTransformTextBox, textBox))
+            _focusedTransformTextBox = null;
+    }
+
+    /// <summary>
+    /// Drops transform text focus when the selector is clicked outside the active editor.
+    /// </summary>
+    private void OnSelectorPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_focusedTransformTextBox == null) return;
+        if (IsSelfOrDescendant(_focusedTransformTextBox, e.Source as Visual)) return;
+
+        DropTransformTextBoxFocus(_focusedTransformTextBox);
+    }
+
+    /// <summary>
+    /// Commits transform text and moves focus to selector chrome.
+    /// </summary>
+    private void DropTransformTextBoxFocus(TextBox textBox)
+    {
+        CommitTransformTextBox(textBox);
+        textBox.ClearSelection();
+        _focusSink?.Focus();
+    }
+
+    /// <summary>
+    /// Determines whether a visual is the target control or one of its descendants.
+    /// </summary>
+    private static bool IsSelfOrDescendant(Visual owner, Visual? visual)
+    {
+        if (visual == null) return false;
+        if (ReferenceEquals(visual, owner)) return true;
+        return visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, owner));
     }
 
     /// <summary>
@@ -491,8 +2024,18 @@ public sealed partial class ProbeDataSelectorWindow : Window
         if (textBox.Tag is not ProbeCardProbe probe) return;
         string next = (textBox.Text ?? string.Empty).Trim();
         if (string.Equals(next, probe.TransformString, StringComparison.Ordinal)) return;
+        bool previousTransformIsActive = ProbeTransformIsActive(probe);
         probe.TransformString = next;
+        bool nextTransformIsActive = ProbeTransformIsActive(probe);
+        if (!nextTransformIsActive)
+            RemoveProbeSettingsIfDefault(probe);
         _changed(_probeCard);
+        if (previousTransformIsActive != nextTransformIsActive)
+        {
+            RebuildContent();
+            return;
+        }
+
         RefreshVisibleValues();
     }
 
@@ -529,8 +2072,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Formats a probe name and current value for selector cards.
     /// </summary>
-    private static string ProbeValueLine(DataSource source, ProbeCardProbe? probe) =>
-        $"{source.DisplayName}: {ProbeValueFormatter.FormatValue(source, probe)}";
+    private string ProbeValueLine(DataSource source, ProbeCardProbe? probe) =>
+        $"{_probeNicknameResolver.Resolve(source.DisplayName)}: "
+        + ProbeValueFormatter.FormatValue(source, probe, probe?.TruncateValue == true);
 
     /// <summary>
     /// Refreshes probe values after each LHM poll.
@@ -547,14 +2091,26 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         AppServices.LHMService?.PollTickCompleted -= OnPollTickCompleted;
+        RemoveHandler(PointerPressedEvent, OnSelectorPointerPressed);
+        _focusedTransformTextBox = null;
+        _focusSink = null;
+        _selectedProbeListPanel = null;
+        _draggedSelectedProbeRow = null;
+        _draggedSelectedProbe = null;
+        _nicknameRuleListPanel = null;
+        _draggedNicknameRuleList = null;
+        _draggedNicknameRuleRow = null;
+        _draggedNicknameRule = null;
         Closed -= OnClosed;
     }
 
     /// <summary>
     /// Resolves a stable sort label for a probe source.
     /// </summary>
-    private static string ProbeSortLabel(DataSource? source, ProbeCardProbe probe) =>
-        source == null ? probe.DataSourceKey : $"{source.ControllerName}.{source.DisplayName}";
+    private string ProbeSortLabel(DataSource? source, ProbeCardProbe probe) =>
+        source == null
+            ? probe.DataSourceKey
+            : $"{_deviceNicknameResolver.Resolve(source)}.{_probeNicknameResolver.Resolve(source.DisplayName)}";
 
     /// <summary>
     /// Resolves the tab label.
@@ -582,18 +2138,43 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
     private sealed record SelectorLayout(
         double TabRowHeight,
+        double TabWidth,
         double TabFontSize,
         double TabMinHeight,
         double CardTitleFontSize,
         double CardValueFontSize,
+        double ValueGlyphWidth,
+        double ValueGlyphFontSize,
         double GridCardWidth,
         double EmptyFontSize,
+        double SectionTitleFontSize,
         double ActionButtonWidth,
         double ActionButtonHeight,
         double GearFontSize,
+        double TransformInactiveGearOpacity,
+        double TruncateToggleFontSize,
+        double TruncateToggleWidth,
+        double TruncateToggleTrackWidth,
         double TransformLabelFontSize,
         double TransformBoxWidth,
+        double TransformInlineBoxWidth,
         double TransformBoxHeight,
+        double TransformBoxMinHeight,
+        double HomeClearDeadSensorsButtonWidth,
+        double HomeLoadDefaultNicknamesButtonWidth,
+        double HomeActionButtonHeight,
+        double HomeDeviceNicknamesRowHeight,
+        double HomeSectionSeparatorThickness,
+        double NicknameCardWidth,
+        double NicknameAddButtonWidth,
+        double NicknameAddButtonHeight,
+        double NicknameTargetTextBoxWidth,
+        double NicknameReplacementTextBoxWidth,
+        double NicknameTextBoxHeight,
+        double NicknameArrowFontSize,
+        double NicknameDeleteButtonWidth,
+        double NicknameDeleteButtonHeight,
+        double NicknameDeleteButtonFontSize,
         Thickness ZeroThickness,
         Thickness RootBorderThickness,
         Thickness ContentMargin,
@@ -604,16 +2185,61 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Thickness CardPadding,
         Thickness TextColumnMargin,
         Thickness ValueRowMargin,
-        Thickness ToggleMargin,
+        Thickness ValueGlyphMargin,
         Thickness ActionButtonMargin,
+        Thickness ProbeControlRowMargin,
+        Thickness ProbeToggleColumnMargin,
+        Thickness TruncateToggleMargin,
+        Thickness TruncateToggleLabelMargin,
         Thickness TransformRowMargin,
         Thickness TransformLabelMargin,
         Thickness TransformBoxPadding,
+        Thickness HomeActionsMargin,
+        Thickness HomeActionButtonMargin,
+        Thickness HomeActionButtonTrailingMargin,
+        Thickness HomeActionButtonPadding,
+        Thickness HomeNicknameColumnPadding,
+        Thickness HomeColumnSeparatorMargin,
+        Thickness HomeNicknameRowSeparatorMargin,
+        Thickness HomeSectionScrollHostMargin,
+        Thickness HomeNicknameScrollHostMargin,
+        Thickness SelectedProbeGridMargin,
+        Thickness NicknameCardPadding,
+        Thickness NicknameSectionMargin,
+        Thickness SectionHeaderMargin,
+        Thickness NicknameListMargin,
+        Thickness NicknameListPadding,
+        Thickness NicknameAddButtonPadding,
+        Thickness NicknameTextBoxPadding,
+        Thickness NicknameArrowMargin,
+        Thickness NicknameDeleteButtonMargin,
         CornerRadius RootCornerRadius,
         CornerRadius CardCornerRadius,
         CornerRadius TabCornerRadius,
-        CornerRadius ZeroCornerRadius)
+        CornerRadius ZeroCornerRadius,
+        Color HomeSectionSeparatorColor)
     {
+        public double TruncateToggleTrackHeight =>
+            TruncateToggleTrackWidth * TruncateToggleTrackHeightRatio;
+
+        public double TruncateToggleThumbSize =>
+            TruncateToggleTrackWidth * TruncateToggleThumbSizeRatio;
+
+        public CornerRadius TruncateToggleTrackCornerRadius =>
+            new(TruncateToggleTrackHeight / 2.0);
+
+        public CornerRadius TruncateToggleThumbCornerRadius =>
+            new(TruncateToggleThumbSize / 2.0);
+
+        public Thickness TruncateToggleThumbUncheckedMargin =>
+            new(TruncateToggleThumbInset, 0, 0, 0);
+
+        public Thickness TruncateToggleThumbCheckedMargin =>
+            new(0, 0, TruncateToggleThumbInset, 0);
+
+        private double TruncateToggleThumbInset =>
+            Math.Max(0, (TruncateToggleTrackHeight - TruncateToggleThumbSize) / 2.0);
+
         /// <summary>
         /// Reads selector layout resources from XAML.
         /// </summary>
@@ -622,18 +2248,43 @@ public sealed partial class ProbeDataSelectorWindow : Window
             HotReloadResourceReader r = new(owner, "ProbeSelector");
             return new SelectorLayout(
                 r.Double("TabRowHeight"),
+                r.Double("TabWidth"),
                 r.Double("TabFontSize"),
                 r.Double("TabMinHeight"),
                 r.Double("CardTitleFontSize"),
                 r.Double("CardValueFontSize"),
+                r.Double("ValueGlyphWidth"),
+                r.Double("ValueGlyphFontSize"),
                 r.Double("GridCardWidth"),
                 r.Double("EmptyFontSize"),
+                r.Double("SectionTitleFontSize"),
                 r.Double("ActionButtonWidth"),
                 r.Double("ActionButtonHeight"),
                 r.Double("GearFontSize"),
+                r.Double("TransformInactiveGearOpacity"),
+                r.Double("TruncateToggleFontSize"),
+                r.Double("TruncateToggleWidth"),
+                r.Double("TruncateToggleTrackWidth"),
                 r.Double("TransformLabelFontSize"),
                 r.Double("TransformBoxWidth"),
+                r.Double("TransformInlineBoxWidth"),
                 r.Double("TransformBoxHeight"),
+                r.Double("TransformBoxMinHeight"),
+                r.Double("HomeClearDeadSensorsButtonWidth"),
+                r.Double("HomeLoadDefaultNicknamesButtonWidth"),
+                r.Double("HomeActionButtonHeight"),
+                r.Double("HomeDeviceNicknamesRowHeight"),
+                r.Double("HomeSectionSeparatorThickness"),
+                r.Double("NicknameCardWidth"),
+                r.Double("NicknameAddButtonWidth"),
+                r.Double("NicknameAddButtonHeight"),
+                r.Double("NicknameTargetTextBoxWidth"),
+                r.Double("NicknameReplacementTextBoxWidth"),
+                r.Double("NicknameTextBoxHeight"),
+                r.Double("NicknameArrowFontSize"),
+                r.Double("NicknameDeleteButtonWidth"),
+                r.Double("NicknameDeleteButtonHeight"),
+                r.Double("NicknameDeleteButtonFontSize"),
                 r.Thickness("ZeroThickness"),
                 r.Thickness("RootBorderThickness"),
                 r.Thickness("ContentMargin"),
@@ -644,15 +2295,39 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 r.Thickness("CardPadding"),
                 r.Thickness("TextColumnMargin"),
                 r.Thickness("ValueRowMargin"),
-                r.Thickness("ToggleMargin"),
+                r.Thickness("ValueGlyphMargin"),
                 r.Thickness("ActionButtonMargin"),
+                r.Thickness("ProbeControlRowMargin"),
+                r.Thickness("ProbeToggleColumnMargin"),
+                r.Thickness("TruncateToggleMargin"),
+                r.Thickness("TruncateToggleLabelMargin"),
                 r.Thickness("TransformRowMargin"),
                 r.Thickness("TransformLabelMargin"),
                 r.Thickness("TransformBoxPadding"),
+                r.Thickness("HomeActionsMargin"),
+                r.Thickness("HomeActionButtonMargin"),
+                r.Thickness("HomeActionButtonTrailingMargin"),
+                r.Thickness("HomeActionButtonPadding"),
+                r.Thickness("HomeNicknameColumnPadding"),
+                r.Thickness("HomeColumnSeparatorMargin"),
+                r.Thickness("HomeNicknameRowSeparatorMargin"),
+                r.Thickness("HomeSectionScrollHostMargin"),
+                r.Thickness("HomeNicknameScrollHostMargin"),
+                r.Thickness("SelectedProbeGridMargin"),
+                r.Thickness("NicknameCardPadding"),
+                r.Thickness("NicknameSectionMargin"),
+                r.Thickness("SectionHeaderMargin"),
+                r.Thickness("NicknameListMargin"),
+                r.Thickness("NicknameListPadding"),
+                r.Thickness("NicknameAddButtonPadding"),
+                r.Thickness("NicknameTextBoxPadding"),
+                r.Thickness("NicknameArrowMargin"),
+                r.Thickness("NicknameDeleteButtonMargin"),
                 r.CornerRadius("RootCornerRadius"),
                 r.CornerRadius("CardCornerRadius"),
                 r.CornerRadius("TabCornerRadius"),
-                r.CornerRadius("ZeroCornerRadius"));
+                r.CornerRadius("ZeroCornerRadius"),
+                r.Color("HomeSectionSeparatorColor"));
         }
     }
 }

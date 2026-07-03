@@ -596,6 +596,7 @@ internal enum FanDragGhostStyle
     TopLevelFan,
     GroupedFan,
     Group,
+    Probe,
 }
 
 internal readonly record struct FanDragPlacement(
@@ -630,7 +631,8 @@ internal sealed record FanDragSlot(
     double Height,
     double SlotHeight,
     double GroupInsertionTop,
-    double GroupDropBottom);
+    double GroupDropBottom,
+    ProbeCard? ProbeCard = null);
 
 internal sealed record FanDragFanSlot(
     FanFlyoutCell Cell,

@@ -149,20 +149,38 @@ public sealed class LHMService : IDisposable
     {
         _discoveryChanged = false;
         _controlSensorsByKey.Clear();
+        foreach (DataSource source in DataSource.DataSources.Values)
+            source.IsLiveHardwareSensor = false;
+
         foreach (IHardware hardware in _computer.Hardware)
         {
             hardware.Update();
             VisitHardware(hardware);
         }
+
+        if (_settings?.EnsureDefaultDeviceNicknameRules() == true)
+            _discoveryChanged = true;
+        if (_settings?.EnsureDefaultProbeNicknameRules() == true)
+            _discoveryChanged = true;
         if (_discoveryChanged) PersistLiveState(save: true);
     }
 
     private void VisitHardware(IHardware hardware)
     {
+        bool isCPU = hardware.HardwareType == HardwareType.Cpu;
+        bool hasCoreClockSensors = false;
+        bool hasCoreEffectiveClockSensors = false;
         foreach (ISensor sensor in hardware.Sensors)
         {
             string key = BuildSensorKey(hardware, sensor);
             DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
+            string hardwareType = hardware.HardwareType.ToString();
+            hasCoreClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreClockSensor(
+                type,
+                sensor.Name);
+            hasCoreEffectiveClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreEffectiveClockSensor(
+                type,
+                sensor.Name);
 
             if (DataSource.Find(key) is not { } existingSource)
             {
@@ -171,7 +189,9 @@ public sealed class LHMService : IDisposable
                     DataSourceKey = key,
                     UserDefinedName = sensor.Name,
                     ControllerName = hardware.Name,
+                    ControllerHardwareType = hardwareType,
                     DataSourceType = type,
+                    IsLiveHardwareSensor = true,
                 };
                 source.EnsureDisplayMetadata();
                 DataSource.Register(source);
@@ -179,8 +199,14 @@ public sealed class LHMService : IDisposable
             }
             else
             {
+                existingSource.IsLiveHardwareSensor = true;
                 if (string.IsNullOrWhiteSpace(existingSource.ControllerName))
                     existingSource.ControllerName = hardware.Name;
+                if (!string.Equals(existingSource.ControllerHardwareType, hardwareType, StringComparison.Ordinal))
+                {
+                    existingSource.ControllerHardwareType = hardwareType;
+                    _discoveryChanged = true;
+                }
                 if (existingSource.DataSourceType == DataSourceTypeEnum.Unknown)
                     existingSource.DataSourceType = type;
                 if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
@@ -194,6 +220,11 @@ public sealed class LHMService : IDisposable
                 EnsureFanForControlSensor(hardware, sensor, key);
             }
         }
+
+        if (hasCoreClockSensors)
+            EnsureMaxClockSource(hardware);
+        if (hasCoreEffectiveClockSensors)
+            EnsureMaxEffectiveClockSource(hardware);
 
         foreach (IHardware sub in hardware.SubHardware)
         {
@@ -214,15 +245,114 @@ public sealed class LHMService : IDisposable
 
     private static void CaptureFromHardware(IHardware hardware, List<SensorReading> readings)
     {
+        bool isCPU = hardware.HardwareType == HardwareType.Cpu;
+        float? maxClock = null;
+        float? maxEffectiveClock = null;
         foreach (ISensor sensor in hardware.Sensors)
         {
             if (sensor.Value is not { } value) continue;
 
+            DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
             string key = BuildSensorKey(hardware, sensor);
             readings.Add(new SensorReading(key, hardware.Name, sensor.Name, sensor.SensorType, value));
+            if (!isCPU) continue;
+
+            if (LHMSyntheticProbeSources.IsCoreClockSensor(type, sensor.Name))
+            {
+                maxClock = maxClock.HasValue
+                    ? Math.Max(maxClock.Value, value)
+                    : value;
+                continue;
+            }
+
+            if (!LHMSyntheticProbeSources.IsCoreEffectiveClockSensor(type, sensor.Name)) continue;
+
+            maxEffectiveClock = maxEffectiveClock.HasValue
+                ? Math.Max(maxEffectiveClock.Value, value)
+                : value;
+        }
+
+        if (maxClock is { } maxCoreClock)
+        {
+            readings.Add(new SensorReading(
+                LHMSyntheticProbeSources.BuildMaxClockKey(hardware.Name),
+                hardware.Name,
+                LHMSyntheticProbeSources.MaxClockDisplayName,
+                SensorType.Clock,
+                maxCoreClock));
+        }
+
+        if (maxEffectiveClock is { } maxEffectiveCoreClock)
+        {
+            readings.Add(new SensorReading(
+                LHMSyntheticProbeSources.BuildMaxEffectiveClockKey(hardware.Name),
+                hardware.Name,
+                LHMSyntheticProbeSources.MaxEffectiveClockDisplayName,
+                SensorType.Clock,
+                maxEffectiveCoreClock));
         }
 
         foreach (IHardware sub in hardware.SubHardware) CaptureFromHardware(sub, readings);
+    }
+
+    /// <summary>
+    /// Registers a synthetic max-clock source for CPU core clock sensors.
+    /// </summary>
+    private void EnsureMaxClockSource(IHardware hardware) =>
+        EnsureSyntheticClockSource(
+            hardware,
+            LHMSyntheticProbeSources.BuildMaxClockKey(hardware.Name),
+            LHMSyntheticProbeSources.MaxClockDisplayName);
+
+    /// <summary>
+    /// Registers a synthetic max-effective-clock source for CPU effective clock sensors.
+    /// </summary>
+    private void EnsureMaxEffectiveClockSource(IHardware hardware) =>
+        EnsureSyntheticClockSource(
+            hardware,
+            LHMSyntheticProbeSources.BuildMaxEffectiveClockKey(hardware.Name),
+            LHMSyntheticProbeSources.MaxEffectiveClockDisplayName);
+
+    /// <summary>
+    /// Registers or refreshes one synthetic CPU clock source.
+    /// </summary>
+    private void EnsureSyntheticClockSource(IHardware hardware, string key, string displayName)
+    {
+        string hardwareType = hardware.HardwareType.ToString();
+
+        if (DataSource.Find(key) is not { } existingSource)
+        {
+            DataSource source = new()
+            {
+                DataSourceKey = key,
+                UserDefinedName = displayName,
+                ControllerName = hardware.Name,
+                ControllerHardwareType = hardwareType,
+                DataSourceType = DataSourceTypeEnum.Clock,
+                IsLiveHardwareSensor = true,
+            };
+            source.EnsureDisplayMetadata();
+            DataSource.Register(source);
+            _discoveryChanged = true;
+            return;
+        }
+
+        existingSource.IsLiveHardwareSensor = true;
+        if (string.IsNullOrWhiteSpace(existingSource.ControllerName))
+            existingSource.ControllerName = hardware.Name;
+        if (!string.Equals(existingSource.ControllerHardwareType, hardwareType, StringComparison.Ordinal))
+        {
+            existingSource.ControllerHardwareType = hardwareType;
+            _discoveryChanged = true;
+        }
+        if (existingSource.DataSourceType != DataSourceTypeEnum.Clock)
+        {
+            existingSource.DataSourceType = DataSourceTypeEnum.Clock;
+            _discoveryChanged = true;
+        }
+        if (string.IsNullOrWhiteSpace(existingSource.UserDefinedName))
+            existingSource.UserDefinedName = displayName;
+        existingSource.EnsureDisplayMetadata();
     }
 
     private void PushSensorReadings(IReadOnlyList<SensorReading> readings)

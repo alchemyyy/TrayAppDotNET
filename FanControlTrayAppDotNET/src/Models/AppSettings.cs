@@ -53,6 +53,17 @@ public enum MultipleSliderValuesDisplayMode
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings,
     ITrayXmlSerializationCallbacks
 {
+    private const string CPUNickname = "CPU";
+    private const string GPUNickname = "GPU";
+    private const string HardwareTypeCPUTarget = "{HardwareType.CPU}";
+    private const string HardwareTypeGPUTarget = "{HardwareType.GPU}";
+    private const string PreviousDefaultCPUTargetRegex = ".*(CPU|Processor|Ryzen|Threadripper|Intel.*Core|Core.*Processor).*";
+    private const string PreviousDefaultGPUTargetRegex = ".*(GPU|Graphics|NVIDIA|GeForce|Radeon|Arc).*";
+    private const string ProbeTargetRegex_Tdie = "\\(Tdie\\)";
+    private const string ProbeTargetRegex_TctlTdie = "\\(Tctl/Tdie\\)";
+    private const string ProbeTargetRegex_SMU = "\\(SMU\\)";
+    private const string ProbeTargetRegex_CPUCore = "CPU Core";
+
     // General
     public bool RunOnStartup { get; set; } = true;
     public bool Autosave { get; set; } = true;
@@ -214,6 +225,18 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     [XmlArrayItem("ProbeCard")]
     public List<ProbeCard> ProbeCards { get; set; } = [];
 
+    public bool DeviceNicknamesInitialized { get; set; }
+
+    [XmlArray("DeviceNicknameRules")]
+    [XmlArrayItem("Rule")]
+    public List<DeviceNicknameRule> DeviceNicknameRules { get; set; } = [];
+
+    public bool ProbeNicknamesInitialized { get; set; }
+
+    [XmlArray("ProbeNicknameRules")]
+    [XmlArrayItem("Rule")]
+    public List<DeviceNicknameRule> ProbeNicknameRules { get; set; } = [];
+
     [XmlArray("FanProfiles")]
     [XmlArrayItem("Profile")]
     public List<FanProfile> FanProfiles { get; set; } = [];
@@ -355,6 +378,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
                 bool changed = loaded.DedupeHotkeysByIdentity();
                 changed |= loaded.EnsureDefaultHotkeys();
                 changed |= loaded.EnsureFanProfileCount(3);
+                changed |= loaded.EnsureDefaultDeviceNicknameRules();
+                changed |= loaded.EnsureDefaultProbeNicknameRules();
                 if (loaded.SelectedFanProfileIndex < 0 || loaded.SelectedFanProfileIndex >= loaded.FanProfiles.Count)
                 {
                     loaded.SelectedFanProfileIndex = 0;
@@ -374,8 +399,253 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
         defaults.InitializeFanControlRegistries();
         defaults.EnsureDefaultHotkeys();
         defaults.EnsureFanProfileCount(3);
+        defaults.EnsureDefaultDeviceNicknameRules();
+        defaults.EnsureDefaultProbeNicknameRules();
         defaults.Save(path);
         return defaults;
+    }
+
+    /// <summary>
+    /// Seeds first-run hardware-type device nickname rules.
+    /// </summary>
+    public bool EnsureDefaultDeviceNicknameRules()
+    {
+        List<DeviceNicknameRule> defaultRules = BuildDefaultDeviceNicknameRules();
+
+        if (!DeviceNicknamesInitialized)
+        {
+            DeviceNicknameRules = defaultRules;
+            DeviceNicknamesInitialized = true;
+            return true;
+        }
+
+        return ReplacePreviousDefaultDeviceNicknameRules(defaultRules);
+    }
+
+    /// <summary>
+    /// Merges hardware-type default nickname rules without deleting custom rules.
+    /// </summary>
+    public bool LoadDefaultDeviceNicknameRules()
+    {
+        List<DeviceNicknameRule> defaultRules = BuildDefaultDeviceNicknameRules();
+        bool changed = MergeDefaultNicknameRules(DeviceNicknameRules, defaultRules);
+        if (!DeviceNicknamesInitialized)
+        {
+            DeviceNicknamesInitialized = true;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// Seeds first-run probe nickname rules.
+    /// </summary>
+    public bool EnsureDefaultProbeNicknameRules()
+    {
+        if (ProbeNicknamesInitialized) return false;
+
+        ProbeNicknameRules = BuildDefaultProbeNicknameRules();
+        ProbeNicknamesInitialized = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Merges default probe nickname rules without deleting custom rules.
+    /// </summary>
+    public bool LoadDefaultProbeNicknameRules()
+    {
+        List<DeviceNicknameRule> defaultRules = BuildDefaultProbeNicknameRules();
+        bool changed = MergeDefaultNicknameRules(ProbeNicknameRules, defaultRules);
+        if (!ProbeNicknamesInitialized)
+        {
+            ProbeNicknamesInitialized = true;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// Builds default hardware-type nickname rules.
+    /// </summary>
+    private static List<DeviceNicknameRule> BuildDefaultDeviceNicknameRules() =>
+        [
+            new DeviceNicknameRule
+            {
+                TargetRegex = HardwareTypeCPUTarget,
+                ReplacementString = CPUNickname,
+            },
+            new DeviceNicknameRule
+            {
+                TargetRegex = HardwareTypeGPUTarget,
+                ReplacementString = GPUNickname,
+            },
+        ];
+
+    /// <summary>
+    /// Builds default probe-name replacement rules.
+    /// </summary>
+    private static List<DeviceNicknameRule> BuildDefaultProbeNicknameRules() =>
+        [
+            new()
+            {
+                TargetRegex = ProbeTargetRegex_Tdie,
+                ReplacementString = string.Empty,
+            },
+            new()
+            {
+                TargetRegex = ProbeTargetRegex_TctlTdie,
+                ReplacementString = string.Empty,
+            },
+            new()
+            {
+                TargetRegex = ProbeTargetRegex_SMU,
+                ReplacementString = string.Empty,
+            },
+            new()
+            {
+                TargetRegex = ProbeTargetRegex_CPUCore,
+                ReplacementString = "Core",
+            },
+        ];
+
+    /// <summary>
+    /// Replaces generated legacy default nickname rules with hardware-type defaults.
+    /// </summary>
+    private bool ReplacePreviousDefaultDeviceNicknameRules(List<DeviceNicknameRule> defaultRules)
+    {
+        List<DeviceNicknameRule> preservedRules =
+        [
+            .. DeviceNicknameRules.Where(static rule => !IsGeneratedLegacyDefaultDeviceNicknameRule(rule))
+        ];
+        if (preservedRules.Count == DeviceNicknameRules.Count) return false;
+
+        DeviceNicknameRules = [];
+        if (!HasHardwareTypeDefaultDeviceNicknameRules(preservedRules))
+            DeviceNicknameRules.AddRange(defaultRules);
+        DeviceNicknameRules.AddRange(preservedRules);
+        return true;
+    }
+
+    /// <summary>
+    /// Checks whether hardware-type defaults are already present.
+    /// </summary>
+    private static bool HasHardwareTypeDefaultDeviceNicknameRules(IEnumerable<DeviceNicknameRule> rules)
+    {
+        bool hasCPU = false;
+        bool hasGPU = false;
+        foreach (DeviceNicknameRule rule in rules)
+        {
+            hasCPU |= IsDeviceNicknameRule(rule, HardwareTypeCPUTarget, CPUNickname);
+            hasGPU |= IsDeviceNicknameRule(rule, HardwareTypeGPUTarget, GPUNickname);
+        }
+
+        return hasCPU && hasGPU;
+    }
+
+    /// <summary>
+    /// Checks whether a rule is a generated default from a previous seed pass.
+    /// </summary>
+    private static bool IsGeneratedLegacyDefaultDeviceNicknameRule(DeviceNicknameRule rule) =>
+        IsDeviceNicknameRule(rule, PreviousDefaultCPUTargetRegex, CPUNickname)
+        || IsDeviceNicknameRule(rule, PreviousDefaultGPUTargetRegex, GPUNickname)
+        || IsGeneratedExactNameDefaultDeviceNicknameRule(rule);
+
+    /// <summary>
+    /// Checks whether a nickname rule matches a specific target and replacement.
+    /// </summary>
+    private static bool IsDeviceNicknameRule(DeviceNicknameRule rule, string targetRegex, string replacementString) =>
+        string.Equals(rule.TargetRegex, targetRegex, StringComparison.Ordinal)
+        && string.Equals(rule.ReplacementString, replacementString, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Merges defaults at the top of a nickname rule list.
+    /// </summary>
+    private static bool MergeDefaultNicknameRules(
+        List<DeviceNicknameRule> currentRules,
+        List<DeviceNicknameRule> defaultRules)
+    {
+        bool changed = false;
+        int insertIndex = 0;
+        foreach (DeviceNicknameRule defaultRule in defaultRules)
+        {
+            int existingIndex = FindNicknameRuleIndexByTarget(currentRules, defaultRule.TargetRegex);
+            if (existingIndex < 0)
+            {
+                currentRules.Insert(insertIndex, CloneNicknameRule(defaultRule));
+                changed = true;
+                insertIndex++;
+                continue;
+            }
+
+            DeviceNicknameRule existingRule = currentRules[existingIndex];
+            if (!string.Equals(existingRule.ReplacementString, defaultRule.ReplacementString, StringComparison.Ordinal))
+            {
+                existingRule.ReplacementString = defaultRule.ReplacementString;
+                changed = true;
+            }
+
+            if (existingIndex != insertIndex)
+            {
+                currentRules.RemoveAt(existingIndex);
+                currentRules.Insert(insertIndex, existingRule);
+                changed = true;
+            }
+
+            insertIndex++;
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// Finds a nickname rule by its target regex.
+    /// </summary>
+    private static int FindNicknameRuleIndexByTarget(List<DeviceNicknameRule> rules, string targetRegex)
+    {
+        for (int i = 0; i < rules.Count; i++)
+        {
+            if (string.Equals(rules[i].TargetRegex, targetRegex, StringComparison.Ordinal)) return i;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Clones a nickname rule before inserting it into user settings.
+    /// </summary>
+    private static DeviceNicknameRule CloneNicknameRule(DeviceNicknameRule rule) =>
+        new()
+        {
+            TargetRegex = rule.TargetRegex,
+            ReplacementString = rule.ReplacementString,
+        };
+
+    /// <summary>
+    /// Checks whether a prior generated exact-name rule should be migrated.
+    /// </summary>
+    private static bool IsGeneratedExactNameDefaultDeviceNicknameRule(DeviceNicknameRule rule)
+    {
+        if (rule.TargetRegex.Length < 3) return false;
+        if (!rule.TargetRegex.StartsWith('^')) return false;
+        if (!rule.TargetRegex.EndsWith('$')) return false;
+        return IsGeneratedNicknameReplacement(rule.ReplacementString, CPUNickname)
+            || IsGeneratedNicknameReplacement(rule.ReplacementString, GPUNickname);
+    }
+
+    /// <summary>
+    /// Checks whether a replacement is a generated base nickname or numbered suffix.
+    /// </summary>
+    private static bool IsGeneratedNicknameReplacement(string replacementString, string baseNickname)
+    {
+        if (string.Equals(replacementString, baseNickname, StringComparison.Ordinal)) return true;
+
+        string prefix = $"{baseNickname} ";
+        if (!replacementString.StartsWith(prefix, StringComparison.Ordinal)) return false;
+
+        string suffix = replacementString[prefix.Length..];
+        return int.TryParse(suffix, out int number) && number > 1;
     }
 
     public bool EnsureFanProfileCount(int count)

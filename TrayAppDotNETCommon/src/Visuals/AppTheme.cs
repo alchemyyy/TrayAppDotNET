@@ -129,7 +129,7 @@ public class AppTheme : IDisposable
     public ThemeColor ControlBackground { get; set; } = new("FFFFFF", "3C3C3C");
     public ThemeColor ControlBorder { get; set; } = new("808080", "444444");
     public ThemeColor DisabledForeground { get; set; } = new("808080");
-    public ThemeColor Accent { get; set; } = new("0078D4");
+    public ThemeColor Accent { get; set; } = new("FFFFFF");
     public ThemeColor Acrylic { get; set; } = new("D0F3F3F3", "D0202020");
     public ThemeColor SecondaryForeground { get; set; } = new("222222", "DDDDDD");
     public ThemeColor FooterBackground { get; set; } = new("E8E8E8", "1A1A1A");

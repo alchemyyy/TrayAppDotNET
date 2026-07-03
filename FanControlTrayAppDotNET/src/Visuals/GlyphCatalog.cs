@@ -23,11 +23,16 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
     public const string TEMPERATURE = PROBE; // Frigid
     public const string CLOCK = "\uE916"; // Stopwatch
 
+    public const string ARROW_LEFT = "\uF0D5"; // Chrome Back Contrast
+    public const string ARROW_RIGHT = "\uF0D6"; // Chrome Back Contrast Mirrored
+
     public const string CURVE_WINDOW = "\uE9E9"; // Equalizer
     public const string ADD = "\uE710"; // Add
+    public const string CHECK = "\uE8FB"; // Accept
     public const string GROUP = "\uE81E"; // Map Layers
     public const string PROBE = "\uE9CA"; // Frigid
     public const string DELETE = "\uE653"; // Close
+    public const string CLOSE = DELETE;
     public const string VIEW = "\uE890"; // View
     public const string HIDE = "\uED1A"; // Hide
     public const string DRAG_HANDLE = "\uE700"; // GlobalNavButton

@@ -51,6 +51,12 @@ public class DataSource : INotifyPropertyChanged
     // DataSourceKey for LHM sources, manually supplied for custom sources.
     [XmlAttribute] public string ControllerName { get; set; } = string.Empty;
 
+    // LHM HardwareType name for the owning controller. Empty means custom or legacy source.
+    [XmlAttribute] public string ControllerHardwareType { get; set; } = string.Empty;
+
+    // Runtime-only liveness marker set by LHM discovery. Dead persisted sensors remain false.
+    [XmlIgnore] public bool IsLiveHardwareSensor { get; set; }
+
     [XmlAttribute] public DataSourceTypeEnum DataSourceType { get; set; } = DataSourceTypeEnum.Unknown;
 
     // User-facing graph metadata. Values are stored in the same human-readable units shown by the

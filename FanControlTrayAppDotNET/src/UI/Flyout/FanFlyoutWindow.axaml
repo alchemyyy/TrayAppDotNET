@@ -71,7 +71,7 @@
         <sys:Double x:Key="Flyout.FanButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.FanButtonHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.FanButtonFontSize">18</sys:Double>
-        <Thickness x:Key="Flyout.FanButtonGroupedMargin">0,0,8,0</Thickness>
+        <Thickness x:Key="Flyout.FanButtonGroupedMargin">-3,0,8,0</Thickness>
         <Thickness x:Key="Flyout.FanButtonUngroupedMargin">-4,0,12,0</Thickness>
         <sys:Double x:Key="Flyout.FanNameFontSize">14</sys:Double>
         <sys:Double x:Key="Flyout.FanSubtitleFontSize">10</sys:Double>
@@ -88,7 +88,7 @@
         <Thickness x:Key="Flyout.ModeButtonGroupedMargin">0,0,8,0</Thickness>
         <Thickness x:Key="Flyout.ModeButtonUngroupedMargin">-4,-2,12,0</Thickness>
         <sys:Double x:Key="Flyout.SliderRowHeight">24</sys:Double>
-        <Thickness x:Key="Flyout.SliderRowMargin">-5,2,0,0</Thickness>
+        <Thickness x:Key="Flyout.SliderRowMargin">-5,2,3,0</Thickness>
         <Thickness x:Key="Flyout.ValueGridMargin">4,-4,0,0</Thickness>
         <sys:Double x:Key="Flyout.ValueFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">10</sys:Double>
@@ -99,12 +99,12 @@
         <sys:Double x:Key="Flyout.GroupHeaderButtonWidth">28</sys:Double>
         <sys:Double x:Key="Flyout.GroupHeaderButtonHeight">28</sys:Double>
         <sys:Double x:Key="Flyout.GroupExpandFontSize">13</sys:Double>
-        <Thickness x:Key="Flyout.GroupHeaderButtonMargin">0,-6,0,0</Thickness>
+        <Thickness x:Key="Flyout.GroupHeaderButtonMargin">2,-6,-2,0</Thickness>
         <sys:Double x:Key="Flyout.GroupNameFontSize">13</sys:Double>
         <Thickness x:Key="Flyout.GroupTitleMargin">-6,0,10,0</Thickness>
         <sys:Double x:Key="Flyout.GroupDeleteFontSize">11</sys:Double>
         <Thickness x:Key="Flyout.GroupModeMargin">-4,-3,12,0</Thickness>
-        <Thickness x:Key="Flyout.GroupSliderRowMargin">-5,2,0,2</Thickness>
+        <Thickness x:Key="Flyout.GroupSliderRowMargin">-5,2,4.5,0</Thickness>
         <Thickness x:Key="Flyout.GroupValueGridMargin">8,-4,0,0</Thickness>
 
         <sys:Double x:Key="Flyout.ProbeButtonWidth">32</sys:Double>
@@ -113,7 +113,7 @@
         <Thickness x:Key="Flyout.ProbeButtonMargin">-4,0,12,0</Thickness>
         <sys:Double x:Key="Flyout.ProbeNameFontSize">14</sys:Double>
         <Thickness x:Key="Flyout.ProbeNameStackMargin">-6,0,10,0</Thickness>
-        <Thickness x:Key="Flyout.ProbeRowsMargin">0,4,0,0</Thickness>
+        <Thickness x:Key="Flyout.ProbeRowsMargin">6,2,6,0</Thickness>
         <Thickness x:Key="Flyout.ProbeRowMargin">0,0,0,2</Thickness>
         <sys:Double x:Key="Flyout.ProbeRowGlyphWidth">16</sys:Double>
         <sys:Double x:Key="Flyout.ProbeRowGlyphFontSize">13</sys:Double>

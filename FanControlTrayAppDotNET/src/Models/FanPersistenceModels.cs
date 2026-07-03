@@ -130,6 +130,8 @@ public class ProbeCard
 
     [XmlAttribute] public int DisplayOrder { get; set; } = -1;
 
+    [XmlAttribute] public bool IsCollapsed { get; set; }
+
     [XmlArray("Probes")]
     [XmlArrayItem("Probe")]
     public List<ProbeCardProbe> Probes { get; set; } = [];
@@ -139,7 +141,7 @@ public class ProbeCard
         string.IsNullOrWhiteSpace(Name) ? "Probe Card" : Name;
 
     /// <summary>
-    /// Finds a selected probe by its data-source key.
+    /// Finds stored probe settings by their data-source key.
     /// </summary>
     public ProbeCardProbe? FindProbe(string? dataSourceKey)
     {
@@ -155,13 +157,27 @@ public class ProbeCard
 }
 
 /// <summary>
-/// Persisted probe selection for a probe card.
+/// Persisted probe settings for a probe card.
 /// </summary>
 public class ProbeCardProbe
 {
     [XmlAttribute] public string DataSourceKey { get; set; } = string.Empty;
 
+    [XmlAttribute] public bool IsSelected { get; set; } = true;
+
     [XmlAttribute] public string TransformString { get; set; } = string.Empty;
+
+    [XmlAttribute] public bool TruncateValue { get; set; }
+}
+
+/// <summary>
+/// Global regex replacement rule for display names.
+/// </summary>
+public class DeviceNicknameRule
+{
+    [XmlAttribute] public string TargetRegex { get; set; } = string.Empty;
+
+    [XmlAttribute] public string ReplacementString { get; set; } = string.Empty;
 }
 
 // User-editable fan settings only. Hardware identity and live telemetry intentionally do not live

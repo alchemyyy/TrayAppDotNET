@@ -31,6 +31,17 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
             ? value
             : throw InvalidType(name, nameof(CornerRadius));
 
+    /// <summary>
+    /// Reads a color resource.
+    /// </summary>
+    public Color Color(string name) =>
+        Resource(name) switch
+        {
+            Color value => value,
+            string value => Avalonia.Media.Color.Parse(value),
+            object => throw InvalidType(name, nameof(Color)),
+        };
+
     public TranslateTransform TranslateTransform(string name) =>
         Resource(name) is TranslateTransform value
             ? value
