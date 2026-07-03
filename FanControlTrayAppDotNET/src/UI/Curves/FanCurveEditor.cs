@@ -12,21 +12,7 @@ public sealed class FanCurveEditor : Control
 {
     private readonly record struct DisplayNode(CurveNode Raw, double X, double Y);
 
-    private const double YAxisLabelGap = 2.0;
-    private const double XAxisHeight = 24.0;
-    private const double PlotInsetX = 10.0;
-    private const double PlotInsetY = 8.0;
-    private const double ThumbSize = 14.0;
-    private const double ThumbHitPadding = ThumbSize / 2.0;
-    private const double LabelFontSize = 11.0;
-    private const int VerticalGridDivisions = 4;
-    private const int HorizontalGridDivisions = 5;
-    private const double KeyboardStepFinePixels = 1.0;
-    private const double KeyboardStepCoarsePixels = 10.0;
-    private const double MinimumMeasureWidth = 360.0;
-    private const double MinimumMeasureHeight = 180.0;
-    private const double DefaultMeasureWidth = 540.0;
-    private const double DefaultMeasureHeight = 270.0;
+    private static readonly bool IsSelectedReadoutAutoSwitchEnabled = false;
 
     private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
     private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
@@ -34,6 +20,7 @@ public sealed class FanCurveEditor : Control
     private Curve? _curve;
     private DataSource? _dataSource;
     private FanCurveEditorPalette _palette = FanCurveEditorPalette.Default;
+    private FanCurveEditorLayout _layout = FanCurveEditorLayout.Default;
 
     private CurveNode? _dragNode;
     private CurveNode? _hoverNode;
@@ -55,6 +42,26 @@ public sealed class FanCurveEditor : Control
     }
 
     public event Action? CurveChanged;
+
+    /// <summary>
+    /// Raised immediately before a user graph edit mutates curve nodes.
+    /// </summary>
+    public event Action? GraphEditStarting;
+
+    /// <summary>
+    /// Gets or sets graph layout values sourced from AXAML.
+    /// </summary>
+    public FanCurveEditorLayout EditorLayout
+    {
+        get => _layout;
+        set
+        {
+            if (_layout == value) return;
+            _layout = value;
+            InvalidateMeasure();
+            InvalidateVisual();
+        }
+    }
 
     public FanCurveEditorPalette Palette
     {
@@ -91,9 +98,9 @@ public sealed class FanCurveEditor : Control
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = double.IsInfinity(availableSize.Width) ? DefaultMeasureWidth : availableSize.Width;
-        double height = double.IsInfinity(availableSize.Height) ? DefaultMeasureHeight : availableSize.Height;
-        return new Size(Math.Max(MinimumMeasureWidth, width), Math.Max(MinimumMeasureHeight, height));
+        double width = double.IsInfinity(availableSize.Width) ? _layout.DefaultMeasureWidth : availableSize.Width;
+        double height = double.IsInfinity(availableSize.Height) ? _layout.DefaultMeasureHeight : availableSize.Height;
+        return new Size(Math.Max(_layout.MinimumMeasureWidth, width), Math.Max(_layout.MinimumMeasureHeight, height));
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -235,12 +242,12 @@ public sealed class FanCurveEditor : Control
 
         double xRange = XMaximum - XMinimum;
         double yRange = YMaximum - YMinimum;
-        double xStep = xRange / Math.Max(1.0, PlotRect().Width) * KeyboardStepFinePixels;
-        double yStep = yRange / Math.Max(1.0, PlotRect().Height) * KeyboardStepFinePixels;
+        double xStep = xRange / Math.Max(1.0, PlotRect().Width) * _layout.KeyboardStepFinePixels;
+        double yStep = yRange / Math.Max(1.0, PlotRect().Height) * _layout.KeyboardStepFinePixels;
         if ((e.KeyModifiers & KeyModifiers.Control) != 0)
         {
-            xStep *= KeyboardStepCoarsePixels;
-            yStep *= KeyboardStepCoarsePixels;
+            xStep *= _layout.KeyboardStepCoarsePixels;
+            yStep *= _layout.KeyboardStepCoarsePixels;
         }
 
         switch (e.Key)
@@ -280,24 +287,24 @@ public sealed class FanCurveEditor : Control
 
     private void DrawGrid(DrawingContext context, Rect plot, Rect bounds)
     {
-        double yAxisGutterWidth = Math.Max(0.0, plot.Left - PlotInsetX);
-        for (int i = 0; i <= VerticalGridDivisions; i++)
+        double yAxisGutterWidth = Math.Max(0.0, plot.Left - _layout.PlotInsetX);
+        for (int i = 0; i <= _layout.VerticalGridDivisions; i++)
         {
             double yValue = YGridValue(i);
             double y = ScreenY(yValue, plot);
             DrawLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
                 WithOpacity(_palette.GridLine, 0.4), 1.0);
 
-            FormattedText left = Text(FormatYAxisValue(yValue), LabelFontSize,
+            FormattedText left = Text(FormatYAxisValue(yValue), _layout.LabelFontSize,
                 WithOpacity(_palette.SecondaryForeground, 0.75));
             context.DrawText(
                 left,
-                new Point(yAxisGutterWidth - left.Width - YAxisLabelGap, y - left.Height / 2.0));
+                new Point(yAxisGutterWidth - left.Width - _layout.YAxisLabelGap, y - left.Height / 2.0));
         }
 
-        for (int i = 0; i <= HorizontalGridDivisions; i++)
+        for (int i = 0; i <= _layout.HorizontalGridDivisions; i++)
         {
-            double xValue = XMinimum + ((XMaximum - XMinimum) * i / HorizontalGridDivisions);
+            double xValue = XMinimum + ((XMaximum - XMinimum) * i / _layout.HorizontalGridDivisions);
             double x = ScreenX(xValue, plot);
             DrawLine(context, new Point(x, plot.Top), new Point(x, plot.Bottom),
                 WithOpacity(_palette.GridLine, 0.4), 1.0);
@@ -305,8 +312,8 @@ public sealed class FanCurveEditor : Control
             string label = FormatAxisValue(xValue);
             string unit = _dataSource?.DisplayUnit ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(unit)) label += unit;
-            FormattedText formatted = Text(label, LabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.75));
-            context.DrawText(formatted, new Point(x - formatted.Width / 2.0, bounds.Height - XAxisHeight + 3.0));
+            FormattedText formatted = Text(label, _layout.LabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.75));
+            context.DrawText(formatted, new Point(x - formatted.Width / 2.0, bounds.Height - _layout.XAxisHeight + 3.0));
         }
     }
 
@@ -322,7 +329,7 @@ public sealed class FanCurveEditor : Control
             WithOpacity(_palette.SecondaryForeground, 0.65), 1.0, 4.0, 3.0);
 
         string label = $"Min {FormatYAxisValue(min)}";
-        FormattedText text = Text(label, LabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.75));
+        FormattedText text = Text(label, _layout.LabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.75));
         context.DrawText(text, new Point(plot.Left + 6.0, Math.Clamp(y + 3.0, plot.Top, plot.Bottom - text.Height)));
     }
 
@@ -399,11 +406,21 @@ public sealed class FanCurveEditor : Control
         string label = string.IsNullOrWhiteSpace(unit)
             ? $"{_dataSource.DisplayName}  {FormatDataValue(value)}"
             : $"{_dataSource.DisplayName}  {FormatDataValue(value)} {unit}";
-        FormattedText text = Text(label, 12.0, _palette.Foreground);
-        double width = text.Width + 12.0;
-        double height = text.Height + 5.0;
-        Rect pill = new(plot.Right - width - 6.0, plot.Bottom - height - 6.0, width, height);
-        DrawPill(context, pill, text, _palette.CardBackground, _palette.CurrentValue);
+        FormattedText sourceText = Text(label, 12.0, _palette.Foreground);
+        FormattedText? curveText = _curve == null
+            ? null
+            : Text($"Curve {FormatYAxisValue(_curve.Evaluate(value))}", 12.0, _palette.Curve);
+        double bottom = plot.Bottom - _layout.GraphLegendInset;
+
+        Rect sourcePill = GraphLegendPill(plot, sourceText, bottom);
+        DrawPill(context, sourcePill, sourceText, _palette.CardBackground, _palette.CurrentValue);
+        bottom = sourcePill.Top - _layout.GraphLegendGap;
+
+        if (curveText != null)
+        {
+            Rect curvePill = GraphLegendPill(plot, curveText, bottom);
+            DrawPill(context, curvePill, curveText, _palette.CardBackground, _palette.Curve);
+        }
     }
 
     private void DrawSelectedReadout(DrawingContext context, Rect plot)
@@ -426,10 +443,32 @@ public sealed class FanCurveEditor : Control
         FormattedText text = Text(textValue, 12.0, _palette.Curve, monospace: true);
         double width = text.Width + 12.0;
         double height = text.Height + 5.0;
-        Point anchor = _cursorPos ?? new Point(plot.Right, plot.Top);
-        double x = anchor.X > plot.Center.X ? plot.Left + 6.0 : plot.Right - width - 6.0;
-        Rect pill = new(x, plot.Top + 6.0, width, height);
+        double x = SelectedReadoutX(plot, width);
+        Rect pill = new(x, plot.Top + _layout.GraphLegendInset, width, height);
         DrawPill(context, pill, text, _palette.CardBackground, _palette.Curve);
+    }
+
+    /// <summary>
+    /// Sizes and right-aligns one graph legend pill above the requested bottom edge.
+    /// </summary>
+    private Rect GraphLegendPill(Rect plot, FormattedText text, double bottom)
+    {
+        double width = text.Width + 12.0;
+        double height = text.Height + 5.0;
+        return new Rect(plot.Right - width - _layout.GraphLegendInset, bottom - height, width, height);
+    }
+
+    /// <summary>
+    /// Places the selected-node readout, with the old auto-switch behavior kept disabled.
+    /// </summary>
+    private double SelectedReadoutX(Rect plot, double width)
+    {
+        if (!IsSelectedReadoutAutoSwitchEnabled) return plot.Left + _layout.GraphLegendInset;
+
+        Point anchor = _cursorPos ?? new Point(plot.Right, plot.Top);
+        return anchor.X > plot.Center.X
+            ? plot.Left + _layout.GraphLegendInset
+            : plot.Right - width - _layout.GraphLegendInset;
     }
 
     private CurveNode AddPoint(Point pos, Rect plot)
@@ -442,14 +481,16 @@ public sealed class FanCurveEditor : Control
         CurveNode? near = _curve.CurveNodes.FirstOrDefault(n => Math.Abs(n.X - x) <= snap);
         if (near != null)
         {
+            BeginGraphEdit();
             near.Y = y;
-            _curve.BumpVersion();
+            FinishGraphEdit();
             return near;
         }
 
+        BeginGraphEdit();
         CurveNode node = new(x, y);
         _curve.CurveNodes.Add(node);
-        _curve.BumpVersion();
+        FinishGraphEdit();
         return node;
     }
 
@@ -457,46 +498,52 @@ public sealed class FanCurveEditor : Control
     {
         if (_curve == null) return;
 
-        node.X = Math.Clamp(FromScreenX(pos.X, plot), XMinimum, XMaximum);
+        BeginGraphEdit();
+        node.X = ClampNodeXToNeighbours(node, FromScreenX(pos.X, plot));
         node.Y = Math.Clamp(FromScreenY(pos.Y, plot), YMinimum, YMaximum);
-        ClampNodeXSeparation(node);
-        _curve.BumpVersion();
+        FinishGraphEdit();
     }
 
     private void MoveSelected(double dx, double dy)
     {
         if (_curve == null || _selectedNode == null) return;
 
-        _selectedNode.X = Math.Clamp(_selectedNode.X + dx, XMinimum, XMaximum);
+        BeginGraphEdit();
+        _selectedNode.X = ClampNodeXToNeighbours(_selectedNode, _selectedNode.X + dx);
         _selectedNode.Y = Math.Clamp(_selectedNode.Y + dy, YMinimum, YMaximum);
-        ClampNodeXSeparation(_selectedNode);
-        _curve.BumpVersion();
+        FinishGraphEdit();
         InvalidateVisual();
         CurveChanged?.Invoke();
     }
 
-    private void ClampNodeXSeparation(CurveNode node)
+    /// <summary>
+    /// Clamps a dragged node against its original neighbors so it cannot cross them.
+    /// </summary>
+    private double ClampNodeXToNeighbours(CurveNode node, double desiredX)
     {
-        if (_curve == null || _curve.CurveNodes.Count < 2) return;
+        if (_curve == null || _curve.CurveNodes.Count < 2)
+            return Math.Clamp(desiredX, XMinimum, XMaximum);
+
         List<CurveNode> ordered = [.. _curve.CurveNodes.OrderBy(n => n.X)];
         int index = ordered.IndexOf(node);
-        if (index < 0) return;
+        if (index < 0) return Math.Clamp(desiredX, XMinimum, XMaximum);
 
         double gap = Math.Max(0.001, (XMaximum - XMinimum) * 0.001);
-        double x = node.X;
+        double x = Math.Clamp(desiredX, XMinimum, XMaximum);
         if (index > 0) x = Math.Max(x, ordered[index - 1].X + gap);
         if (index < ordered.Count - 1) x = Math.Min(x, ordered[index + 1].X - gap);
-        node.X = Math.Clamp(x, XMinimum, XMaximum);
+        return Math.Clamp(x, XMinimum, XMaximum);
     }
 
     private void DeletePointAt(Point pos, Rect plot)
     {
         if (_curve == null || _curve.CurveNodes.Count <= 2) return;
         if (!TryHitNode(pos, plot, out CurveNode? hit) || hit == null) return;
+        BeginGraphEdit();
         double removedX = hit.X;
         _curve.CurveNodes.Remove(hit);
         _selectedNode = PickNeighbourAfterRemoval(removedX);
-        _curve.BumpVersion();
+        FinishGraphEdit();
         InvalidateVisual();
         CurveChanged?.Invoke();
     }
@@ -504,10 +551,11 @@ public sealed class FanCurveEditor : Control
     private void DeleteSelected()
     {
         if (_curve == null || _selectedNode == null || _curve.CurveNodes.Count <= 2) return;
+        BeginGraphEdit();
         double removedX = _selectedNode.X;
         _curve.CurveNodes.Remove(_selectedNode);
         _selectedNode = PickNeighbourAfterRemoval(removedX);
-        _curve.BumpVersion();
+        FinishGraphEdit();
         InvalidateVisual();
         CurveChanged?.Invoke();
     }
@@ -516,6 +564,26 @@ public sealed class FanCurveEditor : Control
     {
         if (_curve == null || _curve.CurveNodes.Count == 0) return null;
         return _curve.CurveNodes.OrderBy(n => Math.Abs(n.X - removedX)).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Notifies the owner before hidden monotonic-preservation state can become stale.
+    /// </summary>
+    private void BeginGraphEdit() => GraphEditStarting?.Invoke();
+
+    /// <summary>
+    /// Commits graph edits without leaving hidden non-monotonic raw values behind.
+    /// </summary>
+    private void FinishGraphEdit()
+    {
+        if (_curve == null) return;
+        if (_curve.PreventDecreasing)
+        {
+            _curve.BurnInEffectiveNodes();
+            return;
+        }
+
+        _curve.BumpVersion();
     }
 
     private void UpdateHover(Point pos, Rect plot)
@@ -537,7 +605,7 @@ public sealed class FanCurveEditor : Control
         for (int i = nodes.Count - 1; i >= 0; i--)
         {
             Point center = PointFor(nodes[i], plot);
-            double radius = ThumbSize / 2.0 + ThumbHitPadding;
+            double radius = _layout.ThumbSize / 2.0 + _layout.ThumbHitPadding;
             if (Math.Abs(pos.X - center.X) <= radius && Math.Abs(pos.Y - center.Y) <= radius)
             {
                 hit = nodes[i].Raw;
@@ -575,9 +643,14 @@ public sealed class FanCurveEditor : Control
         if (_curve == null) return [];
         List<CurveNode> ordered = [.. _curve.CurveNodes.OrderBy(n => n.X)];
         List<DisplayNode> nodes = [];
-        double floor = double.NegativeInfinity;
-        foreach (CurveNode raw in ordered)
+        if (ordered.Count == 0) return nodes;
+
+        CurveNode first = ordered[0];
+        double floor = first.Y;
+        nodes.Add(new DisplayNode(first, first.X, Math.Clamp(first.Y, YMinimum, YMaximum)));
+        for (int i = 1; i < ordered.Count; i++)
         {
+            CurveNode raw = ordered[i];
             double y = raw.Y;
             if (_curve.PreventDecreasing)
             {
@@ -593,10 +666,10 @@ public sealed class FanCurveEditor : Control
 
     private Rect PlotRect()
     {
-        double left = CalculateYAxisGutterWidth() + PlotInsetX;
-        double right = Math.Max(left, Bounds.Width - PlotInsetX);
-        double top = PlotInsetY;
-        double bottom = Math.Max(top, Bounds.Height - XAxisHeight - PlotInsetY);
+        double left = CalculateYAxisGutterWidth() + _layout.PlotInsetX;
+        double right = Math.Max(left, Bounds.Width - _layout.PlotInsetX);
+        double top = _layout.PlotInsetY;
+        double bottom = Math.Max(top, Bounds.Height - _layout.XAxisHeight - _layout.PlotInsetY);
         return new Rect(left, top, Math.Max(0.0, right - left), Math.Max(0.0, bottom - top));
     }
 
@@ -606,20 +679,20 @@ public sealed class FanCurveEditor : Control
     private double CalculateYAxisGutterWidth()
     {
         double width = 0.0;
-        for (int i = 0; i <= VerticalGridDivisions; i++)
+        for (int i = 0; i <= _layout.VerticalGridDivisions; i++)
         {
-            FormattedText text = Text(FormatYAxisValue(YGridValue(i)), LabelFontSize, Colors.Transparent);
+            FormattedText text = Text(FormatYAxisValue(YGridValue(i)), _layout.LabelFontSize, Colors.Transparent);
             width = Math.Max(width, text.Width);
         }
 
-        return Math.Ceiling(width + YAxisLabelGap);
+        return Math.Ceiling(width + _layout.YAxisLabelGap);
     }
 
     /// <summary>
     /// Calculates the value for a Y-axis grid division.
     /// </summary>
     private double YGridValue(int index) =>
-        YMaximum - ((YMaximum - YMinimum) * index / VerticalGridDivisions);
+        YMaximum - ((YMaximum - YMinimum) * index / _layout.VerticalGridDivisions);
 
     private double XMinimum => _dataSource?.DisplayMinimum ?? 0.0;
 
@@ -660,8 +733,8 @@ public sealed class FanCurveEditor : Control
         double stroke = selected ? 1.5 : active ? 1.25 : 0.0;
         Pen? ring = stroke > 0.0 ? new Pen(Brush(_palette.Foreground), stroke) : null;
         double radius = stroke > 0.0
-            ? Math.Max(0.0, ThumbSize / 2.0 - stroke / 2.0)
-            : ThumbSize / 2.0;
+            ? Math.Max(0.0, _layout.ThumbSize / 2.0 - stroke / 2.0)
+            : _layout.ThumbSize / 2.0;
         context.DrawEllipse(Brush(fill), ring, center, radius, radius);
     }
 
@@ -919,5 +992,76 @@ public sealed class FanCurveEditor : Control
         double cap = 3.0 * Math.Abs(mEnd);
         if (Math.Abs(tangent) > cap) return mEnd >= 0.0 ? cap : -cap;
         return tangent;
+    }
+}
+
+/// <summary>
+/// Visual and interaction layout values for the fan curve editor graph.
+/// </summary>
+public readonly record struct FanCurveEditorLayout(
+    double YAxisLabelGap,
+    double XAxisHeight,
+    double PlotInsetX,
+    double PlotInsetY,
+    double ThumbSize,
+    double ThumbHitPadding,
+    double LabelFontSize,
+    int VerticalGridDivisions,
+    int HorizontalGridDivisions,
+    double KeyboardStepFinePixels,
+    double KeyboardStepCoarsePixels,
+    double MinimumMeasureWidth,
+    double MinimumMeasureHeight,
+    double DefaultMeasureWidth,
+    double DefaultMeasureHeight,
+    double GraphLegendInset,
+    double GraphLegendGap)
+{
+    /// <summary>
+    /// Provides safe fallback values when the graph is created without a window resource owner.
+    /// </summary>
+    public static FanCurveEditorLayout Default { get; } = new(
+        2.0,
+        24.0,
+        10.0,
+        8.0,
+        14.0,
+        7.0,
+        11.0,
+        5,
+        5,
+        1.0,
+        10.0,
+        360.0,
+        180.0,
+        540.0,
+        270.0,
+        6.0,
+        4.0);
+
+    /// <summary>
+    /// Reads graph editor tuning values from AXAML resources.
+    /// </summary>
+    public static FanCurveEditorLayout From(Control owner)
+    {
+        HotReloadResourceReader r = new(owner, "FanCurveEditor");
+        return new FanCurveEditorLayout(
+            r.Double("GraphYAxisLabelGap"),
+            r.Double("GraphXAxisHeight"),
+            r.Double("GraphPlotInsetX"),
+            r.Double("GraphPlotInsetY"),
+            r.Double("GraphThumbSize"),
+            r.Double("GraphThumbHitPadding"),
+            r.Double("GraphLabelFontSize"),
+            Math.Max(1, r.Int("GraphVerticalGridDivisions")),
+            Math.Max(1, r.Int("GraphHorizontalGridDivisions")),
+            r.Double("GraphKeyboardStepFinePixels"),
+            r.Double("GraphKeyboardStepCoarsePixels"),
+            r.Double("GraphMinimumMeasureWidth"),
+            r.Double("GraphMinimumMeasureHeight"),
+            r.Double("GraphDefaultMeasureWidth"),
+            r.Double("GraphDefaultMeasureHeight"),
+            r.Double("GraphLegendInset"),
+            r.Double("GraphLegendGap"));
     }
 }
