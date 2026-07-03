@@ -23,10 +23,12 @@ public sealed record SettingsPageDescriptor<TPageKey>(
 public abstract partial class SettingsWindowCommon<TPageKey> : Window
     where TPageKey : notnull
 {
-    private const double TitleBarHeight = 32.0;
-    private const double TitleBarDragZoneHeight = 72.0;
+    private const string SettingsResourcesUri = "avares://TrayAppDotNETCommon/UI/SettingsWindowCommon.axaml";
+    private const string CommonBindingsResourcesUri = "avares://TrayAppDotNETCommon/UI/CommonBindings.axaml";
 
     private ContentControl _content = new();
+    private readonly HotReloadResourceReader _settingsResources;
+    private readonly HotReloadResourceReader _commonBindingResources;
     private readonly Dictionary<TPageKey, Func<Control>> _pages = [];
     private readonly Dictionary<TPageKey, SettingsNavItem> _navItems = [];
     private readonly Dictionary<TPageKey, double> _pageScrollOffsets = [];
@@ -56,10 +58,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
-    protected virtual double SidebarWidth => 230;
+    protected virtual double SidebarWidth => _settingsResources.Double("DefaultSidebarWidth");
 
     protected SettingsWindowCommon()
     {
+        TrayAppDotNETAXAMLResources.Merge(this, SettingsResourcesUri);
+        TrayAppDotNETAXAMLResources.Merge(this, CommonBindingsResourcesUri);
+        _settingsResources = new HotReloadResourceReader(this, "SettingsWindow");
+        _commonBindingResources = new HotReloadResourceReader(this, "CommonBindings");
         _wndProcHook = WndProcHook;
         Opened += (_, _) => AttachWndProcHook();
         Closed += (_, _) => DetachWndProcHook();
@@ -162,9 +168,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected static string Loc(string key) => L(key, key);
 
-    protected CornerRadius RadiusTiny => new(EnableRoundedCorners ? 1.5 : 0);
-    protected CornerRadius RadiusMedium => new(EnableRoundedCorners ? 4 : 0);
-    protected CornerRadius RadiusLarge => new(EnableRoundedCorners ? 6 : 0);
+    protected CornerRadius RadiusTiny => RoundedCornerRadius("RadiusTiny");
+    protected CornerRadius RadiusMedium => RoundedCornerRadius("RadiusMedium");
+    protected CornerRadius RadiusLarge => RoundedCornerRadius("RadiusLarge");
 
     protected StackPanel PageStack(string title, SettingsPalette palette) =>
         TrayAppDotNETSettingsCards.PageStack(title, palette);
@@ -265,7 +271,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _navItems.Clear();
 
         Grid root = new();
-        root.RowDefinitions.Add(new RowDefinition(new GridLength(TitleBarHeight)));
+        root.RowDefinitions.Add(new RowDefinition(new GridLength(_settingsResources.Double("TitleBarHeight"))));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Grid body = new();
@@ -281,12 +287,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid.SetColumn(sidebar, 0);
         body.Children.Add(sidebar);
 
-        TextBlock header = TrayAppDotNETSettingsUI.Text(HeaderText, palette, 22, FontWeight.SemiBold);
-        header.Margin = new Thickness(24, 8, 20, 20);
+        TextBlock header = TrayAppDotNETSettingsUI.Text(
+            HeaderText,
+            palette,
+            _settingsResources.Double("HeaderFontSize"),
+            FontWeight.SemiBold);
+        header.Margin = _settingsResources.Thickness("HeaderMargin");
         Grid.SetRow(header, 0);
         sidebar.Children.Add(header);
 
-        StackPanel nav = new() { Margin = new Thickness(8, 0) };
+        StackPanel nav = new() { Margin = _settingsResources.Thickness("NavMargin") };
         foreach (SettingsPageDescriptor<TPageKey> page in CreatePageDescriptors())
         {
             _pages[page.Key] = page.BuildPage;
@@ -296,14 +306,17 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid.SetRow(nav, 1);
         sidebar.Children.Add(nav);
 
-        StackPanel footer = new() { Margin = new Thickness(8, 0, 8, 12) };
+        StackPanel footer = new() { Margin = _settingsResources.Thickness("FooterMargin") };
         SettingsNavAction folderButton = new(OpenSettingsFolderText, palette, RadiusTiny, RadiusMedium);
         folderButton.Click += (_, _) => TrayAppDotNETSettingsActions.OpenFolder(SettingsFolderPath);
         footer.Children.Add(folderButton);
         Grid.SetRow(footer, 2);
         sidebar.Children.Add(footer);
 
-        _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(_content, palette, new Thickness(24, 4, 30, 28));
+        _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
+            _content,
+            palette,
+            _settingsResources.Thickness("ScrollHostMargin"));
         Grid.SetColumn(_scrollHost, 1);
         body.Children.Add(_scrollHost);
 
@@ -317,14 +330,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid.SetRow(_confirmOverlay, 1);
         root.Children.Add(_confirmOverlay);
 
-        CornerRadius outerRadius = new(EnableRoundedCorners ? 8 : 0);
-        CornerRadius innerRadius = new(EnableRoundedCorners ? 7 : 0);
+        CornerRadius outerRadius = RoundedCornerRadius("OuterCornerRadius");
+        CornerRadius innerRadius = RoundedCornerRadius("InnerCornerRadius");
 
         return new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
+            BorderThickness = _settingsResources.Thickness("RootBorderThickness"),
             CornerRadius = outerRadius,
             ClipToBounds = false,
             Child = new Border
@@ -332,7 +345,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
                 CornerRadius = innerRadius,
                 ClipToBounds = EnableRoundedCorners,
-                Margin = new Thickness(1),
+                Margin = _settingsResources.Thickness("InnerBorderMargin"),
                 Child = root,
             },
         };
@@ -343,7 +356,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid titleBar = new()
         {
             Background = Brushes.Transparent,
-            Height = TitleBarDragZoneHeight,
+            Height = _settingsResources.Double("TitleBarDragZoneHeight"),
             VerticalAlignment = VerticalAlignment.Top,
         };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -383,15 +396,19 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         return titleBar;
     }
 
-    private static SettingsButton CaptionButton(string glyph, SettingsPalette palette, bool closeButton = false)
+    private SettingsButton CaptionButton(string glyph, SettingsPalette palette, bool closeButton = false)
     {
         SettingsButton button = new(glyph, palette, transparentBase: true)
         {
-            Width = 46,
-            Height = TitleBarHeight,
-            CornerRadius = new CornerRadius(0),
-            Padding = new Thickness(0),
-            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = 10 }
+            Width = _settingsResources.Double("CaptionButtonWidth"),
+            Height = _settingsResources.Double("TitleBarHeight"),
+            CornerRadius = _settingsResources.CornerRadius("ZeroCornerRadius"),
+            Padding = _settingsResources.Thickness("ZeroThickness"),
+            Label =
+            {
+                FontFamily = TrayAppDotNETSettingsUI.IconFont,
+                FontSize = _settingsResources.Double("CaptionButtonGlyphFontSize"),
+            }
         };
         if (closeButton)
         {
@@ -438,9 +455,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         PixelRect workArea = Screens.Primary?.WorkingArea
                              ?? Screens.ScreenFromPoint(Position)?.WorkingArea
-                             ?? new PixelRect(0, 0, 1920, 1080);
-        int width = Math.Max(1, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
-        int height = Math.Max(1, (int)Math.Ceiling(Math.Max(Bounds.Height, Height) * RenderScaling));
+                             ?? new PixelRect(
+                                 _settingsResources.Int("FallbackWorkAreaX"),
+                                 _settingsResources.Int("FallbackWorkAreaY"),
+                                 _settingsResources.Int("FallbackWorkAreaWidth"),
+                                 _settingsResources.Int("FallbackWorkAreaHeight"));
+        int pixelMinSize = _settingsResources.Int("PixelMinSize");
+        int width = Math.Max(pixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
+        int height = Math.Max(pixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, Height) * RenderScaling));
         int left = workArea.X + Math.Max(0, workArea.Width - width) / 2;
         int top = workArea.Y + Math.Max(0, workArea.Height - height) / 2;
 
@@ -513,19 +535,19 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmTitle = TrayAppDotNETSettingsUI.Text(
             L("SettingsWindow_ConfirmOverlay_DefaultTitle", "Confirm"),
             palette,
-            16,
+            _settingsResources.Double("ConfirmTitleFontSize"),
             FontWeight.SemiBold);
         _confirmTitle.TextWrapping = TextWrapping.Wrap;
-        _confirmTitle.Margin = new Thickness(0, 0, 0, 8);
+        _confirmTitle.Margin = _settingsResources.Thickness("ConfirmTitleMargin");
         _confirmMessage = TrayAppDotNETSettingsUI.DescriptionText(
             L("SettingsWindow_ConfirmOverlay_DefaultMessage", string.Empty),
             palette,
-            new Thickness(0, 0, 0, 16));
+            _settingsResources.Thickness("ConfirmMessageMargin"));
         _confirmOk = Button(L("SettingsWindow_ConfirmOverlay_Confirm", "Confirm"), palette);
         _confirmCancel = Button(L("SettingsWindow_ConfirmOverlay_Cancel", "Cancel"), palette);
-        _confirmCancel.Margin = new Thickness(0, 0, 8, 0);
-        _confirmOk.MinWidth = 96;
-        _confirmCancel.MinWidth = 96;
+        _confirmCancel.Margin = _settingsResources.Thickness("ConfirmCancelMargin");
+        _confirmOk.MinWidth = _settingsResources.Double("ConfirmButtonMinWidth");
+        _confirmCancel.MinWidth = _settingsResources.Double("ConfirmButtonMinWidth");
         _confirmOk.Click += (_, _) => CompleteConfirm(true);
         _confirmCancel.Click += (_, _) => CompleteConfirm(false);
 
@@ -540,11 +562,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.CardBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
+            BorderThickness = _settingsResources.Thickness("ConfirmDialogBorderThickness"),
             CornerRadius = RadiusLarge,
-            Padding = new Thickness(24),
-            MinWidth = 360,
-            MaxWidth = 460,
+            Padding = _settingsResources.Thickness("ConfirmDialogPadding"),
+            MinWidth = _settingsResources.Double("ConfirmDialogMinWidth"),
+            MaxWidth = _settingsResources.Double("ConfirmDialogMaxWidth"),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Child = new StackPanel { Children = { _confirmTitle, _confirmMessage, buttons } },
@@ -583,4 +605,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         handled = true;
         return new IntPtr(User32.MA_ACTIVATE);
     }
+
+    private CornerRadius RoundedCornerRadius(string resourceName) =>
+        EnableRoundedCorners
+            ? _settingsResources.CornerRadius(resourceName)
+            : _settingsResources.CornerRadius("ZeroCornerRadius");
 }

@@ -56,8 +56,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         Action? afterSave = null)
     {
         Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(76)));
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(76)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
+        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
 
         if (leftValue.HasValue && setLeft != null)
         {
@@ -91,16 +91,16 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         return Card(title, description, row, palette);
     }
 
-    protected static Grid PairColumnHeader(string title, SettingsPalette palette)
+    protected Grid PairColumnHeader(string title, SettingsPalette palette)
     {
-        Grid grid = new() { Margin = new Thickness(0, 16, 16, 8) };
+        Grid grid = new() { Margin = _commonBindingResources.Thickness("PairHeaderMargin") };
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(152)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairHeaderWidth"))));
         grid.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(title, palette));
 
         Grid pair = new();
-        pair.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(76)));
-        pair.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(76)));
+        pair.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
+        pair.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
         TextBlock playback = TrayAppDotNETSettingsUI.DescriptionText(Loc("Settings_Common_Playback"), palette);
         TextBlock recording = TrayAppDotNETSettingsUI.DescriptionText(Loc("Settings_Common_Recording"), palette);
         playback.FontWeight = FontWeight.SemiBold;
