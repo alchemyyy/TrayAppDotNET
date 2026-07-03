@@ -772,8 +772,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _brightnessFlyout,
-            () => ShowBrightnessFlyout(activate: false));
+            () => _brightnessFlyout);
 
     private void OnBrightnessFlyoutClosed(object? sender, EventArgs e)
     {

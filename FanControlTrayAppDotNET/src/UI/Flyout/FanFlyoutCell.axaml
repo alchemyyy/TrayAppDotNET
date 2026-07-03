@@ -4,5 +4,6 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <sys:Int32 x:Key="FanFlyoutCell.GroupDisplayedValueWidth">44</sys:Int32>
+    <sys:Int32 x:Key="FanFlyoutCell.GroupRPMDisplayedValueWidth">84</sys:Int32>
     <sys:Int32 x:Key="FanFlyoutCell.GroupSliderMaximumValue">100</sys:Int32>
 </ResourceDictionary>

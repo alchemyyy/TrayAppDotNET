@@ -36,9 +36,9 @@ public class Fan : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private const int DutyCycleDisplayedValueWidth = 44;
-    private const int RPMDisplayedValueWidth = 64;
+    private const int RPMDisplayedValueWidth = 84;
     private const string DutyCycleDisplayedValueSuffix = "%";
-    private const string RPMDisplayedValueSuffix = "";
+    private const string RPMDisplayedValueSuffix = " RPM";
 
     // When true, all speed properties on this fan (Clamps, Warns, FanDisplayedValue, StartupSpeed)
     // are interpreted as RPM. When false, they're duty cycle %. Flipping this flag should
@@ -215,6 +215,9 @@ public class Fan : INotifyPropertyChanged
             string normalized = value ?? string.Empty;
             if (field == normalized) return;
             field = normalized;
+            Curve? curve = Curve.Find(normalized);
+            if (curve != null)
+                RPMMode = curve.RPMMode;
             OnPropertyChanged();
             OnPropertyChanged(nameof(AssignedCurve));
             OnPropertyChanged(nameof(AssignedCurveDisplayLabel));
