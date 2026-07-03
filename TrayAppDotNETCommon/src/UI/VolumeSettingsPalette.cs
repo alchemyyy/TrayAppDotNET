@@ -23,6 +23,8 @@ public static class VolumeSettingsPalette
             resolvedTheme.ToggleSwitchOnTrack.For(isLight),
             resolvedTheme.ToggleSwitchOnThumb.For(isLight),
             resolvedTheme.TextBoxFocused.For(isLight),
+            resolvedTheme.SearchListItemSelected.For(isLight),
+            resolvedTheme.SearchListItemHover.For(isLight),
             resolvedTheme.SliderProgress.For(isLight),
             resolvedTheme.SliderTrack.For(isLight),
             resolvedTheme.SliderThumb.For(isLight),

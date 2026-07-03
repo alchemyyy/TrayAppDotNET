@@ -3186,6 +3186,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             palette.SliderProgress,
             palette.SliderThumb,
             palette.Border,
+            palette.SliderThumb,
+            palette.SliderTrack,
             palette.SliderProgress,
             palette.SliderTrack,
             palette.SliderThumb,

@@ -26,6 +26,8 @@ public readonly record struct SettingsPalette(
     Color ToggleOnTrack,
     Color ToggleOnThumb,
     Color TextBoxFocused,
+    Color SearchListItemSelected,
+    Color SearchListItemHover,
     Color SliderProgress,
     Color SliderTrack,
     Color SliderThumb,
@@ -573,6 +575,8 @@ public sealed class SettingsScrollHost : Grid
     }
 
     public double VerticalOffset => _scrollViewer.Offset.Y;
+
+    public double ViewportHeight => _scrollViewer.Viewport.Height;
 
     public void SetVerticalOffset(double offset)
     {
