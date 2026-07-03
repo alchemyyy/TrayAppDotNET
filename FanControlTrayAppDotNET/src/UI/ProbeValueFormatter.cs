@@ -8,6 +8,9 @@ namespace FanControlTrayAppDotNET.UI;
 /// </summary>
 internal static class ProbeValueFormatter
 {
+    private const string DecimalProbeValueFormat = "0.00";
+    private const string TruncatedProbeValueFormat = "0";
+
     /// <summary>
     /// Returns true when the data source belongs in the probe selector tabs.
     /// </summary>
@@ -34,10 +37,15 @@ internal static class ProbeValueFormatter
     /// <summary>
     /// Formats a probe value after applying its optional NCalc transform.
     /// </summary>
-    public static string FormatValue(DataSource source, ProbeCardProbe? probe)
+    public static string FormatValue(DataSource source, ProbeCardProbe? probe, bool truncate = false)
     {
         double value = TransformValue(source.DisplayValue, probe?.TransformString);
-        string formatted = value.ToString("0.##", CultureInfo.InvariantCulture);
+        if (truncate)
+            value = Math.Round(value, MidpointRounding.AwayFromZero);
+
+        string formatted = value.ToString(
+            truncate ? TruncatedProbeValueFormat : DecimalProbeValueFormat,
+            CultureInfo.InvariantCulture);
         string unit = source.DisplayUnit;
         return string.IsNullOrWhiteSpace(unit) ? formatted : $"{formatted} {unit}";
     }

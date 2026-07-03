@@ -70,6 +70,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private Control? _dragSourceTopLevelControl;
     private Fan? _draggedFan;
     private FanFlyoutCell? _draggedGroupCell;
+    private ProbeCard? _draggedProbeCard;
     private FanFlyoutCell? _dragSourceCell;
     private FanDragPlacement _dragPlacement = FanDragPlacement.None;
     internal FanDragEvaluation? LastDragEvaluation { get; private set; }
@@ -564,37 +565,45 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// <summary>
     /// Builds a flyout card that displays selected probe values.
     /// </summary>
-    private Border BuildProbeCard(ProbeCard probeCard, FlyoutControlPalette p, AppTheme theme, bool isLight)
+    private Border BuildProbeCard(
+        ProbeCard probeCard,
+        FlyoutControlPalette p,
+        AppTheme theme,
+        bool isLight,
+        bool interactive = true)
     {
+        DeviceNicknameResolver nicknameResolver = DeviceNicknameResolver.Create(_settings);
+        ProbeNicknameResolver probeNicknameResolver = ProbeNicknameResolver.Create(_settings);
         StackPanel content = new() { Spacing = 0 };
         content.Children.Add(BuildProbeHeader(probeCard, p));
 
-        StackPanel rows = new()
+        if (!probeCard.IsCollapsed)
         {
-            Margin = Layout.ProbeRowsMargin,
-        };
+            StackPanel rows = new()
+            {
+                Margin = Layout.ProbeRowsMargin,
+            };
 
-        List<ProbeCardProbe> selectedProbes =
-        [
-            .. probeCard.Probes
-                .Where(static probe => !string.IsNullOrWhiteSpace(probe.DataSourceKey))
-                .OrderBy(probe => ProbeSortLabel(DataSource.Find(probe.DataSourceKey), probe),
-                    StringComparer.OrdinalIgnoreCase)
-        ];
-        if (selectedProbes.Count == 0)
-        {
-            TextBlock empty = TrayAppDotNETFlyoutUI.Text("No probes selected", p, Layout.ProbeEmptyFontSize,
-                color: p.SecondaryForeground);
-            empty.Opacity = Layout.ProbeEmptyOpacity;
-            rows.Children.Add(empty);
-        }
-        else
-        {
-            foreach (ProbeCardProbe probe in selectedProbes)
-                rows.Children.Add(BuildProbeRow(probeCard, probe, p));
-        }
+            List<ProbeCardProbe> selectedProbes =
+            [
+                .. probeCard.Probes
+                    .Where(static probe => probe.IsSelected && !string.IsNullOrWhiteSpace(probe.DataSourceKey))
+            ];
+            if (selectedProbes.Count == 0)
+            {
+                TextBlock empty = TrayAppDotNETFlyoutUI.Text("No probes selected", p, Layout.ProbeEmptyFontSize,
+                    color: p.SecondaryForeground);
+                empty.Opacity = Layout.ProbeEmptyOpacity;
+                rows.Children.Add(empty);
+            }
+            else
+            {
+                foreach (ProbeCardProbe probe in selectedProbes)
+                    rows.Children.Add(BuildProbeRow(probeCard, probe, p, nicknameResolver, probeNicknameResolver));
+            }
 
-        content.Children.Add(rows);
+            content.Children.Add(rows);
+        }
 
         Thickness borderThickness = _settings.EnableCardBorders ? Layout.CardBorderThickness : Layout.ZeroThickness;
         Border card = TrayAppDotNETFlyoutUI.Card(
@@ -609,6 +618,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
             borderThickness);
         card.Tag = probeCard;
+        if (interactive)
+            WireProbeDrag(card, probeCard);
         return card;
     }
 
@@ -625,6 +636,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
             },
         };
 
@@ -662,13 +675,34 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         nameStack.Children.Add(nameGrid);
         Grid.SetColumn(nameStack, 1);
         row.Children.Add(nameStack);
+
+        Border expand = TrayAppDotNETFlyoutUI.IconButton(ProbeExpansionGlyph(probeCard), p, _ =>
+            {
+                probeCard.IsCollapsed = !probeCard.IsCollapsed;
+                SaveProbeCardChanges();
+                RebuildVisual();
+            }, Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupExpandFontSize,
+            margin: Layout.GroupHeaderButtonMargin, tooltip: ProbeExpansionTooltip(probeCard));
+        Grid.SetColumn(expand, 2);
+        row.Children.Add(expand);
+
+        Border delete = TrayAppDotNETFlyoutUI.IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteProbeCardAsync(probeCard),
+            Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
+            margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete probe card");
+        Grid.SetColumn(delete, 3);
+        row.Children.Add(delete);
         return row;
     }
 
     /// <summary>
     /// Builds one selected-probe row for a probe card.
     /// </summary>
-    private Grid BuildProbeRow(ProbeCard probeCard, ProbeCardProbe probe, FlyoutControlPalette p)
+    private Grid BuildProbeRow(
+        ProbeCard probeCard,
+        ProbeCardProbe probe,
+        FlyoutControlPalette p,
+        DeviceNicknameResolver nicknameResolver,
+        ProbeNicknameResolver probeNicknameResolver)
     {
         DataSource? source = DataSource.Find(probe.DataSourceKey);
         Grid row = new()
@@ -691,17 +725,28 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             p,
             Layout.ProbeRowGlyphFontSize);
         glyph.Width = Layout.ProbeRowGlyphWidth;
+
+        //TODO: Move this hack to its own layer its currently repeated everywhere I need it
+        if (source?.DataSourceType == DataSourceTypeEnum.Load)
+        {
+            glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
+        }
         glyph.VerticalAlignment = VerticalAlignment.Center;
         labelRow.Children.Add(glyph);
 
-        TextBlock label = TrayAppDotNETFlyoutUI.Text($"{ProbeLabel(source, probe)}: ", p,
+        TextBlock label = TrayAppDotNETFlyoutUI.Text(
+            $"{ProbeLabel(source, probe, nicknameResolver, probeNicknameResolver)}: ",
+            p,
             Layout.ProbeRowTextFontSize);
         label.TextTrimming = TextTrimming.CharacterEllipsis;
         label.VerticalAlignment = VerticalAlignment.Center;
         labelRow.Children.Add(label);
         row.Children.Add(labelRow);
 
-        TextBlock value = TrayAppDotNETFlyoutUI.Text(ProbeValue(source, probe), p, Layout.ProbeRowTextFontSize);
+        TextBlock value = TrayAppDotNETFlyoutUI.Text(
+            ProbeValue(source, probe),
+            p,
+            Layout.ProbeRowTextFontSize);
         value.HorizontalAlignment = HorizontalAlignment.Right;
         value.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(value, 1);
@@ -1159,23 +1204,45 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// <summary>
     /// Resolves the label shown for a probe source.
     /// </summary>
-    private static string ProbeLabel(DataSource? source, ProbeCardProbe probe)
+    private static string ProbeLabel(
+        DataSource? source,
+        ProbeCardProbe probe,
+        DeviceNicknameResolver nicknameResolver,
+        ProbeNicknameResolver probeNicknameResolver)
     {
         if (source == null) return probe.DataSourceKey;
-        return $"{source.ControllerName} {source.DisplayName}".Trim();
+        return $"{nicknameResolver.Resolve(source)} {probeNicknameResolver.Resolve(source.DisplayName)}".Trim();
     }
 
     /// <summary>
     /// Resolves the value text shown for a probe source.
     /// </summary>
     private static string ProbeValue(DataSource? source, ProbeCardProbe probe) =>
-        source == null ? "--" : ProbeValueFormatter.FormatValue(source, probe);
+        source == null ? "--" : ProbeValueFormatter.FormatValue(source, probe, probe.TruncateValue);
+
+    /// <summary>
+    /// Resolves the probe-card drawer expansion glyph.
+    /// </summary>
+    private static string ProbeExpansionGlyph(ProbeCard probeCard) =>
+        probeCard.IsCollapsed ? GlyphCatalog.COLLAPSED : GlyphCatalog.EXPANDED;
+
+    /// <summary>
+    /// Resolves the probe-card drawer expansion tooltip.
+    /// </summary>
+    private static string ProbeExpansionTooltip(ProbeCard probeCard) =>
+        probeCard.IsCollapsed ? "Expand probe card" : "Collapse probe card";
 
     /// <summary>
     /// Resolves a stable sort label for selected probes.
     /// </summary>
-    private static string ProbeSortLabel(DataSource? source, ProbeCardProbe probe) =>
-        source == null ? probe.DataSourceKey : $"{source.ControllerName}.{source.DisplayName}";
+    private static string ProbeSortLabel(
+        DataSource? source,
+        ProbeCardProbe probe,
+        DeviceNicknameResolver nicknameResolver,
+        ProbeNicknameResolver probeNicknameResolver) =>
+        source == null
+            ? probe.DataSourceKey
+            : $"{nicknameResolver.Resolve(source)}.{probeNicknameResolver.Resolve(source.DisplayName)}";
 
     private void RefreshFanRowVisuals(Fan fan, string? propertyName)
     {
@@ -1689,6 +1756,34 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _pendingFanRebuild = false;
     }
 
+    /// <summary>
+    /// Confirms and removes a probe card from the flyout.
+    /// </summary>
+    private async Task DeleteProbeCardAsync(ProbeCard probeCard)
+    {
+        bool ok = await ConfirmAsync(
+            L("Flyout_DeleteProbeCard_Title", "Delete probe card"),
+            string.Format(
+                CultureInfo.CurrentCulture,
+                L("Flyout_DeleteProbeCard_MessageFormat", "Delete {0}?"),
+                probeCard.DisplayName),
+            L("Flyout_DeleteGroup_Confirm", "Delete"),
+            L("SettingsWindow_ConfirmOverlay_Cancel", "Cancel"));
+        if (!ok) return;
+
+        if (_probeSelectorWindows.TryGetValue(probeCard, out ProbeDataSelectorWindow? selector))
+        {
+            selector.Close();
+            _probeSelectorWindows.Remove(probeCard);
+        }
+
+        _probeCards.Remove(probeCard);
+        _probeRowRefs.Remove(probeCard);
+        SaveProbeCardChanges();
+        RebuildVisual();
+        QueuePositionNearTray();
+    }
+
     private Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
     {
         _confirmTcs?.TrySetResult(false);
@@ -1957,6 +2052,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
             _draggedFan = fan;
             _draggedGroupCell = null;
+            _draggedProbeCard = null;
             _dragSourceControl = row;
             _dragStart = e.GetPosition(_cellStack);
             _dragPointerOffsetY = e.GetPosition(row).Y;
@@ -1979,6 +2075,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             if (!e.GetCurrentPoint(root).Properties.IsLeftButtonPressed) return;
             _draggedGroupCell = cell;
             _draggedFan = null;
+            _draggedProbeCard = null;
             _dragSourceControl = root;
             _dragStart = e.GetPosition(_cellStack);
             _dragPointerOffsetY = e.GetPosition(root).Y;
@@ -1986,6 +2083,32 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             e.Handled = true;
         };
         root.PointerMoved += (_, e) => UpdateGroupDrag(root, e);
+        root.PointerReleased += (_, e) => CompleteDrag(e.Pointer, e.GetPosition(_cellStack));
+        root.PointerCaptureLost += (_, _) =>
+        {
+            if (!_isCompletingDrag) CancelDrag();
+        };
+    }
+
+    /// <summary>
+    /// Wires a probe card for top-level drag reordering.
+    /// </summary>
+    private void WireProbeDrag(Control root, ProbeCard probeCard)
+    {
+        root.PointerPressed += (_, e) =>
+        {
+            if (IsInteractiveCardDragSource(e.Source as Visual, root)) return;
+            if (!e.GetCurrentPoint(root).Properties.IsLeftButtonPressed) return;
+            _draggedProbeCard = probeCard;
+            _draggedFan = null;
+            _draggedGroupCell = null;
+            _dragSourceControl = root;
+            _dragStart = e.GetPosition(_cellStack);
+            _dragPointerOffsetY = e.GetPosition(root).Y;
+            e.Pointer.Capture(root);
+            e.Handled = true;
+        };
+        root.PointerMoved += (_, e) => UpdateProbeDrag(root, e);
         root.PointerReleased += (_, e) => CompleteDrag(e.Pointer, e.GetPosition(_cellStack));
         root.PointerCaptureLost += (_, _) =>
         {
@@ -2020,6 +2143,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void UpdateGroupDrag(Control source, PointerEventArgs e)
     {
         if (_draggedGroupCell == null || _cellStack == null) return;
+        Point current = e.GetPosition(_cellStack);
+        if (_dragGhost == null && Math.Abs(current.Y - _dragStart.Y) < Layout.DragThreshold) return;
+        EnsureDragGhost(source, current);
+        UpdateDragPreview(current);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Updates probe-card top-level drag state.
+    /// </summary>
+    private void UpdateProbeDrag(Control source, PointerEventArgs e)
+    {
+        if (_draggedProbeCard == null || _cellStack == null) return;
         Point current = e.GetPosition(_cellStack);
         if (_dragGhost == null && Math.Abs(current.Y - _dragStart.Y) < Layout.DragThreshold) return;
         EnsureDragGhost(source, current);
@@ -2095,6 +2231,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 palette, grouped: true, interactive: false);
         }
 
+        if (_draggedProbeCard != null && style == FanDragGhostStyle.Probe)
+            return BuildProbeCard(_draggedProbeCard, palette, theme, isLight, interactive: false);
+
         return _draggedGroupCell != null
             ? BuildCell(_draggedGroupCell, palette, theme, isLight, interactive: false)
             : new Border { Width = source.Bounds.Width, Height = source.Bounds.Height };
@@ -2116,6 +2255,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private FanDragGhostStyle ResolveDragGhostStyle(FanDragPlacement placement)
     {
         if (_draggedGroupCell != null) return FanDragGhostStyle.Group;
+        if (_draggedProbeCard != null) return FanDragGhostStyle.Probe;
         if (_draggedFan == null) return FanDragGhostStyle.None;
 
         return placement.Kind switch
@@ -2243,20 +2383,29 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragFanSlots.Clear();
         if (_cellStack == null) return;
 
-        List<(FanFlyoutCell Cell, Control Visual, double Top, double Height, double GroupInsertionTop,
-            double GroupDropBottom)> snapshot = [];
+        List<(FanFlyoutCell Cell, ProbeCard? ProbeCard, Control Visual, double Top, double Height,
+            double GroupInsertionTop, double GroupDropBottom)> snapshot = [];
         foreach (Control visual in _cellStack.Children)
         {
-            if (visual.Tag is not FanFlyoutCell cell) continue;
+            FanFlyoutCell? cell = visual.Tag switch
+            {
+                FanFlyoutCell fanCell => fanCell,
+                ProbeCard _ when _draggedProbeCard != null => new FanFlyoutCell(null, []),
+                _ => null,
+            };
+            if (cell == null) continue;
+
+            ProbeCard? probeCard = visual.Tag as ProbeCard;
             Point? top = visual.TranslatePoint(new Point(0, 0), _cellStack);
             if (top == null) continue;
             double renderOffsetY = RenderTransformOffsetY(visual);
             double naturalTop = top.Value.Y - renderOffsetY;
             double height = Math.Max(1, visual.Bounds.Height);
-            snapshot.Add((cell, visual, naturalTop, height,
+            snapshot.Add((cell, probeCard, visual, naturalTop, height,
                 ResolveGroupInsertionTop(cell, naturalTop, height, renderOffsetY),
                 ResolveGroupDropBottom(cell, visual, naturalTop, height)));
-            SnapshotFanRows(cell, visual, renderOffsetY);
+            if (probeCard == null)
+                SnapshotFanRows(cell, visual, renderOffsetY);
         }
 
         for (int i = 0; i < snapshot.Count; i++)
@@ -2264,8 +2413,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             double slotHeight = i < snapshot.Count - 1
                 ? Math.Max(snapshot[i].Height, snapshot[i + 1].Top - snapshot[i].Top)
                 : snapshot[i].Height + Math.Max(0, snapshot[i].Visual.Margin.Bottom);
-            _dragSlots.Add(new FanDragSlot(snapshot[i].Cell, snapshot[i].Visual, snapshot[i].Top, snapshot[i].Height,
-                slotHeight, snapshot[i].GroupInsertionTop, snapshot[i].GroupDropBottom));
+            _dragSlots.Add(new FanDragSlot(snapshot[i].Cell, snapshot[i].Visual, snapshot[i].Top,
+                snapshot[i].Height, slotHeight, snapshot[i].GroupInsertionTop, snapshot[i].GroupDropBottom,
+                snapshot[i].ProbeCard));
         }
     }
 
@@ -2363,11 +2513,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void ResolveDragSourceLayout(Control source)
     {
-        _dragSourceCell = _draggedGroupCell ?? (_draggedFan == null ? null : FindCellContainingFan(_draggedFan));
+        _dragSourceCell = _draggedProbeCard != null
+            ? null
+            : _draggedGroupCell ?? (_draggedFan == null ? null : FindCellContainingFan(_draggedFan));
         _dragSourceTopLevelIndex = -1;
         _dragSourceTopLevelControl = null;
 
-        if (_dragSourceCell != null)
+        if (_draggedProbeCard != null)
+        {
+            _dragSourceTopLevelIndex = IndexOfProbeDragSlot(_draggedProbeCard);
+            if (_dragSourceTopLevelIndex >= 0)
+                _dragSourceTopLevelControl = _dragSlots[_dragSourceTopLevelIndex].Visual;
+        }
+        else if (_dragSourceCell != null)
         {
             _dragSourceTopLevelIndex = IndexOfDragSlot(_dragSourceCell);
             if (_dragSourceTopLevelIndex >= 0)
@@ -2417,6 +2575,20 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         => FanDragEngine.IsSameGroup(left, right);
 
     private int IndexOfDragSlot(FanFlyoutCell cell) => FanDragEngine.IndexOfDragSlot(CreateDragSnapshot(), cell);
+
+    /// <summary>
+    /// Resolves the top-level drag slot for a probe card.
+    /// </summary>
+    private int IndexOfProbeDragSlot(ProbeCard probeCard)
+    {
+        for (int i = 0; i < _dragSlots.Count; i++)
+        {
+            if (ReferenceEquals(_dragSlots[i].ProbeCard, probeCard))
+                return i;
+        }
+
+        return -1;
+    }
 
     private void SetDragSourceOpacity(double opacity)
     {
@@ -2727,9 +2899,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         if (!EnableFanDragInstrumentation) return;
         if (_dragInstrumentation.IsActive) return;
 
-        string sourceKind = _draggedFan != null ? "fan" : _draggedGroupCell != null ? "group" : "unknown";
+        string sourceKind = _draggedFan != null
+            ? "fan"
+            : _draggedGroupCell != null
+                ? "group"
+                : _draggedProbeCard != null
+                    ? "probe"
+                    : "unknown";
         string sourceName = _draggedFan?.DisplayName
                             ?? _draggedGroupCell?.GroupName
+                            ?? _draggedProbeCard?.DisplayName
                             ?? DragInstrumentationCellLabel(_dragSourceCell)
                             ?? "<unknown>";
         _dragInstrumentation.Begin(new FanDragInstrumentationStart(
@@ -2780,8 +2959,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             double renderOffsetY = RenderTransformOffsetY(slot.Visual);
             slots.Add(new FanDragInstrumentationSlot(
                 i,
-                slot.Cell.HasGroupHeader ? "group" : "fan",
-                DragInstrumentationCellLabel(slot.Cell) ?? "<unknown>",
+                slot.ProbeCard != null ? "probe" : slot.Cell.HasGroupHeader ? "group" : "fan",
+                slot.ProbeCard?.DisplayName ?? DragInstrumentationCellLabel(slot.Cell) ?? "<unknown>",
                 slot.Top,
                 slot.Top + renderOffsetY,
                 slot.Height,
@@ -2827,6 +3006,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private bool IsDragInstrumentationSource(FanDragSlot slot)
     {
+        if (_draggedProbeCard != null)
+            return ReferenceEquals(slot.ProbeCard, _draggedProbeCard);
         if (_dragSourceTopLevelControl != null)
             return ReferenceEquals(slot.Visual, _dragSourceTopLevelControl);
         if (_dragSourceCell == null) return false;
@@ -2900,6 +3081,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             if (_draggedFan != null) ApplyFanDrop(_draggedFan, _dragPlacement);
             else if (_draggedGroupCell != null) ApplyGroupDrop(_draggedGroupCell, _dragPlacement.TopLevelIndex);
+            else if (_draggedProbeCard != null) ApplyProbeDrop(_draggedProbeCard, _dragPlacement.TopLevelIndex);
             _dragInstrumentation.End("complete");
             pointer.Capture(null);
         }
@@ -2941,6 +3123,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragSourceTopLevelControl = null;
         _draggedFan = null;
         _draggedGroupCell = null;
+        _draggedProbeCard = null;
         _dragSourceCell = null;
         _dragPlacement = FanDragPlacement.None;
         LastDragEvaluation = null;
@@ -3015,6 +3198,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         SaveGroupChanges();
     }
 
+    /// <summary>
+    /// Applies a top-level drop for a probe card.
+    /// </summary>
+    private void ApplyProbeDrop(ProbeCard probeCard, int targetIndex)
+    {
+        List<FlyoutTopLevelItem> ordered = [.. BuildTopLevelOrder()
+            .Where(item => !ReferenceEquals(item.ProbeCard, probeCard))];
+        ordered.Insert(Math.Clamp(targetIndex, 0, ordered.Count), FlyoutTopLevelItem.Probe(probeCard));
+        ApplyTopLevelDisplayOrder(ordered);
+        SaveGroupChanges();
+        SaveProbeCardChanges();
+    }
+
     private void ApplyTopLevelDisplayOrder(IEnumerable<FanFlyoutCell> orderedCells)
     {
         _suppressFanRebuild = true;
@@ -3042,6 +3238,77 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             _suppressFanRebuild = false;
         }
+    }
+
+    /// <summary>
+    /// Applies display order across fan/group/probe top-level cards.
+    /// </summary>
+    private void ApplyTopLevelDisplayOrder(IEnumerable<FlyoutTopLevelItem> orderedItems)
+    {
+        _suppressFanRebuild = true;
+        try
+        {
+            _groupNames.Clear();
+            _probeCards.Clear();
+            int index = 0;
+            foreach (FlyoutTopLevelItem item in orderedItems)
+            {
+                if (item.ProbeCard != null)
+                {
+                    item.ProbeCard.DisplayOrder = index++;
+                    _probeCards.Add(item.ProbeCard);
+                    continue;
+                }
+
+                FanFlyoutCell? cell = item.Cell;
+                if (cell == null) continue;
+                if (cell.HasGroupHeader)
+                {
+                    if (cell.GroupName == null) continue;
+                    FanGroup group = GetOrCreateGroupSettings(cell.GroupName);
+                    group.DisplayOrder = index++;
+                    if (!_groupNames.Any(g => string.Equals(g, cell.GroupName, StringComparison.OrdinalIgnoreCase)))
+                        _groupNames.Add(cell.GroupName);
+                    continue;
+                }
+
+                if (cell.Fans.Count == 1)
+                    cell.Fans[0].FlyoutDisplayOrder = index++;
+            }
+        }
+        finally
+        {
+            _suppressFanRebuild = false;
+        }
+    }
+
+    /// <summary>
+    /// Builds current top-level visual order without creating controls.
+    /// </summary>
+    private List<FlyoutTopLevelItem> BuildTopLevelOrder()
+    {
+        List<(FlyoutTopLevelItem Item, int Order, int Sequence, string Tie)> slots = [];
+        int sequence = 0;
+        foreach (FanFlyoutCell cell in _cells)
+        {
+            slots.Add((FlyoutTopLevelItem.FanCell(cell), NormalizeDisplayOrder(ResolveCellDisplayOrder(cell)),
+                sequence++, ResolveCellTie(cell)));
+        }
+
+        foreach (ProbeCard probeCard in _probeCards)
+        {
+            slots.Add((FlyoutTopLevelItem.Probe(probeCard), NormalizeDisplayOrder(probeCard.DisplayOrder),
+                sequence++, probeCard.DisplayName));
+        }
+
+        return
+        [
+            .. slots
+                .OrderBy(static slot => slot.Order)
+                .ThenBy(static slot => slot.Sequence)
+                .ThenBy(static slot => slot.Tie, StringComparer.OrdinalIgnoreCase)
+                .Select(static slot => slot.Item)
+        ];
     }
 
     private static void ApplyGroupedFanDisplayOrders(IEnumerable<FanFlyoutCell> orderedCells)
@@ -3754,6 +4021,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _activeSliderDrags > 0
         || _draggedFan != null
         || _draggedGroupCell != null
+        || _draggedProbeCard != null
         || _isDraggingWindow
         || _undockButtonPointerCaptured;
 
@@ -4047,7 +4315,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void OnRootPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!_isUndocked || _confirmOverlay?.IsVisible == true) return;
-        if (_undockButtonPointerCaptured || _draggedFan != null || _draggedGroupCell != null) return;
+        if (_undockButtonPointerCaptured || _draggedFan != null || _draggedGroupCell != null
+            || _draggedProbeCard != null) return;
         if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         if (sender is not Control control) return;
@@ -4545,6 +4814,21 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         int Sequence,
         string Tie,
         Control Control);
+
+    private sealed record FlyoutTopLevelItem(
+        FanFlyoutCell? Cell,
+        ProbeCard? ProbeCard)
+    {
+        /// <summary>
+        /// Creates a fan/group top-level item.
+        /// </summary>
+        public static FlyoutTopLevelItem FanCell(FanFlyoutCell cell) => new(cell, null);
+
+        /// <summary>
+        /// Creates a probe-card top-level item.
+        /// </summary>
+        public static FlyoutTopLevelItem Probe(ProbeCard probeCard) => new(null, probeCard);
+    }
 
     private sealed record ProbeCardRowVisualRefs(
         ProbeCardProbe Probe,
