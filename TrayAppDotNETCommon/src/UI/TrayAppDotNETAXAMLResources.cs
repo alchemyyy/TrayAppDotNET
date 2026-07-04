@@ -1,23 +1,27 @@
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
 
 namespace TrayAppDotNETCommon.UI;
 
 public static class TrayAppDotNETAXAMLResources
 {
+    private const string SettingsWindowCommonResourcesUri =
+        "avares://TrayAppDotNETCommon/UI/SettingsWindowCommon.axaml";
+
+    private const string CommonBindingsResourcesUri =
+        "avares://TrayAppDotNETCommon/UI/CommonBindings.axaml";
+
     /// <summary>
-    /// Loads a resource dictionary from AXAML and merges it into the owner.
+    /// Adds a compiled resource dictionary for the known AXAML resource URI.
     /// </summary>
     public static void Merge(Control owner, string resourceUri)
     {
-        Uri uri = new(resourceUri, UriKind.Absolute);
-        object? loaded = AvaloniaXamlLoader.Load(uri);
-        if (loaded is ResourceDictionary dictionary)
+        ResourceDictionary dictionary = resourceUri switch
         {
-            owner.Resources.MergedDictionaries.Add(dictionary);
-            return;
-        }
+            SettingsWindowCommonResourcesUri => new SettingsWindowCommonResources(),
+            CommonBindingsResourcesUri => new CommonBindingsResources(),
+            _ => throw new InvalidOperationException($"Unknown AXAML resource dictionary '{resourceUri}'."),
+        };
 
-        throw new InvalidOperationException($"AXAML resource '{resourceUri}' is not a ResourceDictionary.");
+        owner.Resources.MergedDictionaries.Add(dictionary);
     }
 }

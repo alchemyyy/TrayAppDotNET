@@ -1,4 +1,5 @@
 <ResourceDictionary
+    x:Class="TrayAppDotNETCommon.UI.Controls.DialogChromeResources"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">

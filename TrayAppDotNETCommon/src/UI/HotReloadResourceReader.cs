@@ -7,7 +7,6 @@ namespace TrayAppDotNETCommon.UI;
 
 public sealed class HotReloadResourceReader(Control owner, string prefix)
 {
-    private readonly Control _owner = owner;
     private readonly string _prefix = prefix.EndsWith('.') ? prefix : prefix + ".";
 
     public double Double(string name) =>
@@ -16,7 +15,7 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
             double value => value,
             int value => value,
             string value => double.Parse(value, CultureInfo.InvariantCulture),
-            object value => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            { } value => Convert.ToDouble(value, CultureInfo.InvariantCulture),
         };
 
     public int Int(string name) => (int)Math.Round(Double(name));
@@ -39,7 +38,8 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
         {
             Color value => value,
             string value => Avalonia.Media.Color.Parse(value),
-            object => throw InvalidType(name, nameof(Color)),
+            not null => throw InvalidType(name, nameof(Color)),
+            _ => throw new ArgumentOutOfRangeException()
         };
 
     public TranslateTransform TranslateTransform(string name) =>
@@ -56,7 +56,7 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
     private object Resource(string name)
     {
         string key = _prefix + name;
-        if (_owner.TryFindResource(key, out object? value) && value != null)
+        if (owner.TryFindResource(key, out object? value) && value != null)
             return value;
 
         throw new InvalidOperationException($"Missing hot-reload resource '{key}'.");
