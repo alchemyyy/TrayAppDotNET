@@ -4,12 +4,10 @@ This file is the concise operating guide synthesized from the audited Codex sess
 
 Read the companion files only when the task needs them:
 
-- `WORKFLOW.md` for user interaction, subagents, workspace targeting, and stop modes.
 - `PROJECT_MAP.md` for TrayAppDotNET topology and common entry points.
 - `UI_TRAY_PLAYBOOK.md` for tray icon, flyout, tooltip, freeze, and high-frequency UI work.
 - `AXAML_PLAYBOOK.md` for Avalonia resource extraction and visual tuning.
-- `BUILD_GIT_RELEASE_PLAYBOOK.md` for builds, tests, Git, GitHub Actions, submodules, and releases.
-- `AUDIT_SUMMARY.md` for the evidence-backed patterns this file is based on.
+- `NATIVE_AOT_DUMP_ANALYSIS_TOOLING.md` special case toolkit for debugging native aot builds
 
 ## Acronyms and shortnames
   - `batadn` means `BatteryTrayAppDotNET`
@@ -51,5 +49,4 @@ Read the companion files only when the task needs them:
 
 - Tray icon flicker, stale tooltip, hover scroll, or shell freeze: read `UI_TRAY_PLAYBOOK.md`.
 - Avalonia constants, AXAML resources, settings windows, visual card layout, scrollbars, and styling: read `AXAML_PLAYBOOK.md`.
-- Build, publish, Native AOT, runtime layout, update installer, workflow, submodule, or release tasks: read `BUILD_GIT_RELEASE_PLAYBOOK.md`.
 - New sessions that need codebase orientation: read `PROJECT_MAP.md` before broad `rg --files` inventory.

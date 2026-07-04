@@ -12,6 +12,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
+                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
+                      Targets="GetTargetPath" />
+    <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
+                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'"
                       AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;Platform=x64" />
   </ItemGroup>
 </Project>

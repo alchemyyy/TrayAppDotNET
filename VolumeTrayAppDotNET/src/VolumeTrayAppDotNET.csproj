@@ -35,8 +35,6 @@
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <StripSymbols>false</StripSymbols>
-    <!-- TraceEvent uses dynamic ETW payload helpers that Native AOT flags inside the package. -->
-    <NoWarn>$(NoWarn);IL2067;IL2104;IL3050;IL3053</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -58,12 +56,15 @@
     <Using Include="VolumeTrayAppDotNET.Models" />
     <Using Include="VolumeTrayAppDotNET.Visuals" />
     <Using Include="VolumeTrayAppDotNET.Models.ContextMenuPosition" Alias="ContextMenuPosition" />
-    <ProjectReference Include="$(TrayAppDotNETCommonProject)" />
+    <ProjectReference Include="$(TrayAppDotNETCommonProject)"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
     <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
                       Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />

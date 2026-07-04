@@ -51,12 +51,15 @@
     <Using Include="BrightnessTrayAppDotNET.Services" />
     <Using Include="BrightnessTrayAppDotNET.Visuals" />
     <Using Include="BrightnessTrayAppDotNET.Models.ContextMenuPosition" Alias="ContextMenuPosition" />
-    <ProjectReference Include="$(TrayAppDotNETCommonProject)" />
+    <ProjectReference Include="$(TrayAppDotNETCommonProject)"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
     <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
                       Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />

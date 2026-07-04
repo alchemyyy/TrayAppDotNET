@@ -6,6 +6,9 @@
     <TrayAppDotNETIsRootSolutionBuild Condition="'$(SolutionDir)' == '$(TrayAppDotNETRoot)'">true</TrayAppDotNETIsRootSolutionBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == '' and '$(TrayAppDotNETIsRootSolutionBuild)' == 'true'">true</TrayAppDotNETAggregateBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == ''">false</TrayAppDotNETAggregateBuild>
+    <TrayAppDotNETBuildSharedProjectReferences Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">false</TrayAppDotNETBuildSharedProjectReferences>
+    <TrayAppDotNETBuildSharedProjectReferences Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == ''">true</TrayAppDotNETBuildSharedProjectReferences>
+    <TrayAppDotNETSharedProjectReferenceTargets Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == 'false'">GetTargetPath</TrayAppDotNETSharedProjectReferenceTargets>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
     <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>

@@ -37,9 +37,6 @@
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <StripSymbols>false</StripSymbols>
-    <!-- Native AOT analyzes the full dependency closure. These are package-internal diagnostics
-         from LHM/DiskInfoToolkit/HidSharp/System.Management/NCalc parser paths. -->
-    <NoWarn>$(NoWarn);IL2026;IL2055;IL2067;IL2072;IL2075;IL2077;IL2090;IL2091;IL2104;IL3050;IL3052;IL3053</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -66,12 +63,15 @@
     <Using Include="FanControlTrayAppDotNET" />
     <Using Include="FanControlTrayAppDotNET.Models" />
     <Using Include="FanControlTrayAppDotNET.Visuals" />
-    <ProjectReference Include="$(TrayAppDotNETCommonProject)" />
+    <ProjectReference Include="$(TrayAppDotNETCommonProject)"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
     <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
                       Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
     <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj">
@@ -79,7 +79,7 @@
       <SetPlatform>Platform=x64</SetPlatform>
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
       <AdditionalProperties>TargetFramework=net10.0</AdditionalProperties>
-      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed</GlobalPropertiesToRemove>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
