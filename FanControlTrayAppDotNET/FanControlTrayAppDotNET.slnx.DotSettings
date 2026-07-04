@@ -1,0 +1,34 @@
+<wpf:ResourceDictionary xml:space="preserve"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:s="clr-namespace:System;assembly=mscorlib"
+                        xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml"
+                        xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=Aga_002EControls_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=ConsoleOutputTest_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=DiskInfoToolkit_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=DiskInfoToolkit_002ETests_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=DiskInfoViewer_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=GZipSingleFile_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=HidSharp_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=HidSharp_002ENETStandard_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=HidSharp_002ESource_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=HidSharp_002ETest_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=HidSharp_002ETest_002ENETStandard_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=LibreHardwareMonitor_002EWindows_002EForms_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=LibreHardwareMonitorLib_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EAntlr_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EAsync_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EBenchmarks_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002ECore_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EDependencyInjection_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EDocs_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EDomain_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002ELambdaCompilation_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EMemoryCache_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EParser_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002EPlayground_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002ESourceGenerators_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002ESync_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/Housekeeping/ExcludedProjects/ProjectMasksToIgnore/=NCalc_002ETests_002Ecsproj/@EntryIndexedValue">True</s:Boolean>
+</wpf:ResourceDictionary>

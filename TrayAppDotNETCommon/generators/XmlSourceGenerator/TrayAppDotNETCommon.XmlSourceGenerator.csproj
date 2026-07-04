@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
     <NoWarn>$(NoWarn);RS1036;RS2008</NoWarn>
   </PropertyGroup>
 

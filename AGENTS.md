@@ -2,7 +2,7 @@
 
 This file is the concise operating guide synthesized from the audited Codex sessions in this directory.
 
-Read the companion files only when the task needs them:
+These companion files can be found in the `.agents` folder. Read them only when the task needs them:
 
 - `PROJECT_MAP.md` for TrayAppDotNET topology and common entry points.
 - `UI_TRAY_PLAYBOOK.md` for tray icon, flyout, tooltip, freeze, and high-frequency UI work.
