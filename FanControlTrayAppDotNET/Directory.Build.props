@@ -9,7 +9,7 @@
          import. Setting it inside the .csproj is too late.
          FormatProbe and xUnit tests keep their own local obj\ instead of sharing the app
          project's project.assets.json, because their package graphs differ from the app. -->
-    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'FanControlTrayAppDotNET.Tests'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'FanControlTrayAppDotNET.Tests' and '$(MSBuildProjectName)' != 'HidSharp.NETStandard' and '$(MSBuildProjectName)' != 'HidSharp.Source' and '$(MSBuildProjectName)' != 'DiskInfoToolkit' and '$(MSBuildProjectName)' != 'GZipSingleFile'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
 
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Release</Configurations>
@@ -37,7 +37,7 @@
        which fires exactly once before the publish Exec, so the inner
        publish reads the already-bumped value. -->
   <Target Name="EmbedBuildNumber" BeforeTargets="GenerateAssemblyInfo"
-          Condition="'$(EmitBuildInfo)' != 'false'">
+          Condition="'$(EmitBuildInfo)' != 'false' and '$(MSBuildProjectName)' != 'HidSharp.NETStandard' and '$(MSBuildProjectName)' != 'HidSharp.Source' and '$(MSBuildProjectName)' != 'DiskInfoToolkit' and '$(MSBuildProjectName)' != 'GZipSingleFile'">
     <PropertyGroup>
       <_OldBuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_OldBuildNumber>
       <_OldBuildNumber Condition="'$(_OldBuildNumber)' == ''">0</_OldBuildNumber>
