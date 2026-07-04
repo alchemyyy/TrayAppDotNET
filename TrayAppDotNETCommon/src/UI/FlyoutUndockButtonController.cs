@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
@@ -219,12 +218,9 @@ public sealed class FlyoutUndockButtonController
 
 internal static class FlyoutUndockButtonResourceReader
 {
-    private const string ResourcePath =
-        "avares://TrayAppDotNETCommon/UI/FlyoutUndockButtonController.axaml";
-
     private const string ResourcePrefix = "FlyoutUndockButton.";
 
-    private static readonly Lazy<ResourceDictionary> Resources = new(LoadResources);
+    private static readonly Lazy<FlyoutUndockButtonResources> Resources = new(LoadResources);
 
     /// <summary>
     /// Reads a double layout resource.
@@ -254,12 +250,9 @@ internal static class FlyoutUndockButtonResourceReader
             ? value
             : throw InvalidType(name, nameof(CornerRadius));
 
-    private static ResourceDictionary LoadResources()
+    private static FlyoutUndockButtonResources LoadResources()
     {
-        Uri resourceUri = new(ResourcePath);
-        object? resources = AvaloniaXamlLoader.Load(resourceUri);
-        return resources as ResourceDictionary ??
-               throw new InvalidOperationException($"Resource dictionary '{ResourcePath}' could not be loaded.");
+        return new FlyoutUndockButtonResources();
     }
 
     private static object Resource(string name)

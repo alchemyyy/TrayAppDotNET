@@ -8,7 +8,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 public sealed class TrayAppDotNETSettingsColorCardCoordinator
 {
     private readonly Dictionary<(NullableThemeColor Target, bool IsLight), TrayAppDotNETColorPickerWindow>
-        _openColorPickers = new();
+        _openColorPickers = [];
 
     public Border ColorCard(
         Window owner,

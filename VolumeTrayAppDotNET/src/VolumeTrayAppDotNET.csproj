@@ -35,6 +35,8 @@
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <StripSymbols>false</StripSymbols>
+    <!-- TraceEvent uses dynamic ETW payload helpers that are isolated to Bluetooth codec monitoring. -->
+    <NoWarn>$(NoWarn);IL2067;IL2104;IL3050</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

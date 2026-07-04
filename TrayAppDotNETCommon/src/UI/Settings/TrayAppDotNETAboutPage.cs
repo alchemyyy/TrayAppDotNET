@@ -6,7 +6,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Layout;
-using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
@@ -444,12 +443,9 @@ internal sealed record TrayAppDotNETAboutPageLayout(
 
 internal static class TrayAppDotNETAboutPageResourceReader
 {
-    private const string ResourcePath =
-        "avares://TrayAppDotNETCommon/UI/Settings/TrayAppDotNETAboutPage.axaml";
-
     private const string ResourcePrefix = "AboutPage.";
 
-    private static readonly Lazy<ResourceDictionary> Resources = new(LoadResources);
+    private static readonly Lazy<TrayAppDotNETAboutPageResources> Resources = new(LoadResources);
 
     /// <summary>
     /// Reads a double layout resource.
@@ -471,12 +467,9 @@ internal static class TrayAppDotNETAboutPageResourceReader
             ? value
             : throw InvalidType(name, nameof(Thickness));
 
-    private static ResourceDictionary LoadResources()
+    private static TrayAppDotNETAboutPageResources LoadResources()
     {
-        Uri resourceUri = new(ResourcePath);
-        object? resources = AvaloniaXamlLoader.Load(resourceUri);
-        return resources as ResourceDictionary ??
-               throw new InvalidOperationException($"Resource dictionary '{ResourcePath}' could not be loaded.");
+        return new TrayAppDotNETAboutPageResources();
     }
 
     private static object Resource(string name)

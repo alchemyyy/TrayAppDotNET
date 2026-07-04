@@ -4,18 +4,14 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
 
 namespace FanControlTrayAppDotNET.UI;
 
 public sealed class FanFlyoutCell : INotifyPropertyChanged
 {
-    private const string ResourcePath =
-        "avares://FanControlTrayAppDotNET/UI/Flyout/FanFlyoutCell.axaml";
-
     private const string ResourcePrefix = "FanFlyoutCell.";
 
-    private static readonly Lazy<ResourceDictionary> Resources = new(LoadResources);
+    private static readonly Lazy<FanFlyoutCellResources> Resources = new(LoadResources);
 
     public FanFlyoutCell(FanGroup? groupSettings, IEnumerable<Fan> fans)
     {
@@ -188,12 +184,9 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
     /// <summary>
     /// Loads flyout-cell layout resources from AXAML.
     /// </summary>
-    private static ResourceDictionary LoadResources()
+    private static FanFlyoutCellResources LoadResources()
     {
-        Uri resourceUri = new(ResourcePath);
-        object? resources = AvaloniaXamlLoader.Load(resourceUri);
-        return resources as ResourceDictionary ??
-               throw new InvalidOperationException($"Resource dictionary '{ResourcePath}' could not be loaded.");
+        return new FanFlyoutCellResources();
     }
 
     /// <summary>
