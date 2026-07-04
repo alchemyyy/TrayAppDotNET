@@ -1496,7 +1496,7 @@ public sealed class SettingsNumberBox : Grid
                     e.Handled = true;
                     break;
                 case Key.Enter:
-                    CommitTextOrRestore();
+                    CommitFocusedTextEdit();
                     e.Handled = true;
                     break;
                 case Key.Escape:
@@ -1635,6 +1635,17 @@ public sealed class SettingsNumberBox : Grid
             current = delta > 0 ? Minimum : Maximum;
 
         Value = Math.Clamp(current + delta, Minimum, Maximum);
+        if (_isTextFocused)
+            _valueAtTextFocus = Value;
+    }
+
+    /// <summary>
+    /// Commits the text edit and makes the committed value the new cancel baseline.
+    /// </summary>
+    private void CommitFocusedTextEdit()
+    {
+        CommitTextOrRestore();
+        _valueAtTextFocus = Value;
     }
 
     private void CommitTextOrRestore()
