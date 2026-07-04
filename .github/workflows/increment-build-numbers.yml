@@ -52,6 +52,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
 
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
       - name: Increment And Commit
         env:
           GH_TOKEN: ${{ github.token }}

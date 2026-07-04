@@ -34,6 +34,12 @@ jobs:
           # config can be cleared.
           submodules: false
 
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
       - name: Checkout Submodules
         run: |
           set -euo pipefail

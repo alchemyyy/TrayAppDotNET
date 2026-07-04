@@ -91,6 +91,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Add Git Bash To PATH
+        shell: cmd
+        run: |
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\bin
+          >> "%GITHUB_PATH%" echo C:\Program Files\Git\usr\bin
+
       - name: Collect Local Publish Package Staging
         id: collect-local-staging
         run: |
