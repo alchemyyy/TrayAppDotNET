@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -16,7 +15,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 {
     private const string NicknameTargetBoxName = "NicknameTargetRegex";
     private const string NicknameReplacementBoxName = "NicknameReplacement";
-    private const bool EnableReorderCardHoverCue = false;
+    private static readonly bool EnableReorderCardHoverCue = false;
 
     private static readonly ProbeSelectorTab[] Tabs =
     [
@@ -210,6 +209,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
         border.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(border).Properties.IsLeftButtonPressed) return;
+            if (_selectedTab == tab)
+            {
+                e.Handled = true;
+                return;
+            }
+
             _selectedTab = tab;
             RebuildContent();
             e.Handled = true;
@@ -348,7 +353,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         foreach (ProbeCardProbe probe in selectedProbes)
         {
             DataSource? source = DataSource.Find(probe.DataSourceKey);
-            Border card = source == null ? BuildMissingProbeCard(probe) : BuildProbeChoiceCard(source);
+            Border card = source is null ? BuildMissingProbeCard(probe) : BuildProbeChoiceCard(source);
             WireSelectedProbeDrag(card, probe);
             selectedProbeList.Children.Add(card);
         }
@@ -413,7 +418,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         };
         row.PointerPressed += (_, e) =>
         {
-            if (_selectedProbeListPanel == null) return;
+            if (_selectedProbeListPanel is null) return;
             if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
 
             _draggedSelectedProbe = probe;
@@ -436,7 +441,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
             }
 
-            if (_draggedSelectedProbe == null || _selectedProbeListPanel == null) return;
+            if (!ReferenceEquals(row, _draggedSelectedProbeRow)) return;
+            if (_draggedSelectedProbe is null || _selectedProbeListPanel is null) return;
 
             Point current = e.GetPosition(_selectedProbeListPanel);
             if (Math.Abs(current.Y - _selectedProbeDragStart.Y) < Layout.ReorderDragThreshold) return;
@@ -487,7 +493,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 : _palette.CardBackground;
         row.Background = TrayAppDotNETSettingsUI.Brush(background);
         row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
-        row.BorderThickness = dragging ? Layout.RootBorderThickness : Layout.RootBorderThickness;
+        row.BorderThickness = Layout.RootBorderThickness;
         row.Opacity = dragging ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
         row.SetValue(ZIndexProperty, dragging ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
     }
@@ -503,7 +509,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private int SelectedProbeInsertionIndexFromMidpoint(double draggedMidpointY)
     {
-        if (_selectedProbeListPanel == null) return -1;
+        if (_selectedProbeListPanel is null) return -1;
 
         int insertion = 0;
         for (int i = 0; i < _selectedProbeListPanel.Children.Count; i++)
@@ -512,12 +518,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
 
             Point? topLeft = child.TranslatePoint(new Point(0, 0), _selectedProbeListPanel);
-            if (topLeft == null) continue;
+            if (topLeft is null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
         }
 
-        int max = ActiveProbeSettingsInOrder().Count - (_draggedSelectedProbe != null ? 1 : 0);
+        int max = ActiveProbeSettingsInOrder().Count - (_draggedSelectedProbe is not null ? 1 : 0);
         return Math.Clamp(insertion, 0, Math.Max(0, max));
     }
 
@@ -526,16 +532,17 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void ApplySelectedProbeDragPreview()
     {
-        if (_selectedProbeListPanel == null || _draggedSelectedProbe == null || _draggedSelectedProbeRow == null)
+        if (_selectedProbeListPanel is null || _draggedSelectedProbe is null || _draggedSelectedProbeRow is null)
             return;
 
         ResetSelectedProbeDragPreview();
 
-        int sourceIndex = SelectedProbeIndex(_draggedSelectedProbe);
+        List<ProbeCardProbe> activeProbes = ActiveProbeSettingsInOrder();
+        int sourceIndex = activeProbes.IndexOf(_draggedSelectedProbe);
         if (sourceIndex < 0) return;
 
         int targetIndex = Math.Clamp(_draggedSelectedProbeTargetIndex, 0,
-            Math.Max(0, ActiveProbeSettingsInOrder().Count - 1));
+            Math.Max(0, activeProbes.Count - 1));
         double offset = Math.Max(1, _draggedSelectedProbeHeight
             + Math.Max(0, _draggedSelectedProbeRow.Margin.Bottom));
         if (targetIndex < sourceIndex)
@@ -555,7 +562,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void SetSelectedProbePreviewOffset(int index, double offset)
     {
-        if (_selectedProbeListPanel == null) return;
+        if (_selectedProbeListPanel is null) return;
         if (index < 0 || index >= _selectedProbeListPanel.Children.Count) return;
         if (ReferenceEquals(_selectedProbeListPanel.Children[index], _draggedSelectedProbeRow)) return;
 
@@ -567,7 +574,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void ResetSelectedProbeDragPreview()
     {
-        if (_selectedProbeListPanel == null) return;
+        if (_selectedProbeListPanel is null) return;
         foreach (Control child in _selectedProbeListPanel.Children)
         {
             if (ReferenceEquals(child, _draggedSelectedProbeRow)) continue;
@@ -582,10 +589,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         ProbeCardProbe? dragged = _draggedSelectedProbe;
         int targetIndex = _draggedSelectedProbeTargetIndex;
-        bool hadDrag = dragged != null;
+        bool hadDrag = dragged is not null;
 
         _draggedSelectedProbeRow?.RenderTransform = null;
-        if (_selectedProbeListPanel != null)
+        if (_selectedProbeListPanel is not null)
         {
             foreach (Control child in _selectedProbeListPanel.Children)
                 child.RenderTransform = null;
@@ -598,7 +605,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _draggedSelectedProbeHeight = 0;
         pointer?.Capture(null);
 
-        if (dragged != null && targetIndex >= 0)
+        if (dragged is not null && targetIndex >= 0)
             ApplySelectedProbeOrder(dragged, targetIndex);
 
         if (hadDrag) RebuildContent();
@@ -747,7 +754,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// Builds a custom vertical-only scrollbar host for a bounded section.
     /// </summary>
     private SettingsScrollHost BuildVerticalScrollHost(Control content, Thickness margin) =>
-        new SettingsScrollHost(content, _palette, Layout.ZeroThickness)
+        new(content, _palette, Layout.ZeroThickness)
         {
             Margin = margin,
         };
@@ -782,7 +789,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Layout.NicknameTargetTextBoxWidth);
         target.Name = NicknameTargetBoxName;
         target.Tag = rule;
-        target.LostFocus += NicknameTargetLostFocus;
+        target.LostFocus += NicknameRuleLostFocus;
         target.KeyDown += NicknameRuleKeyDown;
         row.Children.Add(target);
 
@@ -798,7 +805,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Layout.NicknameReplacementTextBoxWidth);
         replacement.Name = NicknameReplacementBoxName;
         replacement.Tag = rule;
-        replacement.LostFocus += NicknameReplacementLostFocus;
+        replacement.LostFocus += NicknameRuleLostFocus;
         replacement.KeyDown += NicknameRuleKeyDown;
         Grid.SetColumn(replacement, 2);
         row.Children.Add(replacement);
@@ -869,7 +876,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             }
 
             if (!ReferenceEquals(row, _draggedNicknameRuleRow)) return;
-            if (_draggedNicknameRule == null || _nicknameRuleListPanel == null) return;
+            if (_draggedNicknameRule is null || _nicknameRuleListPanel is null) return;
 
             Point current = e.GetPosition(_nicknameRuleListPanel);
             if (Math.Abs(current.Y - _nicknameRuleDragStart.Y) < Layout.ReorderDragThreshold) return;
@@ -913,7 +920,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private static bool IsCardBackgroundPointerSource(Border row, Visual? source)
     {
-        if (source == null) return false;
+        if (source is null) return false;
         if (ReferenceEquals(source, row)) return true;
         if (source is not Grid) return false;
 
@@ -948,7 +955,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private int NicknameRuleInsertionIndexFromMidpoint(double draggedMidpointY)
     {
-        if (_nicknameRuleListPanel == null || _draggedNicknameRuleList == null) return -1;
+        if (_nicknameRuleListPanel is null || _draggedNicknameRuleList is null) return -1;
 
         int insertion = 0;
         for (int i = 0; i < _nicknameRuleListPanel.Children.Count; i++)
@@ -957,12 +964,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
 
             Point? topLeft = child.TranslatePoint(new Point(0, 0), _nicknameRuleListPanel);
-            if (topLeft == null) continue;
+            if (topLeft is null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
         }
 
-        int max = _draggedNicknameRuleList.Count - (_draggedNicknameRule != null ? 1 : 0);
+        int max = _draggedNicknameRuleList.Count - (_draggedNicknameRule is not null ? 1 : 0);
         return Math.Clamp(insertion, 0, Math.Max(0, max));
     }
 
@@ -971,10 +978,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void ApplyNicknameRuleDragPreview()
     {
-        if (_nicknameRuleListPanel == null ||
-            _draggedNicknameRuleList == null ||
-            _draggedNicknameRule == null ||
-            _draggedNicknameRuleRow == null)
+        if (_nicknameRuleListPanel is null ||
+            _draggedNicknameRuleList is null ||
+            _draggedNicknameRule is null ||
+            _draggedNicknameRuleRow is null)
             return;
 
         ResetNicknameRuleDragPreview();
@@ -1003,7 +1010,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void SetNicknameRulePreviewOffset(int index, double offset)
     {
-        if (_nicknameRuleListPanel == null) return;
+        if (_nicknameRuleListPanel is null) return;
         if (index < 0 || index >= _nicknameRuleListPanel.Children.Count) return;
         if (ReferenceEquals(_nicknameRuleListPanel.Children[index], _draggedNicknameRuleRow)) return;
 
@@ -1015,7 +1022,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void ResetNicknameRuleDragPreview()
     {
-        if (_nicknameRuleListPanel == null) return;
+        if (_nicknameRuleListPanel is null) return;
         foreach (Control child in _nicknameRuleListPanel.Children)
         {
             if (ReferenceEquals(child, _draggedNicknameRuleRow)) continue;
@@ -1031,10 +1038,10 @@ public sealed partial class ProbeDataSelectorWindow : Window
         DeviceNicknameRule? dragged = _draggedNicknameRule;
         List<DeviceNicknameRule>? rulesList = _draggedNicknameRuleList;
         int targetIndex = _draggedNicknameRuleTargetIndex;
-        bool hadDrag = dragged != null;
+        bool hadDrag = dragged is not null;
 
         _draggedNicknameRuleRow?.RenderTransform = null;
-        if (_nicknameRuleListPanel != null)
+        if (_nicknameRuleListPanel is not null)
         {
             foreach (Control child in _nicknameRuleListPanel.Children)
                 child.RenderTransform = null;
@@ -1049,7 +1056,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _draggedNicknameRuleHeight = 0;
         pointer?.Capture(null);
 
-        if (dragged != null && rulesList != null && targetIndex >= 0)
+        if (dragged is not null && rulesList is not null && targetIndex >= 0)
             ApplyNicknameRuleOrder(rulesList, dragged, targetIndex);
 
         if (hadDrag) RebuildContent();
@@ -1121,7 +1128,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         ProbeCardProbe? probeSettings = _probeCard.FindProbe(source.DataSourceKey);
         bool isSelected = probeSettings?.IsSelected == true;
-        bool isExpanded = probeSettings != null && _expandedTransformKeys.Contains(source.DataSourceKey);
+        bool isExpanded = probeSettings is not null && _expandedTransformKeys.Contains(source.DataSourceKey);
 
         Grid card = new();
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -1152,10 +1159,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         SettingsButton gear = BuildGearButton(isExpanded || ProbeTransformIsActive(probeSettings));
         gear.Margin = Layout.ActionButtonMargin;
-        gear.Click += (_, _) =>
-        {
-            ToggleTransform(source);
-        };
+        gear.Click += (_, _) => ToggleTransform(source);
 
         AddProbeControls(card, enableToggle, truncateToggle, gear, probeSettings, isExpanded);
         return WrapCard(card);
@@ -1210,7 +1214,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         glyph.Width = Layout.ValueGlyphWidth;
 
-        //TODO: Move this hack to its own layer its currently repeated everywhere I need it
+        // TODO: Move this hack to its own layer; it is currently repeated where the load glyph is used
         if (type == DataSourceTypeEnum.Load)
         {
             glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
@@ -1236,7 +1240,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         bool isExpanded)
     {
         Control? transformColumn = BuildProbeTransformColumn(gear, selectedProbe, isExpanded);
-        if (transformColumn != null)
+        if (transformColumn is not null)
         {
             Grid.SetColumn(transformColumn, 1);
             Grid.SetRowSpan(transformColumn, 2);
@@ -1257,7 +1261,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeCardProbe? selectedProbe,
         bool isExpanded)
     {
-        if (gear == null) return null;
+        if (gear is null) return null;
 
         Grid row = new()
         {
@@ -1268,7 +1272,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        if (!isExpanded || selectedProbe == null)
+        if (!isExpanded || selectedProbe is null)
         {
             row.Children.Add(gear);
             return row;
@@ -1681,7 +1685,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeCardProbe? probe = _probeCard.FindProbe(source.DataSourceKey);
         if (enabled)
         {
-            if (probe == null)
+            if (probe is null)
             {
                 _probeCard.Probes.Add(new ProbeCardProbe { DataSourceKey = source.DataSourceKey });
                 _changed(_probeCard);
@@ -1696,7 +1700,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             return;
         }
 
-        if (probe != null)
+        if (probe is not null)
         {
             probe.IsSelected = false;
             _expandedTransformKeys.Remove(source.DataSourceKey);
@@ -1713,7 +1717,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private void SetProbeTruncateValue(DataSource source, bool truncateValue)
     {
         ProbeCardProbe? probe = _probeCard.FindProbe(source.DataSourceKey);
-        if (probe == null)
+        if (probe is null)
         {
             if (!truncateValue) return;
 
@@ -1869,17 +1873,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     }
 
     /// <summary>
-    /// Commits a nickname target regex when focus leaves its editor.
+    /// Commits a nickname rule edit when focus leaves its editor.
     /// </summary>
-    private void NicknameTargetLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (sender is TextBox textBox) CommitNicknameRuleTextBox(textBox);
-    }
-
-    /// <summary>
-    /// Commits a nickname replacement string when focus leaves its editor.
-    /// </summary>
-    private void NicknameReplacementLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void NicknameRuleLostFocus(object? sender, RoutedEventArgs e)
     {
         if (sender is TextBox textBox) CommitNicknameRuleTextBox(textBox);
     }
@@ -1930,7 +1926,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private void ToggleTransform(DataSource source)
     {
         ProbeCardProbe? probe = _probeCard.FindProbe(source.DataSourceKey);
-        if (probe == null)
+        if (probe is null)
         {
             probe = new ProbeCardProbe
             {
@@ -1974,7 +1970,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Commits the transform expression when focus leaves the editor.
     /// </summary>
-    private void TransformTextBoxLostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void TransformTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
         if (sender is not TextBox textBox) return;
 
@@ -1988,7 +1984,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void OnSelectorPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_focusedTransformTextBox == null) return;
+        if (_focusedTransformTextBox is null) return;
         if (IsSelfOrDescendant(_focusedTransformTextBox, e.Source as Visual)) return;
 
         DropTransformTextBoxFocus(_focusedTransformTextBox);
@@ -2009,7 +2005,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private static bool IsSelfOrDescendant(Visual owner, Visual? visual)
     {
-        if (visual == null) return false;
+        if (visual is null) return false;
         if (ReferenceEquals(visual, owner)) return true;
         return visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, owner));
     }
@@ -2059,7 +2055,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         foreach ((string dataSourceKey, List<TextBlock> textBlocks) in _valueTextByKey)
         {
             DataSource? source = DataSource.Find(dataSourceKey);
-            if (source == null) continue;
+            if (source is null) continue;
             ProbeCardProbe? probe = _probeCard.FindProbe(dataSourceKey);
             string value = ProbeValueLine(source, probe);
             foreach (TextBlock textBlock in textBlocks)
@@ -2101,14 +2097,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _draggedNicknameRule = null;
         Closed -= OnClosed;
     }
-
-    /// <summary>
-    /// Resolves a stable sort label for a probe source.
-    /// </summary>
-    private string ProbeSortLabel(DataSource? source, ProbeCardProbe probe) =>
-        source == null
-            ? probe.DataSourceKey
-            : $"{_deviceNicknameResolver.Resolve(source)}.{_probeNicknameResolver.Resolve(source.DisplayName)}";
 
     /// <summary>
     /// Resolves the tab label.
@@ -2156,7 +2144,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
         double TruncateToggleTrackHeightRatio,
         double TruncateToggleThumbSizeRatio,
         double TransformLabelFontSize,
-        double TransformBoxWidth,
         double TransformInlineBoxWidth,
         double TransformBoxHeight,
         double TransformBoxMinHeight,
@@ -2200,7 +2187,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Thickness TransformRowMargin,
         Thickness TransformLabelMargin,
         Thickness TransformBoxPadding,
-        Thickness HomeActionsMargin,
         Thickness HomeActionButtonMargin,
         Thickness HomeActionButtonTrailingMargin,
         Thickness HomeActionButtonPadding,
@@ -2274,7 +2260,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 r.Double("TruncateToggleTrackHeightRatio"),
                 r.Double("TruncateToggleThumbSizeRatio"),
                 r.Double("TransformLabelFontSize"),
-                r.Double("TransformBoxWidth"),
                 r.Double("TransformInlineBoxWidth"),
                 r.Double("TransformBoxHeight"),
                 r.Double("TransformBoxMinHeight"),
@@ -2318,7 +2303,6 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 r.Thickness("TransformRowMargin"),
                 r.Thickness("TransformLabelMargin"),
                 r.Thickness("TransformBoxPadding"),
-                r.Thickness("HomeActionsMargin"),
                 r.Thickness("HomeActionButtonMargin"),
                 r.Thickness("HomeActionButtonTrailingMargin"),
                 r.Thickness("HomeActionButtonPadding"),

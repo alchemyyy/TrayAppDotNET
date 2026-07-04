@@ -4,15 +4,11 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace FanControlTrayAppDotNET.UI;
 
-public sealed class FanUninstallerWindow : TrayAppDotNETUninstallerWindow
+public sealed class FanUninstallerWindow(string installDir, FanInstallScope scope)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
 {
     public FanUninstallerWindow()
         : this(string.Empty, FanInstallScope.LocalAppData)
-    {
-    }
-
-    public FanUninstallerWindow(string installDir, FanInstallScope scope)
-        : base(CreateOptions(installDir, scope))
     {
     }
 

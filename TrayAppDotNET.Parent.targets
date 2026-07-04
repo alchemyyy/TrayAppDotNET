@@ -14,6 +14,10 @@
     <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
+    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:TrayAppDotNETAggregateBuild=true -p:TrayAppDotNETUseRootOutput=true -p:TrayAppDotNETBuildSharedProjectReferences=false -p:TrayAppDotNETOutputRoot=&quot;$(TrayAppDotNETOutputRoot)\&quot;</TrayAppDotNETPublishAggregateProperties>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
