@@ -28,9 +28,10 @@
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
     <ProjectReference Include="..\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
                       Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
   </ItemGroup>
