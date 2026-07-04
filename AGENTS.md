@@ -11,6 +11,13 @@ Read the companion files only when the task needs them:
 - `BUILD_GIT_RELEASE_PLAYBOOK.md` for builds, tests, Git, GitHub Actions, submodules, and releases.
 - `AUDIT_SUMMARY.md` for the evidence-backed patterns this file is based on.
 
+## Acronyms and shortnames
+  - `batadn` means `BatteryTrayAppDotNET`
+  - `brtadn` means `BrightnessTrayAppDotNET`
+  - `fctadn` means `FanControlTrayAppDotNET`
+  - `ntadn` means `NetworkTrayAppDotNET`
+  - `vtadn` means `VolumeTrayAppDotNET`
+
 ## Hard Rules
 
 - Verify the intended workspace root from the latest user message before writing. This repo has multiple active clones and worktrees.

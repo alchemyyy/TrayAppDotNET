@@ -124,7 +124,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             AppServices.Settings,
             L("Flyout_MasterRowName", "All displays"),
             L("Flyout_NightLightRowName", "Night light"),
-            inDisabled => IsInCurveDisabledPeriod = inDisabled);
+            inDisabled => IsInCurveDisabledPeriod = inDisabled,
+            AutoEngageBrightnessCurveManualOverride);
 
         InitializeComponent();
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
@@ -2600,6 +2601,21 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         _curveStopwatchReengageBlockedByMaster.Clear();
+    }
+
+    /// <summary>
+    /// Re-enters brightness curve control after the curve crosses the released master value.
+    /// Called by the curve evaluator before it writes the current tick target.
+    /// </summary>
+    private void AutoEngageBrightnessCurveManualOverride()
+    {
+        if (!MasterMonitor.IsCurveReleased) return;
+
+        ReengageCurveReleasedMonitor(MasterMonitor);
+        ReengageIndividualBrightnessCurveOverridesFromMaster();
+        UpdateCurveStopwatchVisibility(MasterMonitor);
+        BrightnessUpdated?.Invoke();
+        QueueRebuildVisual();
     }
 
     private void ReengageCurveReleasedMonitor(MonitorInfo monitor)

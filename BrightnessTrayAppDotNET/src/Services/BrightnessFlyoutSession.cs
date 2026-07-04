@@ -15,7 +15,8 @@ internal sealed class BrightnessFlyoutSession : IDisposable
         AppSettings? settings,
         string masterRowName,
         string nightLightRowName,
-        Action<bool> onDisabledPeriodChanged)
+        Action<bool> onDisabledPeriodChanged,
+        Action onBrightnessAutoEngageRequested)
     {
         ProfileManager = profileManager;
         Theme = theme;
@@ -67,7 +68,8 @@ internal sealed class BrightnessFlyoutSession : IDisposable
             MasterMonitor,
             NightLightMonitor,
             FlipIfNightLightInverted,
-            OnDisabledPeriodChanged)
+            OnDisabledPeriodChanged,
+            onBrightnessAutoEngageRequested)
         {
             IsBrightnessCurveEnabled = Settings?.EnvironmentalBrightnessCurveEnabled ?? false,
             IsNightLightCurveEnabled = Settings?.EnvironmentalNightLightCurveEnabled ?? false,

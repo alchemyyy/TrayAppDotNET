@@ -443,6 +443,14 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     // instead of resetting each session.
     public bool EnvironmentalBrightnessCurveEnabled { get; set; } = false;
     public bool EnvironmentalNightLightCurveEnabled { get; set; } = false;
+
+    // Re-engages brightness curve control after the curve crosses the released master slider value.
+    // The delay is a dead window after each manual brightness write, so an immediate click across
+    // the current curve target cannot snap the user straight back into curve control.
+    public bool AutoEngageEnvironmentalCurveEnabled { get; set; } = false;
+    public int AutoEngageEnvironmentalCurveDelaySeconds { get; set; } =
+        TimeConstants.AutoEngageEnvironmentalCurveDelayDefaultSeconds;
+
     [XmlArrayItem("Stopwatch")]
     public List<CurveStopwatchEntry> CurveStopwatches { get; set; } = [];
 
