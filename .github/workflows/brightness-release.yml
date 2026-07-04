@@ -47,89 +47,99 @@ jobs:
     name: BrightnessTrayAppDotNET Release
     runs-on: [self-hosted, Windows, X64, trayapp]
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           # Submodules are checked out manually below.
           # actions/checkout updates submodules before stale self-hosted runner
           # config can be cleared.
           submodules: false
 
       - name: Checkout Submodules
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
+
           # Clear cached submodule config from reused self-hosted workspaces.
           # --checkout forces the recorded commit instead of merge/rebase.
           git submodule deinit --force --all
           git submodule sync --recursive
-          git submodule update --init --force --checkout --depth=1 --recursive
+          git submodule update --init --force --checkout --recursive
+          # Existing self-hosted workspaces may have shallow submodule repositories.
+          git submodule foreach --recursive '
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+              git fetch --unshallow --tags
+            fi
+          '
 
       - name: Verify Release Toolchain
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
-          Get-Command dotnet
-          Get-Command gh
-          if (-not (Get-Command python3 -ErrorAction SilentlyContinue) -and -not (Get-Command python -ErrorAction SilentlyContinue)) {
-            throw "python3 or python is required."
-          }
+          set -euo pipefail
+
+          command -v dotnet
+          command -v gh
+          if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+            echo "python3 or python is required." >&2
+            exit 1
+          fi
           dotnet --info
-          dotnet --list-sdks | Select-String -Pattern '^10\.'
+          dotnet --list-sdks | grep -E '^10\.'
 
       - name: Build Release Package
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          $pythonBin = "python"
-          if (Get-Command python3 -ErrorAction SilentlyContinue) {
-            $pythonBin = "python3"
-          }
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
 
-          $argsList = @(
-            ".github/scripts/publish.py",
-            "--phase", "build-app-profile",
-            "--profile", "release",
-            "--app-name", "BrightnessTrayAppDotNET",
-            "--repo", $env:GITHUB_REPOSITORY,
-            "--output-root", ".artifacts/publish"
+          args_list=(
+            ".github/scripts/publish.py"
+            "--phase" "build-app-profile"
+            "--profile" "release"
+            "--app-name" "BrightnessTrayAppDotNET"
+            "--repo" "$GITHUB_REPOSITORY"
+            "--output-root" ".artifacts/publish"
           )
 
-          if ("${{ inputs.tray_version }}" -ne "") {
-            $argsList += @("--tray-version", "${{ inputs.tray_version }}")
-          }
+          if [ "${{ inputs.tray_version }}" != "" ]; then
+            args_list+=("--tray-version" "${{ inputs.tray_version }}")
+          fi
 
-          if ("${{ inputs.force_rebuild }}" -eq "true") {
-            $argsList += "--force-rebuild"
-          }
+          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+            args_list+=("--force-rebuild")
+          fi
 
-          & $pythonBin @argsList
+          "$python_bin" "${args_list[@]}"
 
       - name: Stage Release Package Locally
         id: stage-release-package
         if: ${{ inputs.publish_staging_root != '' }}
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         # Local staging is a best-effort optimization for publish fan-in.
         # Upload still runs if staging fails.
         continue-on-error: true
         run: |
-          $ErrorActionPreference = "Stop"
-          $pythonBin = "python"
-          if (Get-Command python3 -ErrorAction SilentlyContinue) {
-            $pythonBin = "python3"
-          }
+          set -euo pipefail
 
-          & $pythonBin .github/scripts/publish.py `
-            --phase stage-app-profile `
-            --profile release `
-            --app-name "BrightnessTrayAppDotNET" `
-            --repo $env:GITHUB_REPOSITORY `
-            --output-root .artifacts/publish `
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
+
+          "$python_bin" .github/scripts/publish.py \
+            --phase stage-app-profile \
+            --profile release \
+            --app-name "BrightnessTrayAppDotNET" \
+            --repo "$GITHUB_REPOSITORY" \
+            --output-root .artifacts/publish \
             --stage-root "${{ inputs.publish_staging_root }}"
 
       - name: Upload Release Package Artifact

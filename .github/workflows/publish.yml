@@ -81,6 +81,9 @@ jobs:
       - release-volume
     environment: trayapp-release
     timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
@@ -90,20 +93,19 @@ jobs:
 
       - name: Collect Local Publish Package Staging
         id: collect-local-staging
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          $pythonBin = "python"
-          if (Get-Command python3 -ErrorAction SilentlyContinue) {
-            $pythonBin = "python3"
-          }
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
 
-          & $pythonBin .github/scripts/publish.py `
-            --phase collect-staged-profiles `
-            --repo $env:GITHUB_REPOSITORY `
-            --profiles release `
-            --stage-root $env:TRAYAPP_PUBLISH_STAGE_ROOT `
+          "$python_bin" .github/scripts/publish.py \
+            --phase collect-staged-profiles \
+            --repo "$GITHUB_REPOSITORY" \
+            --profiles release \
+            --stage-root "$TRAYAPP_PUBLISH_STAGE_ROOT" \
             --input-root .artifacts/publish/collected
 
       - name: Download Package Artifacts
@@ -115,43 +117,43 @@ jobs:
           merge-multiple: true
 
       - name: Verify Release Toolchain
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
-          Get-Command gh
-          if (-not (Get-Command python3 -ErrorAction SilentlyContinue) -and -not (Get-Command python -ErrorAction SilentlyContinue)) {
-            throw "python3 or python is required."
-          }
+          set -euo pipefail
+
+          command -v gh
+          if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+            echo "python3 or python is required." >&2
+            exit 1
+          fi
 
       - name: Publish Draft Release
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          $pythonBin = "python"
-          if (Get-Command python3 -ErrorAction SilentlyContinue) {
-            $pythonBin = "python3"
-          }
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
 
-          $argsList = @(
-            ".github/scripts/publish.py",
-            "--phase", "publish-release",
-            "--repo", $env:GITHUB_REPOSITORY,
-            "--profiles", "release",
-            "--input-root", ".artifacts/publish/collected"
+          args_list=(
+            ".github/scripts/publish.py"
+            "--phase" "publish-release"
+            "--repo" "$GITHUB_REPOSITORY"
+            "--profiles" "release"
+            "--input-root" ".artifacts/publish/collected"
           )
 
-          if ("${{ inputs.tray_app_dot_net_version }}" -ne "") {
-            $argsList += @("--tray-version", "${{ inputs.tray_app_dot_net_version }}")
-          }
+          if [ "${{ inputs.tray_app_dot_net_version }}" != "" ]; then
+            args_list+=("--tray-version" "${{ inputs.tray_app_dot_net_version }}")
+          fi
 
-          if ("${{ inputs.release_tag }}" -ne "") {
-            $argsList += @("--release-tag", "${{ inputs.release_tag }}")
-          }
+          if [ "${{ inputs.release_tag }}" != "" ]; then
+            args_list+=("--release-tag" "${{ inputs.release_tag }}")
+          fi
 
-          & $pythonBin @argsList
+          "$python_bin" "${args_list[@]}"
 
       - name: Upload Aggregate Release Artifacts
         uses: actions/upload-artifact@v7
@@ -161,37 +163,37 @@ jobs:
           if-no-files-found: error
 
       - name: Remove Intermediate Package Artifacts
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          $packageSuffix = "-package-$env:GITHUB_RUN_ID"
-          $response = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/artifacts?per_page=100" | ConvertFrom-Json
+          package_suffix="-package-${GITHUB_RUN_ID}"
 
-          foreach ($artifact in $response.artifacts) {
-            if (-not $artifact.name.EndsWith($packageSuffix)) {
+          while IFS=$'\t' read -r artifact_id artifact_name; do
+            if [ -z "$artifact_id" ]; then
               continue
-            }
+            fi
 
-            Write-Host "Deleting intermediate package artifact: $($artifact.name)"
-            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$($artifact.id)"
-          }
+            echo "Deleting intermediate package artifact: ${artifact_name}"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+          done < <(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
+              --jq ".artifacts[] | select(.name | endswith(\"${package_suffix}\")) | [.id, .name] | @tsv"
+          )
 
       - name: Clean Local Publish Package Staging
         if: ${{ always() }}
         continue-on-error: true
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
 
-          $pythonBin = "python"
-          if (Get-Command python3 -ErrorAction SilentlyContinue) {
-            $pythonBin = "python3"
-          }
+          python_bin="python"
+          if command -v python3 >/dev/null 2>&1; then
+            python_bin="python3"
+          fi
 
-          & $pythonBin .github/scripts/publish.py `
-            --phase clean-staged-profiles `
-            --repo $env:GITHUB_REPOSITORY `
-            --stage-root $env:TRAYAPP_PUBLISH_STAGE_ROOT
+          "$python_bin" .github/scripts/publish.py \
+            --phase clean-staged-profiles \
+            --repo "$GITHUB_REPOSITORY" \
+            --stage-root "$TRAYAPP_PUBLISH_STAGE_ROOT"

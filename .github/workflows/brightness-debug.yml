@@ -20,62 +20,71 @@ jobs:
     name: BrightnessTrayAppDotNET Debug
     runs-on: [self-hosted, Windows, X64, trayapp]
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           # Submodules are checked out manually below.
           # actions/checkout updates submodules before stale self-hosted runner
           # config can be cleared.
           submodules: false
 
       - name: Checkout Submodules
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
+          set -euo pipefail
+
           # Clear cached submodule config from reused self-hosted workspaces.
           # --checkout forces the recorded commit instead of merge/rebase.
           git submodule deinit --force --all
           git submodule sync --recursive
-          git submodule update --init --force --checkout --depth=1 --recursive
+          git submodule update --init --force --checkout --recursive
+          # Existing self-hosted workspaces may have shallow submodule repositories.
+          git submodule foreach --recursive '
+            if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+              git fetch --unshallow --tags
+            fi
+          '
 
       - name: Verify .NET SDK
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
-          Get-Command dotnet
+          set -euo pipefail
+
+          command -v dotnet
           dotnet --info
-          dotnet --list-sdks | Select-String -Pattern '^10\.'
+          dotnet --list-sdks | grep -E '^10\.'
 
       - name: Restore
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: dotnet restore "BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj" --disable-parallel -p:Platform=x64 -p:EnableWindowsTargeting=true
 
       - name: Build Debug
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
-        run: >
-          dotnet build "BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj"
-          --configuration Debug
-          --no-restore
-          --output ".artifacts/debug/BrightnessTrayAppDotNET"
-          -p:Platform=x64
-          -p:EnableWindowsTargeting=true
-          # Debug artifacts are built for CI only, so avoid local app shutdowns
-          # and publish side effects.
-          -p:SkipKillRunningInstance=true
-          -p:SkipPublishAfterBuild=true
-          # Keep uploaded debug artifacts small.
-          -p:DebugType=none
-          -p:DebugSymbols=false
-          -p:ContinuousIntegrationBuild=true
+        # Debug artifacts are built for CI only, so avoid local app shutdowns
+        # and publish side effects.
+        # Keep uploaded debug artifacts small.
+        run: |
+          set -euo pipefail
+
+          dotnet build "BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj" \
+            --configuration Debug \
+            --no-restore \
+            --output ".artifacts/debug/BrightnessTrayAppDotNET" \
+            -p:Platform=x64 \
+            -p:EnableWindowsTargeting=true \
+            -p:SkipKillRunningInstance=true \
+            -p:SkipPublishAfterBuild=true \
+            -p:DebugType=none \
+            -p:DebugSymbols=false \
+            -p:ContinuousIntegrationBuild=true
 
       - name: Remove PDB Files
-        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
-          $ErrorActionPreference = "Stop"
-          Get-ChildItem ".artifacts/debug/BrightnessTrayAppDotNET" -Recurse -Filter *.pdb -File |
-            Remove-Item -Force
+          set -euo pipefail
+
+          find ".artifacts/debug/BrightnessTrayAppDotNET" -type f -name '*.pdb' -delete
 
       - name: Upload Debug Artifact
         uses: actions/upload-artifact@v7
