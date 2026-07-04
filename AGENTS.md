@@ -1,7 +1,5 @@
 # AGENTS.md
 
-This file is the concise operating guide synthesized from the audited Codex sessions in this directory.
-
 These companion files can be found in the `.agents` folder. Read them only when the task needs them:
 
 - `PROJECT_MAP.md` for TrayAppDotNET topology and common entry points.
@@ -15,22 +13,6 @@ These companion files can be found in the `.agents` folder. Read them only when 
   - `fctadn` means `FanControlTrayAppDotNET`
   - `ntadn` means `NetworkTrayAppDotNET`
   - `vtadn` means `VolumeTrayAppDotNET`
-
-## Hard Rules
-
-- Verify the intended workspace root from the latest user message before writing. This repo has multiple active clones and worktrees.
-- Follow repo style over global style inside vendored or externally maintained code, especially LibreHardwareMonitor.
-- Respect explicit stop modes exactly:
-  - "just reply", "just answer", "dont edit", "do not edit yet", "just discuss", "pause", or "what are you doing" means answer directly and do not edit, build, commit, push, or keep investigating.
-  - "that is it" or "nothing more" means do only the named action and keep the response minimal.
-- Respect Git constraints exactly:
-  - "dont commit" means no commit until a later explicit commit request.
-  - "leave git alone" or "dont verify yourself with git commands" means no Git commands.
-  - "commit but dont push" means no push.
-  - "squash onto the latest commit" means amend the relevant change into the latest commit, not a broader Git cleanup.
-- Assume dirty worktrees are normal. Do not revert, restore, stage, or inspect unrelated changes unless required by the task or explicitly requested.
-- If the user asks "where is X controlled or located", answer with exact file, symbol/resource name, and the shortest useful explanation.
-- Prefer local source analysis over web/upstream research when the local source exists. Do not search upstream for code the user already has in the workspace.
 
 ## Project Defaults
 
