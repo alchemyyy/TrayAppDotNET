@@ -5,17 +5,13 @@
   <Project Path="src/FanControlTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>
-  <Project Path="LibreHardwareMonitor/LibreHardwareMonitorLib/LibreHardwareMonitorLib.csproj">
-    <Platform Project="x64" />
-  </Project>
-  <Project Path="DiskInfoToolkit/DiskInfoToolkit/DiskInfoToolkit.csproj" />
-  <Project Path="build/HIDSharp/HidSharp.Source.csproj" />
-  <Project Path="NCalc/src/NCalc.Core/NCalc.Core.csproj" />
   <Project Path="tests/FanControlTrayAppDotNET.Tests/FanControlTrayAppDotNET.Tests.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="../TrayAppDotNETCommon/src/TrayAppDotNETCommon.csproj">
     <Platform Project="x64" />
   </Project>
-  <Project Path="../TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
+  <Project Path="../TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

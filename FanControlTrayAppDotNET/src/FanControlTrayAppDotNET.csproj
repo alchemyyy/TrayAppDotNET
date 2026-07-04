@@ -21,6 +21,8 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <FanControlDesignTimeSubmoduleReferencePath Condition="'$(FanControlDesignTimeSubmoduleReferencePath)' == '' and '$(TrayAppDotNETUseRootOutput)' == 'true'">$(TrayAppDotNETRoot)bin\$(Configuration)\</FanControlDesignTimeSubmoduleReferencePath>
+    <FanControlDesignTimeSubmoduleReferencePath Condition="'$(FanControlDesignTimeSubmoduleReferencePath)' == ''">$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</FanControlDesignTimeSubmoduleReferencePath>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
@@ -66,6 +68,47 @@
     <Using Include="FanControlTrayAppDotNET" />
     <Using Include="FanControlTrayAppDotNET.Models" />
     <Using Include="FanControlTrayAppDotNET.Visuals" />
+    <!-- Keep vendored submodules out of Visual Studio/ReSharper design-time workspaces.
+         Normal builds still use ProjectReference so local source changes are honored. -->
+    <_FanControlDesignTimeSubmoduleReference Include="DiskInfoToolkit" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)DiskInfoToolkit.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)DiskInfoToolkit.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="DiskInfoToolkit" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)DiskInfoToolkit.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\DiskInfoToolkit.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\DiskInfoToolkit.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="HidSharp" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)HidSharp.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)HidSharp.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="HidSharp" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)HidSharp.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\HidSharp.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\HidSharp.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="LibreHardwareMonitorLib" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)LibreHardwareMonitorLib.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)LibreHardwareMonitorLib.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="LibreHardwareMonitorLib" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)LibreHardwareMonitorLib.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\LibreHardwareMonitorLib.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\LibreHardwareMonitorLib.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="NCalc.Core" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Core.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Core.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="NCalc.Core" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Core.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Core.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Core.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="NCalc.Domain" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Domain.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Domain.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="NCalc.Domain" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Domain.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Domain.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Domain.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="NCalc.Parser" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Parser.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Parser.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <_FanControlDesignTimeSubmoduleReference Include="NCalc.Parser" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Parser.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Parser.dll')">
+      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Parser.dll</HintPath>
+    </_FanControlDesignTimeSubmoduleReference>
+    <Reference Include="@(_FanControlDesignTimeSubmoduleReference)" Condition="'@(_FanControlDesignTimeSubmoduleReference)' != ''">
+      <Private>false</Private>
+    </Reference>
     <ProjectReference Include="$(TrayAppDotNETCommonProject)"
                       Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
@@ -77,7 +120,8 @@
                       GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
-    <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj">
+    <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+                      Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
       <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
@@ -87,7 +131,8 @@
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
     </ProjectReference>
-    <ProjectReference Include="..\NCalc\src\NCalc.Core\NCalc.Core.csproj">
+    <ProjectReference Include="..\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+                      Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
       <SetTargetFramework Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</SetTargetFramework>
