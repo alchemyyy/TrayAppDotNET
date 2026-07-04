@@ -24,6 +24,9 @@
   <Project Path="FanControlTrayAppDotNET/LibreHardwareMonitor/LibreHardwareMonitorLib/LibreHardwareMonitorLib.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="FanControlTrayAppDotNET/DiskInfoToolkit/DiskInfoToolkit/DiskInfoToolkit.csproj" />
+  <Project Path="FanControlTrayAppDotNET/build/HIDSharp/HidSharp.Source.csproj" />
+  <Project Path="FanControlTrayAppDotNET/NCalc/src/NCalc.Core/NCalc.Core.csproj" />
   <Project Path="FanControlTrayAppDotNET/tests/FanControlTrayAppDotNET.Tests/FanControlTrayAppDotNET.Tests.csproj">
     <Platform Project="x64" />
   </Project>

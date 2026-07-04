@@ -2,3 +2,15 @@
 	path = FanControlTrayAppDotNET/LibreHardwareMonitor
 	url = https://github.com/alchemyyy/LibreHardwareMonitor
 	branch = master
+[submodule "FanControlTrayAppDotNET/NCalc"]
+	path = FanControlTrayAppDotNET/NCalc
+	url = https://github.com/alchemyyy/ncalc
+	branch = master
+[submodule "FanControlTrayAppDotNET/HIDSharp"]
+	path = FanControlTrayAppDotNET/HIDSharp
+	url = https://github.com/alchemyyy/HidSharp
+	branch = master
+[submodule "FanControlTrayAppDotNET/DiskInfoToolkit"]
+	path = FanControlTrayAppDotNET/DiskInfoToolkit
+	url = https://github.com/alchemyyy/DiskInfoToolkit
+	branch = master

@@ -14,7 +14,6 @@
     <IsAotCompatible>true</IsAotCompatible>
     <AvaloniaVersion>12.0.4</AvaloniaVersion>
     <HotAvaloniaPackageVersion>3.1.1</HotAvaloniaPackageVersion>
-    <NCalcPackageVersion>6.2.0</NCalcPackageVersion>
     <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
     <HotAvaloniaMode>Balanced</HotAvaloniaMode>
     <ApplicationIcon Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')">..\app.ico</ApplicationIcon>
@@ -39,14 +38,18 @@
     <StripSymbols>false</StripSymbols>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">
+    <DisableParlotParserCompilation>true</DisableParlotParserCompilation>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Remove="Visuals\FanFont.ttf" />
     <None Remove="Visuals\FAN_GLYPH.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NCalc.Core" Version="$(NCalcPackageVersion)" />
     <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="10.0.9" PrivateAssets="all" IsImplicitlyDefined="true" />
+    <IlcArg Include="--substitution:$(MSBuildProjectDirectory)\NativeAotSubstitutions.xml" Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != ''" />
     <Using Include="TrayAppDotNETCommon.TADNLog" Alias="TADNLog" />
     <Using Include="TrayAppDotNETCommon" />
     <Using Include="TrayAppDotNETCommon.Interop" />
@@ -77,13 +80,23 @@
     <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <AdditionalProperties>TargetFramework=net10.0</AdditionalProperties>
+      <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
+      <SetTargetFramework Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</SetTargetFramework>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
     </ProjectReference>
+    <ProjectReference Include="..\NCalc\src\NCalc.Core\NCalc.Core.csproj">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
+      <SetTargetFramework Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</SetTargetFramework>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+      <Visible>false</Visible>
+    </ProjectReference>
+    <PackageReference Include="BlackSharp.Core" Version="1.1.0" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
