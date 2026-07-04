@@ -85,6 +85,9 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int DDCOperationTimeoutMinMs = 0;
     public const int DDCOperationTimeoutMaxMs = 60_000;
     public const int EnvironmentalCurveTickIntervalDefaultMs = 5_000;
+    public const int AutoEngageEnvironmentalCurveDelayDefaultSeconds = 60;
+    public const int AutoEngageEnvironmentalCurveDelayMinSeconds = 0;
+    public const int AutoEngageEnvironmentalCurveDelayMaxSeconds = 86_400;
 
     // Known display persistence
     public const int KnownDisplayStampDebounceMs = 500;

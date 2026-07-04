@@ -125,6 +125,8 @@ public class MonitorInfo : INotifyPropertyChanged
     private double _brightness;
     private double _lastUserBrightness;
     private double _virtualBrightness;
+    private long _manualBrightnessRevision;
+    private DateTime _lastManualBrightnessWriteUtc = DateTime.MinValue;
     private bool _hasUserBrightness;
     private double _curveTargetBrightness;
     private bool _hasCurveTargetBrightness;
@@ -232,6 +234,7 @@ public class MonitorInfo : INotifyPropertyChanged
             // still has to reclaim the baseline.
             _hasUserBrightness = true;
             _lastUserBrightness = value;
+            MarkManualBrightnessWrite();
             // exact-primitive comparison is intentional
             if (_brightness == value) return;
 
@@ -279,7 +282,34 @@ public class MonitorInfo : INotifyPropertyChanged
     public double LastUserBrightness
     {
         get => _lastUserBrightness;
-        set => _lastUserBrightness = value;
+        set
+        {
+            _lastUserBrightness = value;
+            MarkManualBrightnessWrite();
+        }
+    }
+
+    /// <summary>
+    /// Monotonic stamp incremented for every manual brightness write.
+    /// Used by the environmental auto-engage guard to distinguish a new user boundary
+    /// from subsequent curve ticks against the same manual value.
+    /// </summary>
+    public long ManualBrightnessRevision => _manualBrightnessRevision;
+
+    /// <summary>
+    /// UTC time of the most recent manual brightness write.
+    /// Hardware acquisition and curve writes intentionally bypass this stamp.
+    /// </summary>
+    public DateTime LastManualBrightnessWriteUtc => _lastManualBrightnessWriteUtc;
+
+    /// <summary>
+    /// Records a manual brightness write without raising UI notifications.
+    /// Callers use this when a curve release starts before the bound slider value changes.
+    /// </summary>
+    public void MarkManualBrightnessWrite()
+    {
+        _manualBrightnessRevision++;
+        _lastManualBrightnessWriteUtc = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -411,6 +441,8 @@ public class MonitorInfo : INotifyPropertyChanged
         set
         {
             if (_sliderState == value) return;
+            bool enteringCurveReleased = value == SliderState.CurveReleased
+                                         && _sliderState != SliderState.CurveReleased;
             // EffectiveRoundedBrightness reads from CurveTargetBrightness only in CurveActive after
             // the curve target has been seeded; every other state reads from Brightness.
             // So the displayed value label has to re-bind whenever we cross that boundary in either direction
@@ -427,6 +459,7 @@ public class MonitorInfo : INotifyPropertyChanged
             if (value == SliderState.Failed && _sliderState != SliderState.Failed)
                 _preFailureSliderState = _sliderState;
             _sliderState = value;
+            if (enteringCurveReleased) MarkManualBrightnessWrite();
             OnPropertyChanged();
             // Re-emit every derived bool that XAML or apply-paths might be bound to.
             // Cheaper than letting XAML watch a converter chain on the enum, and lets the setter

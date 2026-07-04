@@ -11,6 +11,9 @@ namespace BrightnessTrayAppDotNET.UI.Settings;
 
 public sealed partial class BrightnessSettingsWindow
 {
+    private const double AutoEngageEnvironmentalCurveDelayBoxWidth = 96;
+    private const double AutoEngageEnvironmentalCurveControlSpacing = 8;
+
     private readonly List<ProfileSlotEntry> _profileSlots = [];
     private StackPanel? _profileSlotPanel;
 
@@ -21,6 +24,21 @@ public sealed partial class BrightnessSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
+        stack.Children.Add(BoolCard(
+            L("Settings_General_ApplyBrightnessOnStartup_Title", "Apply brightness on startup"),
+            L("Settings_General_ApplyBrightnessOnStartup_Description",
+                "Restore the selected profile's saved brightness values when the app starts."),
+            _settings.ApplyBrightnessOnStartup,
+            v => _settings.ApplyBrightnessOnStartup = v,
+            p));
+        stack.Children.Add(BoolCard(
+            L("Settings_General_Autosave_Title", "Autosave profiles"),
+            L("Settings_General_Autosave_Description",
+                "Save profile changes automatically after brightness or monitor-state edits."),
+            _settings.Autosave,
+            v => _settings.Autosave = v,
+            p));
+        stack.Children.Add(BuildAutoEngageEnvironmentalCurveCard(p));
 
         commonSection.AddInstallationSection(stack,
         [
@@ -56,21 +74,6 @@ public sealed partial class BrightnessSettingsWindow
             },
         ]);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
-
-        stack.Children.Add(BoolCard(
-            L("Settings_General_ApplyBrightnessOnStartup_Title", "Apply brightness on startup"),
-            L("Settings_General_ApplyBrightnessOnStartup_Description",
-                "Restore the selected profile's saved brightness values when the app starts."),
-            _settings.ApplyBrightnessOnStartup,
-            v => _settings.ApplyBrightnessOnStartup = v,
-            p));
-        stack.Children.Add(BoolCard(
-            L("Settings_General_Autosave_Title", "Autosave profiles"),
-            L("Settings_General_Autosave_Description",
-                "Save profile changes automatically after brightness or monitor-state edits."),
-            _settings.Autosave,
-            v => _settings.Autosave = v,
-            p));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_General_NightLight_Header", "Night light"), p));
@@ -135,6 +138,46 @@ public sealed partial class BrightnessSettingsWindow
         stack.Children.Add(RawCard(_profileSlotPanel, p));
 
         return stack;
+    }
+
+    /// <summary>
+    /// Builds the auto-engage card with its conditional seconds delay input.
+    /// </summary>
+    private Border BuildAutoEngageEnvironmentalCurveCard(SettingsPalette p)
+    {
+        SettingsNumberBox delayBox = TrayAppDotNETSettingsUI.NumberBox(
+            p,
+            _settings.AutoEngageEnvironmentalCurveDelaySeconds,
+            TimeConstants.AutoEngageEnvironmentalCurveDelayMinSeconds,
+            TimeConstants.AutoEngageEnvironmentalCurveDelayMaxSeconds,
+            AutoEngageEnvironmentalCurveDelayBoxWidth,
+            L("Common_SecondsSuffix", "s"));
+        delayBox.IsVisible = _settings.AutoEngageEnvironmentalCurveEnabled;
+        delayBox.Margin = new Thickness(0, 0, AutoEngageEnvironmentalCurveControlSpacing, 0);
+        delayBox.ValueChanged += (_, e) =>
+        {
+            if (!e.NewValue.HasValue) return;
+            _settings.AutoEngageEnvironmentalCurveDelaySeconds = (int)e.NewValue.Value;
+            Save();
+        };
+
+        SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(
+            p,
+            _settings.AutoEngageEnvironmentalCurveEnabled,
+            (_, enabled) =>
+            {
+                _settings.AutoEngageEnvironmentalCurveEnabled = enabled;
+                delayBox.IsVisible = enabled;
+                Save();
+            });
+
+        StackPanel controls = TrayAppDotNETSettingsUI.Horizontal(delayBox, toggle);
+        return Card(
+            L("Settings_General_AutoEngageEnvironmentalCurve_Title", "Auto-engage environmental curve"),
+            L("Settings_General_AutoEngageEnvironmentalCurve_Description",
+                "Re-engage the environmental brightness curve after it crosses the released master slider value."),
+            controls,
+            p);
     }
 
     private void RebuildProfileSlots()

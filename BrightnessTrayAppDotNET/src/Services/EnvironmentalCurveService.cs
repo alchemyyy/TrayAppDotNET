@@ -32,6 +32,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     private const string CurveEventEvaluationKey = "environmental-curve";
     private const string NightLightHardwareKey = "night-light";
     private const string BrightnessHardwareKeyPrefix = "brightness:";
+    private const double AutoEngageComparisonTolerance = 0.001;
 
     private readonly ProfileManager _profileManager;
     private readonly MonitorService _monitorService;
@@ -41,6 +42,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     private readonly MonitorInfo _nightLightMonitor;
     private readonly Func<int, int> _flipIfNightLightInverted;
     private readonly Action<bool>? _onDisabledPeriodChanged;
+    private readonly Action? _onBrightnessAutoEngageRequested;
     private readonly AsyncThrottler<string> _curveEventEvaluationThrottler = new(0, StringComparer.Ordinal);
     private readonly AsyncThrottler<string> _curveHardwareThrottler = new(0, StringComparer.Ordinal);
 
@@ -65,6 +67,8 @@ public sealed class EnvironmentalCurveService : IDisposable
     private bool _isInDisabledPeriod;
     private bool _isSuspended;
     private bool _disposed;
+    private long _autoEngageManualRevision = -1;
+    private int? _autoEngagePreviousComparison;
 
     public EnvironmentalCurveService(
         ProfileManager profileManager,
@@ -74,7 +78,8 @@ public sealed class EnvironmentalCurveService : IDisposable
         MonitorInfo masterMonitor,
         MonitorInfo nightLightMonitor,
         Func<int, int> flipIfNightLightInverted,
-        Action<bool>? onDisabledPeriodChanged = null)
+        Action<bool>? onDisabledPeriodChanged = null,
+        Action? onBrightnessAutoEngageRequested = null)
     {
         _profileManager = profileManager;
         _monitorService = monitorService;
@@ -84,6 +89,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         _nightLightMonitor = nightLightMonitor;
         _flipIfNightLightInverted = flipIfNightLightInverted;
         _onDisabledPeriodChanged = onDisabledPeriodChanged;
+        _onBrightnessAutoEngageRequested = onBrightnessAutoEngageRequested;
 
         // Profile switch invalidates the sun-shifted cache: a new profile reference defeats the
         // ReferenceEquals(source) gate naturally, but explicitly nulling here is cheap insurance against a
@@ -381,6 +387,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     public void DisengageBrightnessCurveStates()
     {
         if (_disposed) return;
+        ResetAutoEngageTracking();
         _masterMonitor.ClearCurveTargetBrightness();
         foreach (MonitorInfo monitor in _monitors)
             monitor.ClearCurveTargetBrightness();
@@ -450,6 +457,100 @@ public sealed class EnvironmentalCurveService : IDisposable
             monitor.SeedCurveTargetBrightnessFromSlider();
 
         monitor.SliderState = next;
+    }
+
+    /// <summary>
+    /// Compares the curve target against the manual slider boundary for crossing detection.
+    /// </summary>
+    internal static int CompareAutoEngageTargets(double curveTarget, double manualTarget)
+    {
+        double diff = curveTarget - manualTarget;
+        if (Math.Abs(diff) <= AutoEngageComparisonTolerance) return 0;
+        return diff < 0.0 ? -1 : 1;
+    }
+
+    /// <summary>
+    /// Returns true when the current comparison reaches or crosses the manual boundary.
+    /// </summary>
+    internal static bool DidAutoEngageTargetReachOrCross(int? previousComparison, int currentComparison)
+    {
+        if (!previousComparison.HasValue) return false;
+        if (currentComparison == 0 && previousComparison.Value != 0) return true;
+        if (previousComparison.Value == 0) return false;
+        return previousComparison.Value != currentComparison;
+    }
+
+    /// <summary>
+    /// Re-engages a released master when the curve reaches the manual value after the dead window.
+    /// </summary>
+    private bool TryAutoEngageBrightnessManualOverride(double curveTarget)
+    {
+        if (!CanAutoEngageBrightnessManualOverride())
+        {
+            ResetAutoEngageTracking();
+            return false;
+        }
+
+        long revision = _masterMonitor.ManualBrightnessRevision;
+        if (_autoEngageManualRevision != revision)
+        {
+            _autoEngageManualRevision = revision;
+            _autoEngagePreviousComparison = null;
+        }
+
+        double manualTarget = _masterMonitor.LastUserBrightness;
+        int currentComparison = CompareAutoEngageTargets(curveTarget, manualTarget);
+        if (IsAutoEngageDeadWindowActive())
+        {
+            _autoEngagePreviousComparison = currentComparison;
+            return false;
+        }
+
+        bool shouldReengage =
+            DidAutoEngageTargetReachOrCross(_autoEngagePreviousComparison, currentComparison);
+        _autoEngagePreviousComparison = currentComparison;
+        if (!shouldReengage) return false;
+
+        _onBrightnessAutoEngageRequested?.Invoke();
+        ResetAutoEngageTracking();
+        return true;
+    }
+
+    /// <summary>
+    /// Checks static gates for brightness auto-engage.
+    /// </summary>
+    private bool CanAutoEngageBrightnessManualOverride() =>
+        _appSettings?.AutoEngageEnvironmentalCurveEnabled == true
+        && IsBrightnessCurveEnabled
+        && IsCurveAbsoluteMode
+        && !_isInDisabledPeriod
+        && !_isSuspended
+        && _onBrightnessAutoEngageRequested != null
+        && _masterMonitor.SliderState == SliderState.CurveReleased;
+
+    /// <summary>
+    /// Returns true while the user-configured grace window is suppressing auto-engage.
+    /// </summary>
+    private bool IsAutoEngageDeadWindowActive()
+    {
+        int delaySeconds = Math.Clamp(
+            _appSettings?.AutoEngageEnvironmentalCurveDelaySeconds
+            ?? TimeConstants.AutoEngageEnvironmentalCurveDelayDefaultSeconds,
+            TimeConstants.AutoEngageEnvironmentalCurveDelayMinSeconds,
+            TimeConstants.AutoEngageEnvironmentalCurveDelayMaxSeconds);
+        if (delaySeconds <= 0) return false;
+
+        DateTime eligibleAtUtc = _masterMonitor.LastManualBrightnessWriteUtc.AddSeconds(delaySeconds);
+        return DateTime.UtcNow < eligibleAtUtc;
+    }
+
+    /// <summary>
+    /// Clears crossing state when the feature or manual override is inactive.
+    /// </summary>
+    private void ResetAutoEngageTracking()
+    {
+        _autoEngageManualRevision = -1;
+        _autoEngagePreviousComparison = null;
     }
 
     /// <summary>
@@ -896,6 +997,8 @@ public sealed class EnvironmentalCurveService : IDisposable
         bool absolute,
         bool allowWhileSuspended = false)
     {
+        if (!absolute) ResetAutoEngageTracking();
+
         ApplyCurveCore(
             curve.Brightness,
             curve.BrightnessOffset,
@@ -914,6 +1017,7 @@ public sealed class EnvironmentalCurveService : IDisposable
                 // Offsets are captured at toggle-on (and on individual re-engage)
                 // and stay valid through the curve's run, since slider thumbs don't move while the curve drives.
                 double absoluteMasterTarget = Math.Clamp(sample, 0.0, 100.0);
+                if (!allowWhileSuspended) TryAutoEngageBrightnessManualOverride(absoluteMasterTarget);
 
                 // Indicator + value-label sources update for any row currently driven by the curve
                 // (CurveActive or CurveSleeping). Released / disabled / failed rows have their slider
