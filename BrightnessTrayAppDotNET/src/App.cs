@@ -444,7 +444,12 @@ internal sealed class BrightnessAvaloniaApp : Application
         });
     }
 
-    private void AdjustAllMonitorBrightness(int delta)
+    /// <summary>
+    /// Applies a master brightness delta to every participating monitor.
+    /// Tray-wheel curve releases optionally seed manual brightness from the live curve value
+    /// so the handoff does not jump back to the stale manual slider baseline.
+    /// </summary>
+    private void AdjustAllMonitorBrightness(int delta, bool seedManualFromCurveOnRelease = false)
     {
         BrightnessFlyoutWindow? flyout = _brightnessFlyout;
         if (flyout == null || flyout.Monitors.Count == 0) return;
@@ -452,16 +457,63 @@ internal sealed class BrightnessAvaloniaApp : Application
         List<MonitorInfo> monitors = [.. flyout.Monitors.Where(m => m.IsParticipatingInMaster)];
         if (monitors.Count == 0) return;
 
+        Dictionary<MonitorInfo, int>? curveReleaseTargets = seedManualFromCurveOnRelease
+            ? ResolveCurveModeTrayWheelManualTargets(
+                flyout.IsBrightnessCurveEnabled,
+                flyout.IsCurveAbsoluteMode,
+                flyout.MasterMonitor,
+                monitors,
+                delta)
+            : null;
+
         flyout.NotifyUserBrightnessAdjustment(replayCurrentSliderValue: false);
         try
         {
             foreach (MonitorInfo monitor in monitors)
-                monitor.Brightness = Math.Clamp(monitor.Brightness + delta, 0, 100);
+            {
+                double target = curveReleaseTargets != null
+                                && curveReleaseTargets.TryGetValue(monitor, out int curveReleaseTarget)
+                    ? curveReleaseTarget
+                    : monitor.Brightness + delta;
+                monitor.Brightness = Math.Clamp(target, 0, 100);
+            }
         }
         finally
         {
             flyout.CompleteUserBrightnessAdjustment();
         }
+    }
+
+    /// <summary>
+    /// Captures the first manual target for a tray-wheel release from absolute curve mode.
+    /// The wheel's first detent should move away from the currently visible curve value by direction only,
+    /// not by replaying the full scroll step against the stale manual slider value.
+    /// </summary>
+    internal static Dictionary<MonitorInfo, int>? ResolveCurveModeTrayWheelManualTargets(
+        bool isBrightnessCurveEnabled,
+        bool isCurveAbsoluteMode,
+        MonitorInfo masterMonitor,
+        IReadOnlyList<MonitorInfo> monitors,
+        int delta)
+    {
+        if (!isBrightnessCurveEnabled) return null;
+        if (!isCurveAbsoluteMode) return null;
+        if (masterMonitor.SliderState != SliderState.CurveActive) return null;
+        if (!masterMonitor.HasCurveTargetBrightness) return null;
+
+        int direction = Math.Sign(delta);
+        if (direction == 0) return null;
+
+        Dictionary<MonitorInfo, int> targets = [];
+        foreach (MonitorInfo monitor in monitors)
+        {
+            if (monitor.SliderState != SliderState.CurveActive) continue;
+            if (!monitor.HasCurveTargetBrightness) continue;
+
+            targets[monitor] = Math.Clamp(monitor.EffectiveRoundedBrightness + direction, 0, 100);
+        }
+
+        return targets.Count == 0 ? null : targets;
     }
 
     private void AdjustNightLightBrightness(int delta)
@@ -549,7 +601,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 AdjustNightLightBrightness(delta);
                 break;
             case TrayWheelTarget.Brightness:
-                AdjustAllMonitorBrightness(delta);
+                AdjustAllMonitorBrightness(delta, seedManualFromCurveOnRelease: true);
                 break;
         }
 
