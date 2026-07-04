@@ -23,6 +23,8 @@ public sealed partial class NetworkSettingsWindow
             UpdateSettings = _settings,
             UpdateService = static () => AppServices.UpdateCheckService,
             ConfirmAsync = ConfirmAsync,
+            PromptOwner = () => this,
+            SupportsFlyoutUpdateButton = false,
             Shutdown = static () =>
             {
                 if (Avalonia.Application.Current?.ApplicationLifetime

@@ -25,6 +25,8 @@ public sealed partial class BrightnessSettingsWindow
             UpdateSettings = _settings,
             UpdateService = static () => AppServices.UpdateCheckService,
             ConfirmAsync = ConfirmAsync,
+            PromptOwner = () => this,
+            FlushLog = static () => WPFLog.Flush(),
             Log = static message => WPFLog.Log(message),
             RebuildAboutPage = () => RebuildShell(BrightnessSettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,

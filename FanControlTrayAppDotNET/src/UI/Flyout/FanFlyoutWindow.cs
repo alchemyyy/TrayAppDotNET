@@ -87,6 +87,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool _showNonFunctioningFans;
     private bool _suppressFanRebuild;
     private bool _isUpdateDownloadInFlight;
+    private bool _isUpdateDialogOpen;
     private bool _isDraggingWindow;
     private bool _undockButtonPointerCaptured;
     private bool _undockButtonDragOccurred;
@@ -167,7 +168,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     protected override bool HasOpenChildWindow =>
         _fanPropertiesWindows.Values.Any(window => window.IsVisible)
         || _fanCurveEditorWindows.Any(window => window.IsVisible)
-        || _probeSelectorWindows.Values.Any(window => window.IsVisible);
+        || _probeSelectorWindows.Values.Any(window => window.IsVisible)
+        || _isUpdateDialogOpen;
 
     protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
 
@@ -3917,62 +3919,32 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private async void ShowUpdateConfirmation()
     {
         if (_isUpdateDownloadInFlight) return;
-        UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
-        if (update == null) return;
-
-        bool ok = await ConfirmAsync(
-            string.Format(CultureInfo.CurrentCulture, L("UpdateDialog_TitleFormat", "Install {0}?"),
-                update.ReleaseName),
-            string.IsNullOrWhiteSpace(update.Changelog)
-                ? L("UpdateDialog_NoChangelog", "No changelog was provided for this release.")
-                : update.Changelog,
-            L("UpdateDialog_Install", "Install"),
-            L("UpdateDialog_Cancel", "Cancel"));
-        if (!ok) return;
-
-        StartUpdateDownload();
-    }
-
-    private void StartUpdateDownload()
-    {
-        if (_isUpdateDownloadInFlight) return;
         UpdateCheckService? service = AppServices.UpdateCheckService;
         UpdateInfo? info = service?.AvailableUpdate;
         if (service == null || info == null) return;
 
-        _isUpdateDownloadInFlight = true;
-        _ = Task.Run(async () =>
+        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(new TrayAppDotNETUpdatePromptOptions
         {
-            bool ok = false;
-            try
+            Owner = this,
+            Service = service,
+            UpdateInfo = info,
+            Palette = FanSettingsWindow.CreatePalette(
+                AppServices.Theme,
+                _settings,
+                AppTheme.ResolveEffectiveIsLightTheme(_settings)),
+            EnableRoundedCorners = _settings.EnableRoundedCorners,
+            Localize = L,
+            Log = static message => TADNLog.Log(message),
+            FlushLog = static () => TADNLog.Flush(),
+            Shutdown = static () =>
             {
-                ok = await service.DownloadAndStageAsync(info).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                TADNLog.Log($"FanFlyoutWindow.StartUpdateDownload: {ex.Message}");
-            }
-
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (ok)
-                {
-                    TADNLog.Flush();
-                    if (Application.Current?.ApplicationLifetime
-                        is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-                        desktop.Shutdown();
-                }
-                else
-                {
-                    _isUpdateDownloadInFlight = false;
-                    _ = ConfirmAsync(
-                        L("Settings_About_InstallUpdate_CheckFailed", "Check failed"),
-                        L("UpdateDialog_DownloadFailed",
-                            "The update could not be downloaded. Check the log for details."),
-                        L("SettingsWindow_ConfirmOverlay_OK", "OK"),
-                        L("UpdateDialog_Cancel", "Cancel"));
-                }
-            });
+                if (Application.Current?.ApplicationLifetime
+                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                    desktop.Shutdown();
+            },
+            SetPromptOpen = open => _isUpdateDialogOpen = open,
+            SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
+            PromptClosed = NotifyChildWindowClosedFromDeactivation,
         });
     }
 

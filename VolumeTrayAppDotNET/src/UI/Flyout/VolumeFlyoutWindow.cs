@@ -1995,45 +1995,30 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private async void ShowUpdateConfirmation()
     {
         if (_isUpdateDownloadInFlight) return;
-        UpdateCheckService? svc = AppServices.UpdateCheckService;
-        UpdateInfo? info = svc?.AvailableUpdate;
-        if (svc == null || info == null) return;
+        UpdateCheckService? service = AppServices.UpdateCheckService;
+        UpdateInfo? info = service?.AvailableUpdate;
+        if (service == null || info == null) return;
 
-        TrayAppDotNETUpdateConfirmationWindow dialog =
-            new(info, VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight()),
-                _settings.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
-        _isUpdateDialogOpen = true;
-        bool result;
-        try
+        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(new TrayAppDotNETUpdatePromptOptions
         {
-            result = await dialog.ShowDialog<bool>(this);
-        }
-        finally
-        {
-            _isUpdateDialogOpen = false;
-            NotifyChildWindowClosedFromDeactivation();
-        }
-
-        if (!result) return;
-
-        _isUpdateDownloadInFlight = true;
-        try
-        {
-            bool staged = await svc.DownloadAndStageAsync(info);
-            if (staged && Application.Current?.ApplicationLifetime
-                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            Owner = this,
+            Service = service,
+            UpdateInfo = info,
+            Palette = VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight()),
+            EnableRoundedCorners = _settings.EnableRoundedCorners,
+            Localize = L,
+            Log = static message => TADNLog.Log(message),
+            FlushLog = static () => TADNLog.Flush(),
+            Shutdown = static () =>
             {
-                TADNLog.Flush();
-                desktop.Shutdown();
-            }
-            else
-                _isUpdateDownloadInFlight = false;
-        }
-        catch (Exception ex)
-        {
-            _isUpdateDownloadInFlight = false;
-            TADNLog.Log($"VolumeFlyout.InstallAvailableUpdate: {ex.Message}");
-        }
+                if (Application.Current?.ApplicationLifetime
+                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                    desktop.Shutdown();
+            },
+            SetPromptOpen = open => _isUpdateDialogOpen = open,
+            SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
+            PromptClosed = NotifyChildWindowClosedFromDeactivation,
+        });
     }
 
     private void ShowDefaultFormatMenu(Control anchor, AudioDevice device, FlyoutPalette p)

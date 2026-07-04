@@ -37,8 +37,11 @@ public sealed class TrayAppDotNETAboutPageOptions
         static (_, _, _, _) => Task.FromResult(false);
 
     public Action Shutdown { get; init; } = ShutdownDesktopApp;
+    public Action FlushLog { get; init; } = TADNLog.Flush;
     public Action<string> Log { get; init; } = static _ => { };
+    public Func<Window?> PromptOwner { get; init; } = DefaultPromptOwner;
     public Action? RebuildAboutPage { get; init; }
+    public bool SupportsFlyoutUpdateButton { get; init; } = true;
     public int StaleCheckTimerIntervalMs { get; init; } = TimeConstants.AboutStaleCheckTimerIntervalMs;
     public int UpdateStaleGraceMs { get; init; } = TimeConstants.UpdateStaleGraceMs;
 
@@ -47,6 +50,11 @@ public sealed class TrayAppDotNETAboutPageOptions
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.Shutdown();
     }
+
+    private static Window? DefaultPromptOwner() =>
+        Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop
+            ? desktop.MainWindow
+            : null;
 }
 
 public sealed class TrayAppDotNETAboutPage
@@ -144,12 +152,13 @@ public sealed class TrayAppDotNETAboutPage
                 "Raise a tray notification when a new version is detected and the flyout isn't open."),
             settings.ShowUpdateNotificationsEnabled,
             value => settings.ShowUpdateNotificationsEnabled = value));
-        stack.Children.Add(BoolCard(
-            L("Settings_About_ShowUpdateButton_Title", "Show update button in flyout"),
-            L("Settings_About_ShowUpdateButton_Description",
-                "Show update affordances in the flyout while a new version is available."),
-            settings.ShowUpdateButtonInFlyout,
-            value => settings.ShowUpdateButtonInFlyout = value));
+        if (_options.SupportsFlyoutUpdateButton)
+            stack.Children.Add(BoolCard(
+                L("Settings_About_ShowUpdateButton_Title", "Show update button in flyout"),
+                L("Settings_About_ShowUpdateButton_Description",
+                    "Show update affordances in the flyout while a new version is available."),
+                settings.ShowUpdateButtonInFlyout,
+                value => settings.ShowUpdateButtonInFlyout = value));
         stack.Children.Add(IntCard(
             L("Settings_About_UpdateInterval_Title", "Update check interval"),
             L("Settings_About_UpdateInterval_Description",
@@ -220,38 +229,30 @@ public sealed class TrayAppDotNETAboutPage
         UpdateInfo? info = service?.AvailableUpdate;
         if (service == null || info == null) return;
 
-        bool ok = await _options.ConfirmAsync(
-            string.Format(CultureInfo.CurrentCulture, L("UpdateDialog_TitleFormat", "Install {0}?"), info.ReleaseName),
-            string.IsNullOrWhiteSpace(info.Changelog)
-                ? L("UpdateDialog_NoChangelog", "No changelog was provided for this release.")
-                : info.Changelog,
-            L("UpdateDialog_Install", "Install"),
-            L("UpdateDialog_Cancel", "Cancel"));
-        if (!ok) return;
-
-        _installInProgress = true;
-        RefreshUpdateUI();
-
-        bool staged = false;
-        try
+        Window? owner = _options.PromptOwner();
+        if (owner == null)
         {
-            staged = await service.DownloadAndStageAsync(info);
-        }
-        catch (Exception ex)
-        {
-            _options.Log($"SettingsAboutPage.InstallUpdate: {ex.Message}");
+            _options.Log("SettingsAboutPage.InstallUpdate: update prompt owner unavailable.");
+            return;
         }
 
-        if (staged)
+        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(new TrayAppDotNETUpdatePromptOptions
         {
-            TADNLog.Flush();
-            _options.Shutdown();
-        }
-        else
-        {
-            _installInProgress = false;
-            RefreshUpdateUI();
-        }
+            Owner = owner,
+            Service = service,
+            UpdateInfo = info,
+            Palette = _options.Palette,
+            EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
+            Localize = L,
+            Shutdown = _options.Shutdown,
+            FlushLog = _options.FlushLog,
+            Log = _options.Log,
+            SetDownloadInFlight = inFlight =>
+            {
+                _installInProgress = inFlight;
+                RefreshUpdateUI();
+            },
+        });
     }
 
     private void StartUpdateRefresh(TextBlock statusText, SettingsButton checkButton, SettingsButton installButton)

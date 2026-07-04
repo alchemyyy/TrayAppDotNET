@@ -25,6 +25,7 @@ public sealed partial class VolumeSettingsWindow
             UpdateSettings = _settings,
             UpdateService = static () => AppServices.UpdateCheckService,
             ConfirmAsync = ConfirmAsync,
+            PromptOwner = () => this,
             Log = static message => TADNLog.Log(message),
             RebuildAboutPage = () => RebuildShell(VolumeSettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
