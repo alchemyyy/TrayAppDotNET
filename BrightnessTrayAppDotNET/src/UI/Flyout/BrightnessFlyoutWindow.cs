@@ -1167,7 +1167,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             RebuildVisual();
             e.Handled = true;
         };
-        slider.ValueChanged += (_, value) => OnSliderValueChanged(monitor, value);
+        slider.ValueChanged += (_, value) => OnSliderValueChanged(slider, monitor, value);
         return slider;
     }
 
@@ -1328,16 +1328,21 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _confirmCancel.Click -= OnConfirmCancelClicked;
     }
 
-    private void OnSliderValueChanged(MonitorInfo monitor, double value)
+    private void OnSliderValueChanged(FlyoutSlider slider, MonitorInfo monitor, double value)
     {
         BrightnessChanged = true;
         BrightnessUpdated?.Invoke();
 
-        double clamped = Math.Clamp(value, 0, 100);
-        if (Math.Abs(monitor.Brightness - clamped) >= 0.001)
-            monitor.Brightness = clamped;
+        double target = BrightnessSliderMath.NormalizeManualPercent(value);
+        if (Math.Abs(slider.Value - target) >= 0.001)
+            slider.Value = target;
 
-        if (monitor.IsMaster && _masterSliderGesturePrepared)
+        bool shouldWriteModel = Math.Abs(monitor.Brightness - target) >= 0.001
+                                || Math.Abs(monitor.LastUserBrightness - target) >= 0.001;
+        if (shouldWriteModel)
+            monitor.Brightness = target;
+
+        if (monitor.IsMaster && _masterSliderGesturePrepared && shouldWriteModel)
             ApplyMasterToEnabledMonitors();
 
         if (monitor.IsNightLight
@@ -1345,8 +1350,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             && _isNightLightActive
             && !(IsNightLightCurveEnabled && !_isInCurveDisabledPeriod && !NightLightMonitor.IsCurveReleased))
         {
-            int target = FlipIfNightLightInverted((int)Math.Round(clamped));
-            NightLightProvider.SetStrength(target);
+            int nightLightTarget = FlipIfNightLightInverted((int)target);
+            NightLightProvider.SetStrength(nightLightTarget);
         }
 
         FlushDeferredManualCurveOverrideResync(monitor);
@@ -1375,12 +1380,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void BeginMasterSliderGesture()
     {
         if (_masterSliderGesturePrepared) return;
-        FloorMonitorBaselinesForMasterGesture();
+        CanonicalizeMonitorBaselinesForMasterGesture();
         CaptureOffsetsFromMaster();
         _masterSliderGesturePrepared = true;
     }
 
-    private void FloorMonitorBaselinesForMasterGesture()
+    private void CanonicalizeMonitorBaselinesForMasterGesture()
     {
         bool preserve = _settings?.PreserveMasterSliderOffsets == true;
         bool suspendForCurve = IsBrightnessCurveEnabled
@@ -1395,19 +1400,26 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 if (!monitor.IsParticipatingInMaster) continue;
 
                 double source = preserve ? monitor.VirtualBrightness : monitor.LastUserBrightness;
-                double flooredSource = Math.Floor(source);
-                double sliderBrightness = Math.Clamp(flooredSource, 0.0, 100.0);
+                double roundedSource = BrightnessSliderMath.RoundManualPercent(source);
+                double sliderBrightness = BrightnessSliderMath.ClampPercent(roundedSource);
 
                 monitor.Brightness = sliderBrightness;
                 monitor.LastUserBrightness = sliderBrightness;
-                monitor.VirtualBrightness = preserve ? flooredSource : sliderBrightness;
+                monitor.VirtualBrightness = preserve ? roundedSource : sliderBrightness;
                 UpdateVisibleMonitorSliderValue(monitor, sliderBrightness);
             }
+
+            double masterBrightness =
+                BrightnessSliderMath.ClampPercent(ComputeMasterFromEnabledIndividuals());
+            MasterMonitor.Brightness = masterBrightness;
+            MasterMonitor.LastUserBrightness = masterBrightness;
+            MasterMonitor.VirtualBrightness = masterBrightness;
+            UpdateVisibleMonitorSliderValue(MasterMonitor, masterBrightness);
         }
         finally
         {
-            _suppressPropagation = wasSuppressingPropagation;
             hardwareWriteSuspension?.Dispose();
+            _suppressPropagation = wasSuppressingPropagation;
         }
     }
 
@@ -1440,7 +1452,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             try
             {
                 if (ReferenceEquals(sender, MasterMonitor))
-                    ApplyMasterToEnabledMonitors();
+                {
+                    if (!MasterMonitor.IsDragging)
+                        ApplyMasterToEnabledMonitors();
+                }
                 else
                     UpdateMasterFromEnabledIndividuals();
             }
@@ -1873,13 +1888,16 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         bool suspendForCurve = IsBrightnessCurveEnabled
                                && (_isInCurveDisabledPeriod || MasterMonitor.IsCurveReleased);
         IDisposable? hardwareWriteSuspension = suspendForCurve ? _monitorService.SuspendHardwareWrites() : null;
+        bool wasSuppressingPropagation = _suppressPropagation;
+        _suppressPropagation = true;
+        double masterBrightness = MasterMonitor.Brightness;
         try
         {
             foreach (MonitorInfo monitor in Monitors)
             {
                 if (!monitor.IsParticipatingInMaster) continue;
-                double unclamped = MasterMonitor.Brightness + monitor.Offset;
-                double clamped = Math.Clamp(unclamped, 0, 100);
+                double unclamped = masterBrightness + monitor.Offset;
+                double clamped = BrightnessSliderMath.ClampPercent(unclamped);
                 monitor.Brightness = clamped;
                 monitor.VirtualBrightness = unclamped;
                 UpdateVisibleMonitorSliderValue(monitor, clamped);
@@ -1890,6 +1908,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         finally
         {
             hardwareWriteSuspension?.Dispose();
+            _suppressPropagation = wasSuppressingPropagation;
         }
     }
 
@@ -1904,29 +1923,22 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void UpdateMasterFromEnabledIndividuals()
     {
-        List<MonitorInfo> connected = [.. Monitors.Where(m => m.IsHardwareFunctional)];
-        if (connected.Count == 0) return;
-
-        MasterMonitor.Brightness = CurrentMasterSliderMode switch
+        double next = ComputeMasterFromEnabledIndividuals();
+        bool wasSuppressingPropagation = _suppressPropagation;
+        _suppressPropagation = true;
+        try
         {
-            MasterSliderMode.Lowest => connected.Min(m => m.Brightness),
-            MasterSliderMode.Highest => connected.Max(m => m.Brightness),
-            _ => connected.Average(m => m.Brightness),
-        };
+            MasterMonitor.Brightness = next;
+            UpdateVisibleMonitorSliderValue(MasterMonitor, next);
+        }
+        finally
+        {
+            _suppressPropagation = wasSuppressingPropagation;
+        }
     }
 
-    private double ComputeMasterFromEnabledIndividuals()
-    {
-        List<MonitorInfo> connected = [.. Monitors.Where(m => m.IsHardwareFunctional)];
-        if (connected.Count == 0) return MasterMonitor.Brightness;
-
-        return CurrentMasterSliderMode switch
-        {
-            MasterSliderMode.Lowest => connected.Min(m => m.Brightness),
-            MasterSliderMode.Highest => connected.Max(m => m.Brightness),
-            _ => connected.Average(m => m.Brightness),
-        };
-    }
+    private double ComputeMasterFromEnabledIndividuals() =>
+        BrightnessSliderMath.ComputeMasterPercent(Monitors, CurrentMasterSliderMode, MasterMonitor.Brightness);
 
     private void CaptureOffsetsFromMaster()
     {
