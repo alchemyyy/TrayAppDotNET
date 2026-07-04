@@ -1101,6 +1101,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             UpdateSettings = _settings,
             UpdateService = static () => AppServices.UpdateCheckService,
             ConfirmAsync = ConfirmAsync,
+            PromptOwner = () => this,
+            SupportsFlyoutUpdateButton = false,
             Shutdown = () =>
             {
                 if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)

@@ -537,6 +537,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             UpdateSettings = _settings,
             UpdateService = static () => AppServices.UpdateCheckService,
             ConfirmAsync = ConfirmAsync,
+            PromptOwner = () => this,
             Log = static message => TADNLog.Log(message),
             RebuildAboutPage = () => RebuildShell(FanSettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,

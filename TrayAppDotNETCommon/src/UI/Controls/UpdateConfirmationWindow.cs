@@ -56,9 +56,9 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
     public TrayAppDotNETUpdateConfirmationWindow(
         string title,
         string description,
-        string changelog,
+        string? changelog,
         string confirmText,
-        string cancelText,
+        string? cancelText,
         SettingsPalette palette,
         bool rounded)
     {
@@ -97,9 +97,9 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
     private Grid BuildContent(
         string title,
         string description,
-        string changelog,
+        string? changelog,
         string confirmText,
-        string cancelText,
+        string? cancelText,
         SettingsPalette palette,
         bool rounded)
     {
@@ -125,44 +125,56 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         Grid.SetRow(descriptionText, 1);
         body.Children.Add(descriptionText);
 
-        TextBlock changelogText = TrayAppDotNETSettingsUI.Text(changelog, palette, 12);
-        changelogText.FontFamily = new FontFamily("Consolas, Cascadia Mono, Segoe UI");
-        changelogText.LineHeight = UpdateConfirmationLayout.ChangelogLineHeight;
-        changelogText.TextWrapping = TextWrapping.Wrap;
-
-        Border changelogBox = new()
+        if (!string.IsNullOrWhiteSpace(changelog))
         {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = UpdateConfirmationLayout.ChangelogBorderThickness,
-            CornerRadius = rounded
-                ? UpdateConfirmationLayout.ChangelogCornerRadius
-                : UpdateConfirmationLayout.ZeroCornerRadius,
-            Padding = UpdateConfirmationLayout.ChangelogPadding,
-            Child = new ScrollViewer
-            {
-                MaxHeight =
-                    UpdateConfirmationLayout.MaxVisibleChangelogLines *
-                    UpdateConfirmationLayout.ChangelogLineHeight +
-                    UpdateConfirmationLayout.ChangelogMaxHeightExtra,
-                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                Content = changelogText,
-            },
-        };
-        Grid.SetRow(changelogBox, 2);
-        body.Children.Add(changelogBox);
+            TextBlock changelogText = TrayAppDotNETSettingsUI.Text(changelog, palette, 12);
+            changelogText.FontFamily = new FontFamily("Consolas, Cascadia Mono, Segoe UI");
+            changelogText.LineHeight = UpdateConfirmationLayout.ChangelogLineHeight;
+            changelogText.TextWrapping = TextWrapping.Wrap;
 
-        SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
-        cancel.Padding = UpdateConfirmationLayout.ButtonPadding;
-        cancel.Margin = UpdateConfirmationLayout.CancelButtonMargin;
-        cancel.Click += (_, _) => Close(false);
+            Border changelogBox = new()
+            {
+                Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
+                BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+                BorderThickness = UpdateConfirmationLayout.ChangelogBorderThickness,
+                CornerRadius = rounded
+                    ? UpdateConfirmationLayout.ChangelogCornerRadius
+                    : UpdateConfirmationLayout.ZeroCornerRadius,
+                Padding = UpdateConfirmationLayout.ChangelogPadding,
+                Child = new ScrollViewer
+                {
+                    MaxHeight =
+                        UpdateConfirmationLayout.MaxVisibleChangelogLines *
+                        UpdateConfirmationLayout.ChangelogLineHeight +
+                        UpdateConfirmationLayout.ChangelogMaxHeightExtra,
+                    VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                    Content = changelogText,
+                },
+            };
+            Grid.SetRow(changelogBox, 2);
+            body.Children.Add(changelogBox);
+        }
 
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
         install.Padding = UpdateConfirmationLayout.ButtonPadding;
         install.Click += (_, _) => Close(true);
 
-        StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(cancel, install);
+        StackPanel buttons = new()
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        if (!string.IsNullOrWhiteSpace(cancelText))
+        {
+            SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
+            cancel.Padding = UpdateConfirmationLayout.ButtonPadding;
+            cancel.Margin = UpdateConfirmationLayout.CancelButtonMargin;
+            cancel.Click += (_, _) => Close(false);
+            buttons.Children.Add(cancel);
+        }
+
+        buttons.Children.Add(install);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         buttons.Margin = UpdateConfirmationLayout.ButtonsMargin;
         Grid.SetRow(buttons, 3);

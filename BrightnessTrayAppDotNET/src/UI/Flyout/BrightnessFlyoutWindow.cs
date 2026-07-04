@@ -55,6 +55,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private bool _hasUnsavedChanges;
     private bool _isUpdateButtonVisible;
     private bool _isUpdateDownloadInFlight;
+    private bool _isUpdateDialogOpen;
     private bool _deferredSliderGestureRebuild;
     private bool _isRebuildingVisual;
     private bool _rebuildVisualPending;
@@ -254,7 +255,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
     }
 
-    protected override bool HasOpenChildWindow => false;
+    protected override bool HasOpenChildWindow => _isUpdateDialogOpen;
 
     protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
 
@@ -1245,63 +1246,34 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         };
     }
 
-    private void ShowUpdateConfirmation()
-    {
-        if (_isUpdateDownloadInFlight) return;
-        UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
-        if (update == null) return;
-
-        ShowConfirmOverlay(
-            "Install update",
-            $"Download and install {update.ReleaseName} ({update.TagName})?",
-            okText: "Install",
-            cancelText: "Cancel",
-            onOK: () =>
-            {
-                CancelConfirmOverlay();
-                StartUpdateDownload();
-            });
-    }
-
-    private void StartUpdateDownload()
+    private async void ShowUpdateConfirmation()
     {
         if (_isUpdateDownloadInFlight) return;
         UpdateCheckService? service = AppServices.UpdateCheckService;
         UpdateInfo? info = service?.AvailableUpdate;
         if (service == null || info == null) return;
 
-        _isUpdateDownloadInFlight = true;
-        _ = Task.Run(async () =>
+        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(new TrayAppDotNETUpdatePromptOptions
         {
-            bool ok = false;
-            try
+            Owner = this,
+            Service = service,
+            UpdateInfo = info,
+            Palette = CreateSettingsPalette(
+                _theme,
+                _settings,
+                BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
+            EnableRoundedCorners = _settings?.EnableRoundedCorners == true,
+            Localize = L,
+            Log = static message => WPFLog.Log(message),
+            FlushLog = static () => WPFLog.Flush(),
+            Shutdown = static () =>
             {
-                ok = await service.DownloadAndStageAsync(info).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                WPFLog.Log($"BrightnessFlyoutWindow.StartUpdateDownload: {ex.Message}");
-            }
-
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (ok)
-                {
-                    WPFLog.Flush();
-                    if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
-                        lifetime.Shutdown();
-                }
-                else
-                {
-                    _isUpdateDownloadInFlight = false;
-                    ShowConfirmOverlay(
-                        "Update failed",
-                        "The update could not be downloaded. Check the log for details.",
-                        okText: "OK",
-                        cancelText: null,
-                        onOK: CancelConfirmOverlay);
-                }
-            });
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
+                    lifetime.Shutdown();
+            },
+            SetPromptOpen = open => _isUpdateDialogOpen = open,
+            SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
+            PromptClosed = NotifyChildWindowClosedFromDeactivation,
         });
     }
 
