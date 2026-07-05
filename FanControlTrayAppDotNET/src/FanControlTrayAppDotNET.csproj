@@ -169,15 +169,6 @@
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
     </ProjectReference>
-    <ProjectReference Include="..\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
-                      Condition="'$(DesignTimeBuild)' != 'true'">
-      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
-      <Private>true</Private>
-      <PrivateAssets>all</PrivateAssets>
-      <Visible>false</Visible>
-    </ProjectReference>
     <PackageReference Include="BlackSharp.Core" Version="1.1.0" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
@@ -242,11 +233,6 @@
              Targets="Build"
              BuildInParallel="$(BuildInParallel)"
              Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);$(_NCalcCoreBuildProperties)"
-             RemoveProperties="$(_VendoredReferencePropertiesToRemove);RuntimeIdentifier;RuntimeIdentifiers" />
-    <MSBuild Projects="..\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
-             Targets="Build"
-             BuildInParallel="$(BuildInParallel)"
-             Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);TargetFramework=net10.0"
              RemoveProperties="$(_VendoredReferencePropertiesToRemove);RuntimeIdentifier;RuntimeIdentifiers" />
   </Target>
 
