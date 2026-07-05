@@ -186,7 +186,7 @@ public sealed partial class BrightnessSettingsWindow
 
     private void FlushDebouncedCurveSave()
     {
-        if (_curveSaveDebounceTimer == null || !_curveSaveDebounceTimer.IsEnabled) return;
+        if (_curveSaveDebounceTimer is not { IsEnabled: true }) return;
 
         _curveSaveDebounceTimer.Stop();
         _profileManager?.Save();

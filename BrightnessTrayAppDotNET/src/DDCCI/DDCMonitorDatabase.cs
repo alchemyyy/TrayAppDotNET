@@ -81,8 +81,7 @@ public static class DDCMonitorDatabase
     {
         Dictionary<string, ParsedProfile> result = new(309, StringComparer.OrdinalIgnoreCase);
 
-        if (!root.TryGetProperty("monitors", out JsonElement monitorsObj)) return result;
-        if (monitorsObj.ValueKind != JsonValueKind.Object) return result;
+        if (!root.TryGetProperty("monitors", out JsonElement monitorsObj) || monitorsObj.ValueKind != JsonValueKind.Object) return result;
 
         foreach (JsonProperty entry in monitorsObj.EnumerateObject())
         {

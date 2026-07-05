@@ -137,7 +137,10 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
 
     protected static void DrawPath(SKCanvas canvas, SKPath path, SKColor color)
     {
-        using SKPaint paint = new() { IsAntialias = true, Color = color, Style = SKPaintStyle.Fill, };
+        using SKPaint paint = new();
+        paint.IsAntialias = true;
+        paint.Color = color;
+        paint.Style = SKPaintStyle.Fill;
         canvas.DrawPath(path, paint);
     }
 
@@ -151,13 +154,10 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
     protected static SKPath Op(SKPath left, SKPath right, SKPathOp op)
     {
         SKPath result = new();
-        if (!left.Op(right, op, result) || result.IsEmpty)
-        {
-            result.Dispose();
-            return new SKPath();
-        }
+        if (left.Op(right, op, result) && !result.IsEmpty) return result;
+        result.Dispose();
+        return new SKPath();
 
-        return result;
     }
 
     private Bitmap EnsureBitmap(int pixelSize)

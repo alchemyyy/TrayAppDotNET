@@ -49,8 +49,7 @@ internal static class FlyoutDeviceOrdering
     private static bool IsAllowedInFlyout(AudioDevice device, AppSettings settings)
     {
         if (!DeviceVisibility.IsVisible(device, settings)) return false;
-        if (device.DataFlow == EDataFlow.eCapture && !settings.ShowRecordingDevicesInFlyout) return false;
-        return true;
+        return device.DataFlow != EDataFlow.eCapture || settings.ShowRecordingDevicesInFlyout;
     }
 
     /// <summary>
@@ -112,11 +111,10 @@ internal static class FlyoutDeviceOrdering
     /// </summary>
     private static int ClassifyBucket(AudioDevice device)
     {
-        if (device.IsDisconnected) return 4;
-        if (device.IsDisabled) return 3;
-        if (device.IsDefault) return 0;
-        if (device.IsDefaultCommunications) return 1;
-        return 2;
+        return device.IsDisconnected ? 4 :
+            device.IsDisabled ? 3 :
+            device.IsDefault ? 0 :
+            device.IsDefaultCommunications ? 1 : 2;
     }
 
     /// <summary>

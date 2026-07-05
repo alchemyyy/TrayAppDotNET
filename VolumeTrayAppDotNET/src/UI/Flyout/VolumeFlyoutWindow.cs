@@ -442,13 +442,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         if (_layout == null) return;
-        if (!IsVisible && !IsWarmPriming)
-        {
-            _rebuildPending = true;
-            return;
-        }
-
-        if (_activeVolumeSliderDragCount > 0 || _isRebuilding)
+        if (!IsVisible && !IsWarmPriming || _activeVolumeSliderDragCount > 0 || _isRebuilding)
         {
             _rebuildPending = true;
             return;
@@ -760,20 +754,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void OnGroupChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AudioAppGroup.Volume))
+            switch (e.PropertyName)
             {
-                if (isUserAdjusting)
-                {
+                case nameof(AudioAppGroup.Volume) when isUserAdjusting:
                     hasDeferredVolume = true;
                     return;
-                }
-
-                ApplyGroupVolume();
+                case nameof(AudioAppGroup.Volume):
+                    ApplyGroupVolume();
+                    break;
+                case nameof(AudioAppGroup.PeakValues):
+                    slider.PeakValues = SliderPeaks(group.PeakValues);
+                    break;
+                case nameof(AudioAppGroup.IsMuted) or nameof(AudioAppGroup.State)
+                    or nameof(AudioAppGroup.Icon):
+                    QueueRebuild();
+                    break;
             }
-            else if (e.PropertyName == nameof(AudioAppGroup.PeakValues))
-                slider.PeakValues = SliderPeaks(group.PeakValues);
-            else if (e.PropertyName is nameof(AudioAppGroup.IsMuted) or nameof(AudioAppGroup.State)
-                     or nameof(AudioAppGroup.Icon)) QueueRebuild();
         }
 
         void ApplyGroupVolume()
@@ -820,28 +816,30 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         icon.VerticalAlignment = VerticalAlignment.Center;
         cell.Children.Add(icon);
 
-        if (device.IsCaptureDevice && _settings.CaptureActivityIndicator == CaptureActivityIndicator.ActiveGlyph
-                                   && group.State == AudioSessionState.Active)
+        switch (device.IsCaptureDevice)
         {
-            TextBlock badge = Text(device.IsExclusiveControlHeld ? GlyphCatalog.LOCK : GlyphCatalog.CIRCLE, p,
-                Layout.AppIconCellBadgeFontSize);
-            badge.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-            badge.Foreground = Brush(p.IconForeground);
-            badge.HorizontalAlignment = HorizontalAlignment.Right;
-            badge.VerticalAlignment = VerticalAlignment.Bottom;
-            badge.Margin = Layout.AppIconCellBadgeMargin;
-            cell.Children.Add(badge);
-        }
-
-        if (!device.IsCaptureDevice)
-        {
-            cell.PointerReleased += (_, e) =>
+            case true when _settings.CaptureActivityIndicator == CaptureActivityIndicator.ActiveGlyph
+                           && group.State == AudioSessionState.Active:
             {
-                if (e.InitialPressMouseButton != MouseButton.Left) return;
-                group.IsMuted = !group.IsMuted;
-                e.Handled = true;
-                Rebuild();
-            };
+                TextBlock badge = Text(device.IsExclusiveControlHeld ? GlyphCatalog.LOCK : GlyphCatalog.CIRCLE, p,
+                    Layout.AppIconCellBadgeFontSize);
+                badge.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+                badge.Foreground = Brush(p.IconForeground);
+                badge.HorizontalAlignment = HorizontalAlignment.Right;
+                badge.VerticalAlignment = VerticalAlignment.Bottom;
+                badge.Margin = Layout.AppIconCellBadgeMargin;
+                cell.Children.Add(badge);
+                break;
+            }
+            case false:
+                cell.PointerReleased += (_, e) =>
+                {
+                    if (e.InitialPressMouseButton != MouseButton.Left) return;
+                    group.IsMuted = !group.IsMuted;
+                    e.Handled = true;
+                    Rebuild();
+                };
+                break;
         }
 
         group.PropertyChanged += OnGroupChanged;
@@ -1021,13 +1019,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AudioDevice.FriendlyName))
-                name.Text = device.FriendlyName;
-            else if ((e.PropertyName is nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications))
-                     && !IsDefaultDeviceButtonVisible(device))
-                RunOnUIThread(QueueDeviceOrderingRebuild);
-            else if (DeviceRebuildProperties.Contains(e.PropertyName ?? string.Empty))
-                QueueRebuild();
+            switch (e.PropertyName)
+            {
+                case nameof(AudioDevice.FriendlyName):
+                    name.Text = device.FriendlyName;
+                    break;
+                case nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications)
+                    when !IsDefaultDeviceButtonVisible(device):
+                    RunOnUIThread(QueueDeviceOrderingRebuild);
+                    break;
+                default:
+                {
+                    if (DeviceRebuildProperties.Contains(e.PropertyName ?? string.Empty))
+                        QueueRebuild();
+                    break;
+                }
+            }
         }
     }
 
@@ -1088,22 +1095,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void OnDeviceChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(AudioDevice.Volume))
+            switch (e.PropertyName)
             {
-                if (isUserAdjusting)
-                {
+                case nameof(AudioDevice.Volume) when isUserAdjusting:
                     hasDeferredVolume = true;
                     return;
-                }
-
-                ApplyDeviceVolume();
+                case nameof(AudioDevice.Volume):
+                    ApplyDeviceVolume();
+                    break;
+                case nameof(AudioDevice.PeakValues):
+                    slider.PeakValues = SliderPeaks(device.PeakValues);
+                    break;
+                case nameof(AudioDevice.IsMuted):
+                    RunOnUIThread(UpdateMutedActiveVisuals);
+                    break;
+                case nameof(AudioDevice.IsActive) or nameof(AudioDevice.State):
+                    QueueRebuild();
+                    break;
             }
-            else if (e.PropertyName == nameof(AudioDevice.PeakValues))
-                slider.PeakValues = SliderPeaks(device.PeakValues);
-            else if (e.PropertyName == nameof(AudioDevice.IsMuted))
-                RunOnUIThread(UpdateMutedActiveVisuals);
-            else if (e.PropertyName is nameof(AudioDevice.IsActive) or nameof(AudioDevice.State))
-                QueueRebuild();
         }
 
         void UpdateMutedActiveVisuals()
@@ -1417,7 +1426,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void UpdateVisual()
         {
-            if (glyph != null) glyph.Text = ExclusiveButtonGlyph(device);
+            glyph?.Text = ExclusiveButtonGlyph(device);
             button.Opacity = device.IsExclusiveModeAllowed ? 1.0 : 0.4;
             TrayAppDotNETToolTip.SetTip(button, device.IsExclusiveModeAllowed
                 ? device.IsExclusiveControlHeld
@@ -2154,18 +2163,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             editor.Focus();
             editor.SelectAll();
         }, DispatcherPriority.Input);
+        return;
 
         void OnEditorKeyDown(object? sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            switch (e.Key)
             {
-                Commit();
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape)
-            {
-                Cancel();
-                e.Handled = true;
+                case Key.Enter:
+                    Commit();
+                    e.Handled = true;
+                    break;
+                case Key.Escape:
+                    Cancel();
+                    e.Handled = true;
+                    break;
             }
         }
 
@@ -2324,8 +2335,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool IsAppDrawerExpanded(AudioDevice device)
     {
         DeviceSettingsEntry? entry = AppServices.DeviceSettings?.Find(device.Id);
-        if (entry != null) return entry.IsAppDrawerExpanded;
-        return _settings.DefaultAppDrawerExpanded;
+        return entry?.IsAppDrawerExpanded ?? _settings.DefaultAppDrawerExpanded;
     }
 
     private static void SetAppDrawerExpanded(AudioDevice device, bool expanded)
@@ -2417,9 +2427,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         string format = _settings.ShowDeviceFormatText ? device.DefaultFormat ?? string.Empty : string.Empty;
         string codec = _settings.ShowDeviceCodecText && device.IsBluetooth ? device.CurrentCodecName : string.Empty;
 
-        if (format.Length > 0 && codec.Length > 0) return format + ", " + codec;
-        if (format.Length > 0) return format;
-        return codec;
+        return format.Length switch
+        {
+            > 0 when codec.Length > 0 => format + ", " + codec,
+            > 0 => format,
+            _ => codec
+        };
     }
 
     private CornerRadius ResolveDeviceBandRadius(bool isLast, bool appsBottom, bool drawerVisible)
@@ -2548,19 +2561,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
     };
 
-    private string DeviceVolumeGlyph(AudioDevice device)
-    {
-        if (device.IsCaptureDevice) return CaptureDeviceVolumeGlyph(device, device.IsMuted);
-
-        return PlaybackDeviceVolumeGlyph(device, device.IsMuted);
-    }
+    private string DeviceVolumeGlyph(AudioDevice device) => device.IsCaptureDevice ? CaptureDeviceVolumeGlyph(device, device.IsMuted) : PlaybackDeviceVolumeGlyph(device, device.IsMuted);
 
     private string DeviceMuteTogglePreviewGlyph(AudioDevice device)
     {
         bool mutedAfterToggle = !device.IsMuted;
-        if (device.IsCaptureDevice) return CaptureDeviceVolumeGlyph(device, mutedAfterToggle);
-
-        return PlaybackDeviceVolumeGlyph(device, mutedAfterToggle);
+        return device.IsCaptureDevice ? CaptureDeviceVolumeGlyph(device, mutedAfterToggle) : PlaybackDeviceVolumeGlyph(device, mutedAfterToggle);
     }
 
     private string PlaybackDeviceVolumeGlyph(AudioDevice device, bool muted)

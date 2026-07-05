@@ -36,30 +36,36 @@ public static class TrayAppDotNETHotkeyKeys
 
     public static string KeyName(uint vk)
     {
-        if (vk is >= 0x41 and <= 0x5A) return ((char)vk).ToString();
-        if (vk is >= 0x30 and <= 0x39) return ((char)vk).ToString();
-        if (vk is >= 0x60 and <= 0x69) return "Num " + (vk - 0x60).ToString(CultureInfo.InvariantCulture);
-        if (vk is >= 0x70 and <= 0x87) return "F" + (vk - 0x6F).ToString(CultureInfo.InvariantCulture);
-
-        return vk switch
+        switch (vk)
         {
-            0x08 => "Backspace",
-            0x09 => "Tab",
-            0x0D => "Enter",
-            0x1B => "Esc",
-            0x20 => "Space",
-            0x21 => "Page Up",
-            0x22 => "Page Down",
-            0x23 => "End",
-            0x24 => "Home",
-            0x25 => "Left",
-            0x26 => "Up",
-            0x27 => "Right",
-            0x28 => "Down",
-            0x2D => "Insert",
-            0x2E => "Delete",
-            _ => "VK " + vk.ToString(CultureInfo.InvariantCulture)
-        };
+            case >= 0x41 and <= 0x5A:
+            case >= 0x30 and <= 0x39:
+                return ((char)vk).ToString();
+            case >= 0x60 and <= 0x69:
+                return "Num " + (vk - 0x60).ToString(CultureInfo.InvariantCulture);
+            case >= 0x70 and <= 0x87:
+                return "F" + (vk - 0x6F).ToString(CultureInfo.InvariantCulture);
+            default:
+                return vk switch
+                {
+                    0x08 => "Backspace",
+                    0x09 => "Tab",
+                    0x0D => "Enter",
+                    0x1B => "Esc",
+                    0x20 => "Space",
+                    0x21 => "Page Up",
+                    0x22 => "Page Down",
+                    0x23 => "End",
+                    0x24 => "Home",
+                    0x25 => "Left",
+                    0x26 => "Up",
+                    0x27 => "Right",
+                    0x28 => "Down",
+                    0x2D => "Insert",
+                    0x2E => "Delete",
+                    _ => "VK " + vk.ToString(CultureInfo.InvariantCulture)
+                };
+        }
     }
 
     public static string ModifierText(uint modifiers)

@@ -73,8 +73,7 @@ public sealed class FlyoutReorderDragController<TItem>
         _overlay.Children.Add(_ghost);
 
         _activeSlotCover = source.SlotCover;
-        if (_activeSlotCover != null)
-            _activeSlotCover.IsVisible = true;
+        _activeSlotCover?.IsVisible = true;
     }
 
     public void Move(Point pointerInRoot)

@@ -1206,9 +1206,9 @@ public sealed class SettingsComboBox : Grid
         set
         {
             if (_selectedItem == value) return;
-            if (_selectedItem != null) _selectedItem.IsSelected = false;
+            _selectedItem?.IsSelected = false;
             _selectedItem = value;
-            if (_selectedItem != null) _selectedItem.IsSelected = true;
+            _selectedItem?.IsSelected = true;
             _selectionPresenter.Content = _selectedItem?.CreateSelectionContent();
             UpdateAutoWidth();
             SelectionChanged?.Invoke(this, EventArgs.Empty);

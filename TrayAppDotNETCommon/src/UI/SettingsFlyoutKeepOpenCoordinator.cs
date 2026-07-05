@@ -42,8 +42,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         FlyoutWindowCommon? flyout = flyoutWindow();
         if (flyout is not { IsVisible: true })
         {
-            if (_attachedFlyoutWindow != null)
-                _attachedFlyoutWindow.KeepOpenForSettingsWindow = false;
+            _attachedFlyoutWindow?.KeepOpenForSettingsWindow = false;
             DetachFlyout();
             return;
         }
@@ -200,13 +199,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         if (flyout == null) return;
         AttachFlyout(flyout);
 
-        if (!flyout.IsVisible)
-        {
-            flyout.KeepOpenForSettingsWindow = false;
-            return;
-        }
-
-        if (!flyout.CanHideFromCoordinator)
+        if (!flyout.IsVisible || !flyout.CanHideFromCoordinator)
         {
             flyout.KeepOpenForSettingsWindow = false;
             return;

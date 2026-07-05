@@ -103,57 +103,33 @@ internal partial interface IMMNotificationClient
 
 internal static class MMDeviceExtensions
 {
-    public static int Activate(
-        this IMMDevice device,
-        Guid iid,
-        ClsCtx clsCtx,
-        IntPtr activationParams,
-        out object? instance)
+    extension(IMMDevice device)
     {
-        int hr = device.Activate(in iid, clsCtx, activationParams, out IntPtr ptr);
-        if (hr < 0 || ptr == IntPtr.Zero)
+        public int Activate<T>(Guid iid,
+            ClsCtx clsCtx,
+            IntPtr activationParams,
+            out T? instance)
+            where T : class
         {
-            instance = null;
-            return hr;
-        }
-
-        try
-        {
-            instance = COMActivation.GetObjectForComInstance<object>(ptr);
-            return hr;
-        }
-        finally
-        {
-            Marshal.Release(ptr);
-        }
-    }
-
-    public static int Activate<T>(
-        this IMMDevice device,
-        Guid iid,
-        ClsCtx clsCtx,
-        IntPtr activationParams,
-        out T? instance)
-        where T : class
-    {
-        int hr = device.Activate(in iid, clsCtx, activationParams, out IntPtr ptr);
-        if (hr < 0 || ptr == IntPtr.Zero)
-        {
-            instance = null;
-            return hr;
-        }
-
-        unsafe
-        {
-            void* unmanaged = (void*)ptr;
-            try
+            int hr = device.Activate(in iid, clsCtx, activationParams, out IntPtr ptr);
+            if (hr < 0 || ptr == IntPtr.Zero)
             {
-                instance = UniqueComInterfaceMarshaller<T>.ConvertToManaged(unmanaged);
+                instance = null;
                 return hr;
             }
-            finally
+
+            unsafe
             {
-                UniqueComInterfaceMarshaller<T>.Free(unmanaged);
+                void* unmanaged = (void*)ptr;
+                try
+                {
+                    instance = UniqueComInterfaceMarshaller<T>.ConvertToManaged(unmanaged);
+                    return hr;
+                }
+                finally
+                {
+                    UniqueComInterfaceMarshaller<T>.Free(unmanaged);
+                }
             }
         }
     }

@@ -42,25 +42,22 @@ internal static class DeviceVisibility
         if (device.IsNotPresent) return settings.ShowNotPresentDevices;
 
         // Unplugged: real endpoint, currently disconnected.
-        if (isRender) return settings.ShowDisconnectedPlaybackDevices;
-        return settings.ShowDisconnectedRecordingDevices;
+        return isRender ? settings.ShowDisconnectedPlaybackDevices : settings.ShowDisconnectedRecordingDevices;
     }
 
     private static bool IsDisabledVisible(AudioDevice device, AppSettings settings, bool isRender)
     {
-        if (isRender)
+        if (!isRender)
         {
-            if (settings.ShowDisabledPlaybackDevices) return true;
-            // "Even if disabled" only matters while the broad disabled gate is OFF.
-            if (device.IsDefault && settings.ShowDefaultPlaybackDeviceEvenIfDisabled) return true;
-            if (device.IsDefaultCommunications && settings.ShowDefaultCommsPlaybackDeviceEvenIfDisabled) return true;
-            return false;
+            // Capture-flow path mirrors render but reads the recording-side settings.
+            return settings.ShowDisabledRecordingDevices ||
+                   device.IsDefault && settings.ShowDefaultRecordingDeviceEvenIfDisabled ||
+                   device.IsDefaultCommunications && settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled;
         }
 
-        // Capture-flow path mirrors render but reads the recording-side settings.
-        if (settings.ShowDisabledRecordingDevices) return true;
-        if (device.IsDefault && settings.ShowDefaultRecordingDeviceEvenIfDisabled) return true;
-        if (device.IsDefaultCommunications && settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled) return true;
-        return false;
+        if (settings.ShowDisabledPlaybackDevices) return true;
+        // "Even if disabled" only matters while the broad disabled gate is OFF.
+        if (device.IsDefault && settings.ShowDefaultPlaybackDeviceEvenIfDisabled) return true;
+        return device.IsDefaultCommunications && settings.ShowDefaultCommsPlaybackDeviceEvenIfDisabled;
     }
 }

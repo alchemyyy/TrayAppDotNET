@@ -7,7 +7,7 @@ using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 namespace VolumeTrayAppDotNET.Visuals;
 
 [XmlRoot("Theme")]
-public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
+public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 

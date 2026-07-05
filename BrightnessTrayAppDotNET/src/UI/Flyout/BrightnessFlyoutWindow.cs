@@ -658,13 +658,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         if (_layout == null) return;
-        if (!IsVisible && !IsWarmPriming)
-        {
-            _rebuildVisualPending = true;
-            return;
-        }
-
-        if (_isRebuildingVisual)
+        if (!IsVisible && !IsWarmPriming || _isRebuildingVisual)
         {
             _rebuildVisualPending = true;
             return;
@@ -2144,18 +2138,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (_isInCurveDisabledPeriod) return;
         if (!IsCurveAbsoluteMode) return;
 
-        if (monitor.IsMaster && IsBrightnessCurveEnabled)
-        {
-            SliderState previous = monitor.SliderState;
-            monitor.SliderState = SliderStateMachine.OnUserRelease(monitor.SliderState);
-            UpdateCurveStopwatchVisibility(monitor);
-            _curveService.Evaluate();
-            if (monitor.SliderState == SliderState.CurveReleased && previous != SliderState.CurveReleased)
-                HandleManualCurveOverrideRelease(monitor, replayCurrentSliderValue);
-            return;
-        }
-
-        if (monitor.IsNightLight && IsNightLightCurveEnabled)
+        if (monitor.IsMaster && IsBrightnessCurveEnabled || monitor.IsNightLight && IsNightLightCurveEnabled)
         {
             SliderState previous = monitor.SliderState;
             monitor.SliderState = SliderStateMachine.OnUserRelease(monitor.SliderState);
@@ -2569,9 +2552,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ReengageCurveReleasedMonitor(monitor);
             ReengageIndividualBrightnessCurveOverridesFromMaster();
         }
-        else if (monitor.IsNightLight)
-            ReengageCurveReleasedMonitor(monitor);
-        else if (!IsMasterStopwatchBlockingReengage())
+        else if (monitor.IsNightLight || !IsMasterStopwatchBlockingReengage())
             ReengageCurveReleasedMonitor(monitor);
         else
             _curveStopwatchReengageBlockedByMaster.Add(CurveStopwatchKeyFor(monitor));

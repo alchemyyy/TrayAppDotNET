@@ -159,7 +159,6 @@ internal static class CCD
     /// Used to be the primary source of display numbers,
     /// but Windows monotonically bumps <c>n</c> on every new entry
     /// so it stops matching Settings after enough topology churn.
-    /// Centralised here so <see cref="DDCCI.DisplayService"/>
     /// and <c>DisplayIdentifierService</c> can't diverge on fallback behaviour.
     /// </summary>
     public static int ParseDisplayNumberFromAdapterName(string? adapterName)

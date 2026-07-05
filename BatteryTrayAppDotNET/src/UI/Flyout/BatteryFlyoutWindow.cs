@@ -322,13 +322,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             return;
         }
 
-        if (!IsVisible && !IsWarmPriming)
-        {
-            _rebuildPending = true;
-            return;
-        }
-
-        if (_isRebuilding)
+        if (!IsVisible && !IsWarmPriming || _isRebuilding)
         {
             _rebuildPending = true;
             return;

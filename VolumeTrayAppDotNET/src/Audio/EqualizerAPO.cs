@@ -66,8 +66,7 @@ internal static class EqualizerAPOMonitor
             EnsureWatching();
             string installDir = ResolveInstallDir();
             string dllPath = Path.Combine(installDir, EqualizerAPODllName);
-            if (!File.Exists(dllPath)) return false;
-            return EqualizerAPOInstaller.IsAPORegistered();
+            return File.Exists(dllPath) && EqualizerAPOInstaller.IsAPORegistered();
         }
     }
 
