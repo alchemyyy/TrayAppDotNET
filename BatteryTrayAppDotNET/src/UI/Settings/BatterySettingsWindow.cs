@@ -9,7 +9,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using BatteryTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
-using BatteryInstallScope = TrayAppDotNETCommon.InstallScope;
+using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
 

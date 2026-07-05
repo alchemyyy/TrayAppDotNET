@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 
-namespace NetworkTrayAppDotNET.UI;
+namespace NetworkTrayAppDotNET.UI.Settings;
 
 public sealed partial class NetworkSettingsWindow
 {

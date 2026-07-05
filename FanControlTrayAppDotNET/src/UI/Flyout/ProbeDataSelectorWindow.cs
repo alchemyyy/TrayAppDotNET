@@ -5,8 +5,9 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using FanControlTrayAppDotNET.UI.Settings;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Flyout;
 
 /// <summary>
 /// Window for selecting and transforming probe data shown by a probe card.

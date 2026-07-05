@@ -15,7 +15,7 @@ using TrayAppDotNETCommon.UI.WarmWindows;
 using BatteryHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using BatteryHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using BatteryHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
-using BatteryInstallScope = TrayAppDotNETCommon.InstallScope;
+using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using BatteryWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
 
 namespace BatteryTrayAppDotNET;

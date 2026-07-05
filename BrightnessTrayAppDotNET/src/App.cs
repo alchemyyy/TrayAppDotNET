@@ -21,7 +21,7 @@ using BrightnessHotkeyFiredEventArgs =
 using BrightnessHotkeyService =
     TrayAppDotNETCommon.Services.GlobalHotkeyService<BrightnessTrayAppDotNET.Models.BrightnessHotkeyAction,
         BrightnessTrayAppDotNET.Models.HotkeyBinding>;
-using BrightnessInstallScope = TrayAppDotNETCommon.InstallScope;
+using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using BrightnessUpdateCheckService = TrayAppDotNETCommon.Services.UpdateCheckService;
 using BrightnessWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
 

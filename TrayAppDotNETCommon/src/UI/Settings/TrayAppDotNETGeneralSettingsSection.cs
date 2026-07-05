@@ -3,6 +3,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI.Controls;
 

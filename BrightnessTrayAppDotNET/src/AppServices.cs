@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.UI.Flyout;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
 using BrightnessHotkeyBinding = BrightnessTrayAppDotNET.Models.HotkeyBinding;

@@ -7,9 +7,9 @@ using TrayAppDotNETCommon.UI.Settings;
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyApplyResult = TrayAppDotNETCommon.Services.HotkeyApplyResult;
 using FanHotkeyBinding = TrayAppDotNETCommon.Models.HotkeyBinding;
-using FanInstallScope = TrayAppDotNETCommon.InstallScope;
+using FanInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Settings;
 
 public enum FanSettingsPage
 {

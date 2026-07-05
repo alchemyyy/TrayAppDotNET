@@ -10,6 +10,8 @@ using TrayAppDotNETCommon.Serialization;
 using TrayAppDotNETCommon.XmlSourceGenerator;
 using Xunit;
 
+namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
+
 public sealed class TrayXmlSourceGeneratorTests
 {
     [Fact]

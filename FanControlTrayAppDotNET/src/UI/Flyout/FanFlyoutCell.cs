@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Flyout;
 
 public sealed class FanFlyoutCell : INotifyPropertyChanged
 {

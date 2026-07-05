@@ -3,7 +3,7 @@ using System.Text;
 using Avalonia.Controls;
 using FanControlTrayAppDotNET.Models;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Flyout;
 
 internal static class FanDragEngine
 {

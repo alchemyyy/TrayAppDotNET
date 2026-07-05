@@ -10,6 +10,7 @@ using NetworkTrayAppDotNET.Localization;
 using NetworkTrayAppDotNET.Models;
 using NetworkTrayAppDotNET.Services;
 using NetworkTrayAppDotNET.UI;
+using NetworkTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using CommonUser32 = TrayAppDotNETCommon.Interop.User32;
 

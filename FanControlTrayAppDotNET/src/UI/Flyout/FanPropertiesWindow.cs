@@ -6,8 +6,9 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
+using FanControlTrayAppDotNET.UI.Settings;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Flyout;
 
 public sealed partial class FanPropertiesWindow : Window
 {

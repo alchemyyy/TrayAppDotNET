@@ -1,4 +1,4 @@
-namespace TrayAppDotNETCommon;
+namespace TrayAppDotNETCommon.Models;
 
 public sealed record TrayAppDotNETInstallIdentity(
     string ApplicationName,

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 
 namespace TrayAppDotNETCommon.Utils;

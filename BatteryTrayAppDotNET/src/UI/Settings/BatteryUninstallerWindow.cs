@@ -1,6 +1,6 @@
 using BatteryTrayAppDotNET.Visuals;
 using TrayAppDotNETCommon.UI.Controls;
-using BatteryInstallScope = TrayAppDotNETCommon.InstallScope;
+using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace BatteryTrayAppDotNET.UI.Settings;

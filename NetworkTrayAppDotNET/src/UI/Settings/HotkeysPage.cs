@@ -6,7 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using NetworkTrayAppDotNET.Models;
 
-namespace NetworkTrayAppDotNET.UI;
+namespace NetworkTrayAppDotNET.UI.Settings;
 
 public sealed partial class NetworkSettingsWindow
 {

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;
 
 namespace TrayAppDotNETCommon;

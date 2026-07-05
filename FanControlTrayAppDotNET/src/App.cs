@@ -5,12 +5,15 @@ using Avalonia.Threading;
 using FanControlTrayAppDotNET.Localization;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI;
+using FanControlTrayAppDotNET.UI.Flyout;
+using FanControlTrayAppDotNET.UI.Settings;
+using FanControlTrayAppDotNET.UI.Tray;
 using HotAvalonia;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using FanHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
-using FanInstallScope = TrayAppDotNETCommon.InstallScope;
+using FanInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using FanWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
 
 namespace FanControlTrayAppDotNET;
