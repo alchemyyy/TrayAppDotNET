@@ -3,6 +3,7 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/generators/">
+    <Project Path="generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj" />
     <Project Path="generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -11,6 +12,7 @@
     </Project>
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AxamlPropertyLinker.Tests/TrayAppDotNETCommon.AxamlPropertyLinker.Tests.csproj" />
     <Project Path="tests/XmlSourceGenerator.Tests/TrayAppDotNETCommon.XmlSourceGenerator.Tests.csproj" />
   </Folder>
 </Solution>

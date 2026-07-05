@@ -136,6 +136,14 @@
                       GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
+    <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
+                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
     <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
@@ -180,6 +188,10 @@
     <AvaloniaResource Include="Visuals\FanFont.ttf" Link="Visuals/FanFont.ttf" />
     <AvaloniaResource Include="Visuals\FAN_GLYPH.png" Link="Visuals/FAN_GLYPH.png" />
     <Content Include="Resources\PawnIO_setup.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="**\*.axaml" />
   </ItemGroup>
 
   <ItemGroup>

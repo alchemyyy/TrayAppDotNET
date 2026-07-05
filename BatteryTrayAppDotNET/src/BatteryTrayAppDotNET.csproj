@@ -68,6 +68,14 @@
                       GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
+    <ProjectReference Include="..\..\TrayAppDotNETCommon\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
+                      Condition="'$(MSBuildIsRestoring)' != 'true' or '$(PublishAot)' != 'true'"
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
+                      SkipGetTargetFrameworkProperties="true"
+                      PrivateAssets="all" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
@@ -78,6 +86,10 @@
 
   <ItemGroup>
     <AvaloniaResource Include="..\app.ico" Link="Assets/app.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="**\*.axaml" />
   </ItemGroup>
 
   <ItemGroup>
