@@ -4,6 +4,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <sys:Double x:Key="SettingsWindow.StandardWindowWidth">960</sys:Double>
+    <sys:Double x:Key="SettingsWindow.StandardWindowHeight">670</sys:Double>
+    <sys:Double x:Key="SettingsWindow.StandardWindowMinWidth">720</sys:Double>
+    <sys:Double x:Key="SettingsWindow.StandardWindowMinHeight">520</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CompactWindowWidth">900</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CompactWindowHeight">640</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CompactWindowMinWidth">680</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CompactWindowMinHeight">500</sys:Double>
     <sys:Double x:Key="SettingsWindow.TitleBarHeight">32</sys:Double>
     <sys:Double x:Key="SettingsWindow.TitleBarDragZoneHeight">72</sys:Double>
     <sys:Double x:Key="SettingsWindow.DefaultSidebarWidth">230</sys:Double>

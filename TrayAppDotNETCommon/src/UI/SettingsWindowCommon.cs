@@ -44,6 +44,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private bool _hasShownPage;
     private bool _wndProcHookAttached;
 
+    private enum SettingsWindowSizeProfile
+    {
+        Standard,
+        Compact,
+    }
+
+    private sealed record SettingsWindowDimensions(double Width, double Height, double MinWidth, double MinHeight);
+
     protected TPageKey CurrentPageKey { get; private set; } = default!;
     protected bool IsClosing { get; private set; }
 
@@ -71,19 +79,20 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Closed += (_, _) => DetachWndProcHook();
     }
 
-    protected void ConfigureSettingsWindow(
-        string title,
-        double width,
-        double height,
-        double minWidth,
-        double minHeight,
-        WindowIcon? icon)
+    protected void ConfigureSettingsWindow(string title, WindowIcon? icon) =>
+        ConfigureSettingsWindow(title, SettingsWindowSizeProfile.Standard, icon);
+
+    protected void ConfigureCompactSettingsWindow(string title, WindowIcon? icon) =>
+        ConfigureSettingsWindow(title, SettingsWindowSizeProfile.Compact, icon);
+
+    private void ConfigureSettingsWindow(string title, SettingsWindowSizeProfile sizeProfile, WindowIcon? icon)
     {
+        SettingsWindowDimensions dimensions = ReadWindowDimensions(sizeProfile);
         Title = title;
-        Width = width;
-        Height = height;
-        MinWidth = minWidth;
-        MinHeight = minHeight;
+        Width = dimensions.Width;
+        Height = dimensions.Height;
+        MinWidth = dimensions.MinWidth;
+        MinHeight = dimensions.MinHeight;
         Icon = icon;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowDecorations = WindowDecorations.None;
@@ -91,6 +100,22 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         CanResize = true;
     }
+
+    private SettingsWindowDimensions ReadWindowDimensions(SettingsWindowSizeProfile sizeProfile) =>
+        sizeProfile switch
+        {
+            SettingsWindowSizeProfile.Standard => new SettingsWindowDimensions(
+                _settingsResources.Double("StandardWindowWidth"),
+                _settingsResources.Double("StandardWindowHeight"),
+                _settingsResources.Double("StandardWindowMinWidth"),
+                _settingsResources.Double("StandardWindowMinHeight")),
+            SettingsWindowSizeProfile.Compact => new SettingsWindowDimensions(
+                _settingsResources.Double("CompactWindowWidth"),
+                _settingsResources.Double("CompactWindowHeight"),
+                _settingsResources.Double("CompactWindowMinWidth"),
+                _settingsResources.Double("CompactWindowMinHeight")),
+            _ => throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, null),
+        };
 
     protected void InitializeSettingsShell()
     {

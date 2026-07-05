@@ -49,13 +49,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureSettingsWindow(
-            L("SettingsWindow_Title", "Settings"),
-            width: 960,
-            height: 670,
-            minWidth: 720,
-            minHeight: 520,
-            AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 

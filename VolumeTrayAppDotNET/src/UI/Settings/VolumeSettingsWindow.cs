@@ -28,13 +28,7 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
     public VolumeSettingsWindow(AppSettings settings, Action<string, VolumeInstallScope> showUninstaller)
     {
         _settings = settings;
-        ConfigureSettingsWindow(
-            L("SettingsWindow_Title", "Settings"),
-            width: 960,
-            height: 670,
-            minWidth: 720,
-            minHeight: 520,
-            AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
