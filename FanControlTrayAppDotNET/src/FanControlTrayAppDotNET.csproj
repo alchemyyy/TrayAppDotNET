@@ -24,8 +24,6 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
-    <FanControlDesignTimeSubmoduleReferencePath Condition="'$(FanControlDesignTimeSubmoduleReferencePath)' == '' and '$(TrayAppDotNETUseRootOutput)' == 'true'">$(TrayAppDotNETRoot)bin\$(Configuration)\</FanControlDesignTimeSubmoduleReferencePath>
-    <FanControlDesignTimeSubmoduleReferencePath Condition="'$(FanControlDesignTimeSubmoduleReferencePath)' == ''">$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</FanControlDesignTimeSubmoduleReferencePath>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
@@ -77,56 +75,6 @@
     <Using Include="FanControlTrayAppDotNET" />
     <Using Include="FanControlTrayAppDotNET.Models" />
     <Using Include="FanControlTrayAppDotNET.Visuals" />
-    <!-- Keep vendored submodules out of Visual Studio/ReSharper design-time workspaces.
-         Normal builds still use ProjectReference so local source changes are honored. -->
-    <Reference Include="DiskInfoToolkit" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)DiskInfoToolkit.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)DiskInfoToolkit.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="DiskInfoToolkit" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)DiskInfoToolkit.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\DiskInfoToolkit.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\DiskInfoToolkit.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="HidSharp" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)HidSharp.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)HidSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="HidSharp" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)HidSharp.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\HidSharp.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\HidSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="LibreHardwareMonitorLib" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)LibreHardwareMonitorLib.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)LibreHardwareMonitorLib.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="LibreHardwareMonitorLib" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)LibreHardwareMonitorLib.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\LibreHardwareMonitorLib.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\LibreHardwareMonitorLib.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Core" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Core.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Core.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Core" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Core.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Core.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Core.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Domain" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Domain.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Domain.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Domain" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Domain.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Domain.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Domain.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Parser" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Parser.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Parser.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Parser" Condition="'$(DesignTimeBuild)' == 'true' and !Exists('$(FanControlDesignTimeSubmoduleReferencePath)NCalc.Parser.dll') and Exists('$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Parser.dll')">
-      <HintPath>$(FanControlDesignTimeSubmoduleReferencePath)win-x64\NCalc.Parser.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
     <ProjectReference Include="$(TrayAppDotNETCommonProject)"
                       Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
@@ -146,6 +94,41 @@
                       GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
+    <!-- Keep source ProjectReference edges visible during design-time builds.
+         Visual Studio and ReSharper need these to resolve NCalc and LHM namespaces;
+         do not replace them with HintPath-only references again. -->
+    <ProjectReference Include="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+                      Condition="'$(DesignTimeBuild)' == 'true'">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetPlatform>Platform=x64</SetPlatform>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>DisableIpmiWmi=true;DisableRamSpd=true</AdditionalProperties>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+    </ProjectReference>
+    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+                      Condition="'$(DesignTimeBuild)' == 'true'">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>TreatWarningsAsErrors=false;NoWarn=RCS1194</AdditionalProperties>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+    </ProjectReference>
+    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
+                      Condition="'$(DesignTimeBuild)' == 'true'">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>TreatWarningsAsErrors=false</AdditionalProperties>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+    </ProjectReference>
+
+    <!-- Normal builds use hidden references plus the serial prebuild targets below.
+         This preserves clean Debug/Release rebuild behavior while keeping IDE source
+         resolution correct through the design-time references above. -->
     <ProjectReference Include="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
@@ -164,6 +147,7 @@
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
       <SetTargetFramework Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</SetTargetFramework>
+      <AdditionalProperties>TreatWarningsAsErrors=false;NoWarn=RCS1194</AdditionalProperties>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
@@ -174,6 +158,7 @@
                       Targets="GetTargetPath">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>TreatWarningsAsErrors=false</AdditionalProperties>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
@@ -230,8 +215,8 @@
            IPMI/BMC or RAM SPD paths into the Debug LHM sidecar. -->
       <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
       <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
-      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</_NCalcCoreBuildProperties>
-      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</_NCalcCoreBuildProperties>
+      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0;TreatWarningsAsErrors=false;NoWarn=RCS1194</_NCalcCoreBuildProperties>
+      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true;TreatWarningsAsErrors=false;NoWarn=RCS1194</_NCalcCoreBuildProperties>
     </PropertyGroup>
 
     <MSBuild Projects="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
@@ -247,15 +232,15 @@
   </Target>
 
   <!-- NCalc.Core exposes NCalc.Domain types in public APIs. Keep a direct
-       reference for compile metadata, but build it serially here and use
-       GetTargetPath above so it does not race the transitive NCalc.Core build. -->
+       reference for compile metadata and build it serially here so clean
+       Debug rebuilds do not race the transitive NCalc.Core build. -->
   <Target Name="BuildNCalcDomainReference"
           BeforeTargets="ResolveProjectReferences"
           Condition="'$(DesignTimeBuild)' != 'true'">
     <MSBuild Projects="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
              Targets="Build"
              BuildInParallel="$(BuildInParallel)"
-             Properties="Configuration=$(Configuration);Platform=x64;TargetFramework=net10.0;BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false"
+             Properties="Configuration=$(Configuration);Platform=x64;TargetFramework=net10.0;BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;TreatWarningsAsErrors=false"
              RemoveProperties="BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir" />
   </Target>
 
