@@ -194,6 +194,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
         _lastTrayIcon = trayIcon;
+        ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         ExecuteFanRebuild(reposition: false);
         if (!IsVisible)

@@ -530,7 +530,7 @@ internal sealed class VolumeAvaloniaApp : Application
     private SettingsPalette TrayMenuPalette() =>
         VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLightTheme());
 
-    private void ShowVolumeFlyout(bool activate = true)
+    private void ShowVolumeFlyout(bool activate = true, bool holdOpenForSettings = true)
     {
         if (_audioManager == null || _settings == null || _trayIcon == null) return;
 
@@ -538,6 +538,8 @@ internal sealed class VolumeAvaloniaApp : Application
 
         _volumeFlyout.Redock();
         _volumeFlyout.ShowAt(_trayIcon, activate);
+        if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
+            SettingsFlyoutKeepOpen.HoldOpen();
     }
 
     private VolumeFlyoutWindow CreateManagedVolumeFlyout()
@@ -582,7 +584,8 @@ internal sealed class VolumeAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _volumeFlyout);
+            () => _volumeFlyout,
+            () => ShowVolumeFlyout(activate: false, holdOpenForSettings: false));
 
     private void OnVolumeFlyoutClosed(object? sender, EventArgs e)
     {

@@ -6,7 +6,8 @@ namespace TrayAppDotNETCommon.UI;
 
 public sealed class SettingsFlyoutKeepOpenCoordinator(
     Func<Window?> window,
-    Func<FlyoutWindowCommon?> flyoutWindow)
+    Func<FlyoutWindowCommon?> flyoutWindow,
+    Action? showFlyoutWithoutActivation = null)
     : IDisposable
 {
     private Window? _attachedSettingsWindow;
@@ -42,7 +43,21 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         FlyoutWindowCommon? flyout = flyoutWindow();
         if (flyout is not { IsVisible: true })
         {
-            _attachedFlyoutWindow?.KeepOpenForSettingsWindow = false;
+            // Restore only a flyout that was already paired with settings
+            if (_attachedFlyoutWindow != null && showFlyoutWithoutActivation != null)
+            {
+                showFlyoutWithoutActivation();
+                flyout = flyoutWindow();
+                if (flyout is { IsVisible: true })
+                {
+                    AttachFlyout(flyout);
+                    flyout.KeepOpenForSettingsWindow = true;
+                    return;
+                }
+            }
+
+            if (_attachedFlyoutWindow != null)
+                _attachedFlyoutWindow.KeepOpenForSettingsWindow = false;
             DetachFlyout();
             return;
         }
@@ -188,7 +203,13 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         Window? settingsWindow = window();
         FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? flyoutWindow();
 
-        if (settingsWindow == null || IsUnavailableSettingsWindow(settingsWindow))
+        if (settingsWindow == null || !settingsWindow.IsVisible)
+        {
+            Release(hideFlyout: false, activateFlyout: false);
+            return;
+        }
+
+        if (settingsWindow.WindowState == WindowState.Minimized)
         {
             Release();
             return;
@@ -302,7 +323,4 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         if (flyout is { IsVisible: true, CanHideFromCoordinator: true })
             flyout.HideFromCoordinator();
     }
-
-    private static bool IsUnavailableSettingsWindow(Window settingsWindow) =>
-        !settingsWindow.IsVisible || settingsWindow.WindowState == WindowState.Minimized;
 }

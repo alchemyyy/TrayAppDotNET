@@ -273,6 +273,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
         _lastTrayIcon = trayIcon;
+        ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         RebuildVisual();
         if (!IsVisible)
