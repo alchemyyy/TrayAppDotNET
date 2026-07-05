@@ -72,7 +72,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 INSTALL_ALL_SCRIPT_PATH = REPO_ROOT / ".github" / "install-all.bat"
 INSTALL_ALL_ARCHIVE_NAME = "install-all.bat"
 APP_INSTALL_ARCHIVE_NAME = "install.bat"
-GENERATOR_PROJECT = "TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj"
+GENERATOR_PROJECTS = [
+    "TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj",
+    "TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj",
+]
 
 
 def run(cmd: list[str], *, cwd: Path | None = None, capture: bool = False, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -413,8 +416,11 @@ def publish_command(app: App, publish_dir: Path, profile: Profile) -> list[str]:
     return cmd
 
 
-def generator_restore_command() -> list[str]:
-    return ["dotnet", "restore", GENERATOR_PROJECT, "--disable-parallel"]
+def generator_restore_commands() -> list[list[str]]:
+    commands: list[list[str]] = []
+    for generator_project in GENERATOR_PROJECTS:
+        commands.append(["dotnet", "restore", generator_project, "--disable-parallel"])
+    return commands
 
 
 def restore_command(app: App, profile: Profile) -> list[str]:
@@ -482,7 +488,10 @@ def build_app(app: App, version: int, output_root: Path, profile: Profile) -> Ap
         shutil.rmtree(publish_dir)
     publish_dir.mkdir(parents=True, exist_ok=True)
 
-    run(generator_restore_command())
+    # Publish runs with --no-restore. Keep generator restores explicit because AOT restore
+    # conditions can exclude analyzer ProjectReferences from the app restore graph.
+    for generator_restore_command in generator_restore_commands():
+        run(generator_restore_command)
     run(restore_command(app, profile))
     run(publish_command(app, publish_dir, profile))
     if profile.publish_aot:
