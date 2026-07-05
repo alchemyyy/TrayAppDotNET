@@ -367,7 +367,7 @@ namespace FanControlTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Float an Update! button in the top-right of the flyout while a new version is available..
+        ///   Looks up a localized string similar to Show an Update! card at the top of the card stack in the flyout when a new version is available.
         /// </summary>
         public static string Settings_About_ShowUpdateButton_Description {
             get {

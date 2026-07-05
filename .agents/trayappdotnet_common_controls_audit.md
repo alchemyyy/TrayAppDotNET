@@ -17,21 +17,20 @@ The strongest pattern is that `TrayAppDotNETCommon` already contains good primit
 
 ## Executive Summary
 
-Highest-value commonization targets:
+Highest-value remaining commonization targets:
 
-1. **Update install confirmation**: P0 implemented. Settings About plus Brightness, Fan, and Volume flyout update confirmations now use a common presenter and prompt surface. Battery and Network no longer expose a dead flyout update-button option.
-2. **Uninstaller confirmation window**: P0 implemented. Battery, Brightness, Fan, Network, and Volume now use one common `TrayAppDotNETUninstallerWindow` through app-specific wrapper classes.
-3. **Hotkey editor**: All apps duplicate the same search, modifier, key, add, and binding-card editor structure. Brightness adds target parameters, but that should be an extension point, not a separate page.
-4. **Flyout shell/header/update/undock controls**: `FlyoutWindowCommon` exists, but the actual header buttons, update affordance, root chrome, window constants, and undock layout are per-app.
-5. **Flyout slider rows and entity rows**: `FlyoutSlider` is common, but Volume, Brightness, and Fan independently build the multi-part row around it.
-6. **Theme/tray icon/flyout settings page builders**: Common settings primitives exist, but the pages still repeat section structure, card shape, combo options, and save/rebuild wiring.
-7. **Primitive resource tokens**: Card radii, button sizes, text box variants, flyout empty states, dialog widths, overlay sizes, and typography tokens need a common resource vocabulary.
+1. **Install-card uninstall result/refresh contract**: The common install-card section still takes callback-style uninstall delegates. Volume owns the most complete post-uninstall process-exit refresh behavior; the common section should own it for all apps.
+2. **Hotkey editor**: All apps duplicate the same search, modifier, key, add, and binding-card editor structure. Brightness adds target parameters, but that should be an extension point, not a separate page.
+3. **Flyout shell/header/update/undock controls**: `FlyoutWindowCommon` exists, but the actual header buttons, update affordance, root chrome, window constants, and undock layout are per-app.
+4. **Flyout slider rows and entity rows**: `FlyoutSlider` is common, but Volume, Brightness, and Fan independently build the multi-part row around it.
+5. **Theme/tray icon/flyout settings page builders**: Common settings primitives exist, but the pages still repeat section structure, card shape, combo options, and save/rebuild wiring.
+6. **Primitive resource tokens**: Card radii, button sizes, text box variants, flyout empty states, overlay sizes, and typography tokens need a common resource vocabulary.
 
 The commonization strategy should not flatten app-specific behavior. Instead, the common layer should own layout, visual metrics, window chrome, dialog shape, and row mechanics. Apps should provide descriptors, callbacks, labels, and domain state.
 
-## Current Implementation Status
+## Completed Since This Audit Was Written
 
-P0 dialog commonization has been implemented in code:
+The completed items below are no longer active commonization targets in this audit:
 
 - Added common caption close button:
   - `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETCaptionCloseButton.cs`
@@ -46,16 +45,17 @@ P0 dialog commonization has been implemented in code:
   - `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETAboutPage.cs`
 - Migrated Brightness, Fan, and Volume flyout update install confirmations to the common update prompt.
 - Hid the flyout update-button setting for Battery and Network, where no flyout update affordance exists.
+- Moved settings-window dimensions into `TrayAppDotNETCommon/src/UI/SettingsWindowCommon.axaml` and replaced app constructor literals with resource-backed standard/compact profiles.
 
 Verification after implementation:
 
 - `dotnet build TrayAppDotNET.slnx -c Debug -m:1` passed.
 - `dotnet test TrayAppDotNET.slnx -c Debug --no-build -m:1` passed.
-  - Brightness tests: 11 passed.
+  - Brightness tests: 16 passed.
   - Fan tests: 58 passed.
   - Common XML source generator tests: 7 passed.
 
-Remaining P0 follow-up:
+Open follow-up from the dialog work:
 
 - The settings installation-section uninstall contract is still callback-oriented. A later pass should replace `Func<Action, Task> UninstallAsync` with a result-oriented common API so the common section can refresh after dialog close and after uninstall process exit. Volume still owns the most complete post-uninstall process-exit refresh behavior.
 
@@ -83,6 +83,12 @@ These should be extended instead of bypassed:
   - Existing searchable list primitive.
 - `TrayAppDotNETCommon/src/UI/Controls/UpdateConfirmationWindow.cs:39`
   - Existing common update confirmation window.
+- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETUpdatePromptPresenter.cs`
+  - Common update-install confirmation, staging, failure prompt, and shutdown handoff.
+- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETUninstallerWindow.cs`
+  - Common custom-chrome uninstall confirmation window.
+- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETCaptionCloseButton.cs`
+  - Common custom-chrome close button used by dialogs.
 - `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETGeneralSettingsSection.cs:59`
   - Common startup/install/general settings section.
 - `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETKeepWarmSettingsSection.cs`
@@ -90,285 +96,60 @@ These should be extended instead of bypassed:
 - `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETAboutPage.cs:52`
   - Common About/update settings block.
 
-## P0: Update Install Confirmation
-
-Status: implemented for the shared modal prompt path. The update install confirmation now uses a common presenter from settings About and from the Brightness, Fan, and Volume flyouts. Battery and Network keep the settings About path and no longer expose the unsupported flyout update-button setting.
+## P1: Install-Card Uninstall Result And Refresh Contract
 
 ### Evidence
 
-Common update confirmation window:
+The uninstaller window surface is common, but the settings-page install card still delegates uninstall flow through a callback:
 
-- `TrayAppDotNETCommon/src/UI/Controls/UpdateConfirmationWindow.cs:39`
-- `TrayAppDotNETCommon/src/UI/Controls/UpdateConfirmationWindow.axaml:6`
-
-Volume flyout uses the common window:
-
-- `VolumeTrayAppDotNET/src/UI/Flyout/VolumeFlyoutWindow.cs:1995`
-- `VolumeTrayAppDotNET/src/UI/Flyout/VolumeFlyoutWindow.cs:2002`
-- `VolumeTrayAppDotNET/src/UI/Flyout/VolumeFlyoutWindow.cs:44`
-
-Brightness flyout uses a custom overlay:
-
-- `BrightnessTrayAppDotNET/src/UI/Flyout/BrightnessFlyoutWindow.cs:1200`
-- `BrightnessTrayAppDotNET/src/UI/Flyout/BrightnessFlyoutWindow.cs:1248`
-- `BrightnessTrayAppDotNET/src/UI/Flyout/BrightnessFlyoutWindow.axaml:101`
-
-Fan flyout uses a custom overlay:
-
-- `FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.cs:1918`
-- `FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.cs:3917`
-- `FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml:130`
-
-Settings About uses a settings overlay, not the update window:
-
-- `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETAboutPage.cs:217`
-- `TrayAppDotNETCommon/src/UI/SettingsWindowCommon.cs:115`
-- `TrayAppDotNETCommon/src/UI/SettingsWindowCommon.cs:532`
-
-Battery and Network route update balloon clicks to settings About:
-
-- `BatteryTrayAppDotNET/src/App.cs:301`
-- `NetworkTrayAppDotNET/src/App.cs:266`
-
-### Divergence
-
-The same action currently has at least three UI patterns:
-
-- Volume flyout: modal `TrayAppDotNETUpdateConfirmationWindow`, changelog scroll box, child-window guard.
-- Brightness flyout: flyout overlay, hardcoded title/message, no changelog display.
-- Fan flyout: flyout overlay, changelog text in a simple message area, different overlay metrics.
-- Settings About: settings overlay with different width and no dedicated changelog presentation.
-- Battery/Network: no flyout update affordance found, but the shared About page still exposes the "show update button in flyout" setting unless app code hides or ignores it.
-
-Failure handling also differs:
-
-- Brightness shows a hardcoded failure overlay.
-- Fan shows a confirm-style failure overlay with OK and Cancel buttons.
-- Volume logs the failure without a user-facing dialog from the flyout path.
-- About page uses its own settings overlay behavior.
-
-Text and localization also drift:
-
-- Brightness flyout hardcodes "Install update" and "Download and install ..." instead of using its `UpdateDialog_*` resources.
-- Fan and Volume use "Update available: {0}" style title resources, while the common About fallback is "Install {0}?".
-- No-changelog text differs between common About, common update window, Brightness, Fan, and Volume.
-- Battery and Network rely mostly on common update fallbacks.
-
-### Required Commonization
-
-Create one update prompt presenter that owns confirmation, failure, child-window/overlay state, changelog display, and staging flow.
-
-Proposed common types:
-
-```csharp
-public enum TrayAppDotNETUpdatePromptPresentation
-{
-    ModalWindow,
-    OwnerOverlay
-}
-
-public sealed record TrayAppDotNETUpdatePromptOptions
-{
-    public required UpdateInfo UpdateInfo { get; init; }
-    public required SettingsPalette Palette { get; init; }
-    public required bool EnableRoundedCorners { get; init; }
-    public required TrayAppDotNETUpdatePromptPresentation Presentation { get; init; }
-    public required Func<string, string?, string> Localize { get; init; }
-    public required Func<UpdateInfo, Task<bool>> StageUpdateAsync { get; init; }
-    public required Action ShutdownAfterSuccessfulStage { get; init; }
-    public Action<bool>? SetChildPromptOpen { get; init; }
-    public bool ShowFailurePrompt { get; init; } = true;
-}
-```
-
-Recommended behavior:
-
-- Confirmation content must be identical everywhere:
-  - Same title format.
-  - Same description text.
-  - Same no-changelog text.
-  - Same button order.
-  - Same changelog scroll box.
-  - Same Escape/caption close behavior.
-- The presenter may render as a modal window or as an owner overlay, but both presentations must use the same content schema and resource tokens.
-- Failure UI should be one-button OK, localized, and shared.
-- `TrayAppDotNETAboutPage` should use the same presenter rather than directly calling `SettingsWindowCommon.ConfirmAsync`.
-- `TrayAppDotNETAboutPageOptions` should gain a capability flag such as `SupportsFlyoutUpdateButton`. Battery and Network should not show a dead setting if no flyout update button exists.
-
-Implementation update:
-
-- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETUpdatePromptPresenter.cs` owns update confirmation, staging, failure prompt, log flushing, shutdown callback, and child-window state callbacks.
-- `TrayAppDotNETCommon/src/UI/Controls/UpdateConfirmationWindow.cs` now supports both two-button install prompts and one-button failure prompts.
-- `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETAboutPage.cs` now uses `TrayAppDotNETUpdatePromptPresenter` instead of directly using `SettingsWindowCommon.ConfirmAsync` for update installs.
-- `BrightnessTrayAppDotNET/src/UI/Flyout/BrightnessFlyoutWindow.cs`, `FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.cs`, and `VolumeTrayAppDotNET/src/UI/Flyout/VolumeFlyoutWindow.cs` now call the same presenter.
-- Brightness and Fan flyouts now set child-window guard state while the modal prompt is open so the flyout does not auto-hide under its own update prompt.
-- Battery and Network pass `SupportsFlyoutUpdateButton = false` when constructing `TrayAppDotNETAboutPageOptions`.
-
-## P0: Uninstaller Window
-
-Status: visual/common-window implementation complete. All five app uninstaller windows now use the same common uninstaller window; app files are thin option wrappers.
-
-### Evidence
-
-Near-copy custom uninstallers:
-
-- `BatteryTrayAppDotNET/src/UI/Settings/BatteryUninstallerWindow.cs:12`
-- `BrightnessTrayAppDotNET/src/UI/Settings/BrightnessUninstallerWindow.cs:13`
-- `FanControlTrayAppDotNET/src/UI/Settings/FanUninstallerWindow.cs:12`
-- `VolumeTrayAppDotNET/src/UI/Settings/VolumeUninstallerWindow.cs:12`
-
-Network outlier:
-
-- `NetworkTrayAppDotNET/src/UI/Settings/NetworkUninstallerWindow.cs:12`
-
-Common installation section:
-
+- `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETGeneralSettingsSection.cs:37`
 - `TrayAppDotNETCommon/src/UI/Settings/TrayAppDotNETGeneralSettingsSection.cs:178`
 
+Volume still owns the most complete post-uninstall process-exit refresh path:
+
+- `VolumeTrayAppDotNET/src/UI/Settings/GeneralPage.cs:162`
+
+Battery, Brightness, Fan, and Network still hand control to app-specific uninstall callbacks and return before any uninstall process exit refresh can be coordinated by the common section.
+
 ### Divergence
 
-Battery, Brightness, Fan, and Volume share this visual structure:
-
-- 520 x 360 window, min 420 x 320.
-- Custom 32 px title bar.
-- `WindowDecorations.None`, no resize, transparent background.
-- Root border with palette background, palette border, thickness 1, radius 8 when rounded.
-- Body margin `28,8,28,20`.
-- Keep/delete settings radio-card choices.
-- Option cards with padding `16,12`, bottom margin 6, radius 6 when rounded.
-- `SettingsButton` action buttons, padding `20,8`, order Cancel then Uninstall.
-
-Accidental differences remain:
-
-- Brightness close button uses `GlyphCatalog.CHROME_CLOSE`; Battery/Fan/Volume use `GlyphCatalog.EXIT`.
-- Each app duplicates its own `*UninstallerCaptionButton`.
-- Escape behavior and close tooltips are missing compared with the common update window.
-- The dialogs do not consistently use `ShowInTaskbar=false`, common UI font, or transparency hints.
-- Startup location is center-screen in custom uninstallers even when opened from settings.
-
-Network is visibly older:
-
-- 560 x 330 window.
-- Default window decorations.
-- Stock Avalonia `Button`, not `SettingsButton`.
-- Plain check box instead of keep/delete radio cards.
-- Hardcoded English text despite localized resources existing.
-- No palette, no rounded-corner policy, no custom chrome.
+- The common installation card refreshes install state immediately after `UninstallAsync` returns.
+- Volume opens its uninstaller modally from its settings page and hooks `UninstallProcess.Exited` for a second refresh and incomplete-uninstall message.
+- Other apps use their injected app-level uninstaller callbacks and do not get the same process-exit refresh behavior.
+- `TrayAppDotNETUninstallerWindow` exposes `ConfirmedUninstall` and `UninstallProcess`, but the common install-card API does not model those results.
 
 ### Required Commonization
 
-Create a common uninstaller window and remove the per-app copies.
+Replace callback-only uninstall delegates with a result-oriented common API.
 
 Proposed common types:
 
 ```csharp
-public sealed record TrayAppDotNETUninstallerWindowOptions
-{
-    public required string ApplicationName { get; init; }
-    public required string InstallDirectory { get; init; }
-    public required string SettingsDirectory { get; init; }
-    public required InstallScope InstallScope { get; init; }
-    public required WindowIcon Icon { get; init; }
-    public required SettingsPalette Palette { get; init; }
-    public required bool EnableRoundedCorners { get; init; }
-    public required Func<string, string?, string> Localize { get; init; }
-    public required Action<InstallScope> RetargetStartupShortcut { get; init; }
-    public required Func<InstallScope, bool, Process?> RunUninstall { get; init; }
-}
-
-public sealed record TrayAppDotNETUninstallerResult
+public sealed record TrayAppDotNETUninstallDialogResult
 {
     public required bool Confirmed { get; init; }
-    public required bool DeleteSettings { get; init; }
     public Process? UninstallProcess { get; init; }
+    public bool WasHandedOffToRunningCopy { get; init; }
 }
-```
 
-Common resources should live in a dedicated file, for example:
-
-- `TrayAppDotNETCommon/src/UI/Controls/UninstallerWindow.axaml`
-
-Standard metrics:
-
-- Width 520.
-- Height 360.
-- Min width 420.
-- Min height 320.
-- Title bar height 32.
-- Body margin `28,8,28,20`.
-- Option card padding `16,12`.
-- Option card margin `0,0,0,6`.
-- Button padding `20,8`.
-- Button stack margin `0,20,0,0`.
-- Root radius 8.
-- Card radius 6.
-- Caption button width 46, height 32, font size 10.
-
-Settings uninstall flow should also be commonized:
-
-- Replace fire-and-forget uninstall callbacks with a result-oriented async API.
-- Refresh install state after the dialog closes.
-- If an uninstall process is returned, refresh again after `Process.Exited`.
-- Move Volume's post-uninstall refresh behavior into the common installation section.
-
-Implementation update:
-
-- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETUninstallerWindow.cs` owns the custom chrome, title bar, Escape close behavior, keep/delete radio cards, uninstall/cancel buttons, palette application, rounded-corner policy, and uninstall execution callback.
-- `TrayAppDotNETCommon/src/UI/Controls/DialogChrome.axaml` owns the shared uninstaller/dialog layout metrics.
-- Battery, Brightness, Fan, Network, and Volume `*UninstallerWindow` classes now subclass `TrayAppDotNETUninstallerWindow` and only supply app-specific palette, icon, install directory, settings directory, localization, shortcut retargeting, and uninstall callback.
-- Network is now on the same custom-chrome, palette-backed, localized uninstaller surface as the other apps.
-- Remaining follow-up: the settings install-card uninstall callback contract is not yet result-oriented. Volume still has separate post-uninstall process-exit refresh behavior in its settings page.
-
-## P0: Common Caption And Dialog Chrome
-
-Status: implemented for P0 dialogs. The caption close button is a standalone common control and uninstaller metrics moved to common AXAML resources.
-
-### Evidence
-
-Common caption close button currently exists only as an internal implementation detail:
-
-- `TrayAppDotNETCommon/src/UI/Controls/ColorPickerWindow.cs:1018`
-- `TrayAppDotNETCommon/src/UI/Controls/UpdateConfirmationWindow.cs:188`
-
-Duplicated app caption buttons:
-
-- `BatteryTrayAppDotNET/src/UI/Settings/BatteryUninstallerWindow.cs:246`
-- `BrightnessTrayAppDotNET/src/UI/Settings/BrightnessUninstallerWindow.cs:240`
-- `FanControlTrayAppDotNET/src/UI/Settings/FanUninstallerWindow.cs:236`
-- `VolumeTrayAppDotNET/src/UI/Settings/VolumeUninstallerWindow.cs:246`
-
-### Required Commonization
-
-Move caption buttons and dialog chrome metrics into standalone common controls:
-
-- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETCaptionCloseButton.cs`
-- `TrayAppDotNETCommon/src/UI/Controls/DialogChrome.axaml`
-
-Schema:
-
-```csharp
-public sealed record TrayAppDotNETCaptionCloseButtonOptions
+public sealed class TrayAppDotNETInstallCardOptions
 {
-    public required SettingsPalette Palette { get; init; }
-    public required string Glyph { get; init; }
-    public required string AutomationName { get; init; }
-    public required Action Click { get; init; }
+    public required InstallScope Scope { get; init; }
+    public required string Title { get; init; }
+    public required string ExecutablePath { get; init; }
+    public required bool Elevated { get; init; }
+    public required Func<TrayAppDotNETInstallResult> Install { get; init; }
+    public required Func<Task<TrayAppDotNETUninstallDialogResult>> ShowUninstallerAsync { get; init; }
 }
 ```
 
-This control should be used by:
+Common behavior should be:
 
-- Color picker.
-- Update confirmation window.
-- Uninstaller window.
-- Any future custom dialog or tool window.
-
-Implementation update:
-
-- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETCaptionCloseButton.cs` now contains the shared caption close button previously embedded in `ColorPickerWindow.cs`.
-- `TrayAppDotNETCommon/src/UI/Controls/ColorPickerWindow.cs` and `TrayAppDotNETCommon/src/UI/Controls/UpdateConfirmationWindow.cs` use the shared button.
-- `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETUninstallerWindow.cs` also uses the same caption close button.
-- App-local `*UninstallerCaptionButton` classes were removed with the uninstaller wrapper migration.
+- Refresh installation rows after the uninstaller dialog closes.
+- If an uninstall process is returned, subscribe once to `Process.Exited` and refresh again.
+- Dispose the returned process after exit handling.
+- Show the incomplete-uninstall message from the common section when the process exit code is non-zero.
+- Keep app-specific inputs limited to install directory, scope, palette/icon/localization, and the uninstall callback already used by `TrayAppDotNETUninstallerWindow`.
 
 ## P1: Hotkey Editor Page And Rows
 
@@ -1009,9 +790,7 @@ Do not extract Fan curve graph logic unless another app needs it. Extract only d
 
 | Surface | Current state | Commonization target |
 | --- | --- | --- |
-| Settings windows | Battery 900 x 640, others 960 x 670. Minimums differ. | Define `TrayAppDotNETSettingsWindowDimensions.Standard` and either migrate Battery or document a compact variant. |
-| Update confirmation | Common 520 wide, min 420, modal window. Not used everywhere. | One update prompt schema used by modal and overlay presenters. |
-| Uninstaller | Four apps 520 x 360 custom, Network 560 x 330 default. | One common uninstaller window. |
+| Settings windows | Dimensions are AXAML-backed in `SettingsWindowCommon.axaml`: standard 960 x 670, compact 900 x 640. | Completed; future tuning should edit AXAML resources only. |
 | Flyout windows | Brightness 330 wide, Fan/Volume 350 wide, repeated work-area/chrome tokens. | Common flyout shell resources with app width override. |
 | Tool windows | Color picker, Fan properties, Fan curve, probe selector each own metrics. | Extract only reusable chrome/card/editor metrics, not domain layouts. |
 
@@ -1043,15 +822,12 @@ Do not extract Fan curve graph logic unless another app needs it. Extract only d
 | --- | --- | --- |
 | Settings toggle | Common width 40, height 20, radius 10. | Keep default. |
 | Probe selector compact toggle | Custom 32 px track and font 10 label. | Add `SettingsToggle.CompactInline`. |
-| Uninstaller radio cards | Rebuilt in four apps. | Add common `SettingsRadioCardChoice`. |
-| Network uninstall CheckBox | Raw default CheckBox. | Replace with common uninstaller radio-card schema. |
 
 ### Cards And Borders
 
 | Card type | Current divergence | Target |
 | --- | --- | --- |
 | Settings card | Radius 6, padding `16,12`, margin `0,0,0,6`. Repeated in `SettingsUI.axaml` and `Cards.axaml`. | Single token source. |
-| Uninstaller option card | Same as settings card but duplicated in C#. | Use common settings card/radio card. |
 | Fan flyout card | Border 1.5, radius 8, padding `8,6,8,4`. | Add `FlyoutCompactCard` style. |
 | Probe cards | Radius 5, padding `6,5`. | Add `DenseCard` style. |
 | Dialog border | Brightness radius 6, Fan radius 4, Settings overlay wider. | Add `DialogCard` and `FlyoutConfirmCard` styles. |
@@ -1094,6 +870,15 @@ Suggested files:
 Suggested resource names:
 
 ```xml
+<x:Double x:Key="SettingsWindow.StandardWindowWidth">960</x:Double>
+<x:Double x:Key="SettingsWindow.StandardWindowHeight">670</x:Double>
+<x:Double x:Key="SettingsWindow.StandardWindowMinWidth">720</x:Double>
+<x:Double x:Key="SettingsWindow.StandardWindowMinHeight">520</x:Double>
+<x:Double x:Key="SettingsWindow.CompactWindowWidth">900</x:Double>
+<x:Double x:Key="SettingsWindow.CompactWindowHeight">640</x:Double>
+<x:Double x:Key="SettingsWindow.CompactWindowMinWidth">680</x:Double>
+<x:Double x:Key="SettingsWindow.CompactWindowMinHeight">500</x:Double>
+
 <x:Double x:Key="DialogWidth">520</x:Double>
 <x:Double x:Key="DialogMinWidth">420</x:Double>
 <x:Double x:Key="DialogTitleBarHeight">32</x:Double>
@@ -1134,27 +919,12 @@ Avoid passing whole app settings objects into generic common controls unless the
 
 ## Implementation Roadmap
 
-### Phase 1: Stabilize Dialogs And Primitives
-
-Status: mostly complete.
-
-Completed:
-
-1. Extract `TrayAppDotNETCaptionCloseButton`.
-2. Add `DialogChrome.axaml`.
-3. Build `TrayAppDotNETUninstallerWindow`.
-4. Replace Battery/Brightness/Fan/Volume uninstaller copies.
-5. Migrate Network uninstaller to the common dialog.
-6. Add `TrayAppDotNETUpdatePromptPresenter`.
-7. Migrate About, Volume flyout, Brightness flyout, and Fan flyout update flows to the presenter.
-8. Hide the unsupported flyout update-button setting for Battery and Network.
-
-Remaining:
+### Phase 1: Install-Card Uninstall Completion Flow
 
 1. Move Volume's post-uninstall process-exit refresh behavior into `TrayAppDotNETGeneralSettingsSection`.
 2. Replace install-card `UninstallAsync` with a result-oriented common uninstall dialog API.
 
-This phase removes the most visible divergence with the least architectural risk.
+This is the only remaining work from the dialog/uninstaller pass. The visual dialog and prompt commonization is complete.
 
 ### Phase 2: Common Settings Page Builders
 
