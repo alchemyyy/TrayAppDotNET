@@ -318,33 +318,22 @@ internal sealed class AxamlGeneratorHost
     }
 }
 
-internal sealed class StringAdditionalText : AdditionalText
+internal sealed class StringAdditionalText(string path, string text) : AdditionalText
 {
-    private readonly SourceText _text;
+    private readonly SourceText _text = SourceText.From(text, Encoding.UTF8);
 
-    public override string Path { get; }
-
-    public StringAdditionalText(string path, string text)
-    {
-        Path = path;
-        _text = SourceText.From(text, Encoding.UTF8);
-    }
+    public override string Path { get; } = path;
 
     public override SourceText GetText(CancellationToken cancellationToken = default) => _text;
 }
 
-internal sealed class TestAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
+internal sealed class TestAnalyzerConfigOptionsProvider(string rootNamespace) : AnalyzerConfigOptionsProvider
 {
-    private readonly AnalyzerConfigOptions _globalOptions;
-
-    public TestAnalyzerConfigOptionsProvider(string rootNamespace)
+    private readonly AnalyzerConfigOptions _globalOptions = new TestAnalyzerConfigOptions(new Dictionary<string, string>
     {
-        _globalOptions = new TestAnalyzerConfigOptions(new Dictionary<string, string>
-        {
-            ["build_property.RootNamespace"] = rootNamespace,
-            ["build_property.MSBuildProjectName"] = rootNamespace,
-        });
-    }
+        ["build_property.RootNamespace"] = rootNamespace,
+        ["build_property.MSBuildProjectName"] = rootNamespace,
+    });
 
     public override AnalyzerConfigOptions GlobalOptions => _globalOptions;
 
@@ -353,20 +342,13 @@ internal sealed class TestAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsP
     public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => TestAnalyzerConfigOptions.Empty;
 }
 
-internal sealed class TestAnalyzerConfigOptions : AnalyzerConfigOptions
+internal sealed class TestAnalyzerConfigOptions(Dictionary<string, string> values) : AnalyzerConfigOptions
 {
     public static readonly TestAnalyzerConfigOptions Empty = new(new Dictionary<string, string>());
 
-    private readonly Dictionary<string, string> _values;
-
-    public TestAnalyzerConfigOptions(Dictionary<string, string> values)
-    {
-        _values = values;
-    }
-
     public override bool TryGetValue(string key, out string value)
     {
-        if (_values.TryGetValue(key, out string? found))
+        if (values.TryGetValue(key, out string? found))
         {
             value = found;
             return true;

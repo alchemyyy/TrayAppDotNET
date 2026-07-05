@@ -4,15 +4,11 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
-public sealed class VolumeUninstallerWindow : TrayAppDotNETUninstallerWindow
+public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScope scope)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
 {
     public VolumeUninstallerWindow()
         : this(string.Empty, VolumeInstallScope.LocalAppData)
-    {
-    }
-
-    public VolumeUninstallerWindow(string installDir, VolumeInstallScope scope)
-        : base(CreateOptions(installDir, scope))
     {
     }
 

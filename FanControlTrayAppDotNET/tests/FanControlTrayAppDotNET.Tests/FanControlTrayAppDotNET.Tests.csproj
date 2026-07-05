@@ -22,10 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FanControlTrayAppDotNET.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
-                      Targets="GetTargetPath" />
+                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'" />
     <ProjectReference Include="..\..\src\FanControlTrayAppDotNET.csproj"
                       Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'"
-                      AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;Platform=x64" />
+                      AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;TrayAppDotNETBuildSharedProjectReferences=true;Platform=x64" />
   </ItemGroup>
 </Project>

@@ -4,15 +4,11 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
 
-public sealed class BrightnessUninstallerWindow : TrayAppDotNETUninstallerWindow
+public sealed class BrightnessUninstallerWindow(string installDir, BrightnessInstallScope scope)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
 {
     public BrightnessUninstallerWindow()
         : this(string.Empty, BrightnessInstallScope.LocalAppData)
-    {
-    }
-
-    public BrightnessUninstallerWindow(string installDir, BrightnessInstallScope scope)
-        : base(CreateOptions(installDir, scope))
     {
     }
 

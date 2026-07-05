@@ -141,27 +141,19 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
     private static ResourceKind? ResourceKindFromElement(string elementName, string propertyName)
     {
-        switch (elementName)
+        return elementName switch
         {
-            case "Double":
-                return ResourceKind.Double;
-            case "Int32":
-                return ResourceKind.Int;
-            case "Thickness":
-                return ResourceKind.Thickness;
-            case "CornerRadius":
-                return ResourceKind.CornerRadius;
-            case "TranslateTransform":
-                return ResourceKind.TranslateTransform;
-            case "Color":
-                return ResourceKind.Color;
-            case "String":
-                return propertyName.EndsWith("Color", StringComparison.Ordinal)
-                    ? ResourceKind.Color
-                    : ResourceKind.String;
-            default:
-                return null;
-        }
+            "Double" => ResourceKind.Double,
+            "Int32" => ResourceKind.Int,
+            "Thickness" => ResourceKind.Thickness,
+            "CornerRadius" => ResourceKind.CornerRadius,
+            "TranslateTransform" => ResourceKind.TranslateTransform,
+            "Color" => ResourceKind.Color,
+            "String" => propertyName.EndsWith("Color", StringComparison.Ordinal)
+                ? ResourceKind.Color
+                : ResourceKind.String,
+            _ => null
+        };
     }
 
     private static IEnumerable<AxamlClassModel> MergeClasses(List<AxamlClassModel> classes)
@@ -419,48 +411,32 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
     private static string ReturnType(ResourceKind kind)
     {
-        switch (kind)
+        return kind switch
         {
-            case ResourceKind.Double:
-                return "double";
-            case ResourceKind.Int:
-                return "int";
-            case ResourceKind.String:
-                return "string";
-            case ResourceKind.Thickness:
-                return "global::Avalonia.Thickness";
-            case ResourceKind.CornerRadius:
-                return "global::Avalonia.CornerRadius";
-            case ResourceKind.Color:
-                return "global::Avalonia.Media.Color";
-            case ResourceKind.TranslateTransform:
-                return "global::Avalonia.Media.TranslateTransform";
-            default:
-                throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
-        }
+            ResourceKind.Double => "double",
+            ResourceKind.Int => "int",
+            ResourceKind.String => "string",
+            ResourceKind.Thickness => "global::Avalonia.Thickness",
+            ResourceKind.CornerRadius => "global::Avalonia.CornerRadius",
+            ResourceKind.Color => "global::Avalonia.Media.Color",
+            ResourceKind.TranslateTransform => "global::Avalonia.Media.TranslateTransform",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
     }
 
     private static string ReaderMethod(ResourceKind kind)
     {
-        switch (kind)
+        return kind switch
         {
-            case ResourceKind.Double:
-                return "Double";
-            case ResourceKind.Int:
-                return "Int";
-            case ResourceKind.String:
-                return "String";
-            case ResourceKind.Thickness:
-                return "Thickness";
-            case ResourceKind.CornerRadius:
-                return "CornerRadius";
-            case ResourceKind.Color:
-                return "Color";
-            case ResourceKind.TranslateTransform:
-                return "TranslateTransform";
-            default:
-                throw new ArgumentOutOfRangeException(nameof(kind), kind, null);
-        }
+            ResourceKind.Double => "Double",
+            ResourceKind.Int => "Int",
+            ResourceKind.String => "String",
+            ResourceKind.Thickness => "Thickness",
+            ResourceKind.CornerRadius => "CornerRadius",
+            ResourceKind.Color => "Color",
+            ResourceKind.TranslateTransform => "TranslateTransform",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
     }
 
     private static string HintName(AxamlClassModel axamlClass)
@@ -571,45 +547,28 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         TranslateTransform,
     }
 
-    private sealed class AxamlClassModel
+    private sealed class AxamlClassModel(
+        string path,
+        string ns,
+        string className,
+        bool isResourceDictionary,
+        ImmutableArray<ResourceGroup> groups)
     {
-        public readonly string Path;
-        public readonly string Namespace;
-        public readonly string ClassName;
-        public readonly bool IsResourceDictionary;
-        public readonly ImmutableArray<ResourceGroup> Groups;
-
-        public AxamlClassModel(
-            string path,
-            string @namespace,
-            string className,
-            bool isResourceDictionary,
-            ImmutableArray<ResourceGroup> groups)
-        {
-            Path = path;
-            Namespace = @namespace;
-            ClassName = className;
-            IsResourceDictionary = isResourceDictionary;
-            Groups = groups;
-        }
+        public readonly string Path = path;
+        public readonly string Namespace = ns;
+        public readonly string ClassName = className;
+        public readonly bool IsResourceDictionary = isResourceDictionary;
+        public readonly ImmutableArray<ResourceGroup> Groups = groups;
     }
 
-    private sealed class AxamlClassBuilder
+    private sealed class AxamlClassBuilder(string path, string ns, string className, bool isResourceDictionary)
     {
         private readonly Dictionary<string, ResourceGroupBuilder> _groups = new(StringComparer.Ordinal);
 
-        public readonly string Path;
-        public readonly string Namespace;
-        public readonly string ClassName;
-        public readonly bool IsResourceDictionary;
-
-        public AxamlClassBuilder(string path, string @namespace, string className, bool isResourceDictionary)
-        {
-            Path = path;
-            Namespace = @namespace;
-            ClassName = className;
-            IsResourceDictionary = isResourceDictionary;
-        }
+        public readonly string Path = path;
+        public readonly string Namespace = ns;
+        public readonly string ClassName = className;
+        public readonly bool IsResourceDictionary = isResourceDictionary;
 
         public void Add(ResourceGroup group)
         {
@@ -633,28 +592,17 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         }
     }
 
-    private sealed class ResourceGroup
+    private sealed class ResourceGroup(string prefix, ImmutableArray<ResourceEntry> resources)
     {
-        public readonly string Prefix;
-        public readonly ImmutableArray<ResourceEntry> Resources;
-
-        public ResourceGroup(string prefix, ImmutableArray<ResourceEntry> resources)
-        {
-            Prefix = prefix;
-            Resources = resources;
-        }
+        public readonly string Prefix = prefix;
+        public readonly ImmutableArray<ResourceEntry> Resources = resources;
     }
 
-    private sealed class ResourceGroupBuilder
+    private sealed class ResourceGroupBuilder(string prefix)
     {
         private readonly Dictionary<string, ResourceEntry> _resources = new(StringComparer.Ordinal);
 
-        public readonly string Prefix;
-
-        public ResourceGroupBuilder(string prefix)
-        {
-            Prefix = prefix;
-        }
+        public readonly string Prefix = prefix;
 
         public void Add(ResourceEntry resource)
         {
@@ -677,17 +625,10 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         }
     }
 
-    private sealed class ResourceEntry
+    private sealed class ResourceEntry(string prefix, string propertyName, ResourceKind kind)
     {
-        public readonly string Prefix;
-        public readonly string PropertyName;
-        public readonly ResourceKind Kind;
-
-        public ResourceEntry(string prefix, string propertyName, ResourceKind kind)
-        {
-            Prefix = prefix;
-            PropertyName = propertyName;
-            Kind = kind;
-        }
+        public readonly string Prefix = prefix;
+        public readonly string PropertyName = propertyName;
+        public readonly ResourceKind Kind = kind;
     }
 }

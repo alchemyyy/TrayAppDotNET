@@ -4,15 +4,11 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace NetworkTrayAppDotNET.UI;
 
-public sealed class NetworkUninstallerWindow : TrayAppDotNETUninstallerWindow
+public sealed class NetworkUninstallerWindow(string installDir, InstallScope scope)
+    : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))
 {
     public NetworkUninstallerWindow()
         : this(string.Empty, InstallScope.LocalAppData)
-    {
-    }
-
-    public NetworkUninstallerWindow(string installDir, InstallScope scope)
-        : base(CreateOptions(installDir, scope))
     {
     }
 
