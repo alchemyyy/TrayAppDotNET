@@ -24,6 +24,10 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <FanControlDesignTimeNCalcCoreOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.Core\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcCoreOutputPath>
+    <FanControlDesignTimeNCalcDomainOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.Domain\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcDomainOutputPath>
+    <FanControlDesignTimeNCalcParserOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.Parser\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcParserOutputPath>
+    <FanControlDesignTimeLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlDesignTimeLibreHardwareMonitorOutputPath>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
@@ -94,41 +98,38 @@
                       GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
-    <!-- Keep source ProjectReference edges visible during design-time builds.
-         Visual Studio and ReSharper need these to resolve NCalc and LHM namespaces;
-         do not replace them with HintPath-only references again. -->
-    <ProjectReference Include="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
-                      Condition="'$(DesignTimeBuild)' == 'true'">
-      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
-      <SetPlatform>Platform=x64</SetPlatform>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <AdditionalProperties>DisableIpmiWmi=true;DisableRamSpd=true</AdditionalProperties>
-      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
-      <Private>true</Private>
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
-    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Core\NCalc.Core.csproj"
-                      Condition="'$(DesignTimeBuild)' == 'true'">
-      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <AdditionalProperties>TreatWarningsAsErrors=false;NoWarn=RCS1194</AdditionalProperties>
-      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
-      <Private>true</Private>
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
-    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
-                      Condition="'$(DesignTimeBuild)' == 'true'">
-      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
-      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <AdditionalProperties>TreatWarningsAsErrors=false</AdditionalProperties>
-      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
-      <Private>true</Private>
-      <PrivateAssets>all</PrivateAssets>
-    </ProjectReference>
+    <!-- Visual Studio restore rejects ProjectReference items whose projects are not in
+         the loaded solution. Use metadata references for design-time only, pointing at
+         the real vendor outputs, so VS/ReSharper resolve NCalc and LHM without trying
+         to restore unloaded submodule projects. -->
+    <Reference Include="LibreHardwareMonitorLib" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll')">
+      <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DiskInfoToolkit" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeLibreHardwareMonitorOutputPath)DiskInfoToolkit.dll')">
+      <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)DiskInfoToolkit.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="HidSharp" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeLibreHardwareMonitorOutputPath)HidSharp.dll')">
+      <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)HidSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="NCalc.Core" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcCoreOutputPath)NCalc.Core.dll')">
+      <HintPath>$(FanControlDesignTimeNCalcCoreOutputPath)NCalc.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="NCalc.Domain" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcDomainOutputPath)NCalc.Domain.dll')">
+      <HintPath>$(FanControlDesignTimeNCalcDomainOutputPath)NCalc.Domain.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="NCalc.Parser" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcParserOutputPath)NCalc.Parser.dll')">
+      <HintPath>$(FanControlDesignTimeNCalcParserOutputPath)NCalc.Parser.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
 
-    <!-- Normal builds use hidden references plus the serial prebuild targets below.
-         This preserves clean Debug/Release rebuild behavior while keeping IDE source
-         resolution correct through the design-time references above. -->
+    <!-- Normal builds use hidden source references plus the serial prebuild targets
+         below. Do not use these ProjectReferences for design-time builds; VS restore
+         needs loaded solution projects for ProjectReference metadata. -->
     <ProjectReference Include="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
