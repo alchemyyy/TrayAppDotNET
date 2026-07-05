@@ -20,16 +20,16 @@ public sealed class FlyoutUndockButtonOptions
     public Action<bool>? DraggingChanged { get; init; }
     public Func<string> UndockTooltip { get; init; } = static () => "Undock";
     public Func<string> RedockTooltip { get; init; } = static () => "Redock";
-    public double Width { get; init; } = FlyoutUndockButtonResourceReader.Double("Width");
-    public double Height { get; init; } = FlyoutUndockButtonResourceReader.Double("Height");
-    public double FontSize { get; init; } = FlyoutUndockButtonResourceReader.Double("FontSize");
+    public double Width { get; init; } = FlyoutUndockButtonLayout.Width;
+    public double Height { get; init; } = FlyoutUndockButtonLayout.Height;
+    public double FontSize { get; init; } = FlyoutUndockButtonLayout.FontSize;
     public string? FontFamily { get; init; }
     public FontWeight? FontWeight { get; init; }
-    public double DragThreshold { get; init; } = FlyoutUndockButtonResourceReader.Double("DragThreshold");
+    public double DragThreshold { get; init; } = FlyoutUndockButtonLayout.DragThreshold;
     public bool IsEnabled { get; init; } = true;
     public bool IsVisible { get; init; } = true;
-    public Thickness Margin { get; init; } = FlyoutUndockButtonResourceReader.Thickness("Margin");
-    public CornerRadius CornerRadius { get; init; } = FlyoutUndockButtonResourceReader.CornerRadius("CornerRadius");
+    public Thickness Margin { get; init; } = FlyoutUndockButtonLayout.Margin;
+    public CornerRadius CornerRadius { get; init; } = FlyoutUndockButtonLayout.CornerRadius;
 }
 
 public sealed class FlyoutUndockButtonController
@@ -216,52 +216,22 @@ public sealed class FlyoutUndockButtonController
     }
 }
 
-internal static class FlyoutUndockButtonResourceReader
+internal static class FlyoutUndockButtonLayout
 {
-    private const string ResourcePrefix = "FlyoutUndockButton.";
+    private static readonly Lazy<FlyoutUndockButtonResources> Resources = new(
+        static () => new FlyoutUndockButtonResources());
 
-    private static readonly Lazy<FlyoutUndockButtonResources> Resources = new(LoadResources);
+    private static FlyoutUndockButtonResources AXAMLResources => Resources.Value;
 
-    /// <summary>
-    /// Reads a double layout resource.
-    /// </summary>
-    public static double Double(string name) =>
-        Resource(name) switch
-        {
-            double value => value,
-            int value => value,
-            string value => double.Parse(value, System.Globalization.CultureInfo.InvariantCulture),
-            object value => Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture),
-        };
+    public static double Width => AXAMLResources.AxamlFlyoutUndockButton.Width;
 
-    /// <summary>
-    /// Reads a thickness layout resource.
-    /// </summary>
-    public static Thickness Thickness(string name) =>
-        Resource(name) is Thickness value
-            ? value
-            : throw InvalidType(name, nameof(Thickness));
+    public static double Height => AXAMLResources.AxamlFlyoutUndockButton.Height;
 
-    /// <summary>
-    /// Reads a corner radius layout resource.
-    /// </summary>
-    public static CornerRadius CornerRadius(string name) =>
-        Resource(name) is CornerRadius value
-            ? value
-            : throw InvalidType(name, nameof(CornerRadius));
+    public static double FontSize => AXAMLResources.AxamlFlyoutUndockButton.FontSize;
 
-    private static FlyoutUndockButtonResources LoadResources()
-    {
-        return new FlyoutUndockButtonResources();
-    }
+    public static double DragThreshold => AXAMLResources.AxamlFlyoutUndockButton.DragThreshold;
 
-    private static object Resource(string name)
-    {
-        string key = ResourcePrefix + name;
-        object? value = Resources.Value[key];
-        return value ?? throw new InvalidOperationException($"Missing resource '{key}'.");
-    }
+    public static Thickness Margin => AXAMLResources.AxamlFlyoutUndockButton.Margin;
 
-    private static InvalidOperationException InvalidType(string name, string expectedType) =>
-        new($"Resource '{ResourcePrefix}{name}' is not a {expectedType}.");
+    public static CornerRadius CornerRadius => AXAMLResources.AxamlFlyoutUndockButton.CornerRadius;
 }

@@ -13,28 +13,30 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class SearchableListBoxLayout
 {
-    private static readonly ControlAXAMLResources R = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/SearchableListBox.axaml",
-        "SearchableListBox");
+    private static readonly Lazy<SearchableListBoxResources> Resources = new(
+        static () => new SearchableListBoxResources());
 
-    public static double Width => R.Double("Width");
-    public static double ListHeight => R.Double("ListHeight");
-    public static double SearchBoxHeight => R.Double("SearchBoxHeight");
-    public static double SearchBoxFontSize => R.Double("SearchBoxFontSize");
-    public static Thickness SearchBoxBorderThickness => R.Thickness("SearchBoxBorderThickness");
-    public static Thickness SearchBoxPadding => R.Thickness("SearchBoxPadding");
-    public static double ClearButtonWidth => R.Double("ClearButtonWidth");
-    public static double ClearButtonHeight => R.Double("ClearButtonHeight");
-    public static Thickness ClearButtonPadding => R.Thickness("ClearButtonPadding");
-    public static double ClearButtonFontSize => R.Double("ClearButtonFontSize");
-    public static double ItemFontSize => R.Double("ItemFontSize");
-    public static Thickness ItemPadding => R.Thickness("ItemPadding");
-    public static Thickness ItemMargin => R.Thickness("ItemMargin");
-    public static CornerRadius ItemRadius => R.CornerRadius("ItemRadius");
-    public static Thickness ScrollHostPadding => R.Thickness("ScrollHostPadding");
-    public static Thickness ListBorderThickness => R.Thickness("ListBorderThickness");
-    public static CornerRadius ListRadius => R.CornerRadius("ListRadius");
-    public static double EmptyOpacity => R.Double("EmptyOpacity");
+    private static SearchableListBoxResources AXAMLResources => Resources.Value;
+
+    public static double Width => AXAMLResources.AxamlSearchableListBox.Width;
+    public static double ListHeight => AXAMLResources.AxamlSearchableListBox.ListHeight;
+    public static double SearchBoxHeight => AXAMLResources.AxamlSearchableListBox.SearchBoxHeight;
+    public static double SearchBoxFontSize => AXAMLResources.AxamlSearchableListBox.SearchBoxFontSize;
+    public static Thickness SearchBoxBorderThickness =>
+        AXAMLResources.AxamlSearchableListBox.SearchBoxBorderThickness;
+    public static Thickness SearchBoxPadding => AXAMLResources.AxamlSearchableListBox.SearchBoxPadding;
+    public static double ClearButtonWidth => AXAMLResources.AxamlSearchableListBox.ClearButtonWidth;
+    public static double ClearButtonHeight => AXAMLResources.AxamlSearchableListBox.ClearButtonHeight;
+    public static Thickness ClearButtonPadding => AXAMLResources.AxamlSearchableListBox.ClearButtonPadding;
+    public static double ClearButtonFontSize => AXAMLResources.AxamlSearchableListBox.ClearButtonFontSize;
+    public static double ItemFontSize => AXAMLResources.AxamlSearchableListBox.ItemFontSize;
+    public static Thickness ItemPadding => AXAMLResources.AxamlSearchableListBox.ItemPadding;
+    public static Thickness ItemMargin => AXAMLResources.AxamlSearchableListBox.ItemMargin;
+    public static CornerRadius ItemRadius => AXAMLResources.AxamlSearchableListBox.ItemRadius;
+    public static Thickness ScrollHostPadding => AXAMLResources.AxamlSearchableListBox.ScrollHostPadding;
+    public static Thickness ListBorderThickness => AXAMLResources.AxamlSearchableListBox.ListBorderThickness;
+    public static CornerRadius ListRadius => AXAMLResources.AxamlSearchableListBox.ListRadius;
+    public static double EmptyOpacity => AXAMLResources.AxamlSearchableListBox.EmptyOpacity;
 }
 
 /// <summary>

@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
+using FanControlTrayAppDotNET.GeneratedAxaml;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
@@ -1044,24 +1045,23 @@ public readonly record struct FanCurveEditorLayout(
     /// </summary>
     public static FanCurveEditorLayout From(Control owner)
     {
-        HotReloadResourceReader r = new(owner, "FanCurveEditor");
         return new FanCurveEditorLayout(
-            r.Double("GraphYAxisLabelGap"),
-            r.Double("GraphXAxisHeight"),
-            r.Double("GraphPlotInsetX"),
-            r.Double("GraphPlotInsetY"),
-            r.Double("GraphThumbSize"),
-            r.Double("GraphThumbHitPadding"),
-            r.Double("GraphLabelFontSize"),
-            Math.Max(1, r.Int("GraphVerticalGridDivisions")),
-            Math.Max(1, r.Int("GraphHorizontalGridDivisions")),
-            r.Double("GraphKeyboardStepFinePixels"),
-            r.Double("GraphKeyboardStepCoarsePixels"),
-            r.Double("GraphMinimumMeasureWidth"),
-            r.Double("GraphMinimumMeasureHeight"),
-            r.Double("GraphDefaultMeasureWidth"),
-            r.Double("GraphDefaultMeasureHeight"),
-            r.Double("GraphLegendInset"),
-            r.Double("GraphLegendGap"));
+            AxamlFanCurveEditor.GraphYAxisLabelGap(owner),
+            AxamlFanCurveEditor.GraphXAxisHeight(owner),
+            AxamlFanCurveEditor.GraphPlotInsetX(owner),
+            AxamlFanCurveEditor.GraphPlotInsetY(owner),
+            AxamlFanCurveEditor.GraphThumbSize(owner),
+            AxamlFanCurveEditor.GraphThumbHitPadding(owner),
+            AxamlFanCurveEditor.GraphLabelFontSize(owner),
+            Math.Max(1, (int)Math.Round(AxamlFanCurveEditor.GraphVerticalGridDivisions(owner))),
+            Math.Max(1, (int)Math.Round(AxamlFanCurveEditor.GraphHorizontalGridDivisions(owner))),
+            AxamlFanCurveEditor.GraphKeyboardStepFinePixels(owner),
+            AxamlFanCurveEditor.GraphKeyboardStepCoarsePixels(owner),
+            AxamlFanCurveEditor.GraphMinimumMeasureWidth(owner),
+            AxamlFanCurveEditor.GraphMinimumMeasureHeight(owner),
+            AxamlFanCurveEditor.GraphDefaultMeasureWidth(owner),
+            AxamlFanCurveEditor.GraphDefaultMeasureHeight(owner),
+            AxamlFanCurveEditor.GraphLegendInset(owner),
+            AxamlFanCurveEditor.GraphLegendGap(owner));
     }
 }

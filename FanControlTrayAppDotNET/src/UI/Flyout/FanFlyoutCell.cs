@@ -1,16 +1,12 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Globalization;
 using System.Runtime.CompilerServices;
-using Avalonia.Controls;
 
 namespace FanControlTrayAppDotNET.UI;
 
 public sealed class FanFlyoutCell : INotifyPropertyChanged
 {
-    private const string ResourcePrefix = "FanFlyoutCell.";
-
     private static readonly Lazy<FanFlyoutCellResources> Resources = new(LoadResources);
 
     public FanFlyoutCell(FanGroup? groupSettings, IEnumerable<Fan> fans)
@@ -65,12 +61,16 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
 
     public string GroupFanDisplayedValueSuffix => GroupRPMMode ? " RPM" : "%";
 
-    public static int GroupFanDisplayedValueSlotWidth => IntResource("GroupDisplayedValueWidth");
+    public static int GroupFanDisplayedValueSlotWidth =>
+        Resources.Value.AxamlFanFlyoutCell.GroupDisplayedValueWidth;
 
-    public static int GroupFanSliderMaximum => IntResource("GroupSliderMaximumValue");
+    public static int GroupFanSliderMaximum =>
+        Resources.Value.AxamlFanFlyoutCell.GroupSliderMaximumValue;
 
     public int GroupDisplayedValueSlotWidth =>
-        GroupRPMMode ? IntResource("GroupRPMDisplayedValueWidth") : GroupFanDisplayedValueSlotWidth;
+        GroupRPMMode
+            ? Resources.Value.AxamlFanFlyoutCell.GroupRPMDisplayedValueWidth
+            : GroupFanDisplayedValueSlotWidth;
 
     public int GroupSliderMaximum => GroupRPMMode ? ResolveGroupRPMMaximum() : GroupFanSliderMaximum;
 
@@ -168,34 +168,10 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Reads an integer layout resource for flyout-cell shared sizing.
-    /// </summary>
-    private static int IntResource(string name)
-    {
-        object value = Resource(name);
-        return value switch
-        {
-            int intValue => intValue,
-            double doubleValue => (int)Math.Round(doubleValue),
-            object objectValue => Convert.ToInt32(objectValue, CultureInfo.InvariantCulture),
-        };
-    }
-
-    /// <summary>
     /// Loads flyout-cell layout resources from AXAML.
     /// </summary>
     private static FanFlyoutCellResources LoadResources()
     {
         return new FanFlyoutCellResources();
-    }
-
-    /// <summary>
-    /// Resolves one prefixed flyout-cell resource.
-    /// </summary>
-    private static object Resource(string name)
-    {
-        string key = ResourcePrefix + name;
-        object? value = Resources.Value[key];
-        return value ?? throw new InvalidOperationException($"Missing resource '{key}'.");
     }
 }

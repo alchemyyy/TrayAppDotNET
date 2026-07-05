@@ -35,6 +35,10 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         Assert.Contains("public global::Avalonia.Media.Color BorderColor =>", generatedSource);
         Assert.Contains("internal FlyoutAxamlProperties AxamlFlyout", generatedSource);
         Assert.Contains("public double WindowWidth =>", generatedSource);
+        Assert.Contains("internal static class AxamlFlyoutButton", generatedSource);
+        Assert.Contains("public static double Width(object owner) =>", generatedSource);
+        Assert.Contains("internal static class AxamlFlyout", generatedSource);
+        Assert.Contains("public static double WindowWidth(object owner) =>", generatedSource);
     }
 
     [Fact]

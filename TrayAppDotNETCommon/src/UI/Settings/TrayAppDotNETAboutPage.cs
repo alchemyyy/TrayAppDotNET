@@ -430,55 +430,14 @@ internal sealed record TrayAppDotNETAboutPageLayout(
 
     private static TrayAppDotNETAboutPageLayout FromResources()
     {
+        TrayAppDotNETAboutPageResources resources = new TrayAppDotNETAboutPageResources();
         return new TrayAppDotNETAboutPageLayout(
-            TrayAppDotNETAboutPageResourceReader.Thickness("AppNameMargin"),
-            TrayAppDotNETAboutPageResourceReader.Thickness("TaglineMargin"),
-            TrayAppDotNETAboutPageResourceReader.Double("TaglineOpacity"),
-            TrayAppDotNETAboutPageResourceReader.Thickness("UpdateCheckButtonMargin"),
-            TrayAppDotNETAboutPageResourceReader.Double("AboutRowLabelFontSize"),
-            TrayAppDotNETAboutPageResourceReader.Double("AboutRowLabelWidth"),
-            TrayAppDotNETAboutPageResourceReader.Thickness("AboutRowMargin"));
+            resources.AxamlAboutPage.AppNameMargin,
+            resources.AxamlAboutPage.TaglineMargin,
+            resources.AxamlAboutPage.TaglineOpacity,
+            resources.AxamlAboutPage.UpdateCheckButtonMargin,
+            resources.AxamlAboutPage.AboutRowLabelFontSize,
+            resources.AxamlAboutPage.AboutRowLabelWidth,
+            resources.AxamlAboutPage.AboutRowMargin);
     }
-}
-
-internal static class TrayAppDotNETAboutPageResourceReader
-{
-    private const string ResourcePrefix = "AboutPage.";
-
-    private static readonly Lazy<TrayAppDotNETAboutPageResources> Resources = new(LoadResources);
-
-    /// <summary>
-    /// Reads a double layout resource.
-    /// </summary>
-    public static double Double(string name) =>
-        Resource(name) switch
-        {
-            double value => value,
-            int value => value,
-            string value => double.Parse(value, CultureInfo.InvariantCulture),
-            object value => Convert.ToDouble(value, CultureInfo.InvariantCulture),
-        };
-
-    /// <summary>
-    /// Reads a thickness layout resource.
-    /// </summary>
-    public static Thickness Thickness(string name) =>
-        Resource(name) is Thickness value
-            ? value
-            : throw InvalidType(name, nameof(Thickness));
-
-    private static TrayAppDotNETAboutPageResources LoadResources()
-    {
-        return new TrayAppDotNETAboutPageResources();
-    }
-
-    private static object Resource(string name)
-    {
-        string key = ResourcePrefix + name;
-        object? value = Resources.Value[key];
-        return value ?? throw new InvalidOperationException($"Missing resource '{key}'.");
-    }
-
-    private static InvalidOperationException InvalidType(string name, string expectedType) =>
-        new($"Resource '{ResourcePrefix}{name}' is not a {expectedType}.");
 }

@@ -10,25 +10,25 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class FlyoutSliderLayout
 {
-    private static readonly ControlAXAMLResources R = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/FlyoutSlider.axaml",
-        "FlyoutSlider");
+    private static readonly Lazy<FlyoutSliderResources> Resources = new(static () => new FlyoutSliderResources());
 
-    public static double TrackHeight => R.Double("TrackHeight");
-    public static CornerRadius CapsuleRadius => R.CornerRadius("CapsuleRadius");
-    public static double DefaultMaximum => R.Double("DefaultMaximum");
-    public static double SecondaryOpacity => R.Double("SecondaryOpacity");
-    public static double WheelStep => R.Double("WheelStep");
-    public static double KeyboardStep => R.Double("KeyboardStep");
-    public static double LargeKeyboardStep => R.Double("LargeKeyboardStep");
-    public static double ThumbOpacity => R.Double("ThumbOpacity");
-    public static double PreviewOpacity => R.Double("PreviewOpacity");
-    public static double IndicatorOpacity => R.Double("IndicatorOpacity");
-    public static double IndicatorWidth => R.Double("IndicatorWidth");
-    public static double IndicatorFontSize => R.Double("IndicatorFontSize");
-    public static double DefaultThumbWidth => R.Double("DefaultThumbWidth");
-    public static double DefaultThumbHeight => R.Double("DefaultThumbHeight");
-    public static double DefaultMeasureWidth => R.Double("DefaultMeasureWidth");
+    private static FlyoutSliderResources AXAMLResources => Resources.Value;
+
+    public static double TrackHeight => AXAMLResources.AxamlFlyoutSlider.TrackHeight;
+    public static CornerRadius CapsuleRadius => AXAMLResources.AxamlFlyoutSlider.CapsuleRadius;
+    public static double DefaultMaximum => AXAMLResources.AxamlFlyoutSlider.DefaultMaximum;
+    public static double SecondaryOpacity => AXAMLResources.AxamlFlyoutSlider.SecondaryOpacity;
+    public static double WheelStep => AXAMLResources.AxamlFlyoutSlider.WheelStep;
+    public static double KeyboardStep => AXAMLResources.AxamlFlyoutSlider.KeyboardStep;
+    public static double LargeKeyboardStep => AXAMLResources.AxamlFlyoutSlider.LargeKeyboardStep;
+    public static double ThumbOpacity => AXAMLResources.AxamlFlyoutSlider.ThumbOpacity;
+    public static double PreviewOpacity => AXAMLResources.AxamlFlyoutSlider.PreviewOpacity;
+    public static double IndicatorOpacity => AXAMLResources.AxamlFlyoutSlider.IndicatorOpacity;
+    public static double IndicatorWidth => AXAMLResources.AxamlFlyoutSlider.IndicatorWidth;
+    public static double IndicatorFontSize => AXAMLResources.AxamlFlyoutSlider.IndicatorFontSize;
+    public static double DefaultThumbWidth => AXAMLResources.AxamlFlyoutSlider.DefaultThumbWidth;
+    public static double DefaultThumbHeight => AXAMLResources.AxamlFlyoutSlider.DefaultThumbHeight;
+    public static double DefaultMeasureWidth => AXAMLResources.AxamlFlyoutSlider.DefaultMeasureWidth;
 }
 
 public readonly record struct FlyoutSliderPeakValues(float Min, float Max)

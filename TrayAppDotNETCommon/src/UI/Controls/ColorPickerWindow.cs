@@ -11,37 +11,38 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class ColorPickerLayout
 {
-    private static readonly ControlAXAMLResources R = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/ColorPickerWindow.axaml",
-        "ColorPicker");
+    private static readonly Lazy<ColorPickerWindowResources> Resources = new(
+        static () => new ColorPickerWindowResources());
 
-    public static double WindowWidth => R.Double("WindowWidth");
-    public static double WindowMinWidth => R.Double("WindowMinWidth");
-    public static double PickerPlaneWidth => R.Double("PickerPlaneWidth");
-    public static double PrimarySliderWidth => R.Double("PrimarySliderWidth");
-    public static double ChannelSliderWidth => R.Double("ChannelSliderWidth");
-    public static double ChannelBandHeight => R.Double("ChannelBandHeight");
-    public static double TitleBarHeight => R.Double("TitleBarHeight");
-    public static Thickness RootBorderThickness => R.Thickness("RootBorderThickness");
-    public static Thickness TitleMargin => R.Thickness("TitleMargin");
-    public static Thickness BodyMargin => R.Thickness("BodyMargin");
-    public static double BodyGapHeight => R.Double("BodyGapHeight");
-    public static double FooterGapHeight => R.Double("FooterGapHeight");
-    public static Thickness FooterMargin => R.Thickness("FooterMargin");
-    public static double ButtonGapWidth => R.Double("ButtonGapWidth");
-    public static Thickness ActionButtonPadding => R.Thickness("ActionButtonPadding");
-    public static double PrimaryColumnGapWidth => R.Double("PrimaryColumnGapWidth");
-    public static double SecondaryColumnGapWidth => R.Double("SecondaryColumnGapWidth");
-    public static double ChannelColumnGapWidth => R.Double("ChannelColumnGapWidth");
-    public static double LabelFontSize => R.Double("LabelFontSize");
-    public static Thickness FooterLabelMargin => R.Thickness("FooterLabelMargin");
-    public static double ChannelValueWidth => R.Double("ChannelValueWidth");
-    public static Thickness ChannelValueMargin => R.Thickness("ChannelValueMargin");
-    public static double HexBoxWidth => R.Double("HexBoxWidth");
-    public static double HexRowGapWidth => R.Double("HexRowGapWidth");
-    public static double CloseButtonWidth => R.Double("CloseButtonWidth");
-    public static double CloseButtonHeight => R.Double("CloseButtonHeight");
-    public static double CloseButtonFontSize => R.Double("CloseButtonFontSize");
+    private static ColorPickerWindowResources AXAMLResources => Resources.Value;
+
+    public static double WindowWidth => AXAMLResources.AxamlColorPicker.WindowWidth;
+    public static double WindowMinWidth => AXAMLResources.AxamlColorPicker.WindowMinWidth;
+    public static double PickerPlaneWidth => AXAMLResources.AxamlColorPicker.PickerPlaneWidth;
+    public static double PrimarySliderWidth => AXAMLResources.AxamlColorPicker.PrimarySliderWidth;
+    public static double ChannelSliderWidth => AXAMLResources.AxamlColorPicker.ChannelSliderWidth;
+    public static double ChannelBandHeight => AXAMLResources.AxamlColorPicker.ChannelBandHeight;
+    public static double TitleBarHeight => AXAMLResources.AxamlColorPicker.TitleBarHeight;
+    public static Thickness RootBorderThickness => AXAMLResources.AxamlColorPicker.RootBorderThickness;
+    public static Thickness TitleMargin => AXAMLResources.AxamlColorPicker.TitleMargin;
+    public static Thickness BodyMargin => AXAMLResources.AxamlColorPicker.BodyMargin;
+    public static double BodyGapHeight => AXAMLResources.AxamlColorPicker.BodyGapHeight;
+    public static double FooterGapHeight => AXAMLResources.AxamlColorPicker.FooterGapHeight;
+    public static Thickness FooterMargin => AXAMLResources.AxamlColorPicker.FooterMargin;
+    public static double ButtonGapWidth => AXAMLResources.AxamlColorPicker.ButtonGapWidth;
+    public static Thickness ActionButtonPadding => AXAMLResources.AxamlColorPicker.ActionButtonPadding;
+    public static double PrimaryColumnGapWidth => AXAMLResources.AxamlColorPicker.PrimaryColumnGapWidth;
+    public static double SecondaryColumnGapWidth => AXAMLResources.AxamlColorPicker.SecondaryColumnGapWidth;
+    public static double ChannelColumnGapWidth => AXAMLResources.AxamlColorPicker.ChannelColumnGapWidth;
+    public static double LabelFontSize => AXAMLResources.AxamlColorPicker.LabelFontSize;
+    public static Thickness FooterLabelMargin => AXAMLResources.AxamlColorPicker.FooterLabelMargin;
+    public static double ChannelValueWidth => AXAMLResources.AxamlColorPicker.ChannelValueWidth;
+    public static Thickness ChannelValueMargin => AXAMLResources.AxamlColorPicker.ChannelValueMargin;
+    public static double HexBoxWidth => AXAMLResources.AxamlColorPicker.HexBoxWidth;
+    public static double HexRowGapWidth => AXAMLResources.AxamlColorPicker.HexRowGapWidth;
+    public static double CloseButtonWidth => AXAMLResources.AxamlColorPicker.CloseButtonWidth;
+    public static double CloseButtonHeight => AXAMLResources.AxamlColorPicker.CloseButtonHeight;
+    public static double CloseButtonFontSize => AXAMLResources.AxamlColorPicker.CloseButtonFontSize;
 }
 
 public sealed record TrayAppDotNETColorPickerStrings(
