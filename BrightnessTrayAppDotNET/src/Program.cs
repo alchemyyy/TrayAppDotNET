@@ -1,3 +1,5 @@
+using TrayAppDotNETCommon.Models;
+
 namespace BrightnessTrayAppDotNET;
 
 internal static class Program

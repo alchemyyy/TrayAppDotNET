@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Media;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Tray;
 
 public sealed class FanTrayMenuWindow(
     AppSettings settings,

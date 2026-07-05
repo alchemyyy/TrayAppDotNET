@@ -10,6 +10,8 @@ using Microsoft.CodeAnalysis.Text;
 using TrayAppDotNETCommon.AxamlPropertyLinker;
 using Xunit;
 
+namespace TrayAppDotNETCommon.AxamlPropertyLinker.Tests;
+
 public sealed class AxamlPropertyLinkerGeneratorTests
 {
     [Fact]

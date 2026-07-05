@@ -1,6 +1,8 @@
 using TrayAppDotNETCommon.Utils;
 using Xunit;
 
+namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
+
 public sealed class SearchMatcherTests
 {
     [Fact]

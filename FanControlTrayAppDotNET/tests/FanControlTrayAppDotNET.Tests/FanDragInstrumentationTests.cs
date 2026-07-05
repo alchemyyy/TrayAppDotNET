@@ -2,7 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using FanControlTrayAppDotNET.Models;
-using FanControlTrayAppDotNET.UI;
+using FanControlTrayAppDotNET.UI.Flyout;
 using Xunit;
 
 namespace FanControlTrayAppDotNET.Tests;

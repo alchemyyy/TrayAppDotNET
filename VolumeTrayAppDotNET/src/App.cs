@@ -13,7 +13,7 @@ using VolumeTrayAppDotNET.UI.Tray;
 using VolumeHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using VolumeHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using VolumeHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
-using VolumeInstallScope = TrayAppDotNETCommon.InstallScope;
+using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using VolumeWatcherMonitor = TrayAppDotNETCommon.Services.WatcherMonitor;
 
 namespace VolumeTrayAppDotNET;

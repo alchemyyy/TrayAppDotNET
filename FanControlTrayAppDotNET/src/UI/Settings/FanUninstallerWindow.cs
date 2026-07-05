@@ -1,8 +1,8 @@
 using TrayAppDotNETCommon.UI.Controls;
-using FanInstallScope = TrayAppDotNETCommon.InstallScope;
+using FanInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Settings;
 
 public sealed class FanUninstallerWindow(string installDir, FanInstallScope scope)
     : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))

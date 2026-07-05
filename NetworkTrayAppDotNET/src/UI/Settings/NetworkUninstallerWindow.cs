@@ -2,7 +2,7 @@ using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
-namespace NetworkTrayAppDotNET.UI;
+namespace NetworkTrayAppDotNET.UI.Settings;
 
 public sealed class NetworkUninstallerWindow(string installDir, InstallScope scope)
     : TrayAppDotNETUninstallerWindow(CreateOptions(installDir, scope))

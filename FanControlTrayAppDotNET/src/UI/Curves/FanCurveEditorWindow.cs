@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using FanControlTrayAppDotNET.UI.Settings;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 

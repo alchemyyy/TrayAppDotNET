@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Media;
-using VolumeInstallScope = TrayAppDotNETCommon.InstallScope;
+using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 

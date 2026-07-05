@@ -2,7 +2,7 @@ using Avalonia.Media;
 using Avalonia.Platform;
 using SkiaSharp;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Tray;
 
 internal sealed class FanTrayIcon(AppTheme? theme) : IDisposable
 {

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.Settings;
-using VolumeInstallScope = TrayAppDotNETCommon.InstallScope;
+using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 

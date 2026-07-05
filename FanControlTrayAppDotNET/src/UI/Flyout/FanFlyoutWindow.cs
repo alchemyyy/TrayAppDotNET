@@ -13,8 +13,9 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI.Curves;
+using FanControlTrayAppDotNET.UI.Settings;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Flyout;
 
 public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropertyChanged
 {

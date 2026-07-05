@@ -1,5 +1,5 @@
 using TrayAppDotNETCommon.UI.Controls;
-using BrightnessInstallScope = TrayAppDotNETCommon.InstallScope;
+using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;

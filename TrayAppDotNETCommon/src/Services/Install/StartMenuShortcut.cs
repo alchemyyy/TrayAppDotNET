@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services.Install;

@@ -3,7 +3,7 @@ using System.Text;
 using Avalonia;
 using Avalonia.Input;
 
-namespace FanControlTrayAppDotNET.UI;
+namespace FanControlTrayAppDotNET.UI.Flyout;
 
 internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = null, Action<string>? log = null)
 {

@@ -5,7 +5,7 @@ using Avalonia.Media;
 using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
 
-namespace NetworkTrayAppDotNET.UI;
+namespace NetworkTrayAppDotNET.UI.Settings;
 
 public enum NetworkSettingsPage
 {

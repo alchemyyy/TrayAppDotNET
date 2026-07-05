@@ -1,3 +1,5 @@
+using TrayAppDotNETCommon.Models;
+
 namespace TrayAppDotNETCommon.Services.Install;
 
 public sealed record TrayAppDotNETInstallLayout(
