@@ -30,7 +30,7 @@ public sealed partial class FanCurveEditorWindow : Window
     private readonly SettingsToggle _preventDecreasingToggle;
     private readonly Border _maxRPMRow;
     private readonly SettingsButton _rescaleCurveButton;
-    private FanCurveLayout? _layout;
+    private FanCurveEditorAxamlProperties? _layout;
     private bool _suppressEvents;
     private bool _rescaleCurvePending;
     private bool _hasPreservedNonMonotonicNodes;
@@ -148,9 +148,9 @@ public sealed partial class FanCurveEditorWindow : Window
         base.OnClosed(e);
     }
 
-    private void InitializeComponentState() => _layout = FanCurveLayout.From(this);
+    private void InitializeComponentState() => _layout = AxamlFanCurveEditor;
 
-    private FanCurveLayout Layout =>
+    private FanCurveEditorAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Fan curve editor layout resources have not been loaded.");
 
     private Border BuildContent()
@@ -536,123 +536,6 @@ public sealed partial class FanCurveEditorWindow : Window
         button.Label.FontSize = Layout.RescaleCurveButtonFontSize;
         button.IsEnabled = false;
         return button;
-    }
-
-    private sealed record FanCurveLayout(
-        double GraphWidth,
-        double GraphHeight,
-        double LeftColumnWidth,
-        double DataSourceSelectedHeight,
-        double DataSourceSelectedFontSize,
-        double DataSourceListHeight,
-        double DataSourceSearchBoxHeight,
-        double DataSourceClearButtonWidth,
-        double DataSourceClearButtonHeight,
-        double DataSourceClearButtonFontSize,
-        double DataSourceListItemFontSize,
-        double ControlGridCardWidth,
-        double ControlGridWideCardWidth,
-        double ControlGridCardMinHeight,
-        double MinRPMNumberBoxMinWidth,
-        double MaxRPMNumberBoxMinWidth,
-        double MinDutyNumberBoxMinWidth,
-        double MaxDutyNumberBoxMinWidth,
-        double SmoothnessNumberBoxMinWidth,
-        double TitleFontSize,
-        double RowLabelWidth,
-        double RescaleCurveButtonHeight,
-        double RescaleCurveButtonFontSize,
-        Thickness RootBorderThickness,
-        CornerRadius RootCornerRadius,
-        CornerRadius CardCornerRadius,
-        CornerRadius DataSourceSelectedCornerRadius,
-        CornerRadius DataSourceListCornerRadius,
-        CornerRadius DataSourceListItemCornerRadius,
-        CornerRadius ZeroCornerRadius,
-        Thickness ZeroThickness,
-        Thickness TitleMargin,
-        Thickness MainMargin,
-        Thickness DataSourceTitleMargin,
-        Thickness DataSourceSelectedMargin,
-        Thickness DataSourceSelectedPadding,
-        Thickness DataSourceListMargin,
-        Thickness DataSourceSearchBoxPadding,
-        Thickness DataSourceClearButtonMargin,
-        Thickness DataSourceSearchRowMargin,
-        Thickness DataSourceListBorderThickness,
-        Thickness DataSourceListContentMargin,
-        Thickness DataSourceListItemPadding,
-        Thickness DataSourceListItemMargin,
-        Thickness ControlGridMargin,
-        Thickness ControlGridCardMargin,
-        Thickness ControlGridTitleMargin,
-        Thickness ControlGridControlMargin,
-        Thickness ControlGridNumberBoxMargin,
-        Thickness RescaleCurveButtonMargin,
-        Thickness ToggleMargin,
-        Thickness CardPadding,
-        Thickness CardMargin,
-        Thickness RescaleCurveButtonPadding)
-    {
-        public static FanCurveLayout From(FanCurveEditorWindow owner)
-        {
-            FanCurveEditorAxamlProperties axaml = owner.AxamlFanCurveEditor;
-            return new FanCurveLayout(
-                axaml.GraphWidth,
-                axaml.GraphHeight,
-                axaml.LeftColumnWidth,
-                axaml.DataSourceSelectedHeight,
-                axaml.DataSourceSelectedFontSize,
-                axaml.DataSourceListHeight,
-                axaml.DataSourceSearchBoxHeight,
-                axaml.DataSourceClearButtonWidth,
-                axaml.DataSourceClearButtonHeight,
-                axaml.DataSourceClearButtonFontSize,
-                axaml.DataSourceListItemFontSize,
-                axaml.ControlGridCardWidth,
-                axaml.ControlGridWideCardWidth,
-                axaml.ControlGridCardMinHeight,
-                axaml.MinRPMNumberBoxMinWidth,
-                axaml.MaxRPMNumberBoxMinWidth,
-                axaml.MinDutyNumberBoxMinWidth,
-                axaml.MaxDutyNumberBoxMinWidth,
-                axaml.SmoothnessNumberBoxMinWidth,
-                axaml.TitleFontSize,
-                axaml.RowLabelWidth,
-                axaml.RescaleCurveButtonHeight,
-                axaml.RescaleCurveButtonFontSize,
-                axaml.RootBorderThickness,
-                axaml.RootCornerRadius,
-                axaml.CardCornerRadius,
-                axaml.DataSourceSelectedCornerRadius,
-                axaml.DataSourceListCornerRadius,
-                axaml.DataSourceListItemCornerRadius,
-                axaml.ZeroCornerRadius,
-                axaml.ZeroThickness,
-                axaml.TitleMargin,
-                axaml.MainMargin,
-                axaml.DataSourceTitleMargin,
-                axaml.DataSourceSelectedMargin,
-                axaml.DataSourceSelectedPadding,
-                axaml.DataSourceListMargin,
-                axaml.DataSourceSearchBoxPadding,
-                axaml.DataSourceClearButtonMargin,
-                axaml.DataSourceSearchRowMargin,
-                axaml.DataSourceListBorderThickness,
-                axaml.DataSourceListContentMargin,
-                axaml.DataSourceListItemPadding,
-                axaml.DataSourceListItemMargin,
-                axaml.ControlGridMargin,
-                axaml.ControlGridCardMargin,
-                axaml.ControlGridTitleMargin,
-                axaml.ControlGridControlMargin,
-                axaml.ControlGridNumberBoxMargin,
-                axaml.RescaleCurveButtonMargin,
-                axaml.ToggleMargin,
-                axaml.CardPadding,
-                axaml.CardMargin,
-                axaml.RescaleCurveButtonPadding);
-        }
     }
 
     private void WireControls()

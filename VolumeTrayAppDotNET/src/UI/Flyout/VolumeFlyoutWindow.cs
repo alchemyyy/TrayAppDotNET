@@ -52,7 +52,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool _rebuildPending;
     private bool _rebuildQueued;
     private List<Action>? _buildingCleanup;
-    private FlyoutLayout? _layout;
+    private FlyoutAxamlProperties? _layout;
     private Border? _undockButton;
     private TextBlock? _undockButtonGlyph;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
@@ -105,14 +105,18 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void InitializeComponentState()
     {
-        _layout = FlyoutLayout.From(this);
+        _layout = AxamlFlyout;
 
         if (_settings != null && _audioManager != null)
             Rebuild();
     }
 
-    private FlyoutLayout Layout =>
+    private FlyoutAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Flyout layout resources have not been loaded.");
+
+    private int EdgePadding => (int)Math.Round(Layout.EdgePadding);
+
+    private int PixelMinSize => (int)Math.Round(Layout.PixelMinSize);
 
     public void Redock()
     {
@@ -234,8 +238,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         int left = trayIcon?.TryGetIconRect(out PixelRect rect) == true
             ? rect.Center.X - width / 2
-            : workArea.Right - width - Layout.EdgePadding;
-        int top = workArea.Bottom - height - Layout.EdgePadding;
+            : workArea.Right - width - EdgePadding;
+        int top = workArea.Bottom - height - EdgePadding;
 
         return ClampWindowPosition(new PixelPoint(left, top), workArea);
     }
@@ -245,10 +249,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         int width = CurrentPixelWidth();
         int height = CurrentPixelHeight();
 
-        int minLeft = workArea.X + Layout.EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - Layout.EdgePadding);
-        int minTop = workArea.Y + Layout.EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - Layout.EdgePadding);
+        int minLeft = workArea.X + EdgePadding;
+        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
+        int minTop = workArea.Y + EdgePadding;
+        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
 
         return new PixelPoint(
             Math.Clamp(target.X, minLeft, maxLeft),
@@ -256,15 +260,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     private int CurrentPixelWidth() =>
-        Math.Max(Layout.PixelMinSizeInt, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
+        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
 
     private int CurrentPixelHeight() =>
-        Math.Max(Layout.PixelMinSizeInt, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
+        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
 
     private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        int snapTolerance = Math.Max(Layout.PixelMinSizeInt,
+        int snapTolerance = Math.Max(PixelMinSize,
             (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * Layout.SnapTolerancePercent));
         return (ResolveDockedPosition(_lastTrayIcon), snapTolerance);
     }
@@ -282,7 +286,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void ApplyWorkAreaMaxHeight()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - (Layout.EdgePadding * 2));
+        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - (EdgePadding * 2));
     }
 
     private void StartFlyoutActivity()
@@ -2456,7 +2460,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
         return Math.Max(Layout.WorkAreaMinHeight,
-            workArea.Height / RenderScaling - (Layout.EdgePadding * 2) - Layout.ContentHeightReserve);
+            workArea.Height / RenderScaling - (EdgePadding * 2) - Layout.ContentHeightReserve);
     }
 
     private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)
@@ -2741,259 +2745,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             && Math.Abs(position.Y - _dockedPosition.Y) <= _snapTolerance;
     }
 
-    private sealed class FlyoutLayout
-    {
-        public int EdgePadding { get; init; }
-        public double DragThreshold { get; init; }
-        public double SnapTolerancePercent { get; init; }
-        public double WorkAreaMinHeight { get; init; }
-        public double ContentHeightReserve { get; init; }
-        public double PixelMinSize { get; init; }
-        public int PixelMinSizeInt => (int)Math.Round(PixelMinSize);
-        public int OffscreenPosition { get; init; }
-        public int FallbackWorkAreaX { get; init; }
-        public int FallbackWorkAreaY { get; init; }
-        public int FallbackWorkAreaWidth { get; init; }
-        public int FallbackWorkAreaHeight { get; init; }
-        public double IconGlyphLineHeightPadding { get; init; }
-        public Thickness ChromeBorderThickness { get; init; }
-        public Thickness ChromeInnerMargin { get; init; }
-        public CornerRadius ChromeCornerRadius { get; init; }
-        public CornerRadius ChromeInnerCornerRadius { get; init; }
-        public CornerRadius ZeroCornerRadius { get; init; }
-        public Thickness ZeroThickness { get; init; }
-        public double HeaderMinHeight { get; init; }
-        public Thickness HeaderLeftMarginTop { get; init; }
-        public Thickness HeaderLeftMarginBottom { get; init; }
-        public double HeaderIconButtonWidth { get; init; }
-        public double HeaderIconButtonHeight { get; init; }
-        public Thickness HeaderIconButtonMargin { get; init; }
-        public CornerRadius HeaderIconButtonCornerRadius { get; init; }
-        public double HeaderIconFontSize { get; init; }
-        public double HeaderIconLineHeight { get; init; }
-        public double HeaderUndockFontSize { get; init; }
-        public double HeaderUndockLineHeight { get; init; }
-        public Thickness HeaderUpdateMarginTop { get; init; }
-        public Thickness HeaderUpdateMarginBottom { get; init; }
-        public double HeaderUpdateWidth { get; init; }
-        public double HeaderUpdateHeight { get; init; }
-        public Thickness HeaderUpdateBorderThickness { get; init; }
-        public CornerRadius HeaderUpdateCornerRadius { get; init; }
-        public double HeaderUpdateLabelFontSize { get; init; }
-        public int HeaderUpdateZIndex { get; init; }
-        public Thickness HeaderUndockMarginTop { get; init; }
-        public Thickness HeaderUndockMarginBottom { get; init; }
-        public Thickness EmptyDevicesMargin { get; init; }
-        public double EmptyDevicesFontSize { get; init; }
-        public double EmptyDevicesOpacity { get; init; }
-        public Thickness DeviceCellOuterMargin { get; init; }
-        public Thickness DeviceCellContentPadding { get; init; }
-        public Thickness DeviceAppBandGridPadding { get; init; }
-        public Thickness DeviceAppBandSliderBottomPadding { get; init; }
-        public Thickness DeviceAppBandSliderTopPadding { get; init; }
-        public Thickness DeviceAppBandGridBottomMargin { get; init; }
-        public Thickness DeviceAppBandGridTopMargin { get; init; }
-        public Thickness DeviceBandBottomPadding { get; init; }
-        public Thickness DeviceBandTopPadding { get; init; }
-        public Thickness DeviceOutlineBorderThickness { get; init; }
-        public CornerRadius DeviceCornerRadius { get; init; }
-        public CornerRadius FooterBottomCornerRadius { get; init; }
-        public double AppIconImageSize { get; init; }
-        public double AppIconGlyphSize { get; init; }
-        public double AppIconGridSlotSize { get; init; }
-        public double AppIconCellPillExtra { get; init; }
-        public CornerRadius AppIconHoverCornerRadius { get; init; }
-        public Thickness AppIconCellBadgeMargin { get; init; }
-        public double AppIconCellBadgeFontSize { get; init; }
-        public double AppIconMuteOverlayOpacity { get; init; }
-        public double AppSliderRowHeight { get; init; }
-        public Thickness AppSliderRowMargin { get; init; }
-        public Thickness AppSliderIconMargin { get; init; }
-        public Thickness DeviceTitleRowMarginAbove { get; init; }
-        public Thickness DeviceTitleRowMarginInline { get; init; }
-        public TranslateTransform DeviceTitleNameNoFormatTransform { get; init; } = null!;
-        public double DeviceTitleFontSize { get; init; }
-        public double DeviceFormatFontSize { get; init; }
-        public double DeviceFormatOpacity { get; init; }
-        public double DeviceFormatCanvasTop { get; init; }
-        public double SliderHitTestVerticalPadding { get; init; }
-        public double PercentHostMinWidth { get; init; }
-        public Thickness PercentHostMargin { get; init; }
-        public double PercentFontSize { get; init; }
-        public double PercentEditorMinWidth { get; init; }
-        public Thickness PercentEditorBorderThickness { get; init; }
-        public Thickness PercentEditorPadding { get; init; }
-        public double DeviceMuteSlotWidth { get; init; }
-        public double DeviceMuteSlotHeight { get; init; }
-        public double DeviceMuteButtonWidth { get; init; }
-        public double DeviceMuteButtonHeight { get; init; }
-        public Thickness DeviceMuteButtonMargin { get; init; }
-        public double DeviceMuteGlyphFontSize { get; init; }
-        public double DeviceMuteMicrophoneGlyphFontSize { get; init; }
-        public TranslateTransform DeviceMuteMicrophoneTransform { get; init; } = null!;
-        public double DeviceIconButtonWidth { get; init; }
-        public double DeviceIconButtonHeight { get; init; }
-        public double DeviceIconButtonFontSize { get; init; }
-        public Thickness DeviceIconButtonMargin { get; init; }
-        public CornerRadius IconButtonCornerRadius { get; init; }
-        public double EqualizerFontSize { get; init; }
-        public double EqualizerBadgeFontSize { get; init; }
-        public Thickness EqualizerBadgeMargin { get; init; }
-        public double DeviceStateFontSize { get; init; }
-        public double DeviceStateDisabledFontSize { get; init; }
-        public TranslateTransform DeviceStateDisabledTransform { get; init; } = null!;
-        public double TextButtonFontSize { get; init; }
-        public Thickness TextButtonBorderThickness { get; init; }
-        public CornerRadius TextButtonCornerRadius { get; init; }
-        public double FormatMenuItemHeight { get; init; }
-        public int FormatMenuMaxVisibleItems { get; init; }
-        public double FormatMenuPaddingReserve { get; init; }
-        public Thickness MenuScrollHostPadding { get; init; }
-        public Thickness MenuBorderThickness { get; init; }
-        public Thickness MenuPadding { get; init; }
-        public CornerRadius MenuCornerRadius { get; init; }
-        public double MenuShadowOffsetY { get; init; }
-        public double MenuShadowBlur { get; init; }
-        public CornerRadius MenuRowCornerRadius { get; init; }
-        public Thickness MenuRowMargin { get; init; }
-        public Thickness MenuRowPadding { get; init; }
-        public double MenuMarkerColumnWidth { get; init; }
-        public double MenuMarkerFontSize { get; init; }
-        public double DeviceNameEditorFontSize { get; init; }
-        public Thickness DeviceNameEditorBorderThickness { get; init; }
-        public Thickness DeviceNameEditorPadding { get; init; }
-        public double DeviceNameEditorMinHeight { get; init; }
-        public int DeviceNameEditorZIndex { get; init; }
-
-        public static FlyoutLayout From(VolumeFlyoutWindow owner)
-        {
-            FlyoutAxamlProperties resources = owner.AxamlFlyout;
-            return new FlyoutLayout()
-            {
-                EdgePadding = (int)Math.Round(resources.EdgePadding),
-                DragThreshold = resources.DragThreshold,
-                SnapTolerancePercent = resources.SnapTolerancePercent,
-                WorkAreaMinHeight = resources.WorkAreaMinHeight,
-                ContentHeightReserve = resources.ContentHeightReserve,
-                PixelMinSize = resources.PixelMinSize,
-                OffscreenPosition = resources.OffscreenPosition,
-                FallbackWorkAreaX = resources.FallbackWorkAreaX,
-                FallbackWorkAreaY = resources.FallbackWorkAreaY,
-                FallbackWorkAreaWidth = resources.FallbackWorkAreaWidth,
-                FallbackWorkAreaHeight = resources.FallbackWorkAreaHeight,
-                IconGlyphLineHeightPadding = resources.IconGlyphLineHeightPadding,
-                ChromeBorderThickness = resources.ChromeBorderThickness,
-                ChromeInnerMargin = resources.ChromeInnerMargin,
-                ChromeCornerRadius = resources.ChromeCornerRadius,
-                ChromeInnerCornerRadius = resources.ChromeInnerCornerRadius,
-                ZeroCornerRadius = resources.ZeroCornerRadius,
-                ZeroThickness = resources.ZeroThickness,
-                HeaderMinHeight = resources.HeaderMinHeight,
-                HeaderLeftMarginTop = resources.HeaderLeftMarginTop,
-                HeaderLeftMarginBottom = resources.HeaderLeftMarginBottom,
-                HeaderIconButtonWidth = resources.HeaderIconButtonWidth,
-                HeaderIconButtonHeight = resources.HeaderIconButtonHeight,
-                HeaderIconButtonMargin = resources.HeaderIconButtonMargin,
-                HeaderIconButtonCornerRadius = resources.HeaderIconButtonCornerRadius,
-                HeaderIconFontSize = resources.HeaderIconFontSize,
-                HeaderIconLineHeight = resources.HeaderIconLineHeight,
-                HeaderUndockFontSize = resources.HeaderUndockFontSize,
-                HeaderUndockLineHeight = resources.HeaderUndockLineHeight,
-                HeaderUpdateMarginTop = resources.HeaderUpdateMarginTop,
-                HeaderUpdateMarginBottom = resources.HeaderUpdateMarginBottom,
-                HeaderUpdateWidth = resources.HeaderUpdateWidth,
-                HeaderUpdateHeight = resources.HeaderUpdateHeight,
-                HeaderUpdateBorderThickness = resources.HeaderUpdateBorderThickness,
-                HeaderUpdateCornerRadius = resources.HeaderUpdateCornerRadius,
-                HeaderUpdateLabelFontSize = resources.HeaderUpdateLabelFontSize,
-                HeaderUpdateZIndex = resources.HeaderUpdateZIndex,
-                HeaderUndockMarginTop = resources.HeaderUndockMarginTop,
-                HeaderUndockMarginBottom = resources.HeaderUndockMarginBottom,
-                EmptyDevicesMargin = resources.EmptyDevicesMargin,
-                EmptyDevicesFontSize = resources.EmptyDevicesFontSize,
-                EmptyDevicesOpacity = resources.EmptyDevicesOpacity,
-                DeviceCellOuterMargin = resources.DeviceCellOuterMargin,
-                DeviceCellContentPadding = resources.DeviceCellContentPadding,
-                DeviceAppBandGridPadding = resources.DeviceAppBandGridPadding,
-                DeviceAppBandSliderBottomPadding = resources.DeviceAppBandSliderBottomPadding,
-                DeviceAppBandSliderTopPadding = resources.DeviceAppBandSliderTopPadding,
-                DeviceAppBandGridBottomMargin = resources.DeviceAppBandGridBottomMargin,
-                DeviceAppBandGridTopMargin = resources.DeviceAppBandGridTopMargin,
-                DeviceBandBottomPadding = resources.DeviceBandBottomPadding,
-                DeviceBandTopPadding = resources.DeviceBandTopPadding,
-                DeviceOutlineBorderThickness = resources.DeviceOutlineBorderThickness,
-                DeviceCornerRadius = resources.DeviceCornerRadius,
-                FooterBottomCornerRadius = resources.FooterBottomCornerRadius,
-                AppIconImageSize = resources.AppIconImageSize,
-                AppIconGlyphSize = resources.AppIconGlyphSize,
-                AppIconGridSlotSize = resources.AppIconGridSlotSize,
-                AppIconCellPillExtra = resources.AppIconCellPillExtra,
-                AppIconHoverCornerRadius = resources.AppIconHoverCornerRadius,
-                AppIconCellBadgeMargin = resources.AppIconCellBadgeMargin,
-                AppIconCellBadgeFontSize = resources.AppIconCellBadgeFontSize,
-                AppIconMuteOverlayOpacity = resources.AppIconMuteOverlayOpacity,
-                AppSliderRowHeight = resources.AppSliderRowHeight,
-                AppSliderRowMargin = resources.AppSliderRowMargin,
-                AppSliderIconMargin = resources.AppSliderIconMargin,
-                DeviceTitleRowMarginAbove = resources.DeviceTitleRowMarginAbove,
-                DeviceTitleRowMarginInline = resources.DeviceTitleRowMarginInline,
-                DeviceTitleNameNoFormatTransform = resources.DeviceTitleNameNoFormatTransform,
-                DeviceTitleFontSize = resources.DeviceTitleFontSize,
-                DeviceFormatFontSize = resources.DeviceFormatFontSize,
-                DeviceFormatOpacity = resources.DeviceFormatOpacity,
-                DeviceFormatCanvasTop = resources.DeviceFormatCanvasTop,
-                SliderHitTestVerticalPadding = resources.SliderHitTestVerticalPadding,
-                PercentHostMinWidth = resources.PercentHostMinWidth,
-                PercentHostMargin = resources.PercentHostMargin,
-                PercentFontSize = resources.PercentFontSize,
-                PercentEditorMinWidth = resources.PercentEditorMinWidth,
-                PercentEditorBorderThickness = resources.PercentEditorBorderThickness,
-                PercentEditorPadding = resources.PercentEditorPadding,
-                DeviceMuteSlotWidth = resources.DeviceMuteSlotWidth,
-                DeviceMuteSlotHeight = resources.DeviceMuteSlotHeight,
-                DeviceMuteButtonWidth = resources.DeviceMuteButtonWidth,
-                DeviceMuteButtonHeight = resources.DeviceMuteButtonHeight,
-                DeviceMuteButtonMargin = resources.DeviceMuteButtonMargin,
-                DeviceMuteGlyphFontSize = resources.DeviceMuteGlyphFontSize,
-                DeviceMuteMicrophoneGlyphFontSize = resources.DeviceMuteMicrophoneGlyphFontSize,
-                DeviceMuteMicrophoneTransform = resources.DeviceMuteMicrophoneTransform,
-                DeviceIconButtonWidth = resources.DeviceIconButtonWidth,
-                DeviceIconButtonHeight = resources.DeviceIconButtonHeight,
-                DeviceIconButtonFontSize = resources.DeviceIconButtonFontSize,
-                DeviceIconButtonMargin = resources.DeviceIconButtonMargin,
-                IconButtonCornerRadius = resources.IconButtonCornerRadius,
-                EqualizerFontSize = resources.EqualizerFontSize,
-                EqualizerBadgeFontSize = resources.EqualizerBadgeFontSize,
-                EqualizerBadgeMargin = resources.EqualizerBadgeMargin,
-                DeviceStateFontSize = resources.DeviceStateFontSize,
-                DeviceStateDisabledFontSize = resources.DeviceStateDisabledFontSize,
-                DeviceStateDisabledTransform = resources.DeviceStateDisabledTransform,
-                TextButtonFontSize = resources.TextButtonFontSize,
-                TextButtonBorderThickness = resources.TextButtonBorderThickness,
-                TextButtonCornerRadius = resources.TextButtonCornerRadius,
-                FormatMenuItemHeight = resources.FormatMenuItemHeight,
-                FormatMenuMaxVisibleItems = resources.FormatMenuMaxVisibleItems,
-                FormatMenuPaddingReserve = resources.FormatMenuPaddingReserve,
-                MenuScrollHostPadding = resources.MenuScrollHostPadding,
-                MenuBorderThickness = resources.MenuBorderThickness,
-                MenuPadding = resources.MenuPadding,
-                MenuCornerRadius = resources.MenuCornerRadius,
-                MenuShadowOffsetY = resources.MenuShadowOffsetY,
-                MenuShadowBlur = resources.MenuShadowBlur,
-                MenuRowCornerRadius = resources.MenuRowCornerRadius,
-                MenuRowMargin = resources.MenuRowMargin,
-                MenuRowPadding = resources.MenuRowPadding,
-                MenuMarkerColumnWidth = resources.MenuMarkerColumnWidth,
-                MenuMarkerFontSize = resources.MenuMarkerFontSize,
-                DeviceNameEditorFontSize = resources.DeviceNameEditorFontSize,
-                DeviceNameEditorBorderThickness = resources.DeviceNameEditorBorderThickness,
-                DeviceNameEditorPadding = resources.DeviceNameEditorPadding,
-                DeviceNameEditorMinHeight = resources.DeviceNameEditorMinHeight,
-                DeviceNameEditorZIndex = resources.DeviceNameEditorZIndex,
-            };
-        }
-    }
-
     private readonly record struct FlyoutPalette(
         Color Background,
         Color Foreground,
@@ -3041,7 +2792,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private sealed class FlyoutMenuWindow : Window
     {
         private readonly double _maxHeight;
-        private readonly FlyoutLayout _layout;
+        private readonly FlyoutAxamlProperties _layout;
         private bool _closedFromDeactivation;
 
         public bool ClosedFromDeactivation => _closedFromDeactivation;
@@ -3049,7 +2800,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         public FlyoutMenuWindow(
             IReadOnlyList<FlyoutMenuEntry> entries,
             FlyoutPalette palette,
-            FlyoutLayout layout,
+            FlyoutAxamlProperties layout,
             int fontSize,
             bool rounded,
             double maxHeight)
@@ -3114,8 +2865,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 UpdateLayout();
                 double scale = RenderScaling;
-                int width = Math.Max(_layout.PixelMinSizeInt, (int)Math.Ceiling(Bounds.Width * scale));
-                int height = Math.Max(_layout.PixelMinSizeInt,
+                int width = Math.Max(PixelMinSize, (int)Math.Ceiling(Bounds.Width * scale));
+                int height = Math.Max(PixelMinSize,
                     (int)Math.Ceiling(Math.Min(Bounds.Height, _maxHeight) * scale));
 
                 PixelRect workArea = (Screens.ScreenFromPoint(anchorBottom) ?? Screens.Primary)?.WorkingArea
@@ -3124,13 +2875,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                                          _layout.FallbackWorkAreaY,
                                          _layout.FallbackWorkAreaWidth,
                                          _layout.FallbackWorkAreaHeight);
-                int left = Math.Clamp(anchorBottom.X, workArea.X + _layout.EdgePadding,
-                    Math.Max(workArea.X + _layout.EdgePadding, workArea.Right - width - _layout.EdgePadding));
+                int left = Math.Clamp(anchorBottom.X, workArea.X + EdgePadding,
+                    Math.Max(workArea.X + EdgePadding, workArea.Right - width - EdgePadding));
                 int top = anchorBottom.Y;
-                if (top + height > workArea.Bottom - _layout.EdgePadding)
+                if (top + height > workArea.Bottom - EdgePadding)
                     top = anchorTop.Y - height;
-                top = Math.Clamp(top, workArea.Y + _layout.EdgePadding,
-                    Math.Max(workArea.Y + _layout.EdgePadding, workArea.Bottom - height - _layout.EdgePadding));
+                top = Math.Clamp(top, workArea.Y + EdgePadding,
+                    Math.Max(workArea.Y + EdgePadding, workArea.Bottom - height - EdgePadding));
 
                 Position = new PixelPoint(left, top);
                 Activate();
@@ -3159,6 +2910,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             palette.ButtonHover,
             palette.ButtonPressed,
             palette.Foreground);
+
+        private int EdgePadding => (int)Math.Round(_layout.EdgePadding);
+
+        private int PixelMinSize => (int)Math.Round(_layout.PixelMinSize);
     }
 
     private sealed class FlyoutMenuRow : Border
@@ -3167,7 +2922,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         private readonly Action _close;
         private bool _isPointerOver;
 
-        public FlyoutMenuRow(FlyoutMenuEntry entry, FlyoutPalette palette, FlyoutLayout layout, int fontSize,
+        public FlyoutMenuRow(FlyoutMenuEntry entry, FlyoutPalette palette, FlyoutAxamlProperties layout, int fontSize,
             bool rounded, Action close)
         {
             _palette = palette;

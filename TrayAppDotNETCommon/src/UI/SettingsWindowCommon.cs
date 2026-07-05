@@ -47,8 +47,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Compact,
     }
 
-    private sealed record SettingsWindowDimensions(double Width, double Height, double MinWidth, double MinHeight);
-
     protected TPageKey CurrentPageKey { get; private set; } = default!;
     protected bool IsClosing { get; private set; }
 
@@ -82,12 +80,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void ConfigureSettingsWindow(string title, SettingsWindowSizeProfile sizeProfile, WindowIcon? icon)
     {
-        SettingsWindowDimensions dimensions = ReadWindowDimensions(sizeProfile);
         Title = title;
-        Width = dimensions.Width;
-        Height = dimensions.Height;
-        MinWidth = dimensions.MinWidth;
-        MinHeight = dimensions.MinHeight;
+        ApplyWindowDimensions(sizeProfile);
         Icon = icon;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         WindowDecorations = WindowDecorations.None;
@@ -96,21 +90,28 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         CanResize = true;
     }
 
-    private SettingsWindowDimensions ReadWindowDimensions(SettingsWindowSizeProfile sizeProfile) =>
-        sizeProfile switch
+    private void ApplyWindowDimensions(SettingsWindowSizeProfile sizeProfile)
+    {
+        switch (sizeProfile)
         {
-            SettingsWindowSizeProfile.Standard => new SettingsWindowDimensions(
-                _settingsResources.AxamlSettingsWindow.StandardWindowWidth,
-                _settingsResources.AxamlSettingsWindow.StandardWindowHeight,
-                _settingsResources.AxamlSettingsWindow.StandardWindowMinWidth,
-                _settingsResources.AxamlSettingsWindow.StandardWindowMinHeight),
-            SettingsWindowSizeProfile.Compact => new SettingsWindowDimensions(
-                _settingsResources.AxamlSettingsWindow.CompactWindowWidth,
-                _settingsResources.AxamlSettingsWindow.CompactWindowHeight,
-                _settingsResources.AxamlSettingsWindow.CompactWindowMinWidth,
-                _settingsResources.AxamlSettingsWindow.CompactWindowMinHeight),
-            _ => throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, null),
-        };
+            case SettingsWindowSizeProfile.Standard:
+                Width = _settingsResources.AxamlSettingsWindow.StandardWindowWidth;
+                Height = _settingsResources.AxamlSettingsWindow.StandardWindowHeight;
+                MinWidth = _settingsResources.AxamlSettingsWindow.StandardWindowMinWidth;
+                MinHeight = _settingsResources.AxamlSettingsWindow.StandardWindowMinHeight;
+                return;
+
+            case SettingsWindowSizeProfile.Compact:
+                Width = _settingsResources.AxamlSettingsWindow.CompactWindowWidth;
+                Height = _settingsResources.AxamlSettingsWindow.CompactWindowHeight;
+                MinWidth = _settingsResources.AxamlSettingsWindow.CompactWindowMinWidth;
+                MinHeight = _settingsResources.AxamlSettingsWindow.CompactWindowMinHeight;
+                return;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, null);
+        }
+    }
 
     protected void InitializeSettingsShell()
     {

@@ -1420,7 +1420,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutCell.axaml",
       "line": 7,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutCellResources"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutCellResources"
     },
     {
       "key": "FanFlyoutCell.GroupRPMDisplayedValueWidth",
@@ -1429,7 +1429,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutCell.axaml",
       "line": 8,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutCellResources"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutCellResources"
     },
     {
       "key": "FanFlyoutCell.GroupSliderMaximumValue",
@@ -1438,7 +1438,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutCell.axaml",
       "line": 9,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutCellResources"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutCellResources"
     },
     {
       "key": "Flyout.WindowWidth",
@@ -1447,7 +1447,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 17,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.EdgePadding",
@@ -1456,7 +1456,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 18,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragThreshold",
@@ -1465,7 +1465,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 19,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.SnapTolerancePercent",
@@ -1474,7 +1474,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 20,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.WorkAreaMinHeight",
@@ -1483,7 +1483,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 21,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.PixelMinSize",
@@ -1492,7 +1492,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 22,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.OffscreenPosition",
@@ -1501,7 +1501,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 23,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FallbackWorkAreaX",
@@ -1510,7 +1510,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 24,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FallbackWorkAreaY",
@@ -1519,7 +1519,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 25,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FallbackWorkAreaWidth",
@@ -1528,7 +1528,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 26,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FallbackWorkAreaHeight",
@@ -1537,7 +1537,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 27,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanPropertiesRowsPerColumn",
@@ -1546,7 +1546,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 28,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanPropertiesGap",
@@ -1555,7 +1555,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 29,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.MaxSettingSpacing",
@@ -1564,7 +1564,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 30,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ZeroThickness",
@@ -1573,7 +1573,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 32,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ZeroCornerRadius",
@@ -1582,7 +1582,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 33,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RootBorderThickness",
@@ -1591,7 +1591,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 34,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RootCornerRadius",
@@ -1600,7 +1600,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 35,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RootInnerCornerRadius",
@@ -1609,7 +1609,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 36,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RootInnerMargin",
@@ -1618,7 +1618,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 37,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RootShadowOffsetY",
@@ -1627,7 +1627,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 38,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RootShadowBlur",
@@ -1636,7 +1636,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 39,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderHeight",
@@ -1645,7 +1645,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 41,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderMargin",
@@ -1654,7 +1654,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 42,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderWideColumnWidth",
@@ -1663,7 +1663,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 43,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderNarrowColumnWidth",
@@ -1672,7 +1672,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 44,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderButtonWidth",
@@ -1681,7 +1681,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 45,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderButtonHeight",
@@ -1690,7 +1690,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 46,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderButtonFontSize",
@@ -1699,7 +1699,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 47,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderManagerButtonFontSize",
@@ -1708,7 +1708,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 48,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.UpdateInstallButtonPadding",
@@ -1717,7 +1717,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 49,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderAddGroupIconSize",
@@ -1726,7 +1726,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 50,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderAddGroupFontSize",
@@ -1735,7 +1735,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 51,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderAddProbeFontSize",
@@ -1744,7 +1744,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 52,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderAddGlyphFontSize",
@@ -1753,7 +1753,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 53,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderAddGlyphTransform",
@@ -1762,7 +1762,7 @@
       "kind": "TranslateTransform",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 54,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileLabelFontSize",
@@ -1771,7 +1771,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 55,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileUnderlineWidth",
@@ -1780,7 +1780,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 56,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileUnderlineHeight",
@@ -1789,7 +1789,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 57,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileUnderlineCornerRadius",
@@ -1798,7 +1798,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 58,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileUnderlineMargin",
@@ -1807,7 +1807,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 59,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileButtonWidth",
@@ -1816,7 +1816,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 60,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProfileButtonHeight",
@@ -1825,7 +1825,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 61,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.UndockFontSize",
@@ -1834,7 +1834,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 62,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.HeaderButtonCornerRadius",
@@ -1843,7 +1843,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 63,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.EmptyTextFontSize",
@@ -1852,7 +1852,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 65,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.EmptyTextOpacity",
@@ -1861,7 +1861,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 66,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.CardBorderThickness",
@@ -1870,7 +1870,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 67,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.CardCornerRadius",
@@ -1879,7 +1879,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 68,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.CardPadding",
@@ -1888,7 +1888,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 69,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanRowGroupedMarginBase",
@@ -1897,7 +1897,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 70,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanButtonWidth",
@@ -1906,7 +1906,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 72,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanButtonHeight",
@@ -1915,7 +1915,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 73,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanButtonFontSize",
@@ -1924,7 +1924,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 74,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanButtonGroupedMargin",
@@ -1933,7 +1933,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 75,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanButtonUngroupedMargin",
@@ -1942,7 +1942,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 76,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanNameFontSize",
@@ -1951,7 +1951,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 77,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanSubtitleFontSize",
@@ -1960,7 +1960,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 78,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.SubtitleOpacity",
@@ -1969,7 +1969,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 79,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.SubtitleMargin",
@@ -1978,7 +1978,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 80,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanNameStackGroupedMargin",
@@ -1987,7 +1987,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 81,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FanNameStackUngroupedMargin",
@@ -1996,7 +1996,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 82,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.TelemetryMargin",
@@ -2005,7 +2005,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 83,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RPMFontSize",
@@ -2014,7 +2014,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 84,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RPMOpacity",
@@ -2023,7 +2023,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 85,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ControllerFontSize",
@@ -2032,7 +2032,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 86,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ControllerOpacity",
@@ -2041,7 +2041,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 87,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ControllerMargin",
@@ -2050,7 +2050,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 88,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ModeButtonWidth",
@@ -2059,7 +2059,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 89,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ModeButtonHeight",
@@ -2068,7 +2068,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 90,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ModeButtonFontSize",
@@ -2077,7 +2077,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 91,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ModeButtonGroupedMargin",
@@ -2086,7 +2086,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 92,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ModeButtonUngroupedMargin",
@@ -2095,7 +2095,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 93,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.SliderRowHeight",
@@ -2104,7 +2104,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 94,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.SliderRowMargin",
@@ -2113,7 +2113,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 95,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ValueGridMargin",
@@ -2122,7 +2122,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 96,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ValueFontSize",
@@ -2131,7 +2131,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 97,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.SliderHitTestVerticalPadding",
@@ -2140,7 +2140,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 98,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupIconWidth",
@@ -2149,7 +2149,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 100,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupIconHeight",
@@ -2158,7 +2158,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 101,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupIconFontSize",
@@ -2167,7 +2167,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 102,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupHeaderButtonWidth",
@@ -2176,7 +2176,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 103,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupHeaderButtonHeight",
@@ -2185,7 +2185,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 104,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupExpandFontSize",
@@ -2194,7 +2194,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 105,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupHeaderButtonMargin",
@@ -2203,7 +2203,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 106,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupNameFontSize",
@@ -2212,7 +2212,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 107,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupNameOpacity",
@@ -2221,7 +2221,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 108,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupTitleMargin",
@@ -2230,7 +2230,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 109,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupDeleteFontSize",
@@ -2239,7 +2239,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 110,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupModeMargin",
@@ -2248,7 +2248,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 111,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupSliderRowMargin",
@@ -2257,7 +2257,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 112,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.GroupValueGridMargin",
@@ -2266,7 +2266,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 113,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeButtonWidth",
@@ -2275,7 +2275,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 115,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeButtonHeight",
@@ -2284,7 +2284,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 116,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeButtonFontSize",
@@ -2293,7 +2293,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 117,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeButtonMargin",
@@ -2302,7 +2302,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 118,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeNameFontSize",
@@ -2311,7 +2311,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 119,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeNameStackMargin",
@@ -2320,7 +2320,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 120,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeRowsMargin",
@@ -2329,7 +2329,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 121,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeRowMargin",
@@ -2338,7 +2338,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 122,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeRowGlyphWidth",
@@ -2347,7 +2347,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 123,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeRowGlyphFontSize",
@@ -2356,7 +2356,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 124,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeRowTextFontSize",
@@ -2365,7 +2365,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 125,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeRowValueMinWidth",
@@ -2374,7 +2374,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 126,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeEmptyFontSize",
@@ -2383,7 +2383,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 127,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ProbeEmptyOpacity",
@@ -2392,7 +2392,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 128,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmTitleFontSize",
@@ -2401,7 +2401,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 130,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmTitleMargin",
@@ -2410,7 +2410,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 131,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmMessageMargin",
@@ -2419,7 +2419,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 132,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmCancelMargin",
@@ -2428,7 +2428,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 133,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmBorderThickness",
@@ -2437,7 +2437,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 134,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmCornerRadius",
@@ -2446,7 +2446,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 135,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmPadding",
@@ -2455,7 +2455,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 136,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmMinWidth",
@@ -2464,7 +2464,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 137,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.ConfirmMaxWidth",
@@ -2473,7 +2473,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 138,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.FullOpacity",
@@ -2482,7 +2482,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 140,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.RelinquishedControlOpacity",
@@ -2491,7 +2491,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 141,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.InactiveSliderValueOpacity",
@@ -2500,7 +2500,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 142,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragGhostOpacity",
@@ -2509,7 +2509,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 143,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragGhostShadowOffsetY",
@@ -2518,7 +2518,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 144,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragGhostShadowBlur",
@@ -2527,7 +2527,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 145,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DropMarkerHeight",
@@ -2536,7 +2536,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 146,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DropMarkerCornerRadius",
@@ -2545,7 +2545,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 147,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragSourceOpacity",
@@ -2554,7 +2554,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 148,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragDebugMarkerHeight",
@@ -2563,7 +2563,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 149,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragDebugMarkerOpacity",
@@ -2572,7 +2572,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 150,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragDebugPointerHeight",
@@ -2581,7 +2581,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 151,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.DragDebugPointerOpacity",
@@ -2590,7 +2590,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 152,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.InlineEditorFontSize",
@@ -2599,7 +2599,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 154,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.InlineEditorBorderThickness",
@@ -2608,7 +2608,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 155,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "Flyout.InlineEditorPadding",
@@ -2617,7 +2617,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanFlyoutWindow.axaml",
       "line": 156,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanFlyoutWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanFlyoutWindow"
     },
     {
       "key": "FanProperties.WindowWidth",
@@ -2626,7 +2626,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 21,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.WindowHeight",
@@ -2635,7 +2635,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 22,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.TitleBarHeight",
@@ -2644,7 +2644,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 23,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.FooterHeight",
@@ -2653,7 +2653,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 24,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.BodyLeftColumnWidth",
@@ -2662,7 +2662,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 25,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RightPreviewHeight",
@@ -2671,7 +2671,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 26,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.TextBoxWidth",
@@ -2680,7 +2680,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 27,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.CurveComboWidth",
@@ -2689,7 +2689,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 28,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.NumberBoxWidth",
@@ -2698,7 +2698,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 29,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RowLabelColumnWidth",
@@ -2707,7 +2707,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 30,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.TitleFontSize",
@@ -2716,7 +2716,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 31,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RootBorderThickness",
@@ -2725,7 +2725,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 33,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RootCornerRadius",
@@ -2734,7 +2734,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 34,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.InnerCornerRadius",
@@ -2743,7 +2743,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 35,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.ZeroCornerRadius",
@@ -2752,7 +2752,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 36,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.TitleMargin",
@@ -2761,7 +2761,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 37,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.BodyMargin",
@@ -2770,7 +2770,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 38,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.LeftMargin",
@@ -2779,7 +2779,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 39,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RightMargin",
@@ -2788,7 +2788,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 40,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.CurveComboMargin",
@@ -2797,7 +2797,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 41,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.EditCurveButtonMargin",
@@ -2806,7 +2806,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 42,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.FooterMargin",
@@ -2815,7 +2815,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 43,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.ResetMargin",
@@ -2824,7 +2824,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 44,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RadioMargin",
@@ -2833,7 +2833,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 45,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.ZeroThickness",
@@ -2842,7 +2842,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 46,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.ValueFontSize",
@@ -2851,7 +2851,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 48,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RadioFontSize",
@@ -2860,7 +2860,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 49,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RowLabelFontSize",
@@ -2869,7 +2869,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 50,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.RowBottomMargin",
@@ -2878,7 +2878,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 51,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.OffsetRowBottomMargin",
@@ -2887,7 +2887,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 52,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.CaptionButtonWidth",
@@ -2896,7 +2896,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 53,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.CaptionButtonHeight",
@@ -2905,7 +2905,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 54,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.CaptionButtonFontSize",
@@ -2914,7 +2914,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 55,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "FanProperties.CaptionButtonPadding",
@@ -2923,7 +2923,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/FanPropertiesWindow.axaml",
       "line": 56,
-      "owner_class": "FanControlTrayAppDotNET.UI.FanPropertiesWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.FanPropertiesWindow"
     },
     {
       "key": "ProbeSelector.WindowWidth",
@@ -2932,7 +2932,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 20,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.WindowHeight",
@@ -2941,7 +2941,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 21,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabRowHeight",
@@ -2950,7 +2950,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 22,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabWidth",
@@ -2959,7 +2959,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 23,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabFontSize",
@@ -2968,7 +2968,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 24,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabMinHeight",
@@ -2977,7 +2977,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 25,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.CardTitleFontSize",
@@ -2986,7 +2986,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 26,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.CardValueFontSize",
@@ -2995,7 +2995,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 27,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ValueGlyphWidth",
@@ -3004,7 +3004,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 28,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ValueGlyphFontSize",
@@ -3013,7 +3013,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 29,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.GridCardWidth",
@@ -3022,7 +3022,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 30,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.EmptyFontSize",
@@ -3031,7 +3031,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 31,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.SectionTitleFontSize",
@@ -3040,7 +3040,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 32,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ActionButtonWidth",
@@ -3049,7 +3049,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 33,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ActionButtonHeight",
@@ -3058,7 +3058,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 34,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.GearFontSize",
@@ -3067,7 +3067,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 35,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformInactiveGearOpacity",
@@ -3076,7 +3076,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 36,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleFontSize",
@@ -3085,7 +3085,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 37,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleWidth",
@@ -3094,7 +3094,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 38,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleTrackWidth",
@@ -3103,7 +3103,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 39,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleTrackHeightRatio",
@@ -3112,7 +3112,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 40,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleThumbSizeRatio",
@@ -3121,7 +3121,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 41,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformLabelFontSize",
@@ -3130,7 +3130,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 42,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformInlineBoxWidth",
@@ -3139,7 +3139,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 43,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformBoxHeight",
@@ -3148,7 +3148,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 44,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformBoxMinHeight",
@@ -3157,7 +3157,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 45,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeClearDeadSensorsButtonWidth",
@@ -3166,7 +3166,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 46,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeLoadDefaultNicknamesButtonWidth",
@@ -3175,7 +3175,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 47,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeActionButtonHeight",
@@ -3184,7 +3184,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 48,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeDeviceNicknamesRowHeight",
@@ -3193,7 +3193,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 49,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeSectionSeparatorThickness",
@@ -3202,7 +3202,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 50,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameCardWidth",
@@ -3211,7 +3211,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 51,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameAddButtonWidth",
@@ -3220,7 +3220,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 52,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameAddButtonHeight",
@@ -3229,7 +3229,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 53,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameTargetTextBoxWidth",
@@ -3238,7 +3238,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 54,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameReplacementTextBoxWidth",
@@ -3247,7 +3247,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 55,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameTextBoxHeight",
@@ -3256,7 +3256,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 56,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameArrowFontSize",
@@ -3265,7 +3265,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 57,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameDeleteButtonWidth",
@@ -3274,7 +3274,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 58,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameDeleteButtonHeight",
@@ -3283,7 +3283,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 59,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameDeleteButtonFontSize",
@@ -3292,7 +3292,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 60,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ReorderDragThreshold",
@@ -3301,7 +3301,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 61,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ReorderDraggingOpacity",
@@ -3310,7 +3310,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 62,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ReorderDraggingZIndex",
@@ -3319,7 +3319,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 63,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ReorderNormalZIndex",
@@ -3328,7 +3328,7 @@
       "kind": "Int",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 64,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.DisabledToggleOpacity",
@@ -3337,7 +3337,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 65,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.FullOpacity",
@@ -3346,7 +3346,7 @@
       "kind": "Double",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 66,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ZeroThickness",
@@ -3355,7 +3355,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 68,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.RootBorderThickness",
@@ -3364,7 +3364,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 69,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ContentMargin",
@@ -3373,7 +3373,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 70,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabMargin",
@@ -3382,7 +3382,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 71,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabPadding",
@@ -3391,7 +3391,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 72,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.BodyMargin",
@@ -3400,7 +3400,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 73,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.CardMargin",
@@ -3409,7 +3409,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 74,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.CardPadding",
@@ -3418,7 +3418,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 75,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TextColumnMargin",
@@ -3427,7 +3427,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 76,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ValueRowMargin",
@@ -3436,7 +3436,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 77,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ValueGlyphMargin",
@@ -3445,7 +3445,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 78,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ActionButtonMargin",
@@ -3454,7 +3454,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 79,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ProbeControlRowMargin",
@@ -3463,7 +3463,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 80,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ProbeToggleColumnMargin",
@@ -3472,7 +3472,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 81,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleMargin",
@@ -3481,7 +3481,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 82,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TruncateToggleLabelMargin",
@@ -3490,7 +3490,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 83,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformRowMargin",
@@ -3499,7 +3499,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 84,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformLabelMargin",
@@ -3508,7 +3508,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 85,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TransformBoxPadding",
@@ -3517,7 +3517,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 86,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeActionButtonMargin",
@@ -3526,7 +3526,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 87,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeActionButtonTrailingMargin",
@@ -3535,7 +3535,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 88,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeActionButtonPadding",
@@ -3544,7 +3544,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 89,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeNicknameColumnPadding",
@@ -3553,7 +3553,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 90,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeColumnSeparatorMargin",
@@ -3562,7 +3562,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 91,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeNicknameRowSeparatorMargin",
@@ -3571,7 +3571,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 92,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeSectionScrollHostMargin",
@@ -3580,7 +3580,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 93,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeNicknameScrollHostMargin",
@@ -3589,7 +3589,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 94,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.SelectedProbeGridMargin",
@@ -3598,7 +3598,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 95,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameCardPadding",
@@ -3607,7 +3607,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 96,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameSectionMargin",
@@ -3616,7 +3616,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 97,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.SectionHeaderMargin",
@@ -3625,7 +3625,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 98,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameListMargin",
@@ -3634,7 +3634,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 99,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameListPadding",
@@ -3643,7 +3643,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 100,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameAddButtonPadding",
@@ -3652,7 +3652,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 101,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameTextBoxPadding",
@@ -3661,7 +3661,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 102,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameArrowMargin",
@@ -3670,7 +3670,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 103,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.NicknameDeleteButtonMargin",
@@ -3679,7 +3679,7 @@
       "kind": "Thickness",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 104,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.RootCornerRadius",
@@ -3688,7 +3688,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 106,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.CardCornerRadius",
@@ -3697,7 +3697,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 107,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.TabCornerRadius",
@@ -3706,7 +3706,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 108,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.ZeroCornerRadius",
@@ -3715,7 +3715,7 @@
       "kind": "CornerRadius",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 109,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "ProbeSelector.HomeSectionSeparatorColor",
@@ -3724,7 +3724,7 @@
       "kind": "ColorString",
       "file": "FanControlTrayAppDotNET/src/UI/Flyout/ProbeDataSelectorWindow.axaml",
       "line": 111,
-      "owner_class": "FanControlTrayAppDotNET.UI.ProbeDataSelectorWindow"
+      "owner_class": "FanControlTrayAppDotNET.UI.Flyout.ProbeDataSelectorWindow"
     },
     {
       "key": "CommonBindings.PairColumnWidth",

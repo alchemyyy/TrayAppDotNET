@@ -42,7 +42,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private Border? _confirmOverlay;
     private TextBlock? _confirmTitle;
     private TextBlock? _confirmMessage;
-    private FlyoutLayout? _layout;
+    private FlyoutAxamlProperties? _layout;
     private SettingsButton? _confirmOK;
     private SettingsButton? _confirmCancel;
     private DispatcherTimer? _previewSweepTimer;
@@ -172,13 +172,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void InitializeComponentState()
     {
-        _layout = FlyoutLayout.From(this);
+        _layout = AxamlFlyout;
 
         RebuildVisual();
     }
 
-    private FlyoutLayout Layout =>
+    private FlyoutAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Brightness flyout layout resources have not been loaded.");
+
+    private int EdgePadding => (int)Math.Round(Layout.EdgePadding);
+
+    private int PixelMinSize => (int)Math.Round(Layout.PixelMinSize);
 
     public new event PropertyChangedEventHandler? PropertyChanged;
     public event Action? BrightnessUpdated;
@@ -2772,8 +2776,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         int height = CurrentPixelHeight();
         int left = trayIcon?.TryGetIconRect(out PixelRect rect) == true
             ? rect.Center.X - width / 2
-            : workArea.Right - width - Layout.EdgePadding;
-        int top = workArea.Bottom - height - Layout.EdgePadding;
+            : workArea.Right - width - EdgePadding;
+        int top = workArea.Bottom - height - EdgePadding;
         return ClampWindowPosition(new PixelPoint(left, top), workArea);
     }
 
@@ -2790,23 +2794,23 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         int width = CurrentPixelWidth();
         int height = CurrentPixelHeight();
-        int minLeft = workArea.X + Layout.EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - Layout.EdgePadding);
-        int minTop = workArea.Y + Layout.EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - Layout.EdgePadding);
+        int minLeft = workArea.X + EdgePadding;
+        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
+        int minTop = workArea.Y + EdgePadding;
+        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
         return new PixelPoint(Math.Clamp(target.X, minLeft, maxLeft), Math.Clamp(target.Y, minTop, maxTop));
     }
 
     private int CurrentPixelWidth() =>
-        Math.Max(Layout.PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
+        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
 
     private int CurrentPixelHeight() =>
-        Math.Max(Layout.PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, Layout.PixelMinSize) * RenderScaling));
+        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, PixelMinSize) * RenderScaling));
 
     private int ResolveSnapTolerance()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        return Math.Max(Layout.PixelMinSize,
+        return Math.Max(PixelMinSize,
             (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * Layout.SnapTolerancePercent));
     }
 
@@ -2825,7 +2829,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ApplyWorkAreaMaxHeight()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - Layout.EdgePadding * 2);
+        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -2975,180 +2979,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private CornerRadius Rounded(CornerRadius radius) =>
         (_settings?.EnableRoundedCorners ?? true) ? radius : Layout.ZeroCornerRadius;
-
-    private sealed record FlyoutLayout(
-        int EdgePadding,
-        double DragThreshold,
-        double SnapTolerancePercent,
-        double SliderHitTestVerticalPadding,
-        double SliderRowHeight,
-        double RowIconSize,
-        double HeaderButtonSize,
-        double HeaderButtonFontSize,
-        double UpdateButtonWidth,
-        double UpdateButtonHeight,
-        double CoarseWheelStep,
-        double WorkAreaMinHeight,
-        int PixelMinSize,
-        int OffscreenPosition,
-        int FallbackWorkAreaX,
-        int FallbackWorkAreaY,
-        int FallbackWorkAreaWidth,
-        int FallbackWorkAreaHeight,
-        Thickness ZeroThickness,
-        CornerRadius ZeroCornerRadius,
-        Thickness RootBorderThickness,
-        CornerRadius RootCornerRadius,
-        CornerRadius RootInnerCornerRadius,
-        Thickness RootInnerPadding,
-        double RootShadowOffsetY,
-        double RootShadowBlur,
-        Thickness RowsMargin,
-        Thickness EmptyDisplaysPadding,
-        double EmptyDisplaysFontSize,
-        double RowTitleFontSize,
-        Thickness RowStopwatchMargin,
-        Thickness RowCurveButtonMargin,
-        double RowCurveIconSize,
-        Thickness RowPowerButtonMargin,
-        double SliderValueFontSize,
-        double SliderValueMinWidth,
-        Thickness SliderValueMargin,
-        Thickness RowMargin,
-        CornerRadius FooterCornerRadius,
-        Thickness FooterMargin,
-        Thickness FooterPaddingCrowded,
-        Thickness FooterPaddingNormal,
-        double FooterIconButtonWidth,
-        double FooterIconButtonHeight,
-        double FooterIconButtonFontSize,
-        double FooterCurveIconButtonWidth,
-        double FooterCurveIconButtonHeight,
-        double FooterCurveIconSize,
-        double ProfileGlyphFontSize,
-        double ProfileIndicatorWidth,
-        double ProfileIndicatorHeight,
-        CornerRadius ProfileIndicatorCornerRadius,
-        Thickness ProfileIndicatorMargin,
-        double ProfileButtonWidth,
-        double ProfileButtonHeight,
-        double SaveProfileGlyphFontSize,
-        Thickness RowIconMargin,
-        double NightLightIconSize,
-        double MasterIconFontSize,
-        double MonitorIconFontSize,
-        double StopwatchBoxHeight,
-        double StopwatchBoxWidth,
-        double StopwatchButtonWidth,
-        double StopwatchButtonHeight,
-        double StopwatchButtonFontSize,
-        Thickness StopwatchButtonMargin,
-        double CurveDisabledGlyphFontSize,
-        double CurveDisabledGlyphSize,
-        Thickness UpdateButtonPadding,
-        double UpdateButtonFontSize,
-        Thickness UpdateButtonMargin,
-        Thickness UndockButtonMargin,
-        CornerRadius UndockButtonCornerRadius,
-        double ConfirmTitleFontSize,
-        double ConfirmMessageFontSize,
-        double ConfirmButtonsSpacing,
-        double ConfirmPanelSpacing,
-        Thickness ConfirmBorderThickness,
-        CornerRadius ConfirmCornerRadius,
-        Thickness ConfirmPadding,
-        double ConfirmWidth)
-    {
-        public static FlyoutLayout From(BrightnessFlyoutWindow owner)
-        {
-            FlyoutAxamlProperties resources = owner.AxamlFlyout;
-            int edgePadding = (int)Math.Round(resources.EdgePadding);
-            int pixelMinSize = (int)Math.Round(resources.PixelMinSize);
-
-            return new FlyoutLayout(
-                edgePadding,
-                resources.DragThreshold,
-                resources.SnapTolerancePercent,
-                resources.SliderHitTestVerticalPadding,
-                resources.SliderRowHeight,
-                resources.RowIconSize,
-                resources.HeaderButtonSize,
-                resources.HeaderButtonFontSize,
-                resources.UpdateButtonWidth,
-                resources.UpdateButtonHeight,
-                resources.CoarseWheelStep,
-                resources.WorkAreaMinHeight,
-                pixelMinSize,
-                resources.OffscreenPosition,
-                resources.FallbackWorkAreaX,
-                resources.FallbackWorkAreaY,
-                resources.FallbackWorkAreaWidth,
-                resources.FallbackWorkAreaHeight,
-                resources.ZeroThickness,
-                resources.ZeroCornerRadius,
-                resources.RootBorderThickness,
-                resources.RootCornerRadius,
-                resources.RootInnerCornerRadius,
-                resources.RootInnerPadding,
-                resources.RootShadowOffsetY,
-                resources.RootShadowBlur,
-                resources.RowsMargin,
-                resources.EmptyDisplaysPadding,
-                resources.EmptyDisplaysFontSize,
-                resources.RowTitleFontSize,
-                resources.RowStopwatchMargin,
-                resources.RowCurveButtonMargin,
-                resources.RowCurveIconSize,
-                resources.RowPowerButtonMargin,
-                resources.SliderValueFontSize,
-                resources.SliderValueMinWidth,
-                resources.SliderValueMargin,
-                resources.RowMargin,
-                resources.FooterCornerRadius,
-                resources.FooterMargin,
-                resources.FooterPaddingCrowded,
-                resources.FooterPaddingNormal,
-                resources.FooterIconButtonWidth,
-                resources.FooterIconButtonHeight,
-                resources.FooterIconButtonFontSize,
-                resources.FooterCurveIconButtonWidth,
-                resources.FooterCurveIconButtonHeight,
-                resources.FooterCurveIconSize,
-                resources.ProfileGlyphFontSize,
-                resources.ProfileIndicatorWidth,
-                resources.ProfileIndicatorHeight,
-                resources.ProfileIndicatorCornerRadius,
-                resources.ProfileIndicatorMargin,
-                resources.ProfileButtonWidth,
-                resources.ProfileButtonHeight,
-                resources.SaveProfileGlyphFontSize,
-                resources.RowIconMargin,
-                resources.NightLightIconSize,
-                resources.MasterIconFontSize,
-                resources.MonitorIconFontSize,
-                resources.StopwatchBoxHeight,
-                resources.StopwatchBoxWidth,
-                resources.StopwatchButtonWidth,
-                resources.StopwatchButtonHeight,
-                resources.StopwatchButtonFontSize,
-                resources.StopwatchButtonMargin,
-                resources.CurveDisabledGlyphFontSize,
-                resources.CurveDisabledGlyphSize,
-                resources.UpdateButtonPadding,
-                resources.UpdateButtonFontSize,
-                resources.UpdateButtonMargin,
-                resources.UndockButtonMargin,
-                resources.UndockButtonCornerRadius,
-                resources.ConfirmTitleFontSize,
-                resources.ConfirmMessageFontSize,
-                resources.ConfirmButtonsSpacing,
-                resources.ConfirmPanelSpacing,
-                resources.ConfirmBorderThickness,
-                resources.ConfirmCornerRadius,
-                resources.ConfirmPadding,
-                resources.ConfirmWidth);
-        }
-    }
 
     private static SettingsPalette CreateSettingsPalette(BrightnessAppTheme theme, AppSettings? settings, bool isLight)
     {

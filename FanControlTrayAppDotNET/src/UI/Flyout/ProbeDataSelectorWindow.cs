@@ -36,7 +36,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private readonly Dictionary<string, List<TextBlock>> _valueTextByKey = new(StringComparer.OrdinalIgnoreCase);
     private TextBox? _focusedTransformTextBox;
     private Control? _focusSink;
-    private SelectorLayout? _layout;
+    private ProbeSelectorAxamlProperties? _layout;
     private DeviceNicknameResolver _deviceNicknameResolver = DeviceNicknameResolver.Empty;
     private ProbeNicknameResolver _probeNicknameResolver = ProbeNicknameResolver.Empty;
     private StackPanel? _selectedProbeListPanel;
@@ -95,10 +95,31 @@ public sealed partial class ProbeDataSelectorWindow : Window
         RebuildContent();
     }
 
-    private void InitializeComponentState() => _layout = SelectorLayout.From(this);
+    private void InitializeComponentState() => _layout = AxamlProbeSelector;
 
-    private SelectorLayout Layout =>
+    private ProbeSelectorAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Probe selector layout resources have not been loaded.");
+
+    private double TruncateToggleTrackHeight =>
+        Layout.TruncateToggleTrackWidth * Layout.TruncateToggleTrackHeightRatio;
+
+    private double TruncateToggleThumbSize =>
+        Layout.TruncateToggleTrackWidth * Layout.TruncateToggleThumbSizeRatio;
+
+    private CornerRadius TruncateToggleTrackCornerRadius =>
+        new(TruncateToggleTrackHeight / 2.0);
+
+    private CornerRadius TruncateToggleThumbCornerRadius =>
+        new(TruncateToggleThumbSize / 2.0);
+
+    private Thickness TruncateToggleThumbUncheckedMargin =>
+        new(TruncateToggleThumbInset, 0, 0, 0);
+
+    private Thickness TruncateToggleThumbCheckedMargin =>
+        new(0, 0, TruncateToggleThumbInset, 0);
+
+    private double TruncateToggleThumbInset =>
+        Math.Max(0, (TruncateToggleTrackHeight - TruncateToggleThumbSize) / 2.0);
 
     /// <summary>
     /// Rebuilds the selector chrome and active tab body.
@@ -1393,16 +1414,16 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Border track = new()
         {
             Width = Layout.TruncateToggleTrackWidth,
-            Height = Layout.TruncateToggleTrackHeight,
-            CornerRadius = Layout.TruncateToggleTrackCornerRadius,
+            Height = TruncateToggleTrackHeight,
+            CornerRadius = TruncateToggleTrackCornerRadius,
             BorderThickness = Layout.RootBorderThickness,
             IsHitTestVisible = false,
         };
         Border thumb = new()
         {
-            Width = Layout.TruncateToggleThumbSize,
-            Height = Layout.TruncateToggleThumbSize,
-            CornerRadius = Layout.TruncateToggleThumbCornerRadius,
+            Width = TruncateToggleThumbSize,
+            Height = TruncateToggleThumbSize,
+            CornerRadius = TruncateToggleThumbCornerRadius,
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false,
         };
@@ -1410,7 +1431,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid toggle = new()
         {
             Width = Layout.TruncateToggleTrackWidth,
-            Height = Layout.TruncateToggleTrackHeight,
+            Height = TruncateToggleTrackHeight,
             IsHitTestVisible = false,
         };
         toggle.Children.Add(track);
@@ -1453,8 +1474,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 current ? _palette.ToggleOnThumb : _palette.SecondaryForeground);
             thumb.HorizontalAlignment = current ? HorizontalAlignment.Right : HorizontalAlignment.Left;
             thumb.Margin = current
-                ? Layout.TruncateToggleThumbCheckedMargin
-                : Layout.TruncateToggleThumbUncheckedMargin;
+                ? TruncateToggleThumbCheckedMargin
+                : TruncateToggleThumbUncheckedMargin;
         };
 
         toggleButton.PropertyChanged += (_, e) =>
@@ -2120,210 +2141,4 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Voltages,
     }
 
-    private sealed record SelectorLayout(
-        double TabRowHeight,
-        double TabWidth,
-        double TabFontSize,
-        double TabMinHeight,
-        double CardTitleFontSize,
-        double CardValueFontSize,
-        double ValueGlyphWidth,
-        double ValueGlyphFontSize,
-        double GridCardWidth,
-        double EmptyFontSize,
-        double SectionTitleFontSize,
-        double ActionButtonWidth,
-        double ActionButtonHeight,
-        double GearFontSize,
-        double TransformInactiveGearOpacity,
-        double TruncateToggleFontSize,
-        double TruncateToggleWidth,
-        double TruncateToggleTrackWidth,
-        double TruncateToggleTrackHeightRatio,
-        double TruncateToggleThumbSizeRatio,
-        double TransformLabelFontSize,
-        double TransformInlineBoxWidth,
-        double TransformBoxHeight,
-        double TransformBoxMinHeight,
-        double HomeClearDeadSensorsButtonWidth,
-        double HomeLoadDefaultNicknamesButtonWidth,
-        double HomeActionButtonHeight,
-        double HomeDeviceNicknamesRowHeight,
-        double HomeSectionSeparatorThickness,
-        double NicknameCardWidth,
-        double NicknameAddButtonWidth,
-        double NicknameAddButtonHeight,
-        double NicknameTargetTextBoxWidth,
-        double NicknameReplacementTextBoxWidth,
-        double NicknameTextBoxHeight,
-        double NicknameArrowFontSize,
-        double NicknameDeleteButtonWidth,
-        double NicknameDeleteButtonHeight,
-        double NicknameDeleteButtonFontSize,
-        double ReorderDragThreshold,
-        double ReorderDraggingOpacity,
-        int ReorderDraggingZIndex,
-        int ReorderNormalZIndex,
-        double DisabledToggleOpacity,
-        double FullOpacity,
-        Thickness ZeroThickness,
-        Thickness RootBorderThickness,
-        Thickness ContentMargin,
-        Thickness TabMargin,
-        Thickness TabPadding,
-        Thickness BodyMargin,
-        Thickness CardMargin,
-        Thickness CardPadding,
-        Thickness TextColumnMargin,
-        Thickness ValueRowMargin,
-        Thickness ValueGlyphMargin,
-        Thickness ActionButtonMargin,
-        Thickness ProbeControlRowMargin,
-        Thickness ProbeToggleColumnMargin,
-        Thickness TruncateToggleMargin,
-        Thickness TruncateToggleLabelMargin,
-        Thickness TransformRowMargin,
-        Thickness TransformLabelMargin,
-        Thickness TransformBoxPadding,
-        Thickness HomeActionButtonMargin,
-        Thickness HomeActionButtonTrailingMargin,
-        Thickness HomeActionButtonPadding,
-        Thickness HomeNicknameColumnPadding,
-        Thickness HomeColumnSeparatorMargin,
-        Thickness HomeNicknameRowSeparatorMargin,
-        Thickness HomeSectionScrollHostMargin,
-        Thickness HomeNicknameScrollHostMargin,
-        Thickness SelectedProbeGridMargin,
-        Thickness NicknameCardPadding,
-        Thickness NicknameSectionMargin,
-        Thickness SectionHeaderMargin,
-        Thickness NicknameListMargin,
-        Thickness NicknameListPadding,
-        Thickness NicknameAddButtonPadding,
-        Thickness NicknameTextBoxPadding,
-        Thickness NicknameArrowMargin,
-        Thickness NicknameDeleteButtonMargin,
-        CornerRadius RootCornerRadius,
-        CornerRadius CardCornerRadius,
-        CornerRadius TabCornerRadius,
-        CornerRadius ZeroCornerRadius,
-        Color HomeSectionSeparatorColor)
-    {
-        public double TruncateToggleTrackHeight =>
-            TruncateToggleTrackWidth * TruncateToggleTrackHeightRatio;
-
-        public double TruncateToggleThumbSize =>
-            TruncateToggleTrackWidth * TruncateToggleThumbSizeRatio;
-
-        public CornerRadius TruncateToggleTrackCornerRadius =>
-            new(TruncateToggleTrackHeight / 2.0);
-
-        public CornerRadius TruncateToggleThumbCornerRadius =>
-            new(TruncateToggleThumbSize / 2.0);
-
-        public Thickness TruncateToggleThumbUncheckedMargin =>
-            new(TruncateToggleThumbInset, 0, 0, 0);
-
-        public Thickness TruncateToggleThumbCheckedMargin =>
-            new(0, 0, TruncateToggleThumbInset, 0);
-
-        private double TruncateToggleThumbInset =>
-            Math.Max(0, (TruncateToggleTrackHeight - TruncateToggleThumbSize) / 2.0);
-
-        /// <summary>
-        /// Reads selector layout resources from XAML.
-        /// </summary>
-        public static SelectorLayout From(ProbeDataSelectorWindow owner)
-        {
-            ProbeSelectorAxamlProperties axaml = owner.AxamlProbeSelector;
-            return new SelectorLayout(
-                axaml.TabRowHeight,
-                axaml.TabWidth,
-                axaml.TabFontSize,
-                axaml.TabMinHeight,
-                axaml.CardTitleFontSize,
-                axaml.CardValueFontSize,
-                axaml.ValueGlyphWidth,
-                axaml.ValueGlyphFontSize,
-                axaml.GridCardWidth,
-                axaml.EmptyFontSize,
-                axaml.SectionTitleFontSize,
-                axaml.ActionButtonWidth,
-                axaml.ActionButtonHeight,
-                axaml.GearFontSize,
-                axaml.TransformInactiveGearOpacity,
-                axaml.TruncateToggleFontSize,
-                axaml.TruncateToggleWidth,
-                axaml.TruncateToggleTrackWidth,
-                axaml.TruncateToggleTrackHeightRatio,
-                axaml.TruncateToggleThumbSizeRatio,
-                axaml.TransformLabelFontSize,
-                axaml.TransformInlineBoxWidth,
-                axaml.TransformBoxHeight,
-                axaml.TransformBoxMinHeight,
-                axaml.HomeClearDeadSensorsButtonWidth,
-                axaml.HomeLoadDefaultNicknamesButtonWidth,
-                axaml.HomeActionButtonHeight,
-                axaml.HomeDeviceNicknamesRowHeight,
-                axaml.HomeSectionSeparatorThickness,
-                axaml.NicknameCardWidth,
-                axaml.NicknameAddButtonWidth,
-                axaml.NicknameAddButtonHeight,
-                axaml.NicknameTargetTextBoxWidth,
-                axaml.NicknameReplacementTextBoxWidth,
-                axaml.NicknameTextBoxHeight,
-                axaml.NicknameArrowFontSize,
-                axaml.NicknameDeleteButtonWidth,
-                axaml.NicknameDeleteButtonHeight,
-                axaml.NicknameDeleteButtonFontSize,
-                axaml.ReorderDragThreshold,
-                axaml.ReorderDraggingOpacity,
-                axaml.ReorderDraggingZIndex,
-                axaml.ReorderNormalZIndex,
-                axaml.DisabledToggleOpacity,
-                axaml.FullOpacity,
-                axaml.ZeroThickness,
-                axaml.RootBorderThickness,
-                axaml.ContentMargin,
-                axaml.TabMargin,
-                axaml.TabPadding,
-                axaml.BodyMargin,
-                axaml.CardMargin,
-                axaml.CardPadding,
-                axaml.TextColumnMargin,
-                axaml.ValueRowMargin,
-                axaml.ValueGlyphMargin,
-                axaml.ActionButtonMargin,
-                axaml.ProbeControlRowMargin,
-                axaml.ProbeToggleColumnMargin,
-                axaml.TruncateToggleMargin,
-                axaml.TruncateToggleLabelMargin,
-                axaml.TransformRowMargin,
-                axaml.TransformLabelMargin,
-                axaml.TransformBoxPadding,
-                axaml.HomeActionButtonMargin,
-                axaml.HomeActionButtonTrailingMargin,
-                axaml.HomeActionButtonPadding,
-                axaml.HomeNicknameColumnPadding,
-                axaml.HomeColumnSeparatorMargin,
-                axaml.HomeNicknameRowSeparatorMargin,
-                axaml.HomeSectionScrollHostMargin,
-                axaml.HomeNicknameScrollHostMargin,
-                axaml.SelectedProbeGridMargin,
-                axaml.NicknameCardPadding,
-                axaml.NicknameSectionMargin,
-                axaml.SectionHeaderMargin,
-                axaml.NicknameListMargin,
-                axaml.NicknameListPadding,
-                axaml.NicknameAddButtonPadding,
-                axaml.NicknameTextBoxPadding,
-                axaml.NicknameArrowMargin,
-                axaml.NicknameDeleteButtonMargin,
-                axaml.RootCornerRadius,
-                axaml.CardCornerRadius,
-                axaml.TabCornerRadius,
-                axaml.ZeroCornerRadius,
-                axaml.HomeSectionSeparatorColor);
-        }
-    }
 }

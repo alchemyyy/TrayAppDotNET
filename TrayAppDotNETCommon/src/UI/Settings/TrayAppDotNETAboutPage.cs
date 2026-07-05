@@ -58,6 +58,8 @@ public sealed class TrayAppDotNETAboutPageOptions
 
 public sealed class TrayAppDotNETAboutPage
 {
+    private static readonly TrayAppDotNETAboutPageResources LayoutResources = new();
+
     private readonly TrayAppDotNETAboutPageOptions _options;
     private UpdateCheckService? _updateService;
     private DispatcherTimer? _staleTimer;
@@ -79,7 +81,7 @@ public sealed class TrayAppDotNETAboutPage
     {
         StopUpdateRefresh();
 
-        TrayAppDotNETAboutPageLayout layout = TrayAppDotNETAboutPageLayout.Current;
+        TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         SettingsPalette p = _options.Palette;
         StackPanel stack = TrayAppDotNETSettingsCards.PageStack(L("Settings_About_SectionHeader", "About"), p);
 
@@ -175,7 +177,7 @@ public sealed class TrayAppDotNETAboutPage
 
     private Border BuildUpdateActionCard(SettingsPalette p)
     {
-        TrayAppDotNETAboutPageLayout layout = TrayAppDotNETAboutPageLayout.Current;
+        TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(UpdateStatusText(CurrentService), p);
 
         SettingsButton check = Button(L("Settings_About_CheckForUpdates_Button", "Check for updates"), p);
@@ -406,7 +408,7 @@ public sealed class TrayAppDotNETAboutPage
 
     private static StackPanel AboutRow(string label, string value, SettingsPalette p, string? openUrl = null)
     {
-        TrayAppDotNETAboutPageLayout layout = TrayAppDotNETAboutPageLayout.Current;
+        TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         TextBlock labelBlock = TrayAppDotNETSettingsUI.Text(label, p, layout.AboutRowLabelFontSize, FontWeight.SemiBold);
         labelBlock.Width = layout.AboutRowLabelWidth;
 
@@ -433,29 +435,4 @@ public sealed class TrayAppDotNETAboutPage
     }
 
     private string L(string key, string fallback) => _options.Localize(key, fallback);
-}
-
-internal sealed record TrayAppDotNETAboutPageLayout(
-    Thickness AppNameMargin,
-    Thickness TaglineMargin,
-    double TaglineOpacity,
-    Thickness UpdateCheckButtonMargin,
-    double AboutRowLabelFontSize,
-    double AboutRowLabelWidth,
-    Thickness AboutRowMargin)
-{
-    public static TrayAppDotNETAboutPageLayout Current { get; } = FromResources();
-
-    private static TrayAppDotNETAboutPageLayout FromResources()
-    {
-        TrayAppDotNETAboutPageResources resources = new TrayAppDotNETAboutPageResources();
-        return new TrayAppDotNETAboutPageLayout(
-            resources.AxamlAboutPage.AppNameMargin,
-            resources.AxamlAboutPage.TaglineMargin,
-            resources.AxamlAboutPage.TaglineOpacity,
-            resources.AxamlAboutPage.UpdateCheckButtonMargin,
-            resources.AxamlAboutPage.AboutRowLabelFontSize,
-            resources.AxamlAboutPage.AboutRowLabelWidth,
-            resources.AxamlAboutPage.AboutRowMargin);
-    }
 }
