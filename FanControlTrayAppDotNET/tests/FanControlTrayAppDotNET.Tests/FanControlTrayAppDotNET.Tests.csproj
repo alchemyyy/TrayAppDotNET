@@ -22,10 +22,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FanControlTrayAppDotNET.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
+                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true' or '$(BuildingInsideVisualStudio)' == 'true'"
                       Targets="GetTargetPath" />
     <ProjectReference Include="..\..\src\FanControlTrayAppDotNET.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'"
+                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true' and '$(BuildingInsideVisualStudio)' != 'true'"
                       AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;TrayAppDotNETBuildSharedProjectReferences=true;Platform=x64" />
   </ItemGroup>
+
+  <Target Name="BuildFanControlTrayAppReferenceInVisualStudio"
+          BeforeTargets="ResolveReferences"
+          Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="..\..\src\FanControlTrayAppDotNET.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=x64;BuildingInsideVisualStudio=false;SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;TrayAppDotNETBuildSharedProjectReferences=true" />
+  </Target>
 </Project>
