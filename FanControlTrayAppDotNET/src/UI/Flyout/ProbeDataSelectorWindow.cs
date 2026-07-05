@@ -1215,10 +1215,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         glyph.Width = Layout.ValueGlyphWidth;
 
         // TODO: Move this hack to its own layer; it is currently repeated where the load glyph is used
-        if (type == DataSourceTypeEnum.Load)
-        {
-            glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
-        }
+        if (type == DataSourceTypeEnum.Load) glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
         glyph.Margin = Layout.ValueGlyphMargin;
         glyph.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(glyph);

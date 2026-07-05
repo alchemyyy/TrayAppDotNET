@@ -858,13 +858,19 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
         };
         if (_settings?.ShowEnvironmentalCurvesButton ?? true)
+        {
             actions.Children.Add(BuildCurveIconButton(palette, ToggleEnvironmentalCurves,
                 Layout.FooterCurveIconButtonWidth, Layout.FooterCurveIconButtonHeight, Layout.FooterCurveIconSize,
                 tooltip: L("Flyout_EnvironmentalCurves", "Environmental curves"),
                 opacity: IsBrightnessCurveEnabled || IsNightLightCurveEnabled ? 1.0 : 0.4));
+        }
+
         if (_settings?.ShowFlyoutFooterPowerButton ?? false)
+        {
             actions.Children.Add(BuildFooterIconButton(_theme.GlyphPower, palette, PowerOffFooterTargets,
                 L("Flyout_TurnOffAllDisplays", "Turn off displays")));
+        }
+
         if (_settings?.ShowFlyoutDisplaySettingsButton ?? true)
         {
             actions.Children.Add(BuildFooterIconButton(

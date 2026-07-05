@@ -942,8 +942,10 @@ internal sealed class BrightnessAvaloniaApp : Application
         string tooltip = string.Format(L("Tray_Tooltip_Brightness_Format", "Brightness: {0}%"), brightness);
 
         if (NightLightProvider.IsSupported() && NightLightProvider.IsEnabled())
+        {
             tooltip += string.Format(L("Tray_Tooltip_NightLight_Format", " - Night light: {0}%"),
                 NightLightProvider.GetStrength());
+        }
 
         LogTrayValueDiagnostic(brightness, tooltip, monitors);
         return (brightness, tooltip);

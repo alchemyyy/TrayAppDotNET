@@ -478,8 +478,10 @@ internal sealed class VolumeAvaloniaApp : Application
         {
             device.Volume = (float)(next / 100.0);
             if (_settings?.PlayTrayScrollVolumeChangeSound == true)
+            {
                 (_trayVolumeFeedback ??= new AppVolumeFeedbackPlayer(Dispatcher.UIThread, _settings))
                     .PlayForDevice(device);
+            }
         }
 
         _trayIcon?.ShowTooltip();

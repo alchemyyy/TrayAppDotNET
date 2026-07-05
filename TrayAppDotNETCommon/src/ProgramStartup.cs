@@ -118,8 +118,10 @@ public static class TrayAppDotNETProgram
             return RunOnStaThreadIfNeeded(() => RunInstall("system", options, log, startInstalled: true));
 
         if (HasArg(args, "--install"))
+        {
             return RunOnStaThreadIfNeeded(() =>
                 RunInstall(TryGetArgValue(args, "--install"), options, log, startInstalled: false));
+        }
 
         if (TryGetArgValue(args, "--uninstall") is { } installDir)
             return RunUninstall(args, installDir, options);

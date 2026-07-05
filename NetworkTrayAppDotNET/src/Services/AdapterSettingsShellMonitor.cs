@@ -97,8 +97,10 @@ internal static class AdapterSettingsShellMonitor
             if (cmdLine == null) return false;
 
             foreach (string factoryCmd in ExplorerFactoryCommandLines)
+            {
                 if (cmdLine.Contains(factoryCmd, StringComparison.OrdinalIgnoreCase))
                     return true;
+            }
         }
         catch
         {

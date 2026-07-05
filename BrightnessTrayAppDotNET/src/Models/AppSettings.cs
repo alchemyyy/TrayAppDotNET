@@ -643,8 +643,11 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public static bool IsDefaultHotkeyIdentity(BrightnessHotkeyAction action, string parameter, int bindingID)
     {
         foreach (HotkeyBinding d in CreateDefaultHotkeys())
+        {
             if (d.Matches(action, parameter, bindingID))
                 return true;
+        }
+
         return false;
     }
 

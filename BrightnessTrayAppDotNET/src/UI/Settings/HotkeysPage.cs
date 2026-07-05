@@ -197,8 +197,11 @@ public sealed partial class BrightnessSettingsWindow
             if (!string.IsNullOrWhiteSpace(currentParameter)
                 && !BuildMonitorTargetOptions()
                     .Any(t => string.Equals(t.Value, currentParameter, StringComparison.Ordinal)))
+            {
                 targetCombo.Items.Add(new SettingsComboBoxItem(currentParameter, MonitorTargetLabel(currentParameter),
                     p));
+            }
+
             TrayAppDotNETSettingsUI.SelectComboByTag(targetCombo, currentParameter);
         }
 
@@ -519,12 +522,17 @@ public sealed partial class BrightnessSettingsWindow
     private string MonitorTargetLabel(string parameter)
     {
         foreach ((string value, string label) in BuildMonitorTargetOptions())
+        {
             if (string.Equals(value, parameter, StringComparison.Ordinal))
                 return label;
+        }
 
         if (HotkeyTarget.TryParseDisplayNumber(parameter, out int number))
+        {
             return string.Format(CultureInfo.CurrentCulture, L("Settings_Hotkeys_DisplayNumber_Format", "Display #{0}"),
                 number);
+        }
+
         if (HotkeyTarget.TryParseEDID(parameter, out string EDIDKey))
             return EDIDKey;
         return parameter;

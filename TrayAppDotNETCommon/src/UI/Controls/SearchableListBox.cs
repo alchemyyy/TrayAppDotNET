@@ -510,7 +510,7 @@ public sealed class SettingsSearchableListBox : Grid
 
         int index = _visibleItems.IndexOf(_activeItem);
         if (index < 0 || index >= _itemsPanel.Children.Count) return;
-        if (_itemsPanel.Children[index] is not Control row) return;
+        if (_itemsPanel.Children[index] is not { } row) return;
 
         Point? rowPoint = row.TranslatePoint(new Point(0, 0), _itemsPanel);
         if (!rowPoint.HasValue) return;
@@ -715,9 +715,11 @@ internal sealed class SettingsSearchableListBoxItemRow : Border
                 : Colors.Transparent;
         Background = TrayAppDotNETSettingsUI.Brush(background);
         if (_content is TextBlock label)
+        {
             label.Foreground = TrayAppDotNETSettingsUI.Brush(highlighted
                 ? ContrastForeground(background)
                 : _palette.Foreground);
+        }
     }
 
     /// <summary>

@@ -605,9 +605,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     private static int FindNicknameRuleIndexByTarget(List<DeviceNicknameRule> rules, string targetRegex)
     {
         for (int i = 0; i < rules.Count; i++)
-        {
             if (string.Equals(rules[i].TargetRegex, targetRegex, StringComparison.Ordinal)) return i;
-        }
 
         return -1;
     }

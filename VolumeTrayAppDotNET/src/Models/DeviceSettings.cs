@@ -37,8 +37,11 @@ public class DeviceSettings
     public DeviceSettingsEntry? Find(string id)
     {
         for (int i = 0; i < Devices.Count; i++)
+        {
             if (string.Equals(Devices[i].Id, id, StringComparison.Ordinal))
                 return Devices[i];
+        }
+
         return null;
     }
 

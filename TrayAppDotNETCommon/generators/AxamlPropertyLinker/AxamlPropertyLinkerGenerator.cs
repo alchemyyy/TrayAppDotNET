@@ -28,7 +28,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(source, static (sourceProductionContext, value) =>
         {
-            List<AxamlClassModel> classes = new();
+            List<AxamlClassModel> classes = [];
             foreach (AxamlClassModel? axamlClass in value.Files)
             {
                 if (axamlClass == null) continue;
@@ -106,7 +106,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
         if (groupBuilders.Count == 0) return null;
 
-        List<ResourceGroup> groups = new();
+        List<ResourceGroup> groups = [];
         foreach (ResourceGroupBuilder groupBuilder in groupBuilders.Values.OrderBy(static group => group.Prefix))
             groups.Add(groupBuilder.Build());
 
@@ -116,7 +116,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             classNamespace,
             className,
             isResourceDictionary,
-            groups.ToImmutableArray());
+            [..groups]);
     }
 
     private static ResourceEntry? CreateResourceEntry(string elementName, string key)
@@ -176,7 +176,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
                 builder.Add(group);
         }
 
-        List<AxamlClassModel> merged = new();
+        List<AxamlClassModel> merged = [];
         foreach (AxamlClassBuilder builder in builders.Values.OrderBy(static value => value.Namespace).ThenBy(static value => value.ClassName))
             merged.Add(builder.Build());
 
@@ -443,10 +443,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
     {
         string fullName = axamlClass.Namespace + "." + axamlClass.ClassName;
         StringBuilder builder = new();
-        foreach (char character in fullName)
-        {
-            builder.Append(IsIdentifierPart(character) ? character : '_');
-        }
+        foreach (char character in fullName) builder.Append(IsIdentifierPart(character) ? character : '_');
 
         builder.Append(".AxamlPropertyLinker.g.cs");
         return builder.ToString();
@@ -457,16 +454,12 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (optionsProvider.GlobalOptions.TryGetValue("build_property.RootNamespace", out string? rootNamespace) &&
             !string.IsNullOrWhiteSpace(rootNamespace) &&
             IsQualifiedNamespace(rootNamespace))
-        {
             return rootNamespace;
-        }
 
         if (optionsProvider.GlobalOptions.TryGetValue("build_property.MSBuildProjectName", out string? projectName) &&
             !string.IsNullOrWhiteSpace(projectName) &&
             IsIdentifier(projectName))
-        {
             return projectName;
-        }
 
         return DefaultRootNamespace;
     }
@@ -477,9 +470,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (parts.Length == 0) return false;
 
         foreach (string part in parts)
-        {
             if (!IsIdentifier(part)) return false;
-        }
 
         return true;
     }
@@ -490,9 +481,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (!IsIdentifierStart(value[0])) return false;
 
         for (int index = 1; index < value.Length; index++)
-        {
             if (!IsIdentifierPart(value[index])) return false;
-        }
 
         return true;
     }
@@ -584,11 +573,11 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
         public AxamlClassModel Build()
         {
-            List<ResourceGroup> groups = new();
+            List<ResourceGroup> groups = [];
             foreach (ResourceGroupBuilder group in _groups.Values.OrderBy(static value => value.Prefix))
                 groups.Add(group.Build());
 
-            return new AxamlClassModel(Path, Namespace, ClassName, IsResourceDictionary, groups.ToImmutableArray());
+            return new AxamlClassModel(Path, Namespace, ClassName, IsResourceDictionary, [..groups]);
         }
     }
 
@@ -608,20 +597,18 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         {
             if (_resources.TryGetValue(resource.PropertyName, out ResourceEntry? existing) &&
                 existing.Kind != resource.Kind)
-            {
                 return;
-            }
 
             _resources[resource.PropertyName] = resource;
         }
 
         public ResourceGroup Build()
         {
-            List<ResourceEntry> resources = new();
+            List<ResourceEntry> resources = [];
             foreach (ResourceEntry resource in _resources.Values.OrderBy(static value => value.PropertyName))
                 resources.Add(resource);
 
-            return new ResourceGroup(Prefix, resources.ToImmutableArray());
+            return new ResourceGroup(Prefix, [..resources]);
         }
     }
 

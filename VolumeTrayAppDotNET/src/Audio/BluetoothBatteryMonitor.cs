@@ -208,12 +208,16 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         List<Guid> containersBecameInactive = [];
 
         foreach (Guid container in _activeBluetoothContainers)
+        {
             if (!currentContainers.Contains(container))
                 containersBecameInactive.Add(container);
+        }
 
         foreach (Guid container in currentContainers)
+        {
             if (!_activeBluetoothContainers.Contains(container))
                 containersBecameActive.Add(container);
+        }
 
         _idToContainer.Clear();
         foreach (KeyValuePair<string, Guid> kv in currentIds) _idToContainer[kv.Key] = kv.Value;
@@ -232,8 +236,10 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
 
         List<Guid> staleBatteryContainers = [];
         foreach (Guid container in _batteries.Keys)
+        {
             if (!currentBatteries.ContainsKey(container))
                 staleBatteryContainers.Add(container);
+        }
 
         for (int i = 0; i < staleBatteryContainers.Count; i++)
             ApplyBattery(staleBatteryContainers[i], null);

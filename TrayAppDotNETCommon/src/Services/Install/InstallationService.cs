@@ -81,21 +81,27 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         }
 
         if (!fileExists)
+        {
             return new TrayAppDotNETInstallationInfo(scope, installExecutable, TrayAppDotNETInstallStatus.NotInstalled,
                 null);
+        }
 
         bool running = string.Equals(
             currentPath,
             PathNormalization.Normalize(installExecutable),
             StringComparison.OrdinalIgnoreCase);
         if (running)
+        {
             return new TrayAppDotNETInstallationInfo(scope, installExecutable,
                 TrayAppDotNETInstallStatus.CurrentlyRunning, entry?.DisplayVersion);
+        }
 
         int? installed = entry?.DisplayVersion;
         if (installed.HasValue && installed.Value < options.CurrentBuildNumber)
+        {
             return new TrayAppDotNETInstallationInfo(scope, installExecutable,
                 TrayAppDotNETInstallStatus.InstalledOutOfDate, installed);
+        }
 
         return new TrayAppDotNETInstallationInfo(scope, installExecutable, TrayAppDotNETInstallStatus.InstalledUpToDate,
             installed);
@@ -104,8 +110,10 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     public TrayAppDotNETInstallationInfo DetectStore(string currentPath)
     {
         if (IsRunningFromWindowsStore())
+        {
             return new TrayAppDotNETInstallationInfo(InstallScope.WindowsStore, currentPath,
                 TrayAppDotNETInstallStatus.CurrentlyRunning, null);
+        }
 
         return new TrayAppDotNETInstallationInfo(InstallScope.WindowsStore, string.Empty,
             TrayAppDotNETInstallStatus.NotInstalled, null);
@@ -218,8 +226,10 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             CopyFileIfDifferent(sourceExe, destinationExe);
 
             foreach (TrayAppDotNETInstallFile file in Payload.RequiredFiles)
+            {
                 CopyFileIfDifferent(Path.Combine(sourceDirectory, file.Name),
                     Path.Combine(destinationDirectory, file.Name));
+            }
 
             foreach (TrayAppDotNETInstallFile file in Payload.OptionalFiles)
             {
@@ -400,10 +410,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         string? destinationDirectory = Path.GetDirectoryName(destinationFile);
         if (!string.IsNullOrEmpty(destinationDirectory)) Directory.CreateDirectory(destinationDirectory);
 
-        if (File.Exists(destinationFile) && IsDllFile(sourceFile) && DllHashesMatch(sourceFile, destinationFile))
-        {
-            return;
-        }
+        if (File.Exists(destinationFile) && IsDllFile(sourceFile) && DllHashesMatch(sourceFile, destinationFile)) return;
 
         File.Copy(sourceFile, destinationFile, overwrite: true);
     }

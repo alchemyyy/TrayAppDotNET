@@ -1284,12 +1284,16 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         _sessionBridge = null;
 
         if (endpointVolume != null && volumeBridge != null)
+        {
             try { endpointVolume.UnregisterControlChangeNotify(volumeBridge); }
             catch { }
+        }
 
         if (sessionManager != null && sessionBridge != null)
+        {
             try { sessionManager.UnregisterSessionNotification(sessionBridge); }
             catch { }
+        }
 
         Safe.Release(endpointVolume);
         Safe.Release(endpointMeter);
@@ -1418,11 +1422,13 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         // session for the app. Linear scan is fine - typical session counts are well under a dozen.
         AudioAppGroup? group = null;
         for (int i = 0; i < _groups.Count; i++)
+        {
             if (_groups[i].AppID == session.AppID)
             {
                 group = _groups[i];
                 break;
             }
+        }
 
         if (group == null)
         {
@@ -1512,8 +1518,11 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     private bool HasAnyActiveSession()
     {
         for (int i = 0; i < _groups.Count; i++)
+        {
             if (_groups[i].State == AudioSessionState.Active)
                 return true;
+        }
+
         return false;
     }
 
@@ -1889,8 +1898,10 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     Marshal.Copy(blob, 0, pBlob, blob.Length);
                     int hr = client.SetDeviceFormat(id, pBlob, pBlob);
                     if (hr < 0)
+                    {
                         TADNLog.Log(
                             $"AudioDevice.SetDeviceFormat({friendlyName}, {channels}ch/{bits}-bit/{sampleRate}Hz): hr=0x{hr:X8}");
+                    }
                 }
                 finally { Marshal.FreeHGlobal(pBlob); }
             }, $"SetDeviceFormat({friendlyName}, {channels}ch/{bits}-bit/{sampleRate}Hz)");

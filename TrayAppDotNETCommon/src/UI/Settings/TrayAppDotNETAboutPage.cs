@@ -152,12 +152,15 @@ public sealed class TrayAppDotNETAboutPage
             settings.ShowUpdateNotificationsEnabled,
             value => settings.ShowUpdateNotificationsEnabled = value));
         if (_options.SupportsFlyoutUpdateButton)
+        {
             stack.Children.Add(BoolCard(
                 L("Settings_About_ShowUpdateButton_Title", "Show update button in flyout"),
                 L("Settings_About_ShowUpdateButton_Description",
                     "Show update affordances in the flyout while a new version is available."),
                 settings.ShowUpdateButtonInFlyout,
                 value => settings.ShowUpdateButtonInFlyout = value));
+        }
+
         stack.Children.Add(IntCard(
             L("Settings_About_UpdateInterval_Title", "Update check interval"),
             L("Settings_About_UpdateInterval_Description",
@@ -297,20 +300,29 @@ public sealed class TrayAppDotNETAboutPage
         if (service == null) return L("Settings_About_UpdateStatus_Unavailable", "Update service is not available.");
         if (service.IsChecking) return L("Settings_About_UpdateStatus_Checking", "Checking for updates...");
         if (service.AvailableUpdate is { } update)
+        {
             return string.Format(CultureInfo.CurrentCulture,
                 L("Settings_About_UpdateStatus_AvailableFormat", "Update available: {0}"), update.ReleaseName);
+        }
+
         if (service.LastCheckTimeUtc == null)
             return L("Settings_About_UpdateStatus_NeverChecked", "No update check has run yet.");
         if (service.LastResult == UpdateCheckResult.Failed)
+        {
             return string.Format(
                 CultureInfo.CurrentCulture,
                 L("Settings_About_UpdateStatus_FailedFormat", "Update check failed. Last tried {0}."),
                 FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
+        }
+
         if (service.LastResult == UpdateCheckResult.Cancelled)
+        {
             return string.Format(
                 CultureInfo.CurrentCulture,
                 L("Settings_About_UpdateStatus_CancelledFormat", "Update check was canceled {0}."),
                 FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
+        }
+
         return string.Format(
             CultureInfo.CurrentCulture,
             L("Settings_About_UpdateStatus_LastCheckedFormat", "You're up to date. Last checked {0}."),
@@ -341,11 +353,17 @@ public sealed class TrayAppDotNETAboutPage
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampJustNowThresholdMs))
             return L("Settings_About_RelativeTime_JustNow", "just now");
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampMinutesThresholdMs))
+        {
             return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_MinutesFormat", "{0}m ago"),
                 Math.Max(1, (int)diff.TotalMinutes));
+        }
+
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampHoursThresholdMs))
+        {
             return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_HoursFormat", "{0}h ago"),
                 Math.Max(1, (int)diff.TotalHours));
+        }
+
         return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_DaysFormat", "{0}d ago"),
             Math.Max(1, (int)diff.TotalDays));
     }

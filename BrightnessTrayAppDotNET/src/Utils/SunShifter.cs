@@ -261,8 +261,10 @@ public static class SunShifter
         // Defensive sanity check - holds by construction,
         // but a violation here would silently produce zero-width segments and divide-by-zero downstream.
         for (int i = 1; i < result.Length; i++)
+        {
             if (result[i] <= result[i - 1])
                 return null;
+        }
 
         return result;
     }
@@ -326,8 +328,11 @@ public static class SunShifter
     {
         // anchors are strictly increasing, length >= 2, [0]=0.0 and [^1]=1.0.
         for (int i = 0; i < anchors.Length - 1; i++)
+        {
             if (t <= anchors[i + 1])
                 return i;
+        }
+
         return anchors.Length - 2;
     }
 }

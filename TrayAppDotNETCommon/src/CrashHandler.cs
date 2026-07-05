@@ -247,9 +247,7 @@ public static class CrashHandler
                 environment.Remove(originalKey);
             }
             else
-            {
                 environment.Remove(key);
-            }
         }
 
         string[] helperKeys = [.. environment.Keys.Where(key => key.StartsWith(WatcherOriginalEnvironmentPrefix, StringComparison.OrdinalIgnoreCase))];
@@ -307,9 +305,7 @@ public static class CrashHandler
     private static void RecordRestart(Span<long> restartTimes, ref int restartCount, long now, int windowMs)
     {
         if (restartCount < MaxRapidRestarts)
-        {
             restartTimes[restartCount++] = now;
-        }
         else
         {
             for (int i = 1; i < MaxRapidRestarts; i++)

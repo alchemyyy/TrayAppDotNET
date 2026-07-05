@@ -711,11 +711,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         AudioDevice? defaultRender = null;
         foreach (AudioDevice d in _devices)
+        {
             if (d is { DataFlow: EDataFlow.eRender, IsDefault: true })
             {
                 defaultRender = d;
                 break;
             }
+        }
 
         foreach (AudioDevice d in _devices)
         {
@@ -729,8 +731,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private AudioDevice? FindDeviceByID(string id)
     {
         foreach (AudioDevice d in _devices)
+        {
             if (d.Id == id)
                 return d;
+        }
+
         return null;
     }
 
@@ -1176,8 +1181,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private bool HasActiveBluetoothRenderDevice()
     {
         foreach (AudioDevice d in _devices)
+        {
             if (d is { IsBluetooth: true, DataFlow: EDataFlow.eRender, IsActive: true })
                 return true;
+        }
+
         return false;
     }
 

@@ -202,8 +202,11 @@ public class AppSettings : AppSettingsCommon
     public static bool IsDefaultHotkeyIdentity(HotkeyAction action, string parameter, int bindingID)
     {
         foreach (HotkeyBinding d in CreateDefaultHotkeys())
+        {
             if (d.Matches(action, parameter, bindingID))
                 return true;
+        }
+
         return false;
     }
 
