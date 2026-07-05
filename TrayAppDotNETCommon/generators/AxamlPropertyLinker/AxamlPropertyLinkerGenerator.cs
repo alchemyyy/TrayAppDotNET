@@ -40,7 +40,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             string generatedNamespace = value.RootNamespace + GeneratedNamespaceSuffix;
             sourceProductionContext.AddSource(GeneratedRuntimeFileName, GenerateRuntime(generatedNamespace));
 
-            List<AxamlClassModel> mergedClasses = [.. MergeClasses(classes)];
+            List<AxamlClassModel> mergedClasses = MergeClasses(classes);
             sourceProductionContext.AddSource(
                 "AxamlPropertyLinker.StaticAccessors.g.cs",
                 GenerateStaticAccessors(mergedClasses, generatedNamespace));
@@ -95,7 +95,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
             ResourceEntry? entry = CreateResourceEntry(element.Name.LocalName, keyAttribute.Value);
             if (entry == null) continue;
 
-            if (!groupBuilders.TryGetValue(entry.Prefix, out ResourceGroupBuilder groupBuilder))
+            if (!groupBuilders.TryGetValue(entry.Prefix, out ResourceGroupBuilder? groupBuilder))
             {
                 groupBuilder = new ResourceGroupBuilder(entry.Prefix);
                 groupBuilders.Add(entry.Prefix, groupBuilder);
@@ -156,13 +156,13 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         };
     }
 
-    private static IEnumerable<AxamlClassModel> MergeClasses(List<AxamlClassModel> classes)
+    private static List<AxamlClassModel> MergeClasses(List<AxamlClassModel> classes)
     {
         Dictionary<string, AxamlClassBuilder> builders = new(StringComparer.Ordinal);
         foreach (AxamlClassModel axamlClass in classes.OrderBy(static value => value.Path, StringComparer.OrdinalIgnoreCase))
         {
             string key = axamlClass.Namespace + "." + axamlClass.ClassName;
-            if (!builders.TryGetValue(key, out AxamlClassBuilder builder))
+            if (!builders.TryGetValue(key, out AxamlClassBuilder? builder))
             {
                 builder = new AxamlClassBuilder(
                     axamlClass.Path,

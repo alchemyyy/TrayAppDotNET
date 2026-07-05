@@ -15,7 +15,10 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
-    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:TrayAppDotNETAggregateBuild=true -p:TrayAppDotNETUseRootOutput=true -p:TrayAppDotNETBuildSharedProjectReferences=false -p:TrayAppDotNETOutputRoot=&quot;$(TrayAppDotNETOutputRoot)\&quot;</TrayAppDotNETPublishAggregateProperties>
+    <!-- Aggregate publish runs a separate dotnet process, so it must carry x64 explicitly.
+         Without this, inner publish can resolve shared reference assemblies from obj\Release
+         instead of obj\x64\Release and compile against stale TrayAppDotNETCommon metadata. -->
+    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=true -p:TrayAppDotNETUseRootOutput=true -p:TrayAppDotNETBuildSharedProjectReferences=false -p:TrayAppDotNETOutputRoot=&quot;$(TrayAppDotNETOutputRoot)\&quot;</TrayAppDotNETPublishAggregateProperties>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">

@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <NoWarn>$(NoWarn);RS1036;RS2008</NoWarn>
+    <NoWarn>$(NoWarn);RS1036;RS2008;RS1041</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
