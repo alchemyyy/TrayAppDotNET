@@ -47,6 +47,8 @@
     <DisableParlotParserCompilation>true</DisableParlotParserCompilation>
   </PropertyGroup>
 
+  <!-- Debug LHM uses Mono.Posix.NETStandard through its OpCode path. Keep this enabled
+       so Debug deps files include package runtime assets in both root and per-app layouts. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
@@ -180,6 +182,8 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
+    <!-- Required for Debug LHM startup. Release disables the native paths that need this,
+         but Debug must declare the package so the .deps.json can resolve it. -->
     <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''" />
   </ItemGroup>
 
@@ -208,6 +212,38 @@
 
   <Target Name="KillRunningInstance" BeforeTargets="BeforeBuild;BeforeClean">
     <Exec Command="taskkill /F /IM $(AssemblyName).exe /T" ContinueOnError="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="low" StandardErrorImportance="low" Condition="'$(SkipKillRunningInstance)' != 'true'" />
+  </Target>
+
+  <!-- Visual Studio resolves hidden vendored ProjectReference items with GetTargetPath,
+       so clean builds need a real build pass before dependency generation. -->
+  <Target Name="BuildVendoredProjectReferencesInVisualStudio"
+          BeforeTargets="ResolveProjectReferences"
+          Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(FanControlBuildVendoredProjectReferencesInVisualStudio)' != 'false'">
+    <PropertyGroup>
+      <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false</_VendoredReferenceBuildProperties>
+      <_VendoredReferenceBuildProperties>$(_VendoredReferenceBuildProperties);SkipKillRunningInstance=$(SkipKillRunningInstance)</_VendoredReferenceBuildProperties>
+      <_VendoredReferencePropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</_VendoredReferencePropertiesToRemove>
+      <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</_LibreHardwareMonitorBuildProperties>
+      <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
+      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</_NCalcCoreBuildProperties>
+      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</_NCalcCoreBuildProperties>
+    </PropertyGroup>
+
+    <MSBuild Projects="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+             Targets="Build"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="$(_VendoredReferenceBuildProperties);Platform=x64;$(_LibreHardwareMonitorBuildProperties)"
+             RemoveProperties="$(_VendoredReferencePropertiesToRemove)" />
+    <MSBuild Projects="..\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+             Targets="Build"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);$(_NCalcCoreBuildProperties)"
+             RemoveProperties="$(_VendoredReferencePropertiesToRemove);RuntimeIdentifier;RuntimeIdentifiers" />
+    <MSBuild Projects="..\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
+             Targets="Build"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);TargetFramework=net10.0"
+             RemoveProperties="$(_VendoredReferencePropertiesToRemove);RuntimeIdentifier;RuntimeIdentifiers" />
   </Target>
 
   <Target Name="IncludeLibreHardwareMonitorSidecar" AfterTargets="ComputeFilesToPublish" Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != ''">
@@ -266,6 +302,8 @@
           Condition="'@(_AggregateDebugRuntimeReferenceWithDestination)' != ''" />
   </Target>
 
+  <!-- Mono.Posix.NETStandard's Windows asset lands under runtimes\win-x64.
+       Copy it beside the app because LHM loads it by simple assembly name at runtime. -->
   <Target Name="CopyLibreHardwareMonitorDebugRuntimeAssemblies" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
     <ItemGroup>
       <_LibreHardwareMonitorDebugRuntimeAssembly Include="$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll" Condition="Exists('$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll')" />
