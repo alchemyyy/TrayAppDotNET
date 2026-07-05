@@ -202,10 +202,6 @@
     </Compile>
   </ItemGroup>
 
-  <Target Name="KillRunningInstance" BeforeTargets="BeforeBuild;BeforeClean">
-    <Exec Command="taskkill /F /IM $(AssemblyName).exe /T" ContinueOnError="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="low" StandardErrorImportance="low" Condition="'$(SkipKillRunningInstance)' != 'true'" />
-  </Target>
-
   <!-- Visual Studio resolves hidden vendored ProjectReference items with GetTargetPath,
        so clean builds need a real build pass before dependency generation. -->
   <Target Name="BuildVendoredProjectReferencesInVisualStudio"
