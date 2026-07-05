@@ -56,7 +56,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private Border? _confirmOverlay;
     private TextBlock? _confirmTitle;
     private TextBlock? _confirmMessage;
-    private FlyoutLayout? _layout;
+    private FlyoutAxamlProperties? _layout;
     private SettingsButton? _confirmOK;
     private SettingsButton? _confirmCancel;
     private Border? _dragGhost;
@@ -151,14 +151,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void InitializeComponentState()
     {
-        _layout = FlyoutLayout.From(this);
+        _layout = AxamlFlyout;
 
         if (_settings != null)
             RebuildVisual();
     }
 
-    private FlyoutLayout Layout =>
+    private FlyoutAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Fan flyout layout resources have not been loaded.");
+
+    private int EdgePadding => (int)Math.Round(Layout.EdgePadding);
+
+    private int PixelMinSize => (int)Math.Round(Layout.PixelMinSize);
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
@@ -385,7 +389,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid holder = new()
         {
             ClipToBounds = true,
-            Margin = Layout.CellListMargin(Math.Clamp(_settings.FlyoutTitleBarCardSpacing, 0,
+            Margin = CellListMargin(Math.Clamp(_settings.FlyoutTitleBarCardSpacing, 0,
                 Layout.MaxSettingSpacing)),
         };
 
@@ -538,7 +542,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             theme.ResolveFlyoutCardBorder(_settings, isLight),
             Rounded(Layout.CardCornerRadius),
             Layout.CardPadding,
-            Layout.CardMargin(
+            CardMargin(
                 Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
                 Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
                 Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
@@ -571,7 +575,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             border,
             Rounded(Layout.CardCornerRadius),
             Layout.CardPadding,
-            Layout.CardMargin(
+            CardMargin(
                 Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
                 Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
                 Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
@@ -638,7 +642,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             theme.ResolveFlyoutCardBorder(_settings, isLight),
             Rounded(Layout.CardCornerRadius),
             Layout.CardPadding,
-            Layout.CardMargin(
+            CardMargin(
                 Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
                 Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
                 Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
@@ -834,7 +838,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Background = Brushes.Transparent,
             Margin =
                 grouped
-                    ? Layout.FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing))
+                    ? FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing))
                     : Layout.ZeroThickness,
             RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), },
         };
@@ -2466,7 +2470,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return new Border
         {
             Height = Layout.FanButtonHeight,
-            Margin = Layout.FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0,
+            Margin = FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0,
                 Layout.MaxSettingSpacing)),
             Background = Brushes.Transparent,
             IsHitTestVisible = false,
@@ -4659,8 +4663,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         int height = CurrentPixelHeight();
         int left = trayIcon?.TryGetIconRect(out PixelRect rect) == true
             ? rect.Center.X - width / 2
-            : workArea.Right - width - Layout.EdgePadding;
-        int top = workArea.Bottom - height - Layout.EdgePadding;
+            : workArea.Right - width - EdgePadding;
+        int top = workArea.Bottom - height - EdgePadding;
         return ClampWindowPosition(new PixelPoint(left, top), workArea);
     }
 
@@ -4668,23 +4672,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         int width = CurrentPixelWidth();
         int height = CurrentPixelHeight();
-        int minLeft = workArea.X + Layout.EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - Layout.EdgePadding);
-        int minTop = workArea.Y + Layout.EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - Layout.EdgePadding);
+        int minLeft = workArea.X + EdgePadding;
+        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
+        int minTop = workArea.Y + EdgePadding;
+        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
         return new PixelPoint(Math.Clamp(target.X, minLeft, maxLeft), Math.Clamp(target.Y, minTop, maxTop));
     }
 
     private int CurrentPixelWidth() =>
-        Math.Max(Layout.PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
+        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
 
     private int CurrentPixelHeight() =>
-        Math.Max(Layout.PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
+        Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
 
     private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        int snapTolerance = Math.Max(Layout.PixelMinSize,
+        int snapTolerance = Math.Max(PixelMinSize,
             (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * Layout.SnapTolerancePercent));
         return (ResolveDockedPosition(_lastTrayIcon), snapTolerance);
     }
@@ -4701,7 +4705,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void ApplyWorkAreaMaxHeight()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - Layout.EdgePadding * 2);
+        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
     }
 
     private FlyoutControlPalette CreateFlyoutPalette(AppTheme theme, SettingsPalette sp, bool isLight) =>
@@ -4759,283 +4763,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private CornerRadius Rounded(CornerRadius radius) =>
         _settings.EnableRoundedCorners ? radius : Layout.ZeroCornerRadius;
 
-    private sealed record FlyoutLayout(
-        int EdgePadding,
-        double DragThreshold,
-        double SnapTolerancePercent,
-        double WorkAreaMinHeight,
-        int PixelMinSize,
-        int OffscreenPosition,
-        int FallbackWorkAreaX,
-        int FallbackWorkAreaY,
-        int FallbackWorkAreaWidth,
-        int FallbackWorkAreaHeight,
-        int FanPropertiesRowsPerColumn,
-        double FanPropertiesGap,
-        double MaxSettingSpacing,
-        Thickness ZeroThickness,
-        CornerRadius ZeroCornerRadius,
-        Thickness RootBorderThickness,
-        CornerRadius RootCornerRadius,
-        CornerRadius RootInnerCornerRadius,
-        Thickness RootInnerMargin,
-        double RootShadowOffsetY,
-        double RootShadowBlur,
-        double HeaderHeight,
-        Thickness HeaderMargin,
-        double HeaderWideColumnWidth,
-        double HeaderNarrowColumnWidth,
-        double HeaderButtonWidth,
-        double HeaderButtonHeight,
-        double HeaderButtonFontSize,
-        double HeaderManagerButtonFontSize,
-        Thickness UpdateInstallButtonPadding,
-        double HeaderAddGroupIconSize,
-        double HeaderAddGroupFontSize,
-        double HeaderAddProbeFontSize,
-        double HeaderAddGlyphFontSize,
-        TranslateTransform HeaderAddGlyphTransform,
-        double ProfileLabelFontSize,
-        double ProfileUnderlineWidth,
-        double ProfileUnderlineHeight,
-        CornerRadius ProfileUnderlineCornerRadius,
-        Thickness ProfileUnderlineMargin,
-        double ProfileButtonWidth,
-        double ProfileButtonHeight,
-        double UndockFontSize,
-        CornerRadius HeaderButtonCornerRadius,
-        double EmptyTextFontSize,
-        double EmptyTextOpacity,
-        Thickness CardBorderThickness,
-        CornerRadius CardCornerRadius,
-        Thickness CardPadding,
-        Thickness FanRowGroupedMarginBase,
-        double FanButtonWidth,
-        double FanButtonHeight,
-        double FanButtonFontSize,
-        Thickness FanButtonGroupedMargin,
-        Thickness FanButtonUngroupedMargin,
-        double FanNameFontSize,
-        double FanSubtitleFontSize,
-        double SubtitleOpacity,
-        Thickness SubtitleMargin,
-        Thickness FanNameStackGroupedMargin,
-        Thickness FanNameStackUngroupedMargin,
-        Thickness TelemetryMargin,
-        double RPMFontSize,
-        double RPMOpacity,
-        double ControllerFontSize,
-        double ControllerOpacity,
-        Thickness ControllerMargin,
-        double ModeButtonWidth,
-        double ModeButtonHeight,
-        double ModeButtonFontSize,
-        Thickness ModeButtonGroupedMargin,
-        Thickness ModeButtonUngroupedMargin,
-        double SliderRowHeight,
-        Thickness SliderRowMargin,
-        Thickness ValueGridMargin,
-        double ValueFontSize,
-        double SliderHitTestVerticalPadding,
-        double GroupIconWidth,
-        double GroupIconHeight,
-        double GroupIconFontSize,
-        double GroupHeaderButtonWidth,
-        double GroupHeaderButtonHeight,
-        double GroupExpandFontSize,
-        Thickness GroupHeaderButtonMargin,
-        double GroupNameFontSize,
-        double GroupNameOpacity,
-        Thickness GroupTitleMargin,
-        double GroupDeleteFontSize,
-        Thickness GroupModeMargin,
-        Thickness GroupSliderRowMargin,
-        Thickness GroupValueGridMargin,
-        double ProbeButtonWidth,
-        double ProbeButtonHeight,
-        double ProbeButtonFontSize,
-        Thickness ProbeButtonMargin,
-        double ProbeNameFontSize,
-        Thickness ProbeNameStackMargin,
-        Thickness ProbeRowsMargin,
-        Thickness ProbeRowMargin,
-        double ProbeRowGlyphWidth,
-        double ProbeRowGlyphFontSize,
-        double ProbeRowTextFontSize,
-        double ProbeRowValueMinWidth,
-        double ProbeEmptyFontSize,
-        double ProbeEmptyOpacity,
-        double ConfirmTitleFontSize,
-        Thickness ConfirmTitleMargin,
-        Thickness ConfirmMessageMargin,
-        Thickness ConfirmCancelMargin,
-        Thickness ConfirmBorderThickness,
-        CornerRadius ConfirmCornerRadius,
-        Thickness ConfirmPadding,
-        double ConfirmMinWidth,
-        double ConfirmMaxWidth,
-        double FullOpacity,
-        double RelinquishedControlOpacity,
-        double InactiveSliderValueOpacity,
-        double DragGhostOpacity,
-        double DragGhostShadowOffsetY,
-        double DragGhostShadowBlur,
-        double DropMarkerHeight,
-        CornerRadius DropMarkerCornerRadius,
-        double DragSourceOpacity,
-        double DragDebugMarkerHeight,
-        double DragDebugMarkerOpacity,
-        double DragDebugPointerHeight,
-        double DragDebugPointerOpacity,
-        double InlineEditorFontSize,
-        Thickness InlineEditorBorderThickness,
-        Thickness InlineEditorPadding)
-    {
-        public Thickness CellListMargin(double top) =>
-            new(ZeroThickness.Left, top, ZeroThickness.Right, ZeroThickness.Bottom);
+    private Thickness CellListMargin(double top) =>
+        new(Layout.ZeroThickness.Left, top, Layout.ZeroThickness.Right, Layout.ZeroThickness.Bottom);
 
-        public Thickness CardMargin(double left, double right, double bottom) =>
-            new(left, ZeroThickness.Top, right, bottom);
+    private Thickness CardMargin(double left, double right, double bottom) =>
+        new(left, Layout.ZeroThickness.Top, right, bottom);
 
-        public Thickness FanRowGroupedMargin(double bottom) =>
-            new(FanRowGroupedMarginBase.Left, FanRowGroupedMarginBase.Top, FanRowGroupedMarginBase.Right, bottom);
-
-        public static FlyoutLayout From(FanFlyoutWindow owner)
-        {
-            FlyoutAxamlProperties axaml = owner.AxamlFlyout;
-            return new FlyoutLayout(
-                (int)Math.Round(axaml.EdgePadding),
-                axaml.DragThreshold,
-                axaml.SnapTolerancePercent,
-                axaml.WorkAreaMinHeight,
-                (int)Math.Round(axaml.PixelMinSize),
-                axaml.OffscreenPosition,
-                axaml.FallbackWorkAreaX,
-                axaml.FallbackWorkAreaY,
-                axaml.FallbackWorkAreaWidth,
-                axaml.FallbackWorkAreaHeight,
-                axaml.FanPropertiesRowsPerColumn,
-                axaml.FanPropertiesGap,
-                axaml.MaxSettingSpacing,
-                axaml.ZeroThickness,
-                axaml.ZeroCornerRadius,
-                axaml.RootBorderThickness,
-                axaml.RootCornerRadius,
-                axaml.RootInnerCornerRadius,
-                axaml.RootInnerMargin,
-                axaml.RootShadowOffsetY,
-                axaml.RootShadowBlur,
-                axaml.HeaderHeight,
-                axaml.HeaderMargin,
-                axaml.HeaderWideColumnWidth,
-                axaml.HeaderNarrowColumnWidth,
-                axaml.HeaderButtonWidth,
-                axaml.HeaderButtonHeight,
-                axaml.HeaderButtonFontSize,
-                axaml.HeaderManagerButtonFontSize,
-                axaml.UpdateInstallButtonPadding,
-                axaml.HeaderAddGroupIconSize,
-                axaml.HeaderAddGroupFontSize,
-                axaml.HeaderAddProbeFontSize,
-                axaml.HeaderAddGlyphFontSize,
-                axaml.HeaderAddGlyphTransform,
-                axaml.ProfileLabelFontSize,
-                axaml.ProfileUnderlineWidth,
-                axaml.ProfileUnderlineHeight,
-                axaml.ProfileUnderlineCornerRadius,
-                axaml.ProfileUnderlineMargin,
-                axaml.ProfileButtonWidth,
-                axaml.ProfileButtonHeight,
-                axaml.UndockFontSize,
-                axaml.HeaderButtonCornerRadius,
-                axaml.EmptyTextFontSize,
-                axaml.EmptyTextOpacity,
-                axaml.CardBorderThickness,
-                axaml.CardCornerRadius,
-                axaml.CardPadding,
-                axaml.FanRowGroupedMarginBase,
-                axaml.FanButtonWidth,
-                axaml.FanButtonHeight,
-                axaml.FanButtonFontSize,
-                axaml.FanButtonGroupedMargin,
-                axaml.FanButtonUngroupedMargin,
-                axaml.FanNameFontSize,
-                axaml.FanSubtitleFontSize,
-                axaml.SubtitleOpacity,
-                axaml.SubtitleMargin,
-                axaml.FanNameStackGroupedMargin,
-                axaml.FanNameStackUngroupedMargin,
-                axaml.TelemetryMargin,
-                axaml.RPMFontSize,
-                axaml.RPMOpacity,
-                axaml.ControllerFontSize,
-                axaml.ControllerOpacity,
-                axaml.ControllerMargin,
-                axaml.ModeButtonWidth,
-                axaml.ModeButtonHeight,
-                axaml.ModeButtonFontSize,
-                axaml.ModeButtonGroupedMargin,
-                axaml.ModeButtonUngroupedMargin,
-                axaml.SliderRowHeight,
-                axaml.SliderRowMargin,
-                axaml.ValueGridMargin,
-                axaml.ValueFontSize,
-                axaml.SliderHitTestVerticalPadding,
-                axaml.GroupIconWidth,
-                axaml.GroupIconHeight,
-                axaml.GroupIconFontSize,
-                axaml.GroupHeaderButtonWidth,
-                axaml.GroupHeaderButtonHeight,
-                axaml.GroupExpandFontSize,
-                axaml.GroupHeaderButtonMargin,
-                axaml.GroupNameFontSize,
-                axaml.GroupNameOpacity,
-                axaml.GroupTitleMargin,
-                axaml.GroupDeleteFontSize,
-                axaml.GroupModeMargin,
-                axaml.GroupSliderRowMargin,
-                axaml.GroupValueGridMargin,
-                axaml.ProbeButtonWidth,
-                axaml.ProbeButtonHeight,
-                axaml.ProbeButtonFontSize,
-                axaml.ProbeButtonMargin,
-                axaml.ProbeNameFontSize,
-                axaml.ProbeNameStackMargin,
-                axaml.ProbeRowsMargin,
-                axaml.ProbeRowMargin,
-                axaml.ProbeRowGlyphWidth,
-                axaml.ProbeRowGlyphFontSize,
-                axaml.ProbeRowTextFontSize,
-                axaml.ProbeRowValueMinWidth,
-                axaml.ProbeEmptyFontSize,
-                axaml.ProbeEmptyOpacity,
-                axaml.ConfirmTitleFontSize,
-                axaml.ConfirmTitleMargin,
-                axaml.ConfirmMessageMargin,
-                axaml.ConfirmCancelMargin,
-                axaml.ConfirmBorderThickness,
-                axaml.ConfirmCornerRadius,
-                axaml.ConfirmPadding,
-                axaml.ConfirmMinWidth,
-                axaml.ConfirmMaxWidth,
-                axaml.FullOpacity,
-                axaml.RelinquishedControlOpacity,
-                axaml.InactiveSliderValueOpacity,
-                axaml.DragGhostOpacity,
-                axaml.DragGhostShadowOffsetY,
-                axaml.DragGhostShadowBlur,
-                axaml.DropMarkerHeight,
-                axaml.DropMarkerCornerRadius,
-                axaml.DragSourceOpacity,
-                axaml.DragDebugMarkerHeight,
-                axaml.DragDebugMarkerOpacity,
-                axaml.DragDebugPointerHeight,
-                axaml.DragDebugPointerOpacity,
-                axaml.InlineEditorFontSize,
-                axaml.InlineEditorBorderThickness,
-                axaml.InlineEditorPadding);
-        }
-    }
+    private Thickness FanRowGroupedMargin(double bottom) =>
+        new(
+            Layout.FanRowGroupedMarginBase.Left,
+            Layout.FanRowGroupedMarginBase.Top,
+            Layout.FanRowGroupedMarginBase.Right,
+            bottom);
 
     private static bool IsControlDown() =>
         (User32.GetAsyncKeyState(User32.VK_CONTROL) & unchecked((short)0x8000)) != 0;

@@ -14,7 +14,7 @@ public sealed partial class FanPropertiesWindow : Window
 {
     private readonly Fan _fan;
     private readonly AppSettings _settings;
-    private PropertiesLayout? _layout;
+    private FanPropertiesAxamlProperties? _layout;
     private readonly TextBlock _titleText;
     private readonly TextBlock _fanIDText;
     private readonly TextBlock _sensorControllerText;
@@ -129,10 +129,13 @@ public sealed partial class FanPropertiesWindow : Window
         Closed += OnClosed;
     }
 
-    private void InitializeComponentState() => _layout = PropertiesLayout.From(this);
+    private void InitializeComponentState() => _layout = AxamlFanProperties;
 
-    private PropertiesLayout Layout =>
+    private FanPropertiesAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Fan properties layout resources have not been loaded.");
+
+    private Thickness RowMargin(double bottom) =>
+        new(Layout.ZeroThickness.Left, Layout.ZeroThickness.Top, Layout.ZeroThickness.Right, bottom);
 
     public bool IsPinned
     {
@@ -567,7 +570,7 @@ public sealed partial class FanPropertiesWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        Grid grid = new() { Margin = Layout.RowMargin(bottomMargin ?? Layout.RowBottomMargin) };
+        Grid grid = new() { Margin = RowMargin(bottomMargin ?? Layout.RowBottomMargin) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelColumnWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         grid.Children.Add(labelBlock);
@@ -587,82 +590,6 @@ public sealed partial class FanPropertiesWindow : Window
             Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.CaptionButtonFontSize }
         };
         return button;
-    }
-
-    private sealed record PropertiesLayout(
-        double TitleBarHeight,
-        double FooterHeight,
-        double BodyLeftColumnWidth,
-        double RightPreviewHeight,
-        double TextBoxWidth,
-        double CurveComboWidth,
-        double NumberBoxWidth,
-        double RowLabelColumnWidth,
-        double TitleFontSize,
-        Thickness RootBorderThickness,
-        CornerRadius RootCornerRadius,
-        CornerRadius InnerCornerRadius,
-        CornerRadius ZeroCornerRadius,
-        Thickness TitleMargin,
-        Thickness BodyMargin,
-        Thickness LeftMargin,
-        Thickness RightMargin,
-        Thickness CurveComboMargin,
-        Thickness EditCurveButtonMargin,
-        Thickness FooterMargin,
-        Thickness ResetMargin,
-        Thickness RadioMargin,
-        Thickness ZeroThickness,
-        double ValueFontSize,
-        double RadioFontSize,
-        double RowLabelFontSize,
-        double RowBottomMargin,
-        double OffsetRowBottomMargin,
-        double CaptionButtonWidth,
-        double CaptionButtonHeight,
-        double CaptionButtonFontSize,
-        Thickness CaptionButtonPadding)
-    {
-        public Thickness RowMargin(double bottom) =>
-            new(ZeroThickness.Left, ZeroThickness.Top, ZeroThickness.Right, bottom);
-
-        public static PropertiesLayout From(FanPropertiesWindow owner)
-        {
-            FanPropertiesAxamlProperties axaml = owner.AxamlFanProperties;
-            return new PropertiesLayout(
-                axaml.TitleBarHeight,
-                axaml.FooterHeight,
-                axaml.BodyLeftColumnWidth,
-                axaml.RightPreviewHeight,
-                axaml.TextBoxWidth,
-                axaml.CurveComboWidth,
-                axaml.NumberBoxWidth,
-                axaml.RowLabelColumnWidth,
-                axaml.TitleFontSize,
-                axaml.RootBorderThickness,
-                axaml.RootCornerRadius,
-                axaml.InnerCornerRadius,
-                axaml.ZeroCornerRadius,
-                axaml.TitleMargin,
-                axaml.BodyMargin,
-                axaml.LeftMargin,
-                axaml.RightMargin,
-                axaml.CurveComboMargin,
-                axaml.EditCurveButtonMargin,
-                axaml.FooterMargin,
-                axaml.ResetMargin,
-                axaml.RadioMargin,
-                axaml.ZeroThickness,
-                axaml.ValueFontSize,
-                axaml.RadioFontSize,
-                axaml.RowLabelFontSize,
-                axaml.RowBottomMargin,
-                axaml.OffsetRowBottomMargin,
-                axaml.CaptionButtonWidth,
-                axaml.CaptionButtonHeight,
-                axaml.CaptionButtonFontSize,
-                axaml.CaptionButtonPadding);
-        }
     }
 
     private static string GetEffectiveCurveName(Fan fan)
