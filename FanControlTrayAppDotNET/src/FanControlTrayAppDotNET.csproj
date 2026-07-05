@@ -169,6 +169,16 @@
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
     </ProjectReference>
+    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
+                      Condition="'$(DesignTimeBuild)' != 'true'"
+                      Targets="GetTargetPath">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+      <Visible>false</Visible>
+    </ProjectReference>
     <PackageReference Include="BlackSharp.Core" Version="1.1.0" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
@@ -234,6 +244,19 @@
              BuildInParallel="$(BuildInParallel)"
              Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);$(_NCalcCoreBuildProperties)"
              RemoveProperties="$(_VendoredReferencePropertiesToRemove);RuntimeIdentifier;RuntimeIdentifiers" />
+  </Target>
+
+  <!-- NCalc.Core exposes NCalc.Domain types in public APIs. Keep a direct
+       reference for compile metadata, but build it serially here and use
+       GetTargetPath above so it does not race the transitive NCalc.Core build. -->
+  <Target Name="BuildNCalcDomainReference"
+          BeforeTargets="ResolveProjectReferences"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <MSBuild Projects="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
+             Targets="Build"
+             BuildInParallel="$(BuildInParallel)"
+             Properties="Configuration=$(Configuration);Platform=x64;TargetFramework=net10.0;BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false"
+             RemoveProperties="BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir" />
   </Target>
 
   <Target Name="IncludeLibreHardwareMonitorSidecar" AfterTargets="ComputeFilesToPublish" Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != ''">
