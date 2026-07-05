@@ -47,6 +47,10 @@
     <DisableParlotParserCompilation>true</DisableParlotParserCompilation>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Remove="Visuals\FanFont.ttf" />
     <None Remove="Visuals\FAN_GLYPH.png" />
@@ -168,6 +172,7 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
+    <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''" />
   </ItemGroup>
 
   <ItemGroup>
@@ -247,6 +252,19 @@
           Retries="$(CopyRetryCount)"
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
           Condition="'@(_AggregateDebugRuntimeReferenceWithDestination)' != ''" />
+  </Target>
+
+  <Target Name="CopyLibreHardwareMonitorDebugRuntimeAssemblies" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+    <ItemGroup>
+      <_LibreHardwareMonitorDebugRuntimeAssembly Include="$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll" Condition="Exists('$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll')" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_LibreHardwareMonitorDebugRuntimeAssembly)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true"
+          Retries="$(CopyRetryCount)"
+          RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
+          Condition="'@(_LibreHardwareMonitorDebugRuntimeAssembly)' != ''" />
   </Target>
 
   <Target Name="PublishAfterBuild" AfterTargets="Build" Condition="'$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
