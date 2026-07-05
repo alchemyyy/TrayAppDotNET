@@ -537,34 +537,24 @@ public sealed class SettingsSearchableListBox : Grid
 /// <summary>
 /// Item model for a settings searchable list.
 /// </summary>
-public sealed class SettingsSearchableListBoxItem
+public sealed class SettingsSearchableListBoxItem(
+    object tag,
+    string text,
+    string searchText = "",
+    Func<Control>? contentFactory = null)
 {
-    private readonly Func<Control>? _contentFactory;
+    public object Tag { get; } = tag;
 
-    public SettingsSearchableListBoxItem(
-        object tag,
-        string text,
-        string searchText = "",
-        Func<Control>? contentFactory = null)
-    {
-        Tag = tag;
-        Text = text;
-        SearchText = string.IsNullOrWhiteSpace(searchText) ? text : searchText;
-        _contentFactory = contentFactory;
-    }
+    public string Text { get; } = text;
 
-    public object Tag { get; }
-
-    public string Text { get; }
-
-    public string SearchText { get; }
+    public string SearchText { get; } = string.IsNullOrWhiteSpace(searchText) ? text : searchText;
 
     /// <summary>
     /// Builds display content for this list item.
     /// </summary>
     public Control CreateContent(SettingsPalette palette, double fontSize)
     {
-        if (_contentFactory != null) return _contentFactory();
+        if (contentFactory != null) return contentFactory();
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(Text, palette, fontSize);
         label.TextTrimming = TextTrimming.CharacterEllipsis;

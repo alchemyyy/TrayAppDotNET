@@ -150,8 +150,10 @@
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
-      <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
-      <SetTargetFramework Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</SetTargetFramework>
+      <!-- Keep non-fan LHM probes out of Debug too. Fan control uses PawnIO/LPC; IPMI/BMC
+           and RAM SPD pull System.Management and can fail before normal sensors enumerate. -->
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>DisableIpmiWmi=true;DisableRamSpd=true</AdditionalProperties>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
@@ -223,7 +225,9 @@
       <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false</_VendoredReferenceBuildProperties>
       <_VendoredReferenceBuildProperties>$(_VendoredReferenceBuildProperties);SkipKillRunningInstance=$(SkipKillRunningInstance)</_VendoredReferenceBuildProperties>
       <_VendoredReferencePropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</_VendoredReferencePropertiesToRemove>
-      <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</_LibreHardwareMonitorBuildProperties>
+      <!-- Match the normal ProjectReference: VS-triggered prebuilds must not compile
+           IPMI/BMC or RAM SPD paths into the Debug LHM sidecar. -->
+      <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
       <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
       <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</_NCalcCoreBuildProperties>
       <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</_NCalcCoreBuildProperties>
@@ -315,6 +319,19 @@
           Retries="$(CopyRetryCount)"
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
           Condition="'@(_LibreHardwareMonitorDebugRuntimeAssembly)' != ''" />
+  </Target>
+
+  <!-- Debug LHM intentionally excludes IPMI/BMC and RAM SPD. Remove stale copies left
+       by older Debug builds so runtime probing cannot bind those assemblies by accident. -->
+  <Target Name="RemoveLibreHardwareMonitorUnusedDebugRuntimeAssemblies" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+    <ItemGroup>
+      <_LibreHardwareMonitorUnusedDebugRuntimeAssembly Include="$(TargetDir)RAMSPDToolkit-NDD.dll" />
+      <_LibreHardwareMonitorUnusedDebugRuntimeAssembly Include="$(TargetDir)System.Management.dll" />
+      <_LibreHardwareMonitorUnusedDebugRuntimeAssembly Include="$(TargetDir)runtimes\win\lib\net10.0\System.Management.dll" />
+    </ItemGroup>
+
+    <Delete Files="@(_LibreHardwareMonitorUnusedDebugRuntimeAssembly)"
+            TreatErrorsAsWarnings="true" />
   </Target>
 
   <Target Name="PublishAfterBuild" AfterTargets="Build" Condition="'$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
