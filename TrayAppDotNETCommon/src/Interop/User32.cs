@@ -37,6 +37,7 @@ public static class User32
     public const ushort RI_MOUSE_WHEEL = 0x0400;
 
     // Virtual key codes for modifier detection
+    public const int VK_LBUTTON = 0x01;
     public const int VK_CONTROL = 0x11;
     public const int VK_MENU = 0x12;
 
