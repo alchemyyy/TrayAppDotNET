@@ -89,7 +89,7 @@ public sealed partial class FanCurveEditorWindow : Window
             Height = Layout.GraphHeight,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
-            EditorLayout = FanCurveEditorLayout.From(this),
+            EditorLayout = Layout,
             Palette = FanCurveEditorPalette.FromSettingsPalette(
                 _palette,
                 AppServices.Theme ?? AppTheme.Default,
