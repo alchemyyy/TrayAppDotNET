@@ -1,6 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Interop;
 
 namespace TrayAppDotNETCommon.UI;
 
@@ -13,7 +16,11 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
     private Window? _attachedSettingsWindow;
     private FlyoutWindowCommon? _attachedFlyoutWindow;
     private readonly HashSet<Window> _attachedSettingsChildWindows = [];
+    private Window? _immediateSettingsCloseWindow;
+    private int _immediateSettingsCloseRestoreVersion;
     private bool _focusGroupEvaluationQueued;
+    private bool _isHandlingSettingsActivation;
+    private bool _hideRestoredFlyoutOnImmediateSettingsClose;
     private bool _disposed;
 
     public void Attach(Window settingsWindow)
@@ -52,6 +59,8 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
                 {
                     AttachFlyout(flyout);
                     flyout.KeepOpenForSettingsWindow = true;
+                    if (_isHandlingSettingsActivation)
+                        MarkRestoredFlyoutForImmediateSettingsClose();
                     return;
                 }
             }
@@ -78,8 +87,8 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         if (flyout != null)
         {
             flyout.KeepOpenForSettingsWindow = false;
-            if (hideFlyout && flyout is { IsVisible: true, CanHideFromCoordinator: true })
-                flyout.HideFromCoordinator();
+            if (hideFlyout)
+                HideFlyoutNowOrWhenOpened(flyout);
             else if (activateFlyout && flyout is { IsVisible: true, CanHideFromCoordinator: true })
                 flyout.Activate();
         }
@@ -91,6 +100,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
     public void Detach()
     {
         Release(hideFlyout: false, activateFlyout: false);
+        ClearImmediateSettingsCloseTracking();
         DetachSettingsWindow();
     }
 
@@ -116,7 +126,16 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
     {
         if (!ReferenceEquals(sender, _attachedSettingsWindow)) return;
 
-        HoldOpen();
+        _isHandlingSettingsActivation = true;
+        try
+        {
+            HoldOpen();
+        }
+        finally
+        {
+            _isHandlingSettingsActivation = false;
+        }
+
         (_attachedFlyoutWindow ?? flyoutWindow())?.ClearNextAutoHideSuppression();
     }
 
@@ -151,8 +170,57 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
     private void OnSettingsWindowClosed(object? sender, EventArgs e)
     {
-        Release(hideFlyout: false, activateFlyout: true);
+        bool hideFlyout = _hideRestoredFlyoutOnImmediateSettingsClose;
+        ClearImmediateSettingsCloseTracking();
+
+        Release(hideFlyout: hideFlyout, activateFlyout: !hideFlyout);
         DetachSettingsWindow();
+    }
+
+    private void MarkRestoredFlyoutForImmediateSettingsClose()
+    {
+        if (!IsLeftMouseButtonDown()) return;
+
+        Window? settingsWindow = _attachedSettingsWindow ?? window();
+        if (settingsWindow == null) return;
+
+        ClearImmediateSettingsCloseTracking();
+        _hideRestoredFlyoutOnImmediateSettingsClose = true;
+        _immediateSettingsCloseWindow = settingsWindow;
+        _immediateSettingsCloseRestoreVersion++;
+        settingsWindow.AddHandler(
+            InputElement.PointerReleasedEvent,
+            OnImmediateSettingsClosePointerReleased,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+    }
+
+    private void OnImmediateSettingsClosePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!ReferenceEquals(sender, _immediateSettingsCloseWindow)) return;
+
+        int restoreVersion = _immediateSettingsCloseRestoreVersion;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_immediateSettingsCloseRestoreVersion != restoreVersion) return;
+                ClearImmediateSettingsCloseTracking();
+            },
+            DispatcherPriority.ApplicationIdle);
+    }
+
+    private void ClearImmediateSettingsCloseTracking()
+    {
+        if (_immediateSettingsCloseWindow != null)
+        {
+            _immediateSettingsCloseWindow.RemoveHandler(
+                InputElement.PointerReleasedEvent,
+                OnImmediateSettingsClosePointerReleased);
+        }
+
+        _immediateSettingsCloseWindow = null;
+        _hideRestoredFlyoutOnImmediateSettingsClose = false;
+        _immediateSettingsCloseRestoreVersion++;
     }
 
     private void OnSettingsChildWindowActivated(object? sender, EventArgs e)
@@ -323,4 +391,28 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         if (flyout is { IsVisible: true, CanHideFromCoordinator: true })
             flyout.HideFromCoordinator();
     }
+
+    private static void HideFlyoutNowOrWhenOpened(FlyoutWindowCommon flyout)
+    {
+        if (flyout.IsVisible)
+        {
+            if (flyout.CanHideFromCoordinator)
+                flyout.HideFromCoordinator();
+            return;
+        }
+
+        flyout.Opened += OnOpened;
+        return;
+
+        void OnOpened(object? sender, EventArgs e)
+        {
+            flyout.Opened -= OnOpened;
+            if (flyout is { IsVisible: true, CanHideFromCoordinator: true })
+                flyout.HideFromCoordinator();
+        }
+    }
+
+    private static bool IsLeftMouseButtonDown() =>
+        OperatingSystem.IsWindows()
+        && (User32.GetAsyncKeyState(User32.VK_LBUTTON) & unchecked((short)0x8000)) != 0;
 }
