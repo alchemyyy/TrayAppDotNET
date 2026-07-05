@@ -171,9 +171,12 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
-    <!-- Required for Debug LHM startup. Release disables the native paths that need this,
-         but Debug must declare the package so the .deps.json can resolve it. -->
+    <!-- Required for Debug LHM startup. ProjectReference restore does not reliably flow
+         LHM's package runtime assets into the app dependency context. Do not remove these:
+         Debug Computer.Open() needs Mono.Posix for OpCode and System.IO.Ports for controller
+         probing. This intentionally does not add System.Management/BMC/IPMI assemblies. -->
     <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.9" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''" />
   </ItemGroup>
 
   <ItemGroup>
