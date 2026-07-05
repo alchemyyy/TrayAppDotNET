@@ -146,7 +146,7 @@
                       GlobalPropertiesToRemove="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir"
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
-    <ProjectReference Include="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+    <ProjectReference Include="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
@@ -159,7 +159,7 @@
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
     </ProjectReference>
-    <ProjectReference Include="..\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Core\NCalc.Core.csproj"
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
@@ -224,12 +224,12 @@
       <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</_NCalcCoreBuildProperties>
     </PropertyGroup>
 
-    <MSBuild Projects="..\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+    <MSBuild Projects="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
              Targets="Build"
              BuildInParallel="$(BuildInParallel)"
              Properties="$(_VendoredReferenceBuildProperties);Platform=x64;$(_LibreHardwareMonitorBuildProperties)"
              RemoveProperties="$(_VendoredReferencePropertiesToRemove)" />
-    <MSBuild Projects="..\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+    <MSBuild Projects="..\vendor\NCalc\src\NCalc.Core\NCalc.Core.csproj"
              Targets="Build"
              BuildInParallel="$(BuildInParallel)"
              Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);$(_NCalcCoreBuildProperties)"
