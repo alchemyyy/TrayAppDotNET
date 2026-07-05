@@ -10,17 +10,17 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class FlyoutCardsLayout
 {
-    private static readonly ControlAXAMLResources R = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/FlyoutCards.axaml",
-        "FlyoutCards");
+    private static readonly Lazy<FlyoutCardsResources> Resources = new(static () => new FlyoutCardsResources());
 
-    public static Thickness ZeroThickness => R.Thickness("ZeroThickness");
-    public static CornerRadius IconButtonRadius => R.CornerRadius("IconButtonRadius");
-    public static double TextButtonFontSize => R.Double("TextButtonFontSize");
-    public static Thickness TextButtonBorderThickness => R.Thickness("TextButtonBorderThickness");
-    public static CornerRadius TextButtonRadius => R.CornerRadius("TextButtonRadius");
-    public static Thickness TextButtonPadding => R.Thickness("TextButtonPadding");
-    public static double SlotCoverOpacity => R.Double("SlotCoverOpacity");
+    private static FlyoutCardsResources AXAMLResources => Resources.Value;
+
+    public static Thickness ZeroThickness => AXAMLResources.AxamlFlyoutCards.ZeroThickness;
+    public static CornerRadius IconButtonRadius => AXAMLResources.AxamlFlyoutCards.IconButtonRadius;
+    public static double TextButtonFontSize => AXAMLResources.AxamlFlyoutCards.TextButtonFontSize;
+    public static Thickness TextButtonBorderThickness => AXAMLResources.AxamlFlyoutCards.TextButtonBorderThickness;
+    public static CornerRadius TextButtonRadius => AXAMLResources.AxamlFlyoutCards.TextButtonRadius;
+    public static Thickness TextButtonPadding => AXAMLResources.AxamlFlyoutCards.TextButtonPadding;
+    public static double SlotCoverOpacity => AXAMLResources.AxamlFlyoutCards.SlotCoverOpacity;
 }
 
 public readonly record struct FlyoutControlPalette(

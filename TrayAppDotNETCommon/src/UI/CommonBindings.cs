@@ -56,8 +56,10 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         Action? afterSave = null)
     {
         Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
-        row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
+        row.ColumnDefinitions.Add(new ColumnDefinition(
+            new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
+        row.ColumnDefinitions.Add(new ColumnDefinition(
+            new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
 
         if (leftValue.HasValue && setLeft != null)
         {
@@ -93,14 +95,17 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
     protected Grid PairColumnHeader(string title, SettingsPalette palette)
     {
-        Grid grid = new() { Margin = _commonBindingResources.Thickness("PairHeaderMargin") };
+        Grid grid = new() { Margin = _commonBindingResources.AxamlCommonBindings.PairHeaderMargin };
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairHeaderWidth"))));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(
+            new GridLength(_commonBindingResources.AxamlCommonBindings.PairHeaderWidth)));
         grid.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(title, palette));
 
         Grid pair = new();
-        pair.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
-        pair.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(_commonBindingResources.Double("PairColumnWidth"))));
+        pair.ColumnDefinitions.Add(new ColumnDefinition(
+            new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
+        pair.ColumnDefinitions.Add(new ColumnDefinition(
+            new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
         TextBlock playback = TrayAppDotNETSettingsUI.DescriptionText(Loc("Settings_Common_Playback"), palette);
         TextBlock recording = TrayAppDotNETSettingsUI.DescriptionText(Loc("Settings_Common_Recording"), palette);
         playback.FontWeight = FontWeight.SemiBold;

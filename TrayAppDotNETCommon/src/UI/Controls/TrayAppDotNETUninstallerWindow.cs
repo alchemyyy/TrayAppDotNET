@@ -10,28 +10,28 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class TrayAppDotNETDialogChromeLayout
 {
-    private static readonly ControlAXAMLResources Resources = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/DialogChrome.axaml",
-        "DialogChrome");
+    private static readonly Lazy<DialogChromeResources> Resources = new(static () => new DialogChromeResources());
 
-    public static double UninstallerWindowWidth => Resources.Double("UninstallerWindowWidth");
-    public static double UninstallerWindowHeight => Resources.Double("UninstallerWindowHeight");
-    public static double UninstallerWindowMinWidth => Resources.Double("UninstallerWindowMinWidth");
-    public static double UninstallerWindowMinHeight => Resources.Double("UninstallerWindowMinHeight");
-    public static double TitleBarHeight => Resources.Double("TitleBarHeight");
-    public static Thickness RootBorderThickness => Resources.Thickness("RootBorderThickness");
-    public static CornerRadius RootCornerRadius => Resources.CornerRadius("RootCornerRadius");
-    public static CornerRadius CardCornerRadius => Resources.CornerRadius("CardCornerRadius");
-    public static CornerRadius ZeroCornerRadius => Resources.CornerRadius("ZeroCornerRadius");
-    public static Thickness TitleMargin => Resources.Thickness("TitleMargin");
-    public static Thickness BodyMargin => Resources.Thickness("BodyMargin");
-    public static Thickness DescriptionMargin => Resources.Thickness("DescriptionMargin");
-    public static Thickness OptionRadioMargin => Resources.Thickness("OptionRadioMargin");
-    public static Thickness OptionCardPadding => Resources.Thickness("OptionCardPadding");
-    public static Thickness OptionCardMargin => Resources.Thickness("OptionCardMargin");
-    public static Thickness ButtonPadding => Resources.Thickness("ButtonPadding");
-    public static Thickness CancelButtonMargin => Resources.Thickness("CancelButtonMargin");
-    public static Thickness ButtonsMargin => Resources.Thickness("ButtonsMargin");
+    private static DialogChromeResources AXAMLResources => Resources.Value;
+
+    public static double UninstallerWindowWidth => AXAMLResources.AxamlDialogChrome.UninstallerWindowWidth;
+    public static double UninstallerWindowHeight => AXAMLResources.AxamlDialogChrome.UninstallerWindowHeight;
+    public static double UninstallerWindowMinWidth => AXAMLResources.AxamlDialogChrome.UninstallerWindowMinWidth;
+    public static double UninstallerWindowMinHeight => AXAMLResources.AxamlDialogChrome.UninstallerWindowMinHeight;
+    public static double TitleBarHeight => AXAMLResources.AxamlDialogChrome.TitleBarHeight;
+    public static Thickness RootBorderThickness => AXAMLResources.AxamlDialogChrome.RootBorderThickness;
+    public static CornerRadius RootCornerRadius => AXAMLResources.AxamlDialogChrome.RootCornerRadius;
+    public static CornerRadius CardCornerRadius => AXAMLResources.AxamlDialogChrome.CardCornerRadius;
+    public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlDialogChrome.ZeroCornerRadius;
+    public static Thickness TitleMargin => AXAMLResources.AxamlDialogChrome.TitleMargin;
+    public static Thickness BodyMargin => AXAMLResources.AxamlDialogChrome.BodyMargin;
+    public static Thickness DescriptionMargin => AXAMLResources.AxamlDialogChrome.DescriptionMargin;
+    public static Thickness OptionRadioMargin => AXAMLResources.AxamlDialogChrome.OptionRadioMargin;
+    public static Thickness OptionCardPadding => AXAMLResources.AxamlDialogChrome.OptionCardPadding;
+    public static Thickness OptionCardMargin => AXAMLResources.AxamlDialogChrome.OptionCardMargin;
+    public static Thickness ButtonPadding => AXAMLResources.AxamlDialogChrome.ButtonPadding;
+    public static Thickness CancelButtonMargin => AXAMLResources.AxamlDialogChrome.CancelButtonMargin;
+    public static Thickness ButtonsMargin => AXAMLResources.AxamlDialogChrome.ButtonsMargin;
 }
 
 public sealed record TrayAppDotNETUninstallerWindowOptions

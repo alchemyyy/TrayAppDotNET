@@ -6,15 +6,15 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class SettingsCardsLayout
 {
-    private static readonly ControlAXAMLResources R = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/Cards.axaml",
-        "SettingsCards");
+    private static readonly Lazy<CardsResources> Resources = new(static () => new CardsResources());
 
-    public static double NumberBoxWidth => R.Double("NumberBoxWidth");
-    public static Thickness RightControlMargin => R.Thickness("RightControlMargin");
-    public static Thickness CardPadding => R.Thickness("CardPadding");
-    public static Thickness CardMargin => R.Thickness("CardMargin");
-    public static double DisabledOpacity => R.Double("DisabledOpacity");
+    private static CardsResources AXAMLResources => Resources.Value;
+
+    public static double NumberBoxWidth => AXAMLResources.AxamlSettingsCards.NumberBoxWidth;
+    public static Thickness RightControlMargin => AXAMLResources.AxamlSettingsCards.RightControlMargin;
+    public static Thickness CardPadding => AXAMLResources.AxamlSettingsCards.CardPadding;
+    public static Thickness CardMargin => AXAMLResources.AxamlSettingsCards.CardMargin;
+    public static double DisabledOpacity => AXAMLResources.AxamlSettingsCards.DisabledOpacity;
 }
 
 public static class TrayAppDotNETSettingsCards

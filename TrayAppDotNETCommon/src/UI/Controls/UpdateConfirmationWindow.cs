@@ -11,29 +11,31 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class UpdateConfirmationLayout
 {
-    private static readonly ControlAXAMLResources R = new(
-        "avares://TrayAppDotNETCommon/UI/Controls/UpdateConfirmationWindow.axaml",
-        "UpdateConfirmation");
+    private static readonly Lazy<UpdateConfirmationWindowResources> Resources = new(
+        static () => new UpdateConfirmationWindowResources());
 
-    public static double WindowWidth => R.Double("WindowWidth");
-    public static double WindowMinWidth => R.Double("WindowMinWidth");
-    public static int MaxVisibleChangelogLines => R.Int("MaxVisibleChangelogLines");
-    public static double ChangelogLineHeight => R.Double("ChangelogLineHeight");
-    public static Thickness RootBorderThickness => R.Thickness("RootBorderThickness");
-    public static CornerRadius RootCornerRadius => R.CornerRadius("RootCornerRadius");
-    public static CornerRadius ZeroCornerRadius => R.CornerRadius("ZeroCornerRadius");
-    public static double TitleBarHeight => R.Double("TitleBarHeight");
-    public static Thickness BodyMargin => R.Thickness("BodyMargin");
-    public static Thickness DescriptionMargin => R.Thickness("DescriptionMargin");
-    public static Thickness ChangelogBorderThickness => R.Thickness("ChangelogBorderThickness");
-    public static CornerRadius ChangelogCornerRadius => R.CornerRadius("ChangelogCornerRadius");
-    public static Thickness ChangelogPadding => R.Thickness("ChangelogPadding");
-    public static Thickness ChangelogScrollPadding => R.Thickness("ChangelogScrollPadding");
-    public static double ChangelogMaxHeightExtra => R.Double("ChangelogMaxHeightExtra");
-    public static Thickness ButtonPadding => R.Thickness("ButtonPadding");
-    public static Thickness CancelButtonMargin => R.Thickness("CancelButtonMargin");
-    public static Thickness ButtonsMargin => R.Thickness("ButtonsMargin");
-    public static Thickness TitleMargin => R.Thickness("TitleMargin");
+    private static UpdateConfirmationWindowResources AXAMLResources => Resources.Value;
+
+    public static double WindowWidth => AXAMLResources.AxamlUpdateConfirmation.WindowWidth;
+    public static double WindowMinWidth => AXAMLResources.AxamlUpdateConfirmation.WindowMinWidth;
+    public static int MaxVisibleChangelogLines => AXAMLResources.AxamlUpdateConfirmation.MaxVisibleChangelogLines;
+    public static double ChangelogLineHeight => AXAMLResources.AxamlUpdateConfirmation.ChangelogLineHeight;
+    public static Thickness RootBorderThickness => AXAMLResources.AxamlUpdateConfirmation.RootBorderThickness;
+    public static CornerRadius RootCornerRadius => AXAMLResources.AxamlUpdateConfirmation.RootCornerRadius;
+    public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlUpdateConfirmation.ZeroCornerRadius;
+    public static double TitleBarHeight => AXAMLResources.AxamlUpdateConfirmation.TitleBarHeight;
+    public static Thickness BodyMargin => AXAMLResources.AxamlUpdateConfirmation.BodyMargin;
+    public static Thickness DescriptionMargin => AXAMLResources.AxamlUpdateConfirmation.DescriptionMargin;
+    public static Thickness ChangelogBorderThickness =>
+        AXAMLResources.AxamlUpdateConfirmation.ChangelogBorderThickness;
+    public static CornerRadius ChangelogCornerRadius => AXAMLResources.AxamlUpdateConfirmation.ChangelogCornerRadius;
+    public static Thickness ChangelogPadding => AXAMLResources.AxamlUpdateConfirmation.ChangelogPadding;
+    public static Thickness ChangelogScrollPadding => AXAMLResources.AxamlUpdateConfirmation.ChangelogScrollPadding;
+    public static double ChangelogMaxHeightExtra => AXAMLResources.AxamlUpdateConfirmation.ChangelogMaxHeightExtra;
+    public static Thickness ButtonPadding => AXAMLResources.AxamlUpdateConfirmation.ButtonPadding;
+    public static Thickness CancelButtonMargin => AXAMLResources.AxamlUpdateConfirmation.CancelButtonMargin;
+    public static Thickness ButtonsMargin => AXAMLResources.AxamlUpdateConfirmation.ButtonsMargin;
+    public static Thickness TitleMargin => AXAMLResources.AxamlUpdateConfirmation.TitleMargin;
 }
 
 public sealed class TrayAppDotNETUpdateConfirmationWindow : Window

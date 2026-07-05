@@ -625,42 +625,42 @@ public sealed partial class FanPropertiesWindow : Window
         public Thickness RowMargin(double bottom) =>
             new(ZeroThickness.Left, ZeroThickness.Top, ZeroThickness.Right, bottom);
 
-        public static PropertiesLayout From(Control owner)
+        public static PropertiesLayout From(FanPropertiesWindow owner)
         {
-            HotReloadResourceReader r = new(owner, "FanProperties");
+            FanPropertiesAxamlProperties axaml = owner.AxamlFanProperties;
             return new PropertiesLayout(
-                r.Double("TitleBarHeight"),
-                r.Double("FooterHeight"),
-                r.Double("BodyLeftColumnWidth"),
-                r.Double("RightPreviewHeight"),
-                r.Double("TextBoxWidth"),
-                r.Double("CurveComboWidth"),
-                r.Double("NumberBoxWidth"),
-                r.Double("RowLabelColumnWidth"),
-                r.Double("TitleFontSize"),
-                r.Thickness("RootBorderThickness"),
-                r.CornerRadius("RootCornerRadius"),
-                r.CornerRadius("InnerCornerRadius"),
-                r.CornerRadius("ZeroCornerRadius"),
-                r.Thickness("TitleMargin"),
-                r.Thickness("BodyMargin"),
-                r.Thickness("LeftMargin"),
-                r.Thickness("RightMargin"),
-                r.Thickness("CurveComboMargin"),
-                r.Thickness("EditCurveButtonMargin"),
-                r.Thickness("FooterMargin"),
-                r.Thickness("ResetMargin"),
-                r.Thickness("RadioMargin"),
-                r.Thickness("ZeroThickness"),
-                r.Double("ValueFontSize"),
-                r.Double("RadioFontSize"),
-                r.Double("RowLabelFontSize"),
-                r.Double("RowBottomMargin"),
-                r.Double("OffsetRowBottomMargin"),
-                r.Double("CaptionButtonWidth"),
-                r.Double("CaptionButtonHeight"),
-                r.Double("CaptionButtonFontSize"),
-                r.Thickness("CaptionButtonPadding"));
+                axaml.TitleBarHeight,
+                axaml.FooterHeight,
+                axaml.BodyLeftColumnWidth,
+                axaml.RightPreviewHeight,
+                axaml.TextBoxWidth,
+                axaml.CurveComboWidth,
+                axaml.NumberBoxWidth,
+                axaml.RowLabelColumnWidth,
+                axaml.TitleFontSize,
+                axaml.RootBorderThickness,
+                axaml.RootCornerRadius,
+                axaml.InnerCornerRadius,
+                axaml.ZeroCornerRadius,
+                axaml.TitleMargin,
+                axaml.BodyMargin,
+                axaml.LeftMargin,
+                axaml.RightMargin,
+                axaml.CurveComboMargin,
+                axaml.EditCurveButtonMargin,
+                axaml.FooterMargin,
+                axaml.ResetMargin,
+                axaml.RadioMargin,
+                axaml.ZeroThickness,
+                axaml.ValueFontSize,
+                axaml.RadioFontSize,
+                axaml.RowLabelFontSize,
+                axaml.RowBottomMargin,
+                axaml.OffsetRowBottomMargin,
+                axaml.CaptionButtonWidth,
+                axaml.CaptionButtonHeight,
+                axaml.CaptionButtonFontSize,
+                axaml.CaptionButtonPadding);
         }
     }
 
