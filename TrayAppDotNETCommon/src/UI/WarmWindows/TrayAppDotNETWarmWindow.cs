@@ -77,10 +77,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
             CancelIdleEviction();
             _ = PrimeAsync(createWindow);
         }
-        else if (Cached is { IsVisible: false })
-        {
-            ScheduleIdleEviction();
-        }
+        else if (Cached is { IsVisible: false }) ScheduleIdleEviction();
     }
 
     public void Invalidate()

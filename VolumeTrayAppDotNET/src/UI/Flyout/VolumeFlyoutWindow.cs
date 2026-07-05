@@ -1985,9 +1985,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if ((modifiers & KeyModifiers.Alt) != 0) mode = CommunicationsDuckingMode.Reduce50;
         else if ((modifiers & KeyModifiers.Control) != 0) mode = CommunicationsDuckingMode.Reduce80;
         else
+        {
             mode = CommunicationsDucking.IsActive()
                 ? CommunicationsDuckingMode.DoNothing
                 : CommunicationsDuckingMode.MuteAll;
+        }
 
         CommunicationsDucking.SetMode(mode);
     }

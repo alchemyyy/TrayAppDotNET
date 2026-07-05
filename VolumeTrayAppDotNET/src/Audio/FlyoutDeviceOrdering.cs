@@ -76,8 +76,10 @@ internal static class FlyoutDeviceOrdering
         // Render-then-capture pass when not intermixing keeps capture devices grouped after playback
         // inside each bucket; the final reversal then puts capture above playback in the rendered flyout.
         if (intermix)
+        {
             for (int i = 0; i < visible.Count; i++)
                 buckets[ClassifyBucket(visible[i])].Add(visible[i]);
+        }
         else
         {
             for (int i = 0; i < visible.Count; i++)
@@ -128,11 +130,17 @@ internal static class FlyoutDeviceOrdering
 
         List<AudioDevice> ordered = new(visible.Count);
         for (int i = 0; i < visible.Count; i++)
+        {
             if (visible[i].DataFlow == EDataFlow.eRender)
                 ordered.Add(visible[i]);
+        }
+
         for (int i = 0; i < visible.Count; i++)
+        {
             if (visible[i].DataFlow == EDataFlow.eCapture)
                 ordered.Add(visible[i]);
+        }
+
         return ordered;
     }
 }

@@ -423,6 +423,7 @@ public sealed class FlyoutSlider : Control
         Rect thumb = ThumbRect(width, height, thumbWidth, thumbHeight, Value);
 
         if (PreviewValue.HasValue && IsVisibleTranslucent(PreviewOpacity))
+        {
             DrawThumbFillCutoutAtValue(
                 context,
                 track,
@@ -432,6 +433,7 @@ public sealed class FlyoutSlider : Control
                 thumbHeight,
                 PreviewValue.Value,
                 Thumb);
+        }
 
         if (SecondaryValue.HasValue && SecondaryOpacity > 0)
         {
@@ -439,6 +441,7 @@ public sealed class FlyoutSlider : Control
             double secondaryThumbWidth = Math.Max(1, secondaryThumb.Width);
             double secondaryThumbHeight = Math.Max(1, secondaryThumb.Height);
             if (IsVisibleTranslucent(SecondaryOpacity))
+            {
                 DrawThumbFillCutoutAtValue(
                     context,
                     track,
@@ -448,6 +451,7 @@ public sealed class FlyoutSlider : Control
                     secondaryThumbHeight,
                     SecondaryValue.Value,
                     secondaryThumb);
+            }
         }
 
         if (IsVisibleTranslucent(ThumbOpacity))

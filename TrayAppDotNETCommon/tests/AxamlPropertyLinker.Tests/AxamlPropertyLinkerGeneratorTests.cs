@@ -262,7 +262,7 @@ internal sealed class AxamlGeneratorHost
                 optimizationLevel: OptimizationLevel.Release,
                 nullableContextOptions: NullableContextOptions.Enable));
 
-        List<AdditionalText> additionalTexts = new();
+        List<AdditionalText> additionalTexts = [];
         foreach (AxamlTestFile file in axamlFiles)
             additionalTexts.Add(new StringAdditionalText(file.Path, file.Text));
 

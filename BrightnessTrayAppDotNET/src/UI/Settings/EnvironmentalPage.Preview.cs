@@ -236,7 +236,7 @@ public sealed partial class BrightnessSettingsWindow
     private void OnEnvironmentalSunOverlayCalendarSelectedDatesChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_suppressSunOverlayCalendarEvents) return;
-        if (_sunOverlayCalendar?.SelectedDate is not DateTime selected) return;
+        if (_sunOverlayCalendar?.SelectedDate is not { } selected) return;
 
         ApplyEnvironmentalSunOverlayDate(selected);
     }
@@ -248,7 +248,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         if (!IsEnvironmentalSunOverlayCalendarDayButtonSource(e.Source)) return;
 
-        if (_sunOverlayCalendar?.SelectedDate is DateTime selected)
+        if (_sunOverlayCalendar?.SelectedDate is { } selected)
             ApplyEnvironmentalSunOverlayDate(selected);
 
         CloseEnvironmentalSunOverlayCalendar();
@@ -311,9 +311,7 @@ public sealed partial class BrightnessSettingsWindow
         if (source is not Visual visual) return false;
 
         foreach (Visual ancestor in visual.GetVisualAncestors())
-        {
             if (ancestor is CalendarDayButton) return true;
-        }
 
         return false;
     }

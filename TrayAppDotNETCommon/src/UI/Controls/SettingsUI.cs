@@ -437,9 +437,11 @@ public sealed class SettingsButton : Border
         else if (_isPointerOver)
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Hover);
         else
+        {
             Background = _transparentBase
                 ? Brushes.Transparent
                 : TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground);
+        }
     }
 
     private static Grid CreateNavContent(TextBlock label)

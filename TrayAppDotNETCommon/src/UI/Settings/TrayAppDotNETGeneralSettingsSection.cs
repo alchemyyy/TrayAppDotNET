@@ -162,8 +162,10 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             {
                 result = await Task.Run(entry.Install);
                 if (result is { Success: false, UserCancelled: false } && !string.IsNullOrEmpty(result.ErrorMessage))
+                {
                     await _options.ShowMessage(L("Settings_General_InstallFailed_Title", "Install failed"),
                         result.ErrorMessage);
+                }
             }
             finally
             {

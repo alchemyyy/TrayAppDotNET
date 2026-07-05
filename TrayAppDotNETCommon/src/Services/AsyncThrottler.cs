@@ -101,8 +101,10 @@ public sealed class AsyncThrottler<TKey>(
             {
                 active = 0;
                 foreach (Slot throttleSlot in _slots.Values)
+                {
                     if (throttleSlot.DriverRunning)
                         active++;
+                }
             }
 
             if (active == 0) return;

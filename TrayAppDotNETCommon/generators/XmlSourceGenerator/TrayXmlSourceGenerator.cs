@@ -337,9 +337,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
             string body;
 
             if (member is { IsCollection: true, Shape: MemberShape.Array })
-            {
                 body = $"                    value.{propertyName} = ReadList_{info.Id}_{member.Property.Name}(reader);";
-            }
             else if (member.IsCollection)
             {
                 ITypeSymbol itemType = member.ItemType!;
@@ -473,9 +471,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
             for (INamedTypeSymbol? current = type;
                  current != null && current.SpecialType != SpecialType.System_Object;
                  current = current.BaseType)
-            {
                 hierarchy.Push(current);
-            }
 
             HashSet<string> seen = [];
             while (hierarchy.Count > 0)

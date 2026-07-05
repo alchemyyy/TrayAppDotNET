@@ -526,8 +526,10 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         // Stop watching the process before releasing COM proxies. If the watcher fires concurrently
         // the marshaled callback's _disposed guard collapses it to a no-op.
         if (_watchingProcess && _processExitMonitor != null)
+        {
             try { _processExitMonitor.Unwatch(ProcessID); }
             catch { }
+        }
 
         // Drop any queued SetMasterVolume so the throttler driver doesn't try to call into the
         // RCW we're about to release. A payload already in flight will catch the COM exception.

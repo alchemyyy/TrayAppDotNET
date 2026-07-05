@@ -274,8 +274,10 @@ public class EnvironmentalCurve
         // that's the value we keep, matching the editor's "last write wins" SyncEdgeYIfEdge invariant.
         double? keepValue = null;
         foreach (EnvironmentalCurvePoint p in series)
+        {
             if (p.Time == edgeTime)
                 keepValue = p.Value;
+        }
 
         if (keepValue is null) return;
 

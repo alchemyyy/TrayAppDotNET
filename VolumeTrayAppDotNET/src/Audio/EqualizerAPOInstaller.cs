@@ -388,16 +388,20 @@ internal static class EqualizerAPOInstaller
                 {
                     fxProps.SetValue(FxSlotValueNames[SFX], preGuid, RegistryValueKind.String);
                     if (!HasValue(fxProps, SfxProcessingModesValueName))
+                    {
                         fxProps.SetValue(SfxProcessingModesValueName, new[] { DefaultProcessingModeValue },
                             RegistryValueKind.MultiString);
+                    }
                 }
 
                 if (installPostMix)
                 {
                     fxProps.SetValue(FxSlotValueNames[MFX], postGuid, RegistryValueKind.String);
                     if (!HasValue(fxProps, MfxProcessingModesValueName))
+                    {
                         fxProps.SetValue(MfxProcessingModesValueName, new[] { DefaultProcessingModeValue },
                             RegistryValueKind.MultiString);
+                    }
                 }
 
                 // EFX deliberately left alone - SFX/MFX mode coexists with an EFX written by
@@ -411,16 +415,20 @@ internal static class EqualizerAPOInstaller
                 {
                     fxProps.SetValue(FxSlotValueNames[SFX], preGuid, RegistryValueKind.String);
                     if (!HasValue(fxProps, SfxProcessingModesValueName))
+                    {
                         fxProps.SetValue(SfxProcessingModesValueName, new[] { DefaultProcessingModeValue },
                             RegistryValueKind.MultiString);
+                    }
                 }
 
                 if (installPostMix)
                 {
                     fxProps.SetValue(FxSlotValueNames[EFX], postGuid, RegistryValueKind.String);
                     if (!HasValue(fxProps, EfxProcessingModesValueName))
+                    {
                         fxProps.SetValue(EfxProcessingModesValueName, new[] { DefaultProcessingModeValue },
                             RegistryValueKind.MultiString);
+                    }
                 }
 
                 // MFX deliberately left alone.
@@ -474,8 +482,10 @@ internal static class EqualizerAPOInstaller
             // device key).
             using RegistryKey? deviceKey = OpenWritableWithFallback(hklm, deviceSubKey);
             if (deviceKey == null)
+            {
                 TADNLog.Log(
                     $"EqualizerAPOInstaller.Uninstall({deviceGuid}): could not open {deviceSubKey} for write (key missing or access denied)");
+            }
             else
             {
                 try
@@ -500,8 +510,10 @@ internal static class EqualizerAPOInstaller
             // absent / stale Child APOs.
             using RegistryKey? fxProps = OpenWritableWithFallback(hklm, fxPropsSubKey);
             if (fxProps == null)
+            {
                 TADNLog.Log(
                     $"EqualizerAPOInstaller.Uninstall({deviceGuid}): could not open {fxPropsSubKey} for write (key missing or access denied)");
+            }
             else
             {
                 string preGuid = FormatGuid(PreMixGuid);

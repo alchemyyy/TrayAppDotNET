@@ -527,11 +527,13 @@ public sealed class UpdateCheckService : IDisposable
             .SendAsync(req, HttpCompletionOption.ResponseContentRead, token)
             .ConfigureAwait(false);
         if (!resp.IsSuccessStatusCode)
+        {
             throw new HttpRequestException(
                 $"Manifest request to {_options.VersionsManifestUrl} failed with HTTP "
                 + $"{(int)resp.StatusCode} ({resp.ReasonPhrase}).",
                 null,
                 resp.StatusCode);
+        }
 
         await using Stream stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         VersionsManifest manifest = TrayXmlSerializer.Read<VersionsManifest>(stream);

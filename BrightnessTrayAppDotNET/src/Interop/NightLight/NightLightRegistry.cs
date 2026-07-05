@@ -568,8 +568,10 @@ internal static class NightLightRegistry
     {
         int end = layout.InnerEnd - tag.Length;
         for (int i = layout.InnerStart + OuterMagic.Length; i <= end; i++)
+        {
             if (MatchesAt(blob, i, tag))
                 return i + tag.Length;
+        }
 
         return -1;
     }
@@ -706,8 +708,10 @@ internal static class NightLightRegistry
         if (offset + pattern.Length > data.Length) return false;
 
         for (int i = 0; i < pattern.Length; i++)
+        {
             if (data[offset + i] != pattern[i])
                 return false;
+        }
 
         return true;
     }

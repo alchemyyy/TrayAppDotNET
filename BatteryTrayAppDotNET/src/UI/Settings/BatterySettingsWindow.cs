@@ -534,8 +534,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         bool reordered = false;
         _draggedTriggerRow?.RenderTransform = null;
         if (_triggerPanel != null)
+        {
             foreach (Control child in _triggerPanel.Children)
                 child.RenderTransform = null;
+        }
+
         _draggedTriggerRow = null;
         _draggedTrigger = null;
         _draggedTriggerTargetIndex = -1;
@@ -900,9 +903,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 binding.Enabled = false;
             }
             else
-            {
                 _settings.Hotkeys.RemoveAll(b => b.Matches(action, string.Empty, binding.BindingID));
-            }
 
             Save();
             refresh();

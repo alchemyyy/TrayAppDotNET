@@ -806,10 +806,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         glyph.Width = Layout.ProbeRowGlyphWidth;
 
         //TODO: Move this hack to its own layer its currently repeated everywhere I need it
-        if (source?.DataSourceType == DataSourceTypeEnum.Load)
-        {
-            glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
-        }
+        if (source?.DataSourceType == DataSourceTypeEnum.Load) glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
         glyph.VerticalAlignment = VerticalAlignment.Center;
         labelRow.Children.Add(glyph);
 
@@ -4466,9 +4463,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             }
 
             foreach (ProbeCard probeCard in _probeCards)
-            {
                 if (probeCard.DisplayOrder >= 0) probeCard.DisplayOrder += offset;
-            }
 
             if (_lhmService == null) return;
             foreach (Fan fan in _lhmService.Fans)
