@@ -8,7 +8,13 @@
   <Project Path="TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj">
+    <Platform Project="x64" />
+  </Project>
   <Project Path="TrayAppDotNETCommon/tests/XmlSourceGenerator.Tests/TrayAppDotNETCommon.XmlSourceGenerator.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="TrayAppDotNETCommon/tests/AxamlPropertyLinker.Tests/TrayAppDotNETCommon.AxamlPropertyLinker.Tests.csproj">
     <Platform Project="x64" />
   </Project>
   <Project Path="BatteryTrayAppDotNET/src/BatteryTrayAppDotNET.csproj">

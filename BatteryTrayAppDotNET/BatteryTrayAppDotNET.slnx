@@ -6,6 +6,7 @@
     <Platform Project="x64" />
   </Project>
   <Project Path="../TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
+  <Project Path="../TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj" />
   <Project Path="src/BatteryTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>

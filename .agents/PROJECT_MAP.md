@@ -8,6 +8,9 @@
 - XML source generator:
   - `TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj`
   - `TrayAppDotNETCommon/tests/XmlSourceGenerator.Tests/TrayAppDotNETCommon.XmlSourceGenerator.Tests.csproj`
+- AXAML property-linker source generator:
+  - `TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj`
+  - `TrayAppDotNETCommon/tests/AxamlPropertyLinker.Tests/TrayAppDotNETCommon.AxamlPropertyLinker.Tests.csproj`
 - Apps:
   - `BatteryTrayAppDotNET/src/BatteryTrayAppDotNET.csproj`
   - `BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj`

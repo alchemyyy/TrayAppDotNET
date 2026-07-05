@@ -14,4 +14,7 @@
   <Project Path="../TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="../TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>
