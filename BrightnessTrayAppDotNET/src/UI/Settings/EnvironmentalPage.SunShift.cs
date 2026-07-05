@@ -46,16 +46,14 @@ public sealed partial class BrightnessSettingsWindow
 
         double toLatitude = _settings.EnvironmentalLatitude;
         double toLongitude = _settings.EnvironmentalLongitude;
-        if (!IsValidCoordinate(toLatitude, toLongitude)) return (stored.DisabledPeriodStart, stored.DisabledPeriodEnd);
-
-        if (string.IsNullOrEmpty(stored.LastDisabledPeriodSunShiftDate)
+        if (!IsValidCoordinate(toLatitude, toLongitude)
+            || string.IsNullOrEmpty(stored.LastDisabledPeriodSunShiftDate)
             || !DateTime.TryParseExact(
                 stored.LastDisabledPeriodSunShiftDate,
                 "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out DateTime fromDate))
-            return (stored.DisabledPeriodStart, stored.DisabledPeriodEnd);
+                out DateTime fromDate)) return (stored.DisabledPeriodStart, stored.DisabledPeriodEnd);
 
         double fromLatitude;
         double fromLongitude;

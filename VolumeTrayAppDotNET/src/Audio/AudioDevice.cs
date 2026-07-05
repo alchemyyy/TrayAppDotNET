@@ -530,7 +530,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         }
 
         DeviceAPOInfo? info = EqualizerAPOInstaller.Probe(endpointGuid, DataFlow == EDataFlow.eCapture);
-        if (info == null || !info.IsInstalled)
+        if (info is not { IsInstalled: true })
         {
             EqualizerAPOState = EqualizerAPOState.NotInstalled;
             return;

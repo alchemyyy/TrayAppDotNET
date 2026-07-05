@@ -618,7 +618,7 @@ Target: {1}</value>
     <value>System wide</value>
   </data>
   <data name="Settings_General_UninstallIncomplete_Message" xml:space="preserve">
-    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the install location and Windows Settings &gt; Apps.</value>
+    <value>Uninstall completed with warnings. Some files or registry entries may need manual removal. Check the installation location and Windows Settings &gt; Apps.</value>
   </data>
   <data name="Settings_General_UninstallIncomplete_Title" xml:space="preserve">
     <value>Uninstall incomplete</value>
@@ -1185,7 +1185,7 @@ Target: {1}</value>
     <value>This will remove VolumeTrayAppDotNET installed at "{0}" and its entry in Windows Settings &gt; Apps. Choose what to do with your settings.</value>
   </data>
   <data name="Uninstaller_KeepSettings_Description" xml:space="preserve">
-    <value>Leave settings.xml in place so a future install picks them up.</value>
+    <value>Leave settings.xml in place so a future installation picks them up.</value>
   </data>
   <data name="Uninstaller_KeepSettings_Title" xml:space="preserve">
     <value>Keep my settings</value>
@@ -1206,7 +1206,7 @@ Target: {1}</value>
     <value>Windows Store</value>
   </data>
   <data name="Settings_General_StoreRunning" xml:space="preserve">
-    <value>Running from the Microsoft Store install.</value>
+    <value>Running from the Microsoft Store installation.</value>
   </data>
   <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
     <value>Not installed from the Microsoft Store.</value>

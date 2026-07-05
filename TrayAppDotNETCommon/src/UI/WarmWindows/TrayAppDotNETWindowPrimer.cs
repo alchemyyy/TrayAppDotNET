@@ -59,7 +59,7 @@ public static class TrayAppDotNETWindowPrimer
             window.ShowInTaskbar = oldShowInTaskbar;
             window.Opacity = oldOpacity;
             window.Position = oldPosition;
-            if (warmWindow != null) warmWindow.IsWarmPriming = false;
+            warmWindow?.IsWarmPriming = false;
         }
     }
 }

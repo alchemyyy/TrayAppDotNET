@@ -886,8 +886,7 @@ public sealed class FanCurveEditor : Control
     {
         int count = Math.Min(xs.Length, ys.Length);
         if (count == 0) return 0.0;
-        if (count == 1) return ys[0];
-        if (x <= xs[0]) return ys[0];
+        if (count == 1 || x <= xs[0]) return ys[0];
         if (x >= xs[count - 1]) return ys[count - 1];
 
         int low = 0;
@@ -955,8 +954,7 @@ public sealed class FanCurveEditor : Control
     {
         int count = Math.Min(Math.Min(xs.Length, ys.Length), tangents.Length);
         if (count == 0) return 0.0;
-        if (count == 1) return ys[0];
-        if (x <= xs[0]) return ys[0];
+        if (count == 1 || x <= xs[0]) return ys[0];
         if (x >= xs[count - 1]) return ys[count - 1];
 
         int low = 0;

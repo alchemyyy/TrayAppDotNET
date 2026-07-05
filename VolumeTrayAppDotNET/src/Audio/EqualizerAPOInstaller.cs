@@ -207,24 +207,48 @@ internal static class EqualizerAPOInstaller
             InstallMode currentMode = InferInstallMode(hklm, deviceSubKey, foundAt, installed);
 
             string version = "0";
-            if (installed)
+            if (!installed)
+            {
+                return new DeviceAPOInfo
+                {
+                    DeviceGuid = deviceGuid,
+                    IsCapture = isCapture,
+                    IsInstalled = installed,
+                    EnhancementsDisabled = enhancementsDisabled,
+                    CurrentInstallMode = currentMode,
+                    Version = version,
+                    OriginalApoGuids = originalApoGuids,
+                };
+            }
+
             {
                 using RegistryKey? childKey = hklm.OpenSubKey($@"{ChildApoSubKey}\{deviceGuid}", writable: false);
-                if (childKey != null)
+                if (childKey == null)
                 {
-                    object? versionRaw = childKey.GetValue(VersionValueName);
-                    if (versionRaw is string vs) version = vs;
-                    else version = "1";
-
-                    // Merge the Child APOs backup over the FxProperties snapshot. The Child APOs
-                    // copy is the authoritative "what was here before EAPO" record - the
-                    // FxProperties slots holding EAPO GUIDs would mislead an uninstall that
-                    // trusted them.
-                    for (int i = 0; i < FxSlotCount; i++)
+                    return new DeviceAPOInfo
                     {
-                        object? slotRaw = childKey.GetValue(FxSlotValueNames[i]);
-                        if (slotRaw is string slotStr) originalApoGuids[i] = slotStr;
-                    }
+                        DeviceGuid = deviceGuid,
+                        IsCapture = isCapture,
+                        IsInstalled = installed,
+                        EnhancementsDisabled = enhancementsDisabled,
+                        CurrentInstallMode = currentMode,
+                        Version = version,
+                        OriginalApoGuids = originalApoGuids,
+                    };
+                }
+
+                object? versionRaw = childKey.GetValue(VersionValueName);
+                if (versionRaw is string vs) version = vs;
+                else version = "1";
+
+                // Merge the Child APOs backup over the FxProperties snapshot. The Child APOs
+                // copy is the authoritative "what was here before EAPO" record - the
+                // FxProperties slots holding EAPO GUIDs would mislead an uninstall that
+                // trusted them.
+                for (int i = 0; i < FxSlotCount; i++)
+                {
+                    object? slotRaw = childKey.GetValue(FxSlotValueNames[i]);
+                    if (slotRaw is string slotStr) originalApoGuids[i] = slotStr;
                 }
             }
 
@@ -529,14 +553,12 @@ internal static class EqualizerAPOInstaller
                     {
                         // No backup entry for this slot. Clear any EAPO GUID still living
                         // here so the chain actually goes away.
-                        if (fxProps.GetValue(FxSlotValueNames[i]) is string current
-                            && (string.Equals(current, preGuid, StringComparison.OrdinalIgnoreCase)
-                                || string.Equals(current, postGuid, StringComparison.OrdinalIgnoreCase)))
-                        {
-                            fxProps.DeleteValue(FxSlotValueNames[i], throwOnMissingValue: false);
-                            TADNLog.Log(
-                                $"EqualizerAPOInstaller.Uninstall({deviceGuid}): cleared orphaned EAPO GUID from slot {i} (no Child APOs backup)");
-                        }
+                        if (fxProps.GetValue(FxSlotValueNames[i]) is not string current
+                            || (!string.Equals(current, preGuid, StringComparison.OrdinalIgnoreCase)
+                                && !string.Equals(current, postGuid, StringComparison.OrdinalIgnoreCase))) continue;
+                        fxProps.DeleteValue(FxSlotValueNames[i], throwOnMissingValue: false);
+                        TADNLog.Log(
+                            $"EqualizerAPOInstaller.Uninstall({deviceGuid}): cleared orphaned EAPO GUID from slot {i} (no Child APOs backup)");
                     }
                 }
 
@@ -548,28 +570,24 @@ internal static class EqualizerAPOInstaller
         // get cleaned up below; tolerate races where another caller already removed them.
         using (RegistryKey? childParent = hklm.OpenSubKey(ChildApoSubKey, writable: true))
         {
-            if (childParent != null)
+            if (childParent == null) return;
+            try { childParent.DeleteValue(deviceGuid, throwOnMissingValue: false); }
+            catch { }
+
+            try { childParent.DeleteSubKeyTree(deviceGuid, throwOnMissingSubKey: false); }
+            catch (ArgumentException)
             {
-                try { childParent.DeleteValue(deviceGuid, throwOnMissingValue: false); }
-                catch { }
+                /* already gone */
+            }
 
-                try { childParent.DeleteSubKeyTree(deviceGuid, throwOnMissingSubKey: false); }
-                catch (ArgumentException)
-                {
-                    /* already gone */
-                }
-
-                int subKeyCount = childParent.SubKeyCount;
-                int valueCount = childParent.ValueCount;
-                if (subKeyCount == 0 && valueCount == 0)
-                {
-                    using RegistryKey? appRoot = hklm.OpenSubKey(AppRegSubKey, writable: true);
-                    try { appRoot?.DeleteSubKeyTree("Child APOs", throwOnMissingSubKey: false); }
-                    catch (ArgumentException)
-                    {
-                        /* already gone */
-                    }
-                }
+            int subKeyCount = childParent.SubKeyCount;
+            int valueCount = childParent.ValueCount;
+            if (subKeyCount != 0 || valueCount != 0) return;
+            using RegistryKey? appRoot = hklm.OpenSubKey(AppRegSubKey, writable: true);
+            try { appRoot?.DeleteSubKeyTree("Child APOs", throwOnMissingSubKey: false); }
+            catch (ArgumentException)
+            {
+                /* already gone */
             }
         }
     }

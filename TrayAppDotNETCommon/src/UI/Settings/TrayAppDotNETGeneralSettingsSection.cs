@@ -306,8 +306,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
 
     private void RefreshStartupDescription()
     {
-        if (_startupDescription != null)
-            _startupDescription.Text = RunOnStartupDescription();
+        _startupDescription?.Text = RunOnStartupDescription();
     }
 
     private void RefreshRows()

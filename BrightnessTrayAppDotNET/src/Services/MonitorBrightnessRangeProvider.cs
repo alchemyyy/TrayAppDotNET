@@ -5,7 +5,7 @@ namespace BrightnessTrayAppDotNET.Services;
 /// <summary>
 /// Tracks the live (min, max) manual-slider brightness range across all currently-enumerated monitors plus the
 /// flyout's master monitor, and re-emits it whenever any one of those values changes.
-/// Lifts the per-monitor PropertyChanged subscription dance out of <see cref="SettingsWindow"/> so the curve editor's
+/// Lifts the per-monitor PropertyChanged subscription dance out of SettingsWindow so the curve editor's
 /// degeneration lines can be driven by an event rather than by code that only runs while the settings window is open.
 /// CurveReleased rows are intentionally NOT filtered out of the active set: in absolute curve mode, dragging an
 /// individual slider transitions that row to CurveReleased, but the slider value the user just dialed in is still the

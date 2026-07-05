@@ -34,7 +34,8 @@ public static class FanCurveModeSync
     /// </summary>
     public static void ApplyToCurveAssignments(Curve curve, IEnumerable<Fan> fans, IEnumerable<FanGroup> groups)
     {
-        foreach (Fan fan in fans)
+        IEnumerable<Fan> enumerable = fans.ToList();
+        foreach (Fan fan in enumerable)
         {
             if (!string.IsNullOrWhiteSpace(fan.Group)) continue;
             if (!string.Equals(fan.AssignedCurveName, curve.CurveName, StringComparison.OrdinalIgnoreCase)) continue;
@@ -44,7 +45,7 @@ public static class FanCurveModeSync
         foreach (FanGroup group in groups)
         {
             if (!string.Equals(group.AssignedCurveName, curve.CurveName, StringComparison.OrdinalIgnoreCase)) continue;
-            ApplyToGroup(group, fans, curve);
+            ApplyToGroup(group, enumerable, curve);
         }
     }
 }

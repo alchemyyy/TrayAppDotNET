@@ -145,9 +145,7 @@ public class Curve : INotifyPropertyChanged
     {
         List<CurveNode> ordered = [.. CurveNodes.Select(static n => new CurveNode(n.X, n.Y))];
         ordered.Sort((a, b) => a.X.CompareTo(b.X));
-        if (!PreventDecreasing) return ordered;
-
-        if (ordered.Count == 0) return ordered;
+        if (!PreventDecreasing || ordered.Count == 0) return ordered;
 
         double floor = ordered[0].Y;
         for (int i = 1; i < ordered.Count; i++)

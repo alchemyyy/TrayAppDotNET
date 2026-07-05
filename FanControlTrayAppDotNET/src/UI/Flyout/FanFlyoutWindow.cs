@@ -753,13 +753,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             int count = counts.GetValueOrDefault(deviceName) + 1;
             counts[deviceName] = count;
             int firstIndex = firstIndexes[deviceName];
-            if (count < bestCount)
-            {
-                index++;
-                continue;
-            }
-
-            if (count == bestCount && firstIndex >= bestIndex)
+            if (count < bestCount || count == bestCount && firstIndex >= bestIndex)
             {
                 index++;
                 continue;
@@ -1731,8 +1725,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private static double ConvertCurveTargetToGroupSliderValue(FanFlyoutCell cell, Curve curve, double target)
     {
-        if (cell.GroupRPMMode == curve.RPMMode) return target;
-        if (cell.Fans.Count == 0) return target;
+        if (cell.GroupRPMMode == curve.RPMMode || cell.Fans.Count == 0) return target;
 
         return cell.GroupRPMMode
             ? cell.Fans.Average(fan => target / 100.0 * FanRPMReference(fan, curve))
@@ -3552,7 +3545,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void FanNameTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.ClickCount != 2 || sender is not TextBlock text || text.Tag is not Fan fan) return;
+        if (e.ClickCount != 2 || sender is not TextBlock { Tag: Fan fan } text) return;
         if (text.Parent is not Grid grid) return;
         TextBox? box = grid.Children.OfType<TextBox>().FirstOrDefault();
         if (box == null) return;
@@ -3567,7 +3560,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void GroupNameTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.ClickCount != 2 || sender is not TextBlock text || text.Tag is not FanFlyoutCell cell) return;
+        if (e.ClickCount != 2 || sender is not TextBlock { Tag: FanFlyoutCell cell } text) return;
         if (text.Parent is not Grid grid) return;
         TextBox? box = grid.Children.OfType<TextBox>().FirstOrDefault();
         if (box == null) return;
@@ -3585,7 +3578,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private void ProbeNameTextPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.ClickCount != 2 || sender is not TextBlock text || text.Tag is not ProbeCard probeCard) return;
+        if (e.ClickCount != 2 || sender is not TextBlock { Tag: ProbeCard probeCard } text) return;
         if (text.Parent is not Grid grid) return;
         TextBox? box = grid.Children.OfType<TextBox>().FirstOrDefault();
         if (box == null) return;
@@ -4247,19 +4240,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             return;
         }
 
-        if (!IsVisible && !IsWarmPriming)
-        {
-            _pendingFanRebuild = true;
-            return;
-        }
-
-        if (IsPointerGestureActive)
-        {
-            _pendingFanRebuild = true;
-            return;
-        }
-
-        if (_isRebuildingVisual)
+        if (!IsVisible && !IsWarmPriming || IsPointerGestureActive || _isRebuildingVisual)
         {
             _pendingFanRebuild = true;
             return;
@@ -4271,13 +4252,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Dispatcher.UIThread.Post(() =>
         {
             _fanRebuildQueued = false;
-            if (!IsVisible && !IsWarmPriming)
-            {
-                _pendingFanRebuild = true;
-                return;
-            }
-
-            if (IsPointerGestureActive || _isRebuildingVisual)
+            if (!IsVisible && !IsWarmPriming || IsPointerGestureActive || _isRebuildingVisual)
             {
                 _pendingFanRebuild = true;
                 return;

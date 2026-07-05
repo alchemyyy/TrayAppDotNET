@@ -1052,8 +1052,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                     _monitorService.ValidationDwellMs = _settings.ValidationDwellMs;
                 }
 
-                if (_trayIcon != null)
-                    _trayIcon.IsScrollEnabled = _settings.TrayScrollEnabled;
+                _trayIcon?.IsScrollEnabled = _settings.TrayScrollEnabled;
                 _hotkeyService?.Apply(_settings.Hotkeys);
             }
 

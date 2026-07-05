@@ -52,8 +52,7 @@ public static class TimeCurveSampler
     {
         int count = Math.Min(timePoints.Count, valuePoints.Count);
         if (count == 0) return 0.0;
-        if (count == 1) return valuePoints[0];
-        if (x <= timePoints[0]) return valuePoints[0];
+        if (count == 1 || x <= timePoints[0]) return valuePoints[0];
         if (x >= timePoints[count - 1]) return valuePoints[count - 1];
 
         int low = 0;
@@ -128,8 +127,7 @@ public static class TimeCurveSampler
     {
         int count = Math.Min(Math.Min(timePoints.Count, valuePoints.Count), tangents.Count);
         if (count == 0) return 0.0;
-        if (count == 1) return valuePoints[0];
-        if (x <= timePoints[0]) return valuePoints[0];
+        if (count == 1 || x <= timePoints[0]) return valuePoints[0];
         if (x >= timePoints[count - 1]) return valuePoints[count - 1];
 
         int low = 0;

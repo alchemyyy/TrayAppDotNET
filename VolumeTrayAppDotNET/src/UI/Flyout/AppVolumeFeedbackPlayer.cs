@@ -95,7 +95,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     private bool ShouldSuppressDeviceDing(AudioDevice device)
     {
         AppSettings? settings = _settings;
-        if (settings == null || !settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying) return false;
+        if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
         if (!device.IsCurrentEndpointPeakAbove(settings.DingSuppressionPeakThresholdPercent * 0.01f)) return false;
 
         return !_dingActiveUntilTicks.TryGetValue(device.Id, out long until)
@@ -105,7 +105,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     private bool ShouldSuppressAppDing(AudioAppGroup group)
     {
         AppSettings? settings = _settings;
-        if (settings == null || !settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying) return false;
+        if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
         return group.PeakValues.Max > settings.DingSuppressionPeakThresholdPercent * 0.01f;
     }
 
