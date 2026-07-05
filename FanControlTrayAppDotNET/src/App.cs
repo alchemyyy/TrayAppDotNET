@@ -514,7 +514,7 @@ internal sealed class FanAvaloniaApp : Application
             _trayMenuWindow = null;
     }
 
-    private void ShowFanFlyout(bool activate = true)
+    private void ShowFanFlyout(bool activate = true, bool holdOpenForSettings = true)
     {
         if (_settings == null || _trayIcon == null) return;
 
@@ -522,6 +522,8 @@ internal sealed class FanAvaloniaApp : Application
             _fanFlyout = FanFlyoutWarmSlot.TakeOrCreate(CreateManagedFanFlyout);
 
         _fanFlyout.ShowAt(_trayIcon, activate);
+        if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
+            SettingsFlyoutKeepOpen.HoldOpen();
     }
 
     private FanFlyoutWindow CreateManagedFanFlyout()
@@ -566,7 +568,8 @@ internal sealed class FanAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _fanFlyout);
+            () => _fanFlyout,
+            () => ShowFanFlyout(activate: false, holdOpenForSettings: false));
 
     private void OnFanFlyoutClosed(object? sender, EventArgs e)
     {

@@ -454,12 +454,14 @@ internal sealed class BatteryAvaloniaApp : Application
     private SettingsPalette TrayMenuPalette() =>
         BatterySettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLightTheme());
 
-    private void ShowBatteryFlyout(bool activate = true)
+    private void ShowBatteryFlyout(bool activate = true, bool holdOpenForSettings = true)
     {
         if (_batteryMonitor == null || _settings == null || _trayIcon == null) return;
 
         _batteryFlyout ??= BatteryFlyoutWarmSlot.TakeOrCreate(CreateManagedBatteryFlyout);
         _batteryFlyout.ShowAt(_trayIcon, activate);
+        if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
+            SettingsFlyoutKeepOpen.HoldOpen();
     }
 
     private BatteryFlyoutWindow CreateManagedBatteryFlyout()
@@ -486,7 +488,8 @@ internal sealed class BatteryAvaloniaApp : Application
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _batteryFlyout);
+            () => _batteryFlyout,
+            () => ShowBatteryFlyout(activate: false, holdOpenForSettings: false));
 
     private void ScheduleKeepWarmPriming()
     {

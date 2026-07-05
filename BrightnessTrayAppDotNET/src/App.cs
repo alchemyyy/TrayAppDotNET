@@ -811,7 +811,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         _ = _monitorService.SetPowerStateAsync(monitor, false);
     }
 
-    private void ShowBrightnessFlyout(bool activate = true)
+    private void ShowBrightnessFlyout(bool activate = true, bool holdOpenForSettings = true)
     {
         if (_settings == null || _monitorService == null || _trayIcon == null) return;
 
@@ -819,12 +819,15 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         _brightnessFlyout.Redock();
         _brightnessFlyout.ShowAt(_trayIcon, activate);
+        if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
+            SettingsFlyoutKeepOpen.HoldOpen();
     }
 
     private SettingsFlyoutKeepOpenCoordinator SettingsFlyoutKeepOpen =>
         _settingsFlyoutKeepOpen ??= new SettingsFlyoutKeepOpenCoordinator(
             () => _settingsWindow,
-            () => _brightnessFlyout);
+            () => _brightnessFlyout,
+            () => ShowBrightnessFlyout(activate: false, holdOpenForSettings: false));
 
     private void OnBrightnessFlyoutClosed(object? sender, EventArgs e)
     {
