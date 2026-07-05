@@ -47,13 +47,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         _monitorService = AppServices.MonitorService;
         _brightnessRangeProvider = AppServices.MonitorBrightnessRangeProvider;
 
-        ConfigureSettingsWindow(
-            L("SettingsWindow_Title", "Settings"),
-            width: 960,
-            height: 670,
-            minWidth: 720,
-            minHeight: 520,
-            AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 

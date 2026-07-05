@@ -46,13 +46,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureSettingsWindow(
-            L("SettingsWindow_Title", "Settings"),
-            width: 900,
-            height: 640,
-            minWidth: 680,
-            minHeight: 500,
-            AppTheme.LoadAppIcon());
+        ConfigureCompactSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
