@@ -104,10 +104,6 @@
     </Compile>
   </ItemGroup>
 
-  <Target Name="KillRunningInstance" BeforeTargets="BeforeBuild;BeforeClean">
-    <Exec Command="taskkill /F /IM $(AssemblyName).exe /T" ContinueOnError="true" IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="low" StandardErrorImportance="low" Condition="'$(SkipKillRunningInstance)' != 'true'" />
-  </Target>
-
   <Target Name="CopyHotAvaloniaRuntimeAssemblies"
           AfterTargets="Build"
           Condition="'$(HotAvalonia)' == 'true' and '$(RuntimeIdentifier)' == ''">

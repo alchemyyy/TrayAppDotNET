@@ -1,9 +1,13 @@
 <Project>
   <PropertyGroup>
-    <CopyRetryCount Condition="'$(CopyRetryCount)' == ''">20</CopyRetryCount>
-    <CopyRetryDelayMilliseconds Condition="'$(CopyRetryDelayMilliseconds)' == ''">250</CopyRetryDelayMilliseconds>
+    <CopyRetryCount Condition="'$(CopyRetryCount)' == ''">3</CopyRetryCount>
+    <CopyRetryDelayMilliseconds Condition="'$(CopyRetryDelayMilliseconds)' == ''">500</CopyRetryDelayMilliseconds>
     <OverwriteReadOnlyFiles Condition="'$(OverwriteReadOnlyFiles)' == ''">true</OverwriteReadOnlyFiles>
     <ErrorOnDuplicatePublishOutputFiles Condition="'$(ErrorOnDuplicatePublishOutputFiles)' == ''">false</ErrorOnDuplicatePublishOutputFiles>
+    <TrayAppDotNETUnlockScript Condition="'$(TrayAppDotNETUnlockScript)' == ''">$(TrayAppDotNETRoot).tadn_build_tools\unlock_trayappdotnet_build_outputs.ps1</TrayAppDotNETUnlockScript>
+    <TrayAppDotNETUnlockMaxAttempts Condition="'$(TrayAppDotNETUnlockMaxAttempts)' == ''">4</TrayAppDotNETUnlockMaxAttempts>
+    <TrayAppDotNETUnlockRetryDelayMilliseconds Condition="'$(TrayAppDotNETUnlockRetryDelayMilliseconds)' == ''">500</TrayAppDotNETUnlockRetryDelayMilliseconds>
+    <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETUnlockProcessNames)' == ''">BatteryTrayAppDotNET;BrightnessTrayAppDotNET;FanControlTrayAppDotNET;NetworkTrayAppDotNET;VolumeTrayAppDotNET</TrayAppDotNETUnlockProcessNames>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TrayAppDotNETUseRootOutput)' == 'true'">
@@ -33,4 +37,18 @@
     <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="$(TrayAppDotNETGCHeapHardLimitBytes)" />
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
   </ItemGroup>
+
+  <!-- Probe output files for write access and only kill TrayAppDotNET PIDs
+       that Restart Manager reports as locking those files. -->
+  <Target Name="UnlockTrayAppDotNETOutputFilesBeforeBuild"
+          BeforeTargets="BeforeBuild;BeforeClean"
+          Condition="'$(SkipKillRunningInstance)' != 'true' and '$(OutputType)' == 'WinExe' and Exists('$(TrayAppDotNETUnlockScript)')">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(TrayAppDotNETUnlockScript)&quot; -OutputDirectories &quot;$(TargetDir).;$(OutDir).;$(OutputPath).&quot; -AllowedProcessNames &quot;$(TrayAppDotNETUnlockProcessNames)&quot; -MaxAttempts $(TrayAppDotNETUnlockMaxAttempts) -RetryDelayMilliseconds $(TrayAppDotNETUnlockRetryDelayMilliseconds)" />
+  </Target>
+
+  <Target Name="UnlockTrayAppDotNETOutputFilesBeforePostBuildCopy"
+          BeforeTargets="CopyHotAvaloniaRuntimeAssemblies;CopyRuntimeReferencesToAggregateDebugOutput;CopyLibreHardwareMonitorDebugRuntimeAssemblies;PublishAfterBuild"
+          Condition="'$(SkipKillRunningInstance)' != 'true' and '$(OutputType)' == 'WinExe' and Exists('$(TrayAppDotNETUnlockScript)')">
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(TrayAppDotNETUnlockScript)&quot; -OutputDirectories &quot;$(TargetDir).;$(OutDir).;$(OutputPath).&quot; -AllowedProcessNames &quot;$(TrayAppDotNETUnlockProcessNames)&quot; -MaxAttempts $(TrayAppDotNETUnlockMaxAttempts) -RetryDelayMilliseconds $(TrayAppDotNETUnlockRetryDelayMilliseconds)" />
+  </Target>
 </Project>
