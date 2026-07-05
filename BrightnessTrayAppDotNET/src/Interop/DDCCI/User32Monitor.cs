@@ -50,15 +50,15 @@ internal static class User32Monitor
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 4)]
-    public class MonitorInfoEx
+    public class MonitorInfoEx(Rect rcMonitor, Rect rcWork, int dwFlags)
     {
         internal int cbSize = Marshal.SizeOf<MonitorInfoEx>();
-        internal Rect rcMonitor;
-        internal Rect rcWork;
-        internal int dwFlags;
+        internal Rect rcMonitor = rcMonitor;
+        internal Rect rcWork = rcWork;
+        internal int dwFlags = dwFlags;
 
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
-        internal char[] szDevice = new char[32];
+        internal readonly char[] szDevice = new char[32];
     }
 
     /// <summary>
