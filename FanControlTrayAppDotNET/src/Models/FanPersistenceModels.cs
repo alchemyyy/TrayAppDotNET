@@ -106,9 +106,6 @@ public class FanGroup : INotifyPropertyChanged
             string normalized = value ?? string.Empty;
             if (field == normalized) return;
             field = normalized;
-            Curve? curve = Curve.Find(normalized);
-            if (curve != null)
-                RPMMode = curve.RPMMode;
             OnPropertyChanged();
             OnPropertyChanged(nameof(AssignedCurve));
             OnPropertyChanged(nameof(AssignedCurveDisplayLabel));
@@ -208,19 +205,33 @@ public class FanUserSettings
 
     [XmlAttribute] public int ClampLow { get; set; }
 
+    [XmlAttribute] public bool ClampLowRPMMode { get; set; }
+
     [XmlAttribute] public int ClampHigh { get; set; } = 100;
+
+    [XmlAttribute] public bool ClampHighRPMMode { get; set; }
 
     [XmlAttribute] public int WarnLow { get; set; }
 
+    [XmlAttribute] public bool WarnLowRPMMode { get; set; }
+
     [XmlAttribute] public int WarnHigh { get; set; } = 100;
+
+    [XmlAttribute] public bool WarnHighRPMMode { get; set; }
 
     [XmlAttribute] public int DeltaMax { get; set; } = 100;
 
+    [XmlAttribute] public bool DeltaMaxRPMMode { get; set; }
+
     [XmlAttribute] public int Offset { get; set; }
+
+    [XmlAttribute] public bool OffsetRPMMode { get; set; }
 
     [XmlAttribute] public int FanDisplayedValue { get; set; } = 50;
 
     [XmlAttribute] public int StartupSpeed { get; set; } = 50;
+
+    [XmlAttribute] public bool StartupSpeedRPMMode { get; set; }
 
     [XmlAttribute] public int MaxRPM { get; set; } = -1;
 

@@ -1,51 +1,28 @@
 namespace FanControlTrayAppDotNET.Models;
 
 /// <summary>
-/// Keeps fan and group speed units aligned with assigned curve units.
+/// Preserves fan and group speed unit choices when curve assignments change.
 /// </summary>
 public static class FanCurveModeSync
 {
     /// <summary>
-    /// Applies a curve's RPM mode to a direct fan assignment.
+    /// Keeps a direct fan assignment from forcing the fan's display unit.
     /// </summary>
     public static void ApplyToFan(Fan fan, Curve? curve)
     {
-        if (curve == null) return;
-        fan.RPMMode = curve.RPMMode;
     }
 
     /// <summary>
-    /// Applies a curve's RPM mode to a group and its current member fans.
+    /// Keeps a group assignment from forcing group or fan display units.
     /// </summary>
     public static void ApplyToGroup(FanGroup group, IEnumerable<Fan> fans, Curve? curve)
     {
-        if (curve == null) return;
-
-        group.RPMMode = curve.RPMMode;
-        foreach (Fan fan in fans)
-        {
-            if (!string.Equals(fan.Group, group.Name, StringComparison.OrdinalIgnoreCase)) continue;
-            fan.RPMMode = curve.RPMMode;
-        }
     }
 
     /// <summary>
-    /// Reapplies a changed curve's RPM mode to every assignment that references it.
+    /// Curve mode changes are converted at use sites instead of mutating assignments.
     /// </summary>
     public static void ApplyToCurveAssignments(Curve curve, IEnumerable<Fan> fans, IEnumerable<FanGroup> groups)
     {
-        IEnumerable<Fan> enumerable = fans.ToList();
-        foreach (Fan fan in enumerable)
-        {
-            if (!string.IsNullOrWhiteSpace(fan.Group)) continue;
-            if (!string.Equals(fan.AssignedCurveName, curve.CurveName, StringComparison.OrdinalIgnoreCase)) continue;
-            fan.RPMMode = curve.RPMMode;
-        }
-
-        foreach (FanGroup group in groups)
-        {
-            if (!string.Equals(group.AssignedCurveName, curve.CurveName, StringComparison.OrdinalIgnoreCase)) continue;
-            ApplyToGroup(group, enumerable, curve);
-        }
     }
 }
