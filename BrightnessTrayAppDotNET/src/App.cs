@@ -792,7 +792,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_brightnessFlyout == null || _monitorService == null) return;
 
-        foreach (MonitorInfo monitor in _brightnessFlyout.Monitors)
+        foreach (MonitorInfo monitor in _brightnessFlyout.Monitors.Where(static m => m.SupportsPowerControl))
             _ = _monitorService.SetPowerStateAsync(monitor, false);
     }
 
@@ -800,13 +800,14 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_brightnessFlyout == null || _monitorService == null) return;
 
-        foreach (MonitorInfo monitor in _brightnessFlyout.Monitors)
+        foreach (MonitorInfo monitor in _brightnessFlyout.Monitors.Where(static m => m.SupportsPowerControl))
             _ = _monitorService.SetPowerStateAsync(monitor, true);
     }
 
     private void PowerOffMonitor(MonitorInfo monitor)
     {
         if (_monitorService == null) return;
+        if (!monitor.SupportsPowerControl) return;
 
         _ = _monitorService.SetPowerStateAsync(monitor, false);
     }
