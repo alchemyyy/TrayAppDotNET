@@ -836,7 +836,7 @@ public sealed partial class FanCurveEditorWindow : Window
         double oldMax = _curve.ActiveYMaximum;
         if (_curve.RPMMode == enabled) return;
         _curve.RPMMode = enabled;
-        SyncAssignedCardRPMModes();
+        NotifyAssignedCardsCurveUnitChanged();
         ClampCurveLimits();
         MarkPendingNodeRescale(oldMax, _curve.ActiveYMaximum);
         LoadControlState();
@@ -947,9 +947,9 @@ public sealed partial class FanCurveEditorWindow : Window
     }
 
     /// <summary>
-    /// Applies this curve's RPM mode to every fan or group currently assigned to it.
+    /// Notifies assigned cards that curve-unit conversion inputs changed.
     /// </summary>
-    private void SyncAssignedCardRPMModes()
+    private void NotifyAssignedCardsCurveUnitChanged()
     {
         IEnumerable<Fan>? liveFans = AppServices.LHMService?.Fans;
         IEnumerable<Fan> fans = liveFans ?? _settings.Fans;

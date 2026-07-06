@@ -12,6 +12,14 @@ namespace FanControlTrayAppDotNET.UI.Flyout;
 
 public sealed partial class FanPropertiesWindow : Window
 {
+    private const int DutyCycleMinimum = 0;
+    private const int DutyCycleMaximum = 100;
+    private const int FallbackMaximumRPM = 3000;
+    private const string DutyCycleSuffix = "%";
+    private const string RPMSuffix = "RPM";
+    private const string DutyCycleRateSuffix = "%/s";
+    private const string RPMRateSuffix = "RPM/s";
+
     private readonly Fan _fan;
     private readonly AppSettings _settings;
     private FanPropertiesAxamlProperties? _layout;
@@ -31,9 +39,11 @@ public sealed partial class FanPropertiesWindow : Window
     private readonly SettingsNumberBox _warnHighBox;
     private readonly SettingsNumberBox _deltaMaxBox;
     private readonly SettingsNumberBox _offsetBox;
+    private readonly List<FanPropertyUnitBinding> _propertyUnitBindings = [];
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
     private bool _forceClose;
+    private bool _isUpdatingPropertyUnitControls;
 
     public FanPropertiesWindow()
     {
@@ -83,16 +93,17 @@ public sealed partial class FanPropertiesWindow : Window
         _nameBox = TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth);
         _groupCombo = TrayAppDotNETSettingsUI.ComboBox(palette, Layout.TextBoxWidth, autoSizeToText: true);
         _curveCombo = TrayAppDotNETSettingsUI.ComboBox(palette, Layout.CurveComboWidth, autoSizeToText: true);
+        _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
         _curveModeRadio = CompactRadio("Curve", palette);
         _manualModeRadio = CompactRadio("Manual", palette);
         _detachedModeRadio = CompactRadio("Detached", palette);
-        _jumpstartBox = Number(palette, 0, 100, "%");
-        _clampHighBox = Number(palette, 0, 100, "%");
-        _clampLowBox = Number(palette, 0, 100, "%");
-        _warnLowBox = Number(palette, 0, 100, "%");
-        _warnHighBox = Number(palette, 0, 100, "%");
-        _deltaMaxBox = Number(palette, 0, 100, "%/s");
-        _offsetBox = Number(palette, -100, 100, "%");
+        _jumpstartBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
+        _clampHighBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
+        _clampLowBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
+        _warnLowBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
+        _warnHighBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
+        _deltaMaxBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleRateSuffix);
+        _offsetBox = Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix);
         _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", palette);
 
         _pinButton = CaptionButton(GlyphCatalog.PIN, palette);
@@ -233,13 +244,15 @@ public sealed partial class FanPropertiesWindow : Window
                 Orientation = Orientation.Horizontal,
                 Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio }
             }, p));
-        left.Children.Add(Row("Jumpstart", _jumpstartBox, p));
-        left.Children.Add(Row("Clamp High", _clampHighBox, p));
-        left.Children.Add(Row("Clamp Low", _clampLowBox, p));
-        left.Children.Add(Row("Warn Low", _warnLowBox, p));
-        left.Children.Add(Row("Warn High", _warnHighBox, p));
-        left.Children.Add(Row("Max Delta", _deltaMaxBox, p));
-        left.Children.Add(Row("Offset", _offsetBox, p, bottomMargin: Layout.OffsetRowBottomMargin));
+        left.Children.Add(RPMModeHeaderRow(p));
+        left.Children.Add(NumberRow("Jumpstart", _jumpstartBox, FanPropertyUnitKind.StartupSpeed, p));
+        left.Children.Add(NumberRow("Max Duty", _clampHighBox, FanPropertyUnitKind.ClampHigh, p));
+        left.Children.Add(NumberRow("Min Duty", _clampLowBox, FanPropertyUnitKind.ClampLow, p));
+        left.Children.Add(NumberRow("Warn Low", _warnLowBox, FanPropertyUnitKind.WarnLow, p));
+        left.Children.Add(NumberRow("Warn High", _warnHighBox, FanPropertyUnitKind.WarnHigh, p));
+        left.Children.Add(NumberRow("Max Delta", _deltaMaxBox, FanPropertyUnitKind.DeltaMax, p));
+        left.Children.Add(NumberRow("Offset", _offsetBox, FanPropertyUnitKind.Offset, p,
+            bottomMargin: Layout.OffsetRowBottomMargin));
 
         ScrollViewer scroll = new()
         {
@@ -306,6 +319,7 @@ public sealed partial class FanPropertiesWindow : Window
         _detachedModeRadio.IsChecked = _fan.ForcedNonFunctioning;
         _curveModeRadio.IsChecked = _fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Curve };
         _manualModeRadio.IsChecked = _fan is { ForcedNonFunctioning: false, CurrentControlMode: FanControlMode.Manual };
+        LoadPropertyUnitControls();
         _jumpstartBox.Value = _fan.StartupSpeed;
         _clampHighBox.Value = _fan.ClampHigh;
         _clampLowBox.Value = _fan.ClampLow;
@@ -368,6 +382,7 @@ public sealed partial class FanPropertiesWindow : Window
         _curveModeRadio.IsChecked = !string.IsNullOrEmpty(defaultCurve);
         _manualModeRadio.IsChecked = string.IsNullOrEmpty(defaultCurve);
         _detachedModeRadio.IsChecked = false;
+        SetAllPropertyUnitControls(rpmMode: false, convertValues: false);
         _jumpstartBox.Value = _settings.DefaultJumpstartDutyCycle;
         _clampHighBox.Value = 100;
         _clampLowBox.Value = 0;
@@ -382,20 +397,37 @@ public sealed partial class FanPropertiesWindow : Window
     {
         string groupName = SelectedTag(_groupCombo);
         string curveName = SelectedTag(_curveCombo);
-        int clampLow = Math.Min(ReadInt(_clampLowBox), ReadInt(_clampHighBox));
-        int clampHigh = Math.Max(ReadInt(_clampLowBox), ReadInt(_clampHighBox));
-        int warnLow = Math.Min(ReadInt(_warnLowBox), ReadInt(_warnHighBox));
-        int warnHigh = Math.Max(ReadInt(_warnLowBox), ReadInt(_warnHighBox));
+        bool clampLowRPMMode = PropertyRPMMode(FanPropertyUnitKind.ClampLow);
+        bool clampHighRPMMode = PropertyRPMMode(FanPropertyUnitKind.ClampHigh);
+        bool warnLowRPMMode = PropertyRPMMode(FanPropertyUnitKind.WarnLow);
+        bool warnHighRPMMode = PropertyRPMMode(FanPropertyUnitKind.WarnHigh);
+        (int clampLow, int clampHigh) = NormalizeBoundValues(
+            ReadInt(_clampLowBox),
+            clampLowRPMMode,
+            ReadInt(_clampHighBox),
+            clampHighRPMMode);
+        (int warnLow, int warnHigh) = NormalizeBoundValues(
+            ReadInt(_warnLowBox),
+            warnLowRPMMode,
+            ReadInt(_warnHighBox),
+            warnHighRPMMode);
 
         _fan.UserDefinedName = (_nameBox.Text ?? string.Empty).Trim();
         _fan.Group = string.IsNullOrWhiteSpace(groupName) ? null : groupName;
         _fan.StartupSpeed = ReadInt(_jumpstartBox);
+        _fan.StartupSpeedRPMMode = PropertyRPMMode(FanPropertyUnitKind.StartupSpeed);
         _fan.ClampLow = clampLow;
+        _fan.ClampLowRPMMode = clampLowRPMMode;
         _fan.ClampHigh = clampHigh;
+        _fan.ClampHighRPMMode = clampHighRPMMode;
         _fan.WarnLow = warnLow;
+        _fan.WarnLowRPMMode = warnLowRPMMode;
         _fan.WarnHigh = warnHigh;
+        _fan.WarnHighRPMMode = warnHighRPMMode;
         _fan.DeltaMax = ReadInt(_deltaMaxBox);
+        _fan.DeltaMaxRPMMode = PropertyRPMMode(FanPropertyUnitKind.DeltaMax);
         _fan.Offset = ReadInt(_offsetBox);
+        _fan.OffsetRPMMode = PropertyRPMMode(FanPropertyUnitKind.Offset);
 
         if (_detachedModeRadio.IsChecked == true)
             _fan.ForcedNonFunctioning = true;
@@ -511,6 +543,9 @@ public sealed partial class FanPropertiesWindow : Window
             || e.PropertyName == nameof(Fan.DisplayName)
             || e.PropertyName == nameof(Fan.UserDefinedName))
             Dispatcher.UIThread.Post(UpdateTitle);
+
+        if (e.PropertyName == nameof(Fan.MaxRPM))
+            Dispatcher.UIThread.Post(RefreshPropertyUnitControls);
     }
 
     private void OnSettingsChanged()
@@ -538,6 +573,212 @@ public sealed partial class FanPropertiesWindow : Window
     private SettingsNumberBox Number(SettingsPalette p, int min, int max, string suffix) =>
         TrayAppDotNETSettingsUI.NumberBox(p, 0, min, max, Layout.NumberBoxWidth, suffix);
 
+    private Grid RPMModeHeaderRow(SettingsPalette p)
+    {
+        TextBlock header = TrayAppDotNETSettingsUI.Text("RPM Mode", p, Layout.RPMModeHeaderFontSize,
+            FontWeight.SemiBold);
+        header.Foreground = TrayAppDotNETSettingsUI.Brush(p.SecondaryForeground);
+        header.HorizontalAlignment = HorizontalAlignment.Center;
+        header.VerticalAlignment = VerticalAlignment.Center;
+
+        Grid grid = NumberRowGrid(Layout.RPMModeHeaderBottomMargin);
+        Grid.SetColumn(header, 3);
+        grid.Children.Add(header);
+        return grid;
+    }
+
+    private Grid NumberRow(
+        string label,
+        SettingsNumberBox value,
+        FanPropertyUnitKind unitKind,
+        SettingsPalette p,
+        double? bottomMargin = null)
+    {
+        TextBlock labelBlock = RowLabel(label, p);
+        SettingsMiniToggle rpmModeToggle = BuildRPMModeToggle(p);
+        FanPropertyUnitBinding binding = new(unitKind, value, rpmModeToggle);
+        rpmModeToggle.CheckedChanged += (_, isChecked) => OnRPMModeToggleChanged(binding, isChecked);
+        _propertyUnitBindings.Add(binding);
+
+        Grid grid = NumberRowGrid(bottomMargin ?? Layout.RowBottomMargin);
+        grid.Children.Add(labelBlock);
+        Grid.SetColumn(value, 1);
+        grid.Children.Add(value);
+        Grid.SetColumn(rpmModeToggle, 3);
+        grid.Children.Add(rpmModeToggle);
+        return grid;
+    }
+
+    private Grid NumberRowGrid(double bottomMargin)
+    {
+        Grid grid = new() { Margin = RowMargin(bottomMargin) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelColumnWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.NumberBoxWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RPMModeToggleGapWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RPMModeToggleColumnWidth)));
+        return grid;
+    }
+
+    private SettingsMiniToggle BuildRPMModeToggle(SettingsPalette p)
+    {
+        SettingsMiniToggle toggle = new(p, BuildRPMModeToggleLayout())
+        {
+            IsChecked = false,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ToolTip.SetTip(toggle, "Use RPM units for this property");
+        return toggle;
+    }
+
+    private SettingsMiniToggleLayout BuildRPMModeToggleLayout() =>
+        new()
+        {
+            Width = Layout.RPMModeToggleTrackWidth,
+            TrackWidth = Layout.RPMModeToggleTrackWidth,
+            TrackHeight = Layout.RPMModeToggleTrackHeight,
+            ThumbSize = Layout.RPMModeToggleThumbSize,
+            ThumbHoverSize = Layout.RPMModeToggleThumbHoverSize,
+            ThumbCheckedSize = Layout.RPMModeToggleThumbCheckedSize,
+            TrackCornerRadius = Layout.RPMModeToggleTrackRadius,
+            ThumbCornerRadius = Layout.RPMModeToggleThumbRadius,
+            BorderThickness = Layout.RPMModeToggleBorderThickness,
+            ThumbUncheckedMargin = Layout.RPMModeToggleThumbUncheckedMargin,
+            ThumbCheckedMargin = Layout.RPMModeToggleThumbCheckedMargin,
+            EnabledOpacity = Layout.EnabledOpacity,
+            DisabledOpacity = Layout.DisabledOpacity
+        };
+
+    private void OnRPMModeToggleChanged(FanPropertyUnitBinding binding, bool rpmMode)
+    {
+        if (_isUpdatingPropertyUnitControls) return;
+        UpdatePropertyUnitControl(binding, rpmMode, convertValue: true);
+    }
+
+    /// <summary>
+    /// Loads property unit controls from persisted fan settings.
+    /// </summary>
+    private void LoadPropertyUnitControls()
+    {
+        foreach (FanPropertyUnitBinding binding in _propertyUnitBindings)
+            UpdatePropertyUnitControl(binding, FanPropertyRPMMode(binding.Kind), convertValue: false);
+    }
+
+    /// <summary>
+    /// Reapplies unit ranges after the RPM reference changes.
+    /// </summary>
+    private void RefreshPropertyUnitControls()
+    {
+        foreach (FanPropertyUnitBinding binding in _propertyUnitBindings)
+            UpdatePropertyUnitControl(binding, binding.RPMMode, convertValue: false);
+    }
+
+    private void SetAllPropertyUnitControls(bool rpmMode, bool convertValues)
+    {
+        foreach (FanPropertyUnitBinding binding in _propertyUnitBindings)
+            UpdatePropertyUnitControl(binding, rpmMode, convertValues);
+    }
+
+    private void UpdatePropertyUnitControl(FanPropertyUnitBinding binding, bool rpmMode, bool convertValue)
+    {
+        bool shouldConvertValue = convertValue && binding.RPMMode != rpmMode;
+        int value = ReadInt(binding.NumberBox);
+        ConfigureNumberBoxUnit(binding, rpmMode);
+        SetPropertyUnitToggleState(binding, rpmMode);
+
+        if (shouldConvertValue)
+            binding.NumberBox.Value = ConvertSpeedValue(value, binding.RPMMode, rpmMode, RPMReference());
+
+        binding.RPMMode = rpmMode;
+    }
+
+    private void ConfigureNumberBoxUnit(FanPropertyUnitBinding binding, bool rpmMode)
+    {
+        int maximum = rpmMode ? RPMReference() : DutyCycleMaximum;
+        int minimum = binding.Kind == FanPropertyUnitKind.Offset ? -maximum : DutyCycleMinimum;
+        string suffix = binding.Kind == FanPropertyUnitKind.DeltaMax
+            ? rpmMode ? RPMRateSuffix : DutyCycleRateSuffix
+            : rpmMode ? RPMSuffix : DutyCycleSuffix;
+
+        binding.NumberBox.Minimum = minimum;
+        binding.NumberBox.Maximum = maximum;
+        binding.NumberBox.Suffix = suffix;
+    }
+
+    private void SetPropertyUnitToggleState(FanPropertyUnitBinding binding, bool rpmMode)
+    {
+        _isUpdatingPropertyUnitControls = true;
+        try
+        {
+            binding.Toggle.IsChecked = rpmMode;
+        }
+        finally
+        {
+            _isUpdatingPropertyUnitControls = false;
+        }
+    }
+
+    private bool PropertyRPMMode(FanPropertyUnitKind kind)
+    {
+        foreach (FanPropertyUnitBinding binding in _propertyUnitBindings)
+            if (binding.Kind == kind) return binding.Toggle.IsChecked;
+
+        return false;
+    }
+
+    private bool FanPropertyRPMMode(FanPropertyUnitKind kind) =>
+        kind switch
+        {
+            FanPropertyUnitKind.StartupSpeed => _fan.StartupSpeedRPMMode,
+            FanPropertyUnitKind.ClampHigh => _fan.ClampHighRPMMode,
+            FanPropertyUnitKind.ClampLow => _fan.ClampLowRPMMode,
+            FanPropertyUnitKind.WarnLow => _fan.WarnLowRPMMode,
+            FanPropertyUnitKind.WarnHigh => _fan.WarnHighRPMMode,
+            FanPropertyUnitKind.DeltaMax => _fan.DeltaMaxRPMMode,
+            FanPropertyUnitKind.Offset => _fan.OffsetRPMMode,
+            _ => false
+        };
+
+    private int RPMReference()
+    {
+        Curve? curve = Curve.Find(SelectedTag(_curveCombo));
+        int candidate = _fan.MaxRPM > 0
+            ? _fan.MaxRPM
+            : _fan.CurrentRPM > 0
+                ? _fan.CurrentRPM
+                : curve?.MaxRPM > 0
+                    ? curve.MaxRPM
+                    : FallbackMaximumRPM;
+        return Math.Max(DutyCycleMaximum, candidate);
+    }
+
+    private static int ConvertSpeedValue(int value, bool sourceRPMMode, bool targetRPMMode, int rpmReference)
+    {
+        if (sourceRPMMode == targetRPMMode) return value;
+
+        double converted = targetRPMMode
+            ? value / (double)DutyCycleMaximum * rpmReference
+            : value / (double)Math.Max(1, rpmReference) * DutyCycleMaximum;
+        return (int)Math.Round(converted);
+    }
+
+    private (int low, int high) NormalizeBoundValues(
+        int low,
+        bool lowRPMMode,
+        int high,
+        bool highRPMMode)
+    {
+        int rpmReference = RPMReference();
+        int lowDutyCycle = ConvertSpeedValue(low, lowRPMMode, targetRPMMode: false, rpmReference);
+        int highDutyCycle = ConvertSpeedValue(high, highRPMMode, targetRPMMode: false, rpmReference);
+        if (lowDutyCycle <= highDutyCycle)
+            return (low, high);
+
+        return (
+            ConvertSpeedValue(high, highRPMMode, lowRPMMode, rpmReference),
+            ConvertSpeedValue(low, lowRPMMode, highRPMMode, rpmReference));
+    }
+
     private TextBlock ValueText(SettingsPalette p) =>
         new()
         {
@@ -561,15 +802,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     private Grid Row(string label, Control value, SettingsPalette p, double? bottomMargin = null)
     {
-        TextBlock labelBlock = new()
-        {
-            Text = label,
-            FontFamily = TrayAppDotNETSettingsUI.UIFont,
-            FontSize = Layout.RowLabelFontSize,
-            Foreground = TrayAppDotNETSettingsUI.Brush(p.SecondaryForeground),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        };
+        TextBlock labelBlock = RowLabel(label, p);
         Grid grid = new() { Margin = RowMargin(bottomMargin ?? Layout.RowBottomMargin) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelColumnWidth)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -578,6 +811,17 @@ public sealed partial class FanPropertiesWindow : Window
         grid.Children.Add(value);
         return grid;
     }
+
+    private TextBlock RowLabel(string label, SettingsPalette p) =>
+        new()
+        {
+            Text = label,
+            FontFamily = TrayAppDotNETSettingsUI.UIFont,
+            FontSize = Layout.RowLabelFontSize,
+            Foreground = TrayAppDotNETSettingsUI.Brush(p.SecondaryForeground),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
 
     private SettingsButton CaptionButton(string glyph, SettingsPalette p)
     {
@@ -590,6 +834,31 @@ public sealed partial class FanPropertiesWindow : Window
             Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.CaptionButtonFontSize }
         };
         return button;
+    }
+
+    private enum FanPropertyUnitKind
+    {
+        StartupSpeed,
+        ClampHigh,
+        ClampLow,
+        WarnLow,
+        WarnHigh,
+        DeltaMax,
+        Offset
+    }
+
+    private sealed class FanPropertyUnitBinding(
+        FanPropertyUnitKind kind,
+        SettingsNumberBox numberBox,
+        SettingsMiniToggle toggle)
+    {
+        public FanPropertyUnitKind Kind { get; } = kind;
+
+        public SettingsNumberBox NumberBox { get; } = numberBox;
+
+        public SettingsMiniToggle Toggle { get; } = toggle;
+
+        public bool RPMMode { get; set; }
     }
 
     private static string GetEffectiveCurveName(Fan fan)

@@ -1347,7 +1347,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the per-probe enable toggle for a live selector card.
     /// </summary>
-    private Border BuildProbeEnableToggle(DataSource source, bool isSelected)
+    private SettingsMiniToggle BuildProbeEnableToggle(DataSource source, bool isSelected)
     {
         return BuildLabeledMiniToggle(
             "Enable",
@@ -1359,7 +1359,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the per-probe enable toggle for a missing selector card.
     /// </summary>
-    private Border BuildMissingProbeEnableToggle(ProbeCardProbe probe)
+    private SettingsMiniToggle BuildMissingProbeEnableToggle(ProbeCardProbe probe)
     {
         return BuildLabeledMiniToggle(
             "Enable",
@@ -1378,7 +1378,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the per-probe truncate toggle for a live selector card.
     /// </summary>
-    private Border BuildProbeTruncateToggle(DataSource source, ProbeCardProbe? probe)
+    private SettingsMiniToggle BuildProbeTruncateToggle(DataSource source, ProbeCardProbe? probe)
     {
         return BuildLabeledMiniToggle(
             "Truncate",
@@ -1390,7 +1390,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the per-probe truncate toggle for a missing selector card.
     /// </summary>
-    private Border BuildMissingProbeTruncateToggle(ProbeCardProbe probe)
+    private SettingsMiniToggle BuildMissingProbeTruncateToggle(ProbeCardProbe probe)
     {
         return BuildLabeledMiniToggle(
             "Truncate",
@@ -1407,106 +1407,37 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds a labeled mini toggle.
     /// </summary>
-    private Border BuildLabeledMiniToggle(string labelText, bool isChecked, bool isEnabled, Action<bool> changed)
+    private SettingsMiniToggle BuildLabeledMiniToggle(string labelText, bool isChecked, bool isEnabled, Action<bool> changed)
     {
-        bool current = isChecked;
-
-        Border track = new()
+        SettingsMiniToggle toggle = new(_palette, BuildTruncateToggleLayout(), labelText)
         {
-            Width = Layout.TruncateToggleTrackWidth,
-            Height = TruncateToggleTrackHeight,
-            CornerRadius = TruncateToggleTrackCornerRadius,
-            BorderThickness = Layout.RootBorderThickness,
-            IsHitTestVisible = false
+            IsChecked = isChecked,
+            IsEnabled = isEnabled
         };
-        Border thumb = new()
-        {
-            Width = TruncateToggleThumbSize,
-            Height = TruncateToggleThumbSize,
-            CornerRadius = TruncateToggleThumbCornerRadius,
-            VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false
-        };
-
-        Grid toggle = new()
-        {
-            Width = Layout.TruncateToggleTrackWidth,
-            Height = TruncateToggleTrackHeight,
-            IsHitTestVisible = false
-        };
-        toggle.Children.Add(track);
-        toggle.Children.Add(thumb);
-
-        TextBlock label = TrayAppDotNETSettingsUI.Text(labelText, _palette, Layout.TruncateToggleFontSize);
-        label.Foreground = TrayAppDotNETSettingsUI.Brush(_palette.SecondaryForeground);
-        label.Margin = Layout.TruncateToggleLabelMargin;
-        label.VerticalAlignment = VerticalAlignment.Center;
-        label.IsHitTestVisible = false;
-
-        Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.Children.Add(toggle);
-        Grid.SetColumn(label, 1);
-        row.Children.Add(label);
-
-        Border toggleButton = new()
-        {
-            IsEnabled = isEnabled,
-            Width = Layout.TruncateToggleWidth,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.TruncateToggleMargin,
-            Background = Brushes.Transparent,
-            Cursor = new Cursor(StandardCursorType.Hand),
-            Focusable = true,
-            Child = row
-        };
-        Action updateVisual = () =>
-        {
-            toggleButton.Opacity = toggleButton.IsEnabled ? Layout.FullOpacity : Layout.DisabledToggleOpacity;
-            track.Background = current
-                ? TrayAppDotNETSettingsUI.Brush(_palette.ToggleOnTrack)
-                : Brushes.Transparent;
-            track.BorderBrush = TrayAppDotNETSettingsUI.Brush(
-                current ? _palette.ToggleOnTrack : _palette.SecondaryForeground);
-            thumb.Background = TrayAppDotNETSettingsUI.Brush(
-                current ? _palette.ToggleOnThumb : _palette.SecondaryForeground);
-            thumb.HorizontalAlignment = current ? HorizontalAlignment.Right : HorizontalAlignment.Left;
-            thumb.Margin = current
-                ? TruncateToggleThumbCheckedMargin
-                : TruncateToggleThumbUncheckedMargin;
-        };
-
-        toggleButton.PropertyChanged += (_, e) =>
-        {
-            if (e.Property != IsEnabledProperty) return;
-            updateVisual();
-        };
-        toggleButton.PointerPressed += (_, e) =>
-        {
-            if (!toggleButton.IsEnabled) return;
-            if (!e.GetCurrentPoint(toggleButton).Properties.IsLeftButtonPressed) return;
-
-            current = !current;
-            changed(current);
-            updateVisual();
-            e.Handled = true;
-        };
-        toggleButton.KeyDown += (_, e) =>
-        {
-            if (!toggleButton.IsEnabled) return;
-            if (e.Key is not (Key.Enter or Key.Space)) return;
-
-            current = !current;
-            changed(current);
-            updateVisual();
-            e.Handled = true;
-        };
-
-        updateVisual();
-        return toggleButton;
+        toggle.CheckedChanged += (_, enabled) => changed(enabled);
+        return toggle;
     }
+
+    private SettingsMiniToggleLayout BuildTruncateToggleLayout() =>
+        new()
+        {
+            Width = Layout.TruncateToggleWidth,
+            TrackWidth = Layout.TruncateToggleTrackWidth,
+            TrackHeight = TruncateToggleTrackHeight,
+            ThumbSize = TruncateToggleThumbSize,
+            ThumbHoverSize = TruncateToggleThumbSize,
+            ThumbCheckedSize = TruncateToggleThumbSize,
+            LabelFontSize = Layout.TruncateToggleFontSize,
+            TrackCornerRadius = TruncateToggleTrackCornerRadius,
+            ThumbCornerRadius = TruncateToggleThumbCornerRadius,
+            BorderThickness = Layout.RootBorderThickness,
+            ThumbUncheckedMargin = TruncateToggleThumbUncheckedMargin,
+            ThumbCheckedMargin = TruncateToggleThumbCheckedMargin,
+            LabelMargin = Layout.TruncateToggleLabelMargin,
+            Margin = Layout.TruncateToggleMargin,
+            EnabledOpacity = Layout.FullOpacity,
+            DisabledOpacity = Layout.DisabledToggleOpacity
+        };
 
     /// <summary>
     /// Builds the inline transform editor for a selected probe.

@@ -39,11 +39,11 @@ public class Fan : INotifyPropertyChanged
     private const int RPMDisplayedValueWidth = 84;
     private const string DutyCycleDisplayedValueSuffix = "%";
     private const string RPMDisplayedValueSuffix = " RPM";
+    private const int DutyCycleMaximum = 100;
+    private const int FallbackMaximumRPM = 3000;
 
-    // When true, all speed properties on this fan (Clamps, Warns, FanDisplayedValue, StartupSpeed)
-    // are interpreted as RPM. When false, they're duty cycle %. Flipping this flag should
-    // recompute the stored values using the current RPM/duty-cycle ratio fetched from LHM at
-    // flip time so the user-facing speed stays the same after the unit change.
+    // Flyout/manual target unit. Individual fan-property rows have their own RPM flags and do
+    // not follow this display mode or the assigned curve mode.
 
     [XmlAttribute]
     public bool RPMMode
@@ -77,6 +77,18 @@ public class Fan : INotifyPropertyChanged
     }
 
     [XmlAttribute]
+    public bool ClampLowRPMMode
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    [XmlAttribute]
     public int ClampHigh
     {
         get;
@@ -88,11 +100,35 @@ public class Fan : INotifyPropertyChanged
         }
     } = 100;
 
+    [XmlAttribute]
+    public bool ClampHighRPMMode
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
     // Soft warnings. The flyout colors the slider / shows an icon if the resolved speed crosses
     // these bounds. Doesn't gate the actual write.
 
     [XmlAttribute]
     public int WarnLow
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    [XmlAttribute]
+    public bool WarnLowRPMMode
     {
         get;
         set
@@ -115,6 +151,18 @@ public class Fan : INotifyPropertyChanged
         }
     } = 100;
 
+    [XmlAttribute]
+    public bool WarnHighRPMMode
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
     // Maximum change per second, in the active speed unit. Caps how fast the curve service is
     // allowed to ramp the fan up or down. Always expressed in duty cycle % even when RPMMode is
     // true (rate-of-change feels more natural per-PWM than per-RPM).
@@ -132,7 +180,31 @@ public class Fan : INotifyPropertyChanged
     } = 100;
 
     [XmlAttribute]
+    public bool DeltaMaxRPMMode
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    [XmlAttribute]
     public int Offset
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    [XmlAttribute]
+    public bool OffsetRPMMode
     {
         get;
         set
@@ -170,6 +242,102 @@ public class Fan : INotifyPropertyChanged
     public int FanSliderMaximum =>
         RPMMode ? Math.Max(100, MaxRPM > 0 ? MaxRPM : Math.Max(_observedMaxRPM, FanDisplayedValue)) : 100;
 
+    /// <summary>
+    /// Converts a stored fan-property value to the requested target unit.
+    /// </summary>
+    public int ConvertSpeedPropertyValue(int value, bool sourceRPMMode, bool targetRPMMode)
+        => ConvertSpeedPropertyValue(value, sourceRPMMode, targetRPMMode, RPMReference(null));
+
+    /// <summary>
+    /// Gets the startup speed in the requested target unit.
+    /// </summary>
+    public int StartupSpeedForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(StartupSpeed, StartupSpeedRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Gets the lower clamp in the requested target unit.
+    /// </summary>
+    public int ClampLowForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(ClampLow, ClampLowRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Gets the upper clamp in the requested target unit.
+    /// </summary>
+    public int ClampHighForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(ClampHigh, ClampHighRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Gets the lower warning threshold in the requested target unit.
+    /// </summary>
+    public int WarnLowForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(WarnLow, WarnLowRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Gets the upper warning threshold in the requested target unit.
+    /// </summary>
+    public int WarnHighForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(WarnHigh, WarnHighRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Gets the maximum delta in the requested target unit.
+    /// </summary>
+    public int DeltaMaxForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(DeltaMax, DeltaMaxRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Gets the speed offset in the requested target unit.
+    /// </summary>
+    public int OffsetForRPMMode(bool targetRPMMode) =>
+        ConvertSpeedPropertyValue(Offset, OffsetRPMMode, targetRPMMode);
+
+    /// <summary>
+    /// Converts a stored fan-property value to the assigned curve unit.
+    /// </summary>
+    public int ConvertSpeedPropertyValueForCurve(int value, bool sourceRPMMode, Curve? curve) =>
+        ConvertSpeedPropertyValue(value, sourceRPMMode, curve?.RPMMode ?? RPMMode, RPMReference(curve));
+
+    /// <summary>
+    /// Gets the startup speed in the assigned curve unit.
+    /// </summary>
+    public int StartupSpeedForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(StartupSpeed, StartupSpeedRPMMode, curve);
+
+    /// <summary>
+    /// Gets the lower clamp in the assigned curve unit.
+    /// </summary>
+    public int ClampLowForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(ClampLow, ClampLowRPMMode, curve);
+
+    /// <summary>
+    /// Gets the upper clamp in the assigned curve unit.
+    /// </summary>
+    public int ClampHighForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(ClampHigh, ClampHighRPMMode, curve);
+
+    /// <summary>
+    /// Gets the lower warning threshold in the assigned curve unit.
+    /// </summary>
+    public int WarnLowForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(WarnLow, WarnLowRPMMode, curve);
+
+    /// <summary>
+    /// Gets the upper warning threshold in the assigned curve unit.
+    /// </summary>
+    public int WarnHighForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(WarnHigh, WarnHighRPMMode, curve);
+
+    /// <summary>
+    /// Gets the maximum delta in the assigned curve unit.
+    /// </summary>
+    public int DeltaMaxForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(DeltaMax, DeltaMaxRPMMode, curve);
+
+    /// <summary>
+    /// Gets the speed offset in the assigned curve unit.
+    /// </summary>
+    public int OffsetForCurve(Curve? curve) =>
+        ConvertSpeedPropertyValueForCurve(Offset, OffsetRPMMode, curve);
+
     // Speed to drive the fan at briefly during startup to overcome stiction. If the curve or
     // manual target is below StartupSpeed and the fan was previously at zero, we kick to
     // StartupSpeed for one tick then drop to target. Skipped if the target is already >= startup.
@@ -185,6 +353,18 @@ public class Fan : INotifyPropertyChanged
             OnPropertyChanged();
         }
     } = 50;
+
+    [XmlAttribute]
+    public bool StartupSpeedRPMMode
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+        }
+    }
 
     // Optional user-supplied maximum RPM. Sentinel -1 == "fall back to peak observed via LHM".
 
@@ -215,9 +395,6 @@ public class Fan : INotifyPropertyChanged
             string normalized = value ?? string.Empty;
             if (field == normalized) return;
             field = normalized;
-            Curve? curve = Curve.Find(normalized);
-            if (curve != null)
-                RPMMode = curve.RPMMode;
             OnPropertyChanged();
             OnPropertyChanged(nameof(AssignedCurve));
             OnPropertyChanged(nameof(AssignedCurveDisplayLabel));
@@ -444,13 +621,20 @@ public class Fan : INotifyPropertyChanged
         DataSourceKey = DataSourceKey,
         RPMMode = RPMMode,
         ClampLow = ClampLow,
+        ClampLowRPMMode = ClampLowRPMMode,
         ClampHigh = ClampHigh,
+        ClampHighRPMMode = ClampHighRPMMode,
         WarnLow = WarnLow,
+        WarnLowRPMMode = WarnLowRPMMode,
         WarnHigh = WarnHigh,
+        WarnHighRPMMode = WarnHighRPMMode,
         DeltaMax = DeltaMax,
+        DeltaMaxRPMMode = DeltaMaxRPMMode,
         Offset = Offset,
+        OffsetRPMMode = OffsetRPMMode,
         FanDisplayedValue = FanDisplayedValue,
         StartupSpeed = StartupSpeed,
+        StartupSpeedRPMMode = StartupSpeedRPMMode,
         MaxRPM = MaxRPM,
         AssignedCurveName = AssignedCurveName,
         UserDefinedName = UserDefinedName,
@@ -469,13 +653,20 @@ public class Fan : INotifyPropertyChanged
 
         RPMMode = settings.RPMMode;
         ClampLow = settings.ClampLow;
+        ClampLowRPMMode = settings.ClampLowRPMMode;
         ClampHigh = settings.ClampHigh;
+        ClampHighRPMMode = settings.ClampHighRPMMode;
         WarnLow = settings.WarnLow;
+        WarnLowRPMMode = settings.WarnLowRPMMode;
         WarnHigh = settings.WarnHigh;
+        WarnHighRPMMode = settings.WarnHighRPMMode;
         DeltaMax = settings.DeltaMax;
+        DeltaMaxRPMMode = settings.DeltaMaxRPMMode;
         Offset = settings.Offset;
+        OffsetRPMMode = settings.OffsetRPMMode;
         FanDisplayedValue = settings.FanDisplayedValue;
         StartupSpeed = settings.StartupSpeed;
+        StartupSpeedRPMMode = settings.StartupSpeedRPMMode;
         MaxRPM = settings.MaxRPM;
         AssignedCurveName = settings.AssignedCurveName;
         UserDefinedName = settings.UserDefinedName;
@@ -516,6 +707,34 @@ public class Fan : INotifyPropertyChanged
         };
         clone.ApplyUserSettings(SnapshotUserSettings());
         return clone;
+    }
+
+    private int RPMReference(Curve? curve)
+    {
+        int candidate = MaxRPM > 0
+            ? MaxRPM
+            : _observedMaxRPM > 0
+                ? _observedMaxRPM
+                : CurrentRPM > 0
+                    ? CurrentRPM
+                    : curve?.MaxRPM > 0
+                        ? curve.MaxRPM
+                        : FallbackMaximumRPM;
+        return Math.Max(DutyCycleMaximum, candidate);
+    }
+
+    private static int ConvertSpeedPropertyValue(
+        int value,
+        bool sourceRPMMode,
+        bool targetRPMMode,
+        int rpmReference)
+    {
+        if (sourceRPMMode == targetRPMMode) return value;
+
+        double converted = targetRPMMode
+            ? value / (double)DutyCycleMaximum * rpmReference
+            : value / (double)Math.Max(1, rpmReference) * DutyCycleMaximum;
+        return (int)Math.Round(converted);
     }
 
     private static List<Trigger> CloneTriggers(IEnumerable<Trigger> triggers)

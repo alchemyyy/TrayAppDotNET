@@ -53,7 +53,7 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
 
     public bool GroupRPMMode
     {
-        get => GroupSettings?.AssignedCurve?.RPMMode ?? GroupSettings?.RPMMode ?? false;
+        get => GroupSettings?.RPMMode ?? false;
         set => GroupSettings?.RPMMode = value;
     }
 

@@ -5,7 +5,7 @@ using System.Xml.Serialization;
 namespace FanControlTrayAppDotNET.Models;
 
 // Maps a DataSource value (X) to a fan output value (Y). The output axis is duty cycle % by
-// default; per-fan RPMMode flips both the curve's stored points and any clamps to RPM units.
+// default; RPMMode flips the curve's stored points and clamps to RPM units.
 //
 // Architecture mirrors BrightnessTrayAppDotNET's EnvironmentalCurve: a list of control nodes plus
 // a smoothness blend between piecewise-linear and monotonic cubic Hermite interpolation. We omit
