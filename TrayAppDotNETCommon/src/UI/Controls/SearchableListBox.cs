@@ -400,9 +400,7 @@ public sealed class SettingsSearchableListBox : Grid
                 _itemFontSize,
                 _itemPadding,
                 _itemMargin,
-                _itemCornerRadius);
-            row.IsSelected = ReferenceEquals(item, _selectedItem);
-            row.IsActive = ReferenceEquals(item, _activeItem);
+                _itemCornerRadius) { IsSelected = ReferenceEquals(item, _selectedItem), IsActive = ReferenceEquals(item, _activeItem) };
             _itemsPanel.Children.Add(row);
         }
     }

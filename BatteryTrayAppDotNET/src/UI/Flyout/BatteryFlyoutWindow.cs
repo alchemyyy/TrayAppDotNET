@@ -487,11 +487,14 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             IsVisible = _settings.AllowFlyoutUndock,
             Margin = margin ?? new Thickness(0),
             CornerRadius = Rounded(TitleBarButtonCornerRadius),
-        });
-        controller.Glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        controller.Glyph.FontWeight = FontWeight.Normal;
-        controller.Glyph.Foreground = Brush(p.IconForeground);
-        controller.Glyph.LineHeight = TitleBarUndockLineHeight;
+        }) { Glyph =
+            {
+                FontFamily = TrayAppDotNETSettingsUI.IconFont,
+                FontWeight = FontWeight.Normal,
+                Foreground = Brush(p.IconForeground),
+                LineHeight = TitleBarUndockLineHeight
+            }
+        };
         UseDefaultGlyphRendering(controller.Glyph);
         _buildingUndockButtonController = controller;
         return controller.Button;
