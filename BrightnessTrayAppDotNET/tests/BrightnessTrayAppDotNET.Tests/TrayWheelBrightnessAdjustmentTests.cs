@@ -84,8 +84,10 @@ public sealed class TrayWheelBrightnessAdjustmentTests
     /// </summary>
     private static MonitorInfo CreateCurveActiveMonitor(double curveTarget, double brightness)
     {
-        MonitorInfo monitor = new() { Brightness = brightness, SliderState = SliderState.CurveActive, };
-        monitor.CurveTargetBrightness = curveTarget;
+        MonitorInfo monitor = new()
+        {
+            Brightness = brightness, SliderState = SliderState.CurveActive, CurveTargetBrightness = curveTarget
+        };
         return monitor;
     }
 }

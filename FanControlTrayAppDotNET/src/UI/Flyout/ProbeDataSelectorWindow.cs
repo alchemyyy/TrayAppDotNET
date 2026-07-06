@@ -1543,9 +1543,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Height = Layout.ActionButtonHeight,
             MinHeight = Layout.ActionButtonHeight,
             Padding = Layout.ZeroThickness,
+            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.GearFontSize }
         };
-        button.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        button.Label.FontSize = Layout.GearFontSize;
         ApplyGearButtonTransformVisual(button, transformIsActive);
         return button;
     }
@@ -1641,9 +1640,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             MinHeight = Layout.NicknameDeleteButtonHeight,
             Padding = Layout.ZeroThickness,
             Margin = Layout.NicknameDeleteButtonMargin,
+            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.NicknameDeleteButtonFontSize }
         };
-        button.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-        button.Label.FontSize = Layout.NicknameDeleteButtonFontSize;
         return button;
     }
 
