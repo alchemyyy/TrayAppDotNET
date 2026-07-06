@@ -73,7 +73,7 @@ public sealed partial class BrightnessSettingsWindow
                 }
             }
         ]);
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
+        CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_General_NightLight_Header", "Night light"), p));
@@ -292,8 +292,8 @@ public sealed partial class BrightnessSettingsWindow
             CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
-    private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETKeepWarmSettingsSectionOptions
+    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
+        new(new TrayAppDotNETRenderingSettingsSectionOptions
         {
             Palette = p,
             CardRadius = RadiusLarge,
@@ -301,9 +301,10 @@ public sealed partial class BrightnessSettingsWindow
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
-            Settings = _settings,
-            SupportsFlyout = true,
-            SupportsTrayContextMenu = true
+            RenderingSettings = _settings,
+            WarmWindowSettings = _settings,
+            SupportsFlyoutWarmWindow = true,
+            SupportsTrayContextMenuWarmWindow = true
         });
 
     private sealed record ProfileSlotEntry(int Key, string Name);

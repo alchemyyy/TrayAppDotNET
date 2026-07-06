@@ -7,7 +7,13 @@ using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI.Settings;
 
-public sealed class TrayAppDotNETKeepWarmSettingsSectionOptions
+public sealed record TrayAppDotNETRenderingSettingsCardContext(
+    SettingsPalette Palette,
+    CornerRadius CardRadius,
+    Func<string, string, string> Localize,
+    Action Save);
+
+public sealed class TrayAppDotNETRenderingSettingsSectionOptions
 {
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius CardRadius { get; init; }
@@ -15,16 +21,20 @@ public sealed class TrayAppDotNETKeepWarmSettingsSectionOptions
     public required Action Save { get; init; }
     public required Func<string, string, string, string, Task<bool>> ConfirmAsync { get; init; }
     public required Func<string, string, Task> ShowMessage { get; init; }
-    public required ITrayAppDotNETKeepWarmSettings Settings { get; init; }
-    public bool SupportsFlyout { get; init; }
-    public bool SupportsTrayContextMenu { get; init; }
+    public required ITrayAppDotNETRenderingSettings RenderingSettings { get; init; }
+    public ITrayAppDotNETWarmWindowSettings? WarmWindowSettings { get; init; }
+    public bool SupportsFlyoutWarmWindow { get; init; }
+    public bool SupportsTrayContextMenuWarmWindow { get; init; }
+    public IReadOnlyList<Func<TrayAppDotNETRenderingSettingsCardContext, Control>> AdditionalCards { get; init; } = [];
 }
 
-public sealed class TrayAppDotNETKeepWarmSettingsSection(TrayAppDotNETKeepWarmSettingsSectionOptions options)
+public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRenderingSettingsSectionOptions options)
 {
     private const double RenderingBackendComboWidth = 172;
+    private readonly TrayAppDotNETRenderingSettingsCardContext _cardContext =
+        new(options.Palette, options.CardRadius, options.Localize, options.Save);
 
-    /// <summary>Adds rendering and keep-warm cards to the supplied settings page stack.</summary>
+    /// <summary>Adds rendering cards and optional rendering-adjacent cards to the supplied settings page stack.</summary>
     public void AddCards(StackPanel stack)
     {
         SettingsPalette p = options.Palette;
@@ -32,25 +42,35 @@ public sealed class TrayAppDotNETKeepWarmSettingsSection(TrayAppDotNETKeepWarmSe
             L("Settings_General_Rendering_Header", "Rendering"), p));
 
         stack.Children.Add(BuildRenderingBackendCard());
+        foreach (Func<TrayAppDotNETRenderingSettingsCardContext, Control> buildCard in options.AdditionalCards)
+            stack.Children.Add(buildCard(_cardContext));
 
-        if (options.SupportsFlyout)
+        ITrayAppDotNETWarmWindowSettings? warmWindowSettings = options.WarmWindowSettings;
+        if (warmWindowSettings == null ||
+            (!options.SupportsFlyoutWarmWindow && !options.SupportsTrayContextMenuWarmWindow))
+            return;
+
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
+            L("Settings_General_Performance_Header", "Performance"), p));
+
+        if (options.SupportsFlyoutWarmWindow)
         {
             stack.Children.Add(BuildCard(
                 L("Settings_General_KeepFlyoutWarm_Title", "Keep flyout warm"),
                 L("Settings_General_KeepFlyoutWarm_Description",
                     "Keep the flyout created in the background so it opens faster. When off, hidden UI resources are released after a short idle delay."),
-                options.Settings.KeepFlyoutWarm,
-                value => options.Settings.KeepFlyoutWarm = value));
+                warmWindowSettings.KeepFlyoutWarm,
+                value => warmWindowSettings.KeepFlyoutWarm = value));
         }
 
-        if (options.SupportsTrayContextMenu)
+        if (options.SupportsTrayContextMenuWarmWindow)
         {
             stack.Children.Add(BuildCard(
                 L("Settings_General_KeepTrayContextMenuWarm_Title", "Keep tray context menu warm"),
                 L("Settings_General_KeepTrayContextMenuWarm_Description",
                     "Keep the tray context menu created in the background so it opens faster. When off, hidden UI resources are released after a short idle delay."),
-                options.Settings.KeepTrayContextMenuWarm,
-                value => options.Settings.KeepTrayContextMenuWarm = value));
+                warmWindowSettings.KeepTrayContextMenuWarm,
+                value => warmWindowSettings.KeepTrayContextMenuWarm = value));
         }
     }
 
@@ -65,15 +85,15 @@ public sealed class TrayAppDotNETKeepWarmSettingsSection(TrayAppDotNETKeepWarmSe
         foreach ((TrayAppDotNETRenderingBackend backend, string text) in RenderingBackendOptions())
             combo.Items.Add(new SettingsComboBoxItem(backend.ToString(), text, options.Palette));
 
-        TrayAppDotNETSettingsUI.SelectComboByTag(combo, options.Settings.RenderingBackend.ToString());
+        TrayAppDotNETSettingsUI.SelectComboByTag(combo, options.RenderingSettings.RenderingBackend.ToString());
         combo.SelectionChanged += async (_, _) =>
         {
             string? tag = TrayAppDotNETSettingsUI.SelectedTag(combo);
             if (string.IsNullOrEmpty(tag)) return;
             if (!Enum.TryParse(tag, out TrayAppDotNETRenderingBackend backend)) return;
-            if (backend == options.Settings.RenderingBackend) return;
+            if (backend == options.RenderingSettings.RenderingBackend) return;
 
-            options.Settings.RenderingBackend = backend;
+            options.RenderingSettings.RenderingBackend = backend;
             options.Save();
             await PromptRestartAsync();
         };
@@ -153,10 +173,12 @@ public sealed class TrayAppDotNETKeepWarmSettingsSection(TrayAppDotNETKeepWarmSe
     }
 
     /// <summary>Returns user-facing rendering backend choices.</summary>
-    private static IReadOnlyList<(TrayAppDotNETRenderingBackend Backend, string Text)> RenderingBackendOptions() =>
+    private IReadOnlyList<(TrayAppDotNETRenderingBackend Backend, string Text)> RenderingBackendOptions() =>
     [
-        (TrayAppDotNETRenderingBackend.GPUPreferred, "GPU preferred"),
-        (TrayAppDotNETRenderingBackend.Software, "Software")
+        (TrayAppDotNETRenderingBackend.GPUPreferred,
+            L("Settings_General_RenderingBackend_GPUPreferred", "GPU preferred")),
+        (TrayAppDotNETRenderingBackend.Software,
+            L("Settings_General_RenderingBackend_Software", "Software"))
     ];
 
     /// <summary>Requests shutdown through the classic desktop lifetime.</summary>

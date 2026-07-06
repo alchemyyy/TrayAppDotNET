@@ -110,7 +110,10 @@ public static class TrayAppDotNETAvalonia
             while (reader.Read())
             {
                 if (reader.NodeType != XmlNodeType.Element ||
-                    !string.Equals(reader.LocalName, nameof(AppSettingsCommon.RenderingBackend), StringComparison.Ordinal))
+                    !string.Equals(
+                        reader.LocalName,
+                        nameof(ITrayAppDotNETRenderingSettings.RenderingBackend),
+                        StringComparison.Ordinal))
                     continue;
 
                 string text = reader.ReadElementContentAsString();

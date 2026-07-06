@@ -50,7 +50,7 @@ public enum MultipleSliderValuesDisplayMode
 /// Skeleton scaffold with a few illustrative fields - extend with project-specific settings in your fork.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings,
+public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
     ITrayXmlSerializationCallbacks
 {
     private const string CPUNickname = "CPU";
