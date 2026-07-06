@@ -5,7 +5,7 @@ namespace NetworkTrayAppDotNET.Visuals;
 /// <summary>
 /// Segoe Fluent Icons codepoint strings shared by renderers, XAML, and theme defaults.
 /// </summary>
-internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
+internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
     // ===========================================================================
     // Generic UI glyphs
@@ -20,11 +20,11 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
     // Network tray glyphs
     // ===========================================================================
 
-    public new const string NETWORK_ETHERNET = CommonGlyphCatalog.NETWORK_ETHERNET;
-    public new const string NETWORK_WIFI_0 = CommonGlyphCatalog.NETWORK_WIFI_0;
-    public new const string NETWORK_WIFI_1 = CommonGlyphCatalog.NETWORK_WIFI_1;
-    public new const string NETWORK_WIFI_2 = CommonGlyphCatalog.NETWORK_WIFI_2;
-    public new const string NETWORK_WIFI_3 = CommonGlyphCatalog.NETWORK_WIFI_3;
-    public new const string NETWORK_WIFI_4 = CommonGlyphCatalog.NETWORK_WIFI_4;
-    public new const string NETWORK_NONE = CommonGlyphCatalog.NETWORK_NONE;
+    public const string NETWORK_ETHERNET = "\uE839"; // Fluent, Ethernet
+    public const string NETWORK_WIFI_0 = "\uE871"; // Fluent, SignalNotConnected
+    public const string NETWORK_WIFI_1 = "\uE872"; // Fluent, Wifi1
+    public const string NETWORK_WIFI_2 = "\uE873"; // Fluent, Wifi2
+    public const string NETWORK_WIFI_3 = "\uE874"; // Fluent, Wifi3
+    public const string NETWORK_WIFI_4 = "\uE701"; // Fluent, Wifi
+    public const string NETWORK_NONE = "\uF384"; // Fluent, NetworkOffline
 }

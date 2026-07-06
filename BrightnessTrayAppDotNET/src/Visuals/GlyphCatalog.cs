@@ -5,37 +5,38 @@ namespace BrightnessTrayAppDotNET.Visuals;
 /// <summary>
 /// Segoe Fluent Icons codepoint strings shared by renderers, XAML, and theme defaults.
 /// </summary>
-internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
+internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
     // ===========================================================================
     // Brightness tray glyphs
     // ===========================================================================
 
-    public const string ECLIPSED_SUN = "\uEC8A"; // lower brightness
-    public const string HALF_SUN = "\uE793"; // Light
-    public const string FILLED_CIRCLE_SMALL = "\uE915"; // radio bullet
+    public const string ECLIPSED_SUN = "\uEC8A"; // Fluent, LowerBrightness
+    public const string HALF_SUN = "\uE793"; // Fluent, Light
+    public const string FILLED_CIRCLE_SMALL = "\uE915"; // Fluent, RadioBullet
 
-    public const string CRESCENT_SUN = "\uF08C"; // Blue Light
-    public const string CRESCENT_MOON_OLD = "\uE708"; // Quiet Hours
-    public const string CRESCENT_MOON = "\uEC46"; // Mob Quiet Hours
-    public const string CRESCENT_MOON_BOLD = "\uF0CE"; // Quiet Hours Badge 12
+    public const string CRESCENT_SUN = "\uF08C"; // Fluent, BlueLight
+    public const string CRESCENT_MOON_OLD = "\uE708"; // Fluent, QuietHours
+    // NOTE: Also rendered explicitly with MDL2 in the disabled curve glyph
+    public const string CRESCENT_MOON = "\uEC46"; // Fluent, MobQuietHours
+    public const string CRESCENT_MOON_BOLD = "\uF0CE"; // Fluent, QuietHoursBadge12
 
-    public const string EMPTY_CIRCLE_0 = "\uEDAF"; // Inking Color Outline
-    public const string EMPTY_CIRCLE_3 = "\uEA3A"; // Circle Ring
-    public const string FILLED_CIRCLE_0 = "\uED67"; // Inking Color Fill
-    public const string FILLED_CIRCLE_1 = "\uEDAF"; // Circle Ring Badge 12
-    public const string FILLED_CIRCLE_2 = "\uEDB0"; // Circle Fill Badge 12
-    public const string FILLED_CIRCLE_3 = "\uEA3B"; // Circle Fill
-    public const string FILLED_CIRCLE_4 = "\uF0B6"; // status circle 7
-    public const string FILLED_CIRCLE_LARGE = "\uE91F"; // filled circle mask
+    public const string EMPTY_CIRCLE_0 = "\uEDAF"; // Fluent, CircleRingBadge12
+    public const string EMPTY_CIRCLE_3 = "\uEA3A"; // Fluent, CircleRing
+    public const string FILLED_CIRCLE_0 = "\uED67"; // Fluent, InkingColorFill
+    public const string FILLED_CIRCLE_1 = "\uEDAF"; // Fluent, CircleRingBadge12
+    public const string FILLED_CIRCLE_2 = "\uEDB0"; // Fluent, CircleFillBadge12
+    public const string FILLED_CIRCLE_3 = "\uEA3B"; // Fluent, CircleFill
+    public const string FILLED_CIRCLE_4 = "\uF0B6"; // Fluent, StatusCircle7
+    public const string FILLED_CIRCLE_LARGE = "\uE91F"; // Fluent, FullCircleMask
 
-    public const string FILLED_SQUARE = "\uE978"; // Presence Chicklet
+    public const string FILLED_SQUARE = "\uE978"; // Fluent, PresenceChicklet
 
     // ===========================================================================
     // Night-light glyphs
     // ===========================================================================
 
-    public const string LIGHTBULB = "\uEA80";
+    public const string LIGHTBULB = "\uEA80"; // Fluent, Lightbulb
 
     // ===========================================================================
     // Generic UI glyphs
@@ -51,12 +52,12 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
     public new const string CHEVRON_RIGHT = CommonGlyphCatalog.CHEVRON_RIGHT;
     public new const string CALENDAR = CommonGlyphCatalog.CALENDAR;
 
-    public const string MONITOR = "\uE7F4";
-    public const string SYNC_BADGE = "\uEDAB";
+    public const string MONITOR = "\uE7F4"; // Fluent, TVMonitor
+    public const string SYNC_BADGE = "\uEDAB"; // Fluent, SyncBadge12
     public new const string POWER = CommonGlyphCatalog.POWER;
-    public const string DISPLAY_SETTINGS = "\uE7F8"; // DeviceLaptopNoPic
+    public const string DISPLAY_SETTINGS = "\uE7F8"; // Fluent, DeviceLaptopNoPic
     public new const string SETTINGS = CommonGlyphCatalog.SETTINGS;
     public new const string WARNING = CommonGlyphCatalog.WARNING;
-    public const string PROFILE_SAVE = "\uE74E";
-    public const string PROFILE_INDICATOR = "\uE915"; // matches FILLED_CIRCLE_SMALL
+    public const string PROFILE_SAVE = "\uE74E"; // Fluent, Save
+    public const string PROFILE_INDICATOR = "\uE915"; // Fluent, RadioBullet
 }

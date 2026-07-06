@@ -21,7 +21,7 @@ Highest-value remaining commonization targets:
 
 1. **Install-card uninstall result/refresh contract**: The common install-card section still takes callback-style uninstall delegates. Volume owns the most complete post-uninstall process-exit refresh behavior; the common section should own it for all apps.
 2. **Hotkey editor**: All apps duplicate the same search, modifier, key, add, and binding-card editor structure. Brightness adds target parameters, but that should be an extension point, not a separate page.
-3. **Flyout shell/header/update/undock controls**: `FlyoutWindowCommon` exists, but the actual header buttons, update affordance, root chrome, window constants, and undock layout are per-app.
+3. **Flyout shell/header/button primitives**: `FlyoutWindowCommon` exists, but root chrome, window constants, header structure, and header button primitives are still per-app. Update and undock button layouts should remain per-flyout decisions with common behavior and tunable button properties.
 4. **Flyout slider rows and entity rows**: `FlyoutSlider` is common, but Volume, Brightness, and Fan independently build the multi-part row around it.
 5. **Theme/tray icon/flyout settings page builders**: Common settings primitives exist, but the pages still repeat section structure, card shape, combo options, and save/rebuild wiring.
 6. **Primitive resource tokens**: Card radii, button sizes, text box variants, flyout empty states, overlay sizes, and typography tokens need a common resource vocabulary.
@@ -328,19 +328,38 @@ Repeated shapes:
 
 - Context menu position card.
 - Classic/modern context menu style.
-- Modified click action section.
-- Ctrl/Alt left click.
-- Ctrl/Alt right click.
-- Double-click variants.
-- Optional wheel action cards.
+- Modified click action section shared by every app.
+- Ctrl/Alt left click action cards.
+- Ctrl/Alt right click action cards.
+- Double-left click, Ctrl double-left click, and Alt double-left click action cards.
+- Optional wheel action surface only for apps with a custom tray-wheel handler.
 
-Battery only needs a subset. Brightness needs wheel actions. Volume currently has click action options that are mostly "Nothing". These are descriptor differences, not page-structure differences.
+Policy correction for P1:
+
+- Every app should expose the full standard click gesture schema. These are user-configured tray actions in the same family as hotkeys, so Battery, Brightness, Fan, Network, and Volume should all get the same click action cards.
+- The standard click gesture schema is: Ctrl + left click, Alt + left click, Ctrl + right click, Alt + right click, double-left click, Ctrl + double-left click, and Alt + double-left click.
+- Click action choices are mandatory and should normally mirror the app's hotkey-capable action catalog. A placeholder-only list such as Volume's current `Nothing` list is not an acceptable final state.
+- Battery currently has no tray-click action settings or runtime dispatch. P1 should add the same persisted slots and runtime dispatch shape used by the other apps.
+- Volume currently exposes the settings slots but only dispatches the double-left action at runtime. P1 should make the runtime dispatch honor the same full click gesture schema that the UI exposes.
+- Wheel actions are the only optional tray-icon action surface. Only Brightness and Volume should pass wheel descriptors or install custom wheel handling.
+- Battery, Fan, and Network should pass no wheel descriptors and should not grow no-op wheel settings just for visual parity.
 
 ### Required Commonization
 
 Proposed common type:
 
 ```csharp
+public enum TrayAppDotNETTrayClickGesture
+{
+    ControlLeftClick,
+    AltLeftClick,
+    ControlRightClick,
+    AltRightClick,
+    DoubleLeftClick,
+    ControlDoubleLeftClick,
+    AltDoubleLeftClick,
+}
+
 public sealed record TrayAppDotNETTrayIconPageOptions<TClickAction, TWheelAction>
 {
     public required SettingsPalette Palette { get; init; }
@@ -353,6 +372,19 @@ public sealed record TrayAppDotNETTrayIconPageOptions<TClickAction, TWheelAction
     public IReadOnlyList<TrayAppDotNETTrayGestureDescriptor<TWheelAction>> WheelGestures { get; init; } = [];
 }
 ```
+
+`ClickGestures` should be generated from one common ordered descriptor list, not from per-app subsets. App code should only bind the descriptor to the app's stored setting property and action dispatcher.
+
+`WheelGestures` should default to empty. Brightness can supply plain wheel, Ctrl + wheel, and Alt + wheel target descriptors. Volume can supply its tray-wheel toggle/step behavior through the same optional wheel surface even though its current wheel handler is a fixed volume action rather than a target selector.
+
+Implementation tasks:
+
+1. Add the common click gesture descriptor enum/list and common card builder.
+2. Add missing Battery click action enum/settings slots and runtime dispatch.
+3. Fix Volume runtime dispatch so Ctrl/Alt left, Ctrl/Alt right, and Ctrl/Alt double-left settings are honored.
+4. Require every app tray icon page to pass the full common click gesture list.
+5. Keep wheel descriptors absent outside Brightness and Volume.
+6. Reuse each app's hotkey/action dispatcher where practical so hotkey actions and tray click actions do not drift.
 
 Also consider moving context menu position into common:
 
@@ -400,7 +432,7 @@ public sealed record TrayAppDotNETFlyoutSettingsSectionOptions
 }
 ```
 
-## P1: Flyout Shell, Header, And Update Button
+## P1: Flyout Shell, Header, And Header Actions
 
 ### Evidence
 
@@ -443,26 +475,73 @@ Header buttons are similar but drift:
 - Brightness icon button height 32, font 20.
 - Fan icon buttons 37 x 32, font 18, manager icon size 17.
 - Volume icon buttons 40 x 32, font 20.
-- Update button margins, height, font size, and placement differ.
-- Undock button has a common controller but layout values still live in each flyout.
+- Update button margins, height, font size, and placement differ by flyout.
+- Undock button has a common controller, but its placement and visual metrics differ by flyout.
+
+Policy correction for P1:
+
+- Commonize the header container, title/content alignment, header-at-top/header-at-bottom switching, drag region behavior, and reusable header button primitive.
+- Do not force a single update button layout. Each flyout should own where its update affordance sits, how much room it gets, and whether it is text, icon, pill, or custom content.
+- Do not force a single undock button layout. Keep the common undock behavior/controller, but let each flyout own slot, margin, width, glyph size, and cramped-header adjustments.
+- Header commonization must allow per-app button property overrides. The width/font differences are layout pressure decisions, not necessarily bugs.
 
 ### Required Commonization
 
 Add a common flyout shell/header layer:
 
 ```csharp
+public enum TrayAppDotNETFlyoutHeaderActionSlot
+{
+    Leading,
+    Trailing,
+    InlineTitle,
+    Custom,
+}
+
+public sealed record TrayAppDotNETFlyoutHeaderButtonProperties
+{
+    public double? Width { get; init; }
+    public double? Height { get; init; }
+    public double? MinWidth { get; init; }
+    public double? FontSize { get; init; }
+    public double? IconSize { get; init; }
+    public Thickness? Margin { get; init; }
+    public Thickness? Padding { get; init; }
+    public CornerRadius? CornerRadius { get; init; }
+}
+
+public sealed record TrayAppDotNETFlyoutHeaderAction
+{
+    public required TrayAppDotNETFlyoutHeaderActionSlot Slot { get; init; }
+    public required string AutomationName { get; init; }
+    public required Action Click { get; init; }
+    public string? Glyph { get; init; }
+    public Control? Content { get; init; }
+    public int Order { get; init; }
+    public TrayAppDotNETFlyoutHeaderButtonProperties ButtonProperties { get; init; } = new();
+}
+
+public sealed record TrayAppDotNETFlyoutHeaderOptions
+{
+    public required string Title { get; init; }
+    public IReadOnlyList<TrayAppDotNETFlyoutHeaderAction> Actions { get; init; } = [];
+    public TrayAppDotNETFlyoutHeaderButtonProperties DefaultButtonProperties { get; init; } = new();
+}
+
 public sealed record TrayAppDotNETFlyoutShellOptions
 {
     public required SettingsPalette Palette { get; init; }
     public required bool EnableRoundedCorners { get; init; }
     public required bool HeaderAtBottom { get; init; }
-    public required IReadOnlyList<TrayAppDotNETFlyoutHeaderAction> HeaderActions { get; init; }
+    public required TrayAppDotNETFlyoutHeaderOptions Header { get; init; }
     public required Control Content { get; init; }
     public required Func<PixelRect> GetWorkArea { get; init; }
     public required Func<PixelPoint?> GetUndockedPosition { get; init; }
     public required Action<PixelPoint?> SetUndockedPosition { get; init; }
 }
 ```
+
+The common header should provide a standard action-button builder and a standard content/header grid. Apps should pass action descriptors with button properties rather than relying on one global button metric. If an update or undock affordance needs a custom control, pass `Content` and keep the layout local to that flyout.
 
 Common resources:
 
@@ -482,9 +561,10 @@ Common resources:
 - `FlyoutHeaderIconButtonRadius`: 4.
 - `FlyoutHeaderIconButtonFontSize`: 18.
 - `FlyoutHeaderIconButtonLargeFontSize`: 20.
-- `FlyoutUpdateButtonWidth`: 80.
 
-Only app-specific content width should remain an option.
+These are defaults, not mandatory sizes. Do not add global update-button or undock-button width resources unless multiple apps independently converge on the same metric after migration.
+
+App-specific flyout content width and header action property overrides should remain options.
 
 ## P1: Flyout Slider Row And Inline Value Editor
 
@@ -801,7 +881,8 @@ Do not extract Fan curve graph logic unless another app needs it. Extract only d
 | Settings buttons | Common radius 4, min height 32, padding `12,6`. | Keep as default. |
 | Dialog action buttons | Update/uninstaller use padding `20,8`; settings overlay uses min width 96. | Add `DialogPrimaryButton` and `DialogSecondaryButton` styles. |
 | Hotkey delete button | 32 x 29, padding 0, font 20 in each app. | Add `HotkeyDeleteButton` style. |
-| Header icon buttons | Brightness/Fan/Volume differ in width/font. | Add `FlyoutHeaderIconButton` style. |
+| Header icon buttons | Brightness/Fan/Volume differ in width/font because some headers are cramped. | Add `FlyoutHeaderIconButton` defaults with per-action property overrides. |
+| Flyout update/undock buttons | Margins, placement, and sizes are app-specific layout decisions. | Keep layout app-owned; commonize only the button primitive and undock behavior/controller. |
 | Probe/action buttons | Probe selector uses 26/28/36 px variants. | Add compact action button variants if reused outside Fan. |
 
 ### TextBox, ComboBox, And NumberBox
@@ -889,6 +970,7 @@ Suggested resource names:
 <x:Double x:Key="FlyoutHeaderIconButtonWidth">40</x:Double>
 <x:Double x:Key="FlyoutHeaderIconButtonHeight">32</x:Double>
 <x:Double x:Key="FlyoutHeaderIconButtonFontSize">18</x:Double>
+<CornerRadius x:Key="FlyoutHeaderIconButtonRadius">4</CornerRadius>
 <x:Double x:Key="FlyoutSliderRowHeight">24</x:Double>
 <Thickness x:Key="FlyoutSliderHitPadding">10</Thickness>
 
@@ -897,6 +979,8 @@ Suggested resource names:
 <x:Double x:Key="HotkeyKeyBoxWidth">60</x:Double>
 <x:Double x:Key="HotkeyDeleteButtonWidth">32</x:Double>
 ```
+
+Do not add shared flyout update or undock button width resources as a first pass. Those layouts should stay local unless multiple migrated flyouts converge on the same value.
 
 ## App Settings Model Divergence
 
@@ -931,7 +1015,7 @@ This is the only remaining work from the dialog/uninstaller pass. The visual dia
 1. Rename `VolumeSettingsPalette` to a neutral common palette factory.
 2. Add `TrayAppDotNETSettingsCommonContext`.
 3. Add hotkey page builder.
-4. Add tray icon settings section builder.
+4. Add tray icon settings section builder with mandatory full click gesture schema for every app and optional wheel schema only for Brightness/Volume.
 5. Add flyout settings section builder.
 6. Add theme page builder and slider thumb combo.
 
@@ -940,7 +1024,7 @@ This phase reduces settings page duplication and primitive drift.
 ### Phase 3: Flyout Composition
 
 1. Add flyout shell/header resources.
-2. Add `TrayAppDotNETFlyoutHeader`.
+2. Add `TrayAppDotNETFlyoutHeader` with per-action button property overrides; keep update and undock layouts app-owned.
 3. Add `TrayAppDotNETFlyoutSliderRow`.
 4. Add inline value/name editor styles.
 5. Add entity header row variants.
@@ -973,7 +1057,7 @@ This phase has more integration risk because flyouts contain app-specific behavi
 - Settings card and primitive input resource tokens.
 - Hotkey editor UI.
 - Theme/tray/flyout settings page sections.
-- Flyout shell/header controls.
+- Flyout shell/header controls and header button primitives.
 - Flyout slider row and inline editor controls.
 - Entity row layout variants.
 - Reorderable card/list mechanics.
@@ -988,5 +1072,6 @@ Each app should own:
 - Domain-specific settings pages.
 - Device/sensor/monitor/audio behavior.
 - App-specific extra flyout content.
+- App-specific flyout update and undock button layout decisions.
 
 The key correction is to commonize composition, not just primitives. The visual inconsistency is coming from repeated high-level controls that happen to be built out of common primitives with app-local constants.
