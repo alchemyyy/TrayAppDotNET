@@ -1093,7 +1093,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     PROPVARIANT.VT_EMPTY => true,
                     PROPVARIANT.VT_UI4 => pv.GetUInt32() != 0,
                     PROPVARIANT.VT_I4 => pv.p1.ToInt64() != 0,
-                    PROPVARIANT.VT_BOOL => ((short)(pv.p1.ToInt64() & 0xFFFF)) != 0,
+                    PROPVARIANT.VT_BOOL => (short)(pv.p1.ToInt64() & 0xFFFF) != 0,
                     _ => true,
                 };
             }
@@ -1119,7 +1119,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                 // but older builds and odd drivers have been seen using VT_UI4 / VT_I4 here.
                 enabled = enablePv.vt switch
                 {
-                    PROPVARIANT.VT_BOOL => ((short)(enablePv.p1.ToInt64() & 0xFFFF)) != 0,
+                    PROPVARIANT.VT_BOOL => (short)(enablePv.p1.ToInt64() & 0xFFFF) != 0,
                     PROPVARIANT.VT_UI4 => enablePv.GetUInt32() != 0,
                     PROPVARIANT.VT_I4 => enablePv.p1.ToInt64() != 0,
                     _ => false,

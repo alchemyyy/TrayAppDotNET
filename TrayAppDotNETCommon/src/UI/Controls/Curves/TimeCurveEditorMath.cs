@@ -10,11 +10,11 @@ public readonly record struct TimeCurvePlotGeometry(
     double InsetBottom,
     TimeCurveValueAxis Axis)
 {
-    public double PlotWidth => Math.Max(1.0, Width - (2.0 * InsetX));
+    public double PlotWidth => Math.Max(1.0, Width - 2.0 * InsetX);
     public double PlotHeight => Math.Max(1.0, Height - InsetTop - InsetBottom);
 
     public double ScreenX(double time) =>
-        InsetX + (Math.Clamp(time, 0.0, 1.0) * PlotWidth);
+        InsetX + Math.Clamp(time, 0.0, 1.0) * PlotWidth;
 
     public double ScreenY(double storageValue)
     {
@@ -23,7 +23,7 @@ public readonly record struct TimeCurvePlotGeometry(
             (display - Axis.DisplayMinimum) / Axis.DisplayRange,
             0.0,
             1.0);
-        return InsetTop + ((1.0 - normalized) * PlotHeight);
+        return InsetTop + (1.0 - normalized) * PlotHeight;
     }
 
     public double TimeFromScreenX(double x) =>
@@ -32,7 +32,7 @@ public readonly record struct TimeCurvePlotGeometry(
     public double StorageValueFromScreenY(double y)
     {
         double normalized = 1.0 - Math.Clamp((y - InsetTop) / PlotHeight, 0.0, 1.0);
-        double display = Axis.DisplayMinimum + (normalized * Axis.DisplayRange);
+        double display = Axis.DisplayMinimum + normalized * Axis.DisplayRange;
         return Math.Clamp(Axis.ToStorage(display), Axis.StorageMinimum, Axis.StorageMaximum);
     }
 

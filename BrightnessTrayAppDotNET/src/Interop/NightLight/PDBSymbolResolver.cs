@@ -357,7 +357,7 @@ internal static class PDBSymbolResolver
 
         // Symstore key: GUID with no dashes, then age in hex, both uppercase.
         // Microsoft's symbol server is case-sensitive on this segment for some files, so always emit uppercase.
-        string symbolKey = ($"{pdbSig:N}{pdbAge:X}").ToUpperInvariant();
+        string symbolKey = $"{pdbSig:N}{pdbAge:X}".ToUpperInvariant();
         string pdbDir = Path.Combine(NightlightDir, pdbName, symbolKey);
         string pdbPath = Path.Combine(pdbDir, pdbName);
 

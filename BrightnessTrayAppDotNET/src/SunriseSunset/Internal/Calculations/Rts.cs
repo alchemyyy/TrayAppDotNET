@@ -62,7 +62,7 @@ internal static class Rts
         if (Math.Abs(a) >= 2.0) a = MathUtils.LimitZero2One(a);
         if (Math.Abs(b) >= 2.0) b = MathUtils.LimitZero2One(b);
 
-        return ad[JdZero] + (n * (a + b + (b - a) * n)) / 2.0;
+        return ad[JdZero] + n * (a + b + (b - a) * n) / 2.0;
     }
 
     public static double RtsSunAltitude(double latitude, double deltaPrime, double hPrime)

@@ -295,7 +295,7 @@ internal static class AppIconResolver
             {
                 Buffer.BlockCopy(
                     pixels,
-                    ((sy + y) * stride) + sx * 4,
+                    (sy + y) * stride + sx * 4,
                     cropped,
                     y * sw * 4,
                     sw * 4);

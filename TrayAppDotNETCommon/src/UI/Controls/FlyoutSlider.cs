@@ -590,7 +590,7 @@ public sealed class FlyoutSlider : Control
         double width = Math.Max(1, Bounds.Width);
         double thumbWidth = Math.Max(1, Thumb.Width);
         double trackStart = thumbWidth / 2.0;
-        double trackEnd = width - (thumbWidth / 2.0);
+        double trackEnd = width - thumbWidth / 2.0;
         double trackLength = Math.Max(1, trackEnd - trackStart);
         SetValueAndNotify(Minimum + Math.Clamp((x - trackStart) / trackLength, 0, 1) * Range, notify);
     }

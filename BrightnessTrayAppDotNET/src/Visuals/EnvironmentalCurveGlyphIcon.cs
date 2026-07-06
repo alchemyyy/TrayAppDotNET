@@ -33,8 +33,8 @@ internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon
             CompositeGlyphWeight,
             SquareScale,
             SquareScale,
-            (size * SquareQuadrantCenter) + (squareSize * SquareNudgeFraction),
-            (size * SquareQuadrantCenter) - (squareSize * SquareNudgeFraction));
+            size * SquareQuadrantCenter + squareSize * SquareNudgeFraction,
+            size * SquareQuadrantCenter - squareSize * SquareNudgeFraction);
 
         using SKPath circle = BuildScaledGlyphAt(
             GlyphCatalog.FILLED_CIRCLE_2,
@@ -79,8 +79,8 @@ internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon
     {
         using SKPath glyphPath = BuildGlyphPathAtLineOrigin(glyph, size, weight);
         SKRect bounds = glyphPath.Bounds;
-        double glyphCenterX = bounds.Left + (bounds.Width / 2.0);
-        double glyphCenterY = bounds.Top + (bounds.Height / 2.0);
+        double glyphCenterX = bounds.Left + bounds.Width / 2.0;
+        double glyphCenterY = bounds.Top + bounds.Height / 2.0;
         return TransformPath(
             glyphPath,
             scaleX,
@@ -101,8 +101,8 @@ internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon
     {
         using SKPath glyphPath = BuildGlyphPathAtLineOrigin(glyph, size, weight);
         SKRect bounds = glyphPath.Bounds;
-        double glyphCenterX = bounds.Left + (bounds.Width / 2.0);
-        double glyphCenterY = bounds.Top + (bounds.Height / 2.0);
+        double glyphCenterX = bounds.Left + bounds.Width / 2.0;
+        double glyphCenterY = bounds.Top + bounds.Height / 2.0;
 
         using SKPath scaled = TransformPath(glyphPath, scale, scale, glyphCenterX, glyphCenterY);
         SKRect scaledBounds = scaled.Bounds;

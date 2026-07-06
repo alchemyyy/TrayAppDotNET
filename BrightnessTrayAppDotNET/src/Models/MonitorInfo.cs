@@ -60,9 +60,9 @@ public static class SliderStateMachine
     public static SliderState OnHardwareRecovered(SliderState current, bool curveEngaged, bool inDisabledPeriod) =>
         current != SliderState.Failed
             ? current
-            : (curveEngaged
-                ? (inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive)
-                : SliderState.Enabled);
+            : curveEngaged
+                ? inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive
+                : SliderState.Enabled;
 
     /// <summary>
     /// User toggled the slider's group-membership icon off.
@@ -78,9 +78,9 @@ public static class SliderStateMachine
     public static SliderState OnUserToggleOn(SliderState current, bool curveEngaged, bool inDisabledPeriod) =>
         current != SliderState.Disabled
             ? current
-            : (curveEngaged
-                ? (inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive)
-                : SliderState.Enabled);
+            : curveEngaged
+                ? inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive
+                : SliderState.Enabled;
 
     /// <summary>User dragged a curve-driven individual's slider; release that row from curve control.</summary>
     public static SliderState OnUserRelease(SliderState current) =>
@@ -92,7 +92,7 @@ public static class SliderStateMachine
     public static SliderState OnUserReengage(SliderState current, bool inDisabledPeriod) =>
         current != SliderState.CurveReleased
             ? current
-            : (inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive);
+            : inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
 
     /// <summary>
     /// Curve flag flipped on. Disabled / Failed are sticky (user / hardware override curve);
@@ -102,7 +102,7 @@ public static class SliderStateMachine
     public static SliderState OnCurveEngaged(SliderState current, bool inDisabledPeriod) =>
         current is SliderState.Failed or SliderState.Disabled
             ? current
-            : (inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive);
+            : inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
 
     /// <summary>Curve flag flipped off. Curve-tagged states fall back to Enabled; Disabled/Failed stick.</summary>
     public static SliderState OnCurveDisengaged(SliderState current) =>

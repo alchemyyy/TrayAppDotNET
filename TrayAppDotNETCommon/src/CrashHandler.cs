@@ -316,7 +316,7 @@ public static class CrashHandler
         int keep = 0;
         for (int i = 0; i < restartCount; i++)
         {
-            if ((now - restartTimes[i]) <= windowMs)
+            if (now - restartTimes[i] <= windowMs)
                 restartTimes[keep++] = restartTimes[i];
         }
 

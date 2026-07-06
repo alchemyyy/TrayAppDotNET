@@ -44,10 +44,10 @@ public readonly record struct TimeCurveValueAxis(
     public double DisplayRange => Math.Max(0.001, DisplayMaximum - DisplayMinimum);
 
     public double ToDisplay(double storageValue) =>
-        DisplayMinimum + ((storageValue - StorageMinimum) / StorageRange * DisplayRange);
+        DisplayMinimum + (storageValue - StorageMinimum) / StorageRange * DisplayRange;
 
     public double ToStorage(double displayValue) =>
-        StorageMinimum + ((displayValue - DisplayMinimum) / DisplayRange * StorageRange);
+        StorageMinimum + (displayValue - DisplayMinimum) / DisplayRange * StorageRange;
 }
 
 /// <summary>

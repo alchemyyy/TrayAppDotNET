@@ -124,9 +124,9 @@ public static class EnvironmentalCurveSampler
                 continue;
             }
 
-            double w1 = (2.0 * h[i]) + h[i - 1];
-            double w2 = h[i] + (2.0 * h[i - 1]);
-            d[i] = (w1 + w2) / ((w1 / m[i - 1]) + (w2 / m[i]));
+            double w1 = 2.0 * h[i] + h[i - 1];
+            double w2 = h[i] + 2.0 * h[i - 1];
+            d[i] = (w1 + w2) / (w1 / m[i - 1] + w2 / m[i]);
         }
 
         d[0] = EndpointTangent(h[0], h[1], m[0], m[1]);
@@ -137,7 +137,7 @@ public static class EnvironmentalCurveSampler
 
     private static double EndpointTangent(double hEnd, double hNext, double mEnd, double mNext)
     {
-        double d = (((2.0 * hEnd) + hNext) * mEnd - (hEnd * mNext)) / (hEnd + hNext);
+        double d = ((2.0 * hEnd + hNext) * mEnd - hEnd * mNext) / (hEnd + hNext);
         if (d * mEnd <= 0.0) return 0.0;
 
         double cap = 3.0 * Math.Abs(mEnd);
@@ -174,10 +174,10 @@ public static class EnvironmentalCurveSampler
         double t = (x - timePoints[lo]) / h;
         double t2 = t * t;
         double t3 = t2 * t;
-        double h00 = (2.0 * t3) - (3.0 * t2) + 1.0;
-        double h10 = t3 - (2.0 * t2) + t;
-        double h01 = (-2.0 * t3) + (3.0 * t2);
+        double h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+        double h10 = t3 - 2.0 * t2 + t;
+        double h01 = -2.0 * t3 + 3.0 * t2;
         double h11 = t3 - t2;
-        return (h00 * valuePoints[lo]) + (h10 * h * tangents[lo]) + (h01 * valuePoints[hi]) + (h11 * h * tangents[hi]);
+        return h00 * valuePoints[lo] + h10 * h * tangents[lo] + h01 * valuePoints[hi] + h11 * h * tangents[hi];
     }
 }

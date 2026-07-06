@@ -728,7 +728,7 @@ internal sealed class SettingsSearchableListBoxItemRow : Border
         double red = background.R / 255.0;
         double green = background.G / 255.0;
         double blue = background.B / 255.0;
-        double luminance = (0.2126 * red) + (0.7152 * green) + (0.0722 * blue);
+        double luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
         return luminance > 0.55 ? Colors.Black : Colors.White;
     }
 }

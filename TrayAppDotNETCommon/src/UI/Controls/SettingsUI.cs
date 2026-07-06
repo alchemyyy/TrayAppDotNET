@@ -700,7 +700,7 @@ public sealed class SettingsScrollHost : Grid
         }
 
         double next = Math.Clamp(
-            _scrollViewer.Offset.Y - (e.Delta.Y * SettingsUILayout.ScrollWheelStep),
+            _scrollViewer.Offset.Y - e.Delta.Y * SettingsUILayout.ScrollWheelStep,
             0,
             maxOffset);
         _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, next);
@@ -847,7 +847,7 @@ internal sealed class SettingsScrollBar : Control
             : Math.Min(height, Math.Max(SettingsUILayout.ScrollBarMinThumbHeight, height * viewport / extent));
         double available = Math.Max(0, height - thumbHeight);
         double top = MaxOffset <= 0 ? 0 : Math.Clamp(_viewer.Offset.Y / MaxOffset * available, 0, available);
-        double width = Math.Max(2, TrackWidth - (SettingsUILayout.ScrollBarThumbMargin * 2));
+        double width = Math.Max(2, TrackWidth - SettingsUILayout.ScrollBarThumbMargin * 2);
         double left = SettingsUILayout.ScrollBarTotalWidth - TrackWidth + SettingsUILayout.ScrollBarThumbMargin;
         return new Rect(left, top, width, thumbHeight);
     }

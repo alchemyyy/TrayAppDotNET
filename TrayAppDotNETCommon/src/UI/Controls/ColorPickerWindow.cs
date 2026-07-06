@@ -608,7 +608,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             return Color.FromArgb(0xFF, gray, gray, gray);
         }
 
-        double h = ((hue % 360) + 360) % 360 / 60.0;
+        double h = (hue % 360 + 360) % 360 / 60.0;
         int sector = (int)Math.Floor(h);
         double f = h - sector;
         double p = val * (1 - sat);
@@ -647,7 +647,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
         if (delta > 0)
         {
-            if (max == rd) hue = 60.0 * (((gd - bd) / delta) % 6);
+            if (max == rd) hue = 60.0 * ((gd - bd) / delta % 6);
             else if (max == gd) hue = 60.0 * ((bd - rd) / delta + 2);
             else hue = 60.0 * ((rd - gd) / delta + 4);
         }

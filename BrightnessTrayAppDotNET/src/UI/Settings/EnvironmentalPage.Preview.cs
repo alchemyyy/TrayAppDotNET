@@ -70,8 +70,8 @@ public sealed partial class BrightnessSettingsWindow
 
     private void OnEnvironmentalCurveEngagedStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is not (nameof(BrightnessFlyoutWindow.IsBrightnessCurveEnabled))
-            and not (nameof(BrightnessFlyoutWindow.IsNightLightCurveEnabled)))
+        if (e.PropertyName is not nameof(BrightnessFlyoutWindow.IsBrightnessCurveEnabled)
+            and not nameof(BrightnessFlyoutWindow.IsNightLightCurveEnabled))
             return;
 
         UpdatePreviewSweepEnabled();

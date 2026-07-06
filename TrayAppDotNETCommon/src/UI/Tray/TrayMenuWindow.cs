@@ -168,7 +168,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             PixelRect workArea = ResolveWorkArea(cursorPoint);
             _scrollViewer.MaxHeight = Math.Max(
                 _options.PixelMinSize,
-                (workArea.Height - (2 * _options.EdgePadding)) / RenderScaling);
+                (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
 
             UpdateLayout();
             Position = ResolvePosition(trayIcon, cursorPoint, placement, workArea);

@@ -316,7 +316,7 @@ public sealed class FanCurveEditor : Control
 
         for (int i = 0; i <= horizontalGridDivisions; i++)
         {
-            double xValue = XMinimum + ((XMaximum - XMinimum) * i / horizontalGridDivisions);
+            double xValue = XMinimum + (XMaximum - XMinimum) * i / horizontalGridDivisions;
             double x = ScreenX(xValue, plot);
             DrawLine(context, new Point(x, plot.Top), new Point(x, plot.Bottom),
                 WithOpacity(_palette.GridLine, 0.4), 1.0);
@@ -385,10 +385,10 @@ public sealed class FanCurveEditor : Control
         using StreamGeometryContext geometryContext = geometry.Open();
         for (int i = 0; i < samples; i++)
         {
-            double x = XMinimum + ((XMaximum - XMinimum) * i / Math.Max(1, samples - 1));
+            double x = XMinimum + (XMaximum - XMinimum) * i / Math.Max(1, samples - 1);
             double linear = InterpolateLinear(xs, ys, x);
             double cubic = InterpolateMonotonicCubic(xs, ys, tangents, x);
-            double yValue = linear + ((cubic - linear) * smoothness);
+            double yValue = linear + (cubic - linear) * smoothness;
             Point current = new(ScreenX(x, plot), ScreenY(yValue, plot));
             if (i == 0)
                 geometryContext.BeginFigure(current, isFilled: false);
@@ -708,7 +708,7 @@ public sealed class FanCurveEditor : Control
     /// Calculates the value for a Y-axis grid division.
     /// </summary>
     private double YGridValue(int index) =>
-        YMaximum - ((YMaximum - YMinimum) * index / VerticalGridDivisions);
+        YMaximum - (YMaximum - YMinimum) * index / VerticalGridDivisions;
 
     private double XMinimum => _dataSource?.DisplayMinimum ?? 0.0;
 
@@ -721,25 +721,25 @@ public sealed class FanCurveEditor : Control
     private double ScreenX(double x, Rect plot)
     {
         double span = Math.Max(0.001, XMaximum - XMinimum);
-        return plot.Left + ((x - XMinimum) / span * plot.Width);
+        return plot.Left + (x - XMinimum) / span * plot.Width;
     }
 
     private double FromScreenX(double x, Rect plot)
     {
         double span = Math.Max(0.001, XMaximum - XMinimum);
-        return XMinimum + ((x - plot.Left) / Math.Max(1.0, plot.Width) * span);
+        return XMinimum + (x - plot.Left) / Math.Max(1.0, plot.Width) * span;
     }
 
     private double ScreenY(double y, Rect plot)
     {
         double span = Math.Max(0.001, YMaximum - YMinimum);
-        return plot.Top + ((1.0 - (y - YMinimum) / span) * plot.Height);
+        return plot.Top + (1.0 - (y - YMinimum) / span) * plot.Height;
     }
 
     private double FromScreenY(double y, Rect plot)
     {
         double span = Math.Max(0.001, YMaximum - YMinimum);
-        return YMinimum + ((1.0 - (y - plot.Top) / Math.Max(1.0, plot.Height)) * span);
+        return YMinimum + (1.0 - (y - plot.Top) / Math.Max(1.0, plot.Height)) * span;
     }
 
     private Point PointFor(DisplayNode node, Rect plot) => new(ScreenX(node.X, plot), ScreenY(node.Y, plot));
@@ -915,7 +915,7 @@ public sealed class FanCurveEditor : Control
 
         double dx = xs[high] - xs[low];
         double t = dx > 0.0 ? (x - xs[low]) / dx : 0.0;
-        return ys[low] + (t * (ys[high] - ys[low]));
+        return ys[low] + t * (ys[high] - ys[low]);
     }
 
     private static double[] ComputeMonotonicTangents(double[] xs, double[] ys)
@@ -947,9 +947,9 @@ public sealed class FanCurveEditor : Control
                 continue;
             }
 
-            double w1 = (2.0 * intervals[i]) + intervals[i - 1];
-            double w2 = intervals[i] + (2.0 * intervals[i - 1]);
-            tangents[i] = (w1 + w2) / ((w1 / slopes[i - 1]) + (w2 / slopes[i]));
+            double w1 = 2.0 * intervals[i] + intervals[i - 1];
+            double w2 = intervals[i] + 2.0 * intervals[i - 1];
+            tangents[i] = (w1 + w2) / (w1 / slopes[i - 1] + w2 / slopes[i]);
         }
 
         tangents[0] = EndpointTangent(intervals[0], intervals[1], slopes[0], slopes[1]);
@@ -987,20 +987,20 @@ public sealed class FanCurveEditor : Control
         double t = (x - xs[low]) / h;
         double t2 = t * t;
         double t3 = t2 * t;
-        double h00 = (2.0 * t3) - (3.0 * t2) + 1.0;
-        double h10 = t3 - (2.0 * t2) + t;
-        double h01 = (-2.0 * t3) + (3.0 * t2);
+        double h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+        double h10 = t3 - 2.0 * t2 + t;
+        double h01 = -2.0 * t3 + 3.0 * t2;
         double h11 = t3 - t2;
 
-        return (h00 * ys[low]) +
-               (h10 * h * tangents[low]) +
-               (h01 * ys[high]) +
-               (h11 * h * tangents[high]);
+        return h00 * ys[low] +
+               h10 * h * tangents[low] +
+               h01 * ys[high] +
+               h11 * h * tangents[high];
     }
 
     private static double EndpointTangent(double hEnd, double hNext, double mEnd, double mNext)
     {
-        double tangent = (((2.0 * hEnd) + hNext) * mEnd - (hEnd * mNext)) / (hEnd + hNext);
+        double tangent = ((2.0 * hEnd + hNext) * mEnd - hEnd * mNext) / (hEnd + hNext);
         if (tangent * mEnd <= 0.0) return 0.0;
 
         double cap = 3.0 * Math.Abs(mEnd);

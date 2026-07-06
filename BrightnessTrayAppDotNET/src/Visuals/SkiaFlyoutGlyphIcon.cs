@@ -109,8 +109,8 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
     {
         using SKPath path = BuildGlyphPathAtLineOrigin(glyph, fontSize, weight);
         SKRect bounds = path.Bounds;
-        float x = ((canvasSize - bounds.Width) / 2.0f) - bounds.Left + (float)translateX;
-        float y = ((canvasSize - bounds.Height) / 2.0f) - bounds.Top + (float)translateY;
+        float x = (canvasSize - bounds.Width) / 2.0f - bounds.Left + (float)translateX;
+        float y = (canvasSize - bounds.Height) / 2.0f - bounds.Top + (float)translateY;
         return TransformPath(path, 1.0, 1.0, 0.0, 0.0, x, y);
     }
 
@@ -123,8 +123,8 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
         double translateX = 0.0,
         double translateY = 0.0)
     {
-        float tx = (float)(centerX - (scaleX * centerX) + translateX);
-        float ty = (float)(centerY - (scaleY * centerY) + translateY);
+        float tx = (float)(centerX - scaleX * centerX + translateX);
+        float ty = (float)(centerY - scaleY * centerY + translateY);
         SKMatrix transform = SKMatrix.CreateScaleTranslation(
             (float)scaleX,
             (float)scaleY,
