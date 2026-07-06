@@ -52,6 +52,8 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new const string CHEVRON_RIGHT = CommonGlyphCatalog.CHEVRON_RIGHT;
     public new const string CALENDAR = CommonGlyphCatalog.CALENDAR;
 
+    public const string STOPWATCH = "\uE916"; // Fluent, Stopwatch
+    public const string CHECK_MARK = "\uE73E"; // Fluent, CheckMark
     public const string MONITOR = "\uE7F4"; // Fluent, TVMonitor
     public const string SYNC_BADGE = "\uEDAB"; // Fluent, SyncBadge12
     public new const string POWER = CommonGlyphCatalog.POWER;
@@ -60,4 +62,11 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new const string WARNING = CommonGlyphCatalog.WARNING;
     public const string PROFILE_SAVE = "\uE74E"; // Fluent, Save
     public const string PROFILE_INDICATOR = "\uE915"; // Fluent, RadioBullet
+
+    // ===========================================================================
+    // Environmental map glyphs
+    // ===========================================================================
+
+    public const string MAP_CENTER = CHECK_MARK;
+    public const string MAP_PIN = "\uECAF"; // Fluent, MapPin
 }

@@ -35,8 +35,6 @@ internal sealed class BrightnessTrayMenuWindow(
             Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = shadowColor
         })
 {
-    private const string CheckGlyph = "\uE73E";
-
     public void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
@@ -60,7 +58,8 @@ internal sealed class BrightnessTrayMenuWindow(
             foreach (BrightnessTrayMenuProfile profile in profiles)
             {
                 int capturedIndex = profile.Index;
-                entries.Add(profile.Label, () => selectProfile(capturedIndex), profile.IsSelected ? CheckGlyph : null);
+                entries.Add(profile.Label, () => selectProfile(capturedIndex),
+                    profile.IsSelected ? GlyphCatalog.CHECK_MARK : null);
             }
 
             entries.AddSeparator();

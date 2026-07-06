@@ -145,7 +145,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
     {
         Point center = _viewport.MapToViewport(Projection.Project(_selectedCoordinate));
         FormattedText text = new(
-            "\uECAF",
+            GlyphCatalog.MAP_PIN,
             System.Globalization.CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
             new Typeface(PinFont),
