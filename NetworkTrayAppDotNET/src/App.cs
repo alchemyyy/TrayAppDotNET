@@ -105,7 +105,7 @@ internal sealed class NetworkAvaloniaApp : Application
                 GetThemePath = AppTheme.GetDefaultPath,
                 LoadTheme = AppTheme.LoadOrDefault,
                 ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"NetworkAvaloniaApp theme load failed: {ex}"),
+                LogThemeLoadFailed = ex => TADNLog.Log($"NetworkAvaloniaApp theme load failed: {ex}")
             });
 
         _settings = loaded.Settings;
@@ -131,7 +131,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         try
         {
-            _networkIconRenderer = new NetworkTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme(), };
+            _networkIconRenderer = new NetworkTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme() };
             ApplyNetworkColorOverrides();
 
             _networkMonitor = new NetworkMonitor();
@@ -147,7 +147,7 @@ internal sealed class NetworkAvaloniaApp : Application
         {
             _refreshTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(TimeConstants.NetworkPollIntervalMs),
+                Interval = TimeSpan.FromMilliseconds(TimeConstants.NetworkPollIntervalMs)
             };
             _refreshTimer.Tick += OnRefreshTimerTick;
             _refreshTimer.Start();
@@ -213,7 +213,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsVisible = true,
+            IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
@@ -329,7 +329,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => _theme?.IsLightTheme ?? false,
+        _ => _theme?.IsLightTheme ?? false
     };
 
     private void ApplyThemeVariant()
@@ -557,7 +557,7 @@ internal sealed class NetworkAvaloniaApp : Application
             FlyoutStyle.QuickSettings => TryOpenUri("ms-actioncenter:controlcenter/&showFooter=true"),
             FlyoutStyle.AvailableNetworks => TryOpenUri("ms-availablenetworks:"),
             FlyoutStyle.Settings => TryOpenUri("ms-settings:network-wifi"),
-            _ => false,
+            _ => false
         };
 
         if (!success) TryOpenUri("ms-availablenetworks:");

@@ -157,7 +157,7 @@ internal sealed class DeviceNicknameResolver
                 {
                     Kind = DeviceNicknameRuleKind.HardwareType,
                     HardwareTypeTarget = hardwareTypeMatch.Groups[HardwareTypeGroupName].Value,
-                    ReplacementString = rule.ReplacementString ?? string.Empty,
+                    ReplacementString = rule.ReplacementString ?? string.Empty
                 });
                 continue;
             }
@@ -169,7 +169,7 @@ internal sealed class DeviceNicknameResolver
                 {
                     Kind = DeviceNicknameRuleKind.DeviceNameRegex,
                     DeviceNameRegex = regex,
-                    ReplacementString = rule.ReplacementString ?? string.Empty,
+                    ReplacementString = rule.ReplacementString ?? string.Empty
                 });
             }
             catch (ArgumentException ex)
@@ -193,7 +193,7 @@ internal sealed class DeviceNicknameResolver
         {
             CPUHardwareTypeTarget => string.Equals(hardwareType, LHMCPUHardwareType, StringComparison.OrdinalIgnoreCase),
             GPUHardwareTypeTarget => IsGPUHardwareType(hardwareType),
-            _ => string.Equals(hardwareType, target, StringComparison.OrdinalIgnoreCase),
+            _ => string.Equals(hardwareType, target, StringComparison.OrdinalIgnoreCase)
         };
     }
 
@@ -226,7 +226,7 @@ internal sealed class DeviceNicknameResolver
     private enum DeviceNicknameRuleKind
     {
         DeviceNameRegex,
-        HardwareType,
+        HardwareType
     }
 
     private sealed class CompiledDeviceNicknameRule

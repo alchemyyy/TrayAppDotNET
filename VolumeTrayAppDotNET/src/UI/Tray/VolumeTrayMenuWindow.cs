@@ -27,7 +27,7 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
                 FontSize = fontSize,
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
-                ScrollToBottom = true,
+                ScrollToBottom = true
             })
     {
     }
@@ -85,7 +85,7 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         {
             TrayMenuDeviceNameStyle.Name => device.DeviceDescription,
             TrayMenuDeviceNameStyle.Model => device.InterfaceFriendlyName,
-            _ => device.FriendlyName,
+            _ => device.FriendlyName
         };
 
         if (string.IsNullOrEmpty(raw)) return device.FriendlyName;
@@ -105,7 +105,7 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
             {
                 FileName = "explorer.exe",
                 Arguments = "ms-actioncenter:controlcenter/bluetooth",
-                UseShellExecute = false,
+                UseShellExecute = false
             });
         }
         catch (Exception ex) { TADNLog.Log($"VolumeTrayMenuWindow.OpenBluetoothFlyout: {ex.Message}"); }
@@ -117,7 +117,7 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         {
             ThemeMode.Light => true,
             ThemeMode.Dark => false,
-            _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
+            _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
         };
         return AppServices.Theme?.Separator.For(isLight) ?? palette.Border;
     }
@@ -128,7 +128,7 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         {
             ThemeMode.Light => true,
             ThemeMode.Dark => false,
-            _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
+            _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
         };
 
         return (AppServices.Theme ?? AppTheme.Default).MenuShadow.For(isLight);

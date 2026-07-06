@@ -51,13 +51,13 @@ public sealed record TrayAppDotNETInstallPayload(
     [
         new TrayAppDotNETInstallFile(installedExecutableFileName),
         .. RequiredFiles,
-        .. OptionalFiles,
+        .. OptionalFiles
     ];
 
     public IReadOnlyList<TrayAppDotNETInstallDirectory> InstalledDirectories =>
     [
         .. RequiredDirectories,
-        .. OptionalDirectories,
+        .. OptionalDirectories
     ];
 
     public static TrayAppDotNETInstallPayload ManagedApp(
@@ -69,7 +69,7 @@ public sealed record TrayAppDotNETInstallPayload(
         [
             applicationName + ".dll",
             applicationName + ".deps.json",
-            applicationName + ".runtimeconfig.json",
+            applicationName + ".runtimeconfig.json"
         ];
 
         return new TrayAppDotNETInstallPayload(
@@ -88,13 +88,13 @@ public sealed record TrayAppDotNETInstallPayload(
         [
             new("av_libglesv2.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
             new("libHarfBuzzSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new("libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new("libSkiaSharp.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];
 
         TrayAppDotNETInstallFile[] optionalFiles =
         [
             new("libMonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
-            new("MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true),
+            new("MonoPosixHelper.dll", RemoveOnlyWhenInstallRootHasNoExe: true)
         ];
 
         return new TrayAppDotNETInstallPayload(
@@ -124,7 +124,7 @@ public enum TrayAppDotNETInstallStatus
     NotInstalled,
     InstalledUpToDate,
     InstalledOutOfDate,
-    CurrentlyRunning,
+    CurrentlyRunning
 }
 
 public sealed record TrayAppDotNETInstallationInfo(

@@ -79,7 +79,7 @@ public class DisplayService : IDisplayService
         {
             list.Add(new DDCMonitor
             {
-                Handle = hMonitor, HDC = hdc, X = rect.left, Y = rect.top,
+                Handle = hMonitor, HDC = hdc, X = rect.left, Y = rect.top
             });
             return true;
         }

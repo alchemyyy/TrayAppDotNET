@@ -282,7 +282,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 {
                     OffsetY = Layout.RootShadowOffsetY,
                     Blur = Layout.RootShadowBlur,
-                    Color = theme.FlyoutShadow.For(isLight),
+                    Color = theme.FlyoutShadow.For(isLight)
                 }),
                 Child = new Border
                 {
@@ -290,8 +290,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     CornerRadius = Rounded(Layout.RootInnerCornerRadius),
                     ClipToBounds = true,
                     Margin = Layout.RootInnerMargin,
-                    Child = rootGrid,
-                },
+                    Child = rootGrid
+                }
             };
             _rootCard.PointerPressed += OnRootPointerPressed;
             _rootCard.PointerMoved += OnRootPointerMoved;
@@ -321,8 +321,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
                 new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
                 new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
-            },
+                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth))
+            }
         };
 
         AddHeaderButton(
@@ -355,7 +355,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 TrayAppDotNETFlyoutUI.Brush(
                     (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(_settings,
                         AppTheme.ResolveEffectiveIsLightTheme(_settings))),
-            Child = grid,
+            Child = grid
         };
     }
 
@@ -391,7 +391,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             ClipToBounds = true,
             Margin = CellListMargin(Math.Clamp(_settings.FlyoutTitleBarCardSpacing, 0,
-                Layout.MaxSettingSpacing)),
+                Layout.MaxSettingSpacing))
         };
 
         _cellStack = new StackPanel { Spacing = 0 };
@@ -407,7 +407,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Focusable = false,
-            Content = _cellStack,
+            Content = _cellStack
         };
         holder.Children.Add(_scrollViewer);
 
@@ -484,8 +484,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         Border icon = new()
@@ -495,7 +495,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Margin = Layout.FanButtonUngroupedMargin,
             Child = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.INFO, p, Layout.FanButtonFontSize),
             IsHitTestVisible = false,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(icon, 0);
         row.Children.Add(icon);
@@ -503,7 +503,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         StackPanel text = new()
         {
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.FanNameStackUngroupedMargin,
+            Margin = Layout.FanNameStackUngroupedMargin
         };
         TextBlock title = TrayAppDotNETFlyoutUI.Text(
             L("UpdateNotification_Title", "Update available"),
@@ -612,7 +612,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             StackPanel rows = new()
             {
-                Margin = Layout.ProbeRowsMargin,
+                Margin = Layout.ProbeRowsMargin
             };
 
             List<ProbeCardProbe> selectedProbes =
@@ -668,8 +668,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         Border probeButton = TrayAppDotNETFlyoutUI.IconButton(
@@ -705,7 +705,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         StackPanel nameStack = new()
         {
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.ProbeNameStackMargin,
+            Margin = Layout.ProbeNameStackMargin
         };
         nameStack.Children.Add(nameGrid);
         // nameStack.Children.Add(device);
@@ -790,14 +790,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(new GridLength(Layout.ProbeRowValueMinWidth)),
-            },
+                new ColumnDefinition(new GridLength(Layout.ProbeRowValueMinWidth))
+            }
         };
 
         StackPanel labelRow = new()
         {
             Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         TextBlock glyph = TrayAppDotNETFlyoutUI.IconText(
             ProbeValueFormatter.GlyphFor(source?.DataSourceType ?? DataSourceTypeEnum.Unknown),
@@ -841,7 +841,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 grouped
                     ? FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing))
                     : Layout.ZeroThickness,
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
         };
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -885,7 +885,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         StackPanel nameStack = new()
         {
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = grouped ? Layout.FanNameStackGroupedMargin : Layout.FanNameStackUngroupedMargin,
+            Margin = grouped ? Layout.FanNameStackGroupedMargin : Layout.FanNameStackUngroupedMargin
         };
         nameStack.Children.Add(nameGrid);
         nameStack.Children.Add(subtitle);
@@ -897,7 +897,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = Layout.TelemetryMargin,
+            Margin = Layout.TelemetryMargin
         };
         TextBlock rpm = TrayAppDotNETFlyoutUI.Text($"{fan.CurrentRPM} RPM", p, Layout.RPMFontSize);
         rpm.Opacity = Layout.RPMOpacity;
@@ -939,7 +939,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 Height = Layout.SliderRowHeight,
                 Margin = Layout.SliderRowMargin,
-                VerticalAlignment = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             };
             sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
             sliderRow.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(fan.FanDisplayedValueSlotWidth)));
@@ -1001,7 +1001,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Width = fan.FanDisplayedValueSlotWidth,
                 Height = Layout.SliderRowHeight,
                 Margin = Layout.ValueGridMargin,
-                VerticalAlignment = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             };
             valueText = TrayAppDotNETFlyoutUI.Text(FanSliderValueText(fan, curveSliderValue, sliderRange), p,
                 Layout.ValueFontSize);
@@ -1015,7 +1015,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
                 Tag = fan,
-                Child = valueText,
+                Child = valueText
             };
             valueDisplay.PointerPressed += FanValueTextPointerPressed;
             TextBox valueEdit = InlineTextBox(FanSliderValueText(fan, curveSliderValue, sliderRange), p);
@@ -1055,9 +1055,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto)
             },
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
         };
 
         Border groupIcon = TrayAppDotNETFlyoutUI.IconButton(GlyphCatalog.GROUP, p, _ => { }, Layout.GroupIconWidth,
@@ -1094,7 +1094,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         TextBlock activeCurve = TrayAppDotNETFlyoutUI.Text(cell.ActiveCurveText, p, Layout.FanSubtitleFontSize);
         activeCurve.Opacity = Layout.SubtitleOpacity;
         activeCurve.Margin = Layout.SubtitleMargin;
-        StackPanel title = new() { VerticalAlignment = VerticalAlignment.Center, Margin = Layout.GroupTitleMargin, };
+        StackPanel title = new() { VerticalAlignment = VerticalAlignment.Center, Margin = Layout.GroupTitleMargin };
         title.Children.Add(nameGrid);
         title.Children.Add(activeCurve);
         Grid.SetColumn(title, 1);
@@ -1126,7 +1126,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Height = Layout.SliderRowHeight,
             Margin = Layout.GroupSliderRowMargin,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         sliderRow.ColumnDefinitions.Add(
@@ -1189,7 +1189,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Width = cell.GroupDisplayedValueSlotWidth,
             Height = Layout.SliderRowHeight,
             Margin = Layout.GroupValueGridMargin,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         valueText = TrayAppDotNETFlyoutUI.Text(GroupSliderValueText(cell, groupCurveSliderValue, sliderRange), p,
             Layout.ValueFontSize);
@@ -1202,7 +1202,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             StretchDirection = StretchDirection.DownOnly,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = valueText,
+            Child = valueText
         });
         Grid.SetColumn(valueGrid, 1);
         sliderRow.Children.Add(valueGrid);
@@ -1238,7 +1238,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             IndicatorColor = p.IconForeground,
             Thumb = thumb,
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
     }
 
@@ -1506,7 +1506,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             MultipleSliderValuesDisplayMode.Enabled => true,
             MultipleSliderValuesDisplayMode.OnlyInManual => controlMode == FanControlMode.Manual,
-            _ => false,
+            _ => false
         };
 
     /// <summary>
@@ -1780,7 +1780,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         Grid icon = new()
         {
-            Width = Layout.HeaderAddGroupIconSize, Height = Layout.HeaderAddGroupIconSize, IsHitTestVisible = false,
+            Width = Layout.HeaderAddGroupIconSize, Height = Layout.HeaderAddGroupIconSize, IsHitTestVisible = false
         };
         TextBlock groupGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize);
         TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
@@ -1803,7 +1803,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Width = Layout.HeaderAddGroupIconSize,
             Height = Layout.HeaderAddGroupIconSize,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         TextBlock probeGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddProbeFontSize);
         TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
@@ -1835,7 +1835,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom,
             Margin = Layout.ProfileUnderlineMargin,
-            IsVisible = _settings.SelectedFanProfileIndex == profileNumber - 1,
+            IsVisible = _settings.SelectedFanProfileIndex == profileNumber - 1
         };
         Grid content = new() { IsHitTestVisible = false };
         content.Children.Add(label);
@@ -1860,7 +1860,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Cursor = _settings.AllowFlyoutUndock
                 ? new Cursor(StandardCursorType.Hand)
                 : new Cursor(StandardCursorType.Arrow),
-            IsEnabled = _settings.AllowFlyoutUndock,
+            IsEnabled = _settings.AllowFlyoutUndock
         };
 
         _undockButtonGlyph = text;
@@ -1947,7 +1947,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             MaxWidth = Layout.ConfirmMaxWidth,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel { Children = { _confirmTitle, _confirmMessage, buttons } },
+            Child = new StackPanel { Children = { _confirmTitle, _confirmMessage, buttons } }
         };
         return new Border
         {
@@ -1955,7 +1955,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 TrayAppDotNETSettingsUI.Brush(
                     (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight)),
             CornerRadius = Rounded(Layout.RootCornerRadius),
-            Child = dialog,
+            Child = dialog
         };
     }
 
@@ -2108,7 +2108,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ProbeCard probeCard = new()
         {
             Name = name,
-            DisplayOrder = 0,
+            DisplayOrder = 0
         };
         _probeCards.Insert(0, probeCard);
         SaveProbeCardChanges();
@@ -2422,10 +2422,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 OffsetY = Layout.DragGhostShadowOffsetY,
                 Blur = Layout.DragGhostShadowBlur,
                 Color = (AppServices.Theme ?? AppTheme.Default).FlyoutShadow.For(
-                    AppTheme.ResolveEffectiveIsLightTheme(_settings)),
+                    AppTheme.ResolveEffectiveIsLightTheme(_settings))
             }),
             Child = ghostContent,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         _dragOverlay.Children.Add(_dragGhost);
         ApplyDragGhostSurface(initialStyle);
@@ -2474,7 +2474,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Margin = FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0,
                 Layout.MaxSettingSpacing)),
             Background = Brushes.Transparent,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
     }
 
@@ -2490,7 +2490,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             FanDragPlacementKind.TopLevel => FanDragGhostStyle.TopLevelFan,
             _ => _dragSourceCell is { HasGroupHeader: true }
                 ? FanDragGhostStyle.GroupedFan
-                : FanDragGhostStyle.TopLevelFan,
+                : FanDragGhostStyle.TopLevelFan
         };
     }
 
@@ -2617,7 +2617,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 FanFlyoutCell fanCell => fanCell,
                 ProbeCard _ when _draggedProbeCard != null => new FanFlyoutCell(null, []),
-                _ => null,
+                _ => null
             };
             if (cell == null) continue;
 
@@ -2928,7 +2928,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 {
                     Top = slot.Top + offset,
                     GroupInsertionTop = slot.GroupInsertionTop + offset,
-                    GroupDropBottom = slot.GroupDropBottom + offset,
+                    GroupDropBottom = slot.GroupDropBottom + offset
                 });
         }
 
@@ -3090,7 +3090,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Height = height,
             Background = brush,
             Opacity = opacity,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         Canvas.SetLeft(line, left);
         Canvas.SetTop(line, top - height / 2.0);
@@ -3894,7 +3894,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ProbeDataSelectorWindow window = new(probeCard, _settings, OnProbeCardSelectorChanged)
         {
             Topmost = Topmost,
-            ShowInTaskbar = false,
+            ShowInTaskbar = false
         };
         _probeSelectorWindows[probeCard] = window;
         window.Closed += ProbeSelectorWindowClosed;
@@ -3940,7 +3940,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             },
             SetPromptOpen = open => _isUpdateDialogOpen = open,
             SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
-            PromptClosed = NotifyChildWindowClosedFromDeactivation,
+            PromptClosed = NotifyChildWindowClosedFromDeactivation
         });
     }
 
@@ -3959,7 +3959,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FanCurveEditorWindow window = new(fan, curve, _settings)
         {
             Topmost = Topmost,
-            ShowInTaskbar = false,
+            ShowInTaskbar = false
         };
         _fanCurveEditorWindows.Add(window);
         window.Closed += FanCurveEditorWindowClosed;
@@ -4002,7 +4002,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             MinDutyCycle = 0,
             SmoothingFactor = 50,
             PreventDecreasing = true,
-            SelectedDataSourceKey = DefaultCurveDataSourceKey(),
+            SelectedDataSourceKey = DefaultCurveDataSourceKey()
         };
         Curve.Register(curve);
         return curve;
@@ -4343,7 +4343,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Name = groupName,
             DisplayOrder =
-                _groupNames.FindIndex(g => string.Equals(g, groupName, StringComparison.OrdinalIgnoreCase)),
+                _groupNames.FindIndex(g => string.Equals(g, groupName, StringComparison.OrdinalIgnoreCase))
         };
         if (group.DisplayOrder < 0) group.DisplayOrder = _groupSettingsByName.Count;
         _groupSettingsByName[groupName] = group;
@@ -4737,7 +4737,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             BorderBrush = Brushes.Transparent,
             BorderThickness = Layout.InlineEditorBorderThickness,
             Padding = Layout.InlineEditorPadding,
-            VerticalContentAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
         };
 
     private SliderThumbGlyphOption ResolveSliderThumbOption()

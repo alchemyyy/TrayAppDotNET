@@ -50,7 +50,7 @@ public sealed partial class BrightnessSettingsWindow
             0 => (12, "am"),
             < 12 => (hour, "am"),
             12 => (12, "pm"),
-            _ => (hour - 12, "pm"),
+            _ => (hour - 12, "pm")
         };
 
         return $"{displayHour}:{minute:D2}{suffix}";

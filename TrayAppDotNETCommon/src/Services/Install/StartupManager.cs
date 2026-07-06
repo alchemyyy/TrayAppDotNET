@@ -189,7 +189,7 @@ public sealed class TrayAppDotNETStartupManager(TrayAppDotNETStartupOptions opti
                 .FirstOrDefault(i => i is
                 {
                     Status: TrayAppDotNETInstallStatus.CurrentlyRunning,
-                    Scope: InstallScope.LocalAppData or InstallScope.ProgramFiles,
+                    Scope: InstallScope.LocalAppData or InstallScope.ProgramFiles
                 })
                 ?.InstallExecutablePath;
         }

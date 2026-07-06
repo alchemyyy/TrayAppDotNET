@@ -63,7 +63,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
             TextAlignment = TextAlignment.Center,
             LineHeight = 230,
             Focusable = false,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
 
         Border card = new()
@@ -77,14 +77,14 @@ public sealed class DisplayIdentifierOverlayWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             BoxShadow = new BoxShadows(new BoxShadow
             {
-                Blur = 24, Color = WithOpacity(theme.DisplayIdentifierShadow.For(isLightTheme), 0.5),
+                Blur = 24, Color = WithOpacity(theme.DisplayIdentifierShadow.For(isLightTheme), 0.5)
             }),
             Child = number,
             Focusable = false,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
 
-        Grid root = new() { Background = Brushes.Transparent, Focusable = false, IsHitTestVisible = false, };
+        Grid root = new() { Background = Brushes.Transparent, Focusable = false, IsHitTestVisible = false };
         root.Children.Add(card);
         return root;
     }
@@ -101,7 +101,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
 
     private static double ResolveDPIScale(int pxLeft, int pxTop, int pxWidth, int pxHeight)
     {
-        User32.POINT point = new() { X = pxLeft + Math.Max(1, pxWidth) / 2, Y = pxTop + Math.Max(1, pxHeight) / 2, };
+        User32.POINT point = new() { X = pxLeft + Math.Max(1, pxWidth) / 2, Y = pxTop + Math.Max(1, pxHeight) / 2 };
 
         IntPtr monitor = User32.MonitorFromPoint(point, User32.MONITOR_DEFAULTTONEAREST);
         if (monitor != IntPtr.Zero

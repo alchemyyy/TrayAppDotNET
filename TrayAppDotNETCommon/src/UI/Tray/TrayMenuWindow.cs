@@ -13,7 +13,7 @@ namespace TrayAppDotNETCommon.UI.Tray;
 public enum TrayMenuWindowPlacement
 {
     Classic,
-    Modern,
+    Modern
 }
 
 public sealed record TrayMenuEntry(string Text, Action Click)
@@ -30,11 +30,11 @@ public sealed class TrayMenuEntryBuilder
 
     public int Count => _entries.Count;
 
-    public void Add(string text, Action click, string? trailingGlyph = null) => Add(new TrayMenuEntry(text, click) { TrailingGlyph = trailingGlyph, });
+    public void Add(string text, Action click, string? trailingGlyph = null) => Add(new TrayMenuEntry(text, click) { TrailingGlyph = trailingGlyph });
 
     public void Add(TrayMenuEntry entry)
     {
-        _entries.Add(entry with { HasTopRule = entry.HasTopRule || _nextHasTopRule, });
+        _entries.Add(entry with { HasTopRule = entry.HasTopRule || _nextHasTopRule });
         _nextHasTopRule = false;
     }
 
@@ -119,7 +119,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             Content = items,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Focusable = false,
+            Focusable = false
         };
 
         Border root = new()
@@ -129,14 +129,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             BorderThickness = _options.RootBorderThickness,
             CornerRadius = ResolveCornerRadius(_options.RootCornerRadius),
             Padding = _options.RootPadding,
-            Child = _scrollViewer,
+            Child = _scrollViewer
         };
 
         if (_options.ShadowColor is { } shadowColor)
         {
             root.BoxShadow = new BoxShadows(new BoxShadow
             {
-                OffsetY = _options.ShadowOffsetY, Blur = _options.ShadowBlur, Color = shadowColor,
+                OffsetY = _options.ShadowOffsetY, Blur = _options.ShadowBlur, Color = shadowColor
             });
         }
 
@@ -274,7 +274,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 Padding = options.ItemPadding,
                 Margin = options.ItemMargin,
                 MinWidth = options.ItemMinWidth,
-                Child = BuildContent(entry, options),
+                Child = BuildContent(entry, options)
             };
 
             Grid layout = new();
@@ -293,7 +293,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 Height = options.RuleHeight,
                 Background = TrayAppDotNETSettingsUI.Brush(options.SeparatorColor ?? options.Palette.Border),
                 Margin = options.RuleMargin,
-                IsVisible = entry.HasBottomRule,
+                IsVisible = entry.HasBottomRule
             };
             Grid.SetRow(rule, 3);
             layout.Children.Add(rule);
@@ -339,8 +339,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             {
                 ColumnDefinitions =
                 {
-                    new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto),
-                },
+                    new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)
+                }
             };
 
             Grid.SetColumn(label, 0);

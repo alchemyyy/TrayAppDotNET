@@ -133,8 +133,8 @@ internal static class CCD
                     type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
                     size = (uint)Marshal.SizeOf<DISPLAYCONFIG_SOURCE_DEVICE_NAME>(),
                     adapterId = paths[i].sourceInfo.adapterId,
-                    id = paths[i].sourceInfo.id,
-                },
+                    id = paths[i].sourceInfo.id
+                }
             };
             if (DisplayConfigGetDeviceInfo(ref sourceNameRequest) != 0) continue;
 

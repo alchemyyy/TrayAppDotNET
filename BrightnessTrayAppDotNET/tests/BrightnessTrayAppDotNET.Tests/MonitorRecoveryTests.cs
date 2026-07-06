@@ -122,7 +122,7 @@ public sealed class MonitorRecoveryTests
             ValidationAttempts = 1,
             ValidationDwellMs = 0,
             BrightnessUpdateRateMs = 0,
-            DDCOperationTimeoutMs = 0,
+            DDCOperationTimeoutMs = 0
         };
 
         string storePath = Path.Combine(
@@ -152,7 +152,7 @@ public sealed class MonitorRecoveryTests
             EDIDManufacturerID = string.IsNullOrEmpty(serial) ? string.Empty : "TST",
             EDIDProductCode = string.IsNullOrEmpty(serial) ? string.Empty : "0001",
             X = displayNumber * 100,
-            Y = 0,
+            Y = 0
         };
     }
 

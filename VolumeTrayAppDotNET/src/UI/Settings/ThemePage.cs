@@ -31,7 +31,7 @@ public sealed partial class VolumeSettingsWindow
             [
                 (ThemeMode.System, Loc("Settings_Theme_ThemeStyle_System")),
                 (ThemeMode.Light, Loc("Settings_Theme_ThemeStyle_Light")),
-                (ThemeMode.Dark, Loc("Settings_Theme_ThemeStyle_Dark")),
+                (ThemeMode.Dark, Loc("Settings_Theme_ThemeStyle_Dark"))
             ],
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
@@ -72,7 +72,7 @@ public sealed partial class VolumeSettingsWindow
             [
                 (TrayAppDotNETAnimationMode.System, Loc("Settings_Theme_Animations_System")),
                 (TrayAppDotNETAnimationMode.Disabled, Loc("Settings_Theme_Animations_Disabled")),
-                (TrayAppDotNETAnimationMode.Enabled, Loc("Settings_Theme_Animations_Enabled")),
+                (TrayAppDotNETAnimationMode.Enabled, Loc("Settings_Theme_Animations_Enabled"))
             ],
             _settings.AnimationMode,
             v => _settings.AnimationMode = v,
@@ -180,14 +180,14 @@ public sealed partial class VolumeSettingsWindow
         "Star" => Loc("Settings_Theme_SliderThumb_Star"),
         "Square" => Loc("Settings_Theme_SliderThumb_Square"),
         "Heart" => Loc("Settings_Theme_SliderThumb_Heart"),
-        _ => name,
+        _ => name
     };
 
     private static Grid SliderThumbComboContent(SliderThumbGlyphOption option, string label, SettingsPalette p)
     {
         Grid preview = new()
         {
-            Width = 22, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+            Width = 22, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center
         };
 
         double width = Math.Max(1, option.Width);
@@ -201,7 +201,7 @@ public sealed partial class VolumeSettingsWindow
                 CornerRadius = new CornerRadius(height / 2),
                 Background = TrayAppDotNETSettingsUI.Brush(p.Foreground),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             });
         }
         else

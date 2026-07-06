@@ -34,7 +34,7 @@ public sealed partial class NetworkSettingsWindow
             Log = message => TADNLog.Log(message),
             RebuildAboutPage = () => RebuildShell(NetworkSettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
+            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
         });
         return _aboutPage.Build();
     }

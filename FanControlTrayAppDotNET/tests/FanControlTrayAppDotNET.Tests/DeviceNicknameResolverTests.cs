@@ -46,14 +46,14 @@ public sealed class DeviceNicknameResolverTests
                 new DeviceNicknameRule
                 {
                     TargetRegex = "^Custom$",
-                    ReplacementString = "Custom",
+                    ReplacementString = "Custom"
                 },
                 new DeviceNicknameRule
                 {
                     TargetRegex = "{HardwareType.CPU}",
-                    ReplacementString = "Processor",
-                },
-            ],
+                    ReplacementString = "Processor"
+                }
+            ]
         };
 
         bool loaded = settings.LoadDefaultDeviceNicknameRules();
@@ -121,9 +121,9 @@ public sealed class DeviceNicknameResolverTests
                     new DeviceNicknameRule
                     {
                         TargetRegex = "{HardwareType.GpuNvidia}",
-                        ReplacementString = "NVIDIA GPU",
-                    },
-                ],
+                        ReplacementString = "NVIDIA GPU"
+                    }
+                ]
             };
 
             DeviceNicknameResolver resolver = DeviceNicknameResolver.Create(settings);
@@ -156,14 +156,14 @@ public sealed class DeviceNicknameResolverTests
                     new DeviceNicknameRule
                     {
                         TargetRegex = "[",
-                        ReplacementString = "Broken",
+                        ReplacementString = "Broken"
                     },
                     new DeviceNicknameRule
                     {
                         TargetRegex = "Corsair.*",
-                        ReplacementString = "Pump",
-                    },
-                ],
+                        ReplacementString = "Pump"
+                    }
+                ]
             };
 
             DeviceNicknameResolver resolver = DeviceNicknameResolver.Create(settings);
@@ -190,24 +190,24 @@ public sealed class DeviceNicknameResolverTests
                 new DeviceNicknameRule
                 {
                     TargetRegex = ".*(CPU|Processor|Ryzen|Threadripper|Intel.*Core|Core.*Processor).*",
-                    ReplacementString = "CPU",
+                    ReplacementString = "CPU"
                 },
                 new DeviceNicknameRule
                 {
                     TargetRegex = ".*(GPU|Graphics|NVIDIA|GeForce|Radeon|Arc).*",
-                    ReplacementString = "GPU",
+                    ReplacementString = "GPU"
                 },
                 new DeviceNicknameRule
                 {
                     TargetRegex = "^AMD\\ Ryzen\\ 9\\ 9950X$",
-                    ReplacementString = "CPU 2",
+                    ReplacementString = "CPU 2"
                 },
                 new DeviceNicknameRule
                 {
                     TargetRegex = "^Corsair Commander$",
-                    ReplacementString = "Pump",
-                },
-            ],
+                    ReplacementString = "Pump"
+                }
+            ]
         };
 
         bool migrated = settings.EnsureDefaultDeviceNicknameRules();
@@ -232,7 +232,7 @@ public sealed class DeviceNicknameResolverTests
             DataSourceKey = key,
             ControllerName = controllerName,
             ControllerHardwareType = controllerHardwareType,
-            DataSourceType = DataSourceTypeEnum.Temperature,
+            DataSourceType = DataSourceTypeEnum.Temperature
         };
         DataSource.Register(source);
     }

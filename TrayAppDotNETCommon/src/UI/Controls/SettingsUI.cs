@@ -169,7 +169,7 @@ public sealed class SettingsNavItem : Border
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = SettingsUILayout.NavIndicatorMargin,
+            Margin = SettingsUILayout.NavIndicatorMargin
         };
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
@@ -189,7 +189,7 @@ public sealed class SettingsNavItem : Border
             CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
             Padding = SettingsUILayout.NavItemPadding,
             Margin = SettingsUILayout.NavItemInnerMargin,
-            Child = row,
+            Child = row
         };
         Child = _outer;
 
@@ -272,7 +272,7 @@ public sealed class SettingsNavAction : Border
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = SettingsUILayout.NavIndicatorMargin,
+            Margin = SettingsUILayout.NavIndicatorMargin
         };
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
@@ -291,7 +291,7 @@ public sealed class SettingsNavAction : Border
             Background = Brushes.Transparent,
             CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
             Padding = SettingsUILayout.NavItemPadding,
-            Child = row,
+            Child = row
         };
         Child = _outer;
 
@@ -456,7 +456,7 @@ public sealed class SettingsButton : Border
             CornerRadius = SettingsUILayout.NavIndicatorRadius,
             Background = Brushes.Transparent,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = SettingsUILayout.NavIndicatorMargin,
+            Margin = SettingsUILayout.NavIndicatorMargin
         });
 
         Grid.SetColumn(label, 1);
@@ -492,7 +492,7 @@ public sealed class SettingsToggle : Border
             Height = SettingsUILayout.ToggleHeight,
             CornerRadius = SettingsUILayout.ToggleTrackRadius,
             BorderThickness = SettingsUILayout.ToggleBorderThickness,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         _thumb = new Border
         {
@@ -502,7 +502,7 @@ public sealed class SettingsToggle : Border
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = SettingsUILayout.ToggleThumbUncheckedMargin,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         grid.Children.Add(_track);
         grid.Children.Add(_thumb);
@@ -659,7 +659,7 @@ public sealed class SettingsScrollHost : Grid
 
         Border paddedContent = new()
         {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.Background), Padding = padding, Child = content,
+            Background = TrayAppDotNETSettingsUI.Brush(palette.Background), Padding = padding, Child = content
         };
 
         _scrollViewer = new ScrollViewer
@@ -667,13 +667,13 @@ public sealed class SettingsScrollHost : Grid
             Content = paddedContent,
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
         };
         Children.Add(_scrollViewer);
 
         SettingsScrollBar scrollBar = new(palette)
         {
-            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch
         };
         scrollBar.Attach(_scrollViewer);
         Children.Add(scrollBar);
@@ -903,7 +903,7 @@ public sealed class SettingsComboBoxItem : Border
             Height = SettingsUILayout.ComboIndicatorHeight,
             CornerRadius = SettingsUILayout.ComboIndicatorRadius,
             Background = Brushes.Transparent,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         Control content = CreateContent();
@@ -922,7 +922,7 @@ public sealed class SettingsComboBoxItem : Border
             Background = Brushes.Transparent,
             CornerRadius = SettingsUILayout.ComboItemRadius,
             Padding = SettingsUILayout.ComboItemInnerPadding,
-            Child = row,
+            Child = row
         };
         Child = _inner;
 
@@ -1003,7 +1003,7 @@ public sealed class SettingsComboBoxItem : Border
 public enum SettingsComboBoxAutoSizeMode
 {
     LongestItem,
-    SelectedItem,
+    SelectedItem
 }
 
 public sealed class SettingsComboBox : Grid
@@ -1043,7 +1043,7 @@ public sealed class SettingsComboBox : Grid
 
         _selectionPresenter = new ContentControl
         {
-            VerticalAlignment = VerticalAlignment.Center, Margin = _contentPadding, IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Center, Margin = _contentPadding, IsHitTestVisible = false
         };
 
         TextBlock arrow = TrayAppDotNETSettingsUI.CaptionGlyph(GlyphCatalog.CHEVRON_DOWN, palette);
@@ -1062,14 +1062,14 @@ public sealed class SettingsComboBox : Grid
             BorderBrush = Brushes.Transparent,
             BorderThickness = SettingsUILayout.ComboBorderThickness,
             CornerRadius = SettingsUILayout.ComboRadius,
-            Child = row,
+            Child = row
         };
         Children.Add(_surface);
 
         _itemsPanel = new StackPanel();
         SettingsScrollHost scrollHost = new(_itemsPanel, palette, SettingsUILayout.ComboPopupScrollPadding)
         {
-            MaxHeight = SettingsUILayout.ComboPopupMaxHeight,
+            MaxHeight = SettingsUILayout.ComboPopupMaxHeight
         };
 
         _popupBorder = new Border
@@ -1080,7 +1080,7 @@ public sealed class SettingsComboBox : Grid
             CornerRadius = SettingsUILayout.ComboPopupRadius,
             Padding = SettingsUILayout.ComboPopupPadding,
             Margin = SettingsUILayout.ComboPopupMargin,
-            Child = scrollHost,
+            Child = scrollHost
         };
 
         _popup = new Popup
@@ -1089,7 +1089,7 @@ public sealed class SettingsComboBox : Grid
             Placement = PlacementMode.Bottom,
             VerticalOffset = 4,
             IsLightDismissEnabled = true,
-            Child = _popupBorder,
+            Child = _popupBorder
         };
         Children.Add(_popup);
 
@@ -1391,7 +1391,7 @@ public sealed class SettingsNumberBox : Grid
             CaretBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             SelectionBrush =
                 TrayAppDotNETSettingsUI.Brush(AppTheme.ResolveTextSelectionHighlight(palette.Accent)),
-            SelectionForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            SelectionForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground)
         };
         TrayAppDotNETSettingsUI.ApplyTextBoxResources(
             _textBox,
@@ -1432,7 +1432,7 @@ public sealed class SettingsNumberBox : Grid
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             CornerRadius = SettingsUILayout.NumberValueRadius,
             Height = SettingsUILayout.NumberBoxHeight,
-            Child = valueGrid,
+            Child = valueGrid
         };
         Children.Add(_valueBorder);
 
@@ -1780,7 +1780,7 @@ public sealed class SettingsNumberBox : Grid
         {
             true when shift => ExtraLargeStep,
             true => LargeStep,
-            _ => Step,
+            _ => Step
         };
     }
 
@@ -1792,7 +1792,7 @@ public sealed class SettingsNumberBox : Grid
         {
             true when shift => ExtraLargeStep,
             true => LargeStep,
-            _ => WheelStep,
+            _ => WheelStep
         };
     }
 
@@ -1833,7 +1833,7 @@ public sealed class SettingsNumberBox : Grid
 
     private static double MeasureTextWidth(string text, double fontSize)
     {
-        TextBlock probe = new() { Text = text, FontFamily = TrayAppDotNETSettingsUI.UIFont, FontSize = fontSize, };
+        TextBlock probe = new() { Text = text, FontFamily = TrayAppDotNETSettingsUI.UIFont, FontSize = fontSize };
         probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return probe.DesiredSize.Width;
     }
@@ -1870,7 +1870,7 @@ internal sealed class SettingsSpinnerButton : Border
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
 
         PointerEntered += (_, _) =>
@@ -1929,7 +1929,7 @@ public static class TrayAppDotNETSettingsUI
             FontFamily = UIFont,
             FontSize = fontSize,
             FontWeight = weight ?? FontWeight.Normal,
-            Foreground = Brush(palette.Foreground),
+            Foreground = Brush(palette.Foreground)
         };
     }
 
@@ -1941,7 +1941,7 @@ public static class TrayAppDotNETSettingsUI
             FontSize = SettingsUILayout.SectionHeaderFontSize,
             FontWeight = FontWeight.SemiBold,
             Foreground = Brush(palette.Foreground),
-            Margin = SettingsUILayout.SectionHeaderMargin,
+            Margin = SettingsUILayout.SectionHeaderMargin
         };
 
     public static TextBlock SubsectionHeader(string text, SettingsPalette palette) =>
@@ -1952,7 +1952,7 @@ public static class TrayAppDotNETSettingsUI
             FontSize = SettingsUILayout.SubsectionHeaderFontSize,
             FontWeight = FontWeight.SemiBold,
             Foreground = Brush(palette.Foreground),
-            Margin = SettingsUILayout.SubsectionHeaderMargin,
+            Margin = SettingsUILayout.SubsectionHeaderMargin
         };
 
     public static TextBlock TitleText(string text, SettingsPalette palette) =>
@@ -1962,7 +1962,7 @@ public static class TrayAppDotNETSettingsUI
             FontFamily = UIFont,
             FontSize = SettingsUILayout.TitleFontSize,
             Foreground = Brush(palette.Foreground),
-            TextWrapping = TextWrapping.Wrap,
+            TextWrapping = TextWrapping.Wrap
         };
 
     public static TextBlock DescriptionText(string text, SettingsPalette palette, Thickness? margin = null) =>
@@ -1974,12 +1974,12 @@ public static class TrayAppDotNETSettingsUI
             Foreground = Brush(palette.SecondaryForeground),
             Opacity = SettingsUILayout.DescriptionOpacity,
             TextWrapping = TextWrapping.Wrap,
-            Margin = margin ?? SettingsUILayout.DescriptionMargin,
+            Margin = margin ?? SettingsUILayout.DescriptionMargin
         };
 
     public static StackPanel PageStack(string title, SettingsPalette palette)
     {
-        StackPanel stack = new() { Background = Brush(palette.Background), };
+        StackPanel stack = new() { Background = Brush(palette.Background) };
         stack.Children.Add(SectionHeader(title, palette));
         return stack;
     }
@@ -1990,7 +1990,7 @@ public static class TrayAppDotNETSettingsUI
         {
             MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         text.Children.Add(TitleText(title, palette));
         if (!string.IsNullOrEmpty(description))
@@ -2015,7 +2015,7 @@ public static class TrayAppDotNETSettingsUI
             CornerRadius = SettingsUILayout.CardRadius,
             Padding = SettingsUILayout.CardPadding,
             Margin = SettingsUILayout.CardMargin,
-            Child = grid,
+            Child = grid
         };
         ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
         return card;
@@ -2029,7 +2029,7 @@ public static class TrayAppDotNETSettingsUI
             CornerRadius = SettingsUILayout.CardRadius,
             Padding = SettingsUILayout.CardPadding,
             Margin = SettingsUILayout.CardMargin,
-            Child = content,
+            Child = content
         };
         ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
         return card;
@@ -2045,7 +2045,7 @@ public static class TrayAppDotNETSettingsUI
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = SettingsUILayout.NavItemPadding,
-            Margin = SettingsUILayout.NavActionMargin,
+            Margin = SettingsUILayout.NavActionMargin
         };
 
     public static SettingsToggle Toggle(SettingsPalette palette, bool isChecked, EventHandler<bool> changed)
@@ -2097,7 +2097,7 @@ public static class TrayAppDotNETSettingsUI
             VerticalContentAlignment = VerticalAlignment.Center,
             CaretBrush = Brush(palette.Foreground),
             SelectionBrush = Brush(AppTheme.ResolveTextSelectionHighlight(palette.Accent)),
-            SelectionForegroundBrush = Brush(palette.Foreground),
+            SelectionForegroundBrush = Brush(palette.Foreground)
         };
         ApplyTextBoxResources(
             textBox,
@@ -2163,7 +2163,7 @@ public static class TrayAppDotNETSettingsUI
     {
         StackPanel panel = new()
         {
-            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
         foreach (Control control in controls)
             panel.Children.Add(control);
@@ -2178,7 +2178,7 @@ public static class TrayAppDotNETSettingsUI
             FontSize = SettingsUILayout.CaptionGlyphFontSize,
             Foreground = Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
     internal static void ApplyDisabledOpacity(Control control, double disabledOpacity)

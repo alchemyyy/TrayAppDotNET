@@ -30,7 +30,7 @@ public static class ColorMath
                     Convert.ToByte(s[2..4], 16),
                     Convert.ToByte(s[4..6], 16),
                     Convert.ToByte(s[6..8], 16)),
-                _ => null,
+                _ => null
             };
         }
         catch

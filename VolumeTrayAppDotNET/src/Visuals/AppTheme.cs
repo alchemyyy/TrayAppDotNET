@@ -80,7 +80,7 @@ public sealed class AppTheme : CommonAppTheme
         {
             ThemeMode.Light => true,
             ThemeMode.Dark => false,
-            _ => systemIsLight,
+            _ => systemIsLight
         };
     }
 }

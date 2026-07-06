@@ -15,7 +15,7 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
             double value => value,
             int value => value,
             string value => double.Parse(value, CultureInfo.InvariantCulture),
-            { } value => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            { } value => Convert.ToDouble(value, CultureInfo.InvariantCulture)
         };
 
     public int Int(string name) => (int)Math.Round(Double(name));

@@ -42,14 +42,14 @@ public sealed class ProbeNicknameResolverTests
                 new DeviceNicknameRule
                 {
                     TargetRegex = "^Custom$",
-                    ReplacementString = "Custom",
+                    ReplacementString = "Custom"
                 },
                 new DeviceNicknameRule
                 {
                     TargetRegex = "\\(Tdie\\)",
-                    ReplacementString = "Die",
-                },
-            ],
+                    ReplacementString = "Die"
+                }
+            ]
         };
 
         bool loaded = settings.LoadDefaultProbeNicknameRules();

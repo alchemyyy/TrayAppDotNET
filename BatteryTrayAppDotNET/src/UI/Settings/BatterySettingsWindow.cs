@@ -21,7 +21,7 @@ public enum BatterySettingsPage
     TrayIcon,
     Hotkeys,
     Theme,
-    About,
+    About
 }
 
 public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettingsPage>
@@ -77,7 +77,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         new(BatterySettingsPage.TrayIcon, L("Settings_Common_Page_TrayIcon", "Tray Icon"), BuildTrayIconPage),
         new(BatterySettingsPage.Hotkeys, L("Settings_Common_Page_Hotkeys", "Hotkeys"), BuildHotkeysPage),
         new(BatterySettingsPage.Theme, L("Settings_Common_Page_Theme", "Theme"), BuildThemePage),
-        new(BatterySettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage),
+        new(BatterySettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage)
     ];
 
     protected override void Save()
@@ -104,7 +104,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
+        _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
     private Control BuildSettingsPage(BatterySettingsPage page, Func<Control> buildPage)
@@ -139,7 +139,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                                 AppServices.InstallLayout.LocalAppDataInstallDirectory,
                                 BatteryInstallScope.LocalAppData);
                             return Task.CompletedTask;
-                        },
+                        }
                     },
                     new TrayAppDotNETInstallCardOptions
                     {
@@ -154,8 +154,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                                 AppServices.InstallLayout.ProgramFilesInstallDirectory,
                                 BatteryInstallScope.ProgramFiles);
                             return Task.CompletedTask;
-                        },
-                    },
+                        }
+                    }
                 ],
                 new TrayAppDotNETStoreInstallOptions(
                     L("Settings_General_WindowsStore_Title", "Windows Store"),
@@ -184,7 +184,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber,
+            CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
     private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
@@ -198,7 +198,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
-            SupportsTrayContextMenu = true,
+            SupportsTrayContextMenu = true
         });
 
     private static string StoreInstallDescription()
@@ -275,8 +275,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             {
                 new ColumnDefinition(GridLength.Star) { MinWidth = 153 },
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star) { MinWidth = 153 },
-            },
+                new ColumnDefinition(GridLength.Star) { MinWidth = 153 }
+            }
         };
         condition.HorizontalAlignment = HorizontalAlignment.Stretch;
         action.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -301,7 +301,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Margin = new Thickness(0, 0, 0, 6),
             Child = content,
             Focusable = true,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
 
         bool pointerOver = false;
@@ -437,7 +437,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             L("Settings_Triggers_Condition_ExternalPowerConnected", "External power connected")),
         (BatteryTriggerCondition.ExternalPowerDisconnected,
             L("Settings_Triggers_Condition_ExternalPowerDisconnected", "External power disconnected")),
-        (BatteryTriggerCondition.FullyCharged, L("Settings_Triggers_Condition_FullyCharged", "Battery full")),
+        (BatteryTriggerCondition.FullyCharged, L("Settings_Triggers_Condition_FullyCharged", "Battery full"))
     ];
 
     private static IReadOnlyList<(BatteryTriggerAction Value, string Text)> TriggerActionOptions() =>
@@ -445,7 +445,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (BatteryTriggerAction.ShowNotification, L("Settings_Triggers_Action_ShowNotification", "Show notification")),
         (BatteryTriggerAction.OpenFlyout, L("Settings_Triggers_Action_OpenFlyout", "Open flyout")),
         (BatteryTriggerAction.OpenSettings, L("Settings_Triggers_Action_OpenSettings", "Open settings")),
-        (BatteryTriggerAction.OpenPowerSettings, L("Settings_Triggers_Action_OpenPowerSettings", "Open power settings")),
+        (BatteryTriggerAction.OpenPowerSettings, L("Settings_Triggers_Action_OpenPowerSettings", "Open power settings"))
     ];
 
     private void UpdateTriggerCardVisual(
@@ -638,7 +638,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     "Choose where the right-click tray menu opens."),
                 [
                     (ContextMenuPosition.Classic.ToString(), L("Settings_TrayIcon_MenuPosition_Classic", "Classic")),
-                    (ContextMenuPosition.Modern.ToString(), L("Settings_TrayIcon_MenuPosition_Modern", "Modern")),
+                    (ContextMenuPosition.Modern.ToString(), L("Settings_TrayIcon_MenuPosition_Modern", "Modern"))
                 ],
                 _settings.ContextMenuPosition.ToString(),
                 tag =>
@@ -669,7 +669,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 12),
+                Margin = new Thickness(0, 0, 0, 12)
             };
             TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(
                 L("Settings_Hotkeys_SearchLabel", "Search"), p);
@@ -808,7 +808,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 Modifiers = selectedModifiers,
                 VirtualKey = selectedVk,
                 Enabled = true,
-                BindingID = id,
+                BindingID = id
             });
             selectedModifiers = 0;
             selectedVk = 0;
@@ -924,7 +924,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
-            Child = grid,
+            Child = grid
         };
     }
 
@@ -961,7 +961,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 [
                     (ThemeMode.System.ToString(), L("Settings_Theme_ThemeStyle_System", "System")),
                     (ThemeMode.Light.ToString(), L("Settings_Theme_ThemeStyle_Light", "Light")),
-                    (ThemeMode.Dark.ToString(), L("Settings_Theme_ThemeStyle_Dark", "Dark")),
+                    (ThemeMode.Dark.ToString(), L("Settings_Theme_ThemeStyle_Dark", "Dark"))
                 ],
                 _settings.ThemeMode.ToString(),
                 tag =>
@@ -1032,7 +1032,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 [
                     (TrayAppDotNETAnimationMode.System.ToString(), L("Settings_Theme_Animations_System", "System")),
                     (TrayAppDotNETAnimationMode.Disabled.ToString(), L("Settings_Theme_Animations_Disabled", "Disabled")),
-                    (TrayAppDotNETAnimationMode.Enabled.ToString(), L("Settings_Theme_Animations_Enabled", "Enabled")),
+                    (TrayAppDotNETAnimationMode.Enabled.ToString(), L("Settings_Theme_Animations_Enabled", "Enabled"))
                 ],
                 _settings.AnimationMode.ToString(),
                 tag =>
@@ -1106,7 +1106,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Log = TADNLog.Log,
             RebuildAboutPage = () => RebuildShell(BatterySettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
+            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
         });
         return _aboutPage.Build();
     }

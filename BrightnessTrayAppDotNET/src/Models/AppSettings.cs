@@ -9,32 +9,32 @@ public enum ThemeMode
 {
     System,
     Light,
-    Dark,
+    Dark
 }
 
 public enum TrayIconStyle
 {
     Dynamic,
-    Static,
+    Static
 }
 
 public enum MasterSliderMode
 {
     Lowest,
     Average,
-    Highest,
+    Highest
 }
 
 public enum DisplaySortMode
 {
     Arrangement,
-    DisplayNumber,
+    DisplayNumber
 }
 
 public enum DisplaySortDirection
 {
     Standard,
-    Reversed,
+    Reversed
 }
 
 public enum TrayClickAction
@@ -43,21 +43,21 @@ public enum TrayClickAction
     TurnOffAllDisplays,
     TurnOnAllDisplays,
     FullBright,
-    FullDim,
+    FullDim
 }
 
 public enum TrayWheelTarget
 {
     Nothing,
     Brightness,
-    NightLight,
+    NightLight
 }
 
 public enum PowerOffMode
 {
     Sleep,
     Soft,
-    Hard,
+    Hard
 }
 
 /// <summary>
@@ -69,7 +69,7 @@ public enum PowerOffMode
 public enum ContextMenuPosition
 {
     Classic,
-    Modern,
+    Modern
 }
 
 /// <summary>
@@ -91,7 +91,7 @@ public enum NightLightFallbackMode
     Auto,
     Registry,
     GammaRamp,
-    SettingsHandler,
+    SettingsHandler
 }
 
 /// <summary>
@@ -111,7 +111,7 @@ public enum MonitorIdentityStrategy
 {
     DisplayNumber,
     HardwarePort,
-    EDIDSerial,
+    EDIDSerial
 }
 
 public class MonitorOverrideEntry
@@ -630,8 +630,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
             Modifiers = User32.MOD_CONTROL | User32.MOD_WIN | User32.MOD_ALT,
             VirtualKey = 0x46, // VK_F
             Enabled = true,
-            BindingID = 0,
-        },
+            BindingID = 0
+        }
     ];
 
     /// <summary>
@@ -707,7 +707,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
                 Modifiers = d.Modifiers,
                 VirtualKey = d.VirtualKey,
                 Enabled = d.Enabled,
-                BindingID = d.BindingID,
+                BindingID = d.BindingID
             });
             added = true;
         }

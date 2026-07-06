@@ -322,7 +322,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
                 stream,
                 new XmlReaderSettings
                 {
-                    DtdProcessing = DtdProcessing.Ignore, IgnoreComments = true, IgnoreWhitespace = true,
+                    DtdProcessing = DtdProcessing.Ignore, IgnoreComments = true, IgnoreWhitespace = true
                 });
 
             while (reader.Read())

@@ -840,7 +840,7 @@ public sealed class FanCurveEditor : Control
             "%" => $"{text}%",
             "RPM" => $"{text} RPM",
             { } suffix when !string.IsNullOrWhiteSpace(suffix) => $"{text} {suffix}",
-            _ => text,
+            _ => text
         };
     }
 

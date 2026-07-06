@@ -41,7 +41,7 @@ public sealed class FanDragEngineTests
         [
             rig.Slots[0] with { Top = 88 },
             rig.Slots[1],
-            rig.Slots[2],
+            rig.Slots[2]
         ];
         FanDragSnapshot snapshot = new(
             previewShiftedSlots,
@@ -271,7 +271,7 @@ public sealed class FanDragEngineTests
             BoundsFromTop(70),
             BoundsFromTop(92),
             BoundsFromTop(110),
-            BoundsFromTop(130),
+            BoundsFromTop(130)
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 
@@ -292,7 +292,7 @@ public sealed class FanDragEngineTests
             BoundsFromTop(134),
             BoundsFromTop(156),
             BoundsFromTop(176),
-            BoundsFromTop(196),
+            BoundsFromTop(196)
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 
@@ -312,7 +312,7 @@ public sealed class FanDragEngineTests
         [
             BoundsFromTop(92),
             BoundsFromTop(170),
-            BoundsFromTop(250),
+            BoundsFromTop(250)
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 
@@ -388,7 +388,7 @@ public sealed class FanDragEngineTests
         {
             FanDragPlacementKind.TopLevel => $"top:{placement.TopLevelIndex}:<none>",
             FanDragPlacementKind.IntoGroup => $"group:{placement.GroupCell?.GroupName}:{placement.GroupFanIndex}",
-            _ => "none",
+            _ => "none"
         };
     }
 
@@ -483,7 +483,7 @@ public sealed class FanDragEngineTests
                 :
                 [
                     FanSlot(groupCell, groupFan0, groupTop + 42, 32, 0),
-                    FanSlot(groupCell, groupFan1, groupTop + 78, 32, 1),
+                    FanSlot(groupCell, groupFan1, groupTop + 78, 32, 1)
                 ];
 
             return new DragRig(fanA, fanB, fanC, groupFan0, groupFan1, cellA, cellB, cellC, groupCell,
@@ -508,7 +508,7 @@ public sealed class FanDragEngineTests
             [
                 Slot(cellA, 0, 80, 88),
                 Slot(cellB, 88, 80, 88),
-                Slot(cellC, 176, 80, 88),
+                Slot(cellC, 176, 80, 88)
             ];
 
             return new DragRig(fanA, fanB, fanC, groupFan0, groupFan1, cellA, cellB, cellC, groupCell,
@@ -546,7 +546,7 @@ public sealed class FanDragEngineTests
         {
             FansName = name,
             DataSourceKey = name,
-            Group = group,
+            Group = group
         };
 
         private static FanDragSlot Slot(

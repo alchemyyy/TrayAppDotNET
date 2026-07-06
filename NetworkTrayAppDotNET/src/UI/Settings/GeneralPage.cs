@@ -27,7 +27,7 @@ public sealed partial class NetworkSettingsWindow
                         _showUninstaller(AppServices.InstallLayout.LocalAppDataInstallDirectory,
                             InstallScope.LocalAppData);
                         return Task.CompletedTask;
-                    },
+                    }
                 },
                 new TrayAppDotNETInstallCardOptions
                 {
@@ -41,8 +41,8 @@ public sealed partial class NetworkSettingsWindow
                         _showUninstaller(AppServices.InstallLayout.ProgramFilesInstallDirectory,
                             InstallScope.ProgramFiles);
                         return Task.CompletedTask;
-                    },
-                },
+                    }
+                }
             ],
             new TrayAppDotNETStoreInstallOptions(
                 Loc("Settings_General_WindowsStore_Title"),
@@ -71,7 +71,7 @@ public sealed partial class NetworkSettingsWindow
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber,
+            CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
     private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
@@ -84,7 +84,7 @@ public sealed partial class NetworkSettingsWindow
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
             Settings = _settings,
-            SupportsTrayContextMenu = true,
+            SupportsTrayContextMenu = true
         });
 
     private static string StoreInstallDescription()

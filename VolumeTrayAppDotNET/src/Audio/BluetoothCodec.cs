@@ -52,7 +52,7 @@ internal sealed record BluetoothCodec(byte StandardCodecId, int VendorId, int Ve
             (0x0075, 0x0103) => "Samsung Scalable",
             (0x0075, 0x0104) => "Samsung UHQ",
             (0x053A, 0x484C) => "Savitech LHDC",
-            _ => AudioLocalization.BluetoothCodecUnknown(VendorId, VendorCodecId),
+            _ => AudioLocalization.BluetoothCodecUnknown(VendorId, VendorCodecId)
         };
     }
 

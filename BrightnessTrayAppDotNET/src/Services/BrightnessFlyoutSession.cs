@@ -38,7 +38,7 @@ internal sealed class BrightnessFlyoutSession : IDisposable
             Name = nightLightRowName,
             IsNightLight = true,
             IconGlyph = GlyphCatalog.CRESCENT_SUN,
-            Brightness = FlipIfNightLightInverted(initialNightLightStrength),
+            Brightness = FlipIfNightLightInverted(initialNightLightStrength)
         };
 
         MasterMonitor = new MonitorInfo
@@ -47,7 +47,7 @@ internal sealed class BrightnessFlyoutSession : IDisposable
             Name = masterRowName,
             IconGlyph = GlyphCatalog.SYNC_BADGE,
             Brightness = Settings?.LastMasterBrightness ?? 100,
-            IsMaster = true,
+            IsMaster = true
         };
 
         AllItems = [];
@@ -72,7 +72,7 @@ internal sealed class BrightnessFlyoutSession : IDisposable
             onBrightnessAutoEngageRequested)
         {
             IsBrightnessCurveEnabled = Settings?.EnvironmentalBrightnessCurveEnabled ?? false,
-            IsNightLightCurveEnabled = Settings?.EnvironmentalNightLightCurveEnabled ?? false,
+            IsNightLightCurveEnabled = Settings?.EnvironmentalNightLightCurveEnabled ?? false
         };
 
         MonitorService.IsBrightnessCurveEnabledQuery = () => CurveService.IsBrightnessCurveEnabled;

@@ -24,7 +24,7 @@ internal sealed class BatteryTrayIcon(AppTheme? theme) : IDisposable
         FontEdging = SKFontEdging.Antialias,
         Subpixel = false,
         FallbackIcon = AppTheme.LoadAppNativeIcon,
-        Log = TADNLog.Log,
+        Log = TADNLog.Log
     });
 
     private readonly AppTheme _theme = theme ?? AppTheme.Default;
@@ -108,7 +108,7 @@ internal sealed class BatteryTrayIcon(AppTheme? theme) : IDisposable
                 7 => GlyphCatalog.BATTERY_CHARGING_7,
                 8 => GlyphCatalog.BATTERY_CHARGING_8,
                 9 => GlyphCatalog.BATTERY_CHARGING_9,
-                _ => GlyphCatalog.BATTERY_CHARGING_10,
+                _ => GlyphCatalog.BATTERY_CHARGING_10
             };
         }
 
@@ -124,7 +124,7 @@ internal sealed class BatteryTrayIcon(AppTheme? theme) : IDisposable
             7 => GlyphCatalog.BATTERY_7,
             8 => GlyphCatalog.BATTERY_8,
             9 => GlyphCatalog.BATTERY_9,
-            _ => GlyphCatalog.BATTERY_10,
+            _ => GlyphCatalog.BATTERY_10
         };
     }
 

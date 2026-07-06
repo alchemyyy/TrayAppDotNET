@@ -101,19 +101,19 @@ public sealed partial class EnvironmentalCurveEditor : Control
     private enum Series
     {
         Brightness,
-        NightLight,
+        NightLight
     }
 
     private enum LimitKind
     {
         Min,
-        Max,
+        Max
     }
 
     private enum DisabledPin
     {
         Start,
-        End,
+        End
     }
 
     private readonly record struct LimitLabelHit(Series Series, LimitKind Kind, Rect Rect);

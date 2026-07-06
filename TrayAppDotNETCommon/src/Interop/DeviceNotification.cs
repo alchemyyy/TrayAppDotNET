@@ -53,7 +53,7 @@ public static class DeviceNotification
         {
             dbcc_size = Marshal.SizeOf<DEV_BROADCAST_DEVICEINTERFACE>(),
             dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE,
-            dbcc_classguid = interfaceClassGuid,
+            dbcc_classguid = interfaceClassGuid
         };
 
         IntPtr buffer = Marshal.AllocHGlobal(filter.dbcc_size);

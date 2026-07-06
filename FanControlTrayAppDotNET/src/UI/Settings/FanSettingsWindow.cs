@@ -19,7 +19,7 @@ public enum FanSettingsPage
     TrayIcon,
     Hotkeys,
     Theme,
-    About,
+    About
 }
 
 public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
@@ -95,7 +95,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         new(FanSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
             () => BuildSettingsPage(FanSettingsPage.Theme, BuildThemePage)),
         new(FanSettingsPage.About, Loc("Settings_Common_Page_About"),
-            () => BuildSettingsPage(FanSettingsPage.About, BuildAboutPage)),
+            () => BuildSettingsPage(FanSettingsPage.About, BuildAboutPage))
     ];
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)
@@ -163,7 +163,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                     _showUninstaller(AppServices.InstallLayout.LocalAppDataInstallDirectory,
                         FanInstallScope.LocalAppData);
                     return Task.CompletedTask;
-                },
+                }
             },
             new TrayAppDotNETInstallCardOptions
             {
@@ -177,8 +177,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                     _showUninstaller(AppServices.InstallLayout.ProgramFilesInstallDirectory,
                         FanInstallScope.ProgramFiles);
                     return Task.CompletedTask;
-                },
-            },
+                }
+            }
         ]);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
 
@@ -203,7 +203,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
-            SupportsTrayContextMenu = true,
+            SupportsTrayContextMenu = true
         });
 
     private StackPanel BuildFanPropertiesPage()
@@ -377,7 +377,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             "Classic opens at the cursor; Modern centers on the tray icon.",
             [
                 (ContextMenuPosition.Classic, "Classic"),
-                (ContextMenuPosition.Modern, "Modern"),
+                (ContextMenuPosition.Modern, "Modern")
             ],
             _settings.ContextMenuPosition,
             v => _settings.ContextMenuPosition = v,
@@ -437,7 +437,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             [
                 (ThemeMode.System, Loc("Settings_Theme_ThemeStyle_System")),
                 (ThemeMode.Light, Loc("Settings_Theme_ThemeStyle_Light")),
-                (ThemeMode.Dark, Loc("Settings_Theme_ThemeStyle_Dark")),
+                (ThemeMode.Dark, Loc("Settings_Theme_ThemeStyle_Dark"))
             ],
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
@@ -535,7 +535,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Log = static message => TADNLog.Log(message),
             RebuildAboutPage = () => RebuildShell(FanSettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
+            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
         });
         return _aboutPage.Build();
     }
@@ -636,7 +636,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 Modifiers = selectedModifiers,
                 VirtualKey = selectedVk,
                 Enabled = true,
-                BindingID = id,
+                BindingID = id
             });
             selectedModifiers = 0;
             selectedVk = 0;
@@ -733,7 +733,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
-            Child = grid,
+            Child = grid
         };
     }
 
@@ -796,7 +796,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Margin = new Thickness(0, 0, 0, 4),
             Child = grid,
             Focusable = true,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
 
         bool pointerOver = false;
@@ -1014,7 +1014,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private static IReadOnlyList<(TrayClickAction Value, string Text)> TrayClickActionOptions() =>
     [
         (TrayClickAction.Nothing, "Nothing"),
-        (TrayClickAction.OpenSettings, "Open settings"),
+        (TrayClickAction.OpenSettings, "Open settings")
     ];
 
     /// <summary>
@@ -1024,7 +1024,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     [
         (MultipleSliderValuesDisplayMode.Disabled, "Disabled"),
         (MultipleSliderValuesDisplayMode.Enabled, "Enabled"),
-        (MultipleSliderValuesDisplayMode.OnlyInManual, "Only in manual"),
+        (MultipleSliderValuesDisplayMode.OnlyInManual, "Only in manual")
     ];
 
     private TrayAppDotNETGeneralSettingsSection CreateGeneralSettingsSection(SettingsPalette p) =>
@@ -1046,7 +1046,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber,
+            CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
     private static string FormatHotkey(FanHotkeyBinding binding)

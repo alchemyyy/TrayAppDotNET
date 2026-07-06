@@ -19,7 +19,7 @@ public static class Shell32
         NIM_ADD = 0x00000000,
         NIM_MODIFY = 0x00000001,
         NIM_DELETE = 0x00000002,
-        NIM_SETVERSION = 0x00000004,
+        NIM_SETVERSION = 0x00000004
     }
 
     public enum NotifyIconNotification
@@ -30,7 +30,7 @@ public static class Shell32
         NIN_BALLOONTIMEOUT = 0x404,
         NIN_BALLOONUSERCLICK = 0x405,
         NIN_POPUPOPEN = 0x406,
-        NIN_POPUPCLOSE = 0x407,
+        NIN_POPUPCLOSE = 0x407
     }
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true, SetLastError = true)]
@@ -75,7 +75,7 @@ public enum NotifyIconFlags : uint
     NIF_TIP = 0x00000004,
     NIF_INFO = 0x00000010,
     NIF_GUID = 0x00000020,
-    NIF_SHOWTIP = 0x00000080,
+    NIF_SHOWTIP = 0x00000080
 }
 
 [Flags]
@@ -87,7 +87,7 @@ public enum NotifyIconInfoFlags : uint
     NIIF_ERROR = 0x00000003,
     NIIF_USER = 0x00000004,
     NIIF_LARGE_ICON = 0x00000020,
-    NIIF_RESPECT_QUIET_TIME = 0x00000080,
+    NIIF_RESPECT_QUIET_TIME = 0x00000080
 }
 
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

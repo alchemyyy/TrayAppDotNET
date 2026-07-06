@@ -88,7 +88,7 @@ public sealed class SettingsSearchableListBox : Grid
             PlaceholderText = DefaultPlaceholderText,
             CaretBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             SelectionBrush = TrayAppDotNETSettingsUI.Brush(AppTheme.ResolveTextSelectionHighlight(palette.Accent)),
-            SelectionForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            SelectionForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground)
         };
         TrayAppDotNETSettingsUI.ApplyTextBoxResources(
             _searchBox,
@@ -112,8 +112,8 @@ public sealed class SettingsSearchableListBox : Grid
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
         _searchRow.Children.Add(_searchBox);
         Grid.SetColumn(_clearButton, 1);
@@ -134,7 +134,7 @@ public sealed class SettingsSearchableListBox : Grid
             BorderThickness = SearchableListBoxLayout.ListBorderThickness,
             CornerRadius = SearchableListBoxLayout.ListRadius,
             ClipToBounds = true,
-            Child = _scrollHost,
+            Child = _scrollHost
         };
         Grid.SetRow(_listBorder, 1);
         Children.Add(_listBorder);
@@ -382,7 +382,7 @@ public sealed class SettingsSearchableListBox : Grid
                 Background = Brushes.Transparent,
                 Padding = _itemPadding,
                 Margin = _itemMargin,
-                Child = empty,
+                Child = empty
             };
             _itemsPanel.Children.Add(emptyHost);
             return;

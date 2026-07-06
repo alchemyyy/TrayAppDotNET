@@ -17,7 +17,7 @@ internal enum EqualizerAPOState
     NotAvailable,
     NotInstalled,
     EnhancementsOff,
-    Running,
+    Running
 }
 
 /// <summary>
@@ -105,7 +105,7 @@ internal static class EqualizerAPOMonitor
             {
                 Filter = Path.GetFileName(DefaultInstallDir),
                 NotifyFilter = NotifyFilters.DirectoryName | NotifyFilters.FileName,
-                IncludeSubdirectories = false,
+                IncludeSubdirectories = false
             };
             _dirWatcher.Created += OnFsChange;
             _dirWatcher.Deleted += OnFsChange;
@@ -164,7 +164,7 @@ internal static class EqualizerAPOMonitor
 
             ProcessStartInfo psi = new()
             {
-                FileName = editorPath, Arguments = args, UseShellExecute = false, WorkingDirectory = installDir,
+                FileName = editorPath, Arguments = args, UseShellExecute = false, WorkingDirectory = installDir
             };
             Process.Start(psi);
         }

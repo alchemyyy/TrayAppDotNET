@@ -43,7 +43,7 @@ public static class UninstallScript
                 FileName = "cmd.exe",
                 Arguments = $"/c \"\"{batPath}\"\"",
                 UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
+                WindowStyle = ProcessWindowStyle.Hidden
             };
             // System-wide uninstall touches Program Files and HKLM. UAC fires here at the click.
             if (scope == InstallScope.ProgramFiles) psi.Verb = "runas";

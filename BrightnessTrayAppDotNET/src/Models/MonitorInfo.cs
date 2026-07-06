@@ -37,7 +37,7 @@ public enum SliderState
     /// Curve engaged; user pulled this individual out of curve control.
     /// User owns slider until re-engaged.
     /// </summary>
-    CurveReleased,
+    CurveReleased
 }
 
 /// <summary>

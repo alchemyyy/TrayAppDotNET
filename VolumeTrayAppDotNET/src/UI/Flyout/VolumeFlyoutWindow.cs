@@ -27,7 +27,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         nameof(AudioDevice.State),
         nameof(AudioDevice.BatteryLevel),
         nameof(AudioDevice.DefaultFormat),
-        nameof(AudioDevice.CurrentCodecName),
+        nameof(AudioDevice.CurrentCodecName)
     };
 
     private readonly AudioDeviceManager _audioManager;
@@ -366,7 +366,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
                 Focusable = false,
-                Content = cellStack,
+                Content = cellStack
             };
             _cellsScrollViewer = scroll;
             if (previousScrollOffset.HasValue)
@@ -401,8 +401,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     CornerRadius = Rounded(Layout.ChromeInnerCornerRadius),
                     ClipToBounds = true,
                     Margin = Layout.ChromeInnerMargin,
-                    Child = root,
-                },
+                    Child = root
+                }
             };
             chrome.PointerPressed += OnChromePointerPressed;
             chrome.PointerMoved += OnChromePointerMoved;
@@ -512,7 +512,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Grid BuildHeader(FlyoutPalette p)
     {
-        Grid grid = new() { MinHeight = Layout.HeaderMinHeight, Background = Brush(p.Background), };
+        Grid grid = new() { MinHeight = Layout.HeaderMinHeight, Background = Brush(p.Background) };
         bool bottomHeader = _settings.FlyoutHeaderAtBottom;
 
         StackPanel left = new()
@@ -520,7 +520,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = HeaderVerticalAlignment(),
-            Margin = bottomHeader ? CenteredHeaderMargin(Layout.HeaderLeftMarginBottom) : Layout.HeaderLeftMarginTop,
+            Margin = bottomHeader ? CenteredHeaderMargin(Layout.HeaderLeftMarginBottom) : Layout.HeaderLeftMarginTop
         };
 
         Border settingsButton = HeaderIconButton(GlyphCatalog.SETTINGS, p, _openSettings,
@@ -597,7 +597,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Background = Brush(p.FooterBackground),
             CornerRadius = Rounded(Layout.DeviceCornerRadius),
             Margin = Layout.DeviceCellOuterMargin,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         });
 
         Border contentInset = new() { Padding = Layout.DeviceCellContentPadding };
@@ -623,7 +623,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 ? appsBottom ? Layout.DeviceAppBandGridBottomMargin : Layout.DeviceAppBandGridTopMargin
                 : Layout.ZeroThickness,
             CornerRadius = isLast && appsBottom ? FooterBottomRadius : Layout.ZeroCornerRadius,
-            Child = drawer,
+            Child = drawer
         };
         Grid.SetRow(appBand, appsBottom ? 1 : 0);
         content.Children.Add(appBand);
@@ -633,7 +633,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Background = Brush(p.FooterBackground),
             Padding = appsBottom ? Layout.DeviceBandBottomPadding : Layout.DeviceBandTopPadding,
             CornerRadius = ResolveDeviceBandRadius(isLast, appsBottom, drawerVisible),
-            Child = BuildDeviceRow(device, groups, p),
+            Child = BuildDeviceRow(device, groups, p)
         };
         Grid.SetRow(deviceBand, appsBottom ? 0 : 1);
         content.Children.Add(deviceBand);
@@ -647,7 +647,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             BorderThickness = Layout.DeviceOutlineBorderThickness,
             CornerRadius = Rounded(Layout.DeviceCornerRadius),
             Margin = Layout.DeviceCellOuterMargin,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         });
 
         HookDeviceForRebuild(device);
@@ -665,7 +665,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             MaxHeight = ResolveSliderDrawerMaxHeight(device),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = stack,
+            Content = stack
         };
     }
 
@@ -679,7 +679,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 ? HorizontalAlignment.Left
                 : HorizontalAlignment.Center,
             Orientation = IsVerticalIconStackDirection ? Orientation.Vertical : Orientation.Horizontal,
-            MaxWidth = Layout.AppIconGridSlotSize * Math.Max(1, AppDrawerIconsPerRow),
+            MaxWidth = Layout.AppIconGridSlotSize * Math.Max(1, AppDrawerIconsPerRow)
         };
 
         IEnumerable<AudioAppGroup> ordered = ResolveGridOrder(groups);
@@ -691,7 +691,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             MaxHeight = ResolveGridDrawerMaxHeight(device),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = panel,
+            Content = panel
         };
     }
 
@@ -705,8 +705,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         Control icon = BuildAppIcon(device, group, p, Layout.AppIconImageSize, Layout.AppIconGlyphSize,
@@ -794,7 +794,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Background = Brushes.Transparent,
             Cursor =
                 device.IsCaptureDevice ? new Cursor(StandardCursorType.Arrow) : new Cursor(StandardCursorType.Hand),
-            Opacity = ResolveAppOpacity(device, group),
+            Opacity = ResolveAppOpacity(device, group)
         };
         TrayAppDotNETToolTip.SetTip(cell, group.TooltipText);
 
@@ -806,7 +806,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Background = Brushes.Transparent,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         cell.PointerEntered += (_, _) => hover.Background = Brush(p.ButtonHover);
         cell.PointerExited += (_, _) => hover.Background = Brushes.Transparent;
@@ -870,7 +870,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Background = Brushes.Transparent,
             Cursor = clickable && !device.IsCaptureDevice
                 ? new Cursor(StandardCursorType.Hand)
-                : new Cursor(StandardCursorType.Arrow),
+                : new Cursor(StandardCursorType.Arrow)
         };
         TrayAppDotNETToolTip.SetTip(root, group.TooltipText);
 
@@ -882,7 +882,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Width = imageSize,
                 Height = imageSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             });
         }
         else
@@ -959,11 +959,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
-        Grid nameStack = new() { Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center, };
+        Grid nameStack = new() { Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center };
         if (_settings is { ShowDeviceFormatText: false, ShowDeviceCodecText: false })
             nameStack.RenderTransform = CloneTransform(Layout.DeviceTitleNameNoFormatTransform);
 
@@ -986,7 +986,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 ClipToBounds = false,
                 HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             };
             TextBlock format = Text(formatLine, p, Layout.DeviceFormatFontSize);
             format.Background = Brushes.Transparent;
@@ -1047,8 +1047,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         Border mute = BuildDeviceMuteButton(device, p);
@@ -1150,7 +1150,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             MeterPeakColor = p.MeterPeak,
             MeterPeakStereoColor = p.MeterPeakStereo,
             VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
         bool updating = false;
@@ -1197,7 +1197,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             MinWidth = Layout.PercentHostMinWidth,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.PercentHostMargin,
+            Margin = Layout.PercentHostMargin
         };
 
         TextBlock label = Text(ScalarText(scalar), p, Layout.PercentFontSize);
@@ -1218,7 +1218,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             BorderThickness = Layout.PercentEditorBorderThickness,
             Padding = Layout.PercentEditorPadding,
             VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Right,
+            TextAlignment = TextAlignment.Right
         };
 
         host.Children.Add(label);
@@ -1310,7 +1310,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Width = Layout.DeviceMuteSlotWidth,
             Height = Layout.DeviceMuteSlotHeight,
             ClipToBounds = false,
-            Children = { glyph },
+            Children = { glyph }
         };
 
         Border button = DeviceIconButton(string.Empty, p, () => device.IsMuted = !device.IsMuted,
@@ -1696,7 +1696,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             CornerRadius = Rounded(Layout.HeaderIconButtonCornerRadius),
             Background = Brushes.Transparent,
             Child = text,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _undockButton = button;
         _undockButtonGlyph = text;
@@ -1828,7 +1828,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             ClipToBounds = false,
             Child = content,
             Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
-            IsEnabled = enabled,
+            IsEnabled = enabled
         };
         if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
@@ -1856,7 +1856,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             BorderThickness = Layout.TextButtonBorderThickness,
             CornerRadius = Rounded(Layout.TextButtonCornerRadius),
             Child = label,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
         FlyoutButtonState.Attach(
@@ -2029,7 +2029,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             },
             SetPromptOpen = open => _isUpdateDialogOpen = open,
             SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
-            PromptClosed = NotifyChildWindowClosedFromDeactivation,
+            PromptClosed = NotifyChildWindowClosedFromDeactivation
         });
     }
 
@@ -2086,7 +2086,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             new(
                 L("Flyout_ListenMenu_DefaultPlaybackDevice", "Default Playback Device"),
                 currentTarget == null,
-                () => captureDevice.SetListenTarget(null, enable: true)),
+                () => captureDevice.SetListenTarget(null, enable: true))
         ];
 
         List<AudioDevice> renderTargets = [];
@@ -2229,7 +2229,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             download,
             L("UpdateDialog_Cancel", "Cancel"),
             palette,
-            _settings.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
+            _settings.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
         _ = ShowEqualizerDialogAsync(dialog);
 
@@ -2241,7 +2241,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 using Process? _ = Process.Start(new ProcessStartInfo
                 {
-                    FileName = EqualizerAPOMonitor.LatestInstallerURL, UseShellExecute = true,
+                    FileName = EqualizerAPOMonitor.LatestInstallerURL, UseShellExecute = true
                 });
             }
             catch (Exception ex) { TADNLog.Log($"VolumeFlyout.ShowEqualizerAPONotAvailableDialog: {ex.Message}"); }
@@ -2356,7 +2356,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         CommunicationsButtonVisibility.Hidden => false,
         CommunicationsButtonVisibility.WhenDuckingOn => CommunicationsDucking.IsActive(),
-        _ => true,
+        _ => true
     };
 
     private bool ShowCommunicationsButton => ShouldShowCommunicationsButton;
@@ -2450,7 +2450,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private static TranslateTransform CloneTransform(TranslateTransform transform) => new()
     {
-        X = transform.X, Y = transform.Y,
+        X = transform.X, Y = transform.Y
     };
 
     private double ResolveMaxContentHeight()
@@ -2559,7 +2559,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
+        _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
     private string DeviceVolumeGlyph(AudioDevice device) => device.IsCaptureDevice ? CaptureDeviceVolumeGlyph(device, device.IsMuted) : PlaybackDeviceVolumeGlyph(device, device.IsMuted);
@@ -2615,7 +2615,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             7 => GlyphCatalog.BT_BATTERY_7,
             8 => GlyphCatalog.BT_BATTERY_8,
             9 => GlyphCatalog.BT_BATTERY_9,
-            _ => GlyphCatalog.BT_BATTERY_10,
+            _ => GlyphCatalog.BT_BATTERY_10
         };
     }
 
@@ -2626,7 +2626,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             "Enhancements are disabled"),
         EqualizerAPOState.NotInstalled => L("Flyout_EqualizerAPO_Tooltip_NotInstalled",
             "Equalizer APO is not installed"),
-        _ => L("Flyout_EqualizerAPO_Tooltip_NotAvailable", "Equalizer APO is not available"),
+        _ => L("Flyout_EqualizerAPO_Tooltip_NotAvailable", "Equalizer APO is not available")
     };
 
     private static string ScalarText(float scalar) => $"{(int)Math.Round(scalar * 100)}";
@@ -2638,7 +2638,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         FontSize = size,
         FontWeight = weight ?? FontWeight.Normal,
         Foreground = Brush(p.Foreground),
-        TextWrapping = TextWrapping.NoWrap,
+        TextWrapping = TextWrapping.NoWrap
     };
 
     private static void PreventIconGlyphClipping(TextBlock glyph, double lineHeightPadding)
@@ -2831,9 +2831,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Padding = layout.MenuPadding,
                 BoxShadow = new BoxShadows(new BoxShadow
                 {
-                    OffsetY = layout.MenuShadowOffsetY, Blur = layout.MenuShadowBlur, Color = palette.MenuShadow,
+                    OffsetY = layout.MenuShadowOffsetY, Blur = layout.MenuShadowBlur, Color = palette.MenuShadow
                 }),
-                Child = scroll,
+                Child = scroll
             };
 
             Deactivated += (_, _) =>
@@ -2935,8 +2935,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 ColumnDefinitions =
                 {
                     new ColumnDefinition(new GridLength(layout.MenuMarkerColumnWidth)),
-                    new ColumnDefinition(GridLength.Star),
-                },
+                    new ColumnDefinition(GridLength.Star)
+                }
             };
 
             TextBlock marker = Text(entry.IsCurrent ? GlyphCatalog.CIRCLE : string.Empty, palette,

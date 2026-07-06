@@ -83,7 +83,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
             CornerRadius = rounded
                 ? UpdateConfirmationLayout.RootCornerRadius
                 : UpdateConfirmationLayout.ZeroCornerRadius,
-            Child = BuildContent(title, description, changelog, confirmText, cancelText, palette, rounded),
+            Child = BuildContent(title, description, changelog, confirmText, cancelText, palette, rounded)
         };
 
         KeyDown += (_, e) =>
@@ -111,7 +111,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
 
         root.Children.Add(BuildTitleBar(title, palette));
 
-        Grid body = new() { Margin = UpdateConfirmationLayout.BodyMargin, };
+        Grid body = new() { Margin = UpdateConfirmationLayout.BodyMargin };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -151,8 +151,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
                         UpdateConfirmationLayout.ChangelogMaxHeightExtra,
                     VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
                     HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                    Content = changelogText,
-                },
+                    Content = changelogText
+                }
             };
             Grid.SetRow(changelogBox, 2);
             body.Children.Add(changelogBox);
@@ -165,7 +165,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         StackPanel buttons = new()
         {
             Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = HorizontalAlignment.Right
         };
         if (!string.IsNullOrWhiteSpace(cancelText))
         {
@@ -191,7 +191,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         Grid bar = new()
         {
             Background = Brushes.Transparent,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto), },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, palette, 13);

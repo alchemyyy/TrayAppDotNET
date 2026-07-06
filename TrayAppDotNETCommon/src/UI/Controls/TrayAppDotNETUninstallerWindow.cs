@@ -102,7 +102,7 @@ public class TrayAppDotNETUninstallerWindow : Window
             IsChecked = isChecked,
             GroupName = SettingsChoiceGroupName,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = TrayAppDotNETDialogChromeLayout.OptionRadioMargin,
+            Margin = TrayAppDotNETDialogChromeLayout.OptionRadioMargin
         };
 
     private Border BuildRoot()
@@ -122,7 +122,7 @@ public class TrayAppDotNETUninstallerWindow : Window
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_options.Palette.Border),
             BorderThickness = TrayAppDotNETDialogChromeLayout.RootBorderThickness,
             CornerRadius = Rounded(TrayAppDotNETDialogChromeLayout.RootCornerRadius),
-            Child = chrome,
+            Child = chrome
         };
     }
 
@@ -134,8 +134,8 @@ public class TrayAppDotNETUninstallerWindow : Window
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
         titleBar.PointerPressed += (_, e) =>
         {
@@ -238,7 +238,7 @@ public class TrayAppDotNETUninstallerWindow : Window
             Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = TrayAppDotNETDialogChromeLayout.ButtonsMargin,
-            Children = { cancel, uninstall },
+            Children = { cancel, uninstall }
         };
     }
 
@@ -249,8 +249,8 @@ public class TrayAppDotNETUninstallerWindow : Window
             Children =
             {
                 TrayAppDotNETSettingsUI.TitleText(title, _options.Palette),
-                TrayAppDotNETSettingsUI.DescriptionText(description, _options.Palette),
-            },
+                TrayAppDotNETSettingsUI.DescriptionText(description, _options.Palette)
+            }
         };
 
         Grid grid = new();
@@ -266,7 +266,7 @@ public class TrayAppDotNETUninstallerWindow : Window
             CornerRadius = Rounded(TrayAppDotNETDialogChromeLayout.CardCornerRadius),
             Padding = TrayAppDotNETDialogChromeLayout.OptionCardPadding,
             Margin = TrayAppDotNETDialogChromeLayout.OptionCardMargin,
-            Child = grid,
+            Child = grid
         };
         card.PointerPressed += (_, e) =>
         {

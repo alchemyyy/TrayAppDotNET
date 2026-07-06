@@ -143,7 +143,7 @@ public class DDCMonitor
         {
             PowerOffLevel.Sleep => cmd.ValueStandby ?? cmd.ValueSoftOff ?? cmd.ValueHardOff,
             PowerOffLevel.Soft => cmd.ValueSoftOff ?? cmd.ValueHardOff,
-            _ => cmd.ValueHardOff,
+            _ => cmd.ValueHardOff
         };
         return (cmd.Code, value);
     }
@@ -163,7 +163,7 @@ public class DDCMonitor
             ValueSoftOff = 0x04,
             ValueHardOff = 0x05,
             IsInverted = false,
-            Label = "VESA DPMS / Power Mode (MCCS 0xD6, default)",
+            Label = "VESA DPMS / Power Mode (MCCS 0xD6, default)"
         },
         new()
         {
@@ -171,8 +171,8 @@ public class DDCMonitor
             ValueOn = 0x01,
             ValueHardOff = 0x00,
             IsInverted = false,
-            Label = "VESA Power Control (MCCS 0xE1, default)",
-        },
+            Label = "VESA Power Control (MCCS 0xE1, default)"
+        }
     ];
 }
 
@@ -227,5 +227,5 @@ public enum PowerOffLevel
     Soft,
 
     /// <summary>Hardest - DPMS hard-off (0xD6=5) or inverted-Dell 0xE1=1.</summary>
-    Hard,
+    Hard
 }

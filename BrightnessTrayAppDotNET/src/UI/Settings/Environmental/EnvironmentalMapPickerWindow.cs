@@ -64,7 +64,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         {
             SelectedCoordinate = new GeoCoordinate(latitude, longitude).ClampToWorld(),
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
         _map.CoordinateChanged += (_, _) => UpdateCoordinateText();
 
@@ -109,7 +109,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         titleBar.Children.Add(close);
         root.Children.Add(titleBar);
 
-        Grid body = new() { Margin = new Thickness(20, 8, 20, 20), };
+        Grid body = new() { Margin = new Thickness(20, 8, 20, 20) };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Border mapHost = new()
@@ -119,7 +119,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             ClipToBounds = true,
-            Child = BuildMapViewport(),
+            Child = BuildMapViewport()
         };
         Grid.SetRow(mapHost, 0);
         body.Children.Add(mapHost);
@@ -132,7 +132,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = new Thickness(1),
-            Child = root,
+            Child = root
         };
     }
 
@@ -153,7 +153,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(12),
+            Margin = new Thickness(12)
         };
         hud.Children.Add(BuildCoordinateHud(_palette));
         hud.Children.Add(BuildMapHud(_palette));
@@ -189,7 +189,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(10, 8),
-            Child = panel,
+            Child = panel
         };
     }
 
@@ -220,7 +220,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(HudPadding),
-            Child = grid,
+            Child = grid
         };
     }
 

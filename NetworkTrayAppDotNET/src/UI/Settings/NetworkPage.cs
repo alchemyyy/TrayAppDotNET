@@ -20,7 +20,7 @@ public sealed partial class NetworkSettingsWindow
                 ("Windows11", Loc("Settings_Network_FlyoutStyle_Windows11")),
                 ("QuickSettings", Loc("Settings_Network_FlyoutStyle_QuickSettings")),
                 ("AvailableNetworks", Loc("Settings_Network_FlyoutStyle_AvailableNetworks")),
-                ("Settings", Loc("Settings_Network_FlyoutStyle_Settings")),
+                ("Settings", Loc("Settings_Network_FlyoutStyle_Settings"))
             ],
             _settings.FlyoutStyle.ToString(),
             tag =>
@@ -35,7 +35,7 @@ public sealed partial class NetworkSettingsWindow
             Loc("Settings_Network_AdapterSettingsStyle_Description"),
             [
                 ("Explorer", Loc("Settings_Network_AdapterSettingsStyle_Explorer")),
-                ("ControlPanel", Loc("Settings_Network_AdapterSettingsStyle_ControlPanel")),
+                ("ControlPanel", Loc("Settings_Network_AdapterSettingsStyle_ControlPanel"))
             ],
             _settings.AdapterSettingsStyle.ToString(),
             tag =>

@@ -70,7 +70,7 @@ public static class SearchMatcher
             .. rankedItems
                 .OrderByDescending(static item => item.Score)
                 .ThenBy(static item => item.Index)
-                .Select(static item => item.Item),
+                .Select(static item => item.Item)
         ];
     }
 

@@ -32,7 +32,7 @@ public sealed partial class VolumeSettingsWindow
                             VolumeInstallScope.LocalAppData);
                         await uninstallerDialog.ShowDialog(this);
                         HookPostUninstallRefresh(uninstallerDialog, refresh);
-                    },
+                    }
                 },
                 new TrayAppDotNETInstallCardOptions
                 {
@@ -48,8 +48,8 @@ public sealed partial class VolumeSettingsWindow
                             VolumeInstallScope.ProgramFiles);
                         await uninstallerDialog.ShowDialog(this);
                         HookPostUninstallRefresh(uninstallerDialog, refresh);
-                    },
-                },
+                    }
+                }
             ],
             new TrayAppDotNETStoreInstallOptions(
                 Loc("Settings_General_WindowsStore_Title"),
@@ -133,7 +133,7 @@ public sealed partial class VolumeSettingsWindow
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber,
+            CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
     private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
@@ -147,7 +147,7 @@ public sealed partial class VolumeSettingsWindow
             ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
-            SupportsTrayContextMenu = true,
+            SupportsTrayContextMenu = true
         });
 
     private static string StoreInstallDescription()

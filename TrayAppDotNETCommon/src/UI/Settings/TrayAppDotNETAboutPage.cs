@@ -255,7 +255,7 @@ public sealed class TrayAppDotNETAboutPage
             {
                 _installInProgress = inFlight;
                 RefreshUpdateUI();
-            },
+            }
         });
     }
 
@@ -270,7 +270,7 @@ public sealed class TrayAppDotNETAboutPage
         if (_updateService != null)
             _updateService.StateChanged += OnUpdateStateChanged;
 
-        _staleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_options.StaleCheckTimerIntervalMs), };
+        _staleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_options.StaleCheckTimerIntervalMs) };
         _staleTimer.Tick += OnStaleTimerTick;
         _staleTimer.Start();
 
@@ -430,7 +430,7 @@ public sealed class TrayAppDotNETAboutPage
         {
             Orientation = Orientation.Horizontal,
             Margin = layout.AboutRowMargin,
-            Children = { labelBlock, valueBlock },
+            Children = { labelBlock, valueBlock }
         };
     }
 

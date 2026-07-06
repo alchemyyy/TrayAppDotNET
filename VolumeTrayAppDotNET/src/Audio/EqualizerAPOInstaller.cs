@@ -53,7 +53,7 @@ internal static class EqualizerAPOInstaller
         "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},2", // GFX (post-mix, pre-Win8.1)
         "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},5", // SFX (pre-mix)
         "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},6", // MFX (post-mix, software pipe)
-        "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},7", // EFX (post-mix, endpoint pipe)
+        "{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},7" // EFX (post-mix, endpoint pipe)
     ];
 
     // Multi-mode counterparts of SFX/MFX/EFX. Only used to decide whether an existing FX chain
@@ -217,7 +217,7 @@ internal static class EqualizerAPOInstaller
                     EnhancementsDisabled = enhancementsDisabled,
                     CurrentInstallMode = currentMode,
                     Version = version,
-                    OriginalApoGuids = originalApoGuids,
+                    OriginalApoGuids = originalApoGuids
                 };
             }
 
@@ -233,7 +233,7 @@ internal static class EqualizerAPOInstaller
                         EnhancementsDisabled = enhancementsDisabled,
                         CurrentInstallMode = currentMode,
                         Version = version,
-                        OriginalApoGuids = originalApoGuids,
+                        OriginalApoGuids = originalApoGuids
                     };
                 }
 
@@ -260,7 +260,7 @@ internal static class EqualizerAPOInstaller
                 EnhancementsDisabled = enhancementsDisabled,
                 CurrentInstallMode = currentMode,
                 Version = version,
-                OriginalApoGuids = originalApoGuids,
+                OriginalApoGuids = originalApoGuids
             };
         }
         catch (Exception ex)
@@ -777,7 +777,7 @@ internal static class EqualizerAPOInstaller
                 return false;
             Advapi32.TOKEN_PRIVILEGES tp = new()
             {
-                PrivilegeCount = 1, Luid = luid, Attributes = Advapi32.SE_PRIVILEGE_ENABLED,
+                PrivilegeCount = 1, Luid = luid, Attributes = Advapi32.SE_PRIVILEGE_ENABLED
             };
             if (!Advapi32.AdjustTokenPrivileges(token, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
                 return false;
@@ -820,5 +820,5 @@ internal enum InstallMode
 {
     LfxGfx = 0, // pre-Win8.1 driver shim; also used when the driver only published LFX/GFX
     SfxMfx = 1, // Win11 combined Bluetooth endpoints where EFX won't load
-    SfxEfx = 2, // default Win8.1+ pairing for normal endpoints
+    SfxEfx = 2 // default Win8.1+ pairing for normal endpoints
 }

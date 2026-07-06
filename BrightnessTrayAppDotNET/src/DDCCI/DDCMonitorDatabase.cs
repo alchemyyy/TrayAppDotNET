@@ -135,7 +135,7 @@ public static class DDCMonitorDatabase
             ModelName = ReadString(m, "modelName"),
             BrightnessCode = brightnessCode,
             PowerOffCommands = powerCommands,
-            Quirks = quirks,
+            Quirks = quirks
         };
     }
 
@@ -168,7 +168,7 @@ public static class DDCMonitorDatabase
             ValueSoftOff = valueSoftOff,
             ValueHardOff = valueHardOff,
             IsInverted = isInverted,
-            Label = label,
+            Label = label
         };
     }
 

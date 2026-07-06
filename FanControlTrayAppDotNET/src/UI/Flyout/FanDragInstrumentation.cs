@@ -238,7 +238,7 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         Key.I => "i",
         Key.O => "o",
         Key.X => "x",
-        _ => key.ToString(),
+        _ => key.ToString()
     };
 
     private static void AppendSnapshot(StringBuilder builder, FanDragSnapshot snapshot)
@@ -509,7 +509,7 @@ internal enum FanDragExpectedIndexing
     IndexBelow,
     IndexIntoGroup,
     IndexOutOfGroup,
-    NoIndexChange,
+    NoIndexChange
 }
 
 internal sealed record FanDragInstrumentationStart(

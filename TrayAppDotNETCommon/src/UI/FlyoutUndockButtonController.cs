@@ -80,7 +80,7 @@ public sealed class FlyoutUndockButtonController
             Child = Glyph,
             Cursor = options.IsEnabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
             IsEnabled = options.IsEnabled,
-            IsVisible = options.IsVisible,
+            IsVisible = options.IsVisible
         };
 
         UpdateVisual();

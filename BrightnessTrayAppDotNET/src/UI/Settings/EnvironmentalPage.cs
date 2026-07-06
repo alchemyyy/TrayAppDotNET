@@ -52,7 +52,7 @@ public sealed partial class BrightnessSettingsWindow
     private static HttpClient EnvironmentalHttpClient =>
         field ??= new HttpClient
         {
-            Timeout = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalHttpClientTimeoutMs),
+            Timeout = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalHttpClientTimeoutMs)
         };
 
     private StackPanel BuildEnvironmentalPage()
@@ -72,7 +72,7 @@ public sealed partial class BrightnessSettingsWindow
             Height = 270,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 0, 0, 8),
-            Palette = BuildEnvironmentalEditorPalette(p),
+            Palette = BuildEnvironmentalEditorPalette(p)
         };
         stack.Children.Add(_environmentalCurveEditor);
 
@@ -80,7 +80,7 @@ public sealed partial class BrightnessSettingsWindow
         top.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         top.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        StackPanel left = new() { VerticalAlignment = VerticalAlignment.Top, };
+        StackPanel left = new() { VerticalAlignment = VerticalAlignment.Top };
         left.Children.Add(BuildEnvironmentalLegend(p));
         left.Children.Add(BuildEnvironmentalProfileRow(p));
         left.Children.Add(BuildEnvironmentalModeRows(p));
@@ -89,7 +89,7 @@ public sealed partial class BrightnessSettingsWindow
         Grid.SetColumn(left, 0);
         top.Children.Add(left);
 
-        StackPanel right = new() { VerticalAlignment = VerticalAlignment.Top, };
+        StackPanel right = new() { VerticalAlignment = VerticalAlignment.Top };
         right.Children.Add(BuildEnvironmentalPreviewControls(p));
         right.Children.Add(BuildEnvironmentalLocationCard(p));
         Grid.SetColumn(right, 1);

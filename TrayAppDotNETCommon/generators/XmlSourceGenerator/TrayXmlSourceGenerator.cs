@@ -534,7 +534,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
     {
         Element,
         Attribute,
-        Array,
+        Array
     }
 
     private static string FormatExpression(string expression, ITypeSymbol type)
@@ -573,7 +573,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                 SpecialType.System_UInt32 => $"PNUInt32({valueExpression})",
                 SpecialType.System_Int64 => $"PNInt64({valueExpression})",
                 SpecialType.System_Double => $"PNDouble({valueExpression})",
-                _ => IsDateTime(underlying) ? $"PNDateTime({valueExpression})" : "null",
+                _ => IsDateTime(underlying) ? $"PNDateTime({valueExpression})" : "null"
             };
         }
 
@@ -588,7 +588,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
             SpecialType.System_Boolean or SpecialType.System_Int32 or SpecialType.System_UInt32
                 or SpecialType.System_Int64
                 or SpecialType.System_Double => $"P({valueExpression}, {fallbackExpression})",
-            _ => IsDateTime(type) ? $"P({valueExpression}, {fallbackExpression})" : fallbackExpression,
+            _ => IsDateTime(type) ? $"P({valueExpression}, {fallbackExpression})" : fallbackExpression
         };
     }
 
@@ -701,7 +701,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
             SpecialType.System_UInt32 => "default(uint)",
             SpecialType.System_Int64 => "default(long)",
             SpecialType.System_Double => "default(double)",
-            _ => IsDateTime(type) ? "default(DateTime)" : "default",
+            _ => IsDateTime(type) ? "default(DateTime)" : "default"
         };
     }
 

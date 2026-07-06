@@ -122,7 +122,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         {
             Width = ColorPickerLayout.PickerPlaneWidth,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
         _hueSlider = new TrayAppDotNETColorSlider(TrayAppDotNETColorSliderKind.Hue, palette)
         {
@@ -130,7 +130,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             Minimum = 0,
             Maximum = 360,
             SmallChange = 1,
-            LargeChange = 30,
+            LargeChange = 30
         };
         _alphaSlider = new TrayAppDotNETColorSlider(TrayAppDotNETColorSliderKind.Alpha, palette)
         {
@@ -140,7 +140,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             SmallChange = 1,
             LargeChange = 16,
             IsDirectionReversed = true,
-            IsEnabled = hasAlpha,
+            IsEnabled = hasAlpha
         };
         _rSlider = CreateChannelSlider();
         _gSlider = CreateChannelSlider();
@@ -153,7 +153,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
         _notifyTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(TimeConstants.ColorPickerChangeCooldownMs),
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.ColorPickerChangeCooldownMs)
         };
         _notifyTimer.Tick += OnNotifyTimerTick;
 
@@ -196,7 +196,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = ColorPickerLayout.RootBorderThickness,
-            Child = root,
+            Child = root
         };
     }
 
@@ -229,7 +229,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
     private Grid BuildBody()
     {
-        Grid body = new() { Margin = ColorPickerLayout.BodyMargin, };
+        Grid body = new() { Margin = ColorPickerLayout.BodyMargin };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.BodyGapHeight)));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -300,7 +300,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         Grid.SetColumn(argbRow, 0);
         grid.Children.Add(argbRow);
 
-        Grid buttons = new() { VerticalAlignment = VerticalAlignment.Center, };
+        Grid buttons = new() { VerticalAlignment = VerticalAlignment.Center };
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         buttons.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ButtonGapWidth)));
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -405,7 +405,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             Minimum = 0,
             Maximum = 255,
             SmallChange = 1,
-            LargeChange = 16,
+            LargeChange = 16
         };
 
     private void WireEvents()
@@ -622,7 +622,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             2 => (p, val, t),
             3 => (p, q, val),
             4 => (t, p, val),
-            _ => (val, p, q),
+            _ => (val, p, q)
         };
 
         return Color.FromArgb(
@@ -666,7 +666,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         Green,
         Blue,
         RgbaText,
-        ArgbText,
+        ArgbText
     }
 }
 
@@ -785,7 +785,7 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control
             EndPoint = horizontal
                 ? new RelativePoint(1, 0, RelativeUnit.Relative)
                 : new RelativePoint(0, 1, RelativeUnit.Relative),
-            GradientStops = { new GradientStop(start, 0), new GradientStop(end, 1), },
+            GradientStops = { new GradientStop(start, 0), new GradientStop(end, 1) }
         };
 }
 
@@ -795,7 +795,7 @@ internal enum TrayAppDotNETColorSliderKind
 {
     Channel,
     Hue,
-    Alpha,
+    Alpha
 }
 
 internal sealed class TrayAppDotNETColorSlider : Control
@@ -900,7 +900,7 @@ internal sealed class TrayAppDotNETColorSlider : Control
             Key.PageDown => Value - LargeChange,
             Key.Home => Minimum,
             Key.End => Maximum,
-            _ => null,
+            _ => null
         };
         if (!next.HasValue) return;
         Value = next.Value;
@@ -956,7 +956,7 @@ internal sealed class TrayAppDotNETColorSlider : Control
         LinearGradientBrush brush = new()
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-            EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+            EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative)
         };
 
         if (_kind == TrayAppDotNETColorSliderKind.Hue)

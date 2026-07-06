@@ -176,7 +176,7 @@ internal static class AppIconResolver
             }
 
             IconPixels cropped = CropTransparentBorder(raw);
-            CacheEntry entry = new() { Bitmap = ToAvaloniaBitmap(cropped), ContentHash = contentHash, RefCount = 1, };
+            CacheEntry entry = new() { Bitmap = ToAvaloniaBitmap(cropped), ContentHash = contentHash, RefCount = 1 };
             entry.IdentityKeys.Add(identityKey);
             s_byIdentity[identityKey] = entry;
             s_byContent[contentHash] = entry;
@@ -571,8 +571,8 @@ internal static class AppIconResolver
                     biPlanes = 1,
                     biBitCount = 32,
                     biCompression = IconExtraction.BI_RGB,
-                    biSizeImage = (uint)pixels.Length,
-                },
+                    biSizeImage = (uint)pixels.Length
+                }
             };
 
             hdc = IconExtraction.GetDC(IntPtr.Zero);

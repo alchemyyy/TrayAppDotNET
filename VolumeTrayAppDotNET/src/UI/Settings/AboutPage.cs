@@ -34,8 +34,8 @@ public sealed partial class VolumeSettingsWindow
             [
                 new TrayAppDotNETKnownIssue(
                     Loc("Settings_About_BluetoothCodecNotDisplaying_Title"),
-                    Loc("Settings_About_BluetoothCodecNotDisplaying_Description")),
-            ],
+                    Loc("Settings_About_BluetoothCodecNotDisplaying_Description"))
+            ]
         });
         return _aboutPage.Build();
     }

@@ -15,7 +15,7 @@ public class CapabilitiesTokenizer
         new TokenFilter<WhitespaceToken>(@"^\s+$"),
         new TokenFilter<OpenToken>(@"^\($"),
         new TokenFilter<CloseToken>(@"^\)$"),
-        new TokenFilter<WordToken>(@"^\w+$"),
+        new TokenFilter<WordToken>(@"^\w+$")
     };
 
     public IEnumerable<IToken> GetTokens(string inputString)

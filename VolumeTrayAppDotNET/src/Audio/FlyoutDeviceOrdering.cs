@@ -37,7 +37,7 @@ internal static class FlyoutDeviceOrdering
         return settings.FlyoutDeviceSort switch
         {
             FlyoutDeviceSortOrder.WindowsEnumeration => SortWindowsEnumeration(visible, settings),
-            _ => SortStateGrouped(visible, settings),
+            _ => SortStateGrouped(visible, settings)
         };
     }
 

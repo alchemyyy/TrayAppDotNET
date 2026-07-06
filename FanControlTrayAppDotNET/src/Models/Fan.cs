@@ -15,7 +15,7 @@ public enum FanState
 {
     Disabled,
     Detached,
-    Normal,
+    Normal
 }
 
 // How the fan picks its target duty cycle / RPM each tick.
@@ -24,7 +24,7 @@ public enum FanState
 public enum FanControlMode
 {
     Manual,
-    Curve,
+    Curve
 }
 
 // One controllable fan header. Lives in LHMService's Fans collection; persists user-configurable
@@ -460,7 +460,7 @@ public class Fan : INotifyPropertyChanged
         FlyoutDisplayOrder = FlyoutDisplayOrder,
         ModeLocked = ModeLocked,
         ForcedNonFunctioning = ForcedNonFunctioning,
-        Triggers = CloneTriggers(Triggers),
+        Triggers = CloneTriggers(Triggers)
     };
 
     public void ApplyUserSettings(FanUserSettings? settings)
@@ -512,7 +512,7 @@ public class Fan : INotifyPropertyChanged
             DataSourceKey = DataSourceKey,
             ControllerModel = ControllerModel,
             ControlsName = ControlsName,
-            FansName = FansName,
+            FansName = FansName
         };
         clone.ApplyUserSettings(SnapshotUserSettings());
         return clone;
@@ -521,7 +521,7 @@ public class Fan : INotifyPropertyChanged
     private static List<Trigger> CloneTriggers(IEnumerable<Trigger> triggers)
     {
         List<Trigger> cloned = [];
-        foreach (Trigger trigger in triggers) cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled, });
+        foreach (Trigger trigger in triggers) cloned.Add(new Trigger { Name = trigger.Name, Enabled = trigger.Enabled });
 
         return cloned;
     }

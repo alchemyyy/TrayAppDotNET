@@ -14,7 +14,7 @@ public enum NetworkSettingsPage
     Network,
     Hotkeys,
     Theme,
-    About,
+    About
 }
 
 public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<NetworkSettingsPage>
@@ -63,7 +63,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
         new(NetworkSettingsPage.Network, L("Settings_Common_Page_Network", "Network"), BuildNetworkPage),
         new(NetworkSettingsPage.Hotkeys, L("Settings_Common_Page_Hotkeys", "Hotkeys"), BuildHotkeysPage),
         new(NetworkSettingsPage.Theme, L("Settings_Common_Page_Theme", "Theme"), BuildThemePage),
-        new(NetworkSettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage),
+        new(NetworkSettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage)
     ];
 
     protected override void OnSettingsWindowClosed()
@@ -166,6 +166,6 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => AppServices.Theme?.IsLightTheme ?? false,
+        _ => AppServices.Theme?.IsLightTheme ?? false
     };
 }

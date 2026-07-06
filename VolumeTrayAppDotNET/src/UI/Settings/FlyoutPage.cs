@@ -38,7 +38,7 @@ public sealed partial class VolumeSettingsWindow
                     Loc("Settings_Flyout_CommunicationsButtonVisibility_AlwaysShow")),
                 (CommunicationsButtonVisibility.WhenDuckingOn,
                     Loc("Settings_Flyout_CommunicationsButtonVisibility_WhenDuckingOn")),
-                (CommunicationsButtonVisibility.Hidden, Loc("Settings_Flyout_CommunicationsButtonVisibility_Hidden")),
+                (CommunicationsButtonVisibility.Hidden, Loc("Settings_Flyout_CommunicationsButtonVisibility_Hidden"))
             ],
             _settings.FlyoutCommunicationsButtonVisibility,
             v => _settings.FlyoutCommunicationsButtonVisibility = v,
@@ -73,7 +73,7 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_Flyout_SoundSettingsTarget_Description"),
             [
                 (SoundSettingsTarget.LegacySoundPanel, Loc("Settings_Flyout_SoundSettingsTarget_Legacy")),
-                (SoundSettingsTarget.WindowsSettingsApp, Loc("Settings_Flyout_SoundSettingsTarget_Modern")),
+                (SoundSettingsTarget.WindowsSettingsApp, Loc("Settings_Flyout_SoundSettingsTarget_Modern"))
             ],
             _settings.SoundSettingsTarget,
             v => _settings.SoundSettingsTarget = v,
@@ -85,7 +85,7 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_Flyout_DeviceLayout_Description"),
             [
                 (FlyoutDeviceLayoutStyle.AppsAboveDevice, Loc("Settings_Flyout_DeviceLayout_AppsAbove")),
-                (FlyoutDeviceLayoutStyle.AppsBelowDevice, Loc("Settings_Flyout_DeviceLayout_AppsBelow")),
+                (FlyoutDeviceLayoutStyle.AppsBelowDevice, Loc("Settings_Flyout_DeviceLayout_AppsBelow"))
             ],
             _settings.FlyoutDeviceLayout,
             v => _settings.FlyoutDeviceLayout = v,
@@ -95,7 +95,7 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_Flyout_DeviceTitlePosition_Description"),
             [
                 (FlyoutDeviceTitlePosition.BelowSlider, Loc("Settings_Flyout_DeviceTitlePosition_BelowSlider")),
-                (FlyoutDeviceTitlePosition.AboveSlider, Loc("Settings_Flyout_DeviceTitlePosition_AboveSlider")),
+                (FlyoutDeviceTitlePosition.AboveSlider, Loc("Settings_Flyout_DeviceTitlePosition_AboveSlider"))
             ],
             _settings.FlyoutDeviceTitlePosition,
             v => _settings.FlyoutDeviceTitlePosition = v,
@@ -105,7 +105,7 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_Flyout_DeviceSort_Description"),
             [
                 (FlyoutDeviceSortOrder.StateGrouped, Loc("Settings_Flyout_DeviceSort_StateGrouped")),
-                (FlyoutDeviceSortOrder.WindowsEnumeration, Loc("Settings_Flyout_DeviceSort_WindowsEnumeration")),
+                (FlyoutDeviceSortOrder.WindowsEnumeration, Loc("Settings_Flyout_DeviceSort_WindowsEnumeration"))
             ],
             _settings.FlyoutDeviceSort,
             v => _settings.FlyoutDeviceSort = v,

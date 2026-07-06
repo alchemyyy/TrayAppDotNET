@@ -35,7 +35,7 @@ public static class CrashHandler
         new("DOTNET_gcConcurrent", "0"),
         new("DOTNET_GCConserveMemory", "9"),
         new("DOTNET_GCHeapHardLimit", ToHexEnvironmentValue(WatcherHeapHardLimitBytes)),
-        new("DOTNET_GCRetainVM", "0"),
+        new("DOTNET_GCRetainVM", "0")
     ];
 
     private static CrashHandlerOptions? _options;

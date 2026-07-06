@@ -15,7 +15,7 @@ public enum BrightnessSettingsPage
     Hotkeys,
     Environmental,
     Theme,
-    About,
+    About
 }
 
 public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<BrightnessSettingsPage>
@@ -95,7 +95,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         new(BrightnessSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
             () => BuildSettingsPage(BrightnessSettingsPage.Theme, BuildThemePage)),
         new(BrightnessSettingsPage.About, Loc("Settings_Common_Page_About"),
-            () => BuildSettingsPage(BrightnessSettingsPage.About, BuildAboutPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.About, BuildAboutPage))
     ];
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)

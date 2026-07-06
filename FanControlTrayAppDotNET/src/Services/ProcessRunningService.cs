@@ -78,7 +78,7 @@ public sealed class ProcessRunningService : IDisposable
             string image = SafeProcessName(p);
             ProcessSnapshot snap = new()
             {
-                PID = p.Id, ImageName = image, CommandLine = string.Empty, FirstSeenUtc = now,
+                PID = p.Id, ImageName = image, CommandLine = string.Empty, FirstSeenUtc = now
             };
             if (_processes.TryAdd(p.Id, snap)) _observable.Add(snap);
             p.Dispose();
@@ -115,7 +115,7 @@ public sealed class ProcessRunningService : IDisposable
                             PID = pid,
                             ImageName = SafeProcessName(p),
                             CommandLine = string.Empty,
-                            FirstSeenUtc = DateTime.UtcNow,
+                            FirstSeenUtc = DateTime.UtcNow
                         });
                     }
                     catch

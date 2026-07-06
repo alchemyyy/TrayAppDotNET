@@ -1094,7 +1094,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     PROPVARIANT.VT_UI4 => pv.GetUInt32() != 0,
                     PROPVARIANT.VT_I4 => pv.p1.ToInt64() != 0,
                     PROPVARIANT.VT_BOOL => (short)(pv.p1.ToInt64() & 0xFFFF) != 0,
-                    _ => true,
+                    _ => true
                 };
             }
             finally { Ole32.PropVariantClear(ref pv); }
@@ -1122,7 +1122,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                     PROPVARIANT.VT_BOOL => (short)(enablePv.p1.ToInt64() & 0xFFFF) != 0,
                     PROPVARIANT.VT_UI4 => enablePv.GetUInt32() != 0,
                     PROPVARIANT.VT_I4 => enablePv.p1.ToInt64() != 0,
-                    _ => false,
+                    _ => false
                 };
             }
             finally { Ole32.PropVariantClear(ref enablePv); }
@@ -2059,7 +2059,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             4 => 0x33u, // KSAUDIO_SPEAKER_QUAD
             6 => 0x3Fu, // KSAUDIO_SPEAKER_5POINT1
             8 => 0xFFu, // KSAUDIO_SPEAKER_7POINT1
-            _ => channels >= 32 ? 0u : (1u << channels) - 1,
+            _ => channels >= 32 ? 0u : (1u << channels) - 1
         };
 
         byte[] ext = new byte[40];

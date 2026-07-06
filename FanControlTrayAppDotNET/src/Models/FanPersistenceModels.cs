@@ -307,7 +307,7 @@ public class FanProfileEntry
         AssignedCurveName = fan.AssignedCurveName,
         ModeLocked = fan.ModeLocked,
         FanDisplayedValue = fan.FanDisplayedValue,
-        CurrentControlMode = fan.CurrentControlMode,
+        CurrentControlMode = fan.CurrentControlMode
     };
 
     public void ApplyTo(Fan fan)

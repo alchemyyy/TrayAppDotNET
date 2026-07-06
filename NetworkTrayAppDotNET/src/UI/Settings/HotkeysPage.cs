@@ -22,7 +22,7 @@ public sealed partial class NetworkSettingsWindow
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 12)
         };
         TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(Loc("Settings_Hotkeys_SearchLabel"), p);
         searchLabel.VerticalAlignment = VerticalAlignment.Center;
@@ -150,7 +150,7 @@ public sealed partial class NetworkSettingsWindow
                 Modifiers = selectedModifiers,
                 VirtualKey = selectedVk,
                 Enabled = true,
-                BindingID = id,
+                BindingID = id
             });
             selectedModifiers = 0;
             selectedVk = 0;
@@ -257,7 +257,7 @@ public sealed partial class NetworkSettingsWindow
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
-            Child = grid,
+            Child = grid
         };
     }
 

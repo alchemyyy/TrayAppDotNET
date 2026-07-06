@@ -37,7 +37,7 @@ public sealed partial class BrightnessSettingsWindow
             [
                 (ThemeMode.System, L("Settings_Theme_ThemeStyle_System", "System")),
                 (ThemeMode.Light, L("Settings_Theme_ThemeStyle_Light", "Light")),
-                (ThemeMode.Dark, L("Settings_Theme_ThemeStyle_Dark", "Dark")),
+                (ThemeMode.Dark, L("Settings_Theme_ThemeStyle_Dark", "Dark"))
             ],
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
@@ -122,7 +122,7 @@ public sealed partial class BrightnessSettingsWindow
                 "Choose whether the tray icon uses a fixed color or changes with brightness."),
             [
                 (TrayIconStyle.Dynamic, L("Settings_Theme_TrayIconStyle_Dynamic", "Dynamic")),
-                (TrayIconStyle.Static, L("Settings_Theme_TrayIconStyle_Static", "Static")),
+                (TrayIconStyle.Static, L("Settings_Theme_TrayIconStyle_Static", "Static"))
             ],
             _settings.TrayIconStyle,
             v => _settings.TrayIconStyle = v,
@@ -135,7 +135,7 @@ public sealed partial class BrightnessSettingsWindow
             [
                 (MasterSliderMode.Lowest, L("Settings_Theme_DynamicIconTracking_Lowest", "Lowest")),
                 (MasterSliderMode.Average, L("Settings_Theme_DynamicIconTracking_Average", "Average")),
-                (MasterSliderMode.Highest, L("Settings_Theme_DynamicIconTracking_Highest", "Highest")),
+                (MasterSliderMode.Highest, L("Settings_Theme_DynamicIconTracking_Highest", "Highest"))
             ],
             _settings.DynamicIconBrightnessTracking,
             v => _settings.DynamicIconBrightnessTracking = v,
@@ -255,14 +255,14 @@ public sealed partial class BrightnessSettingsWindow
         "Star" => L("Settings_Theme_SliderThumb_Star", "Star"),
         "Square" => L("Settings_Theme_SliderThumb_Square", "Square"),
         "Heart" => L("Settings_Theme_SliderThumb_Heart", "Heart"),
-        _ => name,
+        _ => name
     };
 
     private static Grid SliderThumbComboContent(SliderThumbGlyphOption option, string label, SettingsPalette p)
     {
         Grid preview = new()
         {
-            Width = 22, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
+            Width = 22, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center
         };
 
         double width = Math.Max(1, option.Width);
@@ -276,7 +276,7 @@ public sealed partial class BrightnessSettingsWindow
                 CornerRadius = new CornerRadius(height / 2),
                 Background = TrayAppDotNETSettingsUI.Brush(p.Foreground),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
             });
         }
         else

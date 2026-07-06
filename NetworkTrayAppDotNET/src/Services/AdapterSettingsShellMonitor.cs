@@ -18,7 +18,7 @@ internal static class AdapterSettingsShellMonitor
     private static readonly string[] ExplorerFactoryCommandLines =
     [
         "/factory,{5bd95610-9434-43c2-886c-57852cc8a120} -Embedding", // Control Panel (ncpa.cpl)
-        "/factory,{75dff2b7-6936-4c06-a8bb-676a7b00b24b} -Embedding", // Explorer shell
+        "/factory,{75dff2b7-6936-4c06-a8bb-676a7b00b24b} -Embedding" // Explorer shell
     ];
 
     private const string TargetWindowClass = "CabinetWClass";
@@ -48,7 +48,7 @@ internal static class AdapterSettingsShellMonitor
 
             Process.Start(new ProcessStartInfo
             {
-                FileName = fileName, Arguments = arguments ?? string.Empty, UseShellExecute = true,
+                FileName = fileName, Arguments = arguments ?? string.Empty, UseShellExecute = true
             })?.Dispose();
         }
         catch
@@ -305,7 +305,7 @@ internal static class AdapterSettingsShellMonitor
             _winEventProc = OnWinEvent;
         }
 
-        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsProcessMonitor", }.Start();
+        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsProcessMonitor" }.Start();
 
         public void WaitForReady() => _ready.Wait();
 
@@ -396,7 +396,7 @@ internal static class AdapterSettingsShellMonitor
             _winEventProc = OnWinEvent;
         }
 
-        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsMainWindowMonitor", }.Start();
+        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsMainWindowMonitor" }.Start();
 
         private void RunMessageLoop()
         {
@@ -474,7 +474,7 @@ internal static class AdapterSettingsShellMonitor
             _winEventProc = OnWinEvent;
         }
 
-        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsWindowDestroyMonitor", }.Start();
+        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsWindowDestroyMonitor" }.Start();
 
         private void RunMessageLoop()
         {

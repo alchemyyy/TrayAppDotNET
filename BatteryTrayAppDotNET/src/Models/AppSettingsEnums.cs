@@ -3,7 +3,7 @@ namespace BatteryTrayAppDotNET.Models;
 public enum ContextMenuPosition
 {
     Classic,
-    Modern,
+    Modern
 }
 
 public enum BatteryTriggerCondition
@@ -15,7 +15,7 @@ public enum BatteryTriggerCondition
     ChargingStopped,
     ExternalPowerConnected,
     ExternalPowerDisconnected,
-    FullyCharged,
+    FullyCharged
 }
 
 public enum BatteryTriggerAction
@@ -23,5 +23,5 @@ public enum BatteryTriggerAction
     ShowNotification,
     OpenFlyout,
     OpenSettings,
-    OpenPowerSettings,
+    OpenPowerSettings
 }

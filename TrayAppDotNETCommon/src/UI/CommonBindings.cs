@@ -145,7 +145,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 value,
                 defaultColor,
                 palette,
-                ColorPickerStrings()) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
+                ColorPickerStrings()) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
             picker.ColorChanged += (_, color) =>
             {
@@ -230,7 +230,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             initial,
             fallback,
             palette,
-            ColorPickerStrings()) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
+            ColorPickerStrings()) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
         picker.ColorChanged += (_, editedColor) =>
         {

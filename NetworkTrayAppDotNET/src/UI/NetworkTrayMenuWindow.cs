@@ -24,7 +24,7 @@ public sealed class NetworkTrayMenuWindow(
             openAdapterSettings,
             openSettings,
             exit),
-        new TrayMenuWindowOptions { Palette = palette, Rounded = rounded, FontSize = fontSize, })
+        new TrayMenuWindowOptions { Palette = palette, Rounded = rounded, FontSize = fontSize })
 {
     public void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,

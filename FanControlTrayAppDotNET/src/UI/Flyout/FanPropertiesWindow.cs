@@ -120,7 +120,7 @@ public sealed partial class FanPropertiesWindow : Window
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
-            Child = chrome,
+            Child = chrome
         };
 
         LoadFromFan();
@@ -188,7 +188,7 @@ public sealed partial class FanPropertiesWindow : Window
         {
             Background = TrayAppDotNETSettingsUI.Brush(
                 (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(_settings,
-                    AppTheme.ResolveEffectiveIsLightTheme(_settings))),
+                    AppTheme.ResolveEffectiveIsLightTheme(_settings)))
         };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -209,7 +209,7 @@ public sealed partial class FanPropertiesWindow : Window
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
-            Children = { pinButton, closeButton },
+            Children = { pinButton, closeButton }
         };
         Grid.SetColumn(buttons, 1);
         titleBar.Children.Add(buttons);
@@ -231,7 +231,7 @@ public sealed partial class FanPropertiesWindow : Window
             new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio },
+                Children = { _curveModeRadio, _manualModeRadio, _detachedModeRadio }
             }, p));
         left.Children.Add(Row("Jumpstart", _jumpstartBox, p));
         left.Children.Add(Row("Clamp High", _clampHighBox, p));
@@ -245,7 +245,7 @@ public sealed partial class FanPropertiesWindow : Window
         {
             Content = left,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         body.Children.Add(scroll);
 
@@ -258,7 +258,7 @@ public sealed partial class FanPropertiesWindow : Window
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(p.Border),
             BorderThickness = Layout.RootBorderThickness,
-            CornerRadius = _settings.EnableRoundedCorners ? Layout.InnerCornerRadius : Layout.ZeroCornerRadius,
+            CornerRadius = _settings.EnableRoundedCorners ? Layout.InnerCornerRadius : Layout.ZeroCornerRadius
         });
         _curveCombo.Margin = Layout.CurveComboMargin;
         Grid.SetRow(_curveCombo, 1);
@@ -287,7 +287,7 @@ public sealed partial class FanPropertiesWindow : Window
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
-            Children = { reset, save },
+            Children = { reset, save }
         };
         footer.Children.Add(buttons);
         return footer;
@@ -448,7 +448,7 @@ public sealed partial class FanPropertiesWindow : Window
         FanCurveEditorWindow window = new(_fan, curve, _settings)
         {
             Topmost = Topmost,
-            ShowInTaskbar = false,
+            ShowInTaskbar = false
         };
         window.Closed += (_, _) =>
         {
@@ -472,7 +472,7 @@ public sealed partial class FanPropertiesWindow : Window
             MinDutyCycle = 0,
             SmoothingFactor = 50,
             PreventDecreasing = true,
-            SelectedDataSourceKey = DefaultCurveDataSourceKey(),
+            SelectedDataSourceKey = DefaultCurveDataSourceKey()
         };
         Curve.Register(curve);
         return curve;
@@ -545,7 +545,7 @@ public sealed partial class FanPropertiesWindow : Window
             FontSize = Layout.ValueFontSize,
             Foreground = TrayAppDotNETSettingsUI.Brush(p.Foreground),
             VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
 
     private RadioButton CompactRadio(string text, SettingsPalette p) =>
@@ -556,7 +556,7 @@ public sealed partial class FanPropertiesWindow : Window
             Foreground = TrayAppDotNETSettingsUI.Brush(p.Foreground),
             FontSize = Layout.RadioFontSize,
             Margin = Layout.RadioMargin,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
     private Grid Row(string label, Control value, SettingsPalette p, double? bottomMargin = null)
@@ -568,7 +568,7 @@ public sealed partial class FanPropertiesWindow : Window
             FontSize = Layout.RowLabelFontSize,
             Foreground = TrayAppDotNETSettingsUI.Brush(p.SecondaryForeground),
             VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
         Grid grid = new() { Margin = RowMargin(bottomMargin ?? Layout.RowBottomMargin) };
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelColumnWidth)));

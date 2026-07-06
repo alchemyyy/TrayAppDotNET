@@ -44,7 +44,7 @@ public sealed partial class BrightnessSettingsWindow
                 (MonitorIdentityStrategy.DisplayNumber,
                     L("Settings_Monitors_Identity_DisplayNumber", "Display number")),
                 (MonitorIdentityStrategy.HardwarePort, L("Settings_Monitors_Identity_HardwarePort", "Hardware port")),
-                (MonitorIdentityStrategy.EDIDSerial, L("Settings_Monitors_Identity_EDIDSerial", "EDID serial")),
+                (MonitorIdentityStrategy.EDIDSerial, L("Settings_Monitors_Identity_EDIDSerial", "EDID serial"))
             ],
             _settings.MonitorIdentityStrategy,
             v => _settings.MonitorIdentityStrategy = v,
@@ -56,7 +56,7 @@ public sealed partial class BrightnessSettingsWindow
                 ("Arrangement", L("Settings_Monitors_Sort_Arrangement", "Arrangement")),
                 ("ArrangementRev", L("Settings_Monitors_Sort_ArrangementRev", "Arrangement, reversed")),
                 ("DisplayNumber", L("Settings_Monitors_Sort_DisplayNumber", "Display number")),
-                ("DisplayNumberRev", L("Settings_Monitors_Sort_DisplayNumberRev", "Display number, reversed")),
+                ("DisplayNumberRev", L("Settings_Monitors_Sort_DisplayNumberRev", "Display number, reversed"))
             ],
             ComposeDefaultSortTag(_settings.DefaultDisplaySortMode, _settings.DefaultDisplaySortDirection),
             ApplyDefaultSortTag,
@@ -234,7 +234,7 @@ public sealed partial class BrightnessSettingsWindow
     [
         (PowerOffMode.Sleep, L("Settings_Monitors_PowerOff_Sleep", "Sleep")),
         (PowerOffMode.Soft, L("Settings_Monitors_PowerOff_Soft", "Soft")),
-        (PowerOffMode.Hard, L("Settings_Monitors_PowerOff_Hard", "Hard")),
+        (PowerOffMode.Hard, L("Settings_Monitors_PowerOff_Hard", "Hard"))
     ];
 
     private void ApplyDefaultSortTag(string tag)
@@ -250,7 +250,7 @@ public sealed partial class BrightnessSettingsWindow
             (DisplaySortMode.Arrangement, DisplaySortDirection.Reversed) => "ArrangementRev",
             (DisplaySortMode.DisplayNumber, DisplaySortDirection.Standard) => "DisplayNumber",
             (DisplaySortMode.DisplayNumber, DisplaySortDirection.Reversed) => "DisplayNumberRev",
-            _ => "Arrangement",
+            _ => "Arrangement"
         };
 
     private static bool TryParseDefaultSortTag(string? tag, out DisplaySortMode mode,

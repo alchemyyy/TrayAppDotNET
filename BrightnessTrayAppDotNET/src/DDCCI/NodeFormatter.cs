@@ -14,7 +14,7 @@ public class NodeFormatter : INodeFormatter
         { "vcp", FormatVCPControlName },
         { "vcp_14", FormatVCPColorPreset },
         { "vcp_d6", FormatVCPPowerControl },
-        { "vcp_60", FormatVCPInputSource },
+        { "vcp_60", FormatVCPInputSource }
     };
 
     public string? FormatNode(INode node)
@@ -103,7 +103,7 @@ public class NodeFormatter : INodeFormatter
         "ee" => "SAM: Green Video Black Level",
         "ef" => "SAM: Blue Video Black Level",
         "f5" => "SAM: VCP Enable",
-        _ => null,
+        _ => null
     };
 
     private static string? FormatVCPColorPreset(string code) => code switch
@@ -121,7 +121,7 @@ public class NodeFormatter : INodeFormatter
         "0b" => "User 1",
         "0c" => "User 2",
         "0d" => "User 3",
-        _ => null,
+        _ => null
     };
 
     private static string? FormatVCPPowerControl(string code) => code switch
@@ -129,7 +129,7 @@ public class NodeFormatter : INodeFormatter
         "01" => "DPM: On,  DPMS: Off",
         "04" => "DPM: Off, DPMS: Off",
         "05" => "Write only value to turn off display",
-        _ => null,
+        _ => null
     };
 
     private static string? FormatVCPInputSource(string code) => code switch
@@ -152,6 +152,6 @@ public class NodeFormatter : INodeFormatter
         "10" => "DisplayPort-2",
         "11" => "HDMI-1",
         "12" => "HDMI-2",
-        _ => null,
+        _ => null
     };
 }

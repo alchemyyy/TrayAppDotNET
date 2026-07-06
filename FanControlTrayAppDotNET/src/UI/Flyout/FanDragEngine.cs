@@ -413,14 +413,14 @@ internal enum FanDragTargetKind
     Root,
     GroupHeader,
     GroupFan,
-    GroupAppend,
+    GroupAppend
 }
 
 internal enum FanDragTargetHit
 {
     Before,
     Inside,
-    After,
+    After
 }
 
 internal sealed record FanDragTarget(
@@ -457,7 +457,7 @@ internal sealed record FanDragTarget(
             return
             [
                 new FanDragDebugMarker(Range.Top, PlacementBefore),
-                new FanDragDebugMarker(Range.Bottom, PlacementAfter),
+                new FanDragDebugMarker(Range.Bottom, PlacementAfter)
             ];
         }
 
@@ -479,7 +479,7 @@ internal sealed record FanDragTarget(
         return
         [
             new FanDragDebugMarker(enterY, PlacementBefore),
-            new FanDragDebugMarker(passY, PlacementAfter),
+            new FanDragDebugMarker(passY, PlacementAfter)
         ];
     }
 }
@@ -587,7 +587,7 @@ internal enum FanDragPlacementKind
 {
     None,
     TopLevel,
-    IntoGroup,
+    IntoGroup
 }
 
 internal enum FanDragGhostStyle
@@ -596,7 +596,7 @@ internal enum FanDragGhostStyle
     TopLevelFan,
     GroupedFan,
     Group,
-    Probe,
+    Probe
 }
 
 internal readonly record struct FanDragPlacement(
@@ -619,7 +619,7 @@ internal readonly record struct FanDragPlacement(
         {
             FanDragPlacementKind.TopLevel => string.Create(CultureInfo.InvariantCulture, $"top[{TopLevelIndex}]"),
             FanDragPlacementKind.IntoGroup => $"group[{GroupCell?.GroupName ?? "<none>"}:{GroupFanIndex}]",
-            _ => "none",
+            _ => "none"
         };
     }
 }

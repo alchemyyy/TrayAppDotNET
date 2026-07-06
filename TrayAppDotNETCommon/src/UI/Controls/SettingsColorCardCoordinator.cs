@@ -126,7 +126,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             initial,
             fallback,
             palette,
-            colorPickerStrings) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
+            colorPickerStrings) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
         picker.ColorChanged += (_, editedColor) =>
         {

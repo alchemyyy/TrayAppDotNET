@@ -30,7 +30,7 @@ public sealed class LHMService : IDisposable
         IsMemoryEnabled = true,
         IsStorageEnabled = true,
         IsNetworkEnabled = false,
-        IsControllerEnabled = true,
+        IsControllerEnabled = true
     };
 
     private CancellationTokenSource? _pollingCancellationToken;
@@ -61,7 +61,7 @@ public sealed class LHMService : IDisposable
         nameof(Fan.Group),
         nameof(Fan.ModeLocked),
         nameof(Fan.ForcedNonFunctioning),
-        nameof(Fan.ForceNonFunctional),
+        nameof(Fan.ForceNonFunctional)
     ];
 
     public LHMService(Dispatcher dispatcher, AppSettings? settings = null)
@@ -191,7 +191,7 @@ public sealed class LHMService : IDisposable
                     ControllerName = hardware.Name,
                     ControllerHardwareType = hardwareType,
                     DataSourceType = type,
-                    IsLiveHardwareSensor = true,
+                    IsLiveHardwareSensor = true
                 };
                 source.EnsureDisplayMetadata();
                 DataSource.Register(source);
@@ -329,7 +329,7 @@ public sealed class LHMService : IDisposable
                 ControllerName = hardware.Name,
                 ControllerHardwareType = hardwareType,
                 DataSourceType = DataSourceTypeEnum.Clock,
-                IsLiveHardwareSensor = true,
+                IsLiveHardwareSensor = true
             };
             source.EnsureDisplayMetadata();
             DataSource.Register(source);
@@ -398,7 +398,7 @@ public sealed class LHMService : IDisposable
             DataSourceKey = key,
             ControllerModel = hardware.Name,
             ControlsName = "Controls",
-            FansName = sensor.Name,
+            FansName = sensor.Name
         };
         ApplyDefaultsToNewFan(fan);
         if (_settings?.FindPersistedFan(key) is { } persisted) fan.ApplyUserSettings(persisted);
@@ -615,7 +615,7 @@ public sealed class LHMService : IDisposable
         SensorType.Level        => DataSourceTypeEnum.Level,
         SensorType.Data         => DataSourceTypeEnum.Data,
         SensorType.Throughput   => DataSourceTypeEnum.Throughput,
-        _                       => DataSourceTypeEnum.Unknown,
+        _                       => DataSourceTypeEnum.Unknown
     };
 
     public void Dispose()

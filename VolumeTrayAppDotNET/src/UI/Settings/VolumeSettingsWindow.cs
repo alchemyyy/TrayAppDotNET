@@ -13,7 +13,7 @@ public enum VolumeSettingsPage
     TrayIcon,
     Hotkeys,
     Theme,
-    About,
+    About
 }
 
 public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSettingsPage>
@@ -76,14 +76,14 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
         new(VolumeSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
             () => BuildSettingsPage(VolumeSettingsPage.Theme, BuildThemePage)),
         new(VolumeSettingsPage.About, Loc("Settings_Common_Page_About"),
-            () => BuildSettingsPage(VolumeSettingsPage.About, BuildAboutPage)),
+            () => BuildSettingsPage(VolumeSettingsPage.About, BuildAboutPage))
     ];
 
     private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => AppServices.Theme?.IsLightTheme ?? false,
+        _ => AppServices.Theme?.IsLightTheme ?? false
     };
 
     private Control BuildSettingsPage(VolumeSettingsPage page, Func<Control> buildPage)

@@ -7,13 +7,13 @@ public enum ThemeMode
 {
     System,
     Light,
-    Dark,
+    Dark
 }
 
 public enum TrayIconStyle
 {
     Dynamic,
-    Static,
+    Static
 }
 
 /// <summary>
@@ -23,7 +23,7 @@ public enum TrayIconStyle
 public enum TrayClickAction
 {
     Nothing,
-    OpenSettings,
+    OpenSettings
 }
 
 /// <summary>
@@ -35,14 +35,14 @@ public enum TrayClickAction
 public enum ContextMenuPosition
 {
     Classic,
-    Modern,
+    Modern
 }
 
 public enum MultipleSliderValuesDisplayMode
 {
     Disabled,
     Enabled,
-    OnlyInManual,
+    OnlyInManual
 }
 
 /// <summary>
@@ -474,13 +474,13 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
             new DeviceNicknameRule
             {
                 TargetRegex = HardwareTypeCPUTarget,
-                ReplacementString = CPUNickname,
+                ReplacementString = CPUNickname
             },
             new DeviceNicknameRule
             {
                 TargetRegex = HardwareTypeGPUTarget,
-                ReplacementString = GPUNickname,
-            },
+                ReplacementString = GPUNickname
+            }
         ];
 
     /// <summary>
@@ -491,23 +491,23 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
             new()
             {
                 TargetRegex = ProbeTargetRegex_Tdie,
-                ReplacementString = string.Empty,
+                ReplacementString = string.Empty
             },
             new()
             {
                 TargetRegex = ProbeTargetRegex_TctlTdie,
-                ReplacementString = string.Empty,
+                ReplacementString = string.Empty
             },
             new()
             {
                 TargetRegex = ProbeTargetRegex_SMU,
-                ReplacementString = string.Empty,
+                ReplacementString = string.Empty
             },
             new()
             {
                 TargetRegex = ProbeTargetRegex_CPUCore,
-                ReplacementString = "Core",
-            },
+                ReplacementString = "Core"
+            }
         ];
 
     /// <summary>
@@ -617,7 +617,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
         new()
         {
             TargetRegex = rule.TargetRegex,
-            ReplacementString = rule.ReplacementString,
+            ReplacementString = rule.ReplacementString
         };
 
     /// <summary>
@@ -774,7 +774,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
         {
             if (string.IsNullOrWhiteSpace(fan.Group)) continue;
             if (groups.ContainsKey(fan.Group)) continue;
-            groups[fan.Group] = new FanGroup { Name = fan.Group, DisplayOrder = groups.Count, };
+            groups[fan.Group] = new FanGroup { Name = fan.Group, DisplayOrder = groups.Count };
         }
 
         FanGroups =
@@ -799,8 +799,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
             Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
             VirtualKey = 0x53, // VK_S
             Enabled = true,
-            BindingID = 0,
-        },
+            BindingID = 0
+        }
     ];
 
     /// <summary>
@@ -875,7 +875,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
                 Modifiers = d.Modifiers,
                 VirtualKey = d.VirtualKey,
                 Enabled = d.Enabled,
-                BindingID = d.BindingID,
+                BindingID = d.BindingID
             });
             added = true;
         }

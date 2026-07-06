@@ -74,7 +74,7 @@ public enum UpdateCheckResult
 {
     Success,
     Failed,
-    Cancelled,
+    Cancelled
 }
 
 public sealed class UpdateCheckOptions
@@ -130,7 +130,7 @@ public sealed class UpdateCheckService : IDisposable
         "libHarfBuzzSharp.dll",
         "libSkiaSharp.dll",
         "libMonoPosixHelper.dll",
-        "MonoPosixHelper.dll",
+        "MonoPosixHelper.dll"
     ];
 
     private sealed record UpdateCopyPlan(IReadOnlyList<string> RelativeFilePaths, bool StopSiblingApps);
@@ -329,7 +329,7 @@ public sealed class UpdateCheckService : IDisposable
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
-                WorkingDirectory = stagingDirectory,
+                WorkingDirectory = stagingDirectory
             };
             using Process? cmd = Process.Start(psi);
             launched = cmd != null;
@@ -752,7 +752,7 @@ public sealed class UpdateCheckService : IDisposable
     private enum SharedNativeDLLCopyDecision
     {
         Skip,
-        CopyAndStopSiblings,
+        CopyAndStopSiblings
     }
 
     /// <summary>Returns true for root-level native sidecars shared by every Native AOT tray app.</summary>

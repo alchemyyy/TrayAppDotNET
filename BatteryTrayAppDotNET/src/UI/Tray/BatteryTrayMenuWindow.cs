@@ -22,7 +22,7 @@ public sealed class BatteryTrayMenuWindow : TrayMenuWindow
                 FontSize = settings.ContextMenuFontSize,
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
-                ScrollToBottom = true,
+                ScrollToBottom = true
             })
     {
     }
@@ -57,7 +57,7 @@ public sealed class BatteryTrayMenuWindow : TrayMenuWindow
             {
                 FileName = "control.exe",
                 Arguments = "/name Microsoft.PowerOptions",
-                UseShellExecute = false,
+                UseShellExecute = false
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryTrayMenuWindow.OpenPowerOptions: {ex.Message}"); }

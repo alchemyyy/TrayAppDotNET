@@ -20,7 +20,7 @@ public sealed partial class NetworkSettingsWindow
             Loc("Settings_TrayIcon_MenuPosition_Description"),
             [
                 ("Classic", Loc("Settings_TrayIcon_MenuPosition_Classic")),
-                ("Modern", Loc("Settings_TrayIcon_MenuPosition_Modern")),
+                ("Modern", Loc("Settings_TrayIcon_MenuPosition_Modern"))
             ],
             _settings.ContextMenuPosition.ToString(),
             tag =>
@@ -68,7 +68,7 @@ public sealed partial class NetworkSettingsWindow
             [
                 ("Nothing", Loc("Settings_TrayIcon_ClickAction_Nothing")),
                 ("OpenSettings", Loc("Settings_TrayIcon_ClickAction_OpenSettings")),
-                ("OpenAdapterSettings", Loc("Settings_TrayIcon_ClickAction_OpenAdapterSettings")),
+                ("OpenAdapterSettings", Loc("Settings_TrayIcon_ClickAction_OpenAdapterSettings"))
             ],
             selected.ToString(),
             tag =>

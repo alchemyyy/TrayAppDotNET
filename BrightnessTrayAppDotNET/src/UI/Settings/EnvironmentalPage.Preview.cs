@@ -176,7 +176,7 @@ public sealed partial class BrightnessSettingsWindow
             DisabledPeriodStart = start,
             DisabledPeriodEnd = end,
             DisabledPeriodFollowTheSun = stored.DisabledPeriodFollowTheSun,
-            DisabledPeriodAnchor = stored.DisabledPeriodAnchor,
+            DisabledPeriodAnchor = stored.DisabledPeriodAnchor
         };
         preview.EnsureNormalized();
         return preview;

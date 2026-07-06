@@ -135,7 +135,7 @@ public static class SunShifter
         NightLightOffsetMax = source.NightLightOffsetMax,
         FollowTheSun = source.FollowTheSun,
         BrightnessAnchor = source.BrightnessAnchor,
-        UseDaylightSavings = source.UseDaylightSavings,
+        UseDaylightSavings = source.UseDaylightSavings
     };
 
     private static List<EnvironmentalCurvePoint> ClonePointList(List<EnvironmentalCurvePoint> source)
@@ -201,7 +201,7 @@ public static class SunShifter
             sun.Sunset,
             sun.Twilight?.CivilDusk,
             sun.Twilight?.NauticalDusk,
-            sun.Twilight?.AstronomicalDusk,
+            sun.Twilight?.AstronomicalDusk
         ];
 
         double?[] values = new double?[9];

@@ -236,7 +236,7 @@ public class EnvironmentalCurve
     private static List<EnvironmentalCurvePoint> CreateFlat(double value) =>
     [
         new() { Time = 0.0, Value = value },
-        new() { Time = 1.0, Value = value },
+        new() { Time = 1.0, Value = value }
     ];
 
     /// <summary>

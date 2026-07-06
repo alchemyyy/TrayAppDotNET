@@ -40,7 +40,7 @@ public sealed partial class EnvironmentalCurveEditor
         if (_currentTimeTimer != null) return;
         _currentTimeTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveEditorClockIndicatorRefreshIntervalMs),
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveEditorClockIndicatorRefreshIntervalMs)
         };
         _currentTimeTimer.Tick += CurrentTimeTimerTick;
         _currentTimeTimer.Start();
@@ -152,7 +152,7 @@ public sealed partial class EnvironmentalCurveEditor
             0 => (12, "am"),
             < 12 => (hour, "am"),
             12 => (12, "pm"),
-            _ => (hour - 12, "pm"),
+            _ => (hour - 12, "pm")
         };
         return $"{displayHour}:{minute:D2}{suffix}";
     }

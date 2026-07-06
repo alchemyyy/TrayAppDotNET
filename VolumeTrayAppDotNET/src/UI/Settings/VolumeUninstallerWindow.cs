@@ -29,7 +29,7 @@ public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScop
             RetargetStartupShortcut = static uninstallScope =>
                 AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings),
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
         };
     }
 
@@ -37,7 +37,7 @@ public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScop
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
+        _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
     private static string Localize(string key, string fallback)

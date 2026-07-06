@@ -21,7 +21,7 @@ public static class TrayAppDotNETSettingsCards
 {
     public static StackPanel PageStack(string title, SettingsPalette palette)
     {
-        StackPanel stack = new() { Background = TrayAppDotNETSettingsUI.Brush(palette.Background), };
+        StackPanel stack = new() { Background = TrayAppDotNETSettingsUI.Brush(palette.Background) };
         stack.Children.Add(TrayAppDotNETSettingsUI.SectionHeader(title, palette));
         return stack;
     }
@@ -122,7 +122,7 @@ public static class TrayAppDotNETSettingsCards
         {
             MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, palette));
         if (!string.IsNullOrEmpty(description))
@@ -152,7 +152,7 @@ public static class TrayAppDotNETSettingsCards
             CornerRadius = cardRadius,
             Padding = SettingsCardsLayout.CardPadding,
             Margin = SettingsCardsLayout.CardMargin,
-            Child = content,
+            Child = content
         };
         TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, SettingsCardsLayout.DisabledOpacity);
         return card;
@@ -170,7 +170,7 @@ public static class TrayAppDotNETSettingsCards
         {
             MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, palette));
         descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);

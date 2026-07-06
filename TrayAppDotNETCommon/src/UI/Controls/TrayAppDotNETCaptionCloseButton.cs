@@ -47,7 +47,7 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
             Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         Child = _glyph;
 

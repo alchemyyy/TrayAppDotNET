@@ -173,7 +173,7 @@ public sealed class BatteryMonitorService : IDisposable
             {
                 0 => false,
                 1 => true,
-                _ => null,
+                _ => null
             };
 
             bool batteryPresent = status.BatteryFlag is not BatteryFlagNoSystemBattery and not BatteryFlagUnknown;

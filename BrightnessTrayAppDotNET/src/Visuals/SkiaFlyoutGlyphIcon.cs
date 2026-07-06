@@ -210,10 +210,10 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
     private static SKFont CreateIconFont(double fontSize, SKFontStyleWeight weight) =>
         new(ResolveIconTypeface(weight), (float)fontSize)
         {
-            Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.Normal, Subpixel = false,
+            Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.Normal, Subpixel = false
         };
 
-    private static SKPaint CreateMeasurePaint() => new() { IsAntialias = true, };
+    private static SKPaint CreateMeasurePaint() => new() { IsAntialias = true };
 
     private static SKTypeface ResolveIconTypeface(SKFontStyleWeight weight) =>
         SKTypeface.FromFamilyName(

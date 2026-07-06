@@ -207,7 +207,7 @@ internal static class PDBSymbolResolver
             FileSize = fileSize,
             PDBSignature = PDBSignature,
             PDBAge = PDBAge,
-            Symbols = new Dictionary<string, int>(rvas),
+            Symbols = new Dictionary<string, int>(rvas)
         });
 
         WriteCacheEntries(entries);
@@ -275,7 +275,7 @@ internal static class PDBSymbolResolver
             FileSize = ReadInt64Property(element, "FileSize"),
             PDBSignature = ReadStringProperty(element, "PDBSignature", fallbackName: "PdbSignature"),
             PDBAge = ReadUInt32Property(element, "PDBAge", fallbackName: "PdbAge"),
-            Symbols = symbols,
+            Symbols = symbols
         };
     }
 
@@ -413,7 +413,7 @@ internal static class PDBSymbolResolver
             {
                 0x10B => optHeaderOffset + 96,
                 0x20B => optHeaderOffset + 112,
-                _ => -1,
+                _ => -1
             };
             if (dataDirOffset < 0) return false;
 
@@ -643,7 +643,7 @@ internal static class PDBSymbolResolver
         }
     }
 
-    private static readonly JsonWriterOptions CacheJsonWriterOptions = new() { Indented = true, };
+    private static readonly JsonWriterOptions CacheJsonWriterOptions = new() { Indented = true };
 
     private sealed class CacheEntry
     {

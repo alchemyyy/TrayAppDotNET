@@ -55,7 +55,7 @@ public sealed partial class BrightnessSettingsWindow
                         AppServices.InstallLayout.LocalAppDataInstallDirectory,
                         BrightnessInstallScope.LocalAppData);
                     return Task.CompletedTask;
-                },
+                }
             },
             new TrayAppDotNETInstallCardOptions
             {
@@ -70,8 +70,8 @@ public sealed partial class BrightnessSettingsWindow
                         AppServices.InstallLayout.ProgramFilesInstallDirectory,
                         BrightnessInstallScope.ProgramFiles);
                     return Task.CompletedTask;
-                },
-            },
+                }
+            }
         ]);
         CreateKeepWarmSettingsSection(p).AddCards(stack);
 
@@ -106,7 +106,7 @@ public sealed partial class BrightnessSettingsWindow
                 (NightLightFallbackMode.SettingsHandler,
                     L("Settings_General_NightLightBackend_SettingsHandler", "Settings handler")),
                 (NightLightFallbackMode.Registry, L("Settings_General_NightLightBackend_Registry", "Registry")),
-                (NightLightFallbackMode.GammaRamp, L("Settings_General_NightLightBackend_GammaRamp", "Gamma ramp")),
+                (NightLightFallbackMode.GammaRamp, L("Settings_General_NightLightBackend_GammaRamp", "Gamma ramp"))
             ],
             _settings.NightLightFallbackMode,
             v => _settings.NightLightFallbackMode = v,
@@ -289,7 +289,7 @@ public sealed partial class BrightnessSettingsWindow
             GetCurrentStartupShortcutTarget = static () => AppServices.Startup.GetCurrentShortcutTarget(),
             RetargetStartupShortcut = static () => AppServices.Startup.RetargetShortcutIfPresent(),
             DetectInstallations = static () => AppServices.Installation.DetectAll(),
-            CurrentBuildNumber = BuildInfo.BuildNumber,
+            CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
     private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
@@ -303,7 +303,7 @@ public sealed partial class BrightnessSettingsWindow
             ShowMessage = ShowMessage,
             Settings = _settings,
             SupportsFlyout = true,
-            SupportsTrayContextMenu = true,
+            SupportsTrayContextMenu = true
         });
 
     private sealed record ProfileSlotEntry(int Key, string Name);

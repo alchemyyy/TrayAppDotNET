@@ -25,7 +25,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeSelectorTab.Power,
         ProbeSelectorTab.Load,
         ProbeSelectorTab.Clocks,
-        ProbeSelectorTab.Voltages,
+        ProbeSelectorTab.Voltages
     ];
 
     private readonly ProbeCard _probeCard;
@@ -133,7 +133,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid shell = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
-            Margin = Layout.ContentMargin,
+            Margin = Layout.ContentMargin
         };
         shell.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TabRowHeight)));
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -150,7 +150,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
-            Child = shell,
+            Child = shell
         };
         _focusSink = root;
         Content = root;
@@ -167,13 +167,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
             return new Border
             {
                 Margin = Layout.BodyMargin,
-                Child = content,
+                Child = content
             };
         }
 
         SettingsScrollHost scrollHost = new(content, _palette, Layout.ZeroThickness)
         {
-            Margin = Layout.BodyMargin,
+            Margin = Layout.BodyMargin
         };
         return scrollHost;
     }
@@ -226,7 +226,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Width = Layout.TabWidth,
             MinHeight = Layout.TabMinHeight,
             Child = label,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         border.PointerPressed += (_, e) =>
         {
@@ -257,7 +257,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             ProbeSelectorTab.Load => BuildTypeBody(DataSourceTypeEnum.Load),
             ProbeSelectorTab.Clocks => BuildTypeBody(DataSourceTypeEnum.Clock),
             ProbeSelectorTab.Voltages => BuildTypeBody(DataSourceTypeEnum.Voltage),
-            _ => BuildHomeBody(),
+            _ => BuildHomeBody()
         };
     }
 
@@ -268,7 +268,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         Grid home = new()
         {
-            UseLayoutRounding = true,
+            UseLayoutRounding = true
         };
         home.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         home.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
@@ -277,7 +277,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Border selectedProbeHost = new()
         {
             Padding = Layout.HomeNicknameColumnPadding,
-            Child = BuildSelectedProbesSection(),
+            Child = BuildSelectedProbesSection()
         };
         Grid.SetColumn(selectedProbeHost, 0);
         home.Children.Add(selectedProbeHost);
@@ -288,7 +288,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         Grid nicknames = new()
         {
-            UseLayoutRounding = true,
+            UseLayoutRounding = true
         };
         nicknames.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.HomeDeviceNicknamesRowHeight)));
         nicknames.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.HomeSectionSeparatorThickness)));
@@ -297,7 +297,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Border deviceNicknameHost = new()
         {
             Padding = Layout.HomeNicknameColumnPadding,
-            Child = BuildDeviceNicknamesSection(),
+            Child = BuildDeviceNicknamesSection()
         };
         Grid.SetRow(deviceNicknameHost, 0);
         nicknames.Children.Add(deviceNicknameHost);
@@ -309,7 +309,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Border probeNicknameHost = new()
         {
             Padding = Layout.HomeNicknameColumnPadding,
-            Child = BuildProbeNicknamesSection(),
+            Child = BuildProbeNicknamesSection()
         };
         Grid.SetRow(probeNicknameHost, 2);
         nicknames.Children.Add(probeNicknameHost);
@@ -331,7 +331,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             MinWidth = Layout.HomeSectionSeparatorThickness,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            UseLayoutRounding = true,
+            UseLayoutRounding = true
         };
 
     /// <summary>
@@ -346,7 +346,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             MinHeight = Layout.HomeSectionSeparatorThickness,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            UseLayoutRounding = true,
+            UseLayoutRounding = true
         };
 
     /// <summary>
@@ -356,7 +356,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         Grid section = new()
         {
-            Margin = Layout.NicknameSectionMargin,
+            Margin = Layout.NicknameSectionMargin
         };
         section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -364,7 +364,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         StackPanel selectedProbeList = new()
         {
-            Margin = Layout.SelectedProbeGridMargin,
+            Margin = Layout.SelectedProbeGridMargin
         };
         List<ProbeCardProbe> selectedProbes =
         [
@@ -719,7 +719,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         Grid section = new()
         {
-            Margin = Layout.NicknameSectionMargin,
+            Margin = Layout.NicknameSectionMargin
         };
         section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -764,7 +764,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             Margin = Layout.NicknameListMargin,
             Padding = Layout.NicknameListPadding,
-            Child = rules,
+            Child = rules
         };
         SettingsScrollHost scrollHost = BuildVerticalScrollHost(rulesHost, Layout.HomeNicknameScrollHostMargin);
         Grid.SetRow(scrollHost, 1);
@@ -778,7 +778,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private SettingsScrollHost BuildVerticalScrollHost(Control content, Thickness margin) =>
         new(content, _palette, Layout.ZeroThickness)
         {
-            Margin = margin,
+            Margin = margin
         };
 
     /// <summary>
@@ -803,8 +803,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         TextBox target = NicknameTextBox(rule.TargetRegex, "Regex or {HardwareType.GPU}",
@@ -1286,7 +1286,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.ProbeControlRowMargin,
+            Margin = Layout.ProbeControlRowMargin
         };
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -1316,7 +1316,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.ProbeToggleColumnMargin,
+            Margin = Layout.ProbeToggleColumnMargin
         };
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -1338,7 +1338,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid row = new()
         {
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         row.Children.Add(toggle);
         return row;
@@ -1417,7 +1417,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Height = TruncateToggleTrackHeight,
             CornerRadius = TruncateToggleTrackCornerRadius,
             BorderThickness = Layout.RootBorderThickness,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         Border thumb = new()
         {
@@ -1425,14 +1425,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Height = TruncateToggleThumbSize,
             CornerRadius = TruncateToggleThumbCornerRadius,
             VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
 
         Grid toggle = new()
         {
             Width = Layout.TruncateToggleTrackWidth,
             Height = TruncateToggleTrackHeight,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         toggle.Children.Add(track);
         toggle.Children.Add(thumb);
@@ -1460,7 +1460,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Background = Brushes.Transparent,
             Cursor = new Cursor(StandardCursorType.Hand),
             Focusable = true,
-            Child = row,
+            Child = row
         };
         Action updateVisual = () =>
         {
@@ -1586,7 +1586,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             BorderBrush = Brushes.Transparent,
             BorderThickness = Layout.ZeroThickness,
             Padding = Layout.TransformBoxPadding,
-            VerticalContentAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
         };
         TrayAppDotNETSettingsUI.ApplyTextBoxResources(
             textBox,
@@ -1617,7 +1617,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             BorderBrush = Brushes.Transparent,
             BorderThickness = Layout.ZeroThickness,
             Padding = Layout.NicknameTextBoxPadding,
-            VerticalContentAlignment = VerticalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
         };
         TrayAppDotNETSettingsUI.ApplyTextBoxResources(
             textBox,
@@ -1662,7 +1662,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             CornerRadius = _settings.EnableRoundedCorners ? Layout.CardCornerRadius : Layout.ZeroCornerRadius,
             Padding = Layout.NicknameCardPadding,
             Margin = Layout.CardMargin,
-            Child = content,
+            Child = content
         };
     }
 
@@ -1679,7 +1679,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             CornerRadius = _settings.EnableRoundedCorners ? Layout.CardCornerRadius : Layout.ZeroCornerRadius,
             Padding = Layout.CardPadding,
             Margin = Layout.CardMargin,
-            Child = content,
+            Child = content
         };
 
     /// <summary>
@@ -1742,7 +1742,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             {
                 DataSourceKey = source.DataSourceKey,
                 IsSelected = false,
-                TruncateValue = true,
+                TruncateValue = true
             });
             _changed(_probeCard);
             RebuildContent();
@@ -1909,7 +1909,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             NicknameTargetBoxName => CommitNicknameTarget(rule, next.Trim()),
             NicknameReplacementBoxName => CommitNicknameReplacement(rule, next),
-            _ => false,
+            _ => false
         };
         if (!changed) return;
 
@@ -1948,7 +1948,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             probe = new ProbeCardProbe
             {
                 DataSourceKey = source.DataSourceKey,
-                IsSelected = false,
+                IsSelected = false
             };
             _probeCard.Probes.Add(probe);
             _changed(_probeCard);
@@ -2126,7 +2126,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         ProbeSelectorTab.Load => "Load",
         ProbeSelectorTab.Clocks => "Clocks",
         ProbeSelectorTab.Voltages => "Voltages",
-        _ => string.Empty,
+        _ => string.Empty
     };
 
     private enum ProbeSelectorTab
@@ -2136,7 +2136,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Power,
         Load,
         Clocks,
-        Voltages,
+        Voltages
     }
 
 }

@@ -14,7 +14,7 @@ public sealed class FanTrayMenuWindow(
     : TrayMenuWindow(BuildEntries(openSettings, exit),
         new TrayMenuWindowOptions
         {
-            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = ResolveMenuShadowColor(settings),
+            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = ResolveMenuShadowColor(settings)
         })
 {
     internal void ShowAt(

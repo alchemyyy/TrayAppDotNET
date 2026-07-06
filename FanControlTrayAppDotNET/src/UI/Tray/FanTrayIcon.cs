@@ -88,11 +88,11 @@ internal sealed class FanTrayIcon(AppTheme? theme) : IDisposable
         using SKCanvas canvas = new(bitmap);
         canvas.Clear(SKColors.Transparent);
 
-        using SKFont font = new(FanTypeface, size) { Edging = SKFontEdging.Antialias, Subpixel = false, };
+        using SKFont font = new(FanTypeface, size) { Edging = SKFontEdging.Antialias, Subpixel = false };
         using SKPaint paint = new()
         {
             IsAntialias = true,
-            Color = new SKColor(foregroundColor.R, foregroundColor.G, foregroundColor.B, foregroundColor.A),
+            Color = new SKColor(foregroundColor.R, foregroundColor.G, foregroundColor.B, foregroundColor.A)
         };
 
         string glyph = GlyphCatalog.FAN;

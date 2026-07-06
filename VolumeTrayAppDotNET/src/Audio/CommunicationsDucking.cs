@@ -13,7 +13,7 @@ internal enum CommunicationsDuckingMode
     MuteAll = 0,
     Reduce80 = 1,
     Reduce50 = 2,
-    DoNothing = 3,
+    DoNothing = 3
 }
 
 /// <summary>
@@ -143,7 +143,7 @@ internal static class CommunicationsDucking
             _hRegEvent = hRegEvent;
             _hWakeEvent = hWakeEvent;
 
-            _thread = new Thread(WatchLoop) { IsBackground = true, Name = "VolumeTrayApp.CommunicationsDucking", };
+            _thread = new Thread(WatchLoop) { IsBackground = true, Name = "VolumeTrayApp.CommunicationsDucking" };
             _thread.Start();
         }
     }
