@@ -22,18 +22,18 @@ public static unsafe partial class IconExtraction
 
     public enum LoadImageFlags : uint
     {
-        LR_DEFAULTCOLOR = 0x00000000,
+        LR_DEFAULTCOLOR = 0x00000000
     }
 
     public enum IconCursorVersion
     {
-        Default = 0x00030000,
+        Default = 0x00030000
     }
 
     // SHGetImageFromShellItem flag set; only RESIZETOFIT is needed for the icon use case.
     public enum SIIGBF
     {
-        SIIGBF_RESIZETOFIT = 0,
+        SIIGBF_RESIZETOFIT = 0
     }
 
     public const uint BI_RGB = 0;

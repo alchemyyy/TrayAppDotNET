@@ -58,7 +58,7 @@ internal sealed class Win32MessageWindow : IDisposable
             cbSize = (uint)Marshal.SizeOf<WNDCLASSEX>(),
             hInstance = _hInstance,
             lpfnWndProc = _wndProcDelegate,
-            lpszClassName = _className,
+            lpszClassName = _className
         };
 
         ushort atom = RegisterClassEx(ref windowClass);

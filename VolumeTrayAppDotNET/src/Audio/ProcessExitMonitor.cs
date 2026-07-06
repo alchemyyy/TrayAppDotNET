@@ -44,7 +44,7 @@ internal sealed class ProcessExitMonitor : IDisposable
         _wakeEvent = Kernel32Wait.CreateEventW(IntPtr.Zero, false, false, null);
         if (_wakeEvent == IntPtr.Zero) throw new InvalidOperationException("CreateEventW failed");
 
-        _thread = new Thread(WaitLoop) { IsBackground = true, Name = "VolumeTrayApp.ProcessExitMonitor", };
+        _thread = new Thread(WaitLoop) { IsBackground = true, Name = "VolumeTrayApp.ProcessExitMonitor" };
         _thread.Start();
     }
 

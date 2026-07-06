@@ -10,7 +10,7 @@ public enum HotkeyAction
     OpenSettings,
     OpenFlyout,
     OpenNetworkSettings,
-    OpenAdapterSettings,
+    OpenAdapterSettings
 }
 
 public interface IHotkeyBinding<out TAction>
@@ -176,7 +176,7 @@ public static class HotkeyDefaults
                 Modifiers = d.Modifiers,
                 VirtualKey = d.VirtualKey,
                 Enabled = d.Enabled,
-                BindingID = d.BindingID,
+                BindingID = d.BindingID
             });
             added = true;
         }

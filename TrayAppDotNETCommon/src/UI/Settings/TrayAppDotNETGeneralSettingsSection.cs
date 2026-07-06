@@ -215,7 +215,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                 FileName = executablePath,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             string? workingDirectory = Path.GetDirectoryName(executablePath);

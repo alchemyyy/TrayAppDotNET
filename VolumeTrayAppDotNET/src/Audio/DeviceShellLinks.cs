@@ -168,7 +168,7 @@ internal static class DeviceShellLinks
     {
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true, });
+            using Process? _ = Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
         }
         catch (Exception ex) { TADNLog.Log($"DeviceShellLinks.LaunchSettingsUri({uri}): {ex.Message}"); }
     }
@@ -181,7 +181,7 @@ internal static class DeviceShellLinks
             {
                 FileName = Rundll32,
                 Arguments = $"shell32.dll,Control_RunDLL mmsys.cpl,,{tab}",
-                UseShellExecute = false,
+                UseShellExecute = false
             });
         }
         catch (Exception ex) { TADNLog.Log($"DeviceShellLinks.OpenSoundPanel({tab}): {ex.Message}"); }

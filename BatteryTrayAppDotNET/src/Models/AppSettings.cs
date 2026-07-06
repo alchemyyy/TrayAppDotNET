@@ -133,7 +133,7 @@ public sealed class AppSettings : AppSettingsCommon
     [
         new() { TriggerID = 1, Title = "Trigger 1" },
         new() { TriggerID = 2, Title = "Trigger 2" },
-        new() { TriggerID = 3, Title = "Trigger 3" },
+        new() { TriggerID = 3, Title = "Trigger 3" }
     ];
 
     public void WireColorCallbacks()

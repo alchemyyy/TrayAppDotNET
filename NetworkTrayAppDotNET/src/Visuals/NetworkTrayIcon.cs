@@ -10,7 +10,7 @@ internal sealed class NetworkTrayIcon : IDisposable
     private static readonly string[] IconFontFamilies =
     [
         GlyphCatalog.SEGOE_FLUENT_ICONS,
-        GlyphCatalog.SEGOE_MDL2_ASSETS,
+        GlyphCatalog.SEGOE_MDL2_ASSETS
     ];
 
     private readonly AppTheme _theme;
@@ -31,7 +31,7 @@ internal sealed class NetworkTrayIcon : IDisposable
         {
             IconFontFamilies = IconFontFamilies,
             FallbackIcon = AppTheme.LoadAppNativeIcon,
-            Log = message => TADNLog.Log("NetworkTrayIcon." + message),
+            Log = message => TADNLog.Log("NetworkTrayIcon." + message)
         });
     }
 
@@ -150,7 +150,7 @@ internal sealed class NetworkTrayIcon : IDisposable
             NetworkIconState.EthernetConnected or
                 NetworkIconState.EthernetNoInternet or
                 NetworkIconState.EthernetDisconnected => new TrayIconGlyphLayer(null, _theme.GlyphNetworkEthernet),
-            _ => new TrayIconGlyphLayer(null, _theme.GlyphNetworkNone),
+            _ => new TrayIconGlyphLayer(null, _theme.GlyphNetworkNone)
         };
 
     private Color ResolveColor(NetworkIconState state)
@@ -172,7 +172,7 @@ internal sealed class NetworkTrayIcon : IDisposable
             NetworkIconState.Wifi0BarsNoInternet or NetworkIconState.Wifi1BarNoInternet or
                 NetworkIconState.Wifi2BarsNoInternet or NetworkIconState.Wifi3BarsNoInternet or
                 NetworkIconState.Wifi4BarsNoInternet => NoInternetColor(),
-            _ => ConnectedColor(),
+            _ => ConnectedColor()
         };
     }
 

@@ -103,7 +103,7 @@ internal sealed class BatteryAvaloniaApp : Application
                 GetThemePath = AppTheme.GetDefaultPath,
                 LoadTheme = AppTheme.LoadOrDefault,
                 ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"BatteryAvaloniaApp theme load failed: {ex}"),
+                LogThemeLoadFailed = ex => TADNLog.Log($"BatteryAvaloniaApp theme load failed: {ex}")
             });
 
         _settings = loaded.Settings;
@@ -143,7 +143,7 @@ internal sealed class BatteryAvaloniaApp : Application
         {
             _trayIconRenderer = new BatteryTrayIcon(_theme)
             {
-                IsLightTheme = ResolveEffectiveIsLightTheme(),
+                IsLightTheme = ResolveEffectiveIsLightTheme()
             };
             ApplyTrayIconColorOverride();
         }
@@ -200,7 +200,7 @@ internal sealed class BatteryAvaloniaApp : Application
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
             IsScrollEnabled = false,
-            IsVisible = true,
+            IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
@@ -380,7 +380,7 @@ internal sealed class BatteryAvaloniaApp : Application
                     ? "Charging"
                     : snapshot.IsOnExternalPower
                         ? "Plugged in"
-                        : "On battery",
+                        : "On battery"
         ];
 
         if (snapshot.EstimatedTimeRemaining.HasValue && !snapshot.IsFullyCharged)
@@ -558,7 +558,7 @@ internal sealed class BatteryAvaloniaApp : Application
                 FileName = "powercfg.exe",
                 Arguments = $"/batteryreport /output \"{reportPath}\"",
                 UseShellExecute = false,
-                CreateNoWindow = true,
+                CreateNoWindow = true
             })!;
             process.WaitForExit(10_000);
             if (File.Exists(reportPath))
@@ -566,7 +566,7 @@ internal sealed class BatteryAvaloniaApp : Application
                 using Process? _ = Process.Start(new ProcessStartInfo
                 {
                     FileName = reportPath,
-                    UseShellExecute = true,
+                    UseShellExecute = true
                 });
             }
         }

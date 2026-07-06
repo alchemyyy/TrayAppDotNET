@@ -21,7 +21,7 @@ public enum DDCRecoveryAction
     Probe,
 
     /// <summary>Re-enumerate, refresh the cached HMONITOR, then re-probe.</summary>
-    RefreshHandle,
+    RefreshHandle
 }
 
 internal interface IMonitorServiceDispatcher
@@ -940,7 +940,7 @@ public sealed class MonitorService : IDisposable
                         LogProfileIfMatched(ddc);
                         _entries[existingInfo.ID] = new MonitorEntry
                         {
-                            ID = existingInfo.ID, EDIDKey = EDIDKey, DDC = ddc, Max = promotedBrightnessMax,
+                            ID = existingInfo.ID, EDIDKey = EDIDKey, DDC = ddc, Max = promotedBrightnessMax
                         };
                         // Acquisition is read-only for slider intent: a hardware read may initialize rows
                         // that have no explicit manual/profile value yet, but it must not overwrite a
@@ -1005,7 +1005,7 @@ public sealed class MonitorService : IDisposable
                 ArrangementY = ddc.Y,
                 LastKnownBrightnessMax = newBrightnessMax,
                 IsPoweredOn = true,
-                LastDDCError = supported ? null : newRead.Error,
+                LastDDCError = supported ? null : newRead.Error
             };
             info.InitializeBrightnessFromHardware(seededBrightness);
             if (initialSliderState is SliderState.CurveActive or SliderState.CurveSleeping)
@@ -1017,7 +1017,7 @@ public sealed class MonitorService : IDisposable
                 LogProfileIfMatched(ddc);
                 _entries[id] = new MonitorEntry
                 {
-                    ID = id, EDIDKey = EDIDKey, DDC = ddc, Max = newBrightnessMax,
+                    ID = id, EDIDKey = EDIDKey, DDC = ddc, Max = newBrightnessMax
                 };
             }
             else
@@ -1178,7 +1178,7 @@ public sealed class MonitorService : IDisposable
             _ => remaining
                 .OrderBy(m => m.ArrangementX)
                 .ThenBy(m => m.ArrangementY)
-                .ThenBy(m => m.ID, StringComparer.Ordinal),
+                .ThenBy(m => m.ID, StringComparer.Ordinal)
         };
 
         if (_settings.DefaultDisplaySortDirection == DisplaySortDirection.Reversed)
@@ -1390,7 +1390,7 @@ public sealed class MonitorService : IDisposable
         IEnumerable<KnownDisplayEntry> incoming = live
             .Select(ddc => new KnownDisplayEntry
             {
-                EDIDKey = ComputeEDIDKey(ddc), OriginalName = ddc.FriendlyName, EDIDSerial = ddc.EDIDSerial,
+                EDIDKey = ComputeEDIDKey(ddc), OriginalName = ddc.FriendlyName, EDIDSerial = ddc.EDIDSerial
             })
             .Where(e => !string.IsNullOrEmpty(e.EDIDKey));
         _knownDisplays.RegisterMany(incoming);
@@ -1795,7 +1795,7 @@ public sealed class MonitorService : IDisposable
         {
             _entries[info.ID] = new MonitorEntry
             {
-                ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax,
+                ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax
             };
         }
 
@@ -1906,7 +1906,7 @@ public sealed class MonitorService : IDisposable
         LogProfileIfMatched(ddc);
         _entries[info.ID] = new MonitorEntry
         {
-            ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax,
+            ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax
         };
         // Acquisition is read-only for slider intent: a hardware read may initialize rows that have
         // no explicit manual/profile value yet, but it must not overwrite a user-owned slider baseline
@@ -1998,7 +1998,7 @@ public sealed class MonitorService : IDisposable
         {
             PowerOffMode.Soft => PowerOffLevel.Soft,
             PowerOffMode.Hard => PowerOffLevel.Hard,
-            _ => PowerOffLevel.Sleep,
+            _ => PowerOffLevel.Sleep
         };
         (byte code, byte value) = on
             ? entry.DDC.ResolvePowerOn()

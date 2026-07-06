@@ -22,7 +22,7 @@ public enum DataSourceTypeEnum
     Flow,
     Data, // Bytes
     Throughput, // Bytes/s
-    Custom,
+    Custom
 }
 
 // Single numeric signal source consumed by curves and triggers. May be a sensor read from LHM,
@@ -200,6 +200,6 @@ public class DataSource : INotifyPropertyChanged
         DataSourceTypeEnum.Flow => (0.0, 300.0, "L/h"),
         DataSourceTypeEnum.Data => (0.0, 1024.0, "GB"),
         DataSourceTypeEnum.Throughput => (0.0, 1024.0, "MB/s"),
-        _ => (0.0, 100.0, string.Empty),
+        _ => (0.0, 100.0, string.Empty)
     };
 }

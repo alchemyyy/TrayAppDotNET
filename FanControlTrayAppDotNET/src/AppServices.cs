@@ -76,13 +76,13 @@ internal static class AppServices
             [
                 .. payload.RequiredFiles,
                 new TrayAppDotNETInstallFile(LibreHardwareMonitorFileName),
-                new TrayAppDotNETInstallFile(PawnIoSetupRelativePath),
+                new TrayAppDotNETInstallFile(PawnIoSetupRelativePath)
             ],
             RequiredDirectories =
             [
                 .. payload.RequiredDirectories,
-                new TrayAppDotNETInstallDirectory("Resources", RemoveOnlyWhenInstallRootHasNoExe: false),
-            ],
+                new TrayAppDotNETInstallDirectory("Resources", RemoveOnlyWhenInstallRootHasNoExe: false)
+            ]
         };
     }
 }

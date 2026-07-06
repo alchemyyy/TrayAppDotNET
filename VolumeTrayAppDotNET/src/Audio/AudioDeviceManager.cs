@@ -216,10 +216,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         // thread; render timer's Elapsed BeginInvokes the lerp advancement onto the dispatcher.
         // SynchronizingObject left null on purpose so Elapsed runs on the threadpool rather than
         // any captured sync context.
-        _peakSampleTimer = new System.Timers.Timer(ResolveSampleIntervalMs()) { AutoReset = true, };
+        _peakSampleTimer = new System.Timers.Timer(ResolveSampleIntervalMs()) { AutoReset = true };
         _peakSampleTimer.Elapsed += OnPeakSampleElapsed;
 
-        _peakRenderTimer = new System.Timers.Timer(ResolveRenderIntervalMs()) { AutoReset = true, };
+        _peakRenderTimer = new System.Timers.Timer(ResolveRenderIntervalMs()) { AutoReset = true };
         _peakRenderTimer.Elapsed += OnPeakRenderElapsed;
 
         // Retune timers immediately when the user changes the rates from the settings page.

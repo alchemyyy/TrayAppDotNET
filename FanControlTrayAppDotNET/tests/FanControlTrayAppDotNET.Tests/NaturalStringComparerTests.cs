@@ -18,7 +18,7 @@ public sealed class NaturalStringComparerTests
             "CCD10",
             "CCD6",
             "CCD9",
-            "CCD7",
+            "CCD7"
         ];
 
         List<string> ordered =
@@ -40,7 +40,7 @@ public sealed class NaturalStringComparerTests
             "Core 10",
             "core 2",
             "Core 1",
-            "Core 11",
+            "Core 11"
         ];
 
         List<string> ordered =

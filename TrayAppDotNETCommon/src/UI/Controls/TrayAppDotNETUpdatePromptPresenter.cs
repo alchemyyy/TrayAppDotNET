@@ -82,7 +82,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             options.Palette,
             options.EnableRoundedCorners)
         {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         return await ShowPromptAsync(options, dialog);
     }
@@ -105,7 +105,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             options.Palette,
             options.EnableRoundedCorners)
         {
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
         _ = await ShowPromptAsync(options, dialog);
     }

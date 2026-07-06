@@ -20,7 +20,7 @@ public sealed class ProbeValueFormatterTests
         DataSource source = new()
         {
             DataSourceType = type,
-            Value = value,
+            Value = value
         };
 
         string formatted = ProbeValueFormatter.FormatValue(source, null);
@@ -37,11 +37,11 @@ public sealed class ProbeValueFormatterTests
         DataSource source = new()
         {
             DataSourceType = DataSourceTypeEnum.Temperature,
-            Value = 40000,
+            Value = 40000
         };
         ProbeCardProbe probe = new()
         {
-            TransformString = "x + 2",
+            TransformString = "x + 2"
         };
 
         string formatted = ProbeValueFormatter.FormatValue(source, probe);
@@ -60,7 +60,7 @@ public sealed class ProbeValueFormatterTests
         DataSource source = new()
         {
             DataSourceType = DataSourceTypeEnum.Temperature,
-            Value = value,
+            Value = value
         };
 
         string formatted = ProbeValueFormatter.FormatValue(source, null, truncate: true);

@@ -133,7 +133,7 @@ public sealed class TrayAppDotNETKeepWarmSettingsSection(TrayAppDotNETKeepWarmSe
                 FileName = executablePath,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             string? workingDirectory = Path.GetDirectoryName(executablePath);
@@ -156,7 +156,7 @@ public sealed class TrayAppDotNETKeepWarmSettingsSection(TrayAppDotNETKeepWarmSe
     private static IReadOnlyList<(TrayAppDotNETRenderingBackend Backend, string Text)> RenderingBackendOptions() =>
     [
         (TrayAppDotNETRenderingBackend.GPUPreferred, "GPU preferred"),
-        (TrayAppDotNETRenderingBackend.Software, "Software"),
+        (TrayAppDotNETRenderingBackend.Software, "Software")
     ];
 
     /// <summary>Requests shutdown through the classic desktop lifetime.</summary>

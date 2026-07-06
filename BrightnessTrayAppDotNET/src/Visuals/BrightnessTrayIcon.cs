@@ -10,7 +10,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
     private static readonly string[] IconFontFamilies =
     [
         GlyphCatalog.SEGOE_FLUENT_ICONS,
-        GlyphCatalog.SEGOE_MDL2_ASSETS,
+        GlyphCatalog.SEGOE_MDL2_ASSETS
     ];
 
     private readonly Lock _gate = new();

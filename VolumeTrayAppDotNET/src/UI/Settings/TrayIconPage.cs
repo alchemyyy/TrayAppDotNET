@@ -22,7 +22,7 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_TrayIcon_MenuPosition_Description"),
             [
                 (ContextMenuPosition.Classic, Loc("Settings_TrayIcon_MenuPosition_Classic")),
-                (ContextMenuPosition.Modern, Loc("Settings_TrayIcon_MenuPosition_Modern")),
+                (ContextMenuPosition.Modern, Loc("Settings_TrayIcon_MenuPosition_Modern"))
             ],
             _settings.ContextMenuPosition,
             v => _settings.ContextMenuPosition = v,
@@ -89,7 +89,7 @@ public sealed partial class VolumeSettingsWindow
             [
                 (TrayMenuDeviceNameStyle.NameAndModel, Loc("Settings_TrayIcon_DeviceName_NameAndModel")),
                 (TrayMenuDeviceNameStyle.Name, Loc("Settings_TrayIcon_DeviceName_Name")),
-                (TrayMenuDeviceNameStyle.Model, Loc("Settings_TrayIcon_DeviceName_Model")),
+                (TrayMenuDeviceNameStyle.Model, Loc("Settings_TrayIcon_DeviceName_Model"))
             ],
             selected,
             set,
@@ -105,7 +105,7 @@ public sealed partial class VolumeSettingsWindow
             title,
             string.Empty,
             [
-                (TrayClickAction.Nothing, Loc("Settings_TrayIcon_ClickAction_Nothing")),
+                (TrayClickAction.Nothing, Loc("Settings_TrayIcon_ClickAction_Nothing"))
             ],
             selected,
             set,

@@ -76,7 +76,7 @@ public sealed class NetworkMonitor : IDisposable
                     (false, 1) => NetworkIconState.Wifi1BarNoInternet,
                     (false, 2) => NetworkIconState.Wifi2BarsNoInternet,
                     (false, 3) => NetworkIconState.Wifi3BarsNoInternet,
-                    _ => NetworkIconState.Wifi4BarsNoInternet,
+                    _ => NetworkIconState.Wifi4BarsNoInternet
                 };
                 UpdateState(newState, bars, networkName, connections, previousState);
                 return;
@@ -88,7 +88,7 @@ public sealed class NetworkMonitor : IDisposable
                 NetworkConnectivityLevel.InternetAccess => NetworkIconState.EthernetConnected,
                 NetworkConnectivityLevel.LocalAccess
                     or NetworkConnectivityLevel.ConstrainedInternetAccess => NetworkIconState.EthernetNoInternet,
-                _ => NetworkIconState.EthernetDisconnected,
+                _ => NetworkIconState.EthernetDisconnected
             };
             UpdateState(ethernetState, 0, networkName, connections, previousState);
         }
@@ -122,7 +122,7 @@ public sealed class NetworkMonitor : IDisposable
             NetworkIconState.WifiDisconnected => "Wi-Fi\r\nDisconnected",
             NetworkIconState.WifiConnecting => "Wi-Fi\r\nConnecting...",
             NetworkIconState.EthernetDisconnected => "Ethernet\r\nDisconnected",
-            _ => "No network connection",
+            _ => "No network connection"
         };
     }
 

@@ -60,7 +60,7 @@ public static class TrayAppDotNETFlyoutUI
             FontFamily = TrayAppDotNETSettingsUI.UIFont,
             FontSize = fontSize,
             FontWeight = weight ?? FontWeight.Normal,
-            Foreground = Brush(color ?? palette.Foreground),
+            Foreground = Brush(color ?? palette.Foreground)
         };
 
     public static TextBlock IconText(
@@ -79,7 +79,7 @@ public static class TrayAppDotNETFlyoutUI
             Foreground = Brush(palette.IconForeground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
         ApplyGlyphTextRendering(icon);
         return icon;
@@ -108,7 +108,7 @@ public static class TrayAppDotNETFlyoutUI
             CornerRadius = cornerRadius,
             Padding = padding,
             Margin = margin,
-            Child = content,
+            Child = content
         };
 
     public static Border IconButton(
@@ -138,7 +138,7 @@ public static class TrayAppDotNETFlyoutUI
             Background = Brushes.Transparent,
             Child = content,
             Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
-            IsEnabled = enabled,
+            IsEnabled = enabled
         };
 
         if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
@@ -175,7 +175,7 @@ public static class TrayAppDotNETFlyoutUI
             CornerRadius = FlyoutCardsLayout.TextButtonRadius,
             Padding = padding ?? FlyoutCardsLayout.TextButtonPadding,
             Child = label,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
 
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
@@ -197,7 +197,7 @@ public static class TrayAppDotNETFlyoutUI
             Background = Brush(color, double.IsNaN(opacity) ? FlyoutCardsLayout.SlotCoverOpacity : opacity),
             CornerRadius = cornerRadius,
             IsVisible = false,
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
 
     public static bool IsPointerInside(Control control, PointerEventArgs e)

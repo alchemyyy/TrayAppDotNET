@@ -66,7 +66,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         [
             DetectFile(InstallScope.LocalAppData, Layout.LocalAppDataInstallExecutable, currentPath),
             DetectFile(InstallScope.ProgramFiles, Layout.ProgramFilesInstallExecutable, currentPath),
-            DetectStore(currentPath),
+            DetectStore(currentPath)
         ];
     }
 
@@ -281,7 +281,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         {
             InstallScope.LocalAppData => Layout.LocalAppDataInstallDirectory,
             InstallScope.ProgramFiles => Layout.ProgramFilesInstallDirectory,
-            _ => string.Empty,
+            _ => string.Empty
         };
         if (string.IsNullOrEmpty(installDirectory)) return null;
 
@@ -325,7 +325,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 Verb = "runas",
                 UseShellExecute = true,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             using Process? process = Process.Start(psi);

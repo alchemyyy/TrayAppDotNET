@@ -34,7 +34,7 @@ public sealed class Win32Window : IDisposable
             cbSize = Marshal.SizeOf<WNDCLASSEX>(),
             lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
             hInstance = _hInstance,
-            lpszClassName = _className,
+            lpszClassName = _className
         };
 
         if (RegisterClassEx(ref windowClass) == 0)

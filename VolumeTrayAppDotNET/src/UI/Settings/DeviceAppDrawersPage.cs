@@ -40,7 +40,7 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_Flyout_RecordingAppDrawerDisplayType_Description"),
             [
                 (AppDrawerDisplayType.Icons, Loc("Settings_Flyout_RecordingAppDrawerDisplayType_Icons")),
-                (AppDrawerDisplayType.Sliders, Loc("Settings_Flyout_RecordingAppDrawerDisplayType_Sliders")),
+                (AppDrawerDisplayType.Sliders, Loc("Settings_Flyout_RecordingAppDrawerDisplayType_Sliders"))
             ],
             _settings.RecordingAppDrawerDisplayType,
             v => _settings.RecordingAppDrawerDisplayType = v,
@@ -69,7 +69,7 @@ public sealed partial class VolumeSettingsWindow
                 (CaptureActivityIndicator.DimInactive, Loc("Settings_General_CaptureActivityIndicator_DimInactive")),
                 (CaptureActivityIndicator.ActiveGlyph, Loc("Settings_General_CaptureActivityIndicator_ActiveGlyph")),
                 (CaptureActivityIndicator.HideInactive, Loc("Settings_General_CaptureActivityIndicator_HideInactive")),
-                (CaptureActivityIndicator.None, Loc("Settings_General_CaptureActivityIndicator_None")),
+                (CaptureActivityIndicator.None, Loc("Settings_General_CaptureActivityIndicator_None"))
             ],
             _settings.CaptureActivityIndicator,
             v => _settings.CaptureActivityIndicator = v,
@@ -82,7 +82,7 @@ public sealed partial class VolumeSettingsWindow
             [
                 (AppDrawerIconsCenterMode.Off, Loc("Settings_Flyout_AppDrawerIconsCenterMode_Off")),
                 (AppDrawerIconsCenterMode.Centered, Loc("Settings_Flyout_AppDrawerIconsCenterMode_Centered")),
-                (AppDrawerIconsCenterMode.CenteredSoftMax, Loc("Settings_Flyout_AppDrawerIconsCenterMode_SoftMax")),
+                (AppDrawerIconsCenterMode.CenteredSoftMax, Loc("Settings_Flyout_AppDrawerIconsCenterMode_SoftMax"))
             ],
             _settings.AppDrawerIconsCenterMode,
             v => _settings.AppDrawerIconsCenterMode = v,
@@ -113,7 +113,7 @@ public sealed partial class VolumeSettingsWindow
                 (AppDrawerStackDirection.TopBottom, Loc("Settings_Flyout_AppDrawerStackDirection_TopBottom")),
                 (AppDrawerStackDirection.BottomTop, Loc("Settings_Flyout_AppDrawerStackDirection_BottomTop")),
                 (AppDrawerStackDirection.LeftRight, Loc("Settings_Flyout_AppDrawerStackDirection_LeftRight")),
-                (AppDrawerStackDirection.RightLeft, Loc("Settings_Flyout_AppDrawerStackDirection_RightLeft")),
+                (AppDrawerStackDirection.RightLeft, Loc("Settings_Flyout_AppDrawerStackDirection_RightLeft"))
             ],
             _settings.AppDrawerStackDirection,
             v => _settings.AppDrawerStackDirection = v,

@@ -72,7 +72,7 @@ public class ThemeColor
                     Convert.ToByte(hexString[2..4], 16),
                     Convert.ToByte(hexString[4..6], 16),
                     Convert.ToByte(hexString[6..8], 16)),
-                _ => throw new FormatException($"Invalid color literal '{hex}'."),
+                _ => throw new FormatException($"Invalid color literal '{hex}'.")
             };
         }
         catch (Exception ex) when (ex is FormatException or OverflowException)

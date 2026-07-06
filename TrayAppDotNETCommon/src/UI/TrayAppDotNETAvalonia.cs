@@ -56,7 +56,7 @@ public static class TrayAppDotNETAvalonia
     }
 
     public static FontManagerOptions DefaultFontOptions() =>
-        new() { DefaultFamilyName = DefaultFontFamilyName, };
+        new() { DefaultFamilyName = DefaultFontFamilyName };
 
     /// <summary>Applies the rendering backend selected in persisted user settings.</summary>
     public static AppBuilder UseConfiguredRenderingBackend(
@@ -81,7 +81,7 @@ public static class TrayAppDotNETAvalonia
         {
             TrayAppDotNETRenderingBackend.Software => UseWin32SoftwareRendering(builder),
             TrayAppDotNETRenderingBackend.GPUPreferred => builder,
-            _ => builder,
+            _ => builder
         };
     }
 
@@ -103,7 +103,7 @@ public static class TrayAppDotNETAvalonia
                 DtdProcessing = DtdProcessing.Prohibit,
                 IgnoreComments = true,
                 IgnoreProcessingInstructions = true,
-                IgnoreWhitespace = true,
+                IgnoreWhitespace = true
             };
 
             using XmlReader reader = XmlReader.Create(settingsPath, readerSettings);
@@ -136,7 +136,7 @@ public static class TrayAppDotNETAvalonia
         return builder.With(new Win32PlatformOptions
         {
             RenderingMode = [Win32RenderingMode.Software],
-            CompositionMode = [Win32CompositionMode.RedirectionSurface],
+            CompositionMode = [Win32CompositionMode.RedirectionSurface]
         });
     }
 
@@ -320,7 +320,7 @@ public static class TrayAppDotNETAvalonia
             IsEnabled = () => settings.CheckForUpdatesEnabled,
             PollInterval = () => TimeSpan.FromMilliseconds(settings.UpdateCheckIntervalMs),
             InvokeOnUIThread = invokeOnUIThread ?? InvokeOnUIThreadAsync,
-            StagingFilePrefix = applicationName,
+            StagingFilePrefix = applicationName
         };
     }
 }

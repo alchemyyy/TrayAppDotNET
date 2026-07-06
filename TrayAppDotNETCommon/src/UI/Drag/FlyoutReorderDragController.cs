@@ -64,8 +64,8 @@ public sealed class FlyoutReorderDragController<TItem>
             Height = Math.Max(1, source.Content.Bounds.Height),
             Opacity = opacity,
             IsHitTestVisible = false,
-            BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 2, Blur = 18, Color = shadowColor, }),
-            Child = content,
+            BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 2, Blur = 18, Color = shadowColor }),
+            Child = content
         };
 
         Canvas.SetLeft(_ghost, source.Left);

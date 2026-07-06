@@ -10,7 +10,7 @@ public sealed class TrayWheelBrightnessAdjustmentTests
     {
         MonitorInfo masterMonitor = CreateCurveActiveMonitor(curveTarget: 60, brightness: 10);
         MonitorInfo activeMonitor = CreateCurveActiveMonitor(curveTarget: 42, brightness: 80);
-        MonitorInfo releasedMonitor = new() { Brightness = 30, SliderState = SliderState.CurveReleased, };
+        MonitorInfo releasedMonitor = new() { Brightness = 30, SliderState = SliderState.CurveReleased };
         MonitorInfo[] monitors = [activeMonitor, releasedMonitor];
 
         Dictionary<MonitorInfo, int>? targets = BrightnessAvaloniaApp.ResolveCurveModeTrayWheelManualTargets(

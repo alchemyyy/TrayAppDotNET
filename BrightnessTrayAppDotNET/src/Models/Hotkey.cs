@@ -17,7 +17,7 @@ public enum BrightnessHotkeyAction
     NormalizeBrightnesses,
     PowerOffAllMonitors,
     ProfileSelect,
-    MonitorOff,
+    MonitorOff
 }
 
 /// <summary>

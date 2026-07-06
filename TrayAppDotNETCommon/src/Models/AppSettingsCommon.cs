@@ -10,21 +10,21 @@ public enum TrayAppDotNETThemeMode
 {
     System,
     Light,
-    Dark,
+    Dark
 }
 
 public enum TrayAppDotNETAnimationMode
 {
     System,
     Disabled,
-    Enabled,
+    Enabled
 }
 
 /// <summary>Startup-time Avalonia rendering backend selection.</summary>
 public enum TrayAppDotNETRenderingBackend
 {
     GPUPreferred,
-    Software,
+    Software
 }
 
 public interface ITrayAppDotNETUpdateSettings

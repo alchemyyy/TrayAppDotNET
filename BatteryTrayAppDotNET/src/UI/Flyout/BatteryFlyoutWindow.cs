@@ -55,7 +55,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         Ultimate,
         Balanced,
-        PowerSaver,
+        PowerSaver
     }
 
     private readonly BatteryMonitorService _batteryMonitor;
@@ -93,7 +93,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             AllowFlyoutUndock: true,
             RestoreFlyoutUndockedOnStartup: true,
             FlyoutUndocked: true,
-            FlyoutHasSavedPosition: true,
+            FlyoutHasSavedPosition: true
         };
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
@@ -217,7 +217,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 Width = BatteryContentWidth,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 16, 0, 16),
-                Spacing = 10,
+                Spacing = 10
             };
 
             TextBlock title = Text(
@@ -252,8 +252,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 ColumnDefinitions =
                 {
                     new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Star),
-                },
+                    new ColumnDefinition(GridLength.Star)
+                }
             };
 
             AddDetailRow(details, 0, "Power source", snapshot.IsOnExternalPower ? "External" : "Battery", p);
@@ -291,7 +291,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 BorderBrush = Brush(p.Border),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(_settings.EnableRoundedCorners ? 8 : 0),
-                Child = content,
+                Child = content
             };
             chrome.PointerPressed += OnChromePointerPressed;
             chrome.PointerMoved += OnChromePointerMoved;
@@ -381,7 +381,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Background = Brush(titleBarBackground),
             CornerRadius = Rounded(bottomHeader ? TitleBarBottomCornerRadius : TitleBarTopCornerRadius),
             Padding = TitleBarPadding,
-            Child = grid,
+            Child = grid
         };
     }
 
@@ -405,7 +405,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         StackPanel actions = new()
         {
             Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         if (settingsLast)
@@ -440,7 +440,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.NoWrap,
             LineHeight = Math.Ceiling(fontSize + 6),
-            IsHitTestVisible = false,
+            IsHitTestVisible = false
         };
 
         Border button = new()
@@ -451,7 +451,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Background = Brushes.Transparent,
             ClipToBounds = false,
             Child = text,
-            Cursor = new Cursor(StandardCursorType.Hand),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         TrayAppDotNETToolTip.SetTip(button, tooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
@@ -486,7 +486,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             DragThreshold = DragThreshold,
             IsVisible = _settings.AllowFlyoutUndock,
             Margin = margin ?? new Thickness(0),
-            CornerRadius = Rounded(TitleBarButtonCornerRadius),
+            CornerRadius = Rounded(TitleBarButtonCornerRadius)
         }) { Glyph =
             {
                 FontFamily = TrayAppDotNETSettingsUI.IconFont,
@@ -716,8 +716,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Star),
-            },
+                new ColumnDefinition(GridLength.Star)
+            }
         };
 
         Control powerControls = BuildPowerControls(snapshot, p, settingsPalette);
@@ -741,7 +741,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         StackPanel panel = new()
         {
             Spacing = 6,
-            VerticalAlignment = VerticalAlignment.Top,
+            VerticalAlignment = VerticalAlignment.Top
         };
 
         panel.Children.Add(BuildToggleRow(
@@ -840,8 +840,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         row.Children.Add(label);
@@ -856,7 +856,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         {
             Width = BatteryBarWidth,
             Height = BatteryBarHeight,
-            ClipToBounds = true,
+            ClipToBounds = true
         };
 
         bar.Children.Add(new Border
@@ -864,7 +864,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Background = Brush(p.ControlBackground),
             BorderBrush = Brush(p.Border),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
+            CornerRadius = new CornerRadius(4)
         });
 
         double fillWidth = Math.Max(0, (BatteryBarWidth - 2) * snapshot.ChargePercentage / 100.0);
@@ -875,7 +875,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Margin = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Left,
             Background = Brush(BatteryBarFill),
-            CornerRadius = new CornerRadius(3),
+            CornerRadius = new CornerRadius(3)
         });
 
         return new Border
@@ -883,7 +883,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Width = BatteryBarWidth,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = bar,
+            Child = bar
         };
     }
 
@@ -922,7 +922,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         {
             Height = 1,
             Background = Brush(p.Border),
-            Opacity = 0.75,
+            Opacity = 0.75
         };
 
     private static TextBlock Text(string text, SettingsPalette p, double size, FontWeight weight = FontWeight.Normal) =>
@@ -932,7 +932,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             FontFamily = new FontFamily("Segoe UI"),
             FontSize = size,
             FontWeight = weight,
-            Foreground = Brush(p.Foreground),
+            Foreground = Brush(p.Foreground)
         };
 
     private static SolidColorBrush Brush(Color color) => new(color);
@@ -1118,7 +1118,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlyoutPowerMode.Ultimate => UltimatePowerSchemeGuid,
         FlyoutPowerMode.Balanced => BalancedPowerSchemeGuid,
         FlyoutPowerMode.PowerSaver => PowerSaverPowerSchemeGuid,
-        _ => BalancedPowerSchemeGuid,
+        _ => BalancedPowerSchemeGuid
     };
 
     private static bool SetEnergySaverThreshold(bool enabled)
@@ -1143,7 +1143,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 Arguments = arguments,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
-                CreateNoWindow = true,
+                CreateNoWindow = true
             });
             if (process == null) return null;
 
@@ -1172,7 +1172,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 FileName = "powercfg.exe",
                 Arguments = arguments,
                 UseShellExecute = false,
-                CreateNoWindow = true,
+                CreateNoWindow = true
             });
             if (process == null) return false;
 
@@ -1206,7 +1206,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             using Process? _ = Process.Start(new ProcessStartInfo
             {
                 FileName = "ms-settings:powersleep",
-                UseShellExecute = true,
+                UseShellExecute = true
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenModernPowerSettings: {ex.Message}"); }
@@ -1219,7 +1219,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             using Process? _ = Process.Start(new ProcessStartInfo
             {
                 FileName = "ms-settings:batterysaver",
-                UseShellExecute = true,
+                UseShellExecute = true
             });
         }
         catch (Exception ex) { TADNLog.Log($"BatteryFlyoutWindow.OpenEnergySaverSettings: {ex.Message}"); }

@@ -157,7 +157,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             FlyoutUndocked: true,
             FlyoutHasSavedPosition: true,
             AllowFlyoutUndock: true,
-            RestoreFlyoutUndockedOnStartup: true,
+            RestoreFlyoutUndockedOnStartup: true
         };
 
         CheckAndUpdateUnsavedChanges();
@@ -628,7 +628,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 {
                     OffsetY = Layout.RootShadowOffsetY,
                     Blur = Layout.RootShadowBlur,
-                    Color = _theme.FlyoutShadow.For(isLight),
+                    Color = _theme.FlyoutShadow.For(isLight)
                 }),
                 Child = new Border
                 {
@@ -636,8 +636,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                     CornerRadius = Rounded(Layout.RootInnerCornerRadius),
                     ClipToBounds = true,
                     Padding = Layout.RootInnerPadding,
-                    Child = rootGrid,
-                },
+                    Child = rootGrid
+                }
             };
             _rootCard.PointerPressed += OnRootPointerPressed;
             _rootCard.PointerMoved += OnRootPointerMoved;
@@ -716,7 +716,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Content = rows,
             Focusable = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
         return _scrollViewer;
@@ -731,9 +731,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto)
             },
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto), },
+            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
         };
 
         Border icon = BuildRowIconButton(monitor, palette);
@@ -753,7 +753,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = Layout.RowStopwatchMargin,
+                Margin = Layout.RowStopwatchMargin
             };
             if (monitor.IsCurveStopwatchEnabled)
                 stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor));
@@ -800,7 +800,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Height = Layout.SliderRowHeight,
             VerticalAlignment = VerticalAlignment.Center,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto), },
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
         FlyoutSlider slider = CreateSlider(monitor, palette);
@@ -837,13 +837,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             {
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-            },
+                new ColumnDefinition(GridLength.Auto)
+            }
         };
 
         StackPanel profiles = new()
         {
-            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
         foreach (ProfileButtonItem item in ProfileButtons)
             profiles.Children.Add(BuildProfileFooterButton(item, palette));
@@ -854,7 +854,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         StackPanel actions = new()
         {
-            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
+            Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
         if (_settings?.ShowEnvironmentalCurvesButton ?? true)
         {
@@ -901,7 +901,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             CornerRadius = rounded ? Layout.FooterCornerRadius : Layout.ZeroCornerRadius,
             Padding = FooterPadding(),
             Margin = Layout.FooterMargin,
-            Child = grid,
+            Child = grid
         };
     }
 
@@ -933,7 +933,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Background = TrayAppDotNETFlyoutUI.Brush(palette.Foreground),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = Layout.ProfileIndicatorMargin,
+                Margin = Layout.ProfileIndicatorMargin
             };
             content.Children.Add(indicator);
         }
@@ -982,7 +982,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             {
                 Width = Layout.NightLightIconSize,
                 Height = Layout.NightLightIconSize,
-                IconColor = palette.IconForeground,
+                IconColor = palette.IconForeground
             }
             : TrayAppDotNETFlyoutUI.IconText(
                 RowGlyph(monitor),
@@ -1007,7 +1007,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 WheelStep = 5,
                 LargeStep = 30,
                 ExtraLargeStep = 60,
-                HandleMouseWheelWhenMouseOver = true,
+                HandleMouseWheelWhenMouseOver = true
             };
         number.ValueChanged += (_, e) =>
         {
@@ -1090,7 +1090,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             return disabled;
         }
 
-        return new EnvironmentalCurveGlyphIcon { Width = size, Height = size, IconColor = palette.IconForeground, };
+        return new EnvironmentalCurveGlyphIcon { Width = size, Height = size, IconColor = palette.IconForeground };
     }
 
     private void AddFloatingButtons(Grid rootGrid, FlyoutControlPalette palette)
@@ -1148,7 +1148,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             PreviewValue = monitor.ShowPreview ? monitor.PreviewBrightness : null,
             IndicatorValue = ShouldShowCurveIndicator(monitor) ? monitor.CurveTargetBrightness : null,
             IndicatorOpacity = monitor.IsCurveSleeping ? 0.45 : 1.0,
-            ThumbOpacity = curveDrivenWithTarget && IsCurveAbsoluteMode ? 0.4 : 1.0,
+            ThumbOpacity = curveDrivenWithTarget && IsCurveAbsoluteMode ? 0.4 : 1.0
         };
         slider.UserAdjustmentStarted += (_, _) =>
         {
@@ -1198,7 +1198,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
             RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
             DragThreshold = Layout.DragThreshold,
-            CornerRadius = Rounded(Layout.UndockButtonCornerRadius),
+            CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
         });
         return _undockButtonController.Button;
     }
@@ -1239,7 +1239,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Width = Layout.ConfirmWidth,
             Child = panel,
             HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         return new Border
@@ -1247,7 +1247,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Background =
                 TrayAppDotNETFlyoutUI.Brush(
                     _theme.FlyoutOverlayBackdrop.For(BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings))),
-            Child = box,
+            Child = box
         };
     }
 
@@ -1278,7 +1278,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             },
             SetPromptOpen = open => _isUpdateDialogOpen = open,
             SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
-            PromptClosed = NotifyChildWindowClosedFromDeactivation,
+            PromptClosed = NotifyChildWindowClosedFromDeactivation
         });
     }
 
@@ -1884,7 +1884,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             MasterSliderMode.Lowest => pool.Min(),
             MasterSliderMode.Highest => pool.Max(),
-            _ => pool.Average(),
+            _ => pool.Average()
         };
     }
 
@@ -2130,7 +2130,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = "ms-settings:display", UseShellExecute = true, });
+            Process.Start(new ProcessStartInfo { FileName = "ms-settings:display", UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -2346,7 +2346,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             {
                 Index = i,
                 Glyph = _theme.ProfileButtons.GetGlyph(i, _profileManager.GetCustomGlyph(i)),
-                IsSelected = i == selectedIndex,
+                IsSelected = i == selectedIndex
             });
         }
     }
@@ -2378,7 +2378,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _settings.CurveStopwatches.FirstOrDefault(e => string.Equals(e.SliderKey, key, StringComparison.Ordinal));
         if (entry != null) return entry;
 
-        entry = new CurveStopwatchEntry { SliderKey = key, Minutes = TimeConstants.CurveStopwatchDefaultMinutes, };
+        entry = new CurveStopwatchEntry { SliderKey = key, Minutes = TimeConstants.CurveStopwatchDefaultMinutes };
         _settings.CurveStopwatches.Add(entry);
         return entry;
     }
@@ -2505,7 +2505,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _curveStopwatchTimer =
                 new DispatcherTimer(DispatcherPriority.Background)
                 {
-                    Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveStopwatchRefreshIntervalMs),
+                    Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveStopwatchRefreshIntervalMs)
                 };
             _curveStopwatchTimer.Tick += OnCurveStopwatchTimerTick;
         }
@@ -2854,7 +2854,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Key.D7 or Key.NumPad7 => 6,
             Key.D8 or Key.NumPad8 => 7,
             Key.D9 or Key.NumPad9 => 8,
-            _ => -1,
+            _ => -1
         };
         if (index < 0 || index >= ProfileButtons.Count) return;
         SelectProfileApplyingMode(index);

@@ -348,7 +348,7 @@ public sealed class FlyoutSlider : Control
         Name = "Capsule",
         Shape = SliderThumbShape.Capsule,
         Width = FlyoutSliderLayout.DefaultThumbWidth,
-        Height = FlyoutSliderLayout.DefaultThumbHeight,
+        Height = FlyoutSliderLayout.DefaultThumbHeight
     };
 
     protected override Size MeasureOverride(Size availableSize)

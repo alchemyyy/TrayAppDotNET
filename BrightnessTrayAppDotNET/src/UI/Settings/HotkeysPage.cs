@@ -27,7 +27,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 0, 12),
+            Margin = new Thickness(0, 0, 0, 12)
         };
         TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(L("Settings_Hotkeys_SearchLabel", "Search"), p);
         searchLabel.VerticalAlignment = VerticalAlignment.Center;
@@ -140,7 +140,7 @@ public sealed partial class BrightnessSettingsWindow
 
             _settings.Hotkeys.Add(new BrightnessHotkeyBinding
             {
-                Action = BrightnessHotkeyAction.MonitorOff, Parameter = parameter, Enabled = true, BindingID = 0,
+                Action = BrightnessHotkeyAction.MonitorOff, Parameter = parameter, Enabled = true, BindingID = 0
             });
             Save();
             RebuildShell(BrightnessSettingsPage.Hotkeys);
@@ -290,7 +290,7 @@ public sealed partial class BrightnessSettingsWindow
                 Modifiers = selectedModifiers,
                 VirtualKey = selectedVirtualKey,
                 Enabled = true,
-                BindingID = bindingID,
+                BindingID = bindingID
             });
             selectedModifiers = 0;
             selectedVirtualKey = 0;
@@ -472,7 +472,7 @@ public sealed partial class BrightnessSettingsWindow
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
-            Child = grid,
+            Child = grid
         };
     }
 

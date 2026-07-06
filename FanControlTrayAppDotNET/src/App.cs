@@ -106,7 +106,7 @@ internal sealed class FanAvaloniaApp : Application
                 GetThemePath = AppTheme.GetDefaultPath,
                 LoadTheme = AppTheme.LoadOrDefault,
                 ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"FanAvaloniaApp theme load failed: {ex}"),
+                LogThemeLoadFailed = ex => TADNLog.Log($"FanAvaloniaApp theme load failed: {ex}")
             });
 
         _settings = loaded.Settings;
@@ -159,7 +159,7 @@ internal sealed class FanAvaloniaApp : Application
 
         try
         {
-            _trayIconRenderer = new FanTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme(), };
+            _trayIconRenderer = new FanTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme() };
             ApplyTrayIconColorOverride();
         }
         catch (Exception ex)
@@ -214,7 +214,7 @@ internal sealed class FanAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true, IsVisible = true,
+            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true, IsVisible = true
         };
         _trayIcon.LeftMouseDown += OnTrayLeftMouseDown;
         _trayIcon.LeftClick += OnTrayLeftClick;

@@ -108,7 +108,7 @@ internal sealed class VolumeAvaloniaApp : Application
                 GetThemePath = AppTheme.GetDefaultPath,
                 LoadTheme = AppTheme.LoadOrDefault,
                 ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => TADNLog.Log($"VolumeAvaloniaApp theme load failed: {ex}"),
+                LogThemeLoadFailed = ex => TADNLog.Log($"VolumeAvaloniaApp theme load failed: {ex}")
             });
 
         _settings = loaded.Settings;
@@ -160,7 +160,7 @@ internal sealed class VolumeAvaloniaApp : Application
 
         try
         {
-            _trayIconRenderer = new VolumeTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme(), };
+            _trayIconRenderer = new VolumeTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme() };
             ApplyTrayIconColorOverride();
         }
         catch (Exception ex)
@@ -215,7 +215,7 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true, IsVisible = true,
+            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true, IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
@@ -343,7 +343,7 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         ThemeMode.Light => true,
         ThemeMode.Dark => false,
-        _ => _theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme,
+        _ => _theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
     private void ApplyThemeVariant()

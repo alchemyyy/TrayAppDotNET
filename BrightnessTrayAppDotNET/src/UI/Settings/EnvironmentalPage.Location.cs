@@ -98,7 +98,7 @@ public sealed partial class BrightnessSettingsWindow
             Palette,
             AppServices.Theme ?? AppTheme.Default,
             _settings,
-            ResolveEffectiveIsLight()) { WindowStartupLocation = WindowStartupLocation.CenterOwner, };
+            ResolveEffectiveIsLight()) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
         picker.Applied += ApplyEnvironmentalCoordinates;
         picker.Show(this);
     }

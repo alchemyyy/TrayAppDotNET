@@ -35,7 +35,7 @@ public sealed partial class NetworkSettingsWindow
             [
                 ("System", Loc("Settings_Theme_ThemeStyle_System")),
                 ("Light", Loc("Settings_Theme_ThemeStyle_Light")),
-                ("Dark", Loc("Settings_Theme_ThemeStyle_Dark")),
+                ("Dark", Loc("Settings_Theme_ThemeStyle_Dark"))
             ],
             _settings.ThemeMode.ToString(),
             tag =>
@@ -82,7 +82,7 @@ public sealed partial class NetworkSettingsWindow
             [
                 (TrayAppDotNETAnimationMode.System.ToString(), L("Settings_Theme_Animations_System", "System")),
                 (TrayAppDotNETAnimationMode.Disabled.ToString(), L("Settings_Theme_Animations_Disabled", "Disabled")),
-                (TrayAppDotNETAnimationMode.Enabled.ToString(), L("Settings_Theme_Animations_Enabled", "Enabled")),
+                (TrayAppDotNETAnimationMode.Enabled.ToString(), L("Settings_Theme_Animations_Enabled", "Enabled"))
             ],
             _settings.AnimationMode.ToString(),
             tag =>

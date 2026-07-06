@@ -169,7 +169,7 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
                 // build prep), the session goes away with the process by way of the ETW
                 // session-private flag we'd get from Create. StopOnDispose enforces explicit
                 // cleanup on graceful exit.
-                StopOnDispose = true,
+                StopOnDispose = true
             };
 
             _session.Source.Dynamic.AddCallbackForProviderEvent(
@@ -187,7 +187,7 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
             try { _session.EnableProvider(LegacyProviderGuid, TraceEventLevel.Verbose, 0); }
             catch (Exception ex) { TADNLog.Log($"BluetoothCodecMonitor.Start: legacy provider enable: {ex.Message}"); }
 
-            _worker = new Thread(WorkerLoop) { IsBackground = true, Name = "BluetoothCodecMonitor.ETW", };
+            _worker = new Thread(WorkerLoop) { IsBackground = true, Name = "BluetoothCodecMonitor.ETW" };
             _worker.Start();
 
             IsRunning = true;

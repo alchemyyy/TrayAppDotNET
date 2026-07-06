@@ -175,7 +175,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             _curveSaveDebounceTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalCurveSaveDebounceMs),
+                Interval = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalCurveSaveDebounceMs)
             };
             _curveSaveDebounceTimer.Tick += (_, _) => FlushDebouncedCurveSave();
         }

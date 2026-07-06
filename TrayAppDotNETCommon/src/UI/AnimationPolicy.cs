@@ -11,7 +11,7 @@ public static class TrayAppDotNETAnimationPolicy
 {
     private static readonly Style DisabledToolTipTransitionsStyle = new(static selector => selector.OfType<ToolTip>())
     {
-        Setters = { new Setter(Animatable.TransitionsProperty, new Transitions()), },
+        Setters = { new Setter(Animatable.TransitionsProperty, new Transitions()) }
     };
 
     public static TrayAppDotNETAnimationMode Mode { get; private set; } = TrayAppDotNETAnimationMode.System;
@@ -39,7 +39,7 @@ public static class TrayAppDotNETAnimationPolicy
     {
         TrayAppDotNETAnimationMode.Disabled => false,
         TrayAppDotNETAnimationMode.Enabled => true,
-        _ => SystemAnimationsEnabled(),
+        _ => SystemAnimationsEnabled()
     };
 
     private static bool SystemAnimationsEnabled()

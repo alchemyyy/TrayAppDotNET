@@ -187,7 +187,7 @@ internal static class NightLightCloudStore
             {
                 try { InitOnMtaThread(); }
                 catch (Exception ex) { initError = ex; }
-            }) { IsBackground = true, Name = "NightLightCloudStore-Init", };
+            }) { IsBackground = true, Name = "NightLightCloudStore-Init" };
             thread.SetApartmentState(ApartmentState.MTA);
             thread.Start();
             thread.Join();
@@ -382,7 +382,7 @@ internal static class NightLightCloudStore
                 Initialize = kvp.Value.InitializeRVA,
                 SInstance = kvp.Value.SInstanceRVA,
                 SetTargetColorTemperature = kvp.Value.SetTargetColorTemperatureRVA,
-                SetPreview = kvp.Value.SetPreviewRVA,
+                SetPreview = kvp.Value.SetPreviewRVA
             });
         }
 

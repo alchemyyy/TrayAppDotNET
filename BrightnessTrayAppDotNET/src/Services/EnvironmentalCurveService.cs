@@ -200,7 +200,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         {
             if (_curveTimer == null)
             {
-                _curveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = interval, };
+                _curveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = interval };
                 _curveTimer.Tick += (_, _) => Evaluate();
                 _curveTimer.Start();
                 return;

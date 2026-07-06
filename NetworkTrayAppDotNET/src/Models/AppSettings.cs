@@ -6,7 +6,7 @@ namespace NetworkTrayAppDotNET.Models;
 public enum TrayIconStyle
 {
     Dynamic,
-    Static,
+    Static
 }
 
 /// <summary>
@@ -16,7 +16,7 @@ public enum TrayClickAction
 {
     Nothing,
     OpenSettings,
-    OpenAdapterSettings,
+    OpenAdapterSettings
 }
 
 /// <summary>
@@ -28,7 +28,7 @@ public enum TrayClickAction
 public enum ContextMenuPosition
 {
     Classic,
-    Modern,
+    Modern
 }
 
 /// <summary>
@@ -189,8 +189,8 @@ public class AppSettings : AppSettingsCommon
             Modifiers = HotkeyModifiers.Control | HotkeyModifiers.Win | HotkeyModifiers.Alt,
             VirtualKey = 0x53, // VK_S
             Enabled = true,
-            BindingID = 0,
-        },
+            BindingID = 0
+        }
     ];
 
     /// <summary>
@@ -265,7 +265,7 @@ public class AppSettings : AppSettingsCommon
                 Modifiers = d.Modifiers,
                 VirtualKey = d.VirtualKey,
                 Enabled = d.Enabled,
-                BindingID = d.BindingID,
+                BindingID = d.BindingID
             });
             added = true;
         }

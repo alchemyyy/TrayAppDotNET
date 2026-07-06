@@ -82,7 +82,7 @@ internal static class NightLightProvider
         {
             Backend.Registry => NightLightRegistry.GetStrength(),
             Backend.SettingsHandler => NightLightSettingsHandler.GetStrength(),
-            _ => 0,
+            _ => 0
         };
     }
 
@@ -93,7 +93,7 @@ internal static class NightLightProvider
         {
             Backend.Registry => NightLightRegistry.IsEnabled(),
             Backend.SettingsHandler => NightLightSettingsHandler.IsEnabled(),
-            _ => false,
+            _ => false
         };
     }
 
@@ -193,7 +193,7 @@ internal static class NightLightProvider
         {
             Backend.Registry => NightLightRegistry.SetEnabled(enabled),
             Backend.SettingsHandler => NightLightSettingsHandler.SetEnabled(enabled),
-            _ => false,
+            _ => false
         };
 
         // SettingsHandler.SetEnabled arms its own deferred registry settle-write even on off transitions.
@@ -239,7 +239,7 @@ internal static class NightLightProvider
         {
             Backend.Registry => NightLightRegistry.Toggle(),
             Backend.SettingsHandler => NightLightSettingsHandler.Toggle(),
-            _ => false,
+            _ => false
         };
 
         // See SetEnabled(false): the SettingsHandler backend may arm a settle-write during the off flip.
@@ -261,7 +261,7 @@ internal static class NightLightProvider
         {
             Backend.Registry => NightLightRegistry.GetStrength(),
             Backend.SettingsHandler => NightLightSettingsHandler.GetStrength(),
-            _ => 0,
+            _ => 0
         };
         if (currentStrength > 0) return;
 
@@ -321,7 +321,7 @@ internal static class NightLightProvider
                 : Backend.None,
             // GammaRamp is a hidden UI affordance with no backing implementation right now -
             // fall through to the registry path so the toggle effectively no-ops.
-            _ => NightLightRegistry.IsSupported() ? Backend.Registry : Backend.None,
+            _ => NightLightRegistry.IsSupported() ? Backend.Registry : Backend.None
         };
     }
 }

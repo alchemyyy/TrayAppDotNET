@@ -87,7 +87,7 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
         {
             ThemeMode.Light => true,
             ThemeMode.Dark => false,
-            _ => systemIsLight,
+            _ => systemIsLight
         };
     }
 

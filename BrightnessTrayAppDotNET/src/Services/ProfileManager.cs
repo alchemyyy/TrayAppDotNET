@@ -230,7 +230,7 @@ public sealed class ProfileManager
                     EDIDKey = monitor.EDIDKey,
                     Brightness = (int)Math.Round(monitor.Brightness),
                     IsPoweredOn = monitor.IsPoweredOn,
-                    IsSliderEnabled = monitor.SliderState != SliderState.Disabled,
+                    IsSliderEnabled = monitor.SliderState != SliderState.Disabled
                 });
             }
         }
@@ -279,7 +279,7 @@ public sealed class ProfileManager
         EDIDKey = s.EDIDKey,
         Brightness = s.Brightness,
         IsPoweredOn = s.IsPoweredOn,
-        IsSliderEnabled = s.IsSliderEnabled,
+        IsSliderEnabled = s.IsSliderEnabled
     };
 #pragma warning restore CS0618
 

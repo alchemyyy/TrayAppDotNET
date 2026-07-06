@@ -50,7 +50,7 @@ internal static class BrightnessSliderMath
         {
             MasterSliderMode.Lowest => values.Min(),
             MasterSliderMode.Highest => values.Max(),
-            _ => values.Average(),
+            _ => values.Average()
         };
     }
 }

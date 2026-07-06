@@ -62,7 +62,7 @@ public sealed class DisplayEventManager : IDisposable
 
         _coalesce = new DispatcherTimer(DispatcherPriority.Normal)
         {
-            Interval = TimeSpan.FromMilliseconds(TimeConstants.DisplayEventDebounceIntervalMs),
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.DisplayEventDebounceIntervalMs)
         };
         _coalesce.Tick += OnCoalesceTick;
     }

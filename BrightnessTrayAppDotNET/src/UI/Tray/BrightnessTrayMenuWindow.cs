@@ -32,7 +32,7 @@ internal sealed class BrightnessTrayMenuWindow(
             exit),
         new TrayMenuWindowOptions
         {
-            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = shadowColor,
+            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = shadowColor
         })
 {
     private const string CheckGlyph = "\uE73E";

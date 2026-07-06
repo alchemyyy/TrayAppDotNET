@@ -44,7 +44,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private enum SettingsWindowSizeProfile
     {
         Standard,
-        Compact,
+        Compact
     }
 
     protected TPageKey CurrentPageKey { get; private set; } = default!;
@@ -368,8 +368,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 CornerRadius = innerRadius,
                 ClipToBounds = EnableRoundedCorners,
                 Margin = _settingsResources.AxamlSettingsWindow.InnerBorderMargin,
-                Child = root,
-            },
+                Child = root
+            }
         };
     }
 
@@ -379,7 +379,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         {
             Background = Brushes.Transparent,
             Height = _settingsResources.AxamlSettingsWindow.TitleBarDragZoneHeight,
-            VerticalAlignment = VerticalAlignment.Top,
+            VerticalAlignment = VerticalAlignment.Top
         };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -395,7 +395,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
+            VerticalAlignment = VerticalAlignment.Top
         };
         SettingsButton minimize = CaptionButton(GlyphCatalog.CHROME_MINIMIZE, palette);
         SettingsButton maximize = CaptionButton(
@@ -429,7 +429,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Label =
             {
                 FontFamily = TrayAppDotNETSettingsUI.IconFont,
-                FontSize = _settingsResources.AxamlSettingsWindow.CaptionButtonGlyphFontSize,
+                FontSize = _settingsResources.AxamlSettingsWindow.CaptionButtonGlyphFontSize
             }
         };
         if (closeButton)
@@ -591,9 +591,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             MaxWidth = _settingsResources.AxamlSettingsWindow.ConfirmDialogMaxWidth,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel { Children = { _confirmTitle, _confirmMessage, buttons } },
+            Child = new StackPanel { Children = { _confirmTitle, _confirmMessage, buttons } }
         };
-        return new Border { Background = TrayAppDotNETSettingsUI.Brush(ConfirmOverlayBackdrop), Child = dialog, };
+        return new Border { Background = TrayAppDotNETSettingsUI.Brush(ConfirmOverlayBackdrop), Child = dialog };
     }
 
     private void CompleteConfirm(bool result)

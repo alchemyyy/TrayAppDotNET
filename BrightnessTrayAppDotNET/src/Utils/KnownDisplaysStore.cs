@@ -15,7 +15,7 @@ namespace BrightnessTrayAppDotNET.Utils;
 /// </summary>
 public sealed class KnownDisplaysStore : IDisposable
 {
-    private static readonly JsonWriterOptions s_jsonWriterOptions = new() { Indented = true, };
+    private static readonly JsonWriterOptions s_jsonWriterOptions = new() { Indented = true };
 
     // Trailing-edge debounce for Stamp* calls. A 60Hz slider drag would otherwise rewrite
     // displays.json on every integer transition; this coalesces a burst into one save once
@@ -184,7 +184,7 @@ public sealed class KnownDisplaysStore : IDisposable
                 OriginalName = incoming.OriginalName,
                 EDIDSerial = incoming.EDIDSerial,
                 WasEverDDCCapable = incoming.WasEverDDCCapable,
-                LastBusBrightness = incoming.LastBusBrightness,
+                LastBusBrightness = incoming.LastBusBrightness
             });
             return true;
         }
@@ -280,7 +280,7 @@ public sealed class KnownDisplaysStore : IDisposable
             OriginalName = ReadString(item, nameof(KnownDisplayEntry.OriginalName)),
             EDIDSerial = ReadString(item, nameof(KnownDisplayEntry.EDIDSerial)),
             WasEverDDCCapable = ReadBool(item, nameof(KnownDisplayEntry.WasEverDDCCapable)),
-            LastBusBrightness = ReadNullableInt(item, nameof(KnownDisplayEntry.LastBusBrightness)),
+            LastBusBrightness = ReadNullableInt(item, nameof(KnownDisplayEntry.LastBusBrightness))
         };
     }
 
@@ -325,7 +325,7 @@ public sealed class KnownDisplaysStore : IDisposable
         OriginalName = src.OriginalName,
         EDIDSerial = src.EDIDSerial,
         WasEverDDCCapable = src.WasEverDDCCapable,
-        LastBusBrightness = src.LastBusBrightness,
+        LastBusBrightness = src.LastBusBrightness
     };
 
     /// <summary>

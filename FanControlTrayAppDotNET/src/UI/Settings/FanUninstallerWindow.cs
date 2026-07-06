@@ -32,7 +32,7 @@ public sealed class FanUninstallerWindow(string installDir, FanInstallScope scop
             RetargetStartupShortcut = static uninstallScope =>
                 AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
-                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings),
+                AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
         };
     }
 

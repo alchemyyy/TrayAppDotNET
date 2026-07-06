@@ -93,7 +93,7 @@ public sealed partial class FanCurveEditorWindow : Window
             Palette = FanCurveEditorPalette.FromSettingsPalette(
                 _palette,
                 AppServices.Theme ?? AppTheme.Default,
-                AppTheme.ResolveEffectiveIsLightTheme(settings)),
+                AppTheme.ResolveEffectiveIsLightTheme(settings))
         };
         _editor.CurveChanged += OnEditorCurveChanged;
         _editor.GraphEditStarting += OnEditorGraphEditStarting;
@@ -158,7 +158,7 @@ public sealed partial class FanCurveEditorWindow : Window
         Grid shell = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
-            Margin = Layout.ZeroThickness,
+            Margin = Layout.ZeroThickness
         };
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         shell.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -188,7 +188,7 @@ public sealed partial class FanCurveEditorWindow : Window
             Width = Layout.GraphWidth,
             Height = Layout.GraphHeight,
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
+            VerticalAlignment = VerticalAlignment.Top
         };
         graphHost.Children.Add(_editor);
         Grid.SetColumn(graphHost, 1);
@@ -209,7 +209,7 @@ public sealed partial class FanCurveEditorWindow : Window
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
-            Child = shell,
+            Child = shell
         };
     }
 
@@ -239,7 +239,7 @@ public sealed partial class FanCurveEditorWindow : Window
 
         StackPanel content = new()
         {
-            Orientation = Orientation.Vertical,
+            Orientation = Orientation.Vertical
         };
         content.Children.Add(toggleRow);
         _rescaleCurveButton.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -258,7 +258,7 @@ public sealed partial class FanCurveEditorWindow : Window
     {
         Grid content = new()
         {
-            VerticalAlignment = VerticalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
         };
         content.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         content.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -318,7 +318,7 @@ public sealed partial class FanCurveEditorWindow : Window
                 ? Layout.DataSourceSelectedCornerRadius
                 : Layout.ZeroCornerRadius,
             Padding = Layout.DataSourceSelectedPadding,
-            Child = text,
+            Child = text
         };
         box.PointerPressed += (_, e) =>
         {
@@ -357,7 +357,7 @@ public sealed partial class FanCurveEditorWindow : Window
                 ? Layout.DataSourceListItemCornerRadius
                 : Layout.ZeroCornerRadius,
             ItemFontSize = Layout.DataSourceListItemFontSize,
-            PlaceholderText = "Search data sources",
+            PlaceholderText = "Search data sources"
         };
         return list;
     }
@@ -371,7 +371,7 @@ public sealed partial class FanCurveEditorWindow : Window
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = Layout.ControlGridMargin,
-            VerticalAlignment = VerticalAlignment.Top,
+            VerticalAlignment = VerticalAlignment.Top
         };
         for (int i = 0; i < 4; i++)
             grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -406,7 +406,7 @@ public sealed partial class FanCurveEditorWindow : Window
         StackPanel column = new()
         {
             Orientation = Orientation.Vertical,
-            VerticalAlignment = VerticalAlignment.Top,
+            VerticalAlignment = VerticalAlignment.Top
         };
         for (int i = 0; i < cards.Length; i++)
             column.Children.Add(cards[i]);
@@ -451,7 +451,7 @@ public sealed partial class FanCurveEditorWindow : Window
     {
         Grid content = new()
         {
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         content.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         content.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -503,7 +503,7 @@ public sealed partial class FanCurveEditorWindow : Window
         {
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center,
-            Children = { text },
+            Children = { text }
         };
     }
 
@@ -514,7 +514,7 @@ public sealed partial class FanCurveEditorWindow : Window
             CornerRadius = _settings.EnableRoundedCorners ? Layout.CardCornerRadius : Layout.ZeroCornerRadius,
             Padding = Layout.CardPadding,
             Margin = Layout.CardMargin,
-            Child = content,
+            Child = content
         };
 
     private SettingsNumberBox Number(int value, int min, int max, string suffix, double minimumWidth)

@@ -40,8 +40,8 @@ public sealed partial class BrightnessSettingsWindow
                 new TrayAppDotNETKnownIssue(
                     L("Settings_About_DDCCorruption_Title", "DDC state corruption"),
                     L("Settings_About_DDCCorruption_Description",
-                        "If a monitor becomes unrecoverable, its slider will show with a warning triangle glyph. The monitor will have to be power cycled to restore DDC.")),
-            ],
+                        "If a monitor becomes unrecoverable, its slider will show with a warning triangle glyph. The monitor will have to be power cycled to restore DDC."))
+            ]
         });
         return _aboutPage.Build();
     }

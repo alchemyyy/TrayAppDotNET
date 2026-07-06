@@ -17,21 +17,21 @@ internal enum EDataFlow
 {
     eRender = 0,
     eCapture = 1,
-    eAll = 2,
+    eAll = 2
 }
 
 internal enum ERole
 {
     eConsole = 0,
     eMultimedia = 1,
-    eCommunications = 2,
+    eCommunications = 2
 }
 
 internal enum AudioSessionState
 {
     Inactive = 0,
     Active = 1,
-    Expired = 2,
+    Expired = 2
 }
 
 internal enum AudioSessionDisconnectReason
@@ -41,13 +41,13 @@ internal enum AudioSessionDisconnectReason
     FormatChanged = 2,
     SessionLogoff = 3,
     SessionDisconnected = 4,
-    ExclusiveModeOverride = 5,
+    ExclusiveModeOverride = 5
 }
 
 internal enum AudioClientShareMode
 {
     Shared = 0,
-    Exclusive = 1,
+    Exclusive = 1
 }
 
 [Flags]
@@ -57,7 +57,7 @@ internal enum DeviceState : uint
     Disabled = 0x00000002,
     NotPresent = 0x00000004,
     Unplugged = 0x00000008,
-    All = 0x0000000F,
+    All = 0x0000000F
 }
 
 [Flags]
@@ -67,7 +67,7 @@ internal enum ClsCtx : uint
     INPROC_HANDLER = 0x2,
     LOCAL_SERVER = 0x4,
     REMOTE_SERVER = 0x10,
-    ALL = INPROC_SERVER | INPROC_HANDLER | LOCAL_SERVER | REMOTE_SERVER,
+    ALL = INPROC_SERVER | INPROC_HANDLER | LOCAL_SERVER | REMOTE_SERVER
 }
 
 [StructLayout(LayoutKind.Sequential)]

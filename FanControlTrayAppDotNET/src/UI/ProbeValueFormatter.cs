@@ -31,7 +31,7 @@ internal static class ProbeValueFormatter
         DataSourceTypeEnum.Load => GlyphCatalog.LOAD,
         DataSourceTypeEnum.Clock => GlyphCatalog.CLOCK,
         DataSourceTypeEnum.Voltage => GlyphCatalog.VOLTAGE,
-        _ => GlyphCatalog.PROBE,
+        _ => GlyphCatalog.PROBE
     };
 
     /// <summary>
@@ -64,8 +64,8 @@ internal static class ProbeValueFormatter
                 Parameters =
                 {
                     ["x"] = value,
-                    ["X"] = value,
-                },
+                    ["X"] = value
+                }
             };
             object? result = expression.Evaluate();
             if (result is IConvertible convertible)

@@ -21,7 +21,7 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         Subpixel = false,
         MeasureFontScale = MeasureFontScale,
         FallbackIcon = AppTheme.LoadAppNativeIcon,
-        Log = TADNLog.Log,
+        Log = TADNLog.Log
     });
 
     private readonly VolumeTrayIconGlyphs _glyphs = new(

@@ -137,9 +137,9 @@ public sealed class TrayIconRenderer : IDisposable
     {
         using SKFont font = new(IconTypeface, canvasSize * _options.MeasureFontScale)
         {
-            Edging = _options.FontEdging, Subpixel = _options.Subpixel,
+            Edging = _options.FontEdging, Subpixel = _options.Subpixel
         };
-        using SKPaint paint = new() { IsAntialias = true, Color = SKColors.Transparent, };
+        using SKPaint paint = new() { IsAntialias = true, Color = SKColors.Transparent };
 
         float advanceWidth = font.MeasureText(glyph, out SKRect bounds, paint);
         font.GetFontMetrics(out SKFontMetrics metrics);

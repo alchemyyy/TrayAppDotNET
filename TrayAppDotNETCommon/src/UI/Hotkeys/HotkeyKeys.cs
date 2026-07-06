@@ -115,6 +115,6 @@ public static class TrayAppDotNETHotkeyModifierOptions
         new(localize("Settings_Hotkeys_Modifier_AltShiftWin", "Alt + Shift + Win"),
             HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win),
         new(localize("Settings_Hotkeys_Modifier_CtrlAltShiftWin", "Ctrl + Alt + Shift + Win"),
-            HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win),
+            HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win)
     ];
 }

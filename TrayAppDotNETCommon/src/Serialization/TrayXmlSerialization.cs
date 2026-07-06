@@ -27,14 +27,14 @@ public static class TrayXmlSerializer
         Indent = true,
         IndentChars = "  ",
         NewLineChars = Environment.NewLine,
-        NewLineHandling = NewLineHandling.Replace,
+        NewLineHandling = NewLineHandling.Replace
     };
 
     public static XmlReaderSettings ReaderSettings { get; } = new()
     {
         IgnoreComments = true,
         IgnoreProcessingInstructions = true,
-        IgnoreWhitespace = true,
+        IgnoreWhitespace = true
     };
 
     public static void Register(ITrayXmlTypeSerializer serializer)

@@ -4,7 +4,7 @@ public enum InstallScope
 {
     LocalAppData,
     ProgramFiles,
-    WindowsStore,
+    WindowsStore
 }
 
 /// <summary>
@@ -21,7 +21,7 @@ public static class InstallScopeExtensions
         InstallScope.LocalAppData => UserArg,
         InstallScope.ProgramFiles => SystemArg,
         InstallScope.WindowsStore => StoreArg,
-        _ => throw new ArgumentOutOfRangeException(nameof(scope)),
+        _ => throw new ArgumentOutOfRangeException(nameof(scope))
     };
 
     public static InstallScope? ParseArg(string? raw) => raw?.ToLowerInvariant() switch
@@ -29,6 +29,6 @@ public static class InstallScopeExtensions
         UserArg or "local" or "localappdata" => InstallScope.LocalAppData,
         SystemArg or "programfiles" => InstallScope.ProgramFiles,
         StoreArg or "windowsstore" => InstallScope.WindowsStore,
-        _ => null,
+        _ => null
     };
 }

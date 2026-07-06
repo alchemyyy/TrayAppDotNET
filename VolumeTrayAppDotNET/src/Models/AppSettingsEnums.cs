@@ -6,7 +6,7 @@ namespace VolumeTrayAppDotNET.Models;
 public enum TrayIconStyle
 {
     Dynamic,
-    Static,
+    Static
 }
 
 /// <summary>
@@ -16,7 +16,7 @@ public enum TrayIconStyle
 public enum TrayClickAction
 {
     Nothing,
-    OpenSettings,
+    OpenSettings
 }
 
 /// <summary>
@@ -28,7 +28,7 @@ public enum TrayClickAction
 public enum ContextMenuPosition
 {
     Classic,
-    Modern,
+    Modern
 }
 
 /// <summary>
@@ -40,7 +40,7 @@ public enum ContextMenuPosition
 public enum SoundSettingsTarget
 {
     LegacySoundPanel,
-    WindowsSettingsApp,
+    WindowsSettingsApp
 }
 
 /// <summary>
@@ -55,7 +55,7 @@ public enum TrayMenuDeviceNameStyle
 {
     NameAndModel,
     Name,
-    Model,
+    Model
 }
 
 /// <summary>
@@ -67,7 +67,7 @@ public enum TrayMenuDeviceNameStyle
 public enum FlyoutDeviceLayoutStyle
 {
     AppsAboveDevice,
-    AppsBelowDevice,
+    AppsBelowDevice
 }
 
 /// <summary>
@@ -79,7 +79,7 @@ public enum FlyoutDeviceLayoutStyle
 public enum FlyoutDeviceTitlePosition
 {
     BelowSlider,
-    AboveSlider,
+    AboveSlider
 }
 
 /// <summary>
@@ -92,7 +92,7 @@ public enum FlyoutDeviceTitlePosition
 public enum FlyoutDeviceSortOrder
 {
     StateGrouped,
-    WindowsEnumeration,
+    WindowsEnumeration
 }
 
 /// <summary>
@@ -106,7 +106,7 @@ public enum CommunicationsButtonVisibility
 {
     AlwaysShow,
     WhenDuckingOn,
-    Hidden,
+    Hidden
 }
 
 /// <summary>
@@ -122,7 +122,7 @@ public enum CaptureActivityIndicator
     DimInactive,
     ActiveGlyph,
     HideInactive,
-    None,
+    None
 }
 
 /// <summary>
@@ -134,7 +134,7 @@ public enum CaptureActivityIndicator
 public enum AppDrawerDisplayType
 {
     Sliders,
-    Icons,
+    Icons
 }
 
 /// <summary>
@@ -153,7 +153,7 @@ public enum AppDrawerStackDirection
     BottomTop,
     LeftRight,
     RightLeft,
-    Auto,
+    Auto
 }
 
 /// <summary>
@@ -169,5 +169,5 @@ public enum AppDrawerIconsCenterMode
 {
     Off,
     Centered,
-    CenteredSoftMax,
+    CenteredSoftMax
 }

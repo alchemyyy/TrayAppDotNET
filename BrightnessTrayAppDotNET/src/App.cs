@@ -141,7 +141,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 GetThemePath = AppTheme.GetDefaultPath,
                 LoadTheme = AppTheme.LoadOrDefault,
                 ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => WPFLog.Log($"BrightnessAvaloniaApp theme load failed: {ex}"),
+                LogThemeLoadFailed = ex => WPFLog.Log($"BrightnessAvaloniaApp theme load failed: {ex}")
             });
 
         _settings = loaded.Settings;
@@ -213,7 +213,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         try
         {
-            _trayIconRenderer = new BrightnessTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme(), };
+            _trayIconRenderer = new BrightnessTrayIcon(_theme) { IsLightTheme = ResolveEffectiveIsLightTheme() };
             ApplyTrayIconSettings();
         }
         catch (Exception ex)
@@ -280,7 +280,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true,
+            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true
         };
         if (AppTheme.LoadAppNativeIcon() is { } initialIcon)
         {
@@ -704,7 +704,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         TrayClickAction.FullBright => 100,
         TrayClickAction.FullDim => 0,
-        _ => -1,
+        _ => -1
     };
 
     private void ShowTrayContextMenu(PixelPoint cursorPoint)
@@ -1001,7 +1001,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             MasterSliderMode.Lowest => pool.Min(EffectiveValue),
             MasterSliderMode.Highest => pool.Max(EffectiveValue),
-            _ => pool.Average(EffectiveValue),
+            _ => pool.Average(EffectiveValue)
         };
 
         if (!double.IsFinite(value)) return _settings?.LastMasterBrightness ?? 100;

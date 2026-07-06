@@ -483,7 +483,7 @@ public static class TrayAppDotNETProgram
                 FileName = installExecutable,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
+                WindowStyle = ProcessWindowStyle.Hidden
             };
 
             string? workingDirectory = Path.GetDirectoryName(installExecutable);

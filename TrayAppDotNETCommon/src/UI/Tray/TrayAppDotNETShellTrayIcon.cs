@@ -183,7 +183,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         NOTIFYICONIDENTIFIER id = new()
         {
-            cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(), hWnd = _window.Handle, guidItem = _iconGUID,
+            cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(), hWnd = _window.Handle, guidItem = _iconGUID
         };
 
         if (Shell32.Shell_NotifyIconGetRect(ref id, out RECT nativeRect) == 0)
@@ -215,7 +215,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             szInfo = message,
             szInfoTitle = title,
             dwInfoFlags = (uint)(NotifyIconInfoFlags.NIIF_USER | NotifyIconInfoFlags.NIIF_RESPECT_QUIET_TIME),
-            hBalloonIcon = IntPtr.Zero,
+            hBalloonIcon = IntPtr.Zero
         };
 
         if (!Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_MODIFY, ref data))
@@ -234,7 +234,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             uCallbackMessage = (flags & NotifyIconFlags.NIF_MESSAGE) != 0 ? (uint)WM_CALLBACKMOUSEMSG : 0,
             hIcon = (flags & NotifyIconFlags.NIF_ICON) != 0 ? _currentIcon?.Handle ?? IntPtr.Zero : IntPtr.Zero,
             szTip = _tooltipText.Length > 127 ? _tooltipText[..127] : _tooltipText,
-            guidItem = _iconGUID,
+            guidItem = _iconGUID
         };
 
     private void Update()
@@ -653,7 +653,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         NOTIFYICONIDENTIFIER id = new()
         {
-            cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(), hWnd = _window.Handle, guidItem = _iconGUID,
+            cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(), hWnd = _window.Handle, guidItem = _iconGUID
         };
 
         if (Shell32.Shell_NotifyIconGetRect(ref id, out RECT location) != 0)
@@ -806,7 +806,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     }
 
     private static User32.POINT ExtractMessagePoint(int packedPoint) =>
-        new() { X = (short)(packedPoint & 0xFFFF), Y = (short)((packedPoint >> 16) & 0xFFFF), };
+        new() { X = (short)(packedPoint & 0xFFFF), Y = (short)((packedPoint >> 16) & 0xFFFF) };
 
     public void Dispose()
     {
@@ -833,6 +833,6 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         Icon,
         MouseInput,
-        Tooltip,
+        Tooltip
     }
 }

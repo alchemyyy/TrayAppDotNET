@@ -23,7 +23,7 @@ internal static class PawnIoDriverInstaller
             }
 
             TADNLog.Log($"Installing PawnIO from {setupPath}");
-            ProcessStartInfo startInfo = new(setupPath, "-install") { UseShellExecute = true, };
+            ProcessStartInfo startInfo = new(setupPath, "-install") { UseShellExecute = true };
 
             if (!TrayAppDotNETInstallationService.IsElevated(TADNLog.Log))
                 startInfo.Verb = "runas";

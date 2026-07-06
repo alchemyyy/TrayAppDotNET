@@ -17,7 +17,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         _legendPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), Spacing = 6,
+            Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8), Spacing = 6
         };
 
         EnvironmentalCurveEditorPalette editorPalette = BuildEnvironmentalEditorPalette(p);
@@ -42,11 +42,11 @@ public sealed partial class BrightnessSettingsWindow
             Background = TrayAppDotNETSettingsUI.Brush(color),
             CornerRadius = new CornerRadius(vertical ? 1 : 1.5),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 2, 0),
+            Margin = new Thickness(0, 0, 2, 0)
         };
         TextBlock label = TrayAppDotNETSettingsUI.Text(text, p, 11);
         label.VerticalAlignment = VerticalAlignment.Center;
-        return new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, label }, };
+        return new StackPanel { Orientation = Orientation.Horizontal, Children = { swatch, label } };
     }
 
     private StackPanel BuildEnvironmentalProfileRow(SettingsPalette p)
@@ -67,7 +67,7 @@ public sealed partial class BrightnessSettingsWindow
 
         return new StackPanel
         {
-            Orientation = Orientation.Horizontal, Children = { label, _environmentalProfileCombo },
+            Orientation = Orientation.Horizontal, Children = { label, _environmentalProfileCombo }
         };
     }
 
@@ -140,7 +140,7 @@ public sealed partial class BrightnessSettingsWindow
                 NotifyRuntimeCurveChanged();
             }, out _disabledPeriodFollowTheSunToggle, indent: 8);
 
-        StackPanel fields = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 6), };
+        StackPanel fields = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 6) };
         _disabledPeriodStartBox = TimeBox(p);
         _disabledPeriodEndBox = TimeBox(p);
         _disabledPeriodStartBox.Width = 64;
@@ -164,7 +164,7 @@ public sealed partial class BrightnessSettingsWindow
 
     private Grid BuildEnvironmentalVisibilityRows(SettingsPalette p)
     {
-        StackPanel panel = new() { Margin = new Thickness(24, 12, 0, 0), VerticalAlignment = VerticalAlignment.Top, };
+        StackPanel panel = new() { Margin = new Thickness(24, 12, 0, 0), VerticalAlignment = VerticalAlignment.Top };
         _showBrightnessCurveToggle = AddToggleRow(panel, p,
             L("Settings_Environmental_ShowBrightnessCurve_Title", "Brightness curve"),
             _settings.EnvironmentalShowBrightnessCurve, OnEnvironmentalCurveVisibilityChanged);
@@ -201,7 +201,7 @@ public sealed partial class BrightnessSettingsWindow
         Grid.SetColumn(visibility, 0);
         row.Children.Add(visibility);
 
-        StackPanel right = new() { VerticalAlignment = VerticalAlignment.Top, };
+        StackPanel right = new() { VerticalAlignment = VerticalAlignment.Top };
         Grid.SetColumn(right, 1);
         row.Children.Add(right);
 
@@ -237,7 +237,7 @@ public sealed partial class BrightnessSettingsWindow
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         grid.Children.Add(title);
 
-        Grid dateControl = new() { Width = 122, Height = 32, };
+        Grid dateControl = new() { Width = 122, Height = 32 };
         dateControl.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(94)));
         dateControl.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(28)));
 
@@ -309,7 +309,7 @@ public sealed partial class BrightnessSettingsWindow
             FirstDayOfWeek = System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek,
             IsTodayHighlighted = true,
             SelectedDate = _environmentalSunOverlayDate,
-            SelectionMode = CalendarSelectionMode.SingleDate,
+            SelectionMode = CalendarSelectionMode.SingleDate
         };
         calendar.SelectedDatesChanged += OnEnvironmentalSunOverlayCalendarSelectedDatesChanged;
         calendar.PointerReleased += OnEnvironmentalSunOverlayCalendarPointerReleased;
@@ -330,7 +330,7 @@ public sealed partial class BrightnessSettingsWindow
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(6),
             Margin = new Thickness(8),
-            Child = calendar,
+            Child = calendar
         };
 
         return new Popup
@@ -339,7 +339,7 @@ public sealed partial class BrightnessSettingsWindow
             Placement = PlacementMode.BottomEdgeAlignedRight,
             VerticalOffset = 4,
             IsLightDismissEnabled = true,
-            Child = popupBorder,
+            Child = popupBorder
         };
     }
 
@@ -436,7 +436,7 @@ public sealed partial class BrightnessSettingsWindow
         approximate.Margin = new Thickness(0, 0, 0, 4);
         approximate.Click += async (_, _) => await ApproximateEnvironmentalLocationFromIPAsync(approximate);
         map.Click += (_, _) => OpenEnvironmentalMapPicker();
-        StackPanel buttons = new() { VerticalAlignment = VerticalAlignment.Bottom, Children = { approximate, map }, };
+        StackPanel buttons = new() { VerticalAlignment = VerticalAlignment.Bottom, Children = { approximate, map } };
         Grid.SetRow(buttons, 1);
         Grid.SetColumn(buttons, 0);
         panel.Children.Add(buttons);
@@ -534,6 +534,6 @@ public sealed partial class BrightnessSettingsWindow
             CornerRadius = RadiusLarge,
             Padding = padding,
             Margin = margin,
-            Child = content,
+            Child = content
         };
 }

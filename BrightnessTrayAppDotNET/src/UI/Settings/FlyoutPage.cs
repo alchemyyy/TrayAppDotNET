@@ -108,7 +108,7 @@ public sealed partial class BrightnessSettingsWindow
             [
                 (MasterSliderMode.Lowest, L("Settings_Flyout_MasterSliderTracking_Lowest", "Lowest")),
                 (MasterSliderMode.Average, L("Settings_Flyout_MasterSliderTracking_Average", "Average")),
-                (MasterSliderMode.Highest, L("Settings_Flyout_MasterSliderTracking_Highest", "Highest")),
+                (MasterSliderMode.Highest, L("Settings_Flyout_MasterSliderTracking_Highest", "Highest"))
             ],
             _settings.MasterSliderMode,
             v => _settings.MasterSliderMode = v,

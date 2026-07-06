@@ -362,7 +362,7 @@ public sealed partial class EnvironmentalCurveEditor
                     "Max brightness"),
                 (Series.NightLight, LimitKind.Min) => L("Settings_CurveEditor_LimitLabel_MinNightLight",
                     "Min night light"),
-                _ => L("Settings_CurveEditor_LimitLabel_MaxNightLight", "Max night light"),
+                _ => L("Settings_CurveEditor_LimitLabel_MaxNightLight", "Max night light")
             };
             Color color = WithOpacity(_palette.Foreground, active ? 1.0 : 0.7);
             FormattedText text = Text(label, TimeAxisLabelFontSize, color);

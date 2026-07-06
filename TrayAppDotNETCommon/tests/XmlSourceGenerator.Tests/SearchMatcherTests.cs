@@ -28,7 +28,7 @@ public sealed class SearchMatcherTests
         [
             "Package Temperature",
             "Temperature Package",
-            "Temp",
+            "Temp"
         ];
 
         List<string> ranked = SearchMatcher.FilterAndRank(items, "temp", static item => item);
@@ -45,7 +45,7 @@ public sealed class SearchMatcherTests
         [
             "CPU Package Temperature",
             "GPU Package Temperature",
-            "CPU Package Power",
+            "CPU Package Power"
         ];
 
         List<string> ranked = SearchMatcher.FilterAndRank(items, "cpu temp", static item => item);

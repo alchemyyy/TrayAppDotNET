@@ -17,7 +17,7 @@ public sealed class ProfileButtonSettings
     [XmlArrayItem("Glyph")]
     public List<string> DefaultGlyphs { get; set; } =
     [
-        "1", "2", "3", "4", "5", "6", "7", "8", "9",
+        "1", "2", "3", "4", "5", "6", "7", "8", "9"
     ];
 
     public string GetGlyph(int index, string? customGlyph = null)
@@ -121,7 +121,7 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
         {
             ThemeMode.Light => true,
             ThemeMode.Dark => false,
-            _ => systemIsLight,
+            _ => systemIsLight
         };
     }
 

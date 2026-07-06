@@ -16,7 +16,7 @@ public static class InputHelper
             usUsagePage = User32.HID_USAGE_PAGE_GENERIC,
             usUsage = User32.HID_USAGE_GENERIC_MOUSE,
             dwFlags = User32.RIDEV_INPUTSINK,
-            hwndTarget = handle,
+            hwndTarget = handle
         };
 
         bool registered = RegisterRawInputDevice(device);
@@ -32,7 +32,7 @@ public static class InputHelper
             usUsagePage = User32.HID_USAGE_PAGE_GENERIC,
             usUsage = User32.HID_USAGE_GENERIC_MOUSE,
             dwFlags = User32.RIDEV_REMOVE,
-            hwndTarget = IntPtr.Zero,
+            hwndTarget = IntPtr.Zero
         };
 
         bool unregistered = RegisterRawInputDevice(device);

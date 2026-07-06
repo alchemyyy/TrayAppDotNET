@@ -27,19 +27,19 @@ internal static class CfgMgr32
     // DEVPKEY_Bluetooth_Battery: {104ea319-6ee2-4701-bd47-8ddbf425bbe5} pid 2. Byte 0-100.
     public static readonly DEVPROPKEY DEVPKEY_Bluetooth_Battery = new()
     {
-        fmtid = new Guid(0x104EA319, 0x6EE2, 0x4701, 0xBD, 0x47, 0x8D, 0xDB, 0xF4, 0x25, 0xBB, 0xE5), pid = 2,
+        fmtid = new Guid(0x104EA319, 0x6EE2, 0x4701, 0xBD, 0x47, 0x8D, 0xDB, 0xF4, 0x25, 0xBB, 0xE5), pid = 2
     };
 
     // DEVPKEY_Device_ContainerId: {8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c} pid 2. 16-byte GUID.
     public static readonly DEVPROPKEY DEVPKEY_Device_ContainerId = new()
     {
-        fmtid = new Guid(0x8C7ED206, 0x3F8A, 0x4827, 0xB3, 0xAB, 0xAE, 0x9E, 0x1F, 0xAE, 0xFC, 0x6C), pid = 2,
+        fmtid = new Guid(0x8C7ED206, 0x3F8A, 0x4827, 0xB3, 0xAB, 0xAE, 0x9E, 0x1F, 0xAE, 0xFC, 0x6C), pid = 2
     };
 
     // DEVPKEY_Device_ClassGuid: {a45c254e-df1c-4efd-8020-67d146a850e0} pid 10. 16-byte GUID.
     public static readonly DEVPROPKEY DEVPKEY_Device_ClassGuid = new()
     {
-        fmtid = new Guid(0xA45C254E, 0xDF1C, 0x4EFD, 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0), pid = 10,
+        fmtid = new Guid(0xA45C254E, 0xDF1C, 0x4EFD, 0x80, 0x20, 0x67, 0xD1, 0x46, 0xA8, 0x50, 0xE0), pid = 10
     };
 
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]

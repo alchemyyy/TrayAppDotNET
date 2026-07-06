@@ -107,6 +107,6 @@ public static class WindowsUninstallRegistry
         InstallScope.ProgramFiles => Registry.LocalMachine,
         _ => throw new ArgumentOutOfRangeException(
             nameof(scope),
-            $"WindowsUninstallRegistry does not apply to {scope}."),
+            $"WindowsUninstallRegistry does not apply to {scope}.")
     };
 }

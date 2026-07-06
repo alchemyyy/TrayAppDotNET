@@ -49,7 +49,7 @@ public sealed partial class BrightnessSettingsWindow
                 "Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts."),
             [
                 (ContextMenuPosition.Classic, L("Settings_TrayIcon_MenuPosition_Classic", "Classic")),
-                (ContextMenuPosition.Modern, L("Settings_TrayIcon_MenuPosition_Modern", "Modern")),
+                (ContextMenuPosition.Modern, L("Settings_TrayIcon_MenuPosition_Modern", "Modern"))
             ],
             _settings.ContextMenuPosition,
             v => _settings.ContextMenuPosition = v,
@@ -126,13 +126,13 @@ public sealed partial class BrightnessSettingsWindow
             L("Settings_TrayIcon_ClickAction_AllDisplaysOff", "Turn off all displays")),
         (TrayClickAction.TurnOnAllDisplays, L("Settings_TrayIcon_ClickAction_AllDisplaysOn", "Turn on all displays")),
         (TrayClickAction.FullBright, L("Settings_TrayIcon_ClickAction_FullBright", "Full bright")),
-        (TrayClickAction.FullDim, L("Settings_TrayIcon_ClickAction_FullDim", "Full dim")),
+        (TrayClickAction.FullDim, L("Settings_TrayIcon_ClickAction_FullDim", "Full dim"))
     ];
 
     private static IReadOnlyList<(TrayWheelTarget Value, string Text)> TrayWheelOptions() =>
     [
         (TrayWheelTarget.Nothing, L("Settings_TrayIcon_WheelAction_Nothing", "Nothing")),
         (TrayWheelTarget.Brightness, L("Settings_TrayIcon_WheelAction_Brightness", "Brightness")),
-        (TrayWheelTarget.NightLight, L("Settings_TrayIcon_WheelAction_NightLight", "Night Light")),
+        (TrayWheelTarget.NightLight, L("Settings_TrayIcon_WheelAction_NightLight", "Night Light"))
     ];
 }

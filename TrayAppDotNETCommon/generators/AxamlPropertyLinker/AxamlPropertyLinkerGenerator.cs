@@ -533,7 +533,7 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         Thickness,
         CornerRadius,
         Color,
-        TranslateTransform,
+        TranslateTransform
     }
 
     private sealed class AxamlClassModel(

@@ -87,7 +87,7 @@ public sealed class FanDragInstrumentationTests
         Fan fan = new()
         {
             FansName = "Fan A",
-            DataSourceKey = "Fan A",
+            DataSourceKey = "Fan A"
         };
         FanFlyoutCell cell = new(null, [fan]);
         Border visual = new();
@@ -126,7 +126,7 @@ public sealed class FanDragInstrumentationTests
                     0,
                     0,
                     80,
-                    true),
+                    true)
             ],
             [],
             [.. debugMarkers.Select(marker => new FanDragInstrumentationDebugMarker(marker.Y, marker.Placement))],

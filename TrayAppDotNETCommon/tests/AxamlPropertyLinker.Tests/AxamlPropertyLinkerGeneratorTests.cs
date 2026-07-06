@@ -21,7 +21,7 @@ public sealed class AxamlPropertyLinkerGeneratorTests
             SampleSource,
             [
                 new AxamlTestFile("FlyoutButton.axaml", ResourceDictionaryAxaml),
-                new AxamlTestFile("SampleWindow.axaml", ControlAxaml),
+                new AxamlTestFile("SampleWindow.axaml", ControlAxaml)
             ]);
 
         string generatedSource = string.Join(
@@ -50,7 +50,7 @@ public sealed class AxamlPropertyLinkerGeneratorTests
             SampleSource,
             [
                 new AxamlTestFile("FlyoutButton.axaml", ResourceDictionaryAxaml),
-                new AxamlTestFile("SampleWindow.axaml", ControlAxaml),
+                new AxamlTestFile("SampleWindow.axaml", ControlAxaml)
             ]);
 
         Type resourcesType = generated.Assembly.GetRequiredType("Samples.FlyoutButtonResources");
@@ -334,7 +334,7 @@ internal sealed class TestAnalyzerConfigOptionsProvider(string rootNamespace) : 
     private readonly AnalyzerConfigOptions _globalOptions = new TestAnalyzerConfigOptions(new Dictionary<string, string>
     {
         ["build_property.RootNamespace"] = rootNamespace,
-        ["build_property.MSBuildProjectName"] = rootNamespace,
+        ["build_property.MSBuildProjectName"] = rootNamespace
     });
 
     public override AnalyzerConfigOptions GlobalOptions => _globalOptions;

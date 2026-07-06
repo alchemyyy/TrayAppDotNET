@@ -19,7 +19,7 @@ public static class TrayAppDotNETAXAMLResources
         {
             SettingsWindowCommonResourcesUri => new SettingsWindowCommonResources(),
             CommonBindingsResourcesUri => new CommonBindingsResources(),
-            _ => throw new InvalidOperationException($"Unknown AXAML resource dictionary '{resourceUri}'."),
+            _ => throw new InvalidOperationException($"Unknown AXAML resource dictionary '{resourceUri}'.")
         };
 
         owner.Resources.MergedDictionaries.Add(dictionary);

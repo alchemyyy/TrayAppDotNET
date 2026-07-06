@@ -23,7 +23,7 @@ public enum NetworkIconState
     Wifi1BarNoInternet,
     Wifi2BarsNoInternet,
     Wifi3BarsNoInternet,
-    Wifi4BarsNoInternet,
+    Wifi4BarsNoInternet
 }
 
 /// <summary>
@@ -45,7 +45,7 @@ public enum FlyoutStyle
     AvailableNetworks,
 
     // ms-settings:network-wifi URI
-    Settings,
+    Settings
 }
 
 /// <summary>
@@ -57,5 +57,5 @@ public enum AdapterSettingsStyle
     ControlPanel,
 
     // Network Connections opened as a folder via shell GUID under Explorer.
-    Explorer,
+    Explorer
 }
