@@ -570,7 +570,7 @@ public sealed partial class EnvironmentalCurveEditor
         const double gap = 6.0;
         double left = SampleCurveAt(series, Math.Max(0.0, t - 0.01));
         double right = SampleCurveAt(series, Math.Min(1.0, t + 0.01));
-        double slope = (double.IsNaN(left) || double.IsNaN(right)) ? 0.0 : right - left;
+        double slope = double.IsNaN(left) || double.IsNaN(right) ? 0.0 : right - left;
         double x = slope > 0 ? center.X - gap - label.Width : center.X + gap;
         double y = center.Y - label.Height - 2.0;
         if (y < plot.Top) y = center.Y + 5.0;

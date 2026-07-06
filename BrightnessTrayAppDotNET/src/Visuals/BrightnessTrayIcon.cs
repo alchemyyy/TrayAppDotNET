@@ -168,9 +168,9 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         brightnessPercent = Math.Clamp(brightnessPercent, 0, 100);
 
         double t = brightnessPercent / 100.0;
-        double x = (2 * t) - 1;
+        double x = 2 * t - 1;
         const double ratio = 0.75;
-        double dSquared = 1 - (ratio * ratio * (1 - (x * x)));
+        double dSquared = 1 - ratio * ratio * (1 - x * x);
         double d = dSquared > 0 ? Math.Sqrt(dSquared) : 0;
         double eclipseOffset = (x + d) * 50;
 
@@ -250,8 +250,8 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         if (glyphPath.IsEmpty) return null;
 
         SKRect bounds = glyphPath.Bounds;
-        float centerOffsetX = ((canvasSize - bounds.Width) / 2f) - bounds.Left;
-        float centerOffsetY = ((canvasSize - bounds.Height) / 2f) - bounds.Top;
+        float centerOffsetX = (canvasSize - bounds.Width) / 2f - bounds.Left;
+        float centerOffsetY = (canvasSize - bounds.Height) / 2f - bounds.Top;
         float radius = Math.Min(bounds.Width, bounds.Height) / 2f;
         float offsetX = (float)(offsetXPercent / 100.0) * radius * 2f;
         float offsetY = (float)(offsetYPercent / 100.0) * radius * 2f;

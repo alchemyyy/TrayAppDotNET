@@ -33,8 +33,8 @@ internal static class Observer
         double deltaRad = MathUtils.Deg2Rad(delta);
 
         double u = Math.Atan(0.99664719 * Math.Tan(latRad));
-        double y = 0.99664719 * Math.Sin(u) + (elevation * Math.Sin(latRad)) / 6378140.0;
-        double x = Math.Cos(u) + (elevation * Math.Cos(latRad)) / 6378140.0;
+        double y = 0.99664719 * Math.Sin(u) + elevation * Math.Sin(latRad) / 6378140.0;
+        double x = Math.Cos(u) + elevation * Math.Cos(latRad) / 6378140.0;
 
         double deltaAlphaRad = Math.Atan2(
             -x * Math.Sin(xiRad) * Math.Sin(hRad),
@@ -73,7 +73,7 @@ internal static class Observer
     {
         if (e0 < -1 * (SPAConstants.SunRadius + atmosphericRefraction)) return 0.0;
 
-        return (pressure / 1010.0)
+        return pressure / 1010.0
                * (283.0 / (273.0 + temperature))
                * (1.02 / (60.0 * Math.Tan(MathUtils.Deg2Rad(e0 + 10.3 / (e0 + 5.11)))));
     }

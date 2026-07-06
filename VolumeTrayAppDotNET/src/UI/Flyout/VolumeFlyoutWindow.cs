@@ -286,7 +286,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void ApplyWorkAreaMaxHeight()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - (EdgePadding * 2));
+        MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
     }
 
     private void StartFlyoutActivity()
@@ -2457,7 +2457,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
         return Math.Max(Layout.WorkAreaMinHeight,
-            workArea.Height / RenderScaling - (EdgePadding * 2) - Layout.ContentHeightReserve);
+            workArea.Height / RenderScaling - EdgePadding * 2 - Layout.ContentHeightReserve);
     }
 
     private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)

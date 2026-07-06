@@ -40,17 +40,17 @@ public readonly record struct MercatorMapProjection(
         double x = Math.Clamp(point.X, 0.0, Width);
         double y = Math.Clamp(point.Y, 0.0, Height);
 
-        double longitude = MinimumLongitude + (x / Width * (MaximumLongitude - MinimumLongitude));
+        double longitude = MinimumLongitude + x / Width * (MaximumLongitude - MinimumLongitude);
         double mercatorTop = LatitudeToMercatorY(MaximumLatitude);
         double mercatorBottom = LatitudeToMercatorY(MinimumLatitude);
-        double mercatorLatitude = mercatorTop - (y / Height * (mercatorTop - mercatorBottom));
+        double mercatorLatitude = mercatorTop - y / Height * (mercatorTop - mercatorBottom);
         double latitude = MercatorYToLatitude(mercatorLatitude);
         return new GeoCoordinate(latitude, longitude);
     }
 
     public static double LatitudeToMercatorY(double latitudeDegrees) =>
-        Math.Log(Math.Tan((Math.PI / 4.0) + (latitudeDegrees * Math.PI / 180.0 / 2.0)));
+        Math.Log(Math.Tan(Math.PI / 4.0 + latitudeDegrees * Math.PI / 180.0 / 2.0));
 
     public static double MercatorYToLatitude(double mercatorY) =>
-        (2.0 * Math.Atan(Math.Exp(mercatorY)) - (Math.PI / 2.0)) * 180.0 / Math.PI;
+        (2.0 * Math.Atan(Math.Exp(mercatorY)) - Math.PI / 2.0) * 180.0 / Math.PI;
 }

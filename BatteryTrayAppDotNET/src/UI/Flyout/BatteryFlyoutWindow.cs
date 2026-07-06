@@ -33,7 +33,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private const double BatteryTitleTopOffset = -4;
     private const double BatteryContentWidth = FlyoutWidth - 26;
     private const double BatteryBarHorizontalInset = 19;
-    private const double BatteryBarWidth = FlyoutWidth - (2 * BatteryBarHorizontalInset);
+    private const double BatteryBarWidth = FlyoutWidth - 2 * BatteryBarHorizontalInset;
     private const double BatteryBarHeight = 14;
     private const string UltimatePowerSchemeGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
     private const string UltimatePowerSchemeName = "Ultimate Performance";
@@ -570,7 +570,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private void ApplyWorkAreaMaxHeight()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        MaxHeight = workArea.Height / RenderScaling - (2 * EdgePadding);
+        MaxHeight = workArea.Height / RenderScaling - 2 * EdgePadding;
     }
 
     private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition() =>

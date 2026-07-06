@@ -42,7 +42,7 @@ public static class TimeCurveSampler
 
         double[] tangents = ComputeMonotonicTangents(timePoints, valuePoints);
         double cubic = InterpolateMonotonicCubic(timePoints, valuePoints, tangents, time);
-        return linear + ((cubic - linear) * blend);
+        return linear + (cubic - linear) * blend;
     }
 
     public static double InterpolateLinear(
@@ -66,7 +66,7 @@ public static class TimeCurveSampler
 
         double dx = timePoints[high] - timePoints[low];
         double t = dx > 0.0 ? (x - timePoints[low]) / dx : 0.0;
-        return valuePoints[low] + (t * (valuePoints[high] - valuePoints[low]));
+        return valuePoints[low] + t * (valuePoints[high] - valuePoints[low]);
     }
 
     public static double[] ComputeMonotonicTangents(
@@ -104,9 +104,9 @@ public static class TimeCurveSampler
                 continue;
             }
 
-            double w1 = (2.0 * intervals[i]) + intervals[i - 1];
-            double w2 = intervals[i] + (2.0 * intervals[i - 1]);
-            tangents[i] = (w1 + w2) / ((w1 / slopes[i - 1]) + (w2 / slopes[i]));
+            double w1 = 2.0 * intervals[i] + intervals[i - 1];
+            double w2 = intervals[i] + 2.0 * intervals[i - 1];
+            tangents[i] = (w1 + w2) / (w1 / slopes[i - 1] + w2 / slopes[i]);
         }
 
         tangents[0] = EndpointTangent(intervals[0], intervals[1], slopes[0], slopes[1]);
@@ -145,20 +145,20 @@ public static class TimeCurveSampler
         double t = (x - timePoints[low]) / h;
         double t2 = t * t;
         double t3 = t2 * t;
-        double h00 = (2.0 * t3) - (3.0 * t2) + 1.0;
-        double h10 = t3 - (2.0 * t2) + t;
-        double h01 = (-2.0 * t3) + (3.0 * t2);
+        double h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+        double h10 = t3 - 2.0 * t2 + t;
+        double h01 = -2.0 * t3 + 3.0 * t2;
         double h11 = t3 - t2;
 
-        return (h00 * valuePoints[low]) +
-               (h10 * h * tangents[low]) +
-               (h01 * valuePoints[high]) +
-               (h11 * h * tangents[high]);
+        return h00 * valuePoints[low] +
+               h10 * h * tangents[low] +
+               h01 * valuePoints[high] +
+               h11 * h * tangents[high];
     }
 
     private static double EndpointTangent(double hEnd, double hNext, double mEnd, double mNext)
     {
-        double tangent = (((2.0 * hEnd) + hNext) * mEnd - (hEnd * mNext)) / (hEnd + hNext);
+        double tangent = ((2.0 * hEnd + hNext) * mEnd - hEnd * mNext) / (hEnd + hNext);
         if (tangent * mEnd <= 0.0) return 0.0;
 
         double cap = 3.0 * Math.Abs(mEnd);

@@ -665,7 +665,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
 
         foreach (KeyValuePair<string, TypedConstant> named in attr.NamedArguments)
         {
-            if ((named.Key is "ElementName" or "AttributeName")
+            if (named.Key is "ElementName" or "AttributeName"
                 && named.Value.Value is string value
                 && !string.IsNullOrEmpty(value))
                 return value;

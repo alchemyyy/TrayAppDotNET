@@ -269,7 +269,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         if (!changed) return;
 
         TADNLog.LogDebug(
-            $"BluetoothBatteryMonitor: container={containerId} battery={(newValue?.ToString() ?? "<null>")}");
+            $"BluetoothBatteryMonitor: container={containerId} battery={newValue?.ToString() ?? "<null>"}");
 
         try { BatteryChanged?.Invoke(containerId, newValue); }
         catch (Exception ex) { TADNLog.Log($"BluetoothBatteryMonitor: subscriber threw: {ex.Message}"); }

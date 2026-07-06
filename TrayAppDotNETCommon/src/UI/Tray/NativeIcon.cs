@@ -51,7 +51,7 @@ public sealed class NativeIcon : IDisposable
 
         for (int i = 0; i < count; i++)
         {
-            int entry = 6 + (i * 16);
+            int entry = 6 + i * 16;
             if (entry + 16 > icoBytes.Length) break;
 
             int width = icoBytes[entry] == 0 ? 256 : icoBytes[entry];

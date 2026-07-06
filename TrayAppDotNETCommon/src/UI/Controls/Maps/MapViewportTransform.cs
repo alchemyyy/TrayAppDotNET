@@ -13,16 +13,16 @@ public readonly record struct MapViewportTransform(double Scale, Vector Offset)
 
     public Point MapToViewport(Point map) =>
         new(
-            (map.X * Scale) + Offset.X,
-            (map.Y * Scale) + Offset.Y);
+            map.X * Scale + Offset.X,
+            map.Y * Scale + Offset.Y);
 
     public MapViewportTransform ZoomAt(Point viewport, double factor, double minimumScale, double maximumScale)
     {
         Point mapBefore = ViewportToMap(viewport);
         double nextScale = Math.Clamp(Scale * factor, minimumScale, maximumScale);
         Vector nextOffset = new(
-            viewport.X - (mapBefore.X * nextScale),
-            viewport.Y - (mapBefore.Y * nextScale));
+            viewport.X - mapBefore.X * nextScale,
+            viewport.Y - mapBefore.Y * nextScale);
         return new MapViewportTransform(nextScale, nextOffset);
     }
 
@@ -43,7 +43,7 @@ public readonly record struct MapViewportTransform(double Scale, Vector Offset)
         if (thresholdX > 0.0)
         {
             if (viewport.X < thresholdX)
-                dx = peakSpeed * EdgeRamp(1.0 - (viewport.X / thresholdX));
+                dx = peakSpeed * EdgeRamp(1.0 - viewport.X / thresholdX);
             else if (viewport.X > viewportSize.Width - thresholdX)
                 dx = -peakSpeed * EdgeRamp((viewport.X - (viewportSize.Width - thresholdX)) / thresholdX);
         }
@@ -51,7 +51,7 @@ public readonly record struct MapViewportTransform(double Scale, Vector Offset)
         if (thresholdY > 0.0)
         {
             if (viewport.Y < thresholdY)
-                dy = peakSpeed * EdgeRamp(1.0 - (viewport.Y / thresholdY));
+                dy = peakSpeed * EdgeRamp(1.0 - viewport.Y / thresholdY);
             else if (viewport.Y > viewportSize.Height - thresholdY)
                 dy = -peakSpeed * EdgeRamp((viewport.Y - (viewportSize.Height - thresholdY)) / thresholdY);
         }

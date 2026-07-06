@@ -195,7 +195,7 @@ public static class SearchMatcher
 
         if (tokenIndex != token.Length) return false;
 
-        score = token.Length - (firstMatch * StartPenalty) - (gapTotal * GapPenalty);
+        score = token.Length - firstMatch * StartPenalty - gapTotal * GapPenalty;
         return true;
     }
 

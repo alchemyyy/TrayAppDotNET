@@ -24,7 +24,7 @@ internal static class NightLightKelvin
     /// </summary>
     public static int KelvinToPercent(int kelvin)
     {
-        int percent = 100 - ((kelvin - MinKelvin) * 100) / (MaxKelvin - MinKelvin);
+        int percent = 100 - (kelvin - MinKelvin) * 100 / (MaxKelvin - MinKelvin);
         return Math.Clamp(percent, 0, 100);
     }
 }

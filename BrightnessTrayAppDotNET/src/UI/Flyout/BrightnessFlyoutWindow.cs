@@ -910,7 +910,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         bool crowded = (_settings?.ShowEnvironmentalCurvesButton ?? true)
                        && (_settings?.ShowFlyoutFooterPowerButton ?? false)
                        && (_settings?.ShowFlyoutDisplaySettingsButton ?? true)
-                       && (_settings?.Autosave == false);
+                       && _settings?.Autosave == false;
         return crowded ? Layout.FooterPaddingCrowded : Layout.FooterPaddingNormal;
     }
 
@@ -2233,7 +2233,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     }
 
     private int FlipIfNightLightInverted(int value) =>
-        (_settings?.InvertNightLightSlider ?? false) ? 100 - value : value;
+        _settings?.InvertNightLightSlider ?? false ? 100 - value : value;
 
     private void RunPreviewSweep(EnvironmentalCurve? previewCurve, EnvironmentalCurve? disabledPeriodCurve)
     {
@@ -2902,7 +2902,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (monitor.IsNightLight && (_settings?.ShowNightLightKelvinLabel ?? false))
         {
             int strength = FlipIfNightLightInverted(monitor.RoundedBrightness);
-            string suffix = (_settings?.TurnOffNightLightAtZeroStrength == true && strength <= 0)
+            string suffix = _settings?.TurnOffNightLightAtZeroStrength == true && strength <= 0
                 ? L("NightLight_OffSuffix", "Off")
                 : $"{NightLightKelvin.PercentToKelvin(strength).ToString(CultureInfo.InvariantCulture)}K";
             return $"{monitor.Name} {suffix}";
@@ -2979,7 +2979,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     }
 
     private CornerRadius Rounded(CornerRadius radius) =>
-        (_settings?.EnableRoundedCorners ?? true) ? radius : Layout.ZeroCornerRadius;
+        _settings?.EnableRoundedCorners ?? true ? radius : Layout.ZeroCornerRadius;
 
     private static SettingsPalette CreateSettingsPalette(BrightnessAppTheme theme, AppSettings? settings, bool isLight)
     {
