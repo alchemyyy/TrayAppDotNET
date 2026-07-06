@@ -47,7 +47,7 @@ public sealed partial class NetworkSettingsWindow
             new TrayAppDotNETStoreInstallOptions(
                 Loc("Settings_General_WindowsStore_Title"),
                 StoreInstallDescription));
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
+        CreateRenderingSettingsSection(p).AddCards(stack);
 
         return stack;
     }
@@ -74,8 +74,8 @@ public sealed partial class NetworkSettingsWindow
             CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
-    private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETKeepWarmSettingsSectionOptions
+    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
+        new(new TrayAppDotNETRenderingSettingsSectionOptions
         {
             Palette = p,
             CardRadius = RadiusLarge,
@@ -83,8 +83,9 @@ public sealed partial class NetworkSettingsWindow
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
-            Settings = _settings,
-            SupportsTrayContextMenu = true
+            RenderingSettings = _settings,
+            WarmWindowSettings = _settings,
+            SupportsTrayContextMenuWarmWindow = true
         });
 
     private static string StoreInstallDescription()

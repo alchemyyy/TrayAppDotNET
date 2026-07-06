@@ -180,7 +180,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 }
             }
         ]);
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
+        CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(BoolCard(
             L("Settings_General_DefaultToRPMMode_Title", "Default to RPM mode"),
@@ -192,8 +192,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         return stack;
     }
 
-    private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETKeepWarmSettingsSectionOptions
+    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
+        new(new TrayAppDotNETRenderingSettingsSectionOptions
         {
             Palette = p,
             CardRadius = RadiusLarge,
@@ -201,9 +201,10 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
-            Settings = _settings,
-            SupportsFlyout = true,
-            SupportsTrayContextMenu = true
+            RenderingSettings = _settings,
+            WarmWindowSettings = _settings,
+            SupportsFlyoutWarmWindow = true,
+            SupportsTrayContextMenuWarmWindow = true
         });
 
     private StackPanel BuildFanPropertiesPage()

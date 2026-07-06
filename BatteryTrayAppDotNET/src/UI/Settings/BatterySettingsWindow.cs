@@ -160,7 +160,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 new TrayAppDotNETStoreInstallOptions(
                     L("Settings_General_WindowsStore_Title", "Windows Store"),
                     StoreInstallDescription));
-            CreateKeepWarmSettingsSection(p).AddCards(stack);
+            CreateRenderingSettingsSection(p).AddCards(stack);
 
             return stack;
         });
@@ -187,8 +187,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
-    private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETKeepWarmSettingsSectionOptions
+    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
+        new(new TrayAppDotNETRenderingSettingsSectionOptions
         {
             Palette = p,
             CardRadius = RadiusLarge,
@@ -196,9 +196,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
-            Settings = _settings,
-            SupportsFlyout = true,
-            SupportsTrayContextMenu = true
+            RenderingSettings = _settings,
+            WarmWindowSettings = _settings,
+            SupportsFlyoutWarmWindow = true,
+            SupportsTrayContextMenuWarmWindow = true
         });
 
     private static string StoreInstallDescription()

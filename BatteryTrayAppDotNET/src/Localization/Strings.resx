@@ -132,7 +132,34 @@
   <data name="Settings_Theme_Reset" xml:space="preserve">
     <value>Reset</value>
   </data>
+  <data name="Settings_General_Rendering_Header" xml:space="preserve">
+    <value>Rendering</value>
+  </data>
+  <data name="Settings_General_RenderingBackend_Title" xml:space="preserve">
+    <value>Rendering backend</value>
+  </data>
   <data name="Settings_General_RenderingBackend_Description" xml:space="preserve">
     <value>"GPU preferred" uses Avalonia's Windows GPU path with software fallback. "Software" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required.</value>
+  </data>
+  <data name="Settings_General_RenderingBackend_GPUPreferred" xml:space="preserve">
+    <value>GPU preferred</value>
+  </data>
+  <data name="Settings_General_RenderingBackend_Software" xml:space="preserve">
+    <value>Software</value>
+  </data>
+  <data name="Settings_General_RenderingRestart_Title" xml:space="preserve">
+    <value>Restart required</value>
+  </data>
+  <data name="Settings_General_RenderingRestart_Message" xml:space="preserve">
+    <value>Restart the app now to apply the selected rendering backend?</value>
+  </data>
+  <data name="Settings_General_RenderingRestart_Button" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="Settings_General_NotNow_Button" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Settings_General_RestartFailed_Title" xml:space="preserve">
+    <value>Restart failed</value>
   </data>
 </root>

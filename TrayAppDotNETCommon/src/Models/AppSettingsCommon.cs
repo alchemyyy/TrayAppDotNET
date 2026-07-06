@@ -35,9 +35,13 @@ public interface ITrayAppDotNETUpdateSettings
     int UpdateCheckIntervalMs { get; set; }
 }
 
-public interface ITrayAppDotNETKeepWarmSettings
+public interface ITrayAppDotNETRenderingSettings
 {
     TrayAppDotNETRenderingBackend RenderingBackend { get; set; }
+}
+
+public interface ITrayAppDotNETWarmWindowSettings
+{
     bool KeepFlyoutWarm { get; set; }
     bool KeepTrayContextMenuWarm { get; set; }
 }
@@ -46,7 +50,8 @@ public abstract class AppSettingsCommon(
     int updateCheckIntervalDefaultMs,
     TrayAppDotNETRenderingBackend renderingBackendDefault = TrayAppDotNETRenderingBackend.GPUPreferred)
     : INotifyPropertyChanged,
-    ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings, ITrayXmlSerializationCallbacks
+    ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
+    ITrayXmlSerializationCallbacks
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 

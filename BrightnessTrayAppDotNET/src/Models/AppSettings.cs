@@ -228,7 +228,7 @@ public class KnownDisplayEntry
 /// Root application settings class.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmSettings,
+public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
     ITrayXmlSerializationCallbacks
 {
     // General

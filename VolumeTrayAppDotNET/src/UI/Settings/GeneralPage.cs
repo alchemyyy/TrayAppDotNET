@@ -54,7 +54,7 @@ public sealed partial class VolumeSettingsWindow
             new TrayAppDotNETStoreInstallOptions(
                 Loc("Settings_General_WindowsStore_Title"),
                 StoreInstallDescription));
-        CreateKeepWarmSettingsSection(p).AddCards(stack);
+        CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_General_Notifications_Header"), p));
         stack.Children.Add(BoolCard(
@@ -136,8 +136,8 @@ public sealed partial class VolumeSettingsWindow
             CurrentBuildNumber = BuildInfo.BuildNumber
         });
 
-    private TrayAppDotNETKeepWarmSettingsSection CreateKeepWarmSettingsSection(SettingsPalette p) =>
-        new(new TrayAppDotNETKeepWarmSettingsSectionOptions
+    private TrayAppDotNETRenderingSettingsSection CreateRenderingSettingsSection(SettingsPalette p) =>
+        new(new TrayAppDotNETRenderingSettingsSectionOptions
         {
             Palette = p,
             CardRadius = RadiusLarge,
@@ -145,9 +145,10 @@ public sealed partial class VolumeSettingsWindow
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
-            Settings = _settings,
-            SupportsFlyout = true,
-            SupportsTrayContextMenu = true
+            RenderingSettings = _settings,
+            WarmWindowSettings = _settings,
+            SupportsFlyoutWarmWindow = true,
+            SupportsTrayContextMenuWarmWindow = true
         });
 
     private static string StoreInstallDescription()
