@@ -104,10 +104,8 @@ public sealed class AppSettings : AppSettingsCommon
     } = CreateDefaultTriggers();
 
     public AppSettings()
-        : base(TimeConstants.UpdateCheckIntervalDefaultMs)
-    {
+        : base(TimeConstants.UpdateCheckIntervalDefaultMs) =>
         WireColorCallbacks();
-    }
 
     public override void OnTrayXmlDeserialized()
     {

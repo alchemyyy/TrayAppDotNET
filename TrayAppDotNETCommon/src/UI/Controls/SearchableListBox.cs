@@ -316,10 +316,7 @@ public sealed class SettingsSearchableListBox : Grid
     /// <summary>
     /// Handles a newly added item.
     /// </summary>
-    internal void OnItemAdded(SettingsSearchableListBoxItem item)
-    {
-        RebuildItems();
-    }
+    internal void OnItemAdded(SettingsSearchableListBoxItem item) => RebuildItems();
 
     /// <summary>
     /// Handles an item removal.
@@ -488,10 +485,7 @@ public sealed class SettingsSearchableListBox : Grid
     /// <summary>
     /// Enables the clear button only when a query exists.
     /// </summary>
-    private void UpdateClearButton()
-    {
-        _clearButton.IsEnabled = !string.IsNullOrEmpty(_searchBox.Text);
-    }
+    private void UpdateClearButton() => _clearButton.IsEnabled = !string.IsNullOrEmpty(_searchBox.Text);
 
     /// <summary>
     /// Scrolls after layout has measured rebuilt rows.

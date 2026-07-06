@@ -8,8 +8,5 @@ public sealed partial class CommonBindingsResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled common-binding resource dictionary.
     /// </summary>
-    public CommonBindingsResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public CommonBindingsResources() => AvaloniaXamlLoader.Load(this);
 }

@@ -8,8 +8,5 @@ public sealed partial class CardsResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled settings-card resource dictionary.
     /// </summary>
-    public CardsResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public CardsResources() => AvaloniaXamlLoader.Load(this);
 }

@@ -32,10 +32,7 @@ public sealed class BatteryMonitorService : IDisposable
         ForceRefresh();
     }
 
-    public void ForceRefresh()
-    {
-        _ = PollOnceAsync(CancellationToken.None);
-    }
+    public void ForceRefresh() => _ = PollOnceAsync(CancellationToken.None);
 
     private async Task PollLoopAsync(CancellationToken token)
     {

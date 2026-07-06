@@ -304,10 +304,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         }
     }
 
-    private void RefreshStartupDescription()
-    {
-        _startupDescription?.Text = RunOnStartupDescription();
-    }
+    private void RefreshStartupDescription() => _startupDescription?.Text = RunOnStartupDescription();
 
     private void RefreshRows()
     {

@@ -9,10 +9,7 @@ internal sealed class ProbeNicknameResolver
 {
     private readonly IReadOnlyList<CompiledProbeNicknameRule> _rules;
 
-    private ProbeNicknameResolver(IReadOnlyList<CompiledProbeNicknameRule> rules)
-    {
-        _rules = rules;
-    }
+    private ProbeNicknameResolver(IReadOnlyList<CompiledProbeNicknameRule> rules) => _rules = rules;
 
     public static ProbeNicknameResolver Empty { get; } = new([]);
 

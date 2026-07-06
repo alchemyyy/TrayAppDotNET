@@ -8,8 +8,5 @@ public sealed partial class SettingsUIResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled settings-UI resource dictionary.
     /// </summary>
-    public SettingsUIResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public SettingsUIResources() => AvaloniaXamlLoader.Load(this);
 }

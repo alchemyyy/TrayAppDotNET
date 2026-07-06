@@ -8,8 +8,5 @@ public sealed partial class TrayAppDotNETAboutPageResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled about-page resource dictionary.
     /// </summary>
-    public TrayAppDotNETAboutPageResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public TrayAppDotNETAboutPageResources() => AvaloniaXamlLoader.Load(this);
 }

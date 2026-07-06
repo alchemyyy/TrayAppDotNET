@@ -8,8 +8,5 @@ public sealed partial class FlyoutSliderResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled flyout-slider resource dictionary.
     /// </summary>
-    public FlyoutSliderResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public FlyoutSliderResources() => AvaloniaXamlLoader.Load(this);
 }

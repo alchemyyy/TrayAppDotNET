@@ -305,10 +305,7 @@ internal static class AdapterSettingsShellMonitor
             _winEventProc = OnWinEvent;
         }
 
-        public void Start()
-        {
-            new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsProcessMonitor", }.Start();
-        }
+        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsProcessMonitor", }.Start();
 
         public void WaitForReady() => _ready.Wait();
 
@@ -399,10 +396,7 @@ internal static class AdapterSettingsShellMonitor
             _winEventProc = OnWinEvent;
         }
 
-        public void Start()
-        {
-            new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsMainWindowMonitor", }.Start();
-        }
+        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsMainWindowMonitor", }.Start();
 
         private void RunMessageLoop()
         {
@@ -480,10 +474,7 @@ internal static class AdapterSettingsShellMonitor
             _winEventProc = OnWinEvent;
         }
 
-        public void Start()
-        {
-            new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsWindowDestroyMonitor", }.Start();
-        }
+        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsWindowDestroyMonitor", }.Start();
 
         private void RunMessageLoop()
         {

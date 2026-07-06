@@ -8,8 +8,5 @@ public sealed partial class FlyoutUndockButtonResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled flyout-undock-button resource dictionary.
     /// </summary>
-    public FlyoutUndockButtonResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public FlyoutUndockButtonResources() => AvaloniaXamlLoader.Load(this);
 }

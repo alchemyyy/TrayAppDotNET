@@ -8,8 +8,5 @@ public sealed partial class DialogChromeResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled dialog-chrome resource dictionary.
     /// </summary>
-    public DialogChromeResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public DialogChromeResources() => AvaloniaXamlLoader.Load(this);
 }

@@ -8,8 +8,5 @@ public sealed partial class SettingsWindowCommonResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled settings-window resource dictionary.
     /// </summary>
-    public SettingsWindowCommonResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public SettingsWindowCommonResources() => AvaloniaXamlLoader.Load(this);
 }
