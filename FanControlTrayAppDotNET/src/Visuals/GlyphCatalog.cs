@@ -16,54 +16,45 @@ internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
     public new const string INFO = CommonGlyphCatalog.INFO;
     public new const string EXIT = CommonGlyphCatalog.EXIT;
     public new const string WARNING = CommonGlyphCatalog.WARNING;
+    public new const string UNDOCK = CommonGlyphCatalog.UNDOCK;
+    public new const string REDOCK = CommonGlyphCatalog.REDOCK;
+
     public const string FAN = "\U000F1111"; // FanFont.ttf U+F1111
-    public const string VOLTAGE = "\uE945"; // Lightning Bolt
-    public const string LOAD = "\uEAFC"; // Market
-    public const string WATTAGE = "\uECAD"; // Calories
+    public const string VOLTAGE = "\uE945"; // Fluent, LightningBolt
+    public const string LOAD = "\uEAFC"; // Fluent, Market
+    public const string WATTAGE = "\uECAD"; // Fluent, Calories
     public const string TEMPERATURE = PROBE; // Frigid
-    public const string CLOCK = "\uE916"; // Stopwatch
+    public const string CLOCK = "\uE916"; // Fluent, Stopwatch
 
-    public const string ARROW_LEFT = "\uF0D5"; // Chrome Back Contrast
-    public const string ARROW_RIGHT = "\uF0D6"; // Chrome Back Contrast Mirrored
+    public const string ARROW_LEFT = "\uF0D5"; // Fluent, ChromeBackContrast
+    public const string ARROW_RIGHT = "\uF0D6"; // Fluent, ChromeBackContrastMirrored
 
-    public const string CURVE_WINDOW = "\uE9E9"; // Equalizer
-    public const string ADD = "\uE710"; // Add
-    public const string CHECK = "\uE8FB"; // Accept
-    public const string GROUP = "\uE81E"; // Map Layers
-    public const string PROBE = "\uE9CA"; // Frigid
+    public const string CURVE_WINDOW = "\uE9E9"; // Fluent, Equalizer
+    public const string ADD = "\uE710"; // Fluent, Add
+    public const string CHECK = "\uE8FB"; // Fluent, Accept
+    public const string GROUP = "\uE81E"; // Fluent, MapLayers
+    public const string PROBE = "\uE9CA"; // Fluent, Frigid
     public const string DELETE = "\uE653"; // Close
     public const string CLOSE = DELETE;
-    public const string VIEW = "\uE890"; // View
-    public const string HIDE = "\uED1A"; // Hide
-    public const string DRAG_HANDLE = "\uE700"; // GlobalNavButton
+    public const string VIEW = "\uE890"; // Fluent, View
+    public const string HIDE = "\uED1A"; // Fluent, Hide
+    public const string DRAG_HANDLE = "\uE700"; // Fluent, GlobalNavButton
 
-    public const string PIN = "\uE718"; // Pin
-    public const string PINNED = "\uE840"; // Pinned
+    public const string PIN = "\uE718"; // Fluent, Pin
+    public const string PINNED = "\uE840"; // Fluent, Pinned
 
-    public const string COLLAPSED = "\uE96D"; // Chevron Up Small
-    public const string EXPANDED = "\uE96E"; // Chevron Down Small
+    public const string COLLAPSED = "\uE96D"; // Fluent, ChevronUpSmall
+    public const string EXPANDED = "\uE96E"; // Fluent, ChevronDownSmall
 
-    // Flyout text glyphs. These are rendered through IconFontFamily in XAML.
-    public const string FLYOUT_FAN_GROUP = "\uF246"; // Folder-like
-    public const string FLYOUT_FAN_CONTROL_MODE_MANUAL = "\uE72E"; // Lock
-    public const string FLYOUT_FAN_CONTROL_MODE_CURVE = "\uE785"; // Unlock
-    public const string FLYOUT_UNDOCK = "\uE8A0"; // Undock arrows
-    public const string FLYOUT_REDOCK = "\uE8A2";
 
-    // Flyout undock / redock arrows. DOCK is shown when the flyout is currently docked (click to
-    // undock), UNDOCK is shown when it is currently undocked (click to redock). The aliases below
-    // are what the XAML DataTrigger toggles between, so the codepoints can be swapped without
-    // touching markup.
-    public const string DOCK = CommonGlyphCatalog.FLYOUT_UNDOCK_ACTION;
-    public const string UNDOCK = CommonGlyphCatalog.FLYOUT_REDOCK_ACTION;
-    public new const string FLYOUT_UNDOCK_ACTION = DOCK;
-    public new const string FLYOUT_REDOCK_ACTION = UNDOCK;
+    public const string FLYOUT_FAN_CONTROL_MODE_MANUAL = "\uE72E"; // Fluent, Lock
+    public const string FLYOUT_FAN_CONTROL_MODE_CURVE = "\uE785"; // Fluent, Unlock
 
     // Slider-thumb glyph defaults. Picked from Segoe Fluent Icons so we ship a working catalog
     // without an external font asset.
     public const string CIRCLE = CommonGlyphCatalog.SLIDER_THUMB_CIRCLE;
-    public const string DIAMOND = "\uEB4B"; // Diamond
-    public const string STAR = "\uE735"; // FavoriteStarFill
+    public const string DIAMOND = "\uEB4B"; // Fluent, EndPointSolid
+    public const string STAR = "\uE735"; // Fluent, FavoriteStarFill
     public const string SQUARE = "\uE003"; // CheckboxFill (square)
-    public const string HEART = "\uEB52"; // HeartFill
+    public const string HEART = "\uEB52"; // Fluent, HeartFill
 }

@@ -105,7 +105,7 @@ public sealed class FlyoutUndockButtonController
     }
 
     private string GlyphText() =>
-        _isUndocked() ? GlyphCatalog.FLYOUT_REDOCK_ACTION : GlyphCatalog.FLYOUT_UNDOCK_ACTION;
+        _isUndocked() ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private void WireButton()
     {

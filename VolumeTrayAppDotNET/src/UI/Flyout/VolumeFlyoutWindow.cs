@@ -483,10 +483,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private void BeginVolumeSliderDrag()
-    {
-        _activeVolumeSliderDragCount++;
-    }
+    private void BeginVolumeSliderDrag() => _activeVolumeSliderDragCount++;
 
     private void EndVolumeSliderDrag()
     {
@@ -1637,7 +1634,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         bool hasGroups = groups.Count > 0;
         bool expanded = IsAppDrawerExpanded(device);
-        Border button = DeviceIconButton(expanded ? GlyphCatalog.CHEVRON_UP : GlyphCatalog.CHEVRON_DOWN, p, () =>
+        Border button = DeviceIconButton(expanded ? GlyphCatalog.CHEVRON_UP_BIG : GlyphCatalog.CHEVRON_DOWN_BIG, p, () =>
         {
             if (!hasGroups) return;
             SetAppDrawerExpanded(device, !expanded);
@@ -1981,7 +1978,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     private string UndockButtonGlyph() =>
-        _isUndocked ? GlyphCatalog.FLYOUT_REDOCK_ACTION : GlyphCatalog.FLYOUT_UNDOCK_ACTION;
+        _isUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private string UndockButtonTooltip() =>
         _isUndocked ? L("Flyout_Redock_Tooltip", "Redock") : L("Flyout_Undock_Tooltip", "Undock");
@@ -2608,17 +2605,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         index = Math.Clamp(index, 0, 10);
         return index switch
         {
-            0 => GlyphCatalog.BATTERY_0,
-            1 => GlyphCatalog.BATTERY_1,
-            2 => GlyphCatalog.BATTERY_2,
-            3 => GlyphCatalog.BATTERY_3,
-            4 => GlyphCatalog.BATTERY_4,
-            5 => GlyphCatalog.BATTERY_5,
-            6 => GlyphCatalog.BATTERY_6,
-            7 => GlyphCatalog.BATTERY_7,
-            8 => GlyphCatalog.BATTERY_8,
-            9 => GlyphCatalog.BATTERY_9,
-            _ => GlyphCatalog.BATTERY_10,
+            0 => GlyphCatalog.BT_BATTERY_0,
+            1 => GlyphCatalog.BT_BATTERY_1,
+            2 => GlyphCatalog.BT_BATTERY_2,
+            3 => GlyphCatalog.BT_BATTERY_3,
+            4 => GlyphCatalog.BT_BATTERY_4,
+            5 => GlyphCatalog.BT_BATTERY_5,
+            6 => GlyphCatalog.BT_BATTERY_6,
+            7 => GlyphCatalog.BT_BATTERY_7,
+            8 => GlyphCatalog.BT_BATTERY_8,
+            9 => GlyphCatalog.BT_BATTERY_9,
+            _ => GlyphCatalog.BT_BATTERY_10,
         };
     }
 

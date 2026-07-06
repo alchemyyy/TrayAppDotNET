@@ -4496,7 +4496,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     }
 
     private string UndockButtonGlyph() =>
-        _isUndocked ? GlyphCatalog.FLYOUT_REDOCK_ACTION : GlyphCatalog.FLYOUT_UNDOCK_ACTION;
+        _isUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private string UndockButtonTooltip() =>
         _isUndocked ? "Redock" : "Undock";
