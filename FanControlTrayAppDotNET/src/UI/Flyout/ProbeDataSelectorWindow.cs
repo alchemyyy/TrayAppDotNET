@@ -6,6 +6,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.UI.Settings;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
@@ -815,8 +817,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
         target.KeyDown += NicknameRuleKeyDown;
         row.Children.Add(target);
 
-        TextBlock arrow = TrayAppDotNETSettingsUI.Text(GlyphCatalog.ARROW_RIGHT, _palette, Layout.NicknameArrowFontSize);
-        arrow.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        TextBlock arrow = TrayAppDotNETSettingsUI.Text(
+            GlyphCatalog.ARROW_RIGHT.Text,
+            _palette,
+            Layout.NicknameArrowFontSize);
+        GlyphApplicator.ApplyTo(arrow, GlyphCatalog.ARROW_RIGHT);
         arrow.Margin = Layout.NicknameArrowMargin;
         arrow.VerticalAlignment = VerticalAlignment.Center;
         arrow.Cursor = new Cursor(StandardCursorType.Hand);
@@ -1229,15 +1234,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
+        Glyph probeGlyph = ProbeValueFormatter.GlyphFor(type);
         TextBlock glyph = TrayAppDotNETSettingsUI.Text(
-            ProbeValueFormatter.GlyphFor(type),
+            probeGlyph.Text,
             _palette,
             Layout.ValueGlyphFontSize);
-        glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        GlyphApplicator.ApplyTo(glyph, probeGlyph);
         glyph.Width = Layout.ValueGlyphWidth;
-
-        // TODO: Move this hack to its own layer; it is currently repeated where the load glyph is used
-        if (type == DataSourceTypeEnum.Load) glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
         glyph.Margin = Layout.ValueGlyphMargin;
         glyph.VerticalAlignment = VerticalAlignment.Center;
         row.Children.Add(glyph);
@@ -1468,7 +1471,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private SettingsButton BuildGearButton(bool transformIsActive)
     {
-        SettingsButton button = new(GlyphCatalog.SETTINGS, _palette, transparentBase: true)
+        SettingsButton button = new(GlyphCatalog.SETTINGS.Text, _palette, transparentBase: true)
         {
             Width = Layout.ActionButtonWidth,
             Height = Layout.ActionButtonHeight,
@@ -1476,6 +1479,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Padding = Layout.ZeroThickness,
             Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.GearFontSize }
         };
+        GlyphApplicator.ApplyTo(button.Label, GlyphCatalog.SETTINGS);
         ApplyGearButtonTransformVisual(button, transformIsActive);
         return button;
     }
@@ -1564,7 +1568,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private SettingsButton BuildNicknameDeleteButton()
     {
-        SettingsButton button = new(GlyphCatalog.CLOSE, _palette, transparentBase: true)
+        SettingsButton button = new(GlyphCatalog.CLOSE.Text, _palette, transparentBase: true)
         {
             Width = Layout.NicknameDeleteButtonWidth,
             Height = Layout.NicknameDeleteButtonHeight,
@@ -1573,6 +1577,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Margin = Layout.NicknameDeleteButtonMargin,
             Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.NicknameDeleteButtonFontSize }
         };
+        GlyphApplicator.ApplyTo(button.Label, GlyphCatalog.CLOSE);
         return button;
     }
 

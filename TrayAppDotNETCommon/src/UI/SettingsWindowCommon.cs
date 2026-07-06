@@ -418,7 +418,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         return titleBar;
     }
 
-    private SettingsButton CaptionButton(string glyph, SettingsPalette palette, bool closeButton = false)
+    private SettingsButton CaptionButton(Glyph glyph, SettingsPalette palette, bool closeButton = false)
     {
         SettingsButton button = new(glyph, palette, transparentBase: true)
         {
@@ -428,7 +428,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Padding = _settingsResources.AxamlSettingsWindow.ZeroThickness,
             Label =
             {
-                FontFamily = TrayAppDotNETSettingsUI.IconFont,
                 FontSize = _settingsResources.AxamlSettingsWindow.CaptionButtonGlyphFontSize
             }
         };

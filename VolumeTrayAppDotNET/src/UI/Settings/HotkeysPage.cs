@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 using VolumeHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using VolumeHotkeyApplyResult = TrayAppDotNETCommon.Services.HotkeyApplyResult;
 using VolumeHotkeyBinding = TrayAppDotNETCommon.Models.HotkeyBinding;
@@ -208,18 +209,17 @@ public sealed partial class VolumeSettingsWindow
         display.Margin = new Thickness(12, 6, 0, 6);
 
         TextBlock status = TrayAppDotNETSettingsUI.Text(string.Empty, p);
-        status.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         status.VerticalAlignment = VerticalAlignment.Center;
         status.Margin = new Thickness(0, 0, 8, 0);
 
         if (AppServices.HotkeyService == null)
         {
-            status.Text = GlyphCatalog.WARNING;
+            GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_HotkeyServiceUnavailable"));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
-            status.Text = GlyphCatalog.WARNING;
+            GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, error);
         }
         else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_Registered"));

@@ -419,6 +419,15 @@ public sealed class SettingsButton : Border
         };
     }
 
+    /// <summary>
+    /// Creates a settings button label from a glyph object.
+    /// </summary>
+    public SettingsButton(Glyph glyph, SettingsPalette palette, bool transparentBase = false, bool navGutter = false)
+        : this(glyph.Text, palette, transparentBase, navGutter)
+    {
+        GlyphApplicator.ApplyTo(_label, glyph);
+    }
+
     public event EventHandler? Click;
 
     public TextBlock Label => _label;
@@ -1852,6 +1861,7 @@ public sealed class SettingsNumberBox : Grid
 internal sealed class SettingsSpinnerButton : Border
 {
     private readonly SettingsPalette _palette;
+    private readonly TextBlock _glyph;
     private bool _isPointerOver;
     private bool _isPressed;
 
@@ -1862,7 +1872,7 @@ internal sealed class SettingsSpinnerButton : Border
         CornerRadius = SettingsUILayout.SpinnerButtonRadius;
         Cursor = new Cursor(StandardCursorType.Hand);
         Focusable = false;
-        Child = new TextBlock
+        _glyph = new TextBlock
         {
             Text = glyph,
             FontFamily = TrayAppDotNETSettingsUI.IconFont,
@@ -1872,6 +1882,7 @@ internal sealed class SettingsSpinnerButton : Border
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false
         };
+        Child = _glyph;
 
         PointerEntered += (_, _) =>
         {
@@ -1902,6 +1913,15 @@ internal sealed class SettingsSpinnerButton : Border
         };
     }
 
+    /// <summary>
+    /// Creates a spinner button from a glyph object.
+    /// </summary>
+    public SettingsSpinnerButton(Glyph glyph, SettingsPalette palette)
+        : this(glyph.Text, palette)
+    {
+        GlyphApplicator.ApplyTo(_glyph, glyph);
+    }
+
     public event EventHandler? Click;
 
     private void UpdateVisual()
@@ -1913,10 +1933,10 @@ internal sealed class SettingsSpinnerButton : Border
 
 public static class TrayAppDotNETSettingsUI
 {
-    public static readonly FontFamily UIFont = new("Segoe UI Variable, Segoe UI");
+    public static readonly FontFamily UIFont = TADNFontResolver.ResolveFontFamily(TADNFont.SegoeUI);
 
-    public static readonly FontFamily IconFont = new(
-        $"{GlyphCatalog.SEGOE_FLUENT_ICONS}, {GlyphCatalog.SEGOE_MDL2_ASSETS}");
+    public static readonly FontFamily IconFont =
+        TADNFontResolver.ResolveFontFamily(TADNFont.SegoeFluentIconsThenMDL2Assets);
 
     public static IBrush Brush(Color color) =>
         color == Colors.Transparent ? Brushes.Transparent : new SolidColorBrush(color);
@@ -2039,6 +2059,11 @@ public static class TrayAppDotNETSettingsUI
         new(content, palette, padding);
 
     public static SettingsButton Button(string text, SettingsPalette palette) => new(text, palette);
+
+    /// <summary>
+    /// Creates a settings button from a glyph object.
+    /// </summary>
+    public static SettingsButton Button(Glyph glyph, SettingsPalette palette) => new(glyph, palette);
 
     public static SettingsButton NavAction(string text, SettingsPalette palette) =>
         new(text, palette, transparentBase: true, navGutter: true)
@@ -2180,6 +2205,16 @@ public static class TrayAppDotNETSettingsUI
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
+
+    /// <summary>
+    /// Creates a caption glyph from a glyph object.
+    /// </summary>
+    public static TextBlock CaptionGlyph(Glyph glyph, SettingsPalette palette)
+    {
+        TextBlock textBlock = CaptionGlyph(glyph.Text, palette);
+        GlyphApplicator.ApplyTo(textBlock, glyph);
+        return textBlock;
+    }
 
     internal static void ApplyDisabledOpacity(Control control, double disabledOpacity)
     {

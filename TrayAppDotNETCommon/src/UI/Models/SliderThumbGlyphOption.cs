@@ -14,8 +14,8 @@ public enum SliderThumbShape
 public class SliderThumbGlyphOption
 {
     public string Name { get; set; } = "Circle";
-    public string Glyph { get; set; } = GlyphCatalog.SLIDER_THUMB_CIRCLE;
-    public string FontFamily { get; set; } = GlyphCatalog.SEGOE_FLUENT_ICONS;
+    public string Glyph { get; set; } = GlyphCatalog.SLIDER_THUMB_CIRCLE.Text;
+    public string FontFamily { get; set; } = TADNFontResolver.SegoeFluentIconsFamilyName;
     public double FontSize { get; set; } = 18;
     public double Width { get; set; } = 18;
     public double Height { get; set; } = 18;
@@ -33,10 +33,10 @@ public class SliderThumbGlyphOption
     public static List<SliderThumbGlyphOption> CreateDefaults() =>
     [
         new() { Name = "Capsule", Shape = SliderThumbShape.Capsule, Width = 10, Height = 22 },
-        new() { Name = "Circle", Glyph = GlyphCatalog.SLIDER_THUMB_CIRCLE, FontSize = 18 },
-        new() { Name = "Diamond", Glyph = GlyphCatalog.SLIDER_THUMB_DIAMOND, FontSize = 16 },
-        new() { Name = "Star", Glyph = GlyphCatalog.SLIDER_THUMB_STAR, FontSize = 18 },
-        new() { Name = "Square", Glyph = GlyphCatalog.SLIDER_THUMB_SQUARE, FontSize = 16 },
-        new() { Name = "Heart", Glyph = GlyphCatalog.SLIDER_THUMB_HEART, FontSize = 16 }
+        new() { Name = "Circle", Glyph = GlyphCatalog.SLIDER_THUMB_CIRCLE.Text, FontSize = 18 },
+        new() { Name = "Diamond", Glyph = GlyphCatalog.SLIDER_THUMB_DIAMOND.Text, FontSize = 16 },
+        new() { Name = "Star", Glyph = GlyphCatalog.SLIDER_THUMB_STAR.Text, FontSize = 18 },
+        new() { Name = "Square", Glyph = GlyphCatalog.SLIDER_THUMB_SQUARE.Text, FontSize = 16 },
+        new() { Name = "Heart", Glyph = GlyphCatalog.SLIDER_THUMB_HEART.Text, FontSize = 16 }
     ];
 }

@@ -37,7 +37,7 @@ internal sealed class BrightnessFlyoutSession : IDisposable
             ID = "nightlight",
             Name = nightLightRowName,
             IsNightLight = true,
-            IconGlyph = GlyphCatalog.CRESCENT_SUN,
+            IconGlyph = GlyphCatalog.CRESCENT_SUN.Text,
             Brightness = FlipIfNightLightInverted(initialNightLightStrength)
         };
 
@@ -45,7 +45,7 @@ internal sealed class BrightnessFlyoutSession : IDisposable
         {
             ID = "master",
             Name = masterRowName,
-            IconGlyph = GlyphCatalog.SYNC_BADGE,
+            IconGlyph = GlyphCatalog.SYNC_BADGE.Text,
             Brightness = Settings?.LastMasterBrightness ?? 100,
             IsMaster = true
         };

@@ -420,13 +420,13 @@ public sealed partial class BrightnessSettingsWindow
 
         if (AppServices.HotkeyService == null)
         {
-            status.Text = GlyphCatalog.WARNING;
+            status.Text = GlyphCatalog.WARNING.Text;
             TrayAppDotNETToolTip.SetTip(status,
                 L("Settings_Hotkeys_Status_HotkeyServiceUnavailable", "Hotkey service unavailable."));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
-            status.Text = GlyphCatalog.WARNING;
+            status.Text = GlyphCatalog.WARNING.Text;
             TrayAppDotNETToolTip.SetTip(status, error);
         }
         else if (binding.IsBound)

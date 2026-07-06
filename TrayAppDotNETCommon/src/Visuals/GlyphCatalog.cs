@@ -2,35 +2,35 @@ namespace TrayAppDotNETCommon.Visuals;
 
 public abstract class GlyphCatalog
 {
-    protected internal const string SETTINGS = "\uE713"; // Fluent, Settings
-    protected internal const string POWER = "\uE7E8"; // Fluent, PowerButton
-    protected internal const string INFO = "\uE946"; // Fluent, Info
-    protected internal const string EXIT = "\uE8BB"; // Fluent, ChromeClose
-    protected internal const string WARNING = "\uE7BA"; // Fluent, Warning
+    protected internal static readonly Glyph SETTINGS = Glyph.SegoeFluent("\uE713"); // Fluent, Settings
+    protected internal static readonly Glyph POWER = Glyph.SegoeFluent("\uE7E8"); // Fluent, PowerButton
+    protected internal static readonly Glyph INFO = Glyph.SegoeFluent("\uE946"); // Fluent, Info
+    protected internal static readonly Glyph EXIT = Glyph.SegoeFluent("\uE8BB"); // Fluent, ChromeClose
+    protected internal static readonly Glyph WARNING = Glyph.SegoeFluent("\uE7BA"); // Fluent, Warning
 
-    protected internal const string CHROME_MINIMIZE = "\uE921"; // Fluent, ChromeMinimize
-    protected internal const string CHROME_MAXIMIZE = "\uE922"; // Fluent, ChromeMaximize
-    protected internal const string CHROME_RESTORE = "\uE923"; // Fluent, ChromeRestore
-    protected internal const string CHROME_CLOSE = "\uE8BB"; // Fluent, ChromeClose
+    protected internal static readonly Glyph CHROME_MINIMIZE = Glyph.SegoeFluent("\uE921"); // Fluent, ChromeMinimize
+    protected internal static readonly Glyph CHROME_MAXIMIZE = Glyph.SegoeFluent("\uE922"); // Fluent, ChromeMaximize
+    protected internal static readonly Glyph CHROME_RESTORE = Glyph.SegoeFluent("\uE923"); // Fluent, ChromeRestore
+    protected internal static readonly Glyph CHROME_CLOSE = Glyph.SegoeFluent("\uE8BB"); // Fluent, ChromeClose
 
-    protected internal const string CHEVRON_UP = "\uE70E"; // Fluent, ChevronUp
-    protected internal const string CHEVRON_DOWN = "\uE70D"; // Fluent, ChevronDown
-    protected internal const string CHEVRON_LEFT = "\uE76B"; // Fluent, ChevronLeft
-    protected internal const string CHEVRON_RIGHT = "\uE76C"; // Fluent, ChevronRight
-    protected internal const string CHEVRON_DOWN_BIG = "\uE96D"; // Fluent, ChevronUpSmall
-    protected internal const string CHEVRON_UP_BIG = "\uE96E"; // Fluent, ChevronDownSmall
-    protected internal const string CALENDAR = "\uE787"; // Fluent, Calendar
+    protected internal static readonly Glyph CHEVRON_UP = Glyph.SegoeFluent("\uE70E"); // Fluent, ChevronUp
+    protected internal static readonly Glyph CHEVRON_DOWN = Glyph.SegoeFluent("\uE70D"); // Fluent, ChevronDown
+    protected internal static readonly Glyph CHEVRON_LEFT = Glyph.SegoeFluent("\uE76B"); // Fluent, ChevronLeft
+    protected internal static readonly Glyph CHEVRON_RIGHT = Glyph.SegoeFluent("\uE76C"); // Fluent, ChevronRight
+    protected internal static readonly Glyph CHEVRON_DOWN_BIG = Glyph.SegoeFluent("\uE96D"); // Fluent, ChevronUpSmall
+    protected internal static readonly Glyph CHEVRON_UP_BIG = Glyph.SegoeFluent("\uE96E"); // Fluent, ChevronDownSmall
+    protected internal static readonly Glyph CALENDAR = Glyph.SegoeFluent("\uE787"); // Fluent, Calendar
 
-    protected internal const string UNDOCK = "\uE75B"; // Fluent, SIPRedock
-    protected internal const string REDOCK = "\uE75A"; // Fluent, SIPUndock
+    protected internal static readonly Glyph UNDOCK = Glyph.SegoeFluent("\uE75B"); // Fluent, SIPRedock
+    protected internal static readonly Glyph REDOCK = Glyph.SegoeFluent("\uE75A"); // Fluent, SIPUndock
 
     // NOTE: Slider thumb options use Fluent; FlyoutSlider's indicator uses MDL2
-    protected internal const string SLIDER_THUMB_CIRCLE = "\uE91F"; // Fluent, FullCircleMask
-    protected internal const string SLIDER_THUMB_DIAMOND = "\uEA3B"; // Fluent, CircleFill
-    protected internal const string SLIDER_THUMB_STAR = "\uE734"; // Fluent, FavoriteStar
-    protected internal const string SLIDER_THUMB_SQUARE = "\uE73B"; // Fluent, CheckboxFill
-    protected internal const string SLIDER_THUMB_HEART = "\uEB51"; // Fluent, Heart
+    protected internal static readonly Glyph SLIDER_THUMB_CIRCLE = Glyph.SegoeFluent("\uE91F"); // Fluent, FullCircleMask
+    protected internal static readonly Glyph SLIDER_THUMB_DIAMOND = Glyph.SegoeFluent("\uEA3B"); // Fluent, CircleFill
+    protected internal static readonly Glyph SLIDER_THUMB_STAR = Glyph.SegoeFluent("\uE734"); // Fluent, FavoriteStar
+    protected internal static readonly Glyph SLIDER_THUMB_SQUARE = Glyph.SegoeFluent("\uE73B"); // Fluent, CheckboxFill
+    protected internal static readonly Glyph SLIDER_THUMB_HEART = Glyph.SegoeFluent("\uEB51"); // Fluent, Heart
 
-    protected internal const string SEGOE_FLUENT_ICONS = "Segoe Fluent Icons";
-    protected internal const string SEGOE_MDL2_ASSETS = "Segoe MDL2 Assets";
+    protected internal const string SEGOE_FLUENT_ICONS = TADNFontResolver.SegoeFluentIconsFamilyName;
+    protected internal const string SEGOE_MDL2_ASSETS = TADNFontResolver.SegoeMDL2AssetsFamilyName;
 }

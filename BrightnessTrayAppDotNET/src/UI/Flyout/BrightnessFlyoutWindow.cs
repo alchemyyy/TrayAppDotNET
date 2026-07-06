@@ -783,7 +783,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (monitor is { IsMaster: false, IsNightLight: false } && (_settings?.ShowFlyoutMonitorPowerButtons ?? false))
         {
             Border power = TrayAppDotNETFlyoutUI.IconButton(
-                GlyphCatalog.POWER,
+                GlyphCatalog.POWER.Text,
                 palette,
                 e => { _ = _monitorService.SetPowerStateAsync(monitor, !monitor.IsPoweredOn); },
                 Layout.RowIconSize,
@@ -1022,7 +1022,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private Border BuildCurveStopwatchButton(MonitorInfo monitor, FlyoutControlPalette palette)
     {
         Border button = TrayAppDotNETFlyoutUI.IconButton(
-            GlyphCatalog.STOPWATCH,
+            GlyphCatalog.STOPWATCH.Text,
             palette,
             _ => ToggleCurveStopwatch(monitor),
             Layout.StopwatchButtonWidth,
@@ -1030,7 +1030,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.StopwatchButtonFontSize,
             margin: Layout.StopwatchButtonMargin,
             tooltip: monitor.CurveStopwatchToolTip,
-            fontFamily: GlyphCatalog.SEGOE_MDL2_ASSETS);
+            fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(GlyphCatalog.STOPWATCH.Font));
         button.Opacity = monitor.IsCurveStopwatchEnabled ? 1.0 : 0.4;
         return button;
     }
@@ -1081,7 +1081,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (disabledPeriod)
         {
             TextBlock disabled = TrayAppDotNETFlyoutUI.IconText(
-                GlyphCatalog.CRESCENT_MOON,
+                GlyphCatalog.CRESCENT_MOON.Text,
                 palette,
                 Layout.CurveDisabledGlyphFontSize,
                 GlyphCatalog.SEGOE_MDL2_ASSETS);
@@ -2891,8 +2891,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private string RowGlyph(MonitorInfo monitor)
     {
-        if (monitor.IsNightLight) return GlyphCatalog.LIGHTBULB;
-        if (monitor.IsFailed || monitor.IsReadDegraded) return GlyphCatalog.WARNING;
+        if (monitor.IsNightLight) return GlyphCatalog.LIGHTBULB.Text;
+        if (monitor.IsFailed || monitor.IsReadDegraded) return GlyphCatalog.WARNING.Text;
         if (monitor.IsMaster) return monitor.IconGlyph;
         return _theme.GlyphMonitor;
     }

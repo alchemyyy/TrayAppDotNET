@@ -46,6 +46,7 @@ public sealed class FlyoutUndockButtonController
     private readonly Func<string> _undockTooltip;
     private readonly Func<string> _redockTooltip;
     private readonly double _dragThreshold;
+    private readonly bool _applyGlyphFontFamily;
 
     private bool _pointerInside;
 
@@ -67,8 +68,9 @@ public sealed class FlyoutUndockButtonController
         _undockTooltip = options.UndockTooltip ?? throw new ArgumentNullException(nameof(options.UndockTooltip));
         _redockTooltip = options.RedockTooltip ?? throw new ArgumentNullException(nameof(options.RedockTooltip));
         _dragThreshold = options.DragThreshold;
+        _applyGlyphFontFamily = options.FontFamily == null;
 
-        Glyph = TrayAppDotNETFlyoutUI.IconText(GlyphText(), _palette, options.FontSize, options.FontFamily,
+        Glyph = TrayAppDotNETFlyoutUI.IconText(CurrentGlyph(), _palette, options.FontSize, options.FontFamily,
             options.FontWeight);
         Button = new Border
         {
@@ -100,11 +102,11 @@ public sealed class FlyoutUndockButtonController
 
     public void UpdateVisual()
     {
-        Glyph.Text = GlyphText();
+        GlyphApplicator.ApplyTo(Glyph, CurrentGlyph(), _applyGlyphFontFamily);
         TrayAppDotNETToolTip.SetTip(Button, _isUndocked() ? _redockTooltip() : _undockTooltip());
     }
 
-    private string GlyphText() =>
+    private TrayAppDotNETCommon.Visuals.Glyph CurrentGlyph() =>
         _isUndocked() ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private void WireButton()

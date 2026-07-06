@@ -97,7 +97,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         title.Margin = new Thickness(16, 0, 0, 0);
         titleBar.Children.Add(title);
 
-        SettingsButton close = new(GlyphCatalog.CHROME_CLOSE, _palette, transparentBase: true)
+        SettingsButton close = new(GlyphCatalog.CHROME_CLOSE.Text, _palette, transparentBase: true)
         {
             Width = CloseButtonWidth, Height = TitleBarHeight, Padding = new Thickness(0), Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
         };
@@ -204,13 +204,13 @@ public sealed class EnvironmentalMapPickerWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(6)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        AddHudButton(grid, p, "Up", GlyphCatalog.CHEVRON_UP, 0, 1);
-        AddHudButton(grid, p, "Left", GlyphCatalog.CHEVRON_LEFT, 1, 0);
-        AddHudButton(grid, p, "Right", GlyphCatalog.CHEVRON_RIGHT, 1, 2);
-        AddHudButton(grid, p, "Down", GlyphCatalog.CHEVRON_DOWN, 2, 1);
+        AddHudButton(grid, p, "Up", GlyphCatalog.CHEVRON_UP.Text, 0, 1);
+        AddHudButton(grid, p, "Left", GlyphCatalog.CHEVRON_LEFT.Text, 1, 0);
+        AddHudButton(grid, p, "Right", GlyphCatalog.CHEVRON_RIGHT.Text, 1, 2);
+        AddHudButton(grid, p, "Down", GlyphCatalog.CHEVRON_DOWN.Text, 2, 1);
         AddHudButton(grid, p, "ZoomIn", "+", 0, 4, useIconFont: false);
         AddHudButton(grid, p, "ZoomOut", "-", 1, 4, useIconFont: false);
-        AddHudButton(grid, p, "Center", GlyphCatalog.MAP_CENTER, 2, 4);
+        AddHudButton(grid, p, "Center", GlyphCatalog.MAP_CENTER.Text, 2, 4);
 
         return new Border
         {

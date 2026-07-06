@@ -9,6 +9,8 @@ using Avalonia.Threading;
 using BatteryTrayAppDotNET.Models;
 using BatteryTrayAppDotNET.Services;
 using Microsoft.Win32;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace BatteryTrayAppDotNET.UI.Flyout;
 
@@ -423,7 +425,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     }
 
     private Border BuildTitleBarIconButton(
-        string glyph,
+        Glyph glyph,
         FlyoutControlPalette p,
         double fontSize,
         Action click,
@@ -431,7 +433,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         TextBlock text = new()
         {
-            Text = glyph,
+            Text = glyph.Text,
             FontFamily = TrayAppDotNETSettingsUI.IconFont,
             FontSize = fontSize,
             FontWeight = FontWeight.Normal,
@@ -442,6 +444,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             LineHeight = Math.Ceiling(fontSize + 6),
             IsHitTestVisible = false
         };
+        GlyphApplicator.ApplyTo(text, glyph);
 
         Border button = new()
         {

@@ -219,8 +219,8 @@ public sealed partial class BrightnessSettingsWindow
             CommitProfileName(entry, nameBox.Text);
             e.Handled = true;
         };
-        SettingsButton up = Button(GlyphCatalog.CHEVRON_UP, p);
-        SettingsButton down = Button(GlyphCatalog.CHEVRON_DOWN, p);
+        SettingsButton up = Button(GlyphCatalog.CHEVRON_UP.Text, p);
+        SettingsButton down = Button(GlyphCatalog.CHEVRON_DOWN.Text, p);
         up.Width = 32;
         down.Width = 32;
         up.Padding = new Thickness(0);

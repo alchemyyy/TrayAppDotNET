@@ -319,7 +319,7 @@ public sealed class FlyoutSlider : Control
             field = next;
             InvalidateVisual();
         }
-    } = GlyphCatalog.SLIDER_THUMB_DIAMOND;
+    } = GlyphCatalog.SLIDER_THUMB_DIAMOND.Text;
 
     public string IndicatorFontFamily
     {
@@ -331,7 +331,7 @@ public sealed class FlyoutSlider : Control
             field = next;
             InvalidateVisual();
         }
-    } = GlyphCatalog.SEGOE_MDL2_ASSETS;
+    } = TADNFontResolver.SegoeMDL2AssetsFamilyName;
 
     public SliderThumbGlyphOption Thumb
     {

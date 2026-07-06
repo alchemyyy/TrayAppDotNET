@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI.Settings;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyApplyResult = TrayAppDotNETCommon.Services.HotkeyApplyResult;
 using FanHotkeyBinding = TrayAppDotNETCommon.Models.HotkeyBinding;
@@ -697,12 +698,12 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
         if (AppServices.HotkeyService == null)
         {
-            status.Text = GlyphCatalog.WARNING;
+            GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_HotkeyServiceUnavailable"));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
-            status.Text = GlyphCatalog.WARNING;
+            GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, error);
         }
         else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_Registered"));
@@ -769,8 +770,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     private Border BuildFanSlotRow(FanSettingsSlotEntry slot, int index, SettingsPalette p)
     {
-        TextBlock handle = TrayAppDotNETSettingsUI.Text(GlyphCatalog.DRAG_HANDLE, p, 16);
-        handle.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        TextBlock handle = TrayAppDotNETSettingsUI.Text(GlyphCatalog.DRAG_HANDLE.Text, p, 16);
+        GlyphApplicator.ApplyTo(handle, GlyphCatalog.DRAG_HANDLE);
         handle.Width = 28;
         handle.VerticalAlignment = VerticalAlignment.Center;
         handle.HorizontalAlignment = HorizontalAlignment.Center;

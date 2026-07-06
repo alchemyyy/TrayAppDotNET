@@ -1,6 +1,7 @@
 using Avalonia.Media;
 using Avalonia.Platform;
 using SkiaSharp;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace FanControlTrayAppDotNET.UI.Tray;
 
@@ -95,13 +96,13 @@ internal sealed class FanTrayIcon(AppTheme? theme) : IDisposable
             Color = new SKColor(foregroundColor.R, foregroundColor.G, foregroundColor.B, foregroundColor.A)
         };
 
-        string glyph = GlyphCatalog.FAN;
-        float advance = font.MeasureText(glyph, out SKRect bounds, paint);
+        Glyph glyph = GlyphCatalog.FAN;
+        float advance = font.MeasureText(glyph.Text, out SKRect bounds, paint);
         font.GetFontMetrics(out SKFontMetrics metrics);
         float lineHeight = metrics.Descent - metrics.Ascent;
         float x = (size - advance) / 2f;
         float y = (size - lineHeight) / 2f - metrics.Ascent;
-        canvas.DrawText(glyph, x, y, font, paint);
+        canvas.DrawText(glyph.Text, x, y, font, paint);
 
         using SKImage image = SKImage.FromBitmap(bitmap);
         using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);

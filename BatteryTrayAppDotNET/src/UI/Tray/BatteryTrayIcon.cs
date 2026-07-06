@@ -1,6 +1,7 @@
 using Avalonia.Media;
 using BatteryTrayAppDotNET.Models;
 using SkiaSharp;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace BatteryTrayAppDotNET.UI.Tray;
 
@@ -75,8 +76,9 @@ internal sealed class BatteryTrayIcon(AppTheme? theme) : IDisposable
         if (!_isDirty) return false;
 
         _isDirty = false;
+        Glyph glyph = ResolveGlyph(_snapshot);
         input = new TrayIconRenderInput(
-            new TrayIconGlyphLayer(null, ResolveGlyph(_snapshot)),
+            new TrayIconGlyphLayer(null, glyph.Text),
             ResolveColor(_snapshot),
             BackdropOpacity: 0);
         return true;
@@ -91,7 +93,7 @@ internal sealed class BatteryTrayIcon(AppTheme? theme) : IDisposable
         return _theme.Foreground.For(IsLightTheme);
     }
 
-    private static string ResolveGlyph(BatterySnapshot snapshot)
+    private static Glyph ResolveGlyph(BatterySnapshot snapshot)
     {
         int level = Math.Clamp((int)Math.Ceiling(snapshot.ChargePercentage / 10.0), 0, 10);
         if (snapshot.IsCharging || snapshot.IsOnExternalPower)

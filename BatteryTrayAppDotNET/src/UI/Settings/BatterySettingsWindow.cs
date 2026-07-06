@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using BatteryTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
@@ -871,14 +872,14 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
         if (AppServices.HotkeyService == null)
         {
-            status.Text = GlyphCatalog.WARNING;
+            GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(
                 status,
                 L("Settings_Hotkeys_Status_HotkeyServiceUnavailable", "Hotkey service is unavailable."));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
-            status.Text = GlyphCatalog.WARNING;
+            GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, error);
         }
         else if (binding.IsBound)

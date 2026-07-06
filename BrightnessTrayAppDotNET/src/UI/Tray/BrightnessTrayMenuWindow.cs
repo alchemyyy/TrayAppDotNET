@@ -59,7 +59,7 @@ internal sealed class BrightnessTrayMenuWindow(
             {
                 int capturedIndex = profile.Index;
                 entries.Add(profile.Label, () => selectProfile(capturedIndex),
-                    profile.IsSelected ? GlyphCatalog.CHECK_MARK : null);
+                    profile.IsSelected ? GlyphCatalog.CHECK_MARK.Text : null);
             }
 
             entries.AddSeparator();

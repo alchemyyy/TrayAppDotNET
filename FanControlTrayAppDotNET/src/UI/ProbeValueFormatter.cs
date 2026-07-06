@@ -1,5 +1,6 @@
 using System.Globalization;
 using NCalc;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace FanControlTrayAppDotNET.UI;
 
@@ -24,7 +25,7 @@ internal static class ProbeValueFormatter
     /// <summary>
     /// Resolves the glyph used for a probe type.
     /// </summary>
-    public static string GlyphFor(DataSourceTypeEnum type) => type switch
+    public static Glyph GlyphFor(DataSourceTypeEnum type) => type switch
     {
         DataSourceTypeEnum.Temperature => GlyphCatalog.TEMPERATURE,
         DataSourceTypeEnum.Power => GlyphCatalog.WATTAGE,

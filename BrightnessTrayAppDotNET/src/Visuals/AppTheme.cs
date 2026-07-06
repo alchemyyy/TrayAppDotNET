@@ -51,10 +51,10 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     [XmlAttribute]
     public int EnvironmentalMapHudBackdropAlpha { get; set; } = 232;
 
-    public string GlyphMonitor { get; set; } = GlyphCatalog.MONITOR;
-    public string GlyphDisplaySettings { get; set; } = GlyphCatalog.DISPLAY_SETTINGS;
-    public string GlyphProfileSave { get; set; } = GlyphCatalog.PROFILE_SAVE;
-    public string GlyphProfileIndicator { get; set; } = GlyphCatalog.PROFILE_INDICATOR;
+    public string GlyphMonitor { get; set; } = GlyphCatalog.MONITOR.Text;
+    public string GlyphDisplaySettings { get; set; } = GlyphCatalog.DISPLAY_SETTINGS.Text;
+    public string GlyphProfileSave { get; set; } = GlyphCatalog.PROFILE_SAVE.Text;
+    public string GlyphProfileIndicator { get; set; } = GlyphCatalog.PROFILE_INDICATOR.Text;
 
     public ProfileButtonSettings ProfileButtons { get; set; } = new();
 

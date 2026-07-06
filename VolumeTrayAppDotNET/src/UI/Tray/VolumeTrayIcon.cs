@@ -1,5 +1,6 @@
 using Avalonia.Media;
 using SkiaSharp;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace VolumeTrayAppDotNET.UI.Tray;
 
@@ -52,9 +53,9 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         {
             float clamped = Math.Clamp(value, 0f, 1f);
             if (Math.Abs(field - clamped) < 0.0001f) return;
-            string oldGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
+            Glyph oldGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
             field = clamped;
-            string newGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
+            Glyph newGlyph = GlyphCatalog.GetVolumeTier(field, IsMuted);
             if (oldGlyph != newGlyph) _isDirty = true;
         }
     }
@@ -122,11 +123,11 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
 
     private TrayIconGlyphLayer ResolveGlyphs()
     {
-        string foreground = GlyphCatalog.GetVolumeTier(Volume, IsMuted);
+        Glyph foreground = GlyphCatalog.GetVolumeTier(Volume, IsMuted);
         string? backdrop = IsMuted || foreground == _glyphs.High
             ? null
-            : _glyphs.High;
-        return new TrayIconGlyphLayer(backdrop, foreground);
+            : _glyphs.High.Text;
+        return new TrayIconGlyphLayer(backdrop, foreground.Text);
     }
 
     private Color ResolveColor() =>
@@ -136,8 +137,8 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
 }
 
 internal sealed record VolumeTrayIconGlyphs(
-    string Muted,
-    string Silent,
-    string Low,
-    string Mid,
-    string High);
+    Glyph Muted,
+    Glyph Silent,
+    Glyph Low,
+    Glyph Mid,
+    Glyph High);

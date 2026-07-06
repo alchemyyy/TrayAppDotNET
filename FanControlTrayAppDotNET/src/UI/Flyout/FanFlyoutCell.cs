@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
@@ -33,7 +34,7 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
 
     public bool AreGroupFansVisible => HasGroupHeader && !IsGroupCollapsed;
 
-    public string GroupExpansionGlyph =>
+    internal Glyph GroupExpansionGlyph =>
         IsGroupCollapsed ? GlyphCatalog.COLLAPSED : GlyphCatalog.EXPANDED;
 
     public string GroupExpansionTooltip =>

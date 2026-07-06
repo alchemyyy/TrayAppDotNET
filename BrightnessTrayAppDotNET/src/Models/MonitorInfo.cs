@@ -405,7 +405,7 @@ public class MonitorInfo : INotifyPropertyChanged
     /// Segoe Fluent Icons glyph code for the monitor icon.
     /// Default: <see cref="GlyphCatalog.MONITOR"/>.
     /// </summary>
-    public string IconGlyph { get; set; } = GlyphCatalog.MONITOR;
+    public string IconGlyph { get; set; } = GlyphCatalog.MONITOR.Text;
 
     /// <summary>
     /// Whether this is the master "All Displays" control.

@@ -13,6 +13,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 
 namespace VolumeTrayAppDotNET.UI.Flyout;
@@ -542,7 +544,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             left.Children.Add(communications);
         }
 
-        left.Children.Add(HeaderIconButton(string.Empty, p, () => { }, null, enabled: false));
+        left.Children.Add(HeaderIconButton(null, p, () => { }, null, enabled: false));
         grid.Children.Add(left);
 
         if (IsUpdateButtonVisible)
@@ -824,7 +826,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 TextBlock badge = Text(device.IsExclusiveControlHeld ? GlyphCatalog.LOCK : GlyphCatalog.CIRCLE, p,
                     Layout.AppIconCellBadgeFontSize);
-                badge.FontFamily = TrayAppDotNETSettingsUI.IconFont;
                 badge.Foreground = Brush(p.IconForeground);
                 badge.HorizontalAlignment = HorizontalAlignment.Right;
                 badge.VerticalAlignment = VerticalAlignment.Bottom;
@@ -888,7 +889,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         else
         {
             TextBlock fallback = Text(GlyphCatalog.APP_FALLBACK, p, glyphSize);
-            fallback.FontFamily = TrayAppDotNETSettingsUI.IconFont;
             fallback.Foreground = Brush(p.IconForeground);
             fallback.HorizontalAlignment = HorizontalAlignment.Center;
             fallback.VerticalAlignment = VerticalAlignment.Center;
@@ -896,7 +896,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         TextBlock muteOverlay = Text(GlyphCatalog.APP_MUTE_OVERLAY, p, glyphSize);
-        muteOverlay.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         muteOverlay.Foreground = Brush(p.IconForeground);
         muteOverlay.HorizontalAlignment = HorizontalAlignment.Center;
         muteOverlay.VerticalAlignment = VerticalAlignment.Center;
@@ -1297,10 +1296,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Border BuildDeviceMuteButton(AudioDevice device, FlyoutPalette p)
     {
-        string normalGlyph = DeviceVolumeGlyph(device);
+        Glyph normalGlyph = DeviceVolumeGlyph(device);
         bool isPointerOver = false;
         TextBlock glyph = Text(normalGlyph, p, Layout.DeviceMuteGlyphFontSize);
-        glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         glyph.Foreground = Brush(p.IconForeground);
         glyph.VerticalAlignment = VerticalAlignment.Center;
         ApplyDeviceMuteGlyphStyle(glyph, normalGlyph);
@@ -1313,7 +1311,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Children = { glyph }
         };
 
-        Border button = DeviceIconButton(string.Empty, p, () => device.IsMuted = !device.IsMuted,
+        Border button = DeviceIconButton(null, p, () => device.IsMuted = !device.IsMuted,
             width: Layout.DeviceMuteButtonWidth, height: Layout.DeviceMuteButtonHeight);
         button.Margin = Layout.DeviceMuteButtonMargin;
         button.Child = slot;
@@ -1349,8 +1347,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         void UpdateVisual()
         {
             normalGlyph = DeviceVolumeGlyph(device);
-            string visibleGlyph = isPointerOver ? DeviceMuteTogglePreviewGlyph(device) : normalGlyph;
-            glyph.Text = visibleGlyph;
+            Glyph visibleGlyph = isPointerOver ? DeviceMuteTogglePreviewGlyph(device) : normalGlyph;
             ApplyDeviceMuteGlyphStyle(glyph, visibleGlyph);
 
             button.Opacity = device.IsMuted || !device.IsActive ? 0.4 : 1.0;
@@ -1362,30 +1359,23 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private void ApplyDeviceMuteGlyphStyle(TextBlock glyph, string text)
+    private void ApplyDeviceMuteGlyphStyle(TextBlock glyphHost, Glyph glyph)
     {
-        if (IsMicrophoneGlyph(text))
-        {
-            glyph.FontSize = Layout.DeviceMuteMicrophoneGlyphFontSize;
-            glyph.FontWeight = FontWeight.ExtraBold;
-            glyph.HorizontalAlignment = HorizontalAlignment.Center;
-            glyph.RenderTransform = CloneTransform(Layout.DeviceMuteMicrophoneTransform);
-            PreventIconGlyphClipping(glyph, Layout.IconGlyphLineHeightPadding);
-            return;
-        }
-
-        glyph.FontSize = Layout.DeviceMuteGlyphFontSize;
-        glyph.FontWeight = FontWeight.Normal;
-        glyph.HorizontalAlignment = HorizontalAlignment.Right;
-        glyph.RenderTransform = null;
-        PreventIconGlyphClipping(glyph, Layout.IconGlyphLineHeightPadding);
+        glyphHost.FontSize = Layout.DeviceMuteGlyphFontSize;
+        glyphHost.FontWeight = FontWeight.Normal;
+        glyphHost.HorizontalAlignment = IsMicrophoneGlyph(glyph)
+            ? HorizontalAlignment.Center
+            : HorizontalAlignment.Right;
+        glyphHost.RenderTransform = null;
+        GlyphApplicator.ApplyTo(glyphHost, glyph);
+        PreventIconGlyphClipping(glyphHost, Layout.IconGlyphLineHeightPadding);
     }
 
-    private static bool IsMicrophoneGlyph(string glyph) =>
-        glyph is GlyphCatalog.MICROPHONE
-            or GlyphCatalog.MICROPHONE_OFF
-            or GlyphCatalog.MICROPHONE_LISTENING
-            or GlyphCatalog.MICROPHONE_SLEEP;
+    private static bool IsMicrophoneGlyph(Glyph glyph) =>
+        glyph == GlyphCatalog.MICROPHONE
+        || glyph == GlyphCatalog.MICROPHONE_OFF
+        || glyph == GlyphCatalog.MICROPHONE_LISTENING
+        || glyph == GlyphCatalog.MICROPHONE_SLEEP;
 
     private Border? BuildBatteryButton(AudioDevice device, FlyoutPalette p)
     {
@@ -1427,7 +1417,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void UpdateVisual()
         {
-            glyph?.Text = ExclusiveButtonGlyph(device);
+            if (glyph != null) GlyphApplicator.ApplyTo(glyph, ExclusiveButtonGlyph(device));
             button.Opacity = device.IsExclusiveModeAllowed ? 1.0 : 0.4;
             TrayAppDotNETToolTip.SetTip(button, device.IsExclusiveModeAllowed
                 ? device.IsExclusiveControlHeld
@@ -1444,7 +1434,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             : _settings.ShowEqualizerAPOButtonForPlayback;
         if (!visible) return null;
 
-        Border button = DeviceIconButton(string.Empty, p, e =>
+        Border button = DeviceIconButton(null, p, e =>
         {
             try
             {
@@ -1460,13 +1450,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         Grid glyphs = new() { ClipToBounds = false };
         TextBlock equalizer = Text(GlyphCatalog.EQUALIZER, p, Layout.EqualizerFontSize);
-        equalizer.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         equalizer.Foreground = Brush(p.IconForeground);
         PreventIconGlyphClipping(equalizer, Layout.IconGlyphLineHeightPadding);
         glyphs.Children.Add(equalizer);
         TextBlock badge = Text(GlyphCatalog.SIGNAL_NOT_CONNECTED, p, Layout.EqualizerBadgeFontSize,
             FontWeight.ExtraBold);
-        badge.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         badge.Foreground = Brush(p.IconForeground);
         badge.HorizontalAlignment = HorizontalAlignment.Right;
         badge.VerticalAlignment = VerticalAlignment.Bottom;
@@ -1527,7 +1515,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (!IsDefaultDeviceButtonVisible(device)) return null;
 
-        Border button = DeviceIconButton(string.Empty, p, e =>
+        Border button = DeviceIconButton(null, p, e =>
         {
             if ((e.KeyModifiers & KeyModifiers.Shift) != 0)
                 device.SetAsDefaultCommunications();
@@ -1536,13 +1524,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             else
                 device.SetAsDefault();
         }, rightClick: _ => DeviceShellLinks.OpenDeviceProperties(device));
-        TextBlock glyph = Text(
-            DeviceStateGlyph(device),
-            p,
-            DeviceStateGlyph(device) == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
-                ? Layout.DeviceStateDisabledFontSize
-                : Layout.DeviceStateFontSize);
-        glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+        TextBlock glyph = Text(DeviceStateGlyph(device), p, Layout.DeviceStateFontSize);
         glyph.Foreground = Brush(p.IconForeground);
         glyph.HorizontalAlignment = HorizontalAlignment.Center;
         glyph.VerticalAlignment = VerticalAlignment.Center;
@@ -1572,14 +1554,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void UpdateVisual()
         {
-            string stateGlyph = DeviceStateGlyph(device);
-            glyph.Text = stateGlyph;
-            glyph.FontSize = stateGlyph == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
-                ? Layout.DeviceStateDisabledFontSize
-                : Layout.DeviceStateFontSize;
-            glyph.RenderTransform = stateGlyph == GlyphCatalog.PLAYBACK_DEVICE_DISABLED
-                ? CloneTransform(Layout.DeviceStateDisabledTransform)
-                : null;
+            Glyph stateGlyph = DeviceStateGlyph(device);
+            glyph.FontSize = Layout.DeviceStateFontSize;
+            glyph.FontWeight = FontWeight.Normal;
+            glyph.RenderTransform = null;
+            GlyphApplicator.ApplyTo(glyph, stateGlyph);
             PreventIconGlyphClipping(glyph, Layout.IconGlyphLineHeightPadding);
             button.Opacity = device.IsActive ? 1.0 : 0.4;
         }
@@ -1652,11 +1631,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         row.Children.Add(button);
     }
 
-    private Border HeaderIconButton(string glyph, FlyoutPalette p, Action click, string? tooltip,
+    private Border HeaderIconButton(Glyph? glyph, FlyoutPalette p, Action click, string? tooltip,
         bool enabled = true) =>
         HeaderIconButton(glyph, p, _ => click(), tooltip, enabled);
 
-    private Border HeaderIconButton(string glyph, FlyoutPalette p, Action<PointerReleasedEventArgs> click,
+    private Border HeaderIconButton(Glyph? glyph, FlyoutPalette p, Action<PointerReleasedEventArgs> click,
         string? tooltip, bool enabled = true)
     {
         Border button = IconButton(
@@ -1682,7 +1661,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private Border BuildUndockButton(FlyoutPalette p)
     {
         TextBlock text = Text(UndockButtonGlyph(), p, Layout.HeaderUndockFontSize);
-        text.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         text.Foreground = Brush(p.IconForeground);
         text.HorizontalAlignment = HorizontalAlignment.Center;
         text.VerticalAlignment = VerticalAlignment.Center;
@@ -1758,7 +1736,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     private Border DeviceIconButton(
-        string glyph,
+        Glyph? glyph,
         FlyoutPalette p,
         Action click,
         double? width = null,
@@ -1768,7 +1746,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         DeviceIconButton(glyph, p, _ => click(), null, width, height, fontSize, enabled);
 
     private Border DeviceIconButton(
-        string glyph,
+        Glyph? glyph,
         FlyoutPalette p,
         Action<PointerReleasedEventArgs> click,
         Action<PointerReleasedEventArgs>? rightClick = null,
@@ -1791,7 +1769,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             rightClick);
 
     private Border IconButton(
-        string glyph,
+        Glyph? glyph,
         FlyoutPalette p,
         Action<PointerReleasedEventArgs> click,
         double width,
@@ -1805,12 +1783,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Action<PointerReleasedEventArgs>? rightClick = null)
     {
         Control content;
-        if (string.IsNullOrEmpty(glyph) || fontSize <= 0)
+        if (glyph == null || fontSize <= 0)
             content = new Grid { IsHitTestVisible = false, ClipToBounds = false };
         else
         {
             TextBlock text = Text(glyph, p, fontSize);
-            text.FontFamily = TrayAppDotNETSettingsUI.IconFont;
             text.Foreground = Brush(p.IconForeground);
             text.HorizontalAlignment = HorizontalAlignment.Center;
             text.VerticalAlignment = VerticalAlignment.Center;
@@ -1977,7 +1954,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Rebuild();
     }
 
-    private string UndockButtonGlyph() =>
+    private Glyph UndockButtonGlyph() =>
         _isUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private string UndockButtonTooltip() =>
@@ -1985,7 +1962,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void UpdateUndockButtonVisual()
     {
-        _undockButtonGlyph?.Text = UndockButtonGlyph();
+        if (_undockButtonGlyph != null) GlyphApplicator.ApplyTo(_undockButtonGlyph, UndockButtonGlyph());
         if (_undockButton != null) TrayAppDotNETToolTip.SetTip(_undockButton, UndockButtonTooltip());
     }
 
@@ -2562,15 +2539,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
-    private string DeviceVolumeGlyph(AudioDevice device) => device.IsCaptureDevice ? CaptureDeviceVolumeGlyph(device, device.IsMuted) : PlaybackDeviceVolumeGlyph(device, device.IsMuted);
+    private Glyph DeviceVolumeGlyph(AudioDevice device) => device.IsCaptureDevice ? CaptureDeviceVolumeGlyph(device, device.IsMuted) : PlaybackDeviceVolumeGlyph(device, device.IsMuted);
 
-    private string DeviceMuteTogglePreviewGlyph(AudioDevice device)
+    private Glyph DeviceMuteTogglePreviewGlyph(AudioDevice device)
     {
         bool mutedAfterToggle = !device.IsMuted;
         return device.IsCaptureDevice ? CaptureDeviceVolumeGlyph(device, mutedAfterToggle) : PlaybackDeviceVolumeGlyph(device, mutedAfterToggle);
     }
 
-    private string PlaybackDeviceVolumeGlyph(AudioDevice device, bool muted)
+    private Glyph PlaybackDeviceVolumeGlyph(AudioDevice device, bool muted)
     {
         if (muted) return GlyphCatalog.PLAYBACK_VOLUME_MUTE;
         return _settings.UseDynamicPlaybackVolumeGlyphInFlyout
@@ -2578,7 +2555,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             : GlyphCatalog.PLAYBACK_VOLUME_LOW;
     }
 
-    private static string CaptureDeviceVolumeGlyph(AudioDevice device, bool muted)
+    private static Glyph CaptureDeviceVolumeGlyph(AudioDevice device, bool muted)
     {
         if (muted) return GlyphCatalog.MICROPHONE_OFF;
         if (device.IsListeningToThisDevice) return GlyphCatalog.MICROPHONE_LISTENING;
@@ -2586,12 +2563,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return GlyphCatalog.MICROPHONE;
     }
 
-    private static string ExclusiveButtonGlyph(AudioDevice device) =>
+    private static Glyph ExclusiveButtonGlyph(AudioDevice device) =>
         device is { IsExclusiveModeAllowed: true, IsExclusiveControlHeld: true }
             ? GlyphCatalog.LOCK
             : GlyphCatalog.UNLOCK;
 
-    private static string DeviceStateGlyph(AudioDevice device)
+    private static Glyph DeviceStateGlyph(AudioDevice device)
     {
         if (!device.IsActive) return GlyphCatalog.PLAYBACK_DEVICE_DISABLED;
         if (device.IsDefault) return GlyphCatalog.PLAYBACK_DEVICE_DEFAULT;
@@ -2599,7 +2576,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return GlyphCatalog.PLAYBACK_DEVICE_ENABLED;
     }
 
-    private static string BatteryGlyph(int level)
+    private static Glyph BatteryGlyph(int level)
     {
         int index = (int)Math.Round(level / 10.0);
         index = Math.Clamp(index, 0, 10);
@@ -2640,6 +2617,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Foreground = Brush(p.Foreground),
         TextWrapping = TextWrapping.NoWrap
     };
+
+    private static TextBlock Text(Glyph glyph, FlyoutPalette p, double size, FontWeight? weight = null)
+    {
+        TextBlock textBlock = Text(glyph.Text, p, size, weight);
+        GlyphApplicator.ApplyTo(textBlock, glyph);
+        return textBlock;
+    }
 
     private static void PreventIconGlyphClipping(TextBlock glyph, double lineHeightPadding)
     {
@@ -2939,9 +2923,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 }
             };
 
-            TextBlock marker = Text(entry.IsCurrent ? GlyphCatalog.CIRCLE : string.Empty, palette,
-                layout.MenuMarkerFontSize);
-            marker.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+            TextBlock marker = entry.IsCurrent
+                ? Text(GlyphCatalog.CIRCLE, palette, layout.MenuMarkerFontSize)
+                : Text(string.Empty, palette, layout.MenuMarkerFontSize);
             marker.Foreground = Brush(palette.IconForeground);
             marker.VerticalAlignment = VerticalAlignment.Center;
             marker.HorizontalAlignment = HorizontalAlignment.Center;

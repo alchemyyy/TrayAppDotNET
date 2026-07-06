@@ -7,6 +7,8 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
@@ -155,7 +157,7 @@ public sealed partial class FanPropertiesWindow : Window
         {
             if (field == value) return;
             field = value;
-            _pinButton.Text = value ? GlyphCatalog.PINNED : GlyphCatalog.PIN;
+            GlyphApplicator.ApplyTo(_pinButton.Label, value ? GlyphCatalog.PINNED : GlyphCatalog.PIN);
         }
     }
 
@@ -823,9 +825,9 @@ public sealed partial class FanPropertiesWindow : Window
             TextTrimming = TextTrimming.CharacterEllipsis
         };
 
-    private SettingsButton CaptionButton(string glyph, SettingsPalette p)
+    private SettingsButton CaptionButton(Glyph glyph, SettingsPalette p)
     {
-        SettingsButton button = new(glyph, p, transparentBase: true)
+        SettingsButton button = new(glyph.Text, p, transparentBase: true)
         {
             Width = Layout.CaptionButtonWidth,
             Height = Layout.CaptionButtonHeight,
@@ -833,6 +835,7 @@ public sealed partial class FanPropertiesWindow : Window
             Padding = Layout.CaptionButtonPadding,
             Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.CaptionButtonFontSize }
         };
+        GlyphApplicator.ApplyTo(button.Label, glyph);
         return button;
     }
 

@@ -31,7 +31,8 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
     internal const double HudPanStep = 80.0;
     internal const double HudZoomStep = 1.25;
 
-    private static readonly FontFamily PinFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    private static readonly FontFamily PinFont =
+        TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamily(GlyphCatalog.MAP_PIN.Font);
     private static readonly Geometry? MapGeometry = LoadMapGeometry();
     private static readonly MercatorMapProjection Projection = MercatorMapProjection.FromMapSize(MapWidth, MapHeight);
 
@@ -145,7 +146,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
     {
         Point center = _viewport.MapToViewport(Projection.Project(_selectedCoordinate));
         FormattedText text = new(
-            GlyphCatalog.MAP_PIN,
+            GlyphCatalog.MAP_PIN.Text,
             System.Globalization.CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
             new Typeface(PinFont),

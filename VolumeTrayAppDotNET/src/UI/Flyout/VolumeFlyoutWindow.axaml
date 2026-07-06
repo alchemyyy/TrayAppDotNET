@@ -108,8 +108,6 @@
         <sys:Double x:Key="Flyout.DeviceMuteButtonHeight">32</sys:Double>
         <Thickness x:Key="Flyout.DeviceMuteButtonMargin">-8,-12,3,-12</Thickness>
         <sys:Double x:Key="Flyout.DeviceMuteGlyphFontSize">26</sys:Double>
-        <sys:Double x:Key="Flyout.DeviceMuteMicrophoneGlyphFontSize">20.5</sys:Double>
-        <TranslateTransform x:Key="Flyout.DeviceMuteMicrophoneTransform" X="-1" />
         <sys:Double x:Key="Flyout.DeviceIconButtonWidth">28</sys:Double>
         <sys:Double x:Key="Flyout.DeviceIconButtonHeight">28</sys:Double>
         <sys:Double x:Key="Flyout.DeviceIconButtonFontSize">15</sys:Double>
@@ -119,8 +117,6 @@
         <sys:Double x:Key="Flyout.EqualizerBadgeFontSize">11</sys:Double>
         <Thickness x:Key="Flyout.EqualizerBadgeMargin">0,0,-2,-1</Thickness>
         <sys:Double x:Key="Flyout.DeviceStateFontSize">18</sys:Double>
-        <sys:Double x:Key="Flyout.DeviceStateDisabledFontSize">34</sys:Double>
-        <TranslateTransform x:Key="Flyout.DeviceStateDisabledTransform" X="-1.5" Y="-0.5" />
 
         <sys:Double x:Key="Flyout.TextButtonFontSize">13</sys:Double>
         <Thickness x:Key="Flyout.TextButtonBorderThickness">1</Thickness>

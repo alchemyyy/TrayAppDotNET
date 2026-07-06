@@ -2,6 +2,7 @@ using Avalonia.Media;
 using SkiaSharp;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Tray;
+using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
@@ -215,7 +216,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         return data.ToArray();
     }
 
-    private void DrawMirroredGlyph(SKCanvas canvas, string glyph, double fontSize, int canvasSize, SKColor color)
+    private void DrawMirroredGlyph(SKCanvas canvas, Glyph glyph, double fontSize, int canvasSize, SKColor color)
     {
         canvas.Save();
         float center = canvasSize / 2f;
@@ -224,7 +225,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         canvas.Restore();
     }
 
-    private void DrawGlyph(SKCanvas canvas, string glyph, double fontSize, int canvasSize, SKColor color)
+    private void DrawGlyph(SKCanvas canvas, Glyph glyph, double fontSize, int canvasSize, SKColor color)
     {
         using SKFont font = new(IconTypeface, (float)fontSize);
         font.Edging = SKFontEdging.Antialias;
@@ -234,8 +235,8 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         paint.IsAntialias = true;
         paint.Color = color;
 
-        GlyphPlacement placement = MeasureGlyph(font, paint, glyph, canvasSize);
-        canvas.DrawText(glyph, placement.X, placement.Y, font, paint);
+        GlyphPlacement placement = MeasureGlyph(font, paint, glyph.Text, canvasSize);
+        canvas.DrawText(glyph.Text, placement.X, placement.Y, font, paint);
     }
 
     private SKPath? GetEclipsePath(double fontSize, int canvasSize, double offsetXPercent, double offsetYPercent)
@@ -246,7 +247,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         font.Edging = SKFontEdging.Antialias;
         font.Hinting = SKFontHinting.Normal;
         font.Subpixel = false;
-        using SKPath glyphPath = font.GetTextPath(GlyphCatalog.FILLED_CIRCLE_SMALL, new SKPoint(0, 0));
+        using SKPath glyphPath = font.GetTextPath(GlyphCatalog.FILLED_CIRCLE_SMALL.Text, new SKPoint(0, 0));
         if (glyphPath.IsEmpty) return null;
 
         SKRect bounds = glyphPath.Bounds;

@@ -152,10 +152,10 @@ public class AppTheme : IDisposable
     public ThemeColor FlyoutShadow { get; set; } = new("99000000");
     public ThemeColor MenuShadow { get; set; } = new("80000000");
 
-    public string GlyphSettings { get; set; } = GlyphCatalog.SETTINGS;
-    public string GlyphPower { get; set; } = GlyphCatalog.POWER;
-    public string GlyphInfo { get; set; } = GlyphCatalog.INFO;
-    public string GlyphExit { get; set; } = GlyphCatalog.EXIT;
+    public string GlyphSettings { get; set; } = GlyphCatalog.SETTINGS.Text;
+    public string GlyphPower { get; set; } = GlyphCatalog.POWER.Text;
+    public string GlyphInfo { get; set; } = GlyphCatalog.INFO.Text;
+    public string GlyphExit { get; set; } = GlyphCatalog.EXIT.Text;
 
     public bool IsLightTheme { get; private set; }
 

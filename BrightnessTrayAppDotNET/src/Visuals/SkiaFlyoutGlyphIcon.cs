@@ -4,6 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using SkiaSharp;
+using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
@@ -72,7 +73,7 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
     protected abstract void RenderGlyph(SKCanvas canvas, int size, SKColor color);
 
     protected static SKPath BuildCenteredGlyphLinePath(
-        string glyph,
+        Glyph glyph,
         double fontSize,
         int canvasSize,
         SKFontStyleWeight weight = SKFontStyleWeight.Normal,
@@ -81,26 +82,26 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
     {
         using SKFont font = CreateIconFont(fontSize, weight);
         using SKPaint paint = CreateMeasurePaint();
-        float advanceWidth = font.MeasureText(glyph, out _, paint);
+        float advanceWidth = font.MeasureText(glyph.Text, out _, paint);
         font.GetFontMetrics(out SKFontMetrics metrics);
         float lineHeight = metrics.Descent - metrics.Ascent;
         float x = (canvasSize - advanceWidth) / 2.0f + (float)translateX;
         float y = (canvasSize - lineHeight) / 2.0f - metrics.Ascent + (float)translateY;
-        return font.GetTextPath(glyph, new SKPoint(x, y));
+        return font.GetTextPath(glyph.Text, new SKPoint(x, y));
     }
 
     protected static SKPath BuildGlyphPathAtLineOrigin(
-        string glyph,
+        Glyph glyph,
         double fontSize,
         SKFontStyleWeight weight = SKFontStyleWeight.Normal)
     {
         using SKFont font = CreateIconFont(fontSize, weight);
         font.GetFontMetrics(out SKFontMetrics metrics);
-        return font.GetTextPath(glyph, new SKPoint(0, -metrics.Ascent));
+        return font.GetTextPath(glyph.Text, new SKPoint(0, -metrics.Ascent));
     }
 
     protected static SKPath BuildBoundsCenteredGlyphPath(
-        string glyph,
+        Glyph glyph,
         double fontSize,
         int canvasSize,
         SKFontStyleWeight weight = SKFontStyleWeight.Normal,

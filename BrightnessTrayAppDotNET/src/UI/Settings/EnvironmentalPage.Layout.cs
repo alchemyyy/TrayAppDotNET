@@ -274,7 +274,7 @@ public sealed partial class BrightnessSettingsWindow
             handledEventsToo: true);
         dateControl.Children.Add(_sunOverlayDateBox);
 
-        SettingsButton calendarButton = Button(GlyphCatalog.CALENDAR, p);
+        SettingsButton calendarButton = Button(GlyphCatalog.CALENDAR.Text, p);
         calendarButton.Width = 28;
         calendarButton.Height = 32;
         calendarButton.MinHeight = 32;

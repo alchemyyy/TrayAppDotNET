@@ -1,4 +1,5 @@
 using SkiaSharp;
+using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
@@ -69,7 +70,7 @@ internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon
     }
 
     private static SKPath BuildScaledGlyphAt(
-        string glyph,
+        Glyph glyph,
         int size,
         SKFontStyleWeight weight,
         double scaleX,
@@ -92,7 +93,7 @@ internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon
     }
 
     private static SKPath BuildScaledGlyphBottomRight(
-        string glyph,
+        Glyph glyph,
         int size,
         SKFontStyleWeight weight,
         double scale,

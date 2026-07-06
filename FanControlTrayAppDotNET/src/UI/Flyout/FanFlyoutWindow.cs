@@ -14,6 +14,8 @@ using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
@@ -168,7 +170,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     public bool IsUndocked => _isUndocked;
 
-    public string NonFunctioningFansGlyph => _showNonFunctioningFans ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
+    private Glyph NonFunctioningFansGlyph => _showNonFunctioningFans ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
 
     protected override bool HasOpenChildWindow =>
         _fanPropertiesWindows.Values.Any(window => window.IsVisible)
@@ -493,7 +495,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Width = Layout.FanButtonWidth,
             Height = Layout.FanButtonHeight,
             Margin = Layout.FanButtonUngroupedMargin,
-            Child = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.INFO, p, Layout.FanButtonFontSize),
+            Child = IconText(GlyphCatalog.INFO, p, Layout.FanButtonFontSize),
             IsHitTestVisible = false,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -672,7 +674,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             }
         };
 
-        Border probeButton = TrayAppDotNETFlyoutUI.IconButton(
+        Border probeButton = IconButton(
             GlyphCatalog.PROBE,
             p,
             _ => ToggleProbeSelectorWindow(probeCard),
@@ -712,7 +714,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid.SetColumn(nameStack, 1);
         row.Children.Add(nameStack);
 
-        Border expand = TrayAppDotNETFlyoutUI.IconButton(ProbeExpansionGlyph(probeCard), p, _ =>
+        Border expand = IconButton(ProbeExpansionGlyph(probeCard), p, _ =>
             {
                 probeCard.IsCollapsed = !probeCard.IsCollapsed;
                 SaveProbeCardChanges();
@@ -722,7 +724,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid.SetColumn(expand, 2);
         row.Children.Add(expand);
 
-        Border delete = TrayAppDotNETFlyoutUI.IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteProbeCardAsync(probeCard),
+        Border delete = IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteProbeCardAsync(probeCard),
             Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete probe card");
         Grid.SetColumn(delete, 3);
@@ -799,14 +801,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Orientation = Orientation.Horizontal,
             VerticalAlignment = VerticalAlignment.Center
         };
-        TextBlock glyph = TrayAppDotNETFlyoutUI.IconText(
+        TextBlock glyph = IconText(
             ProbeValueFormatter.GlyphFor(source?.DataSourceType ?? DataSourceTypeEnum.Unknown),
             p,
             Layout.ProbeRowGlyphFontSize);
         glyph.Width = Layout.ProbeRowGlyphWidth;
-
-        //TODO: Move this hack to its own layer its currently repeated everywhere I need it
-        if (source?.DataSourceType == DataSourceTypeEnum.Load) glyph.RenderTransform = new ScaleTransform(0.9, 1.0);
         glyph.VerticalAlignment = VerticalAlignment.Center;
         labelRow.Children.Add(glyph);
 
@@ -847,7 +846,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        Border fanButton = TrayAppDotNETFlyoutUI.IconButton(
+        Border fanButton = IconButton(
             GlyphCatalog.FAN,
             p,
             _ => ToggleFanPropertiesWindow(fan),
@@ -855,8 +854,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.FanButtonHeight,
             Layout.FanButtonFontSize,
             margin: grouped ? Layout.FanButtonGroupedMargin : Layout.FanButtonUngroupedMargin,
-            tooltip: "Fan properties",
-            fontFamily: Constants.FanFontFamilyName);
+            tooltip: "Fan properties");
         fanButton.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetRow(fanButton, 0);
         Grid.SetColumn(fanButton, 0);
@@ -919,7 +917,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Border? mode = null;
         if (!grouped)
         {
-            mode = TrayAppDotNETFlyoutUI.IconButton(
+            mode = IconButton(
                 ControlModeGlyph(fan.CurrentControlMode),
                 p,
                 _ => ToggleFanMode(fan),
@@ -1060,14 +1058,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
         };
 
-        Border groupIcon = TrayAppDotNETFlyoutUI.IconButton(GlyphCatalog.GROUP, p, _ => { }, Layout.GroupIconWidth,
+        Border groupIcon = IconButton(GlyphCatalog.GROUP, p, _ => { }, Layout.GroupIconWidth,
             Layout.GroupIconHeight, Layout.GroupIconFontSize, margin: Layout.FanButtonUngroupedMargin,
             tooltip: "Group");
         groupIcon.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(groupIcon, 0);
         row.Children.Add(groupIcon);
 
-        Border expand = TrayAppDotNETFlyoutUI.IconButton(cell.GroupExpansionGlyph, p, _ =>
+        Border expand = IconButton(cell.GroupExpansionGlyph, p, _ =>
             {
                 if (cell.GroupSettings == null) return;
                 cell.GroupSettings.IsCollapsed = !cell.GroupSettings.IsCollapsed;
@@ -1100,13 +1098,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid.SetColumn(title, 1);
         row.Children.Add(title);
 
-        Border delete = TrayAppDotNETFlyoutUI.IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteGroupAsync(cell),
+        Border delete = IconButton(GlyphCatalog.DELETE, p, e => _ = DeleteGroupAsync(cell),
             Layout.GroupHeaderButtonWidth, Layout.GroupHeaderButtonHeight, Layout.GroupDeleteFontSize,
             margin: Layout.GroupHeaderButtonMargin, tooltip: "Delete group");
         Grid.SetColumn(delete, 3);
         row.Children.Add(delete);
 
-        Border mode = TrayAppDotNETFlyoutUI.IconButton(
+        Border mode = IconButton(
             ControlModeGlyph(cell.GroupCurrentControlMode),
             p,
             _ => ToggleGroupMode(cell),
@@ -1307,7 +1305,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// <summary>
     /// Resolves the probe-card drawer expansion glyph.
     /// </summary>
-    private static string ProbeExpansionGlyph(ProbeCard probeCard) =>
+    private static Glyph ProbeExpansionGlyph(ProbeCard probeCard) =>
         probeCard.IsCollapsed ? GlyphCatalog.COLLAPSED : GlyphCatalog.EXPANDED;
 
     /// <summary>
@@ -1386,7 +1384,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
     }
 
-    private static string ControlModeGlyph(FanControlMode mode) =>
+    private static Glyph ControlModeGlyph(FanControlMode mode) =>
         mode == FanControlMode.Manual
             ? GlyphCatalog.FLYOUT_FAN_CONTROL_MODE_MANUAL
             : GlyphCatalog.FLYOUT_FAN_CONTROL_MODE_CURVE;
@@ -1397,7 +1395,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void ApplyControlModeGlyphVisual(TextBlock? glyph, FanControlMode mode)
     {
         if (glyph == null) return;
-        glyph.Text = ControlModeGlyph(mode);
+        GlyphApplicator.ApplyTo(glyph, ControlModeGlyph(mode));
         glyph.Opacity = mode == FanControlMode.Manual ? Layout.FullOpacity : Layout.RelinquishedControlOpacity;
     }
 
@@ -1757,17 +1755,66 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                         ? curve.MaxRPM
                         : fan.FanSliderMaximum);
 
+    /// <summary>
+    /// Creates a local-size icon TextBlock and applies glyph-owned metadata.
+    /// </summary>
+    private static TextBlock IconText(
+        Glyph glyph,
+        FlyoutControlPalette palette,
+        double fontSize,
+        FontWeight? fontWeight = null)
+    {
+        TextBlock text = TrayAppDotNETFlyoutUI.IconText(glyph.Text, palette, fontSize, weight: fontWeight);
+        GlyphApplicator.ApplyTo(text, glyph);
+        return text;
+    }
+
+    /// <summary>
+    /// Creates a local-layout icon button and applies glyph-owned metadata.
+    /// </summary>
+    private static Border IconButton(
+        Glyph glyph,
+        FlyoutControlPalette palette,
+        Action<PointerReleasedEventArgs> click,
+        double width,
+        double height,
+        double fontSize,
+        bool enabled = true,
+        Thickness? margin = null,
+        string? tooltip = null,
+        Action<PointerReleasedEventArgs>? rightClick = null,
+        FontWeight? fontWeight = null)
+    {
+        Border button = TrayAppDotNETFlyoutUI.IconButton(
+            glyph.Text,
+            palette,
+            click,
+            width,
+            height,
+            fontSize,
+            enabled,
+            margin,
+            tooltip,
+            fontFamily: null,
+            rightClick: rightClick,
+            fontWeight: fontWeight);
+        if (button.Child is TextBlock textBlock)
+            GlyphApplicator.ApplyTo(textBlock, glyph);
+
+        return button;
+    }
+
     private TextBlock? AddHeaderButton(
         Grid grid,
         int column,
-        string glyph,
+        Glyph glyph,
         FlyoutControlPalette p,
         Action click,
         string tooltip,
         double? fontSize = null,
         Action<Border>? configureButton = null)
     {
-        Border button = TrayAppDotNETFlyoutUI.IconButton(glyph, p, _ => click(), Layout.HeaderButtonWidth,
+        Border button = IconButton(glyph, p, _ => click(), Layout.HeaderButtonWidth,
             Layout.HeaderButtonHeight, fontSize ?? Layout.HeaderButtonFontSize, tooltip: tooltip);
         configureButton?.Invoke(button);
         TextBlock? text = button.Child as TextBlock;
@@ -1782,8 +1829,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Width = Layout.HeaderAddGroupIconSize, Height = Layout.HeaderAddGroupIconSize, IsHitTestVisible = false
         };
-        TextBlock groupGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize);
-        TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
+        TextBlock groupGlyph = IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize);
+        TextBlock plusGlyph = IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
         plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
         plusGlyph.VerticalAlignment = VerticalAlignment.Top;
         plusGlyph.RenderTransform = Layout.HeaderAddGlyphTransform;
@@ -1805,8 +1852,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Height = Layout.HeaderAddGroupIconSize,
             IsHitTestVisible = false
         };
-        TextBlock probeGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddProbeFontSize);
-        TextBlock plusGlyph = TrayAppDotNETFlyoutUI.IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
+        TextBlock probeGlyph = IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddProbeFontSize);
+        TextBlock plusGlyph = IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
         plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
         plusGlyph.VerticalAlignment = VerticalAlignment.Top;
         plusGlyph.RenderTransform = Layout.HeaderAddGlyphTransform;
@@ -1849,7 +1896,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private Border BuildUndockButton(FlyoutControlPalette p)
     {
-        TextBlock text = TrayAppDotNETFlyoutUI.IconText(UndockButtonGlyph(), p, Layout.UndockFontSize);
+        TextBlock text = IconText(UndockButtonGlyph(), p, Layout.UndockFontSize);
         Border button = new()
         {
             Width = Layout.HeaderButtonWidth,
@@ -2060,8 +2107,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ExecuteFanRebuild(reposition: true);
     }
 
-    private void UpdateNonFunctioningFansButtonVisual() =>
-        _nonFunctioningFansButtonGlyph?.Text = NonFunctioningFansGlyph;
+    private void UpdateNonFunctioningFansButtonVisual()
+    {
+        if (_nonFunctioningFansButtonGlyph == null) return;
+        GlyphApplicator.ApplyTo(_nonFunctioningFansButtonGlyph, NonFunctioningFansGlyph);
+    }
 
     private void SortFansByLHMName()
     {
@@ -4490,12 +4540,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void UpdateUndockButtonVisual()
     {
-        _undockButtonGlyph?.Text = UndockButtonGlyph();
+        if (_undockButtonGlyph != null)
+            GlyphApplicator.ApplyTo(_undockButtonGlyph, UndockButtonGlyph());
         if (_undockButton != null)
             TrayAppDotNETToolTip.SetTip(_undockButton, UndockButtonTooltip());
     }
 
-    private string UndockButtonGlyph() =>
+    private Glyph UndockButtonGlyph() =>
         _isUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
 
     private string UndockButtonTooltip() =>

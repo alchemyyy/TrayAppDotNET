@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -85,6 +86,26 @@ public static class TrayAppDotNETFlyoutUI
         return icon;
     }
 
+    /// <summary>
+    /// Creates icon text from a glyph object while preserving caller-owned layout metrics.
+    /// </summary>
+    public static TextBlock IconText(
+        Glyph glyph,
+        FlyoutControlPalette palette,
+        double fontSize,
+        string? fontFamily = null,
+        FontWeight? weight = null)
+    {
+        TextBlock icon = IconText(
+            glyph.Text,
+            palette,
+            fontSize,
+            fontFamily ?? TADNFontResolver.ResolveFontFamilyName(glyph.Font),
+            weight);
+        GlyphApplicator.ApplyTo(icon, glyph, applyFontFamily: fontFamily == null);
+        return icon;
+    }
+
     public static void ApplyGlyphTextRendering(TextBlock text)
     {
         TextOptions.SetTextRenderingMode(text, TextRenderingMode.Antialias);
@@ -126,6 +147,53 @@ public static class TrayAppDotNETFlyoutUI
         FontWeight? fontWeight = null)
     {
         Control content = string.IsNullOrEmpty(glyph) || fontSize <= 0
+            ? new Grid { IsHitTestVisible = false }
+            : IconText(glyph, palette, fontSize, fontFamily, fontWeight);
+
+        Border button = new()
+        {
+            Width = width,
+            Height = height,
+            Margin = margin ?? FlyoutCardsLayout.ZeroThickness,
+            CornerRadius = FlyoutCardsLayout.IconButtonRadius,
+            Background = Brushes.Transparent,
+            Child = content,
+            Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
+            IsEnabled = enabled
+        };
+
+        if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
+        TrayAppDotNETToolTip.SuppressWhileEngaged(button);
+        FlyoutButtonState.Attach(
+            button,
+            () => Brushes.Transparent,
+            () => Brush(palette.Hover),
+            () => Brush(palette.Pressed),
+            click,
+            enabled,
+            rightClick);
+
+        return button;
+    }
+
+    /// <summary>
+    /// Creates an icon button from a glyph object while preserving caller-owned layout metrics.
+    /// </summary>
+    public static Border IconButton(
+        Glyph glyph,
+        FlyoutControlPalette palette,
+        Action<PointerReleasedEventArgs> click,
+        double width,
+        double height,
+        double fontSize,
+        bool enabled = true,
+        Thickness? margin = null,
+        string? tooltip = null,
+        string? fontFamily = null,
+        Action<PointerReleasedEventArgs>? rightClick = null,
+        FontWeight? fontWeight = null)
+    {
+        Control content = string.IsNullOrEmpty(glyph.Text) || fontSize <= 0
             ? new Grid { IsHitTestVisible = false }
             : IconText(glyph, palette, fontSize, fontFamily, fontWeight);
 

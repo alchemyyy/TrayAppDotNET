@@ -27,6 +27,17 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
 
     public TrayAppDotNETCaptionCloseButton(
         SettingsPalette palette,
+        Glyph glyph,
+        double width,
+        double height,
+        double glyphFontSize)
+        : this(palette, glyph.Text, width, height, glyphFontSize)
+    {
+        GlyphApplicator.ApplyTo(_glyph, glyph);
+    }
+
+    public TrayAppDotNETCaptionCloseButton(
+        SettingsPalette palette,
         string glyph,
         double width,
         double height,
