@@ -63,13 +63,13 @@ public class EnvironmentalCurve
     // Offset clamp limits, stored on the same 0..100 scale as the curves (0 = -100 offset, 50 = +0, 100 = +100).
     // Defaults span the full range so a freshly-toggled offset mode applies no clamp until the user drags the lines in.
     [XmlAttribute]
-    public double BrightnessOffsetMin { get; set; } = 0.0;
+    public double BrightnessOffsetMin { get; set; }
 
     [XmlAttribute]
     public double BrightnessOffsetMax { get; set; } = 100.0;
 
     [XmlAttribute]
-    public double NightLightOffsetMin { get; set; } = 0.0;
+    public double NightLightOffsetMin { get; set; }
 
     [XmlAttribute]
     public double NightLightOffsetMax { get; set; } = 100.0;
@@ -165,7 +165,7 @@ public class EnvironmentalCurve
     // (e.g. start=0.9, end=0.1 disables the late-night / early-morning slice).
     // Per-profile.
     [XmlAttribute]
-    public bool DisabledPeriodEnabled { get; set; } = false;
+    public bool DisabledPeriodEnabled { get; set; }
 
     [XmlAttribute]
     public double DisabledPeriodStart { get; set; } = 0.25;
@@ -180,7 +180,7 @@ public class EnvironmentalCurve
     // - the period stays anchored to "civil dawn", "sunset", etc.
     // Off by default so a fresh disabled period stays in clock-time.
     [XmlAttribute]
-    public bool DisabledPeriodFollowTheSun { get; set; } = false;
+    public bool DisabledPeriodFollowTheSun { get; set; }
 
     // Anchor state for the disabled period under <see cref="DisabledPeriodFollowTheSun"/>.
     // Independent of the curve's <see cref="BrightnessAnchor"/>

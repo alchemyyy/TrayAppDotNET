@@ -134,7 +134,7 @@ public class MonitorOverrideEntry
 
     // 0 = no per-monitor floor (the natural slider minimum). 1..100 = active floor.
     [XmlAttribute]
-    public int MinBrightness { get; set; } = 0;
+    public int MinBrightness { get; set; }
 
     // 100 = no per-monitor ceiling (the natural slider maximum). 0..99 = active ceiling.
     [XmlAttribute]
@@ -204,7 +204,7 @@ public class KnownDisplayEntry
     /// (laptop internal panels, USB displays) so the fallback worker only hammers hardware that we know can respond.
     /// </summary>
     [XmlAttribute]
-    public bool WasEverDDCCapable { get; set; } = false;
+    public bool WasEverDDCCapable { get; set; }
 
     /// <summary>
     /// Last value successfully written to this display's DDC brightness VCP (0-100, null = never written).
@@ -240,7 +240,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public TrayWheelTarget TrayCtrlWheelAction { get; set; } = TrayWheelTarget.NightLight;
     public TrayWheelTarget TrayAltWheelAction { get; set; } = TrayWheelTarget.Nothing;
     public bool FlyoutNumberKeysSwitchProfile { get; set; } = true;
-    public bool PreserveMasterSliderOffsets { get; set; } = false;
+    public bool PreserveMasterSliderOffsets { get; set; }
     public TrayClickAction TrayDoubleClickAction { get; set; } = TrayClickAction.Nothing;
     public TrayClickAction TrayCtrlLeftClickAction { get; set; } = TrayClickAction.Nothing;
     public TrayClickAction TrayAltLeftClickAction { get; set; } = TrayClickAction.Nothing;
@@ -251,7 +251,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
 
     // Context Menu
     public bool ShowProfileSelectorsInMenu { get; set; } = true;
-    public bool ShowMonitorPowerButtons { get; set; } = false;
+    public bool ShowMonitorPowerButtons { get; set; }
     public bool ShowAllDisplaysPowerButton { get; set; } = true;
     public PowerOffMode PowerOffMode { get; set; } = PowerOffMode.Sleep;
     public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
@@ -284,11 +284,11 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public int DDCOperationTimeoutMs { get; set; } = TimeConstants.DDCOperationTimeoutDefaultMs;
 
     public MasterSliderMode MasterSliderMode { get; set; } = MasterSliderMode.Average;
-    public bool ShowFlyoutMonitorPowerButtons { get; set; } = false;
-    public bool ShowFlyoutMonitorNumberBadge { get; set; } = false;
+    public bool ShowFlyoutMonitorPowerButtons { get; set; }
+    public bool ShowFlyoutMonitorNumberBadge { get; set; }
     public bool ShowFlyoutDisplaySettingsButton { get; set; } = true;
-    public bool ShowFlyoutFooterPowerButton { get; set; } = false;
-    public bool FooterPowerButtonOnlyEnabledMonitors { get; set; } = false;
+    public bool ShowFlyoutFooterPowerButton { get; set; }
+    public bool FooterPowerButtonOnlyEnabledMonitors { get; set; }
     public bool ShowMasterSlider { get; set; } = true;
     public bool ShowIndividualSliders { get; set; } = true;
     public bool ShowNightLightSlider { get; set; } = true;
@@ -309,21 +309,21 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     // and behaves like a free-floating window (always-on-top, doesn't auto-hide on focus loss).
     // Tray-icon click and the redock button both flip this back to docked.
     // The position is only written to disk on drag-release, not while dragging.
-    public bool FlyoutUndocked { get; set; } = false;
+    public bool FlyoutUndocked { get; set; }
 
     /// <summary>
     /// Sticky one-shot acknowledgement for the warning-triangle hard power-off click.
     /// False until the user confirms the destructive-action overlay the first time;
     /// after that, subsequent warning-glyph clicks fire the 0x05 power-off without prompting.
     /// </summary>
-    public bool HasAcknowledgedHardPowerOffWarning { get; set; } = false;
+    public bool HasAcknowledgedHardPowerOffWarning { get; set; }
 
-    public bool FlyoutHasSavedPosition { get; set; } = false;
-    public double FlyoutLeft { get; set; } = 0;
-    public double FlyoutTop { get; set; } = 0;
+    public bool FlyoutHasSavedPosition { get; set; }
+    public double FlyoutLeft { get; set; }
+    public double FlyoutTop { get; set; }
     public bool ShowEnvironmentalCurvesButton { get; set; } = true;
-    public bool ShowNightLightKelvinLabel { get; set; } = false;
-    public bool InvertNightLightSlider { get; set; } = false;
+    public bool ShowNightLightKelvinLabel { get; set; }
+    public bool InvertNightLightSlider { get; set; }
 
     /// <summary>Backend selection for night light. See <see cref="NightLightFallbackMode"/>.</summary>
     public NightLightFallbackMode NightLightFallbackMode { get; set; } = NightLightFallbackMode.SettingsHandler;
@@ -364,7 +364,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     /// zero-strength trap so the user gets back the warmth they last used.
     /// Off by default - historical behaviour was to leave the toggle on at zero strength.
     /// </summary>
-    public bool TurnOffNightLightAtZeroStrength { get; set; } = false;
+    public bool TurnOffNightLightAtZeroStrength { get; set; }
 
     /// <summary>
     /// HTTP timeout (seconds) used by <see cref="BrightnessTrayAppDotNET.Interop.NightLight.PDBSymbolResolver"/>
@@ -383,7 +383,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     // ShowUpdateNotificationsEnabled drives the tray balloon shown when the flyout is closed and a fresh
     // version is detected; defaults to off so the first-run experience doesn't ambush new users.
     public bool CheckForUpdatesEnabled { get; set; } = true;
-    public bool ShowUpdateNotificationsEnabled { get; set; } = false;
+    public bool ShowUpdateNotificationsEnabled { get; set; }
     public bool ShowUpdateButtonInFlyout { get; set; } = true;
     public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
 
@@ -411,7 +411,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     public NullableThemeColor BackgroundColor { get; set; } = new();
     public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Dynamic;
     public MasterSliderMode DynamicIconBrightnessTracking { get; set; } = MasterSliderMode.Average;
-    public bool DynamicIconTrackEnabledOnly { get; set; } = false;
+    public bool DynamicIconTrackEnabledOnly { get; set; }
     public NullableThemeColor TrayIconColor { get; set; } = new();
     public NullableThemeColor TrayIconBrightColor { get; set; } = new();
     public NullableThemeColor TrayIconDimColor { get; set; } = new();
@@ -441,13 +441,13 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     // Runtime curve engagement flags
     // - mirror the flyout's per-row curve-toggle buttons so an active curve survives an app restart
     // instead of resetting each session.
-    public bool EnvironmentalBrightnessCurveEnabled { get; set; } = false;
-    public bool EnvironmentalNightLightCurveEnabled { get; set; } = false;
+    public bool EnvironmentalBrightnessCurveEnabled { get; set; }
+    public bool EnvironmentalNightLightCurveEnabled { get; set; }
 
     // Re-engages brightness curve control after the curve crosses the released master slider value.
     // The delay is a dead window after each manual brightness write, so an immediate click across
     // the current curve target cannot snap the user straight back into curve control.
-    public bool AutoEngageEnvironmentalCurveEnabled { get; set; } = false;
+    public bool AutoEngageEnvironmentalCurveEnabled { get; set; }
     public int AutoEngageEnvironmentalCurveDelaySeconds { get; set; } =
         TimeConstants.AutoEngageEnvironmentalCurveDelayDefaultSeconds;
 
@@ -458,13 +458,13 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETKeepWarmS
     // (additive/subtractive deltas, -100..+100 Y axis) plus draggable min/max clamp lines.
     // When off, the editor exposes the absolute Brightness/NightLight curves (0..100 Y axis).
     // Both sets are stored independently on each profile so toggling is non-destructive.
-    public bool EnvironmentalOffsetMode { get; set; } = false;
+    public bool EnvironmentalOffsetMode { get; set; }
 
     // Cursor readout: when on, the curve editor draws a vertical scrubber at the cursor's X
     // and a small marker on each visible curve labelled with its value at that X.
     // The top-right "time / value" readout is always visible while the cursor is inside the editor
     // regardless of this setting; the toggle controls only the per-curve readouts.
-    public bool EnvironmentalShowCursorReadout { get; set; } = false;
+    public bool EnvironmentalShowCursorReadout { get; set; }
 
     // Sun overlay: when on, the curve editor shades twilight bands (orange) and night bands (greyish blue)
     // behind the curves so the user can see at a glance where each part of the day's brightness curve
