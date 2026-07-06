@@ -151,11 +151,12 @@ public sealed class TrayIconRenderer : IDisposable
 
     private void DrawGlyph(SKCanvas canvas, string glyph, GlyphPlacement placement, SKColor color)
     {
-        using SKFont font = new(IconTypeface, placement.FontSize)
-        {
-            Edging = _options.FontEdging, Subpixel = _options.Subpixel,
-        };
-        using SKPaint paint = new() { IsAntialias = true, Color = color, };
+        using SKFont font = new(IconTypeface, placement.FontSize);
+        font.Edging = _options.FontEdging;
+        font.Subpixel = _options.Subpixel;
+        using SKPaint paint = new();
+        paint.IsAntialias = true;
+        paint.Color = color;
 
         canvas.DrawText(glyph, placement.X, placement.Y, font, paint);
     }
