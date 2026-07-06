@@ -170,8 +170,5 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
     /// <summary>
     /// Loads flyout-cell layout resources from AXAML.
     /// </summary>
-    private static FanFlyoutCellResources LoadResources()
-    {
-        return new FanFlyoutCellResources();
-    }
+    private static FanFlyoutCellResources LoadResources() => new();
 }

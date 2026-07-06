@@ -75,10 +75,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         flyout.KeepOpenForSettingsWindow = true;
     }
 
-    public void Release()
-    {
-        Release(hideFlyout: true, activateFlyout: false);
-    }
+    public void Release() => Release(hideFlyout: true, activateFlyout: false);
 
     private void Release(bool hideFlyout, bool activateFlyout)
     {

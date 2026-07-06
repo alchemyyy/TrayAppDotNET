@@ -678,10 +678,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         _lastTrayIconLocationRefreshTick = 0;
     }
 
-    private void InvalidateTrayIconLocationForRefresh()
-    {
-        _lastTrayIconLocationRefreshTick = 0;
-    }
+    private void InvalidateTrayIconLocationForRefresh() => _lastTrayIconLocationRefreshTick = 0;
 
     private bool UpdateInputRegistrationForCursor(User32.POINT cursor)
     {

@@ -59,10 +59,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private int _lastNotifiedUpdateVersion;
     private bool _shuttingDown;
 
-    public override void Initialize()
-    {
-        TrayAppDotNETAvalonia.InitializeDefaults(this);
-    }
+    public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {

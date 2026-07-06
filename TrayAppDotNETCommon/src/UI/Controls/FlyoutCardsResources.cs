@@ -8,8 +8,5 @@ public sealed partial class FlyoutCardsResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled flyout-card resource dictionary.
     /// </summary>
-    public FlyoutCardsResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public FlyoutCardsResources() => AvaloniaXamlLoader.Load(this);
 }

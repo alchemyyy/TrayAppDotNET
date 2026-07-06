@@ -8,8 +8,5 @@ public sealed partial class UpdateConfirmationWindowResources : ResourceDictiona
     /// <summary>
     /// Initializes the compiled update-confirmation resource dictionary.
     /// </summary>
-    public UpdateConfirmationWindowResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public UpdateConfirmationWindowResources() => AvaloniaXamlLoader.Load(this);
 }

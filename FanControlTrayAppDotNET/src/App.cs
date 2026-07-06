@@ -59,10 +59,7 @@ internal sealed class FanAvaloniaApp : Application
     private bool _suppressNextTrayClick;
     private bool _shuttingDown;
 
-    public override void Initialize()
-    {
-        TrayAppDotNETAvalonia.InitializeDefaults(this);
-    }
+    public override void Initialize() => TrayAppDotNETAvalonia.InitializeDefaults(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -92,10 +89,7 @@ internal sealed class FanAvaloniaApp : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void WireCrashHandlers()
-    {
-        TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
-    }
+    private static void WireCrashHandlers() => TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
 
     private void LoadSettingsAndTheme()
     {

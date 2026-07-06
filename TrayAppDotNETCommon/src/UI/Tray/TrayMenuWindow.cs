@@ -30,10 +30,7 @@ public sealed class TrayMenuEntryBuilder
 
     public int Count => _entries.Count;
 
-    public void Add(string text, Action click, string? trailingGlyph = null)
-    {
-        Add(new TrayMenuEntry(text, click) { TrailingGlyph = trailingGlyph, });
-    }
+    public void Add(string text, Action click, string? trailingGlyph = null) => Add(new TrayMenuEntry(text, click) { TrailingGlyph = trailingGlyph, });
 
     public void Add(TrayMenuEntry entry)
     {

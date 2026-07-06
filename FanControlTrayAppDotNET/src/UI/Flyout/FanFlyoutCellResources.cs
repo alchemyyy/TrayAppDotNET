@@ -8,8 +8,5 @@ public sealed partial class FanFlyoutCellResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled fan-flyout-cell resource dictionary.
     /// </summary>
-    public FanFlyoutCellResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public FanFlyoutCellResources() => AvaloniaXamlLoader.Load(this);
 }

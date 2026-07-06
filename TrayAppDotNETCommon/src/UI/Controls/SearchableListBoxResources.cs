@@ -8,8 +8,5 @@ public sealed partial class SearchableListBoxResources : ResourceDictionary
     /// <summary>
     /// Initializes the compiled searchable-list resource dictionary.
     /// </summary>
-    public SearchableListBoxResources()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    public SearchableListBoxResources() => AvaloniaXamlLoader.Load(this);
 }
