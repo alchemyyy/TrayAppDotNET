@@ -780,7 +780,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             grid.Children.Add(curve);
         }
 
-        if (monitor is { IsMaster: false, IsNightLight: false } && (_settings?.ShowFlyoutMonitorPowerButtons ?? false))
+        if (monitor is { IsMaster: false, IsNightLight: false, SupportsPowerControl: true }
+            && (_settings?.ShowFlyoutMonitorPowerButtons ?? false))
         {
             Border power = TrayAppDotNETFlyoutUI.IconButton(
                 GlyphCatalog.POWER,
@@ -864,7 +865,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 opacity: IsBrightnessCurveEnabled || IsNightLightCurveEnabled ? 1.0 : 0.4));
         }
 
-        if (_settings?.ShowFlyoutFooterPowerButton ?? false)
+        if ((_settings?.ShowFlyoutFooterPowerButton ?? false)
+            && Monitors.Any(static m => m.SupportsPowerControl))
         {
             actions.Children.Add(BuildFooterIconButton(_theme.GlyphPower, palette, PowerOffFooterTargets,
                 L("Flyout_TurnOffAllDisplays", "Turn off displays")));
@@ -909,6 +911,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         bool crowded = (_settings?.ShowEnvironmentalCurvesButton ?? true)
                        && (_settings?.ShowFlyoutFooterPowerButton ?? false)
+                       && Monitors.Any(static m => m.SupportsPowerControl)
                        && (_settings?.ShowFlyoutDisplaySettingsButton ?? true)
                        && _settings?.Autosave == false;
         return crowded ? Layout.FooterPaddingCrowded : Layout.FooterPaddingNormal;
@@ -2009,7 +2012,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             return;
         }
 
-        bool isWarningState = monitor is { IsMaster: false, WasEverDDCCapable: true }
+        bool isWarningState = monitor is { IsMaster: false, WasEverDDCCapable: true, SupportsPowerControl: true }
                               && (monitor.IsFailed || monitor.IsReadDegraded);
         if (isWarningState && IsControlDown())
         {
@@ -2122,6 +2125,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         foreach (MonitorInfo monitor in Monitors)
         {
             if (onlyEnabled && !monitor.IsParticipatingInMaster) continue;
+            if (!monitor.SupportsPowerControl) continue;
             _ = _monitorService.SetPowerStateAsync(monitor, false);
         }
     }

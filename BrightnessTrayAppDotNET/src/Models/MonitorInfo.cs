@@ -408,6 +408,23 @@ public class MonitorInfo : INotifyPropertyChanged
     public string IconGlyph { get; set; } = GlyphCatalog.MONITOR;
 
     /// <summary>
+    /// Whether this row can send monitor power commands. DDC/CI rows can; Windows brightness rows expose
+    /// brightness only.
+    /// </summary>
+    public bool SupportsPowerControl
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                OnPropertyChanged();
+            }
+        }
+    } = true;
+
+    /// <summary>
     /// Whether this is the master "All Displays" control.
     /// </summary>
     public bool IsMaster { get; set; }

@@ -6,6 +6,7 @@ using BrightnessTrayAppDotNET.DDCCI.Parser.Nodes;
 using BrightnessTrayAppDotNET.DDCCI.Tokenizer;
 using BrightnessTrayAppDotNET.DDCCI.Tokenizer.Tokens;
 using BrightnessTrayAppDotNET.Interop.DDCCI;
+using BrightnessTrayAppDotNET.Interop.WindowsBrightness;
 using Microsoft.Win32;
 
 namespace BrightnessTrayAppDotNET.DDCCI;
@@ -54,6 +55,7 @@ public class DisplayService : IDisplayService
                 monitor.Name = new string(monitorInfo.szDevice).TrimEnd('\0');
                 monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(monitor.Name, friendlyByAdapter);
                 monitor.DeviceID = ResolveDeviceID(monitor.Name);
+                monitor.DisplayInstancePath = ResolveDisplayInstancePath(monitor.Name);
 
                 byte[]? edid = ReadEDID(monitor.Name);
                 if (edid != null)
@@ -72,6 +74,7 @@ public class DisplayService : IDisplayService
             }
         }
 
+        AttachWindowsBrightnessTargets(list);
         monitors = list;
         return true;
 
@@ -95,26 +98,8 @@ public class DisplayService : IDisplayService
     /// </summary>
     private static byte[]? ReadEDID(string adapterName)
     {
-        if (string.IsNullOrEmpty(adapterName)) return null;
-
-        User32Monitor.DisplayDevice dd = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
-        if (!User32Monitor.EnumDisplayDevices(
-                adapterName, 0, ref dd, User32Monitor.EDD_GET_DEVICE_INTERFACE_NAME))
-            return null;
-
-        string interfacePath = dd.DeviceID;
-        if (string.IsNullOrEmpty(interfacePath)) return null;
-
-        // Expected form: "\\?\DISPLAY#<hwid>#<instance>#{GUID}"
-        // Strip the "\\?\" prefix and the trailing "#{GUID}", then swap '#' -> '\'.
-        const string prefix = @"\\?\";
-        if (!interfacePath.StartsWith(prefix, StringComparison.Ordinal)) return null;
-
-        string body = interfacePath[prefix.Length..];
-        int lastHash = body.LastIndexOf('#');
-        if (lastHash <= 0) return null;
-
-        string regPath = body[..lastHash].Replace('#', '\\');
+        string regPath = ResolveDisplayInstancePath(adapterName);
+        if (string.IsNullOrEmpty(regPath)) return null;
         string keyPath = $@"SYSTEM\CurrentControlSet\Enum\{regPath}\Device Parameters";
 
         try
@@ -144,6 +129,87 @@ public class DisplayService : IDisplayService
             return dd.DeviceID;
 
         return adapterName;
+    }
+
+    /// <summary>
+    /// Returns the DISPLAY\...\... instance path for the monitor attached to an adapter.
+    /// This is the same shape WmiMonitorBrightness.InstanceName uses before its trailing target suffix.
+    /// </summary>
+    private static string ResolveDisplayInstancePath(string adapterName)
+    {
+        if (string.IsNullOrEmpty(adapterName)) return string.Empty;
+
+        User32Monitor.DisplayDevice dd = new() { cb = Marshal.SizeOf<User32Monitor.DisplayDevice>() };
+        if (!User32Monitor.EnumDisplayDevices(
+                adapterName, 0, ref dd, User32Monitor.EDD_GET_DEVICE_INTERFACE_NAME))
+            return string.Empty;
+
+        string interfacePath = dd.DeviceID;
+        if (string.IsNullOrEmpty(interfacePath)) return string.Empty;
+
+        // Expected form: "\\?\DISPLAY#<hwid>#<instance>#{GUID}".
+        // Strip the "\\?\" prefix and trailing "#{GUID}", then swap '#' -> '\'.
+        const string prefix = @"\\?\";
+        if (!interfacePath.StartsWith(prefix, StringComparison.Ordinal)) return string.Empty;
+
+        string body = interfacePath[prefix.Length..];
+        int lastHash = body.LastIndexOf('#');
+        if (lastHash <= 0) return string.Empty;
+
+        return body[..lastHash].Replace('#', '\\');
+    }
+
+    private static void AttachWindowsBrightnessTargets(List<DDCMonitor> monitors)
+    {
+        if (!WindowsBrightnessWmi.TryGetActiveTargets(
+                out IReadOnlyList<WindowsBrightnessTarget> targets,
+                out string? error))
+        {
+            WPFLog.Log($"DisplayService: Windows brightness enumeration skipped: {error}");
+            return;
+        }
+
+        if (targets.Count == 0) return;
+
+        HashSet<string> assignedInstances = new(StringComparer.Ordinal);
+        foreach (DDCMonitor monitor in monitors)
+        {
+            if (string.IsNullOrEmpty(monitor.DisplayInstancePath)) continue;
+
+            WindowsBrightnessTarget? target = targets.FirstOrDefault(t =>
+                !assignedInstances.Contains(t.InstanceName)
+                && string.Equals(t.DisplayInstancePath, monitor.DisplayInstancePath, StringComparison.OrdinalIgnoreCase));
+            if (target == null) continue;
+
+            ApplyWindowsBrightnessTarget(monitor, target);
+            assignedInstances.Add(target.InstanceName);
+        }
+
+        foreach (WindowsBrightnessTarget target in targets)
+        {
+            if (assignedInstances.Contains(target.InstanceName)) continue;
+
+            DDCMonitor monitor = new()
+            {
+                Name = $"WindowsBrightness:{target.DisplayInstancePath}",
+                DeviceID = $"WINDOWS_BRIGHTNESS\\{target.DisplayInstancePath}",
+                DisplayInstancePath = target.DisplayInstancePath,
+                FriendlyName = "Windows display"
+            };
+            ApplyWindowsBrightnessTarget(monitor, target);
+            monitors.Add(monitor);
+            assignedInstances.Add(target.InstanceName);
+        }
+    }
+
+    private static void ApplyWindowsBrightnessTarget(DDCMonitor monitor, WindowsBrightnessTarget target)
+    {
+        monitor.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
+        monitor.WindowsBrightnessInstanceName = target.InstanceName;
+        monitor.WindowsBrightnessMethodPath = target.MethodPath;
+        monitor.BrightnessCode = VCPConstants.Brightness;
+        if (string.IsNullOrEmpty(monitor.DisplayInstancePath))
+            monitor.DisplayInstancePath = target.DisplayInstancePath;
     }
 
     public bool TryGetCapabilities(
@@ -184,6 +250,22 @@ public class DisplayService : IDisplayService
         DDCMonitor monitor, out IReadOnlyList<VCPCapability> capabilities, out string? error,
         CancellationToken ct = default)
     {
+        if (monitor.BrightnessControlKind == MonitorBrightnessControlKind.Windows)
+        {
+            capabilities =
+            [
+                new VCPCapability
+                {
+                    Name = "Windows brightness (0x10)",
+                    OptCode = VCPConstants.Brightness,
+                    Value = 0,
+                    MaxValue = 100
+                }
+            ];
+            error = null;
+            return true;
+        }
+
         if (!TryGetCapabilities(monitor, out string capsString, out error, ct))
         {
             capabilities = [];
@@ -217,6 +299,9 @@ public class DisplayService : IDisplayService
         DDCMonitor monitor, byte code, out uint currentValue, out uint maxValue, out string? error,
         CancellationToken ct = default)
     {
+        if (monitor.BrightnessControlKind == MonitorBrightnessControlKind.Windows)
+            return TryGetWindowsBrightnessFeature(monitor, code, out currentValue, out maxValue, out error);
+
         DDCCallOutcome<(uint Cur, uint Max)> outcome = RunWithTimeout(
             monitor,
             () => TryWithPhysicalMonitor(monitor, handle =>
@@ -241,6 +326,9 @@ public class DisplayService : IDisplayService
     public bool TrySetVCPFeature(
         DDCMonitor monitor, byte code, uint value, out string? error, CancellationToken ct = default)
     {
+        if (monitor.BrightnessControlKind == MonitorBrightnessControlKind.Windows)
+            return TrySetWindowsBrightnessFeature(monitor, code, value, out error);
+
         DDCCallOutcome<bool> outcome = RunWithTimeout(
             monitor,
             () => TryWithPhysicalMonitor(monitor, handle =>
@@ -258,6 +346,51 @@ public class DisplayService : IDisplayService
 
         error = outcome.Error;
         return outcome.Success;
+    }
+
+    private static bool TryGetWindowsBrightnessFeature(
+        DDCMonitor monitor,
+        byte code,
+        out uint currentValue,
+        out uint maxValue,
+        out string? error)
+    {
+        currentValue = 0;
+        maxValue = 100;
+        error = null;
+
+        if (code != VCPConstants.Brightness)
+        {
+            error = $"Windows brightness backend does not support VCP 0x{code:X2}.";
+            return false;
+        }
+
+        if (!WindowsBrightnessWmi.TryGetBrightness(
+                monitor.WindowsBrightnessInstanceName,
+                out int brightness,
+                out error))
+            return false;
+
+        currentValue = (uint)Math.Clamp(brightness, 0, 100);
+        return true;
+    }
+
+    private static bool TrySetWindowsBrightnessFeature(
+        DDCMonitor monitor,
+        byte code,
+        uint value,
+        out string? error)
+    {
+        error = null;
+
+        if (code != VCPConstants.Brightness)
+        {
+            error = $"Windows brightness backend does not support VCP 0x{code:X2}.";
+            return false;
+        }
+
+        int percent = (int)Math.Clamp(value, 0, 100);
+        return WindowsBrightnessWmi.TrySetBrightness(monitor.WindowsBrightnessMethodPath, percent, out error);
     }
 
     private IEnumerable<VCPCapability> ReadCapabilities(
@@ -295,6 +428,7 @@ public class DisplayService : IDisplayService
         IntPtr updatedHdc = IntPtr.Zero;
         string updatedName = monitor.Name;
         string updatedDeviceID = monitor.DeviceID;
+        string updatedDisplayInstancePath = monitor.DisplayInstancePath;
         int updatedDisplayNumber = monitor.DisplayNumber;
         int updatedX = monitor.X;
         int updatedY = monitor.Y;
@@ -302,6 +436,9 @@ public class DisplayService : IDisplayService
         string updatedFriendlyName = monitor.FriendlyName;
         string updatedManufacturer = monitor.EDIDManufacturerID;
         string updatedProduct = monitor.EDIDProductCode;
+        MonitorBrightnessControlKind updatedControlKind = monitor.BrightnessControlKind;
+        string updatedWindowsBrightnessInstanceName = monitor.WindowsBrightnessInstanceName;
+        string updatedWindowsBrightnessMethodPath = monitor.WindowsBrightnessMethodPath;
 
         if (!User32Monitor.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero))
         {
@@ -315,6 +452,7 @@ public class DisplayService : IDisplayService
         monitor.HDC = updatedHdc;
         monitor.Name = updatedName;
         monitor.DeviceID = updatedDeviceID;
+        monitor.DisplayInstancePath = updatedDisplayInstancePath;
         monitor.DisplayNumber = updatedDisplayNumber;
         monitor.X = updatedX;
         monitor.Y = updatedY;
@@ -322,6 +460,9 @@ public class DisplayService : IDisplayService
         monitor.FriendlyName = updatedFriendlyName;
         monitor.EDIDManufacturerID = updatedManufacturer;
         monitor.EDIDProductCode = updatedProduct;
+        monitor.BrightnessControlKind = updatedControlKind;
+        monitor.WindowsBrightnessInstanceName = updatedWindowsBrightnessInstanceName;
+        monitor.WindowsBrightnessMethodPath = updatedWindowsBrightnessMethodPath;
         DDCMonitorDatabase.ApplyProfile(monitor);
         return true;
 
@@ -332,6 +473,7 @@ public class DisplayService : IDisplayService
 
             string adapterName = new string(info.szDevice).TrimEnd('\0');
             string deviceID = ResolveDeviceID(adapterName);
+            string displayInstancePath = ResolveDisplayInstancePath(adapterName);
             byte[]? edid = ReadEDID(adapterName);
             string serial = edid == null ? string.Empty : EDIDParser.ExtractSerial(edid);
             string manufacturer = edid == null ? string.Empty : EDIDParser.ExtractManufacturerID(edid);
@@ -368,6 +510,7 @@ public class DisplayService : IDisplayService
             updatedHdc = hdc;
             updatedName = adapterName;
             updatedDeviceID = deviceID;
+            updatedDisplayInstancePath = displayInstancePath;
             updatedDisplayNumber = CCD.ResolveFriendlyDisplayNumber(adapterName, friendlyByAdapter);
             updatedX = rect.left;
             updatedY = rect.top;
@@ -375,7 +518,28 @@ public class DisplayService : IDisplayService
             updatedFriendlyName = friendlyName;
             updatedManufacturer = manufacturer;
             updatedProduct = product;
+            ApplyWindowsBrightnessFromCurrentEnumeration();
             return false; // match found - stop enumeration
+        }
+
+        void ApplyWindowsBrightnessFromCurrentEnumeration()
+        {
+            updatedControlKind = MonitorBrightnessControlKind.DdcCi;
+            updatedWindowsBrightnessInstanceName = string.Empty;
+            updatedWindowsBrightnessMethodPath = string.Empty;
+
+            if (!WindowsBrightnessWmi.TryGetActiveTargets(
+                    out IReadOnlyList<WindowsBrightnessTarget> targets,
+                    out _))
+                return;
+
+            WindowsBrightnessTarget? target = targets.FirstOrDefault(t =>
+                string.Equals(t.DisplayInstancePath, updatedDisplayInstancePath, StringComparison.OrdinalIgnoreCase));
+            if (target == null) return;
+
+            updatedControlKind = MonitorBrightnessControlKind.Windows;
+            updatedWindowsBrightnessInstanceName = target.InstanceName;
+            updatedWindowsBrightnessMethodPath = target.MethodPath;
         }
 
         static bool HasStableDeviceID(string deviceID) =>

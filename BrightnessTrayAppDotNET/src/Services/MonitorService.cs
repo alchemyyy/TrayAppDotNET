@@ -856,6 +856,7 @@ public sealed class MonitorService : IDisposable
                 existingInfo.EDIDKey = EDIDKey;
                 existingInfo.OriginalName = ddc.FriendlyName;
                 existingInfo.EDIDSerial = ddc.EDIDSerial;
+                existingInfo.SupportsPowerControl = ddc.SupportsVcpPower;
                 existingInfo.Name =
                     nameOverridesByEDID.TryGetValue(EDIDKey, out string? existingOverride)
                     && !string.IsNullOrWhiteSpace(existingOverride)
@@ -872,6 +873,7 @@ public sealed class MonitorService : IDisposable
                     entry.DDC.HDC = ddc.HDC;
                     entry.DDC.Name = ddc.Name;
                     entry.DDC.DeviceID = ddc.DeviceID;
+                    entry.DDC.DisplayInstancePath = ddc.DisplayInstancePath;
                     entry.DDC.DisplayNumber = ddc.DisplayNumber;
                     entry.DDC.X = ddc.X;
                     entry.DDC.Y = ddc.Y;
@@ -883,6 +885,9 @@ public sealed class MonitorService : IDisposable
                     entry.DDC.ProfileModelName = ddc.ProfileModelName;
                     entry.DDC.PowerOffCommands = ddc.PowerOffCommands;
                     entry.DDC.ProfileQuirks = ddc.ProfileQuirks;
+                    entry.DDC.BrightnessControlKind = ddc.BrightnessControlKind;
+                    entry.DDC.WindowsBrightnessInstanceName = ddc.WindowsBrightnessInstanceName;
+                    entry.DDC.WindowsBrightnessMethodPath = ddc.WindowsBrightnessMethodPath;
 
                     // Use the full retry mechanism (80/160/480 backoff + final-attempt RefreshHandle) so
                     // a single transient read failure (INVALID_DEVICE / INVALID_MESSAGE_CHECKSUM) doesn't
@@ -1004,6 +1009,7 @@ public sealed class MonitorService : IDisposable
                 ArrangementX = ddc.X,
                 ArrangementY = ddc.Y,
                 LastKnownBrightnessMax = newBrightnessMax,
+                SupportsPowerControl = ddc.SupportsVcpPower,
                 IsPoweredOn = true,
                 LastDDCError = supported ? null : newRead.Error
             };
@@ -1861,6 +1867,12 @@ public sealed class MonitorService : IDisposable
             return false;
         }
 
+        if (!target.SupportsVcpPower)
+        {
+            error = "display does not expose DDC/CI power control";
+            return false;
+        }
+
         // Resolve the per-monitor hard-off command. VESA default is 0xD6=0x05 (write-only opcode that
         // turns the monitor off without sending a reply, so it works even on links where DDC reads come back
         // garbled). Dell P/U-series monitors with inverted 0xE1 override this to 0xE1=0x01 - sending the
@@ -1974,6 +1986,7 @@ public sealed class MonitorService : IDisposable
         info.DisplayNumber = ddc.DisplayNumber;
         info.ArrangementX = ddc.X;
         info.ArrangementY = ddc.Y;
+        info.SupportsPowerControl = ddc.SupportsVcpPower;
         info.Name = ResolveDisplayName(info, BuildNameOverrideMap());
 
         RegisterKnownDisplays([ddc]);
@@ -1991,8 +2004,10 @@ public sealed class MonitorService : IDisposable
     public async Task SetPowerStateAsync(MonitorInfo monitor, bool on)
     {
         if (_disposed || _draining) return;
+        if (!monitor.SupportsPowerControl) return;
 
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? entry)) return;
+        if (!entry.DDC.SupportsVcpPower) return;
 
         PowerOffLevel offLevel = _settings.PowerOffMode switch
         {

@@ -114,6 +114,35 @@ public sealed class MonitorRecoveryTests
         Assert.Equal(42, monitor.RoundedBrightness);
     }
 
+    [Fact]
+    public async Task WindowsBrightnessMonitorIsControllableButDoesNotExposePowerControl()
+    {
+        FakeDisplayService display = new();
+        DDCMonitor windowsMonitor = CreateMonitor(
+            deviceID: "DISPLAY\\INTERNAL",
+            displayNumber: 1,
+            serial: "PANEL-1");
+        windowsMonitor.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
+        windowsMonitor.WindowsBrightnessInstanceName = @"DISPLAY\TST0001\INTERNAL_0";
+        windowsMonitor.WindowsBrightnessMethodPath = @"\\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName=""DISPLAY\\TST0001\\INTERNAL_0""";
+
+        display.SetMonitors(windowsMonitor);
+        display.SetRead("DISPLAY\\INTERNAL", ok: true, current: 45, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+
+        MonitorInfo monitor = service.Monitors[0];
+        Assert.False(monitor.SupportsPowerControl);
+        Assert.Equal(45, monitor.RoundedBrightness);
+
+        await service.SetPowerStateAsync(monitor, false);
+        Assert.Equal(0, display.SetVcpCalls);
+
+        monitor.Brightness = 55;
+        await WaitUntil(() => display.SetVcpCalls == 1);
+    }
+
     private static MonitorService CreateService(FakeDisplayService display, MonitorIdentityStrategy strategy)
     {
         AppSettings settings = new()
@@ -300,6 +329,7 @@ public sealed class MonitorRecoveryTests
             target.HDC = source.HDC;
             target.Name = source.Name;
             target.DeviceID = source.DeviceID;
+            target.DisplayInstancePath = source.DisplayInstancePath;
             target.DisplayNumber = source.DisplayNumber;
             target.EDIDSerial = source.EDIDSerial;
             target.FriendlyName = source.FriendlyName;
@@ -311,6 +341,9 @@ public sealed class MonitorRecoveryTests
             target.ProfileModelName = source.ProfileModelName;
             target.PowerOffCommands = source.PowerOffCommands;
             target.ProfileQuirks = source.ProfileQuirks;
+            target.BrightnessControlKind = source.BrightnessControlKind;
+            target.WindowsBrightnessInstanceName = source.WindowsBrightnessInstanceName;
+            target.WindowsBrightnessMethodPath = source.WindowsBrightnessMethodPath;
         }
 
         private readonly record struct VcpRead(bool Ok, uint Current, uint Max, string? Error);
