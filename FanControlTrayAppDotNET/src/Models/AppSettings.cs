@@ -73,8 +73,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool DefaultToRPMMode { get; set; }
 
     // Fan properties. Applied to new Fans at discovery time as their initial values; existing
-    // fans keep their per-fan overrides. Jumpstart and DeltaMax are always in duty cycle %
-    // regardless of any per-fan RPMMode (per spec).
+    // fans keep their per-fan overrides. Property-unit toggles default to duty cycle.
     public int DefaultJumpstartDutyCycle { get; set; } = 50;
 
     public int DefaultDeltaMaxDutyCycle { get; set; } = 100;
