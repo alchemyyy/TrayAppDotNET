@@ -1022,7 +1022,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private Border BuildCurveStopwatchButton(MonitorInfo monitor, FlyoutControlPalette palette)
     {
         Border button = TrayAppDotNETFlyoutUI.IconButton(
-            "\uE916",
+            GlyphCatalog.STOPWATCH,
             palette,
             _ => ToggleCurveStopwatch(monitor),
             Layout.StopwatchButtonWidth,

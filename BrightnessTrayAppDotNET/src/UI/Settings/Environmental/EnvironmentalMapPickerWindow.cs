@@ -21,7 +21,6 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private const double HudButtonSize = 28.0;
     private const double HudClusterSpacing = 8.0;
     private const double HudPadding = 6.0;
-    private const string CenterPinGlyph = "\uE73E";
 
     private readonly SettingsPalette _palette;
     private readonly AppTheme _theme;
@@ -211,7 +210,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         AddHudButton(grid, p, "Down", GlyphCatalog.CHEVRON_DOWN, 2, 1);
         AddHudButton(grid, p, "ZoomIn", "+", 0, 4, useIconFont: false);
         AddHudButton(grid, p, "ZoomOut", "-", 1, 4, useIconFont: false);
-        AddHudButton(grid, p, "Center", CenterPinGlyph, 2, 4);
+        AddHudButton(grid, p, "Center", GlyphCatalog.MAP_CENTER, 2, 4);
 
         return new Border
         {
