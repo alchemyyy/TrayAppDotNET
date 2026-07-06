@@ -65,12 +65,13 @@ internal sealed class BrightnessTrayMenuWindow(
             entries.AddSeparator();
         }
 
-        if (settings.ShowAllDisplaysPowerButton)
+        bool hasPowerTargets = monitors.Any(static m => m.SupportsPowerControl);
+        if (settings.ShowAllDisplaysPowerButton && hasPowerTargets)
             entries.Add(L("Tray_PowerOffAllDisplays", "Power off all displays"), powerOffAllMonitors);
 
-        if (settings.ShowMonitorPowerButtons)
+        if (settings.ShowMonitorPowerButtons && hasPowerTargets)
         {
-            foreach (MonitorInfo monitor in monitors)
+            foreach (MonitorInfo monitor in monitors.Where(static m => m.SupportsPowerControl))
             {
                 MonitorInfo capturedMonitor = monitor;
                 string label = string.Format(

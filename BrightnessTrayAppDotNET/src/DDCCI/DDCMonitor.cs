@@ -1,6 +1,16 @@
 namespace BrightnessTrayAppDotNET.DDCCI;
 
 /// <summary>
+/// Brightness backend attached to a monitor row.
+/// DDC/CI uses MCCS VCP traffic through dxva2; Windows uses the OS backlight provider exposed through root\wmi.
+/// </summary>
+public enum MonitorBrightnessControlKind
+{
+    DdcCi,
+    Windows
+}
+
+/// <summary>
 /// Represents a monitor enumerated through EnumDisplayMonitors.
 /// Holds the HMONITOR handle needed to look up the associated physical monitor for DDC/CI transactions,
 /// the EDID-derived identity fields, and the per-monitor VCP-command profile resolved against
@@ -31,6 +41,12 @@ public class DDCMonitor
     /// Empty string if resolution failed.
     /// </summary>
     public string DeviceID { get; set; } = string.Empty;
+
+    /// <summary>
+    /// DISPLAY\...\... instance path derived from the monitor device-interface path.
+    /// Used to correlate a Win32 display monitor with WMI's WmiMonitorBrightness InstanceName.
+    /// </summary>
+    public string DisplayInstancePath { get; set; } = string.Empty;
 
     /// <summary>
     /// 1-based friendly display number matching what Windows Settings &gt; Display shows for this panel.
@@ -84,6 +100,21 @@ public class DDCMonitor
 
     /// <summary>Top coordinate of the monitor on the virtual desktop (from EnumDisplayMonitors).</summary>
     public int Y { get; set; }
+
+    /// <summary>Brightness transport used for this monitor row.</summary>
+    public MonitorBrightnessControlKind BrightnessControlKind { get; set; } = MonitorBrightnessControlKind.DdcCi;
+
+    /// <summary>
+    /// True when DDC/CI VCP writes beyond brightness are available. Windows brightness rows intentionally do not
+    /// support monitor power VCPs.
+    /// </summary>
+    public bool SupportsVcpPower => BrightnessControlKind == MonitorBrightnessControlKind.DdcCi;
+
+    /// <summary>Raw WMI WmiMonitorBrightness InstanceName for Windows-controlled brightness.</summary>
+    public string WindowsBrightnessInstanceName { get; set; } = string.Empty;
+
+    /// <summary>Full WMI object path for the matching WmiMonitorBrightnessMethods instance.</summary>
+    public string WindowsBrightnessMethodPath { get; set; } = string.Empty;
 
     // -------- Profile fields populated from the embedded monitor-database.json --------
     // Populated by DDCMonitorDatabase.ApplyProfile after EDID parse in DisplayService.TryGetMonitors.
