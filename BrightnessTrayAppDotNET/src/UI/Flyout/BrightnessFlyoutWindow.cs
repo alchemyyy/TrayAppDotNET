@@ -456,6 +456,24 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void CompleteUserNightLightAdjustment() => FlushDeferredManualCurveOverrideResync(NightLightMonitor);
 
+    /// <summary>
+    /// Applies a user-requested night-light slider delta through the same path as direct slider input.
+    /// </summary>
+    public void AdjustNightLightBrightness(int delta)
+    {
+        if (!NightLightProvider.IsSupported()) return;
+
+        NotifyUserNightLightAdjustment(replayCurrentSliderValue: false);
+        try
+        {
+            ApplyNightLightSliderValue(null, NightLightMonitor.Brightness + delta);
+        }
+        finally
+        {
+            CompleteUserNightLightAdjustment();
+        }
+    }
+
     public void RequestCurveReevaluation() => _curveService.RequestEvaluation();
 
     /// <summary>
@@ -1338,11 +1356,23 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnSliderValueChanged(FlyoutSlider slider, MonitorInfo monitor, double value)
     {
+        if (monitor.IsNightLight)
+        {
+            ApplyNightLightSliderValue(slider, value);
+            return;
+        }
+
+        ApplyMonitorSliderValue(slider, monitor, value);
+        FlushDeferredManualCurveOverrideResync(monitor);
+    }
+
+    private double ApplyMonitorSliderValue(FlyoutSlider? slider, MonitorInfo monitor, double value)
+    {
         BrightnessChanged = true;
         BrightnessUpdated?.Invoke();
 
         double target = BrightnessSliderMath.NormalizeManualPercent(value);
-        if (Math.Abs(slider.Value - target) >= 0.001)
+        if (slider != null && Math.Abs(slider.Value - target) >= 0.001)
             slider.Value = target;
 
         bool shouldWriteModel = Math.Abs(monitor.Brightness - target) >= 0.001
@@ -1353,16 +1383,37 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (monitor.IsMaster && _masterSliderGesturePrepared && shouldWriteModel)
             ApplyMasterToEnabledMonitors();
 
-        if (monitor.IsNightLight
-            && NightLightProvider.IsSupported()
-            && _isNightLightActive
-            && !(IsNightLightCurveEnabled && !_isInCurveDisabledPeriod && !NightLightMonitor.IsCurveReleased))
-        {
-            int nightLightTarget = FlipIfNightLightInverted((int)target);
-            NightLightProvider.SetStrength(nightLightTarget);
-        }
+        return target;
+    }
 
-        FlushDeferredManualCurveOverrideResync(monitor);
+    private void ApplyNightLightSliderValue(FlyoutSlider? slider, double value)
+    {
+        double target = ApplyMonitorSliderValue(slider, NightLightMonitor, value);
+        ApplyManualNightLightStrength(target);
+        FlushDeferredManualCurveOverrideResync(NightLightMonitor);
+    }
+
+    private void ApplyManualNightLightStrength(double sliderTarget)
+    {
+        if (!NightLightProvider.IsSupported()) return;
+        if (!ShouldApplyManualNightLightStrength(
+                IsNightLightCurveEnabled,
+                _isInCurveDisabledPeriod,
+                NightLightMonitor.IsCurveReleased))
+            return;
+
+        int nightLightTarget = FlipIfNightLightInverted((int)sliderTarget);
+        NightLightProvider.SetStrength(nightLightTarget);
+    }
+
+    internal static bool ShouldApplyManualNightLightStrength(
+        bool isNightLightCurveEnabled,
+        bool isInCurveDisabledPeriod,
+        bool isNightLightCurveReleased)
+    {
+        if (!isNightLightCurveEnabled) return true;
+        if (isInCurveDisabledPeriod) return true;
+        return isNightLightCurveReleased;
     }
 
     private void BeginSliderGesture(MonitorInfo monitor)

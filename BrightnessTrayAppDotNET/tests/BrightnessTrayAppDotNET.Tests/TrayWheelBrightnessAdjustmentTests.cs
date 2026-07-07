@@ -1,4 +1,5 @@
 using BrightnessTrayAppDotNET.Models;
+using BrightnessTrayAppDotNET.UI.Flyout;
 using Xunit;
 
 namespace BrightnessTrayAppDotNET.Tests;
@@ -77,6 +78,25 @@ public sealed class TrayWheelBrightnessAdjustmentTests
         Assert.Null(disabledCurveTargets);
         Assert.Null(offsetModeTargets);
         Assert.Null(releasedMasterTargets);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, true)]
+    [InlineData(true, true, false, true)]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, false, false, false)]
+    public void ManualNightLightStrengthWritesOnlyWhenUserOwnsHardware(
+        bool isCurveEnabled,
+        bool isInDisabledPeriod,
+        bool isCurveReleased,
+        bool expected)
+    {
+        bool shouldApply = BrightnessFlyoutWindow.ShouldApplyManualNightLightStrength(
+            isCurveEnabled,
+            isInDisabledPeriod,
+            isCurveReleased);
+
+        Assert.Equal(expected, shouldApply);
     }
 
     /// <summary>

@@ -519,18 +519,9 @@ internal sealed class BrightnessAvaloniaApp : Application
     private void AdjustNightLightBrightness(int delta)
     {
         BrightnessFlyoutWindow? flyout = _brightnessFlyout;
-        if (flyout == null || !NightLightProvider.IsSupported()) return;
+        if (flyout == null) return;
 
-        flyout.NotifyUserNightLightAdjustment(replayCurrentSliderValue: false);
-        try
-        {
-            MonitorInfo nightLight = flyout.NightLightMonitor;
-            nightLight.Brightness = Math.Clamp(nightLight.Brightness + delta, 0, 100);
-        }
-        finally
-        {
-            flyout.CompleteUserNightLightAdjustment();
-        }
+        flyout.AdjustNightLightBrightness(delta);
     }
 
     private MonitorInfo? ResolveMonitorTarget(string parameter)
