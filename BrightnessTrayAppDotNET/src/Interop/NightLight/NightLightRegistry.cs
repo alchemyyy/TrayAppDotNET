@@ -75,8 +75,9 @@ internal static class NightLightRegistry
                    && TryParseOuter(state, out _)
                    && TryParseOuter(settings, out _);
         }
-        catch
+        catch (Exception ex)
         {
+            WPFLog.Log($"NightLightRegistry.IsSupported: {ex.Message}");
             return false;
         }
     }
@@ -287,6 +288,23 @@ internal static class NightLightRegistry
     {
         Timer? timer = _resendTimer;
         timer?.Change(Timeout.Infinite, Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// Stops and releases the shared post-settle resend timer during app shutdown.
+    /// </summary>
+    public static void Shutdown()
+    {
+        Timer? timer = Interlocked.Exchange(ref _resendTimer, null);
+        if (timer == null) return;
+
+        try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
+        catch (ObjectDisposedException)
+        {
+            WPFLog.Log("NightLightRegistry.Shutdown: resend timer was already disposed");
+        }
+
+        timer.Dispose();
     }
 
     private static async Task SetStrengthSpacedAsync(int percent, ThrottlerContext ctx)

@@ -562,7 +562,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         public int OnDisplayNameChanged(string newDisplayName, ref Guid eventContext)
         {
             string copy = newDisplayName;
-            owner._dispatcher.InvokeAsync(() =>
+            PostIfAlive(() =>
             {
                 if (!string.IsNullOrEmpty(copy)) owner.DisplayName = copy;
             });
@@ -574,9 +574,8 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             // Apps publish an updated icon path (Discord on theme change, browsers on tab change, etc.).
             // Re-run the full resolution chain on the UI thread and swap the handle. A null result
             // wipes the icon, matching prior behavior where Resolve returning null cleared Icon.
-            owner._dispatcher.InvokeAsync(() =>
+            PostIfAlive(() =>
             {
-                if (owner._disposed || owner._disconnected) return;
                 AppIconResolver.IconHandle? newHandle = AppIconResolver.Acquire(
                     owner._control, owner.ProcessID, owner.IsSystemSounds);
                 if (newHandle != null) owner.ApplyIconHandle(newHandle);
@@ -590,7 +589,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             // Suppress echoes from our own writes.
             if (eventContext == AudioEventContext.Value) return 0;
 
-            owner._dispatcher.InvokeAsync(() =>
+            PostIfAlive(() =>
             {
                 if (Math.Abs(newVolume - owner._volume) >= VolumeEqualityEpsilon)
                 {
@@ -614,7 +613,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
         public int OnStateChanged(AudioSessionState newState)
         {
-            owner._dispatcher.InvokeAsync(() =>
+            PostIfAlive(() =>
             {
                 owner.State = newState;
                 if (newState == AudioSessionState.Active) owner.TryReresolveProcessMetadata();
@@ -626,13 +625,32 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
 
         public int OnSessionDisconnected(AudioSessionDisconnectReason disconnectReason)
         {
-            owner._dispatcher.InvokeAsync(() =>
+            PostIfAlive(() =>
             {
+                if (owner._disconnected) return;
                 owner._disconnected = true;
                 owner._lastDisconnectReason = disconnectReason;
                 owner.Disconnected?.Invoke(owner);
             });
             return 0;
+        }
+
+        private void PostIfAlive(Action action)
+        {
+            if (owner._disposed || owner._disconnected) return;
+
+            try
+            {
+                owner._dispatcher.InvokeAsync(() =>
+                {
+                    if (owner._disposed || owner._disconnected) return;
+                    action();
+                });
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioSession.EventBridge dispatcher post failed: {ex.Message}");
+            }
         }
     }
 }

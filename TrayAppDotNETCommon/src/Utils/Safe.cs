@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using TrayAppDotNETCommon.Interop;
 
 namespace TrayAppDotNETCommon.Utils;
 
@@ -25,13 +26,19 @@ public static class Safe
     }
 
     /// <summary>
-    /// Release the supplied COM RCW when non-null. Swallows any exception
-    /// Marshal.FinalReleaseComObject raises. Safe to call on already-released RCWs.
+    /// Release the supplied COM wrapper when non-null.
+    /// Source-generated ComWrappers objects use the registered strategy release path;
+    /// built-in RCWs fall back to Marshal.FinalReleaseComObject.
     /// </summary>
     public static void Release(object? rcw)
     {
         if (rcw == null) return;
-        try { Marshal.FinalReleaseComObject(rcw); }
+        try
+        {
+            if (COMActivation.TryReleaseGeneratedComObject(rcw)) return;
+            if (!Marshal.IsComObject(rcw)) return;
+            Marshal.FinalReleaseComObject(rcw);
+        }
         catch
         {
             // Best-effort - already-released RCW or apartment teardown can throw here.

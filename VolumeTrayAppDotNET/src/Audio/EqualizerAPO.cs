@@ -50,6 +50,7 @@ internal static class EqualizerAPOMonitor
 
     private static readonly Lock InitGate = new();
     private static bool _initialized;
+    private static bool _disposed;
     private static FileSystemWatcher? _dirWatcher;
 
     /// <summary>
@@ -85,9 +86,11 @@ internal static class EqualizerAPOMonitor
     /// </summary>
     private static void EnsureWatching()
     {
+        if (_disposed) return;
         if (_initialized) return;
         lock (InitGate)
         {
+            if (_disposed) return;
             if (_initialized) return;
             _initialized = true;
             TryStartDirWatcher();
@@ -96,27 +99,32 @@ internal static class EqualizerAPOMonitor
 
     private static void TryStartDirWatcher()
     {
+        FileSystemWatcher? watcher = null;
         try
         {
             string? parent = Path.GetDirectoryName(DefaultInstallDir);
             if (parent == null || !Directory.Exists(parent)) return;
 
-            _dirWatcher = new FileSystemWatcher(parent)
+            watcher = new FileSystemWatcher(parent)
             {
                 Filter = Path.GetFileName(DefaultInstallDir),
                 NotifyFilter = NotifyFilters.DirectoryName | NotifyFilters.FileName,
                 IncludeSubdirectories = false
             };
-            _dirWatcher.Created += OnFsChange;
-            _dirWatcher.Deleted += OnFsChange;
-            _dirWatcher.Renamed += OnFsChange;
-            _dirWatcher.EnableRaisingEvents = true;
+            watcher.Created += OnFsChange;
+            watcher.Deleted += OnFsChange;
+            watcher.Renamed += OnFsChange;
+            watcher.EnableRaisingEvents = true;
+            _dirWatcher = watcher;
+            watcher = null;
         }
         catch (Exception ex) { TADNLog.Log($"EqualizerAPOMonitor.TryStartDirWatcher: {ex.Message}"); }
+        finally { DisposeWatcher(watcher); }
     }
 
     private static void OnFsChange(object sender, FileSystemEventArgs e)
     {
+        if (_disposed) return;
         try { AvailabilityChanged?.Invoke(); }
         catch (Exception ex) { TADNLog.Log($"EqualizerAPOMonitor.OnFsChange: {ex.Message}"); }
     }
@@ -128,8 +136,42 @@ internal static class EqualizerAPOMonitor
     /// </summary>
     public static void NotifyAvailabilityChanged()
     {
+        if (_disposed) return;
         try { AvailabilityChanged?.Invoke(); }
         catch (Exception ex) { TADNLog.Log($"EqualizerAPOMonitor.NotifyAvailabilityChanged: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Stops and disposes the install-directory watcher. Later IsAvailable reads may start it again.
+    /// </summary>
+    public static void Stop()
+    {
+        FileSystemWatcher? watcher;
+        lock (InitGate)
+        {
+            watcher = _dirWatcher;
+            _dirWatcher = null;
+            _initialized = false;
+        }
+
+        DisposeWatcher(watcher);
+    }
+
+    /// <summary>
+    /// Terminal shutdown cleanup for the process-lifetime monitor.
+    /// </summary>
+    public static void Dispose()
+    {
+        FileSystemWatcher? watcher;
+        lock (InitGate)
+        {
+            _disposed = true;
+            watcher = _dirWatcher;
+            _dirWatcher = null;
+            AvailabilityChanged = null;
+        }
+
+        DisposeWatcher(watcher);
     }
 
     /// <summary>
@@ -166,11 +208,42 @@ internal static class EqualizerAPOMonitor
             {
                 FileName = editorPath, Arguments = args, UseShellExecute = false, WorkingDirectory = installDir
             };
-            Process.Start(psi);
+            using Process? process = Process.Start(psi);
         }
         catch (Exception ex)
         {
             TADNLog.Log($"EqualizerAPOMonitor.OpenConfigurationEditor({device.FriendlyName}): {ex.Message}");
         }
+    }
+
+    private static void DisposeWatcher(FileSystemWatcher? watcher)
+    {
+        if (watcher == null) return;
+
+        try { watcher.EnableRaisingEvents = false; }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"EqualizerAPOMonitor.DisposeWatcher: disable failed: {ex.Message}");
+        }
+
+        try { watcher.Created -= OnFsChange; }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"EqualizerAPOMonitor.DisposeWatcher: Created unsubscribe failed: {ex.Message}");
+        }
+
+        try { watcher.Deleted -= OnFsChange; }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"EqualizerAPOMonitor.DisposeWatcher: Deleted unsubscribe failed: {ex.Message}");
+        }
+
+        try { watcher.Renamed -= OnFsChange; }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"EqualizerAPOMonitor.DisposeWatcher: Renamed unsubscribe failed: {ex.Message}");
+        }
+
+        Safe.Dispose(watcher);
     }
 }

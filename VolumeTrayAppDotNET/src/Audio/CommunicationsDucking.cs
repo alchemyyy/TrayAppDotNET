@@ -53,6 +53,7 @@ internal static class CommunicationsDucking
     private const string ValueName = "UserDuckingPreference";
 
     private const int DoNothingMode = (int)CommunicationsDuckingMode.DoNothing;
+    private const int StopJoinTimeoutMs = 500;
 
     /// <summary>
     /// Raised on the background watcher thread when the Multimedia\Audio key reports a value
@@ -106,7 +107,13 @@ internal static class CommunicationsDucking
     {
         lock (Gate)
         {
-            if (_thread != null) return;
+            if (_thread != null)
+            {
+                if (_thread.IsAlive) return;
+
+                CloseWatcherHandlesLocked();
+                _thread = null;
+            }
 
             int openStatus = Advapi32.RegOpenKeyExW(
                 Advapi32.HKEY_CURRENT_USER,
@@ -143,8 +150,15 @@ internal static class CommunicationsDucking
             _hRegEvent = hRegEvent;
             _hWakeEvent = hWakeEvent;
 
-            _thread = new Thread(WatchLoop) { IsBackground = true, Name = "VolumeTrayApp.CommunicationsDucking" };
-            _thread.Start();
+            Thread thread = new(WatchLoop) { IsBackground = true, Name = "VolumeTrayApp.CommunicationsDucking" };
+            _thread = thread;
+            try { thread.Start(); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"CommunicationsDucking: watcher start failed: {ex.Message}");
+                _thread = null;
+                CloseWatcherHandlesLocked();
+            }
         }
     }
 
@@ -164,54 +178,96 @@ internal static class CommunicationsDucking
         }
 
         if (hWake != IntPtr.Zero) Kernel32Wait.SetEvent(hWake);
-        try { toJoin.Join(500); }
-        catch { }
+        bool joined = false;
+        try { joined = toJoin.Join(StopJoinTimeoutMs); }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"CommunicationsDucking.Stop: join failed: {ex.Message}");
+        }
+
+        if (!joined)
+        {
+            TADNLog.Log("CommunicationsDucking.Stop: watcher did not stop before timeout; leaving handles with watcher");
+            return;
+        }
 
         lock (Gate)
         {
-            if (_hRegEvent != IntPtr.Zero) Kernel32.CloseHandle(_hRegEvent);
-            if (_hWakeEvent != IntPtr.Zero) Kernel32.CloseHandle(_hWakeEvent);
-            if (_hKey != IntPtr.Zero) _ = Advapi32.RegCloseKey(_hKey);
-            _hRegEvent = IntPtr.Zero;
-            _hWakeEvent = IntPtr.Zero;
-            _hKey = IntPtr.Zero;
-            _thread = null;
+            if (ReferenceEquals(_thread, toJoin))
+            {
+                CloseWatcherHandlesLocked();
+                _thread = null;
+            }
         }
     }
 
     private static void WatchLoop()
     {
-        // Snapshot the handles once outside the gate. WatchLoop is the only writer to these
-        // fields during a watch session, and Stop only mutates them after the thread joins.
-        IntPtr hKey = _hKey;
-        IntPtr hRegEvent = _hRegEvent;
-        IntPtr[] handles = [_hWakeEvent, hRegEvent];
-
-        while (true)
+        Thread currentThread = Thread.CurrentThread;
+        IntPtr hKey;
+        IntPtr hRegEvent;
+        IntPtr[] handles;
+        lock (Gate)
         {
-            int status = Advapi32.RegNotifyChangeKeyValue(
-                hKey,
-                false,
-                Advapi32.REG_NOTIFY_CHANGE_LAST_SET,
-                hRegEvent,
-                true);
-            if (status != Advapi32.ERROR_SUCCESS)
-            {
-                TADNLog.Log($"CommunicationsDucking: RegNotifyChangeKeyValue failed with {status}");
-                return;
-            }
-
-            // bWaitAll = false + lowest-index-wins: a tie between wake and reg returns wake (slot 0)
-            // so Stop is observed even if a registry write lands on the same kernel pass.
-            uint result =
-                Kernel32Wait.WaitForMultipleObjects((uint)handles.Length, handles, false, Kernel32Wait.INFINITE);
-            if (result == Kernel32Wait.WAIT_FAILED) return;
-            if (result == Kernel32Wait.WAIT_OBJECT_0) return; // wake event - unwind cleanly
-
-            Kernel32Wait.ResetEvent(hRegEvent);
-
-            try { Changed?.Invoke(); }
-            catch (Exception ex) { TADNLog.Log($"CommunicationsDucking.Changed: {ex.Message}"); }
+            hKey = _hKey;
+            hRegEvent = _hRegEvent;
+            handles = [_hWakeEvent, hRegEvent];
         }
+
+        try
+        {
+            while (true)
+            {
+                int status = Advapi32.RegNotifyChangeKeyValue(
+                    hKey,
+                    false,
+                    Advapi32.REG_NOTIFY_CHANGE_LAST_SET,
+                    hRegEvent,
+                    true);
+                if (status != Advapi32.ERROR_SUCCESS)
+                {
+                    TADNLog.Log($"CommunicationsDucking: RegNotifyChangeKeyValue failed with {status}");
+                    return;
+                }
+
+                // bWaitAll = false + lowest-index-wins: a tie between wake and reg returns wake (slot 0)
+                // so Stop is observed even if a registry write lands on the same kernel pass.
+                uint result =
+                    Kernel32Wait.WaitForMultipleObjects((uint)handles.Length, handles, false, Kernel32Wait.INFINITE);
+                if (result == Kernel32Wait.WAIT_FAILED)
+                {
+                    TADNLog.Log("CommunicationsDucking: WaitForMultipleObjects failed");
+                    return;
+                }
+
+                if (result == Kernel32Wait.WAIT_OBJECT_0) return; // wake event - unwind cleanly
+
+                Kernel32Wait.ResetEvent(hRegEvent);
+
+                try { Changed?.Invoke(); }
+                catch (Exception ex) { TADNLog.Log($"CommunicationsDucking.Changed: {ex.Message}"); }
+            }
+        }
+        finally
+        {
+            lock (Gate)
+            {
+                if (ReferenceEquals(_thread, currentThread))
+                {
+                    CloseWatcherHandlesLocked();
+                    _thread = null;
+                }
+            }
+        }
+    }
+
+    private static void CloseWatcherHandlesLocked()
+    {
+        if (_hRegEvent != IntPtr.Zero) Kernel32.CloseHandle(_hRegEvent);
+        if (_hWakeEvent != IntPtr.Zero) Kernel32.CloseHandle(_hWakeEvent);
+        if (_hKey != IntPtr.Zero) _ = Advapi32.RegCloseKey(_hKey);
+        _hRegEvent = IntPtr.Zero;
+        _hWakeEvent = IntPtr.Zero;
+        _hKey = IntPtr.Zero;
     }
 }

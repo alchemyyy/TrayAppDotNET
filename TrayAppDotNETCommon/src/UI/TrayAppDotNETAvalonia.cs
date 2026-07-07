@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
+using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.UI;
 
@@ -290,6 +291,8 @@ public static class TrayAppDotNETAvalonia
         }
         catch (Exception ex)
         {
+            if (theme is IDisposable disposableTheme) Safe.Dispose(disposableTheme);
+            theme = null;
             options.LogThemeLoadFailed(ex);
         }
 

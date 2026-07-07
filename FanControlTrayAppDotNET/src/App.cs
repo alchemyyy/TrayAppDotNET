@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -129,21 +130,32 @@ internal sealed class FanAvaloniaApp : Application
 
     private void StartServices()
     {
+        LHMService? pendingLHMService = null;
         try
         {
             if (_settings != null)
             {
                 PawnIoDriverInstaller.EnsureInstalled();
 
-                _lhmService = new LHMService(Dispatcher.UIThread, _settings);
-                _lhmService.PollTickCompleted += RequestTrayRefresh;
-                _lhmService.Start();
-                AppServices.LHMService = _lhmService;
+                pendingLHMService = new LHMService(Dispatcher.UIThread, _settings);
+                pendingLHMService.PollTickCompleted += RequestTrayRefresh;
+                pendingLHMService.Start();
+                _lhmService = pendingLHMService;
+                AppServices.LHMService = pendingLHMService;
+                pendingLHMService = null;
             }
         }
         catch (Exception ex)
         {
             TADNLog.Log($"FanAvaloniaApp LHM init failed: {ex}");
+            if (pendingLHMService != null)
+            {
+                pendingLHMService.PollTickCompleted -= RequestTrayRefresh;
+                Safe.Dispose(pendingLHMService);
+            }
+
+            _lhmService = null;
+            AppServices.LHMService = null;
         }
 
         try
@@ -634,6 +646,8 @@ internal sealed class FanAvaloniaApp : Application
             Safe.Dispose(_watcherMonitor);
             _watcherMonitor = null;
 
+            CloseManagedWindowsForShutdown();
+
             if (_updateCheckService != null)
             {
                 _updateCheckService.StateChanged -= OnUpdateStateChanged;
@@ -670,31 +684,6 @@ internal sealed class FanAvaloniaApp : Application
                 AppServices.Theme = null;
             }
 
-            if (_trayMenuWindow != null)
-            {
-                try { _trayMenuWindow.Close(); }
-                catch { }
-
-                _trayMenuWindow = null;
-            }
-
-            Safe.Dispose(_settingsFlyoutKeepOpen);
-            _settingsFlyoutKeepOpen = null;
-
-            Safe.Dispose(_fanFlyoutWarmSlot);
-            _fanFlyoutWarmSlot = null;
-            Safe.Dispose(_trayMenuWarmSlot);
-            _trayMenuWarmSlot = null;
-
-            if (_fanFlyout != null)
-            {
-                _fanFlyout.Closed -= OnFanFlyoutClosed;
-                try { _fanFlyout.Close(); }
-                catch { }
-
-                _fanFlyout = null;
-            }
-
             if (_trayIcon != null)
             {
                 _trayIcon.LeftMouseDown -= OnTrayLeftMouseDown;
@@ -712,20 +701,58 @@ internal sealed class FanAvaloniaApp : Application
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;
 
-            if (_settingsWindow != null)
-            {
-                _settingsWindow.Closed -= OnSettingsWindowClosed;
-                try { _settingsWindow.Close(); }
-                catch { }
-
-                _settingsWindow = null;
-            }
-
             TADNLog.Flush();
         }
         catch (Exception ex)
         {
             TADNLog.Log($"FanAvaloniaApp.ShutdownServices: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Closes UI windows before app services they subscribe to are disposed.
+    /// </summary>
+    private void CloseManagedWindowsForShutdown()
+    {
+        Safe.Dispose(_settingsFlyoutKeepOpen);
+        _settingsFlyoutKeepOpen = null;
+
+        if (_settingsWindow != null)
+        {
+            _settingsWindow.Closed -= OnSettingsWindowClosed;
+            CloseWindowSafely(_settingsWindow, "settings window");
+            _settingsWindow = null;
+        }
+
+        if (_fanFlyout != null)
+        {
+            _fanFlyout.Closed -= OnFanFlyoutClosed;
+            CloseWindowSafely(_fanFlyout, "fan flyout");
+            _fanFlyout = null;
+        }
+
+        if (_trayMenuWindow != null)
+        {
+            _trayMenuWindow.Closed -= OnTrayMenuClosed;
+            CloseWindowSafely(_trayMenuWindow, "tray menu");
+            _trayMenuWindow = null;
+        }
+
+        Safe.Dispose(_fanFlyoutWarmSlot);
+        _fanFlyoutWarmSlot = null;
+        Safe.Dispose(_trayMenuWarmSlot);
+        _trayMenuWarmSlot = null;
+    }
+
+    /// <summary>
+    /// Closes a window while preserving shutdown progress if Avalonia rejects the close.
+    /// </summary>
+    private static void CloseWindowSafely(Window window, string windowName)
+    {
+        try { window.Close(); }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"FanAvaloniaApp failed to close {windowName}: {ex.Message}");
         }
     }
 

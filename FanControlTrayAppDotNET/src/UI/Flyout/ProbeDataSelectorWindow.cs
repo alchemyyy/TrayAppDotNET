@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI.Settings;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -34,6 +35,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private readonly AppSettings _settings;
     private readonly Action<ProbeCard> _changed;
     private readonly SettingsPalette _palette;
+    private readonly LHMService? _subscribedLHMService;
     private readonly HashSet<string> _expandedTransformKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<TextBlock>> _valueTextByKey = new(StringComparer.OrdinalIgnoreCase);
     private TextBox? _focusedTransformTextBox;
@@ -67,6 +69,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _settings = null!;
         _changed = static _ => { };
         _palette = default;
+        _subscribedLHMService = null;
 
         InitializeComponent();
         InitializeComponentState();
@@ -92,7 +95,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
         AddHandler(PointerPressedEvent, OnSelectorPointerPressed, RoutingStrategies.Tunnel,
             handledEventsToo: true);
         Title = $"Probe Data: {_probeCard.DisplayName}";
-        AppServices.LHMService?.PollTickCompleted += OnPollTickCompleted;
+        _subscribedLHMService = AppServices.LHMService;
+        if (_subscribedLHMService != null)
+            _subscribedLHMService.PollTickCompleted += OnPollTickCompleted;
         Closed += OnClosed;
         RebuildContent();
     }
@@ -2037,7 +2042,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void OnClosed(object? sender, EventArgs e)
     {
-        AppServices.LHMService?.PollTickCompleted -= OnPollTickCompleted;
+        if (_subscribedLHMService != null)
+            _subscribedLHMService.PollTickCompleted -= OnPollTickCompleted;
         RemoveHandler(PointerPressedEvent, OnSelectorPointerPressed);
         _focusedTransformTextBox = null;
         _focusSink = null;

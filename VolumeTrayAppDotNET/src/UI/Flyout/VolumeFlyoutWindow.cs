@@ -53,6 +53,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool _deviceOrderingRebuildPending;
     private bool _rebuildPending;
     private bool _rebuildQueued;
+    private bool _isClosed;
     private List<Action>? _buildingCleanup;
     private FlyoutAxamlProperties? _layout;
     private Border? _undockButton;
@@ -133,6 +134,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
+        if (_isClosed) return;
+
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
@@ -146,6 +149,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         Dispatcher.UIThread.Post(() =>
         {
+            if (_isClosed || !IsVisible) return;
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
@@ -158,6 +162,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     public new void Hide()
     {
+        if (_isClosed) return;
+
         CloseOpenMenu();
         StopFlyoutActivity();
         _activeVolumeSliderDragCount = 0;
@@ -176,6 +182,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
     {
+        if (_isClosed) return;
+
         if (_isUndocked && !_settings.AllowFlyoutUndock)
         {
             Redock();
@@ -293,6 +301,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void StartFlyoutActivity()
     {
+        if (_isClosed || _audioManager == null || _settings == null) return;
+
         _audioManager.StartMetering();
         if (_settings.FlyoutCommunicationsButtonVisibility != CommunicationsButtonVisibility.Hidden)
             CommunicationsDucking.Start();
@@ -302,7 +312,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void StopFlyoutActivity()
     {
-        _audioManager.StopMetering();
+        if (_audioManager != null) _audioManager.StopMetering();
         CommunicationsDucking.Stop();
         SetAllGroupMetersVisible(false);
     }
@@ -441,6 +451,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     /// </summary>
     private void QueueRebuild()
     {
+        if (_isClosed) return;
+
         if (!Dispatcher.UIThread.CheckAccess())
         {
             Dispatcher.UIThread.Post(QueueRebuild, DispatcherPriority.Background);
@@ -459,6 +471,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _rebuildQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
+            if (_isClosed) return;
             _rebuildQueued = false;
             Rebuild();
         }, DispatcherPriority.Background);
@@ -2654,8 +2667,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         base.OnClosed(e);
 
+        _isClosed = true;
+        StopFlyoutActivity();
         _activeVolumeSliderDragCount = 0;
         _rebuildPending = false;
+        _rebuildQueued = false;
+        _deviceOrderingRebuildPending = false;
+        _isRebuilding = false;
+
+        if (_buildingCleanup != null)
+        {
+            RunCleanup(_buildingCleanup);
+            _buildingCleanup.Clear();
+            _buildingCleanup = null;
+        }
 
         foreach (Action cleanup in _cleanup)
         {

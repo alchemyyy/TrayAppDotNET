@@ -27,11 +27,11 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private readonly Guid _iconGUID;
     private readonly Win32Window _window = new();
     private readonly AsyncThrottler<TrayUpdateKind> _trayUpdateThrottler = new(cooldownMs: 0);
-    private readonly List<NativeIcon> _retiredIcons = [];
     private readonly HashSet<uint> _registeredPointerTargets = [];
     private readonly PrecisionTouchpadScrollRecognizer _precisionTouchpadScroll = new(
         DefaultPrecisionTouchpadUnitsPerScrollStep);
     private NativeIcon? _currentIcon;
+    private NativeIcon? _shellIcon;
     private bool _isCreated;
     private bool _isVisible;
     private bool _disposed;
@@ -426,6 +426,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: "
             + $"pre-add NIM_MODIFY failed (0x{preAddModifyError:X8}); NIM_ADD failed (0x{addError:X8}); "
             + $"recovery NIM_MODIFY failed (0x{modifyRecoveryError:X8}).");
+        ReleaseShellIcon();
     }
 
     private bool TryModifyTrayIcon(
@@ -477,7 +478,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void CompleteIconUpdate()
     {
-        DisposeRetiredIcons();
+        CommitShellIcon();
         InvalidateTrayIconLocationForRefresh();
         RequestMouseInputRegistrationRefresh();
     }
@@ -511,7 +512,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         NativeIcon? oldIcon = _currentIcon;
         _currentIcon = icon;
-        if (oldIcon != null) _retiredIcons.Add(oldIcon);
+        if (oldIcon != null && !ReferenceEquals(oldIcon, _shellIcon))
+            oldIcon.Dispose();
     }
 
     private void DeleteTrayIcon()
@@ -526,16 +528,33 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (!_isCreated) return;
 
         NOTIFYICONDATAW data = MakeData(0);
-        _ = Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data);
-        _isCreated = false;
+        if (Shell32.Shell_NotifyIconW(Shell32.NotifyIconMessage.NIM_DELETE, ref data))
+        {
+            _isCreated = false;
+            ReleaseShellIcon();
+            return;
+        }
+
+        int error = Marshal.GetLastWin32Error();
+        TADNLog.Log($"TrayAppDotNETShellTrayIcon.DeleteTrayIcon: NIM_DELETE failed (0x{error:X8}).");
     }
 
-    private void DisposeRetiredIcons()
+    private void CommitShellIcon()
     {
-        foreach (NativeIcon icon in _retiredIcons)
-            icon.Dispose();
+        NativeIcon? oldShellIcon = _shellIcon;
+        _shellIcon = _currentIcon;
 
-        _retiredIcons.Clear();
+        if (oldShellIcon != null && !ReferenceEquals(oldShellIcon, _shellIcon))
+            oldShellIcon.Dispose();
+    }
+
+    private void ReleaseShellIcon()
+    {
+        NativeIcon? oldShellIcon = _shellIcon;
+        _shellIcon = null;
+
+        if (oldShellIcon != null && !ReferenceEquals(oldShellIcon, _currentIcon))
+            oldShellIcon.Dispose();
     }
 
     private void RequestMouseInputRegistrationRefresh()
@@ -1527,9 +1546,14 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             _isCreated = false;
         }
 
+        NativeIcon? shellIcon = _shellIcon;
+        _shellIcon = null;
+
         _currentIcon?.Dispose();
+        if (shellIcon != null && !ReferenceEquals(shellIcon, _currentIcon))
+            shellIcon.Dispose();
+
         _currentIcon = null;
-        DisposeRetiredIcons();
         _trayUpdateThrottler.Dispose();
         _window.Dispose();
     }

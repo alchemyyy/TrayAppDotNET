@@ -44,6 +44,7 @@ public sealed partial class FanPropertiesWindow : Window
     private readonly List<FanPropertyUnitBinding> _propertyUnitBindings = [];
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
+    private readonly List<FanCurveEditorWindow> _curveEditorWindows = [];
     private bool _forceClose;
     private bool _isUpdatingPropertyUnitControls;
 
@@ -179,7 +180,10 @@ public sealed partial class FanPropertiesWindow : Window
     {
         _forceClose = true;
         try { Close(); }
-        catch { }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"FanPropertiesWindow.ForceClose: {ex.Message}");
+        }
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -484,12 +488,42 @@ public sealed partial class FanPropertiesWindow : Window
             Topmost = Topmost,
             ShowInTaskbar = false
         };
-        window.Closed += (_, _) =>
-        {
-            PopulateCurveCombo();
-            SelectComboByTag(_curveCombo, GetEffectiveCurveName(_fan));
-        };
+        _curveEditorWindows.Add(window);
+        window.Closed += OnCurveEditorWindowClosed;
         window.Show(this);
+    }
+
+    /// <summary>
+    /// Removes a closed curve editor and refreshes curve selection while this window is alive.
+    /// </summary>
+    private void OnCurveEditorWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is not FanCurveEditorWindow window) return;
+
+        window.Closed -= OnCurveEditorWindowClosed;
+        _curveEditorWindows.Remove(window);
+        if (!IsVisible) return;
+
+        PopulateCurveCombo();
+        SelectComboByTag(_curveCombo, GetEffectiveCurveName(_fan));
+    }
+
+    /// <summary>
+    /// Closes curve editor child windows owned by this properties window.
+    /// </summary>
+    private void ForceCloseAllCurveEditorWindows()
+    {
+        foreach (FanCurveEditorWindow window in _curveEditorWindows.ToArray())
+        {
+            window.Closed -= OnCurveEditorWindowClosed;
+            try { window.Close(); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"FanPropertiesWindow curve editor close failed: {ex.Message}");
+            }
+        }
+
+        _curveEditorWindows.Clear();
     }
 
     private Curve CreateCurveForFan()
@@ -565,6 +599,8 @@ public sealed partial class FanPropertiesWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        Closed -= OnClosed;
+        ForceCloseAllCurveEditorWindows();
         _fan.PropertyChanged -= OnFanPropertyChanged;
         _settings.Changed -= OnSettingsChanged;
     }

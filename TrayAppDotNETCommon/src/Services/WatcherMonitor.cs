@@ -16,6 +16,7 @@ public sealed class WatcherMonitor(
     private readonly TimeSpan _pollInterval =
         pollInterval ?? TimeSpan.FromMilliseconds(TimeConstants.WatcherLivenessPollIntervalMs);
     private CancellationTokenSource? _cts;
+    private Task? _pollTask;
     private bool _disposed;
 
     public bool IsRunning => _cts != null;
@@ -29,7 +30,7 @@ public sealed class WatcherMonitor(
         _cts = new CancellationTokenSource();
         CancellationToken token = _cts.Token;
 
-        _ = Task.Run(async () =>
+        _pollTask = Task.Run(async () =>
         {
             try
             {
@@ -68,7 +69,18 @@ public sealed class WatcherMonitor(
         try { cts.Cancel(); }
         catch (Exception ex) { TADNLog.Log($"WatcherMonitor.Stop: cancel: {ex.Message}"); }
 
-        cts.Dispose();
+        Task? pollTask = Interlocked.Exchange(ref _pollTask, null);
+        if (pollTask == null)
+        {
+            cts.Dispose();
+            return;
+        }
+
+        _ = pollTask.ContinueWith(
+            _ => cts.Dispose(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     public void Dispose()

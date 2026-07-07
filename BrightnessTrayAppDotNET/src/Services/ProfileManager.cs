@@ -7,13 +7,15 @@ namespace BrightnessTrayAppDotNET.Services;
 /// <summary>
 /// Manages brightness profiles - loading, saving, and applying.
 /// </summary>
-public sealed class ProfileManager
+public sealed class ProfileManager : IDisposable
 {
     private const string EDIDIDPrefix = "edid:";
 
     private readonly string _profilesPath;
     private readonly KnownDisplaysStore _knownDisplays;
+    private readonly bool _ownsKnownDisplays;
     private int _selectedIndex;
+    private int _disposed;
 
     // Set by MigrateLegacyMonitorStates when at least one MonitorState was upgraded during load,
     // so the constructor can persist the migrated XML eagerly (otherwise the next user-driven Save
@@ -84,7 +86,16 @@ public sealed class ProfileManager
     public ProfileManager(string profilesPath, KnownDisplaysStore? knownDisplays = null)
     {
         _profilesPath = profilesPath;
-        _knownDisplays = knownDisplays ?? new KnownDisplaysStore();
+        if (knownDisplays == null)
+        {
+            _knownDisplays = new KnownDisplaysStore();
+            _ownsKnownDisplays = true;
+        }
+        else
+        {
+            _knownDisplays = knownDisplays;
+        }
+
         // Ensure the store is populated even when the caller didn't pre-load it; idempotent if it was.
         _knownDisplays.Load();
         bool fileExisted = File.Exists(_profilesPath);
@@ -509,9 +520,9 @@ public sealed class ProfileManager
                 return loaded;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // fall through to create default
+            WPFLog.Log($"ProfileManager.LoadOrCreate: {ex.Message}");
         }
 
         return CreateDefault();
@@ -605,10 +616,10 @@ public sealed class ProfileManager
     /// can trigger a save without going through one of the higher-level apply paths.
     /// </summary>
     public void Save()
-        => TrayXmlSerializer.TryWriteFile(
-            _profilesPath,
-            Profiles,
-            ex => WPFLog.Log($"ProfileManager.Save: {ex.Message}"));
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+        SaveCore();
+    }
 
     /// <summary>
     /// Persists current in-memory profile state on app shutdown.
@@ -621,7 +632,30 @@ public sealed class ProfileManager
     /// Idempotent: <see cref="Save"/> just rewrites whatever is currently in memory, so multiple calls
     /// are harmless (and a no-op effectively, when nothing has changed since the last save).
     /// </summary>
-    public void SaveOnShutdown() => Save();
+    public void SaveOnShutdown() => SaveCore();
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        try { SaveCore(); }
+        catch (Exception ex)
+        {
+            WPFLog.Log($"ProfileManager.Dispose save: {ex.Message}");
+        }
+
+        SelectedProfileChanged = null;
+        UnsavedChangesStatusChanged = null;
+        ProfilesListChanged = null;
+
+        if (_ownsKnownDisplays) _knownDisplays.Dispose();
+    }
+
+    private void SaveCore()
+        => TrayXmlSerializer.TryWriteFile(
+            _profilesPath,
+            Profiles,
+            ex => WPFLog.Log($"ProfileManager.Save: {ex.Message}"));
 
     /// <summary>
     /// Gets the default profiles file path.

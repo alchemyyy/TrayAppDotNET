@@ -78,6 +78,7 @@ public sealed class AsyncThrottler<TKey>(
             slot.NextPayload = null;
             slot.NextCancellationToken = CancellationToken.None;
             slot.NextCompletionSource = null;
+            RemoveIdleSlotIfCurrent(key, slot);
         }
 
         droppedCompletionSource?.TrySetResult();
@@ -132,6 +133,8 @@ public sealed class AsyncThrottler<TKey>(
                 throttleSlot.NextPayload = null;
                 throttleSlot.NextCompletionSource = null;
             }
+
+            _slots.Clear();
         }
 
         try { _shutdownTokenSource.Dispose(); }
@@ -154,6 +157,7 @@ public sealed class AsyncThrottler<TKey>(
                 if (_disposed || slot.NextPayload == null)
                 {
                     slot.DriverRunning = false;
+                    RemoveIdleSlotIfCurrent(key, slot);
                     return;
                 }
 
@@ -198,7 +202,11 @@ public sealed class AsyncThrottler<TKey>(
 
             if (_disposed)
             {
-                lock (_gate) slot.DriverRunning = false;
+                lock (_gate)
+                {
+                    slot.DriverRunning = false;
+                    RemoveIdleSlotIfCurrent(key, slot);
+                }
                 return;
             }
 
@@ -211,11 +219,24 @@ public sealed class AsyncThrottler<TKey>(
                 }
                 catch (OperationCanceledException)
                 {
-                    lock (_gate) slot.DriverRunning = false;
+                    lock (_gate)
+                    {
+                        slot.DriverRunning = false;
+                        RemoveIdleSlotIfCurrent(key, slot);
+                    }
                     return;
                 }
             }
         }
+    }
+
+    private void RemoveIdleSlotIfCurrent(TKey key, Slot slot)
+    {
+        if (slot.DriverRunning || slot.NextPayload != null) return;
+        if (!_slots.TryGetValue(key, out Slot? currentSlot)) return;
+        if (!ReferenceEquals(currentSlot, slot)) return;
+
+        _slots.Remove(key);
     }
 
     private sealed class Slot

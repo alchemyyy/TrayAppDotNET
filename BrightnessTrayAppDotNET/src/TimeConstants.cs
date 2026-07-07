@@ -24,6 +24,7 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // DDC recovery
     public const int DDCRecoveryRetryIntervalMs = 2_000;
+    public const int DDCRecoveryShutdownDrainTimeoutMs = 1_000;
 
     // Settle window before the first VCP read on any monitor after a topology event.
     // Covers cold hot-plug, monitor power-on, and cascade refreshes triggered when an unrelated

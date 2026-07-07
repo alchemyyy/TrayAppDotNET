@@ -22,9 +22,14 @@ internal static class AdapterSettingsShellMonitor
     ];
 
     private const string TargetWindowClass = "CabinetWClass";
+    private const int MonitorReadyTimeoutMs = 2_000;
+    private const int ProcessSpawnMonitorTimeoutMs = 15_000;
+    private const int MainWindowMonitorTimeoutMs = 30_000;
+    private const int WindowDestroyMonitorTimeoutMs = 6 * 60 * 60 * 1_000;
 
     private static readonly Lock _lock = new();
     private static readonly HashSet<int> _monitoredPids = [];
+    private static readonly List<CancellationTokenSource> _activeMonitorCancellationSources = [];
 
     public static void OpenAndMonitorControlPanel() => OpenAndMonitor("ncpa.cpl", null);
 
@@ -33,6 +38,7 @@ internal static class AdapterSettingsShellMonitor
 
     private static void OpenAndMonitor(string fileName, string? arguments)
     {
+        ProcessMonitor? monitor = null;
         try
         {
             HashSet<int> existingPids = GetExplorerFactoryPids();
@@ -42,18 +48,43 @@ internal static class AdapterSettingsShellMonitor
 
             // Start event-driven monitoring on a dedicated thread BEFORE launching,
             // so the spawn event is always observed.
-            ProcessMonitor monitor = new(existingPids);
+            monitor = new ProcessMonitor(existingPids);
             monitor.Start();
-            monitor.WaitForReady();
+            if (!monitor.WaitForReady(TimeSpan.FromMilliseconds(MonitorReadyTimeoutMs)))
+            {
+                monitor.Cancel();
+                TADNLog.Log("AdapterSettingsShellMonitor: process monitor did not become ready before timeout");
+                return;
+            }
 
-            Process.Start(new ProcessStartInfo
+            using Process? _ = Process.Start(new ProcessStartInfo
             {
                 FileName = fileName, Arguments = arguments ?? string.Empty, UseShellExecute = true
-            })?.Dispose();
+            });
         }
-        catch
+        catch (Exception ex)
         {
-            // best-effort
+            monitor?.Cancel();
+            TADNLog.Log($"AdapterSettingsShellMonitor.OpenAndMonitor({fileName}): {ex.Message}");
+        }
+    }
+
+    public static void Shutdown()
+    {
+        List<CancellationTokenSource> cancellationSources = [];
+        lock (_lock)
+        {
+            cancellationSources.AddRange(_activeMonitorCancellationSources);
+            _monitoredPids.Clear();
+        }
+
+        foreach (CancellationTokenSource cancellationSource in cancellationSources)
+        {
+            try { cancellationSource.Cancel(); }
+            catch (ObjectDisposedException)
+            {
+                TADNLog.Log("AdapterSettingsShellMonitor.Shutdown: cancellation source was already disposed");
+            }
         }
     }
 
@@ -76,9 +107,9 @@ internal static class AdapterSettingsShellMonitor
             {
                 if (IsFactoryExplorer(proc.Id)) pids.Add(proc.Id);
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore
+                TADNLog.Log($"AdapterSettingsShellMonitor.GetExplorerFactoryPids({proc.Id}): {ex.Message}");
             }
             finally
             {
@@ -102,12 +133,26 @@ internal static class AdapterSettingsShellMonitor
                     return true;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // ignore
+            TADNLog.Log($"AdapterSettingsShellMonitor.IsFactoryExplorer({pid}): {ex.Message}");
         }
 
         return false;
+    }
+
+    private static CancellationTokenSource CreateMonitorCancellationSource(int timeoutMs)
+    {
+        CancellationTokenSource cancellationTokenSource = new();
+        cancellationTokenSource.CancelAfter(timeoutMs);
+        lock (_lock) _activeMonitorCancellationSources.Add(cancellationTokenSource);
+        return cancellationTokenSource;
+    }
+
+    private static void CompleteMonitorCancellationSource(CancellationTokenSource cancellationTokenSource)
+    {
+        lock (_lock) _activeMonitorCancellationSources.Remove(cancellationTokenSource);
+        cancellationTokenSource.Dispose();
     }
 
     private static unsafe string? GetProcessCommandLine(int pid)
@@ -156,6 +201,7 @@ internal static class AdapterSettingsShellMonitor
     private const uint EVENT_OBJECT_SHOW = 0x8002;
     private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     private const uint WM_QUIT = 0x0012;
+    private const uint PM_NOREMOVE = 0x0000;
     private const int OBJID_WINDOW = 0;
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
     private const uint PROCESS_VM_READ = 0x0010;
@@ -175,6 +221,11 @@ internal static class AdapterSettingsShellMonitor
 
     [DllImport("user32.dll", EntryPoint = "GetMessageW")]
     private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll", EntryPoint = "PeekMessageW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PeekMessage(
+        out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -286,72 +337,184 @@ internal static class AdapterSettingsShellMonitor
     #endregion
 
     /// <summary>
-    /// Phase 1: catches EVENT_OBJECT_CREATE for a new factory explorer.exe and hands off to phase 2.
+    /// Shared WinEvent hook loop with cancellation and deterministic unhook.
     /// </summary>
-    private sealed class ProcessMonitor
+    private abstract class WinEventMonitor
     {
-        private readonly HashSet<int> _existingPids;
+        private readonly string _threadName;
+        private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly WinEventDelegate _winEventProc;
-        private readonly ManualResetEventSlim _ready = new(false);
         private IntPtr _hook;
         private uint _threadId;
+
+        protected WinEventMonitor(string threadName, int timeoutMs)
+        {
+            _threadName = threadName;
+            _cancellationTokenSource = CreateMonitorCancellationSource(timeoutMs);
+            _winEventProc = DispatchWinEvent;
+        }
+
+        protected WinEventDelegate WinEventProc => _winEventProc;
+
+        protected abstract IntPtr InstallHook();
+
+        protected virtual void OnHookInstalled() { }
+
+        protected virtual void OnHookFailed() { }
+
+        protected virtual void OnStopped() { }
+
+        protected abstract void OnWinEvent(
+            IntPtr hWinEventHook,
+            uint eventType,
+            IntPtr hwnd,
+            int idObject,
+            int idChild,
+            uint dwEventThread,
+            uint dwmsEventTime);
+
+        public void Start()
+        {
+            Thread thread = new(RunMessageLoop) { IsBackground = true, Name = _threadName };
+            thread.Start();
+        }
+
+        public void Cancel()
+        {
+            try
+            {
+                _cancellationTokenSource.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                TADNLog.Log($"{_threadName}: cancellation source was already disposed");
+            }
+        }
+
+        protected void StopMessageLoop()
+        {
+            ReleaseHook();
+            RequestStop();
+        }
+
+        private void RunMessageLoop()
+        {
+            _threadId = GetCurrentThreadId();
+            PeekMessage(out MSG _, IntPtr.Zero, 0, 0, PM_NOREMOVE);
+
+            CancellationTokenRegistration cancellationRegistration =
+                _cancellationTokenSource.Token.Register(static state =>
+                    ((WinEventMonitor)state!).RequestStop(), this);
+
+            try
+            {
+                _hook = InstallHook();
+                if (_hook == IntPtr.Zero)
+                {
+                    OnHookFailed();
+                    return;
+                }
+
+                OnHookInstalled();
+                RunMessagePump();
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"{_threadName}: {ex.Message}");
+            }
+            finally
+            {
+                ReleaseHook();
+                OnStopped();
+                cancellationRegistration.Dispose();
+                CompleteMonitorCancellationSource(_cancellationTokenSource);
+            }
+        }
+
+        private void RunMessagePump()
+        {
+            while (!_cancellationTokenSource.IsCancellationRequested
+                   && GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
+            {
+                TranslateMessage(ref msg);
+                DispatchMessage(ref msg);
+            }
+        }
+
+        private void DispatchWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            if (_cancellationTokenSource.IsCancellationRequested) return;
+
+            OnWinEvent(hWinEventHook, eventType, hwnd, idObject, idChild, dwEventThread, dwmsEventTime);
+        }
+
+        private void ReleaseHook()
+        {
+            IntPtr hook = _hook;
+            if (hook == IntPtr.Zero) return;
+
+            _hook = IntPtr.Zero;
+            if (!UnhookWinEvent(hook))
+                TADNLog.Log($"{_threadName}: UnhookWinEvent failed");
+        }
+
+        private void RequestStop()
+        {
+            uint threadId = _threadId;
+            if (threadId == 0) return;
+
+            if (!PostThreadMessage(threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero))
+                TADNLog.Log($"{_threadName}: PostThreadMessage(WM_QUIT) failed");
+        }
+    }
+
+    /// <summary>
+    /// Phase 1: catches EVENT_OBJECT_CREATE for a new factory explorer.exe and hands off to phase 2.
+    /// </summary>
+    private sealed class ProcessMonitor : WinEventMonitor
+    {
+        private readonly HashSet<int> _existingPids;
+        private readonly TaskCompletionSource<bool> _ready =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         // Pin the next monitor in the chain so it can't be GC'd while its message loop runs.
         private MainWindowMonitor? _nextMonitorRef;
 
         public ProcessMonitor(HashSet<int> existingPids)
+            : base("AdapterSettingsProcessMonitor", ProcessSpawnMonitorTimeoutMs)
         {
             _existingPids = existingPids;
-            _winEventProc = OnWinEvent;
         }
 
-        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsProcessMonitor" }.Start();
-
-        public void WaitForReady() => _ready.Wait();
-
-        private void RunMessageLoop()
+        public bool WaitForReady(TimeSpan timeout)
         {
-            _threadId = GetCurrentThreadId();
-
             try
             {
-                _hook = SetWinEventHook(
-                    EVENT_OBJECT_CREATE, EVENT_OBJECT_CREATE,
-                    IntPtr.Zero, _winEventProc,
-                    0, 0, WINEVENT_OUTOFCONTEXT);
-
-                if (_hook == IntPtr.Zero)
-                {
-                    _ready.Set();
-                    return;
-                }
-
-                _ready.Set();
-
-                while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
-                {
-                    TranslateMessage(ref msg);
-                    DispatchMessage(ref msg);
-                }
+                bool completed = _ready.Task.Wait(timeout);
+                return completed && _ready.Task.Result;
             }
-            catch
+            catch (AggregateException ex)
             {
-                // ignore
-            }
-            finally
-            {
-                _ready.Set();
-                if (_hook != IntPtr.Zero)
-                {
-                    UnhookWinEvent(_hook);
-                    _hook = IntPtr.Zero;
-                }
-
-                _ready.Dispose();
+                foreach (Exception inner in ex.Flatten().InnerExceptions)
+                    TADNLog.Log($"AdapterSettingsProcessMonitor.WaitForReady: {inner.Message}");
+                return false;
             }
         }
 
-        private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+        protected override IntPtr InstallHook() =>
+            SetWinEventHook(
+                EVENT_OBJECT_CREATE, EVENT_OBJECT_CREATE,
+                IntPtr.Zero, WinEventProc,
+                0, 0, WINEVENT_OUTOFCONTEXT);
+
+        protected override void OnHookInstalled() => _ready.TrySetResult(true);
+
+        protected override void OnHookFailed() => _ready.TrySetResult(false);
+
+        protected override void OnStopped() => _ready.TrySetResult(false);
+
+        protected override void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
             int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             if (idObject != OBJID_WINDOW || hwnd == IntPtr.Zero) return;
@@ -362,80 +525,46 @@ internal static class AdapterSettingsShellMonitor
             if (!IsFactoryExplorer((int)pid)) return;
 
             // Found new factory explorer process - hand off to main window monitor.
-            if (_hook != IntPtr.Zero)
-            {
-                UnhookWinEvent(_hook);
-                _hook = IntPtr.Zero;
-            }
-
             AddMonitoredPid((int)pid);
 
             _nextMonitorRef = new MainWindowMonitor((int)pid);
             _nextMonitorRef.Start();
 
-            PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+            StopMessageLoop();
         }
     }
 
     /// <summary>
     /// Phase 2: waits for a CabinetWClass window to appear in the target process, then hands off to phase 3.
     /// </summary>
-    private sealed class MainWindowMonitor
+    private sealed class MainWindowMonitor : WinEventMonitor
     {
         private readonly int _pid;
-        private readonly WinEventDelegate _winEventProc;
-        private IntPtr _hook;
-        private uint _threadId;
+        private bool _handedOff;
 
         // Pin the next monitor in the chain to keep it alive while its loop runs.
         private WindowDestroyMonitor? _nextMonitorRef;
 
         public MainWindowMonitor(int pid)
+            : base("AdapterSettingsMainWindowMonitor", MainWindowMonitorTimeoutMs)
         {
             _pid = pid;
-            _winEventProc = OnWinEvent;
         }
 
-        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsMainWindowMonitor" }.Start();
+        protected override IntPtr InstallHook() =>
+            SetWinEventHook(
+                EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW,
+                IntPtr.Zero, WinEventProc,
+                (uint)_pid, 0, WINEVENT_OUTOFCONTEXT);
 
-        private void RunMessageLoop()
+        protected override void OnHookFailed() => RemoveMonitoredPid(_pid);
+
+        protected override void OnStopped()
         {
-            _threadId = GetCurrentThreadId();
-
-            try
-            {
-                _hook = SetWinEventHook(
-                    EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW,
-                    IntPtr.Zero, _winEventProc,
-                    (uint)_pid, 0, WINEVENT_OUTOFCONTEXT);
-
-                if (_hook == IntPtr.Zero)
-                {
-                    RemoveMonitoredPid(_pid);
-                    return;
-                }
-
-                while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
-                {
-                    TranslateMessage(ref msg);
-                    DispatchMessage(ref msg);
-                }
-            }
-            catch
-            {
-                // ignore
-            }
-            finally
-            {
-                if (_hook != IntPtr.Zero)
-                {
-                    UnhookWinEvent(_hook);
-                    _hook = IntPtr.Zero;
-                }
-            }
+            if (!_handedOff) RemoveMonitoredPid(_pid);
         }
 
-        private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+        protected override void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
             int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             // Only handle CREATE and SHOW; DESTROY belongs to phase 3.
@@ -445,98 +574,74 @@ internal static class AdapterSettingsShellMonitor
             StringBuilder className = new(256);
             if (GetClassName(hwnd, className, 256) <= 0 || className.ToString() != TargetWindowClass) return;
 
-            if (_hook != IntPtr.Zero)
-            {
-                UnhookWinEvent(_hook);
-                _hook = IntPtr.Zero;
-            }
-
-            _nextMonitorRef = new WindowDestroyMonitor(_pid);
+            _handedOff = true;
+            _nextMonitorRef = new WindowDestroyMonitor(_pid, hwnd);
             _nextMonitorRef.Start();
 
-            PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+            StopMessageLoop();
         }
     }
 
     /// <summary>
     /// Phase 3: waits for the CabinetWClass window to be destroyed, then kills the host process.
     /// </summary>
-    private sealed class WindowDestroyMonitor
+    private sealed class WindowDestroyMonitor : WinEventMonitor
     {
         private readonly int _pid;
-        private readonly WinEventDelegate _winEventProc;
-        private IntPtr _hook;
-        private uint _threadId;
+        private readonly IntPtr _targetHwnd;
+        private bool _windowDestroyed;
 
-        public WindowDestroyMonitor(int pid)
+        public WindowDestroyMonitor(int pid, IntPtr targetHwnd)
+            : base("AdapterSettingsWindowDestroyMonitor", WindowDestroyMonitorTimeoutMs)
         {
             _pid = pid;
-            _winEventProc = OnWinEvent;
+            _targetHwnd = targetHwnd;
         }
 
-        public void Start() => new Thread(RunMessageLoop) { IsBackground = true, Name = "AdapterSettingsWindowDestroyMonitor" }.Start();
+        protected override IntPtr InstallHook() =>
+            SetWinEventHook(
+                EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
+                IntPtr.Zero, WinEventProc,
+                (uint)_pid, 0, WINEVENT_OUTOFCONTEXT);
 
-        private void RunMessageLoop()
-        {
-            _threadId = GetCurrentThreadId();
+        protected override void OnStopped() => Cleanup();
 
-            try
-            {
-                _hook = SetWinEventHook(
-                    EVENT_OBJECT_DESTROY, EVENT_OBJECT_DESTROY,
-                    IntPtr.Zero, _winEventProc,
-                    (uint)_pid, 0, WINEVENT_OUTOFCONTEXT);
-
-                if (_hook == IntPtr.Zero)
-                {
-                    Cleanup();
-                    return;
-                }
-
-                while (GetMessage(out MSG msg, IntPtr.Zero, 0, 0) > 0)
-                {
-                    TranslateMessage(ref msg);
-                    DispatchMessage(ref msg);
-                }
-            }
-            catch
-            {
-                // ignore
-            }
-            finally
-            {
-                Cleanup();
-            }
-        }
-
-        private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+        protected override void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
             int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             if (idObject != OBJID_WINDOW || hwnd == IntPtr.Zero) return;
+            if (hwnd == _targetHwnd)
+            {
+                _windowDestroyed = true;
+                StopMessageLoop();
+                return;
+            }
 
             StringBuilder className = new(256);
             if (GetClassName(hwnd, className, 256) > 0 && className.ToString() == TargetWindowClass)
-                PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+            {
+                _windowDestroyed = true;
+                StopMessageLoop();
+            }
         }
 
         private void Cleanup()
         {
-            if (_hook != IntPtr.Zero)
-            {
-                UnhookWinEvent(_hook);
-                _hook = IntPtr.Zero;
-            }
-
             RemoveMonitoredPid(_pid);
+            if (!_windowDestroyed) return;
 
             try
             {
                 using Process process = Process.GetProcessById(_pid);
                 if (!process.HasExited) process.Kill();
             }
-            catch
+            catch (ArgumentException)
             {
-                // process already exited
+                TADNLog.Log($"AdapterSettingsWindowDestroyMonitor.Cleanup({_pid}): process already exited");
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AdapterSettingsWindowDestroyMonitor.Cleanup({_pid}): {ex.Message}");
             }
         }
     }

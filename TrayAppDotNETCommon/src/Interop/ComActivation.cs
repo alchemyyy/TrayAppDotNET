@@ -5,7 +5,7 @@ namespace TrayAppDotNETCommon.Interop;
 
 public static class COMActivation
 {
-    private static readonly StrategyBasedComWrappers ComWrappers = new();
+    private static readonly ReleasableStrategyBasedComWrappers ComWrappers = new();
     private static int _registeredForMarshalling;
 
     public const uint ClsCtxInprocServer = 0x1;
@@ -35,8 +35,16 @@ public static class COMActivation
         unsafe
         {
             void* unmanaged = (void*)instance;
-            T? managed = UniqueComInterfaceMarshaller<T>.ConvertToManaged(unmanaged);
-            if (releaseInputReference) UniqueComInterfaceMarshaller<T>.Free(unmanaged);
+            T? managed;
+            try
+            {
+                managed = UniqueComInterfaceMarshaller<T>.ConvertToManaged(unmanaged);
+            }
+            finally
+            {
+                if (releaseInputReference) UniqueComInterfaceMarshaller<T>.Free(unmanaged);
+            }
+
             if (managed == null)
                 throw new InvalidOperationException($"Failed to marshal COM interface {typeof(T).FullName}.");
             return managed;
@@ -56,6 +64,20 @@ public static class COMActivation
             // Another component registered a process-wide marshaller first. Direct calls through
             // this helper still use the local StrategyBasedComWrappers instance.
         }
+    }
+
+    public static bool TryReleaseGeneratedComObject(object? obj)
+    {
+        if (obj == null) return false;
+        if (!System.Runtime.InteropServices.ComWrappers.TryGetComInstance(obj, out IntPtr _)) return false;
+
+        ComWrappers.ReleaseObject(obj);
+        return true;
+    }
+
+    private sealed class ReleasableStrategyBasedComWrappers : StrategyBasedComWrappers
+    {
+        public void ReleaseObject(object obj) => ReleaseObjects(new object[] { obj });
     }
 
     [DllImport("ole32.dll", ExactSpelling = true, PreserveSig = true)]

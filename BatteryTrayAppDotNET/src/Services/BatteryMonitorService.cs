@@ -15,8 +15,10 @@ public sealed class BatteryMonitorService : IDisposable
     private const uint BatteryLifeTimeUnknown = 0xFFFFFFFF;
 
     private readonly SemaphoreSlim _pollGate = new(1, 1);
+    private readonly Lock _lifetimeGate = new();
     private CancellationTokenSource? _pollingCancellationToken;
     private Task? _pollTask;
+    private Task? _forceRefreshTask;
     private bool _disposed;
 
     public BatterySnapshot Snapshot { get; private set; } = BatterySnapshot.Unknown;
@@ -25,14 +27,29 @@ public sealed class BatteryMonitorService : IDisposable
 
     public void Start()
     {
-        if (_pollingCancellationToken != null) return;
+        lock (_lifetimeGate)
+        {
+            if (_disposed) return;
+            if (_pollingCancellationToken != null) return;
 
-        _pollingCancellationToken = new CancellationTokenSource();
-        _pollTask = Task.Run(() => PollLoopAsync(_pollingCancellationToken.Token));
+            _pollingCancellationToken = new CancellationTokenSource();
+            _pollTask = Task.Run(() => PollLoopAsync(_pollingCancellationToken.Token));
+        }
+
         ForceRefresh();
     }
 
-    public void ForceRefresh() => _ = PollOnceAsync(CancellationToken.None);
+    public void ForceRefresh()
+    {
+        lock (_lifetimeGate)
+        {
+            if (_disposed) return;
+            if (_pollingCancellationToken == null) return;
+            if (_forceRefreshTask is { IsCompleted: false }) return;
+
+            _forceRefreshTask = PollOnceAsync(_pollingCancellationToken.Token);
+        }
+    }
 
     private async Task PollLoopAsync(CancellationToken token)
     {
@@ -55,11 +72,14 @@ public sealed class BatteryMonitorService : IDisposable
             BatterySnapshot snapshot = await Task.Run(CreateSnapshot, token);
             if (_disposed) return;
 
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                Snapshot = snapshot;
-                StateChanged?.Invoke();
-            });
+            await Dispatcher.UIThread.InvokeAsync(
+                () =>
+                {
+                    Snapshot = snapshot;
+                    StateChanged?.Invoke();
+                },
+                DispatcherPriority.Normal,
+                token);
         }
         catch (OperationCanceledException)
         {
@@ -192,26 +212,62 @@ public sealed class BatteryMonitorService : IDisposable
                 EstimatedTimeRemaining: estimate,
                 EnergySaverEnabled: status.SystemStatusFlag != 0);
         }
-        catch
+        catch (Exception ex)
         {
+            TADNLog.Log($"BatteryMonitorService.GetWindowsPowerStatus: {ex.Message}");
             return PowerStatus.Unknown;
         }
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-
-        if (_pollingCancellationToken != null)
+        CancellationTokenSource? pollingCancellationToken;
+        Task? pollTask;
+        Task? forceRefreshTask;
+        lock (_lifetimeGate)
         {
-            _pollingCancellationToken.Cancel();
-            try { _pollTask?.Wait(2_000); }
-            catch { }
-            _pollingCancellationToken.Dispose();
+            if (_disposed) return;
+            _disposed = true;
+
+            pollingCancellationToken = _pollingCancellationToken;
+            pollTask = _pollTask;
+            forceRefreshTask = _forceRefreshTask;
+            pollingCancellationToken?.Cancel();
+            _pollingCancellationToken = null;
+            _pollTask = null;
+            _forceRefreshTask = null;
         }
 
+        WaitForPollTask(pollTask, nameof(_pollTask));
+        if (!ReferenceEquals(forceRefreshTask, pollTask))
+            WaitForPollTask(forceRefreshTask, nameof(_forceRefreshTask));
+        pollingCancellationToken?.Dispose();
+
         _pollGate.Dispose();
+    }
+
+    private static void WaitForPollTask(Task? task, string taskName)
+    {
+        if (task == null) return;
+
+        try
+        {
+            bool completed = task.Wait(2_000);
+            if (!completed) TADNLog.Log($"BatteryMonitorService.Dispose: {taskName} did not stop before timeout");
+        }
+        catch (AggregateException ex)
+        {
+            foreach (Exception inner in ex.Flatten().InnerExceptions)
+            {
+                if (inner is OperationCanceledException) continue;
+
+                TADNLog.Log($"BatteryMonitorService.Dispose: {taskName}: {inner.Message}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown/dispose path.
+        }
     }
 
     [DllImport("kernel32.dll")]

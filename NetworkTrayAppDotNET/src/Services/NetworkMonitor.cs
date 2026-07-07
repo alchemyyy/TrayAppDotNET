@@ -10,8 +10,9 @@ namespace NetworkTrayAppDotNET.Services;
 /// </summary>
 public sealed class NetworkMonitor : IDisposable
 {
-    private bool _disposed;
     private readonly NetworkStatusChangedEventHandler _networkHandler;
+    private int _disposed;
+    private int _initialized;
 
     public event Action<NetworkIconState>? NetworkStateChanged;
 
@@ -24,12 +25,32 @@ public sealed class NetworkMonitor : IDisposable
 
     public void Initialize()
     {
-        NetworkInformation.NetworkStatusChanged += _networkHandler;
-        RefreshState();
+        if (Volatile.Read(ref _disposed) != 0) return;
+        if (Interlocked.Exchange(ref _initialized, 1) != 0) return;
+
+        try
+        {
+            NetworkInformation.NetworkStatusChanged += _networkHandler;
+            RefreshState();
+        }
+        catch (Exception ex)
+        {
+            try { NetworkInformation.NetworkStatusChanged -= _networkHandler; }
+            catch (Exception unsubscribeException)
+            {
+                TADNLog.Log($"NetworkMonitor.Initialize unsubscribe: {unsubscribeException.Message}");
+            }
+
+            Interlocked.Exchange(ref _initialized, 0);
+            TADNLog.Log($"NetworkMonitor.Initialize: {ex.Message}");
+            throw;
+        }
     }
 
     public void RefreshState()
     {
+        if (Volatile.Read(ref _disposed) != 0) return;
+
         NetworkIconState previousState = CurrentState;
         List<(string Name, bool IsWifi, bool HasInternet)> connections = [];
 
@@ -92,8 +113,9 @@ public sealed class NetworkMonitor : IDisposable
             };
             UpdateState(ethernetState, 0, networkName, connections, previousState);
         }
-        catch
+        catch (Exception ex)
         {
+            TADNLog.Log($"NetworkMonitor.RefreshState: {ex.Message}");
             UpdateState(NetworkIconState.NoNetwork, 0, string.Empty, connections, previousState);
         }
     }
@@ -128,9 +150,17 @@ public sealed class NetworkMonitor : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-        _disposed = true;
-        NetworkInformation.NetworkStatusChanged -= _networkHandler;
+        if (Interlocked.Exchange(ref _initialized, 0) != 0)
+        {
+            try { NetworkInformation.NetworkStatusChanged -= _networkHandler; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"NetworkMonitor.Dispose unsubscribe: {ex.Message}");
+            }
+        }
+
+        NetworkStateChanged = null;
     }
 }

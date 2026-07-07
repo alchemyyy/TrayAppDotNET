@@ -188,73 +188,195 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     public AudioDeviceManager(Dispatcher dispatcher, AppSettings? settings = null)
     {
-        _dispatcher = dispatcher;
-        _settings = settings;
-        Devices = new ReadOnlyObservableCollection<AudioDevice>(_devices);
-        // Republish snapshot on every UI-thread mutation. Cheap (~N AudioDevice refs copied) and
-        // happens at the rate the user is plugging / unplugging devices, not at sample-tick rate.
-        _devices.CollectionChanged += (_, _) => _devicesSnapshot = [.. _devices];
-
-        _volumeThrottler = new AsyncThrottler<string>(
-            TimeConstants.VolumeWriteRateDefaultMs,
-            StringComparer.Ordinal);
-        _processExitMonitor = new ProcessExitMonitor();
-
-        // Cooldown 0; the dwell-then-bail pattern in ScheduleUpdateAllDefaults's payload provides
-        // the coalescing instead. Cooldown would only space out successive runs, which we don't
-        // need - one final UpdateAllDefaults per quiet window is the goal.
-        _defaultsRefreshThrottler = new AsyncThrottler<string>(
-            0,
-            drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
-        _deviceListRefreshThrottler = new AsyncThrottler<string>(
-            0,
-            drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
-
-        _enumerator = CreateDeviceEnumerator();
-
-        // Sample timer's Elapsed fires on the threadpool and does the COM peak read off the UI
-        // thread; render timer's Elapsed BeginInvokes the lerp advancement onto the dispatcher.
-        // SynchronizingObject left null on purpose so Elapsed runs on the threadpool rather than
-        // any captured sync context.
-        _peakSampleTimer = new System.Timers.Timer(ResolveSampleIntervalMs()) { AutoReset = true };
-        _peakSampleTimer.Elapsed += OnPeakSampleElapsed;
-
-        _peakRenderTimer = new System.Timers.Timer(ResolveRenderIntervalMs()) { AutoReset = true };
-        _peakRenderTimer.Elapsed += OnPeakRenderElapsed;
-
-        // Retune timers immediately when the user changes the rates from the settings page.
-        // System.Timers.Timer.Interval is thread-safe and reschedules on the next tick.
-        if (_settings != null)
+        try
         {
-            _settings.MeterPeakFpsChanged += OnMeterPeakFpsChanged;
-            _settings.MeterPeakSampleRateChanged += OnMeterPeakSampleRateChanged;
+            _dispatcher = dispatcher;
+            _settings = settings;
+            Devices = new ReadOnlyObservableCollection<AudioDevice>(_devices);
+            // Republish snapshot on every UI-thread mutation. Cheap (~N AudioDevice refs copied) and
+            // happens at the rate the user is plugging / unplugging devices, not at sample-tick rate.
+            _devices.CollectionChanged += (_, _) => _devicesSnapshot = [.. _devices];
+
+            _volumeThrottler = new AsyncThrottler<string>(
+                TimeConstants.VolumeWriteRateDefaultMs,
+                StringComparer.Ordinal);
+            _processExitMonitor = new ProcessExitMonitor();
+
+            // Cooldown 0; the dwell-then-bail pattern in ScheduleUpdateAllDefaults's payload provides
+            // the coalescing instead. Cooldown would only space out successive runs, which we don't
+            // need - one final UpdateAllDefaults per quiet window is the goal.
+            _defaultsRefreshThrottler = new AsyncThrottler<string>(
+                0,
+                drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
+            _deviceListRefreshThrottler = new AsyncThrottler<string>(
+                0,
+                drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
+
+            _enumerator = CreateDeviceEnumerator();
+
+            // Sample timer's Elapsed fires on the threadpool and does the COM peak read off the UI
+            // thread; render timer's Elapsed BeginInvokes the lerp advancement onto the dispatcher.
+            // SynchronizingObject left null on purpose so Elapsed runs on the threadpool rather than
+            // any captured sync context.
+            _peakSampleTimer = new System.Timers.Timer(ResolveSampleIntervalMs()) { AutoReset = true };
+            _peakSampleTimer.Elapsed += OnPeakSampleElapsed;
+
+            _peakRenderTimer = new System.Timers.Timer(ResolveRenderIntervalMs()) { AutoReset = true };
+            _peakRenderTimer.Elapsed += OnPeakRenderElapsed;
+
+            // Retune timers immediately when the user changes the rates from the settings page.
+            // System.Timers.Timer.Interval is thread-safe and reschedules on the next tick.
+            if (_settings != null)
+            {
+                _settings.MeterPeakFpsChanged += OnMeterPeakFpsChanged;
+                _settings.MeterPeakSampleRateChanged += OnMeterPeakSampleRateChanged;
+            }
+
+            _bridge = new NotificationBridge(this);
+            _enumerator.RegisterEndpointNotificationCallback(_bridge);
+
+            RebuildDeviceList();
+
+            // Bluetooth codec monitor. Start fires up an ETW worker thread if elevated; on non-admin
+            // runs it stays inert and exposes RequiresElevation = true. CodecChanged marshals onto
+            // the dispatcher inside the monitor, so the propagation handler runs on the UI thread.
+            _codecMonitor = new BluetoothCodecMonitor(dispatcher);
+            _codecMonitor.CodecChanged += OnBluetoothCodecChanged;
+            try { _codecMonitor.Start(); }
+            catch (Exception ex) { TADNLog.Log($"AudioDeviceManager: Bluetooth codec monitor disabled: {ex.Message}"); }
+            PropagateCodecToBluetoothDevices(_codecMonitor.CurrentCodec);
+
+            // Bluetooth battery monitor. No elevation requirement; a cfgmgr32 reconciliation pass
+            // classifies Bluetooth containers and reads DEVPKEY_Bluetooth_Battery. The first pass
+            // retroactively seeds BatteryLevel on wrappers whose container id matches a paired BT
+            // device and fires BluetoothContainerSeen so we can promote endpoints whose property
+            // store did not surface BTHENUM.
+            _batteryMonitor = new BluetoothBatteryMonitor(dispatcher);
+            _batteryMonitor.BatteryChanged += OnBluetoothBatteryChanged;
+            _batteryMonitor.BluetoothContainerSeen += OnBluetoothContainerSeen;
+            _batteryMonitor.Start();
+
+            SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        }
+        catch
+        {
+            DisposePartialConstruction();
+            throw;
+        }
+    }
+
+    private void DisposePartialConstruction()
+    {
+        _disposed = true;
+
+        try { SystemEvents.PowerModeChanged -= OnPowerModeChanged; }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: power unsubscribe failed: {ex.Message}");
         }
 
-        _bridge = new NotificationBridge(this);
-        _enumerator.RegisterEndpointNotificationCallback(_bridge);
+        if (_settings != null)
+        {
+            try { _settings.MeterPeakFpsChanged -= OnMeterPeakFpsChanged; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: fps unsubscribe failed: {ex.Message}");
+            }
 
-        RebuildDeviceList();
+            try { _settings.MeterPeakSampleRateChanged -= OnMeterPeakSampleRateChanged; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample-rate unsubscribe failed: {ex.Message}");
+            }
+        }
 
-        // Bluetooth codec monitor. Start fires up an ETW worker thread if elevated; on non-admin
-        // runs it stays inert and exposes RequiresElevation = true. CodecChanged marshals onto
-        // the dispatcher inside the monitor, so the propagation handler runs on the UI thread.
-        _codecMonitor = new BluetoothCodecMonitor(dispatcher);
-        _codecMonitor.CodecChanged += OnBluetoothCodecChanged;
-        try { _codecMonitor.Start(); }
-        catch (Exception ex) { TADNLog.Log($"AudioDeviceManager: Bluetooth codec monitor disabled: {ex.Message}"); }
-        PropagateCodecToBluetoothDevices(_codecMonitor.CurrentCodec);
+        System.Timers.Timer? peakSampleTimer = _peakSampleTimer;
+        if (peakSampleTimer != null)
+        {
+            try { peakSampleTimer.Stop(); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample timer stop failed: {ex.Message}");
+            }
 
-        // Bluetooth battery monitor. No elevation requirement; a cfgmgr32 reconciliation pass
-        // classifies Bluetooth containers and reads DEVPKEY_Bluetooth_Battery. The first pass
-        // retroactively seeds BatteryLevel on wrappers whose container id matches a paired BT
-        // device and fires BluetoothContainerSeen so we can promote endpoints whose property
-        // store did not surface BTHENUM.
-        _batteryMonitor = new BluetoothBatteryMonitor(dispatcher);
-        _batteryMonitor.BatteryChanged += OnBluetoothBatteryChanged;
-        _batteryMonitor.BluetoothContainerSeen += OnBluetoothContainerSeen;
-        _batteryMonitor.Start();
+            try { peakSampleTimer.Elapsed -= OnPeakSampleElapsed; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample timer unsubscribe failed: {ex.Message}");
+            }
 
-        SystemEvents.PowerModeChanged += OnPowerModeChanged;
+            Safe.Dispose(peakSampleTimer);
+        }
+
+        System.Timers.Timer? peakRenderTimer = _peakRenderTimer;
+        if (peakRenderTimer != null)
+        {
+            try { peakRenderTimer.Stop(); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: render timer stop failed: {ex.Message}");
+            }
+
+            try { peakRenderTimer.Elapsed -= OnPeakRenderElapsed; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: render timer unsubscribe failed: {ex.Message}");
+            }
+
+            Safe.Dispose(peakRenderTimer);
+        }
+
+        BluetoothCodecMonitor? codecMonitor = _codecMonitor;
+        if (codecMonitor != null)
+        {
+            try { codecMonitor.CodecChanged -= OnBluetoothCodecChanged; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: codec unsubscribe failed: {ex.Message}");
+            }
+
+            Safe.Dispose(codecMonitor);
+        }
+
+        BluetoothBatteryMonitor? batteryMonitor = _batteryMonitor;
+        if (batteryMonitor != null)
+        {
+            try { batteryMonitor.BatteryChanged -= OnBluetoothBatteryChanged; }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: battery unsubscribe failed: {ex.Message}");
+            }
+
+            try { batteryMonitor.BluetoothContainerSeen -= OnBluetoothContainerSeen; }
+            catch (Exception ex)
+            {
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: bluetooth-container unsubscribe failed: {ex.Message}");
+            }
+
+            Safe.Dispose(batteryMonitor);
+        }
+
+        IMMDeviceEnumerator? enumerator = _enumerator;
+        NotificationBridge? bridge = _bridge;
+        if (enumerator != null && bridge != null)
+        {
+            try { enumerator.UnregisterEndpointNotificationCallback(bridge); }
+            catch (Exception ex)
+            {
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: notification unregister failed: {ex.Message}");
+            }
+        }
+
+        foreach (AudioDevice device in _devices.ToArray()) Safe.Dispose(device);
+        _devices.Clear();
+
+        Safe.Dispose(_volumeThrottler);
+        Safe.Dispose(_defaultsRefreshThrottler);
+        Safe.Dispose(_deviceListRefreshThrottler);
+        Safe.Dispose(_processExitMonitor);
+        Safe.Release(enumerator);
     }
 
     private double ResolveRenderIntervalMs()
@@ -285,14 +407,23 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         return Math.Max(1, fps / rate);
     }
 
-    private void OnMeterPeakFpsChanged() => _peakRenderTimer.Interval = ResolveRenderIntervalMs();
+    private void OnMeterPeakFpsChanged()
+    {
+        if (_disposed) return;
+        _peakRenderTimer.Interval = ResolveRenderIntervalMs();
+    }
 
-    private void OnMeterPeakSampleRateChanged() => _peakSampleTimer.Interval = ResolveSampleIntervalMs();
+    private void OnMeterPeakSampleRateChanged()
+    {
+        if (_disposed) return;
+        _peakSampleTimer.Interval = ResolveSampleIntervalMs();
+    }
 
     /// <summary>Starts the peak-meter polling + render timers, and the Bluetooth battery active-poll
     /// timer. Called when the flyout becomes visible.</summary>
     public void StartMetering()
     {
+        if (_disposed) return;
         _peakSampleTimer.Start();
         _peakRenderTimer.Start();
         _batteryMonitor.StartPolling();
@@ -302,6 +433,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// flyout hides so the app stays idle.</summary>
     public void StopMetering()
     {
+        if (_disposed) return;
         _peakSampleTimer.Stop();
         _peakRenderTimer.Stop();
         _batteryMonitor.StopPolling();
@@ -315,6 +447,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void OnPeakSampleElapsed(object? sender, ElapsedEventArgs e)
     {
+        if (_disposed) return;
+
         int steps = ResolveInterpolationSteps();
         // Snapshot the unified-meter config once per tick so every device/session this sample
         // touches sees a coherent (unified, bias) pair even if the user flips the toggle mid-tick.
@@ -341,6 +475,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             {
                 try
                 {
+                    if (_disposed) return;
                     for (int i = _devices.Count - 1; i >= 0; i--)
                     {
                         try { _devices[i].OnNewSample(steps); }
@@ -371,6 +506,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void OnPeakRenderElapsed(object? sender, ElapsedEventArgs e)
     {
+        if (_disposed) return;
+
         // Snapshot the user's MeterPeakChangeCeiling once per tick so every device/session this
         // frame paints sees a coherent value even if the user flips the spinner mid-tick. The
         // ceiling lives in the lerp's render-tick (not in VolumeSlider) because a rate limit
@@ -387,6 +524,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             {
                 try
                 {
+                    if (_disposed) return;
                     for (int i = _devices.Count - 1; i >= 0; i--)
                     {
                         try { _devices[i].OnRenderTick(maxStep); }
@@ -418,6 +556,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private bool RebuildDeviceList()
     {
+        if (_disposed) return false;
+
         List<AudioDevice> rebuilt = [];
         bool committed = false;
         try
@@ -464,6 +604,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private bool TryBuildDeviceList(List<AudioDevice> target, out Exception? failure)
     {
         failure = null;
+        if (_disposed) return false;
         if (!TryEnumerateAndWrap(EDataFlow.eRender, target, out failure)) return false;
         if (!TryEnumerateAndWrap(EDataFlow.eCapture, target, out failure)) return false;
         return true;
@@ -472,6 +613,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private bool TryEnumerateAndWrap(EDataFlow flow, List<AudioDevice> target, out Exception? failure)
     {
         failure = null;
+        if (_disposed) return false;
         IMMDeviceCollection? collection = null;
         try
         {
@@ -511,6 +653,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void AddDeviceByID(string id)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
         if (FindDeviceByID(id) != null) return;
 
@@ -558,6 +701,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void RemoveDeviceByID(string id)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
         AudioDevice? match = FindDeviceByID(id);
         if (match == null) return;
@@ -581,6 +725,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void HandleDeviceStateChanged(string id, uint newState)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
 
         AudioDevice? match = FindDeviceByID(id);
@@ -629,6 +774,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private void HandleDefaultDeviceChanged(EDataFlow flow, ERole role, string? id)
     {
+        if (_disposed) return;
         NoteExternalDeviceTopologyChanged();
         _batteryMonitor.Refresh();
         RememberDefaultNotification(flow, role, id);
@@ -663,6 +809,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void RefreshDeviceFriendlyName(string id)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
         AudioDevice? match = FindDeviceByID(id);
         match?.RefreshFriendlyNameFromStore();
@@ -675,6 +822,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void RefreshDeviceDefaultFormat(string id)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
         AudioDevice? match = FindDeviceByID(id);
         match?.RefreshDefaultFormatFromStore();
@@ -687,6 +835,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void RefreshDeviceListenState(string id)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
         AudioDevice? match = FindDeviceByID(id);
         if (match == null) return;
@@ -696,6 +845,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private void RefreshDeviceAllowExclusiveControl(string id)
     {
+        if (_disposed) return;
         if (string.IsNullOrEmpty(id)) return;
         AudioDevice? match = FindDeviceByID(id);
         match?.RefreshAllowExclusiveControlFromStore();
@@ -709,6 +859,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void UpdateListenTargetActiveness()
     {
+        if (_disposed) return;
+
         AudioDevice? defaultRender = null;
         foreach (AudioDevice d in _devices)
         {
@@ -730,6 +882,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private AudioDevice? FindDeviceByID(string id)
     {
+        if (_disposed) return null;
+
         foreach (AudioDevice d in _devices)
         {
             if (d.Id == id)
@@ -752,6 +906,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private AudioDevice? WrapOrRelease(IMMDevice device, EDataFlow flow)
     {
+        if (_disposed)
+        {
+            Safe.Release(device);
+            return null;
+        }
+
         try { return new AudioDevice(device, flow, _dispatcher, _volumeThrottler, _processExitMonitor); }
         catch
         {
@@ -764,6 +924,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private bool TryRecreateEnumerator(string reason, Exception? cause)
     {
+        if (_disposed) return false;
+
         IMMDeviceEnumerator? replacement = null;
         try
         {
@@ -804,8 +966,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void ScheduleUpdateAllDefaults()
     {
+        if (_disposed) return;
+
         _ = _defaultsRefreshThrottler.RunAsync(DefaultsRefreshKey, async ctx =>
         {
+            if (_disposed) return;
+
             // Dwell before doing the work, then bail if a fresher schedule landed during the dwell -
             // the replacement payload will handle the refresh itself, no need to do it twice.
             try
@@ -817,7 +983,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
             if (ctx.HasReplacement) return;
 
-            try { await _dispatcher.InvokeAsync(UpdateAllDefaults); }
+            try { await _dispatcher.InvokeAsync(() => { if (!_disposed) UpdateAllDefaults(); }); }
             catch
             {
                 /* dispatcher shut down - nothing to refresh */
@@ -859,6 +1025,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private void ScheduleDeviceListRefresh(string reason, int delayMs)
     {
+        if (_disposed) return;
+
         int dwellMs = Math.Max(0, delayMs);
         string key = reason == "power-resume"
             ? ResumeDeviceListRefreshKey
@@ -894,6 +1062,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
+        if (_disposed) return;
         if (e.Mode != PowerModes.Resume) return;
 
         TADNLog.Log("AudioDeviceManager.PowerModeChanged: resume");
@@ -929,6 +1098,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// </summary>
     private void UpdateAllDefaults()
     {
+        if (_disposed) return;
+
         AudioDevice? renderDefault = LookupDefault(EDataFlow.eRender, ERole.eMultimedia);
         AudioDevice? renderComms = LookupDefault(EDataFlow.eRender, ERole.eCommunications);
         AudioDevice? captureDefault = LookupDefault(EDataFlow.eCapture, ERole.eMultimedia);
@@ -982,6 +1153,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private void PersistLastKnownDefaults(AudioDevice? renderDefault, AudioDevice? renderComms,
         AudioDevice? captureDefault, AudioDevice? captureComms)
     {
+        if (_disposed) return;
         if (_settings == null) return;
 
         bool dirty = false;
@@ -1014,12 +1186,15 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private AudioDevice? FindFallbackDefault(string? id)
     {
+        if (_disposed) return null;
         if (string.IsNullOrEmpty(id)) return null;
         return FindDeviceByID(id);
     }
 
     private AudioDevice? LookupDefault(EDataFlow flow, ERole role)
     {
+        if (_disposed) return null;
+
         AudioDevice? notifiedDefault = FindNotifiedDefault(flow, role);
         if (notifiedDefault != null) return notifiedDefault;
 
@@ -1080,6 +1255,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private AudioDevice? FindNotifiedDefault(EDataFlow flow, ERole role)
     {
+        if (_disposed) return null;
+
         string? id = role switch
         {
             ERole.eMultimedia when flow == EDataFlow.eRender => _notifiedRenderDefaultDeviceID,
@@ -1103,10 +1280,16 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // multiple BT endpoints are Active - the ETW event is system-wide (one A2DP stream at a
     // time on Windows) and doesn't carry the remote BDADDR in a field we can rely on; in the
     // overwhelmingly common single-headset case this is correct.
-    private void OnBluetoothCodecChanged(BluetoothCodec? codec) => PropagateCodecToBluetoothDevices(codec);
+    private void OnBluetoothCodecChanged(BluetoothCodec? codec)
+    {
+        if (_disposed) return;
+        PropagateCodecToBluetoothDevices(codec);
+    }
 
     private void PropagateCodecToBluetoothDevices(BluetoothCodec? codec)
     {
+        if (_disposed) return;
+
         foreach (AudioDevice d in _devices)
         {
             if (!d.IsBluetooth) continue;
@@ -1119,6 +1302,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private void PromoteBluetoothIfClassified(AudioDevice device)
     {
+        if (_disposed) return;
         if (device.ContainerId is not { } container) return;
         if (!_batteryMonitor.IsBluetoothContainer(container)) return;
         if (!CanPromoteToBluetooth(device)) return;
@@ -1135,6 +1319,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // Bluetooth-backed.
     private void OnBluetoothBatteryChanged(Guid containerId, int? batteryPercent)
     {
+        if (_disposed) return;
+
         foreach (AudioDevice d in _devices)
         {
             if (d.ContainerId != containerId) continue;
@@ -1150,6 +1336,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // (render endpoints only) and cached battery so the UI catches up immediately.
     private void OnBluetoothContainerSeen(Guid containerId)
     {
+        if (_disposed) return;
+
         foreach (AudioDevice d in _devices)
         {
             if (d.ContainerId != containerId) continue;
@@ -1180,6 +1368,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // so we explicitly clear it.
     private bool HasActiveBluetoothRenderDevice()
     {
+        if (_disposed) return false;
+
         foreach (AudioDevice d in _devices)
         {
             if (d is { IsBluetooth: true, DataFlow: EDataFlow.eRender, IsActive: true })
@@ -1249,33 +1439,41 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         public int OnDeviceStateChanged(string pwstrDeviceId, uint dwNewState)
         {
+            if (owner._disposed) return 0;
+
             // Active <-> Disabled / Unplugged transitions add or remove a single device. Incremental
             // path preserves session state on every other device, which a full rebuild would discard.
             string id = pwstrDeviceId;
             uint state = dwNewState;
             TADNLog.Log($"AudioDeviceManager.OnDeviceStateChanged: id={id} newState=0x{state:X}");
-            owner._dispatcher.InvokeAsync(() => owner.HandleDeviceStateChanged(id, state));
+            PostIfAlive(() => owner.HandleDeviceStateChanged(id, state));
             return 0;
         }
 
         public int OnDeviceAdded(string pwstrDeviceId)
         {
+            if (owner._disposed) return 0;
+
             string id = pwstrDeviceId;
             TADNLog.Log($"AudioDeviceManager.OnDeviceAdded: id={id}");
-            owner._dispatcher.InvokeAsync(() => owner.AddDeviceByID(id));
+            PostIfAlive(() => owner.AddDeviceByID(id));
             return 0;
         }
 
         public int OnDeviceRemoved(string pwstrDeviceId)
         {
+            if (owner._disposed) return 0;
+
             string id = pwstrDeviceId;
             TADNLog.Log($"AudioDeviceManager.OnDeviceRemoved: id={id}");
-            owner._dispatcher.InvokeAsync(() => owner.RemoveDeviceByID(id));
+            PostIfAlive(() => owner.RemoveDeviceByID(id));
             return 0;
         }
 
         public int OnDefaultDeviceChanged(EDataFlow flow, ERole role, string? pwstrDefaultDeviceId)
         {
+            if (owner._disposed) return 0;
+
             // Refresh every role / flow because the manager exposes all four. ScheduleUpdateAllDefaults
             // coalesces the burst (a single device disable typically fires this 3+ times in quick
             // succession - one per role transition) into a single UpdateAllDefaults pass; the throttler
@@ -1292,19 +1490,21 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 TADNLog.Log($"AudioDeviceManager.DefaultDeviceChangedRaw subscriber threw: {ex.Message}");
             }
 
-            owner._dispatcher.InvokeAsync(() => owner.HandleDefaultDeviceChanged(flow, role, pwstrDefaultDeviceId));
+            PostIfAlive(() => owner.HandleDefaultDeviceChanged(flow, role, pwstrDefaultDeviceId));
             return 0;
         }
 
         public int OnPropertyValueChanged(string pwstrDeviceId, PROPERTYKEY key)
         {
+            if (owner._disposed) return 0;
+
             // Friendly-name renames from the OS Settings page arrive here. Refresh that one device's
             // name in place rather than rebuilding the world.
             if (key.fmtid == PropertyKeys.PKEY_Device_FriendlyName.fmtid &&
                 key.pid == PropertyKeys.PKEY_Device_FriendlyName.pid)
             {
                 string id = pwstrDeviceId;
-                owner._dispatcher.InvokeAsync(() => owner.RefreshDeviceFriendlyName(id));
+                PostIfAlive(() => owner.RefreshDeviceFriendlyName(id));
             }
             // Listen-feature changes from mmsys.cpl land here for the affected capture endpoint.
             // The same fmtid covers pid 1 (enable bool) and pid 0 (target endpoint id) - we
@@ -1315,7 +1515,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                       key.pid == PropertyKeys.PKEY_AudioEndpoint_ListenTargetDeviceID.pid))
             {
                 string id = pwstrDeviceId;
-                owner._dispatcher.InvokeAsync(() => owner.RefreshDeviceListenState(id));
+                PostIfAlive(() => owner.RefreshDeviceListenState(id));
             }
             // Sound Control Panel's Advanced > Default Format change lands here as a write to the
             // engine-format pid. Refresh the cached readout so the flyout's compact format label
@@ -1324,7 +1524,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                      key.pid == PropertyKeys.PKEY_AudioEngine_DeviceFormat.pid)
             {
                 string id = pwstrDeviceId;
-                owner._dispatcher.InvokeAsync(() => owner.RefreshDeviceDefaultFormat(id));
+                PostIfAlive(() => owner.RefreshDeviceDefaultFormat(id));
             }
             // mmsys.cpl Advanced > Exclusive Mode > "Allow applications to take exclusive control"
             // toggles land here. Refresh our cached flag so the flyout's exclusive-mode button
@@ -1333,10 +1533,28 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                      key.pid == PropertyKeys.PKEY_AudioEndpoint_AllowExclusiveControl.pid)
             {
                 string id = pwstrDeviceId;
-                owner._dispatcher.InvokeAsync(() => owner.RefreshDeviceAllowExclusiveControl(id));
+                PostIfAlive(() => owner.RefreshDeviceAllowExclusiveControl(id));
             }
 
             return 0;
+        }
+
+        private void PostIfAlive(Action action)
+        {
+            if (owner._disposed) return;
+
+            try
+            {
+                owner._dispatcher.InvokeAsync(() =>
+                {
+                    if (owner._disposed) return;
+                    action();
+                });
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"AudioDeviceManager.NotificationBridge dispatcher post failed: {ex.Message}");
+            }
         }
     }
 }

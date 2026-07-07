@@ -152,4 +152,23 @@ internal static class NightLightSettingsHandler
         Timer? timer = _deferredRegistryTimer;
         timer?.Change(Timeout.Infinite, Timeout.Infinite);
     }
+
+    /// <summary>
+    /// Stops and releases the shared deferred registry-settle timer during app shutdown.
+    /// </summary>
+    public static void Shutdown()
+    {
+        Volatile.Write(ref _deferredStrengthPercent, -1);
+
+        Timer? timer = Interlocked.Exchange(ref _deferredRegistryTimer, null);
+        if (timer == null) return;
+
+        try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
+        catch (ObjectDisposedException)
+        {
+            WPFLog.Log("NightLightSettingsHandler.Shutdown: deferred registry timer was already disposed");
+        }
+
+        timer.Dispose();
+    }
 }

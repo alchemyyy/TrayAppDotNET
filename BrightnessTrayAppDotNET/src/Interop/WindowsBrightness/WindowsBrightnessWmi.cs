@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Utils;
 
 namespace BrightnessTrayAppDotNET.Interop.WindowsBrightness;
 
@@ -32,34 +33,44 @@ internal static class WindowsBrightnessWmi
         try
         {
             using ComApartmentScope _ = ComApartmentScope.Enter();
-            if (!TryConnect(out IWbemServices? services, out error)) return false;
-
-            Dictionary<string, string> methodPathByInstance = QueryBrightnessMethodPaths(services);
-            List<WindowsBrightnessTarget> found = [];
-
-            foreach (IWbemClassObject obj in Query(services,
-                         "SELECT * FROM WmiMonitorBrightness WHERE Active = TRUE"))
+            IWbemServices? services = null;
+            try
             {
-                if (!TryGetString(obj, "InstanceName", out string instanceName)
-                    || string.IsNullOrWhiteSpace(instanceName))
-                    continue;
+                if (!TryConnect(out services, out error)) return false;
 
-                if (!TryGetUInt(obj, "CurrentBrightness", out uint currentRaw))
-                    continue;
+                Dictionary<string, string> methodPathByInstance = QueryBrightnessMethodPaths(services);
+                List<WindowsBrightnessTarget> found = [];
 
-                if (!methodPathByInstance.TryGetValue(instanceName, out string? methodPath)
-                    || string.IsNullOrWhiteSpace(methodPath))
-                    continue;
+                Query(
+                    services,
+                    "SELECT * FROM WmiMonitorBrightness WHERE Active = TRUE",
+                    obj =>
+                    {
+                        if (!TryGetString(obj, "InstanceName", out string instanceName)
+                            || string.IsNullOrWhiteSpace(instanceName))
+                            return;
 
-                found.Add(new WindowsBrightnessTarget(
-                    instanceName,
-                    NormalizeDisplayInstancePath(instanceName),
-                    methodPath,
-                    (int)Math.Clamp(currentRaw, 0, 100)));
+                        if (!TryGetUInt(obj, "CurrentBrightness", out uint currentRaw))
+                            return;
+
+                        if (!methodPathByInstance.TryGetValue(instanceName, out string? methodPath)
+                            || string.IsNullOrWhiteSpace(methodPath))
+                            return;
+
+                        found.Add(new WindowsBrightnessTarget(
+                            instanceName,
+                            NormalizeDisplayInstancePath(instanceName),
+                            methodPath,
+                            (int)Math.Clamp(currentRaw, 0, 100)));
+                    });
+
+                targets = found;
+                return true;
             }
-
-            targets = found;
-            return true;
+            finally
+            {
+                Safe.Release(services);
+            }
         }
         catch (Exception ex)
         {
@@ -109,39 +120,51 @@ internal static class WindowsBrightnessWmi
         try
         {
             using ComApartmentScope _ = ComApartmentScope.Enter();
-            if (!TryConnect(out IWbemServices? services, out error)) return false;
-            if (!TryBuildSetBrightnessParameters(services, clamped, out IWbemClassObject? inParams, out error))
-                return false;
-
-            int hr = services.ExecMethod(
-                methodPath,
-                "WmiSetBrightness",
-                0,
-                IntPtr.Zero,
-                inParams,
-                out IntPtr outParamsPtr,
-                IntPtr.Zero);
-            if (hr < 0)
+            IWbemServices? services = null;
+            IWbemClassObject? inParams = null;
+            IWbemClassObject? outParams = null;
+            try
             {
-                error = $"IWbemServices.ExecMethod(WmiSetBrightness) failed ({FormatHr(hr)}).";
+                if (!TryConnect(out services, out error)) return false;
+                if (!TryBuildSetBrightnessParameters(services, clamped, out inParams, out error))
+                    return false;
+
+                int hr = services.ExecMethod(
+                    methodPath,
+                    "WmiSetBrightness",
+                    0,
+                    IntPtr.Zero,
+                    inParams,
+                    out IntPtr outParamsPtr,
+                    IntPtr.Zero);
+                if (hr < 0)
+                {
+                    error = $"IWbemServices.ExecMethod(WmiSetBrightness) failed ({FormatHr(hr)}).";
+                    return false;
+                }
+
+                if (outParamsPtr == IntPtr.Zero) return true;
+
+                outParams = COMActivation.GetObjectForComInstance<IWbemClassObject>(
+                    outParamsPtr,
+                    releaseInputReference: true);
+                if (!TryGetUInt(outParams, "ReturnValue", out uint returnValue))
+                    return true;
+
+                if (returnValue == 0) return true;
+
+                error = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "WmiSetBrightness returned error {0}.",
+                    returnValue);
                 return false;
             }
-
-            if (outParamsPtr == IntPtr.Zero) return true;
-
-            IWbemClassObject outParams = COMActivation.GetObjectForComInstance<IWbemClassObject>(
-                outParamsPtr,
-                releaseInputReference: true);
-            if (!TryGetUInt(outParams, "ReturnValue", out uint returnValue))
-                return true;
-
-            if (returnValue == 0) return true;
-
-            error = string.Format(
-                CultureInfo.InvariantCulture,
-                "WmiSetBrightness returned error {0}.",
-                returnValue);
-            return false;
+            finally
+            {
+                Safe.Release(outParams);
+                Safe.Release(inParams);
+                Safe.Release(services);
+            }
         }
         catch (Exception ex)
         {
@@ -182,92 +205,116 @@ internal static class WindowsBrightnessWmi
         services = null;
         error = null;
 
-        IWbemLocator locator = COMActivation.CreateInstance<IWbemLocator>(
-            WmiNative.ClsidWbemLocator,
-            typeof(IWbemLocator).GUID);
-
-        int hr = locator.ConnectServer(
-            WmiNamespace,
-            null,
-            null,
-            null,
-            0,
-            null,
-            IntPtr.Zero,
-            out IntPtr servicesPtr);
-        if (hr < 0 || servicesPtr == IntPtr.Zero)
+        IWbemLocator? locator = null;
+        try
         {
-            error = $"IWbemLocator.ConnectServer('{WmiNamespace}') failed ({FormatHr(hr)}).";
-            return false;
-        }
+            locator = COMActivation.CreateInstance<IWbemLocator>(
+                WmiNative.ClsidWbemLocator,
+                typeof(IWbemLocator).GUID);
 
-        hr = WmiNative.CoSetProxyBlanket(
-            servicesPtr,
-            WmiNative.RpcCAutnWinnt,
-            WmiNative.RpcCAuthzNone,
-            IntPtr.Zero,
-            WmiNative.RpcCAuthnLevelCall,
-            WmiNative.RpcCImpLevelImpersonate,
-            IntPtr.Zero,
-            WmiNative.EoacNone);
-        if (hr < 0)
+            int hr = locator.ConnectServer(
+                WmiNamespace,
+                null,
+                null,
+                null,
+                0,
+                null,
+                IntPtr.Zero,
+                out IntPtr servicesPtr);
+            if (hr < 0 || servicesPtr == IntPtr.Zero)
+            {
+                error = $"IWbemLocator.ConnectServer('{WmiNamespace}') failed ({FormatHr(hr)}).";
+                return false;
+            }
+
+            hr = WmiNative.CoSetProxyBlanket(
+                servicesPtr,
+                WmiNative.RpcCAutnWinnt,
+                WmiNative.RpcCAuthzNone,
+                IntPtr.Zero,
+                WmiNative.RpcCAuthnLevelCall,
+                WmiNative.RpcCImpLevelImpersonate,
+                IntPtr.Zero,
+                WmiNative.EoacNone);
+            if (hr < 0)
+            {
+                Marshal.Release(servicesPtr);
+                error = $"CoSetProxyBlanket(IWbemServices) failed ({FormatHr(hr)}).";
+                return false;
+            }
+
+            services = COMActivation.GetObjectForComInstance<IWbemServices>(
+                servicesPtr,
+                releaseInputReference: true);
+            return true;
+        }
+        finally
         {
-            Marshal.Release(servicesPtr);
-            error = $"CoSetProxyBlanket(IWbemServices) failed ({FormatHr(hr)}).";
-            return false;
+            Safe.Release(locator);
         }
-
-        services = COMActivation.GetObjectForComInstance<IWbemServices>(
-            servicesPtr,
-            releaseInputReference: true);
-        return true;
     }
 
     private static Dictionary<string, string> QueryBrightnessMethodPaths(IWbemServices services)
     {
         Dictionary<string, string> result = new(StringComparer.Ordinal);
-        foreach (IWbemClassObject obj in Query(services,
-                     "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE"))
-        {
-            if (!TryGetString(obj, "InstanceName", out string instanceName)
-                || string.IsNullOrWhiteSpace(instanceName))
-                continue;
+        Query(
+            services,
+            "SELECT * FROM WmiMonitorBrightnessMethods WHERE Active = TRUE",
+            obj =>
+            {
+                if (!TryGetString(obj, "InstanceName", out string instanceName)
+                    || string.IsNullOrWhiteSpace(instanceName))
+                    return;
 
-            if (!TryGetString(obj, "__PATH", out string path)
-                || string.IsNullOrWhiteSpace(path))
-                continue;
+                if (!TryGetString(obj, "__PATH", out string path)
+                    || string.IsNullOrWhiteSpace(path))
+                    return;
 
-            result[instanceName] = path;
-        }
+                result[instanceName] = path;
+            });
 
         return result;
     }
 
-    private static List<IWbemClassObject> Query(IWbemServices services, string wql)
+    private static void Query(IWbemServices services, string wql, Action<IWbemClassObject> handleObject)
     {
         int hr = services.ExecQuery("WQL", wql, WbemQueryFlags, IntPtr.Zero, out IntPtr enumPtr);
         if (hr < 0 || enumPtr == IntPtr.Zero)
             throw new InvalidOperationException($"IWbemServices.ExecQuery failed ({FormatHr(hr)}): {wql}");
 
-        IEnumWbemClassObject enumerator = COMActivation.GetObjectForComInstance<IEnumWbemClassObject>(
-            enumPtr,
-            releaseInputReference: true);
-
-        List<IWbemClassObject> result = [];
-        while (true)
+        IEnumWbemClassObject? enumerator = null;
+        try
         {
-            hr = enumerator.Next(WbemInfinite, 1, out IntPtr objPtr, out uint returned);
-            if (hr < 0)
-                throw new InvalidOperationException($"IEnumWbemClassObject.Next failed ({FormatHr(hr)}).");
+            enumerator = COMActivation.GetObjectForComInstance<IEnumWbemClassObject>(
+                enumPtr,
+                releaseInputReference: true);
 
-            if (returned == 0 || objPtr == IntPtr.Zero) break;
+            while (true)
+            {
+                hr = enumerator.Next(WbemInfinite, 1, out IntPtr objPtr, out uint returned);
+                if (hr < 0)
+                    throw new InvalidOperationException($"IEnumWbemClassObject.Next failed ({FormatHr(hr)}).");
 
-            result.Add(COMActivation.GetObjectForComInstance<IWbemClassObject>(
-                objPtr,
-                releaseInputReference: true));
+                if (returned == 0 || objPtr == IntPtr.Zero) break;
+
+                IWbemClassObject? obj = null;
+                try
+                {
+                    obj = COMActivation.GetObjectForComInstance<IWbemClassObject>(
+                        objPtr,
+                        releaseInputReference: true);
+                    handleObject(obj);
+                }
+                finally
+                {
+                    Safe.Release(obj);
+                }
+            }
         }
-
-        return result;
+        finally
+        {
+            Safe.Release(enumerator);
+        }
     }
 
     private static bool TryBuildSetBrightnessParameters(
@@ -291,38 +338,52 @@ internal static class WindowsBrightnessWmi
             return false;
         }
 
-        IWbemClassObject classObject = COMActivation.GetObjectForComInstance<IWbemClassObject>(
-            classObjectPtr,
-            releaseInputReference: true);
-
-        hr = classObject.GetMethod("WmiSetBrightness", 0, out IntPtr inSignaturePtr, out IntPtr outSignaturePtr);
-        if (outSignaturePtr != IntPtr.Zero) Marshal.Release(outSignaturePtr);
-        if (hr < 0 || inSignaturePtr == IntPtr.Zero)
+        IWbemClassObject? classObject = null;
+        IWbemClassObject? inSignature = null;
+        IWbemClassObject? parameters = null;
+        try
         {
-            error = $"IWbemClassObject.GetMethod(WmiSetBrightness) failed ({FormatHr(hr)}).";
-            return false;
+            classObject = COMActivation.GetObjectForComInstance<IWbemClassObject>(
+                classObjectPtr,
+                releaseInputReference: true);
+
+            hr = classObject.GetMethod("WmiSetBrightness", 0, out IntPtr inSignaturePtr, out IntPtr outSignaturePtr);
+            if (outSignaturePtr != IntPtr.Zero) Marshal.Release(outSignaturePtr);
+            if (hr < 0 || inSignaturePtr == IntPtr.Zero)
+            {
+                if (inSignaturePtr != IntPtr.Zero) Marshal.Release(inSignaturePtr);
+                error = $"IWbemClassObject.GetMethod(WmiSetBrightness) failed ({FormatHr(hr)}).";
+                return false;
+            }
+
+            inSignature = COMActivation.GetObjectForComInstance<IWbemClassObject>(
+                inSignaturePtr,
+                releaseInputReference: true);
+
+            hr = inSignature.SpawnInstance(0, out IntPtr inParamsPtr);
+            if (hr < 0 || inParamsPtr == IntPtr.Zero)
+            {
+                error = $"IWbemClassObject.SpawnInstance(WmiSetBrightness input) failed ({FormatHr(hr)}).";
+                return false;
+            }
+
+            parameters = COMActivation.GetObjectForComInstance<IWbemClassObject>(
+                inParamsPtr,
+                releaseInputReference: true);
+
+            if (!TryPutUInt32(parameters, "Timeout", 0, out error)) return false;
+            if (!TryPutUInt8(parameters, "Brightness", (byte)brightness, out error)) return false;
+
+            inParams = parameters;
+            parameters = null;
+            return true;
         }
-
-        IWbemClassObject inSignature = COMActivation.GetObjectForComInstance<IWbemClassObject>(
-            inSignaturePtr,
-            releaseInputReference: true);
-
-        hr = inSignature.SpawnInstance(0, out IntPtr inParamsPtr);
-        if (hr < 0 || inParamsPtr == IntPtr.Zero)
+        finally
         {
-            error = $"IWbemClassObject.SpawnInstance(WmiSetBrightness input) failed ({FormatHr(hr)}).";
-            return false;
+            Safe.Release(parameters);
+            Safe.Release(inSignature);
+            Safe.Release(classObject);
         }
-
-        IWbemClassObject parameters = COMActivation.GetObjectForComInstance<IWbemClassObject>(
-            inParamsPtr,
-            releaseInputReference: true);
-
-        if (!TryPutUInt32(parameters, "Timeout", 0, out error)) return false;
-        if (!TryPutUInt8(parameters, "Brightness", (byte)brightness, out error)) return false;
-
-        inParams = parameters;
-        return true;
     }
 
     private static unsafe bool TryGetString(IWbemClassObject obj, string name, out string value)

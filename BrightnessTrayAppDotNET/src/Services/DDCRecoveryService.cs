@@ -194,15 +194,54 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
 
         if (_started) monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
 
+        CancellationTokenSource? workerCts;
+        Task? worker;
         lock (_gate)
         {
-            _workerCts?.Cancel();
-            _workerCts?.Dispose();
-            _workerCts = null;
-            _worker = null;
+            workerCts = _workerCts;
+            worker = _worker;
+            workerCts?.Cancel();
         }
+
+        DrainWorker(worker);
+
+        lock (_gate)
+        {
+            if (ReferenceEquals(_workerCts, workerCts))
+            {
+                _workerCts = null;
+                _worker = null;
+            }
+        }
+
+        workerCts?.Dispose();
 
         lock (_candidateLogLock)
             _lastCandidateSet.Clear();
+    }
+
+    private static void DrainWorker(Task? worker)
+    {
+        if (worker == null) return;
+
+        try
+        {
+            bool completed = worker.Wait(TimeSpan.FromMilliseconds(TimeConstants.DDCRecoveryShutdownDrainTimeoutMs));
+            if (!completed)
+                WPFLog.Log("DDCRecoveryService: fallback worker did not stop before shutdown drain timeout");
+        }
+        catch (AggregateException ex)
+        {
+            foreach (Exception inner in ex.Flatten().InnerExceptions)
+            {
+                if (inner is OperationCanceledException) continue;
+
+                WPFLog.Log($"DDCRecoveryService.DrainWorker: {inner.Message}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown/dispose path.
+        }
     }
 }

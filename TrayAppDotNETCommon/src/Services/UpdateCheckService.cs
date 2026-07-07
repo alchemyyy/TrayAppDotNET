@@ -92,8 +92,7 @@ public sealed class UpdateCheckOptions
 
     public string? StagingFilePrefix { get; init; }
 
-    public Func<string?> CurrentExecutablePath { get; init; } =
-        () => Process.GetCurrentProcess().MainModule?.FileName ?? Environment.ProcessPath;
+    public Func<string?> CurrentExecutablePath { get; init; } = ResolveCurrentExecutablePath;
 
     public TimeSpan StartupDelay { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateCheckStartupDelayMs);
@@ -110,6 +109,12 @@ public sealed class UpdateCheckOptions
     public int AssetDownloadMaxAttempts { get; init; } = TimeConstants.UpdateAssetDownloadMaxAttempts;
     public TimeSpan AssetDownloadInitialBackoff { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
+
+    private static string? ResolveCurrentExecutablePath()
+    {
+        using Process currentProcess = Process.GetCurrentProcess();
+        return currentProcess.MainModule?.FileName ?? Environment.ProcessPath;
+    }
 }
 
 public sealed class UpdateCheckService : IDisposable

@@ -567,11 +567,12 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
+            using Process? _ = Process.Start(new ProcessStartInfo { FileName = uri, UseShellExecute = true });
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            TADNLog.Log($"NetworkAvaloniaApp.TryOpenUri({uri}): {ex.Message}");
             return false;
         }
     }
@@ -669,7 +670,12 @@ internal sealed class NetworkAvaloniaApp : Application
             }
 
             try { SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged; }
-            catch { }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"NetworkAvaloniaApp.DisplaySettingsChanged unhook failed: {ex.Message}");
+            }
+
+            AdapterSettingsShellMonitor.Shutdown();
 
             if (_networkMonitor != null)
             {
@@ -696,7 +702,10 @@ internal sealed class NetworkAvaloniaApp : Application
             if (_trayMenuWindow != null)
             {
                 try { _trayMenuWindow.Close(); }
-                catch { }
+                catch (Exception ex)
+                {
+                    TADNLog.Log($"NetworkAvaloniaApp tray menu close failed: {ex.Message}");
+                }
 
                 _trayMenuWindow = null;
             }
@@ -720,7 +729,10 @@ internal sealed class NetworkAvaloniaApp : Application
             {
                 _settingsWindow.Closed -= OnSettingsWindowClosed;
                 try { _settingsWindow.Close(); }
-                catch { }
+                catch (Exception ex)
+                {
+                    TADNLog.Log($"NetworkAvaloniaApp settings window close failed: {ex.Message}");
+                }
 
                 _settingsWindow = null;
             }
@@ -748,8 +760,9 @@ internal sealed class NetworkAvaloniaApp : Application
             string value = LocalizationManager.Instance[key];
             return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
         }
-        catch
+        catch (Exception ex)
         {
+            TADNLog.Log($"NetworkAvaloniaApp.L({key}): {ex.Message}");
             return fallback;
         }
     }

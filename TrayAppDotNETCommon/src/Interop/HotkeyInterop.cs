@@ -81,7 +81,12 @@ internal sealed class Win32MessageWindow : IDisposable
             IntPtr.Zero);
 
         if (Handle == IntPtr.Zero)
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateWindowEx failed.");
+        {
+            int error = Marshal.GetLastWin32Error();
+            UnregisterClass(_className, _hInstance);
+            _registered = false;
+            throw new Win32Exception(error, "CreateWindowEx failed.");
+        }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam)

@@ -553,13 +553,15 @@ internal sealed class BatteryAvaloniaApp : Application
             string reportsDir = Path.Combine(Program.AppLocalAppDataDirectory, "reports");
             Directory.CreateDirectory(reportsDir);
             string reportPath = Path.Combine(reportsDir, "battery-report.html");
-            using Process process = Process.Start(new ProcessStartInfo
+            using Process? process = Process.Start(new ProcessStartInfo
             {
                 FileName = "powercfg.exe",
                 Arguments = $"/batteryreport /output \"{reportPath}\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
-            })!;
+            });
+            if (process == null) return;
+
             process.WaitForExit(10_000);
             if (File.Exists(reportPath))
             {

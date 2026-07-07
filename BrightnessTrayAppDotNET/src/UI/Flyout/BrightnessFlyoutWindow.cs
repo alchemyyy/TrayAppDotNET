@@ -109,10 +109,20 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public BrightnessFlyoutWindow()
         : this(
-            AppServices.ProfileManager ?? new ProfileManager(),
+            ResolveProfileManager(),
             AppServices.Theme ?? BrightnessAppTheme.Default,
             AppServices.MonitorService ?? throw new InvalidOperationException("MonitorService is required."))
     {
+    }
+
+    private static ProfileManager ResolveProfileManager()
+    {
+        ProfileManager? profileManager = AppServices.ProfileManager;
+        if (profileManager != null) return profileManager;
+
+        profileManager = new ProfileManager();
+        AppServices.ProfileManager = profileManager;
+        return profileManager;
     }
 
     internal BrightnessFlyoutWindow(ProfileManager profileManager, BrightnessAppTheme theme,
@@ -2185,7 +2195,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         try
         {
-            Process.Start(new ProcessStartInfo { FileName = "ms-settings:display", UseShellExecute = true });
+            using Process? _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-settings:display",
+                UseShellExecute = true
+            });
         }
         catch (Exception ex)
         {

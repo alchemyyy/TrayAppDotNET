@@ -6,9 +6,10 @@ using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
-public sealed class FanFlyoutCell : INotifyPropertyChanged
+public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
 {
     private static readonly Lazy<FanFlyoutCellResources> Resources = new(LoadResources);
+    private bool _disposed;
 
     public FanFlyoutCell(FanGroup? groupSettings, IEnumerable<Fan> fans)
     {
@@ -145,7 +146,24 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    {
+        if (_disposed) return;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    /// <summary>
+    /// Releases group and collection subscriptions held by the flyout cell.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        if (GroupSettings != null)
+            GroupSettings.PropertyChanged -= OnGroupSettingsPropertyChanged;
+        Fans.CollectionChanged -= OnFansCollectionChanged;
+        Fans.Clear();
+        PropertyChanged = null;
+    }
 
     /// <summary>
     /// Resolves the largest useful RPM bound for this grouped slider.

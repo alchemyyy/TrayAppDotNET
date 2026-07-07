@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI.Controls;
@@ -56,7 +57,7 @@ public sealed class TrayAppDotNETAboutPageOptions
             : null;
 }
 
-public sealed class TrayAppDotNETAboutPage
+public sealed class TrayAppDotNETAboutPage : IDisposable
 {
     private static readonly TrayAppDotNETAboutPageResources LayoutResources = new();
 
@@ -66,8 +67,10 @@ public sealed class TrayAppDotNETAboutPage
     private TextBlock? _updateStatusText;
     private SettingsButton? _checkForUpdatesButton;
     private SettingsButton? _installUpdateButton;
+    private StackPanel? _root;
     private bool _manualCheckInProgress;
     private bool _installInProgress;
+    private bool _disposed;
 
     public TrayAppDotNETAboutPage(TrayAppDotNETAboutPageOptions options)
     {
@@ -79,11 +82,13 @@ public sealed class TrayAppDotNETAboutPage
 
     public StackPanel Build()
     {
+        ObjectDisposedException.ThrowIf(_disposed, nameof(TrayAppDotNETAboutPage));
         StopUpdateRefresh();
 
         TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         SettingsPalette p = _options.Palette;
         StackPanel stack = TrayAppDotNETSettingsCards.PageStack(L("Settings_About_SectionHeader", "About"), p);
+        SetRoot(stack);
 
         TextBlock appName = TrayAppDotNETSettingsUI.Text(_options.ApplicationName, p);
         appName.Margin = layout.AppNameMargin;
@@ -113,6 +118,15 @@ public sealed class TrayAppDotNETAboutPage
         }
 
         return stack;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _disposed = true;
+        StopUpdateRefresh();
+        SetRoot(null);
     }
 
     public void StopUpdateRefresh()
@@ -277,6 +291,24 @@ public sealed class TrayAppDotNETAboutPage
         RefreshUpdateUI();
     }
 
+    private void SetRoot(StackPanel? root)
+    {
+        if (_root != null)
+            _root.DetachedFromVisualTree -= OnRootDetachedFromVisualTree;
+
+        _root = root;
+
+        if (_root != null)
+            _root.DetachedFromVisualTree += OnRootDetachedFromVisualTree;
+    }
+
+    private void OnRootDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        StopUpdateRefresh();
+        if (ReferenceEquals(sender, _root))
+            SetRoot(null);
+    }
+
     private void OnUpdateStateChanged() =>
         Dispatcher.UIThread.Post(RefreshUpdateUI);
 
@@ -421,7 +453,7 @@ public sealed class TrayAppDotNETAboutPage
             valueBlock.PointerPressed += (_, e) =>
             {
                 if (!e.GetCurrentPoint(valueBlock).Properties.IsLeftButtonPressed) return;
-                Process.Start(new ProcessStartInfo(openUrl) { UseShellExecute = true });
+                using Process? process = Process.Start(new ProcessStartInfo(openUrl) { UseShellExecute = true });
                 e.Handled = true;
             };
         }

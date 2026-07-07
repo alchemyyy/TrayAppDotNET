@@ -575,7 +575,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     // Process-wide IPolicyConfig client. The COM object is cheap and reusable so we cache it
     // across calls. Lazy keeps non-default-switching sessions from paying the CoCreateInstance
     // cost; ExecutionAndPublication makes the lazy init safe under concurrent first access from
-    // the threadpool callbacks below.
+    // the threadpool callbacks below. This is intentionally process-lifetime: callers are
+    // fire-and-forget IPolicyConfig tasks, so releasing it during app shutdown would race
+    // queued calls unless those tasks become tracked and drained.
     private static readonly Lazy<IPolicyConfig> PolicyConfigClient = new(
         PolicyConfigFactory.Create,
         LazyThreadSafetyMode.ExecutionAndPublication);
@@ -688,7 +690,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // ours" - the audio service may publish empty/null for new id when no
             // replacement exists, treat that as a valid demotion signal too.
             int seenPromotions = 0;
-            ManualResetEventSlim promotionDone = new(false);
+            using ManualResetEventSlim promotionDone = new(false);
             AudioDeviceManager.DefaultDeviceChangedRaw += OnPromotion;
             try
             {
@@ -707,7 +709,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // for the matching "now default for R" callbacks. Predicate flipped: we want
             // callbacks where the new id IS ours.
             int seenRestores = 0;
-            ManualResetEventSlim restoreDone = new(false);
+            using ManualResetEventSlim restoreDone = new(false);
             AudioDeviceManager.DefaultDeviceChangedRaw += OnRestore;
             try
             {
@@ -1146,27 +1148,36 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     /// </summary>
     private void TryActivateProxies()
     {
+        if (_disposed) return;
+
         if (_endpointVolume != null)
         {
             RefreshEndpointVolumeState();
             return;
         }
 
+        IAudioEndpointVolume? endpointVolume = null;
+        IAudioMeterInformation? meter = null;
+        IAudioSessionManager2? sessionManager = null;
+        bool assignedToFields = false;
+        bool committed = false;
         try
         {
             int hr = _device.Activate(typeof(IAudioEndpointVolume).GUID, ClsCtx.ALL, IntPtr.Zero,
-                out IAudioEndpointVolume? endpointVolume);
+                out endpointVolume);
             if (hr < 0 || endpointVolume == null) return;
 
             _device.Activate(typeof(IAudioMeterInformation).GUID, ClsCtx.ALL, IntPtr.Zero,
-                out IAudioMeterInformation? meter);
+                out meter);
             _device.Activate(typeof(IAudioSessionManager2).GUID, ClsCtx.ALL, IntPtr.Zero,
-                out IAudioSessionManager2? sessionManager);
+                out sessionManager);
             if (meter == null || sessionManager == null) return;
+            if (_disposed) return;
 
             _endpointVolume = endpointVolume;
             _endpointMeter = meter;
             _sessionManager = sessionManager;
+            assignedToFields = true;
 
             // Notify bindings that volume/mute now have real values - the wrapper may have lived as
             // an inactive shell up to this point and the bound UI is showing the 0/false defaults.
@@ -1184,10 +1195,30 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // admissible. Capture endpoints sleep with no active capture client; render endpoints
             // sleep with no active shared render session unless exclusive mode owns visibility.
             RecomputeEndpointMeterSilenceState();
+            endpointVolume = null;
+            meter = null;
+            sessionManager = null;
+            committed = true;
         }
         catch (Exception ex)
         {
             TADNLog.Log($"AudioDevice.TryActivateProxies({FriendlyName}): {ex.Message}");
+            if (assignedToFields)
+            {
+                endpointVolume = null;
+                meter = null;
+                sessionManager = null;
+                ReleaseEndpointProxies();
+            }
+        }
+        finally
+        {
+            if (!committed)
+            {
+                Safe.Release(endpointVolume);
+                Safe.Release(meter);
+                Safe.Release(sessionManager);
+            }
         }
     }
 
@@ -1395,6 +1426,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
     private void AddSession(IAudioSessionControl ctrl)
     {
+        if (_disposed)
+        {
+            Safe.Release(ctrl);
+            return;
+        }
+
         AudioSession session;
         try { session = new AudioSession(ctrl, _dispatcher, _volumeThrottler, _processExitMonitor); }
         catch
@@ -1402,6 +1439,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // Construction can fail if the session is already torn down (race with OnSessionCreated);
             // drop the COM ref and move on.
             Safe.Release(ctrl);
+            return;
+        }
+
+        if (_disposed)
+        {
+            Safe.Dispose(session);
             return;
         }
 
@@ -2188,6 +2231,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     {
         public int OnNotify(IntPtr pNotify)
         {
+            if (owner._disposed) return 0;
             if (pNotify == IntPtr.Zero) return 0;
             AUDIO_VOLUME_NOTIFICATION_DATA data = Marshal.PtrToStructure<AUDIO_VOLUME_NOTIFICATION_DATA>(pNotify);
 
@@ -2205,7 +2249,18 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         public int OnSessionCreated(IAudioSessionControl newSession)
         {
             // The COM ref count of newSession is given to us; AddSession takes ownership.
-            owner._dispatcher.InvokeAsync(() => owner.AddSession(newSession));
+            if (owner._disposed)
+            {
+                Safe.Release(newSession);
+                return 0;
+            }
+
+            try { owner._dispatcher.InvokeAsync(() => owner.AddSession(newSession)); }
+            catch
+            {
+                Safe.Release(newSession);
+            }
+
             return 0;
         }
     }

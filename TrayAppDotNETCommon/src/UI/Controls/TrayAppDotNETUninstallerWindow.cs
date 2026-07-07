@@ -54,11 +54,15 @@ public sealed record TrayAppDotNETUninstallerWindowOptions
 /// </summary>
 public class TrayAppDotNETUninstallerWindow : Window
 {
+    private const int UninstallProcessOwnershipGraceMs = 5000;
     private const string SettingsChoiceGroupName = "SettingsChoice";
 
     private readonly TrayAppDotNETUninstallerWindowOptions _options;
     private readonly RadioButton _keepSettings;
     private readonly RadioButton _deleteSettings;
+    private readonly object _uninstallProcessGate = new();
+    private Process? _uninstallProcess;
+    private bool _uninstallProcessOwnershipTransferred;
 
     public TrayAppDotNETUninstallerWindow(TrayAppDotNETUninstallerWindowOptions options)
     {
@@ -92,7 +96,21 @@ public class TrayAppDotNETUninstallerWindow : Window
         };
     }
 
-    public Process? UninstallProcess { get; private set; }
+    public Process? UninstallProcess
+    {
+        get
+        {
+            lock (_uninstallProcessGate)
+            {
+                _uninstallProcessOwnershipTransferred = true;
+                if (_uninstallProcess != null)
+                    _uninstallProcess.Exited -= OnTrackedUninstallProcessExited;
+
+                return _uninstallProcess;
+            }
+        }
+        private set => TrackUninstallProcess(value);
+    }
 
     public bool ConfirmedUninstall { get; private set; }
 
@@ -240,6 +258,48 @@ public class TrayAppDotNETUninstallerWindow : Window
             Margin = TrayAppDotNETDialogChromeLayout.ButtonsMargin,
             Children = { cancel, uninstall }
         };
+    }
+
+    private void TrackUninstallProcess(Process? process)
+    {
+        lock (_uninstallProcessGate)
+        {
+            if (_uninstallProcess != null)
+                _uninstallProcess.Exited -= OnTrackedUninstallProcessExited;
+
+            _uninstallProcess = process;
+            _uninstallProcessOwnershipTransferred = false;
+
+            if (_uninstallProcess == null) return;
+
+            _uninstallProcess.EnableRaisingEvents = true;
+            _uninstallProcess.Exited += OnTrackedUninstallProcessExited;
+            if (_uninstallProcess.HasExited)
+                QueueUnclaimedUninstallProcessDispose();
+        }
+    }
+
+    private void OnTrackedUninstallProcessExited(object? sender, EventArgs e) =>
+        QueueUnclaimedUninstallProcessDispose();
+
+    private void QueueUnclaimedUninstallProcessDispose() =>
+        _ = DisposeUnclaimedUninstallProcessAsync();
+
+    private async Task DisposeUnclaimedUninstallProcessAsync()
+    {
+        await Task.Delay(UninstallProcessOwnershipGraceMs).ConfigureAwait(false);
+
+        Process? process;
+        lock (_uninstallProcessGate)
+        {
+            if (_uninstallProcessOwnershipTransferred || _uninstallProcess == null) return;
+
+            process = _uninstallProcess;
+            _uninstallProcess = null;
+            process.Exited -= OnTrackedUninstallProcessExited;
+        }
+
+        process.Dispose();
     }
 
     private Border BuildOptionCard(RadioButton radio, string title, string description)

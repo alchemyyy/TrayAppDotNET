@@ -31,6 +31,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly LHMService? _lhmService;
     private readonly AppSettings _settings;
     private readonly Action<FanSettingsPage?> _openSettings;
+    private readonly UpdateCheckService? _subscribedUpdateCheckService;
     private readonly ObservableCollection<FanFlyoutCell> _cells = [];
     private readonly List<string> _groupNames = [];
     private readonly List<ProbeCard> _probeCards = [];
@@ -135,8 +136,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             WireFanPropertySubscriptions();
         }
 
-        if (AppServices.UpdateCheckService is { } updateService)
-            updateService.StateChanged += NotifyUpdateStateChanged;
+        _subscribedUpdateCheckService = AppServices.UpdateCheckService;
+        if (_subscribedUpdateCheckService != null)
+            _subscribedUpdateCheckService.StateChanged += NotifyUpdateStateChanged;
 
         KeyDown += (_, e) =>
         {
@@ -2233,15 +2235,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_lhmService == null)
         {
-            _cells.Clear();
+            DisposeCells();
             return;
         }
 
         List<Fan> visibleFans = [.. _lhmService.Fans.Where(IsFanVisibleInFlyout)];
         List<FanFlyoutCell> built = BuildCellsForVisualOrder(OrderFansForFlyout(visibleFans), fan => fan.Group);
-        _cells.Clear();
+        DisposeCells();
         foreach (FanFlyoutCell cell in built)
             _cells.Add(cell);
+    }
+
+    /// <summary>
+    /// Disposes existing flyout-cell subscriptions before rebuilding the cell catalog.
+    /// </summary>
+    private void DisposeCells()
+    {
+        foreach (FanFlyoutCell cell in _cells)
+            cell.Dispose();
+        _cells.Clear();
     }
 
     private bool IsFanVisibleInFlyout(Fan fan) =>
@@ -2495,16 +2507,22 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         if (_draggedFan != null && style == FanDragGhostStyle.TopLevelFan)
         {
-            FanFlyoutCell cell = _dragSourceCell is { HasGroupHeader: false }
-                ? _dragSourceCell
-                : new FanFlyoutCell(null, [_draggedFan]);
-            return BuildCell(cell, palette, theme, isLight, interactive: false);
+            if (_dragSourceCell is { HasGroupHeader: false } sourceCell)
+                return BuildCell(sourceCell, palette, theme, isLight, interactive: false);
+
+            FanFlyoutCell cell = new(null, [_draggedFan]);
+            try { return BuildCell(cell, palette, theme, isLight, interactive: false); }
+            finally { cell.Dispose(); }
         }
 
         if (_draggedFan != null && style == FanDragGhostStyle.GroupedFan)
         {
-            return BuildFanRow(_draggedFan, new FanFlyoutCell(null, [_draggedFan]),
-                palette, grouped: true, interactive: false);
+            FanFlyoutCell cell = new(null, [_draggedFan]);
+            try
+            {
+                return BuildFanRow(_draggedFan, cell, palette, grouped: true, interactive: false);
+            }
+            finally { cell.Dispose(); }
         }
 
         if (_draggedProbeCard != null && style == FanDragGhostStyle.Probe)
@@ -4182,6 +4200,24 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     }
 
     /// <summary>
+    /// Closes all fan curve editor child windows opened by the flyout.
+    /// </summary>
+    private void ForceCloseAllFanCurveEditorWindows()
+    {
+        foreach (FanCurveEditorWindow window in _fanCurveEditorWindows.ToArray())
+        {
+            window.Closed -= FanCurveEditorWindowClosed;
+            try { window.Close(); }
+            catch (Exception ex)
+            {
+                TADNLog.Log($"FanFlyoutWindow curve editor close failed: {ex.Message}");
+            }
+        }
+
+        _fanCurveEditorWindows.Clear();
+    }
+
+    /// <summary>
     /// Closes all probe selector child windows.
     /// </summary>
     private void ForceCloseAllProbeSelectorWindows()
@@ -4896,10 +4932,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         base.OnClosed(e);
         ForceCloseAllFanPropertiesWindows();
+        ForceCloseAllFanCurveEditorWindows();
         ForceCloseAllProbeSelectorWindows();
+        DisposeCells();
         _settings.Changed -= OnSettingsChanged;
-        if (AppServices.UpdateCheckService is { } updateService)
-            updateService.StateChanged -= NotifyUpdateStateChanged;
+        if (_subscribedUpdateCheckService != null)
+            _subscribedUpdateCheckService.StateChanged -= NotifyUpdateStateChanged;
         if (_lhmService != null)
         {
             _lhmService.PollTickCompleted -= OnPollTickCompleted;

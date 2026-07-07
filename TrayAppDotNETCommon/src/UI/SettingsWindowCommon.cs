@@ -125,6 +125,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Closed += (_, _) =>
         {
             IsClosing = true;
+            CancelPendingConfirm();
             OnSettingsWindowClosed();
         };
     }
@@ -135,7 +136,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     public Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
     {
-        _confirmTcs?.TrySetResult(false);
+        CancelPendingConfirm();
         _confirmTitle!.Text = title;
         _confirmMessage!.Text = message;
         _confirmOk!.Text = confirmText;
@@ -601,6 +602,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
         tcs?.TrySetResult(result);
+    }
+
+    private void CancelPendingConfirm()
+    {
+        if (_confirmOverlay != null) _confirmOverlay.IsVisible = false;
+        TaskCompletionSource<bool>? tcs = _confirmTcs;
+        _confirmTcs = null;
+        tcs?.TrySetResult(false);
     }
 
     private void AttachWndProcHook()

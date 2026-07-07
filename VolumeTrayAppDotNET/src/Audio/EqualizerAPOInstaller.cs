@@ -770,7 +770,8 @@ internal static class EqualizerAPOInstaller
         IntPtr token = IntPtr.Zero;
         try
         {
-            if (!Advapi32.OpenProcessToken(Process.GetCurrentProcess().Handle,
+            using Process currentProcess = Process.GetCurrentProcess();
+            if (!Advapi32.OpenProcessToken(currentProcess.Handle,
                     Advapi32.TOKEN_ADJUST_PRIVILEGES | Advapi32.TOKEN_QUERY, out token))
                 return false;
             if (!Advapi32.LookupPrivilegeValueW(null, Advapi32.SE_TAKE_OWNERSHIP_NAME, out long luid))

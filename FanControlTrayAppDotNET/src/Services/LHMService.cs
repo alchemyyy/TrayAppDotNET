@@ -35,7 +35,8 @@ public sealed class LHMService : IDisposable
 
     private CancellationTokenSource? _pollingCancellationToken;
     private Task? _pollTask;
-    private bool _disposed;
+    private Task? _controlWriteTask;
+    private volatile bool _disposed;
     private bool _discoveryChanged;
     private bool _controlWriteWorkerScheduled;
 
@@ -85,6 +86,7 @@ public sealed class LHMService : IDisposable
 
     public void Start()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_pollingCancellationToken != null) return;
 
         lock (_hardwareLock)
@@ -101,11 +103,13 @@ public sealed class LHMService : IDisposable
 
     public void Stop()
     {
-        if (_pollingCancellationToken == null) return;
-        _pollingCancellationToken.Cancel();
-        try { _pollTask?.Wait(TimeConstants.BackgroundPollShutdownWaitMs); }
-        catch (AggregateException) { /* poll loop already exited */ }
-        _pollingCancellationToken.Dispose();
+        CancellationTokenSource? pollingCancellationToken = _pollingCancellationToken;
+        Task? pollTask = _pollTask;
+        if (pollingCancellationToken == null) return;
+
+        pollingCancellationToken.Cancel();
+        WaitForTask(pollTask, "poll loop");
+        pollingCancellationToken.Dispose();
         _pollingCancellationToken = null;
         _pollTask = null;
     }
@@ -142,6 +146,7 @@ public sealed class LHMService : IDisposable
                     PollTickCompleted?.Invoke();
                 }, DispatcherPriority.Background, token);
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
             catch (Exception ex) { TADNLog.Log($"LHMService poll (UI marshal) failed: {ex.Message}"); }
 
             try { await Task.Delay(TimeConstants.LHMPollIntervalMs, token); }
@@ -470,37 +475,46 @@ public sealed class LHMService : IDisposable
             if (_controlWriteWorkerScheduled) return;
 
             _controlWriteWorkerScheduled = true;
-            _ = Task.Run(ProcessQueuedControlWrites);
+            _controlWriteTask = Task.Run(ProcessQueuedControlWrites);
         }
     }
 
     private void ProcessQueuedControlWrites()
     {
-        while (!_disposed)
+        try
         {
-            List<FanControlWriteRequest> batch;
+            while (true)
+            {
+                List<FanControlWriteRequest> batch;
+                lock (_controlWriteQueueLock)
+                {
+                    if (_disposed || _pendingControlWrites.Count == 0)
+                    {
+                        _controlWriteWorkerScheduled = false;
+                        return;
+                    }
+
+                    batch = [.. _pendingControlWrites.Values];
+                    _pendingControlWrites.Clear();
+                }
+
+                foreach (FanControlWriteRequest request in batch)
+                {
+                    if (_disposed) return;
+                    try { ApplyControlWrite(request); }
+                    catch (Exception ex)
+                    {
+                        TADNLog.Log(
+                            $"LHMService control write failed for {request.DataSourceKey}: {ex.Message}");
+                    }
+                }
+            }
+        }
+        finally
+        {
             lock (_controlWriteQueueLock)
-            {
-                if (_pendingControlWrites.Count == 0)
-                {
+                if (_disposed || _pendingControlWrites.Count == 0)
                     _controlWriteWorkerScheduled = false;
-                    return;
-                }
-
-                batch = [.. _pendingControlWrites.Values];
-                _pendingControlWrites.Clear();
-            }
-
-            foreach (FanControlWriteRequest request in batch)
-            {
-                if (_disposed) return;
-                try { ApplyControlWrite(request); }
-                catch (Exception ex)
-                {
-                    TADNLog.Log(
-                        $"LHMService control write failed for {request.DataSourceKey}: {ex.Message}");
-                }
-            }
         }
     }
 
@@ -630,11 +644,76 @@ public sealed class LHMService : IDisposable
         if (_disposed) return;
         _disposed = true;
         Stop();
+        DrainControlWriteWorker();
+        UnsubscribeAndClearFans();
+        PollTickCompleted = null;
         try
         {
-            lock (_hardwareLock) _computer.Close();
+            lock (_hardwareLock)
+            {
+                _controlSensorsByKey.Clear();
+                _computer.Close();
+            }
         }
-        catch { /* swallow shutdown noise */ }
+        catch (Exception ex)
+        {
+            TADNLog.Log($"LHMService dispose failed while closing hardware: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Waits for the asynchronous control-write worker to release service references.
+    /// </summary>
+    private void DrainControlWriteWorker()
+    {
+        Task? controlWriteTask;
+        lock (_controlWriteQueueLock)
+        {
+            _pendingControlWrites.Clear();
+            controlWriteTask = _controlWriteTask;
+        }
+
+        WaitForTask(controlWriteTask, "control write worker");
+
+        lock (_controlWriteQueueLock)
+        {
+            _pendingControlWrites.Clear();
+            _controlWriteWorkerScheduled = false;
+            _controlWriteTask = null;
+        }
+    }
+
+    /// <summary>
+    /// Releases fan model event subscriptions and collection references owned by this service.
+    /// </summary>
+    private void UnsubscribeAndClearFans()
+    {
+        foreach (Fan fan in Fans.ToArray())
+            fan.PropertyChanged -= OnFanPropertyChanged;
+        Fans.Clear();
+    }
+
+    /// <summary>
+    /// Waits for a background task and logs only unexpected shutdown failures.
+    /// </summary>
+    private static void WaitForTask(Task? task, string taskName)
+    {
+        if (task == null) return;
+
+        try
+        {
+            bool completed = task.Wait(TimeConstants.BackgroundPollShutdownWaitMs);
+            if (!completed)
+                TADNLog.Log($"LHMService {taskName} did not stop within the shutdown timeout.");
+        }
+        catch (AggregateException ex)
+        {
+            foreach (Exception inner in ex.Flatten().InnerExceptions)
+            {
+                if (inner is OperationCanceledException) continue;
+                TADNLog.Log($"LHMService {taskName} stopped with {inner.GetType().Name}: {inner.Message}");
+            }
+        }
     }
 
     private readonly record struct FanControlWriteRequest(

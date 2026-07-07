@@ -44,6 +44,27 @@ internal static class NightLightProvider
     }
 
     /// <summary>
+    /// Detaches settings and stops reusable backend timers during app shutdown.
+    /// </summary>
+    public static void Shutdown()
+    {
+        AppSettings? settings;
+        lock (_gate)
+        {
+            settings = _settings;
+            _settings = null;
+            _backendCached = false;
+            _lastResolvedBackend = Backend.None;
+        }
+
+        if (settings != null) settings.Changed -= OnSettingsChanged;
+
+        CancelBackendResendTimers();
+        NightLightRegistry.Shutdown();
+        NightLightSettingsHandler.Shutdown();
+    }
+
+    /// <summary>
     /// Drops the cached backend resolution so the next public-API call re-probes the registry
     /// and the SettingsHandler DLL.
     /// Settings-driven invalidation (<see cref="AppSettings.NightLightFallbackMode"/> flips)

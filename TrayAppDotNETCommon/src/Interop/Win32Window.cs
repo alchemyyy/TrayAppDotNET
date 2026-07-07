@@ -55,7 +55,12 @@ public sealed class Win32Window : IDisposable
             IntPtr.Zero);
 
         if (Handle == IntPtr.Zero)
-            throw new InvalidOperationException($"CreateWindowEx failed: {Marshal.GetLastWin32Error()}");
+        {
+            int error = Marshal.GetLastWin32Error();
+            UnregisterClass(_className, _hInstance);
+            _className = null;
+            throw new InvalidOperationException($"CreateWindowEx failed: {error}");
+        }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam)

@@ -18,11 +18,11 @@
     ShowActivated="False">
 
     <Window.Resources>
-        <sys:Double x:Key="FanProperties.WindowWidth">500</sys:Double>
+        <sys:Double x:Key="FanProperties.WindowWidth">800</sys:Double>
         <sys:Double x:Key="FanProperties.WindowHeight">500</sys:Double>
         <sys:Double x:Key="FanProperties.TitleBarHeight">32</sys:Double>
         <sys:Double x:Key="FanProperties.FooterHeight">42</sys:Double>
-        <sys:Double x:Key="FanProperties.BodyLeftColumnWidth">226</sys:Double>
+        <sys:Double x:Key="FanProperties.BodyLeftColumnWidth">400</sys:Double>
         <sys:Double x:Key="FanProperties.RightPreviewHeight">112</sys:Double>
         <sys:Double x:Key="FanProperties.TextBoxWidth">130</sys:Double>
         <sys:Double x:Key="FanProperties.CurveComboWidth">112</sys:Double>

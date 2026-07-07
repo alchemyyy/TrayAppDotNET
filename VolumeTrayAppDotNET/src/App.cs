@@ -701,6 +701,9 @@ internal sealed class VolumeAvaloniaApp : Application
                 _audioManager = null;
             }
 
+            CommunicationsDucking.Stop();
+            EqualizerAPOMonitor.Dispose();
+
             AppServices.DeviceSettings = null;
             _deviceSettings = null;
 

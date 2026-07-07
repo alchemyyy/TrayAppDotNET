@@ -306,8 +306,9 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (_settings == null || _monitorService == null)
             throw new InvalidOperationException("Brightness flyout requires settings and monitor service.");
 
+        ProfileManager profileManager = ResolveProfileManager();
         BrightnessFlyoutWindow flyout = new(
-            AppServices.ProfileManager ?? new ProfileManager(),
+            profileManager,
             _theme ?? AppTheme.Default,
             _monitorService);
         flyout.BrightnessUpdated += RequestTrayRefresh;
@@ -315,6 +316,16 @@ internal sealed class BrightnessAvaloniaApp : Application
         flyout.SettingsRequested += OpenSettings;
         flyout.Closed += OnBrightnessFlyoutClosed;
         return flyout;
+    }
+
+    private static ProfileManager ResolveProfileManager()
+    {
+        ProfileManager? profileManager = AppServices.ProfileManager;
+        if (profileManager != null) return profileManager;
+
+        profileManager = new ProfileManager();
+        AppServices.ProfileManager = profileManager;
+        return profileManager;
     }
 
     private BrightnessFlyoutWindow CreateManagedBrightnessFlyout()
@@ -1233,6 +1244,12 @@ internal sealed class BrightnessAvaloniaApp : Application
 
             TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.NormalShutdownDrainTimeoutMs));
 
+            try { NightLightProvider.Shutdown(); }
+            catch (Exception ex)
+            {
+                WPFLog.Log($"BrightnessAvaloniaApp.NightLightProvider.Shutdown failed: {ex.Message}");
+            }
+
             if (_settings != null)
             {
                 _settings.Changed -= OnSettingsChanged;
@@ -1249,13 +1266,11 @@ internal sealed class BrightnessAvaloniaApp : Application
                 AppServices.MonitorService = null;
             }
 
-            try { AppServices.ProfileManager?.SaveOnShutdown(); }
-            catch (Exception ex)
+            if (AppServices.ProfileManager != null)
             {
-                WPFLog.Log($"BrightnessAvaloniaApp.ProfileManager.SaveOnShutdown failed: {ex.Message}");
+                Safe.Dispose(AppServices.ProfileManager);
+                AppServices.ProfileManager = null;
             }
-
-            AppServices.ProfileManager = null;
 
             Safe.Dispose(_brightnessRangeProvider);
             _brightnessRangeProvider = null;

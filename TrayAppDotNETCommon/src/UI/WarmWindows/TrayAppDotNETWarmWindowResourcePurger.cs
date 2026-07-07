@@ -79,7 +79,8 @@ public static class TrayAppDotNETWarmWindowResourcePurger
     {
         try
         {
-            EmptyWorkingSet(Process.GetCurrentProcess().Handle);
+            using Process currentProcess = Process.GetCurrentProcess();
+            EmptyWorkingSet(currentProcess.Handle);
         }
         catch
         {
