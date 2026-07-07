@@ -215,12 +215,17 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true, IsVisible = true
+            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true,
+            IsPrecisionTouchpadScrollEnabled = _settings?.PrecisionTouchpadScrollEnabled ?? true,
+            PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
+                ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault,
+            IsVisible = true
         };
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.Scrolled += OnTrayScrolled;
+        _trayIcon.PrecisionTouchpadScrolled += OnTrayPrecisionTouchpadScrolled;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
     }
@@ -295,12 +300,22 @@ internal sealed class VolumeAvaloniaApp : Application
                 ApplyToolTipDelayToOpenWindows();
             }
 
-            _trayIcon?.IsScrollEnabled = _settings?.TrayScrollEnabled ?? true;
+            ApplyTrayIconScrollSettings();
             if (_hotkeyService != null && _settings != null)
                 _hotkeyService.Apply(_settings.Hotkeys);
             ApplyKeepWarmPolicies();
             RequestTrayRefresh();
         });
+    }
+
+    private void ApplyTrayIconScrollSettings()
+    {
+        if (_trayIcon == null) return;
+
+        _trayIcon.IsScrollEnabled = _settings?.TrayScrollEnabled ?? true;
+        _trayIcon.IsPrecisionTouchpadScrollEnabled = _settings?.PrecisionTouchpadScrollEnabled ?? true;
+        _trayIcon.PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
+            ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault;
     }
 
     private void ApplyKeepWarmPolicies()
@@ -468,11 +483,19 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void OnTrayScrolled(int delta)
     {
+        int stepPercent = _settings?.WheelVolumeStepPercent ?? AppSettings.WheelVolumeStepPercentDefault;
+        AdjustTrackedDeviceVolume(delta, stepPercent);
+    }
+
+    private void OnTrayPrecisionTouchpadScrolled(int delta) =>
+        AdjustTrackedDeviceVolume(delta, stepPercent: 1);
+
+    private void AdjustTrackedDeviceVolume(int delta, int stepPercent)
+    {
         AudioDevice? device = _trackedDevice;
         if (device == null) return;
 
         double currentPercent = device.Volume * 100.0;
-        int stepPercent = _settings?.WheelVolumeStepPercent ?? AppSettings.WheelVolumeStepPercentDefault;
         double next = Math.Clamp(currentPercent + (delta > 0 ? stepPercent : -stepPercent), 0, 100);
         if (Math.Abs(currentPercent - next) >= 0.001)
         {
@@ -723,6 +746,7 @@ internal sealed class VolumeAvaloniaApp : Application
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.Scrolled -= OnTrayScrolled;
+                _trayIcon.PrecisionTouchpadScrolled -= OnTrayPrecisionTouchpadScrolled;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }

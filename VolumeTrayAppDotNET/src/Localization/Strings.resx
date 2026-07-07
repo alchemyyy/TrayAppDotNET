@@ -971,6 +971,18 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_MouseWheel_Title" xml:space="preserve">
     <value>Mouse wheel</value>
   </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadScroll_Description" xml:space="preserve">
+    <value>Use precision touchpad scroll reports over the tray icon for finer volume control.</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadScroll_Title" xml:space="preserve">
+    <value>Precision touchpad</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description" xml:space="preserve">
+    <value>Raw touchpad movement units required for each 1% volume step. Lower values are more sensitive.</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title" xml:space="preserve">
+    <value>Touchpad sensitivity</value>
+  </data>
   <data name="Settings_TrayIcon_PlaybackDeviceName_Description" xml:space="preserve">
     <value>Which slice of each playback device's name appears in the tray context menu.</value>
   </data>

@@ -18,6 +18,33 @@ public sealed partial class BrightnessSettingsWindow
             v => _settings.TrayScrollEnabled = v,
             p,
             afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon)));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
+            L("Settings_TrayIcon_MouseWheelStep_Title", "Mouse wheel step"),
+            L("Settings_TrayIcon_MouseWheelStep_Description",
+                "How many percent each mouse wheel notch adjusts brightness from the tray icon or flyout sliders."),
+            _settings.FlyoutScrollWheelStep,
+            AppSettings.FlyoutScrollWheelStepMin,
+            AppSettings.FlyoutScrollWheelStepMax,
+            v => _settings.FlyoutScrollWheelStep = v,
+            p,
+            "%")));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
+            L("Settings_TrayIcon_PrecisionTouchpadScroll_Title", "Precision touchpad"),
+            L("Settings_TrayIcon_PrecisionTouchpadScroll_Description",
+                "Use precision touchpad scroll reports over the tray icon for finer brightness control."),
+            _settings.PrecisionTouchpadScrollEnabled,
+            v => _settings.PrecisionTouchpadScrollEnabled = v,
+            p,
+            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon))));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled && _settings.PrecisionTouchpadScrollEnabled, IntCard(
+            L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title", "Touchpad sensitivity"),
+            L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description",
+                "Raw touchpad movement units required for each 1% brightness step. Lower values are more sensitive."),
+            _settings.PrecisionTouchpadUnitsPerScrollStep,
+            AppSettings.PrecisionTouchpadUnitsPerScrollStepMin,
+            AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
+            v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
+            p)));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L("Settings_TrayIcon_ContextMenu_Header", "Context menu"),

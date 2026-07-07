@@ -15,7 +15,22 @@ public static class User32
     public const int WM_LBUTTONUP = 0x0202;
     public const int WM_LBUTTONDBLCLK = 0x0203;
     public const int WM_RBUTTONUP = 0x0205;
+    public const int WM_MOUSEWHEEL = 0x020A;
+    public const int WM_MOUSEHWHEEL = 0x020E;
     public const int WM_INPUT = 0x00FF;
+    public const int WM_GESTURE = 0x0119;
+    public const int WM_GESTURENOTIFY = 0x011A;
+    public const int WM_TOUCH = 0x0240;
+    public const int WM_NCPOINTERUPDATE = 0x0241;
+    public const int WM_NCPOINTERDOWN = 0x0242;
+    public const int WM_NCPOINTERUP = 0x0243;
+    public const int WM_POINTERUPDATE = 0x0245;
+    public const int WM_POINTERDOWN = 0x0246;
+    public const int WM_POINTERUP = 0x0247;
+    public const int WM_POINTERENTER = 0x0249;
+    public const int WM_POINTERLEAVE = 0x024A;
+    public const int WM_POINTERWHEEL = 0x024E;
+    public const int WM_POINTERHWHEEL = 0x024F;
 
     // WM_MOUSEACTIVATE: sent to a window when the user clicks it while it's inactive.
     // Returning MA_ACTIVATE (1) means "activate the window AND deliver this click as a normal mouse-down".
@@ -30,11 +45,26 @@ public static class User32
     // Raw Input
     public const uint RID_INPUT = 0x10000003;
     public const uint RIM_TYPEMOUSE = 0;
+    public const uint RIM_TYPEKEYBOARD = 1;
+    public const uint RIM_TYPEHID = 2;
     public const uint RIDEV_INPUTSINK = 0x00000100;
     public const uint RIDEV_REMOVE = 0x00000001;
+    public const uint RIDEV_DEVNOTIFY = 0x00002000;
     public const ushort HID_USAGE_PAGE_GENERIC = 0x01;
+    public const ushort HID_USAGE_PAGE_DIGITIZER = 0x0D;
+    public const ushort HID_USAGE_GENERIC_POINTER = 0x01;
     public const ushort HID_USAGE_GENERIC_MOUSE = 0x02;
+    public const ushort HID_USAGE_GENERIC_WHEEL = 0x38;
+    public const ushort HID_USAGE_DIGITIZER_TOUCH_PAD = 0x05;
     public const ushort RI_MOUSE_WHEEL = 0x0400;
+    public const ushort RI_MOUSE_HWHEEL = 0x0800;
+
+    // Pointer input
+    public const uint PT_POINTER = 1;
+    public const uint PT_TOUCH = 2;
+    public const uint PT_PEN = 3;
+    public const uint PT_MOUSE = 4;
+    public const uint PT_TOUCHPAD = 5;
 
     // Virtual key codes for modifier detection
     public const int VK_LBUTTON = 0x01;
@@ -156,11 +186,71 @@ public static class User32
     public static extern uint GetRawInputData(
         IntPtr hRawInput, uint uiCommand, IntPtr pData, ref uint pcbSize, uint cbSizeHeader);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RegisterTouchWindow(IntPtr hwnd, uint ulFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnregisterTouchWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RegisterPointerInputTargetEx(IntPtr hwnd, uint pointerType, bool observe);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool UnregisterPointerInputTargetEx(IntPtr hwnd, uint pointerType);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetPointerType(uint pointerId, out uint pointerType);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetPointerInfo(uint pointerId, out POINTER_INFO pointerInfo);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetGestureInfo(IntPtr hGestureInfo, ref GESTUREINFO gestureInfo);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool CloseGestureInfoHandle(IntPtr hGestureInfo);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetGestureConfig(
+        IntPtr hwnd,
+        uint reserved,
+        uint count,
+        [In] GESTURECONFIG[] configs,
+        uint size);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetTouchInputInfo(
+        IntPtr hTouchInput,
+        uint cInputs,
+        [Out] TOUCHINPUT[] pInputs,
+        int cbSize);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool CloseTouchInputHandle(IntPtr hTouchInput);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
     {
         public int X;
         public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINTS
+    {
+        public short X;
+        public short Y;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -194,6 +284,13 @@ public static class User32
         [FieldOffset(20)] public uint ulExtraInformation;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RAWHID
+    {
+        public uint dwSizeHid;
+        public uint dwCount;
+    }
+
     // x64 layout: RAWINPUTHEADER is 24 bytes (4+4+8+8), so the union starts at offset 24.
     // EarTrumpet uses 16 because it ships x86; this project is x64.
     [StructLayout(LayoutKind.Explicit)]
@@ -201,5 +298,64 @@ public static class User32
     {
         [FieldOffset(0)] public RAWINPUTHEADER header;
         [FieldOffset(24)] public RAWMOUSE mouse;
+        [FieldOffset(24)] public RAWHID hid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINTER_INFO
+    {
+        public uint pointerType;
+        public uint pointerId;
+        public uint frameId;
+        public uint pointerFlags;
+        public IntPtr sourceDevice;
+        public IntPtr hwndTarget;
+        public POINT ptPixelLocation;
+        public POINT ptHimetricLocation;
+        public POINT ptPixelLocationRaw;
+        public POINT ptHimetricLocationRaw;
+        public uint dwTime;
+        public uint historyCount;
+        public int InputData;
+        public uint dwKeyStates;
+        public ulong PerformanceCount;
+        public int ButtonChangeType;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GESTUREINFO
+    {
+        public uint cbSize;
+        public uint dwFlags;
+        public uint dwID;
+        public IntPtr hwndTarget;
+        public POINTS ptsLocation;
+        public uint dwInstanceID;
+        public uint dwSequenceID;
+        public ulong ullArguments;
+        public uint cbExtraArgs;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GESTURECONFIG
+    {
+        public uint dwID;
+        public uint dwWant;
+        public uint dwBlock;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct TOUCHINPUT
+    {
+        public int x;
+        public int y;
+        public IntPtr hSource;
+        public uint dwID;
+        public uint dwFlags;
+        public uint dwMask;
+        public uint dwTime;
+        public UIntPtr dwExtraInfo;
+        public uint cxContact;
+        public uint cyContact;
     }
 }

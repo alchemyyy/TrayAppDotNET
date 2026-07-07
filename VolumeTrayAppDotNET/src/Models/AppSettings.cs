@@ -588,6 +588,27 @@ public class AppSettings : AppSettingsCommon
             Math.Clamp(value, WheelVolumeStepPercentMin, WheelVolumeStepPercentMax));
     } = WheelVolumeStepPercentDefault;
 
+    public bool PrecisionTouchpadScrollEnabled
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
+    public const int PrecisionTouchpadUnitsPerScrollStepDefault = 90;
+    public const int PrecisionTouchpadUnitsPerScrollStepMin = 1;
+    public const int PrecisionTouchpadUnitsPerScrollStepMax = 1000;
+
+    public int PrecisionTouchpadUnitsPerScrollStep
+    {
+        get;
+        set => SetField(
+            ref field,
+            Math.Clamp(
+                value,
+                PrecisionTouchpadUnitsPerScrollStepMin,
+                PrecisionTouchpadUnitsPerScrollStepMax));
+    } = PrecisionTouchpadUnitsPerScrollStepDefault;
+
     public TrayClickAction TrayDoubleClickAction
     {
         get;
