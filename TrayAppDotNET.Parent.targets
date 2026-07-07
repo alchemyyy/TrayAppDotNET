@@ -25,6 +25,22 @@
     <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=true -p:TrayAppDotNETUseRootOutput=true -p:TrayAppDotNETBuildSharedProjectReferences=false -p:TrayAppDotNETOutputRoot=&quot;$(TrayAppDotNETOutputRoot)\&quot;</TrayAppDotNETPublishAggregateProperties>
   </PropertyGroup>
 
+  <Target Name="BuildTrayAppDotNETSharedReferencesBeforeAggregateResolve"
+          BeforeTargets="ResolveProjectReferences"
+          Condition="'$(TrayAppDotNETAggregateBuild)' == 'true' and '$(TrayAppDotNETBuildSharedProjectReferences)' == 'false' and '$(OutputType)' == 'WinExe' and '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_TrayAppDotNETSharedReferenceProject Include="$(TrayAppDotNETCommonRoot)\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
+      <_TrayAppDotNETSharedReferenceProject Include="$(TrayAppDotNETCommonRoot)\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj" />
+      <_TrayAppDotNETSharedReferenceProject Include="$(TrayAppDotNETCommonProject)" />
+    </ItemGroup>
+
+    <MSBuild Projects="@(_TrayAppDotNETSharedReferenceProject)"
+             Targets="Build"
+             BuildInParallel="false"
+             Properties="Configuration=$(Configuration);Platform=x64;TrayAppDotNETAggregateBuild=true;TrayAppDotNETUseRootOutput=true;TrayAppDotNETBuildSharedProjectReferences=true;TrayAppDotNETOutputRoot=$(TrayAppDotNETOutputRoot);SkipKillRunningInstance=$(SkipKillRunningInstance)"
+             RemoveProperties="PublishAot;SelfContained;RuntimeIdentifier;RuntimeIdentifiers;PublishSingleFile;IncludeNativeLibrariesForSelfExtract;IncludeAllContentForSelfExtract;UseAppHost;OutputPath;OutDir;PublishDir" />
+  </Target>
+
   <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
