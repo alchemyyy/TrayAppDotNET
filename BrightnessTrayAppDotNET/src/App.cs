@@ -280,7 +280,10 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(Constants.TrayIconGUID, Program.ApplicationName + ".TrayIcon")
         {
-            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true
+            IsScrollEnabled = _settings?.TrayScrollEnabled ?? true,
+            IsPrecisionTouchpadScrollEnabled = _settings?.PrecisionTouchpadScrollEnabled ?? true,
+            PrecisionTouchpadUnitsPerScrollStep = _settings?.PrecisionTouchpadUnitsPerScrollStep
+                ?? AppSettings.PrecisionTouchpadUnitsPerScrollStepDefault
         };
         if (AppTheme.LoadAppNativeIcon() is { } initialIcon)
         {
@@ -292,6 +295,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         _trayIcon.LeftDoubleClick += OnTrayLeftDoubleClick;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.Scrolled += OnTrayScrolled;
+        _trayIcon.PrecisionTouchpadScrolled += OnTrayPrecisionTouchpadScrolled;
         _trayIcon.RefreshNeeded += RequestTrayRefresh;
         _trayIcon.BalloonClicked += OnUpdateBalloonClicked;
         _trayIcon.IsVisible = true;
@@ -586,14 +590,24 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void OnTrayScrolled(int wheelDelta)
     {
-        if (_brightnessFlyout == null || _settings == null) return;
+        if (_settings == null) return;
+
+        int notches = wheelDelta / 120;
+        if (notches == 0)
+            notches = Math.Sign(wheelDelta);
+        int delta = notches * Math.Max(1, _settings.FlyoutScrollWheelStep);
+        ApplyTrayWheelDelta(delta);
+    }
+
+    private void OnTrayPrecisionTouchpadScrolled(int delta) =>
+        ApplyTrayWheelDelta(Math.Sign(delta));
+
+    private void ApplyTrayWheelDelta(int delta)
+    {
+        if (delta == 0 || _brightnessFlyout == null || _settings == null) return;
 
         TrayWheelTarget target = ResolveWheelTarget(_settings);
         if (target == TrayWheelTarget.Nothing) return;
-
-        int notches = wheelDelta / 120;
-        if (notches == 0) notches = Math.Sign(wheelDelta);
-        int delta = notches * Math.Max(1, _settings.FlyoutScrollWheelStep);
 
         switch (target)
         {
@@ -1056,7 +1070,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                     _monitorService.ValidationDwellMs = _settings.ValidationDwellMs;
                 }
 
-                _trayIcon?.IsScrollEnabled = _settings.TrayScrollEnabled;
+                ApplyTrayIconScrollSettings();
                 _hotkeyService?.Apply(_settings.Hotkeys);
             }
 
@@ -1158,6 +1172,15 @@ internal sealed class BrightnessAvaloniaApp : Application
             _trayIconRenderer.BrightColor = _settings.TrayIconBrightColor.Resolve(isLight);
             _trayIconRenderer.DimColor = _settings.TrayIconDimColor.Resolve(isLight);
         }
+    }
+
+    private void ApplyTrayIconScrollSettings()
+    {
+        if (_trayIcon == null || _settings == null) return;
+
+        _trayIcon.IsScrollEnabled = _settings.TrayScrollEnabled;
+        _trayIcon.IsPrecisionTouchpadScrollEnabled = _settings.PrecisionTouchpadScrollEnabled;
+        _trayIcon.PrecisionTouchpadUnitsPerScrollStep = _settings.PrecisionTouchpadUnitsPerScrollStep;
     }
 
     private static void ApplyPDBDownloadTimeout(AppSettings settings)
@@ -1287,6 +1310,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 _trayIcon.LeftDoubleClick -= OnTrayLeftDoubleClick;
                 _trayIcon.RightClick -= OnTrayRightClick;
                 _trayIcon.Scrolled -= OnTrayScrolled;
+                _trayIcon.PrecisionTouchpadScrolled -= OnTrayPrecisionTouchpadScrolled;
                 _trayIcon.RefreshNeeded -= RequestTrayRefresh;
                 _trayIcon.BalloonClicked -= OnUpdateBalloonClicked;
             }

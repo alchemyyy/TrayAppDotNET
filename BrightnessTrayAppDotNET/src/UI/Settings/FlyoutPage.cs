@@ -126,8 +126,8 @@ public sealed partial class BrightnessSettingsWindow
             L("Settings_Flyout_MouseWheelStep_Description",
                 "How many percent each mouse wheel notch adjusts a brightness slider in the flyout."),
             _settings.FlyoutScrollWheelStep,
-            1,
-            50,
+            AppSettings.FlyoutScrollWheelStepMin,
+            AppSettings.FlyoutScrollWheelStepMax,
             v => _settings.FlyoutScrollWheelStep = v,
             p,
             "%"));

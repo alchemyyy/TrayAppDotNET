@@ -14,7 +14,32 @@ public sealed partial class VolumeSettingsWindow
             Loc("Settings_TrayIcon_MouseWheel_Description"),
             _settings.TrayScrollEnabled,
             v => _settings.TrayScrollEnabled = v,
-            p));
+            p,
+            afterSave: RefreshCurrentPage));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
+            Loc("Settings_General_WheelVolumeStepPercent_Title"),
+            Loc("Settings_General_WheelVolumeStepPercent_Description"),
+            _settings.WheelVolumeStepPercent,
+            AppSettings.WheelVolumeStepPercentMin,
+            AppSettings.WheelVolumeStepPercentMax,
+            v => _settings.WheelVolumeStepPercent = v,
+            p,
+            Loc("Common_PercentSuffix"))));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
+            Loc("Settings_TrayIcon_PrecisionTouchpadScroll_Title"),
+            Loc("Settings_TrayIcon_PrecisionTouchpadScroll_Description"),
+            _settings.PrecisionTouchpadScrollEnabled,
+            v => _settings.PrecisionTouchpadScrollEnabled = v,
+            p,
+            afterSave: RefreshCurrentPage)));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled && _settings.PrecisionTouchpadScrollEnabled, IntCard(
+            Loc("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title"),
+            Loc("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description"),
+            _settings.PrecisionTouchpadUnitsPerScrollStep,
+            AppSettings.PrecisionTouchpadUnitsPerScrollStepMin,
+            AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
+            v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
+            p)));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Common_ContextMenu_Header"), p));
         stack.Children.Add(StringComboCard(
