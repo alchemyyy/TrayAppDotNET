@@ -530,12 +530,17 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             MonitorInfo nightLight = flyout.NightLightMonitor;
             nightLight.Brightness = Math.Clamp(nightLight.Brightness + delta, 0, 100);
+            if (NightLightProvider.IsEnabled())
+                NightLightProvider.SetStrength(ResolveNightLightStrength(nightLight.RoundedBrightness));
         }
         finally
         {
             flyout.CompleteUserNightLightAdjustment();
         }
     }
+
+    private int ResolveNightLightStrength(int sliderValue) =>
+        _settings?.InvertNightLightSlider == true ? 100 - sliderValue : sliderValue;
 
     private MonitorInfo? ResolveMonitorTarget(string parameter)
     {
@@ -619,6 +624,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 break;
         }
 
+        RequestTrayRefresh();
         _trayIcon?.ShowTooltip();
     }
 
@@ -962,11 +968,19 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (NightLightProvider.IsSupported() && NightLightProvider.IsEnabled())
         {
             tooltip += string.Format(L("Tray_Tooltip_NightLight_Format", " - Night light: {0}%"),
-                NightLightProvider.GetStrength());
+                GetCurrentNightLightTooltipStrength());
         }
 
         LogTrayValueDiagnostic(brightness, tooltip, monitors);
         return (brightness, tooltip);
+    }
+
+    private int GetCurrentNightLightTooltipStrength()
+    {
+        if (_brightnessFlyout?.NightLightMonitor is { } nightLight)
+            return ResolveNightLightStrength(nightLight.RoundedBrightness);
+
+        return NightLightProvider.GetStrength();
     }
 
     private void LogTrayValueDiagnostic(int brightness, string tooltip, List<MonitorInfo> monitors)
