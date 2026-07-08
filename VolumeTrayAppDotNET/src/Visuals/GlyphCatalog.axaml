@@ -1,0 +1,101 @@
+<ResourceDictionary
+    x:Class="VolumeTrayAppDotNET.Visuals.GlyphCatalogResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUpBig" Text="&#xE96E;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDownBig" Text="&#xE96D;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Undock" Text="&#xE75B;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Redock" Text="&#xE75A;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CommunicationsActivity" Text="&#xE77E;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeMute" Text="&#xE74F;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeSilent" Text="&#xE992;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeLow" Text="&#xE993;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeMid" Text="&#xE994;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeHigh" Text="&#xE995;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SoundSettings" Text="&#xE995;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition
+        x:Key="GlyphCatalog.Microphone"
+        Text="&#xE720;"
+        Font="SegoeFluentIconsThenMDL2Assets"
+        FontWeight="ExtraBold"
+        ScaleX="0.7884615384615384"
+        ScaleY="0.7884615384615384"
+        TranslateX="-1" />
+    <visuals:GlyphDefinition
+        x:Key="GlyphCatalog.MicrophoneOff"
+        Text="&#xF781;"
+        Font="SegoeFluentIconsThenMDL2Assets"
+        FontWeight="ExtraBold"
+        ScaleX="0.7884615384615384"
+        ScaleY="0.7884615384615384"
+        TranslateX="-1" />
+    <visuals:GlyphDefinition
+        x:Key="GlyphCatalog.MicrophoneSleep"
+        Text="&#xEC55;"
+        Font="SegoeFluentIconsThenMDL2Assets"
+        FontWeight="ExtraBold"
+        ScaleX="0.7884615384615384"
+        ScaleY="0.7884615384615384"
+        TranslateX="-1" />
+    <visuals:GlyphDefinition
+        x:Key="GlyphCatalog.MicrophoneListening"
+        Text="&#xF12E;"
+        Font="SegoeFluentIconsThenMDL2Assets"
+        FontWeight="ExtraBold"
+        ScaleX="0.7884615384615384"
+        ScaleY="0.7884615384615384"
+        TranslateX="-1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.EarListen" Text="&#xF270;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Lock" Text="&#xE72E;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Unlock" Text="&#xE785;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Equalizer" Text="&#xE9E9;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SignalNotConnected" Text="&#xE871;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackDeviceDefault" Text="&#xF137;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackDeviceEnabled" Text="&#xF138;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
+    <visuals:GlyphDefinition
+        x:Key="GlyphCatalog.PlaybackDeviceDisabled"
+        Text="&#xF13D;"
+        Font="SegoeFluentIconsThenMDL2Assets"
+        ScaleX="1.8888888888888888"
+        ScaleY="1.8888888888888888"
+        TranslateX="-1.5"
+        TranslateY="-0.5" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackDeviceDefaultComms" Text="&#xE95B;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.AppMuteOverlay" Text="&#xE653;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.AppFallback" Text="&#xE978;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery0" Text="&#xF5F2;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery1" Text="&#xF5F3;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery2" Text="&#xF5F4;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery3" Text="&#xF5F5;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery4" Text="&#xF5F6;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery5" Text="&#xF5F7;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery6" Text="&#xF5F8;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery7" Text="&#xF5F9;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery8" Text="&#xF5FA;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery9" Text="&#xF5FB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery10" Text="&#xF5FC;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeMinimize" Text="&#xE921;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeMaximize" Text="&#xE922;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeRestore" Text="&#xE923;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Circle" Text="&#xE91F;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Diamond" Text="&#xEA3B;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Star" Text="&#xE734;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Square" Text="&#xE73B;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Heart" Text="&#xEB51;" Font="SegoeFluentIconsThenMDL2Assets" />
+</ResourceDictionary>

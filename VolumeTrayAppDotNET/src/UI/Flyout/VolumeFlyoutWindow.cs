@@ -1395,10 +1395,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     private static bool IsMicrophoneGlyph(Glyph glyph) =>
-        glyph == GlyphCatalog.MICROPHONE
-        || glyph == GlyphCatalog.MICROPHONE_OFF
-        || glyph == GlyphCatalog.MICROPHONE_LISTENING
-        || glyph == GlyphCatalog.MICROPHONE_SLEEP;
+        glyph.Text == GlyphCatalog.MICROPHONE.Text
+        || glyph.Text == GlyphCatalog.MICROPHONE_OFF.Text
+        || glyph.Text == GlyphCatalog.MICROPHONE_LISTENING.Text
+        || glyph.Text == GlyphCatalog.MICROPHONE_SLEEP.Text;
 
     private Border? BuildBatteryButton(AudioDevice device, FlyoutPalette p)
     {

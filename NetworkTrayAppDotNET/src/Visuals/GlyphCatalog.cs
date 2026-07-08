@@ -8,24 +8,20 @@ namespace NetworkTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
-    // ===========================================================================
-    // Generic UI glyphs
-    // ===========================================================================
+    private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
 
-    public new static readonly Glyph WARNING = Glyph.Fluent(CommonGlyphCatalog.WARNING);
+    public new static Glyph WARNING => Glyph("Warning");
 
     public new const string SEGOE_FLUENT_ICONS = TADNFontResolver.SegoeFluentIconsFamilyName;
     public new const string SEGOE_MDL2_ASSETS = TADNFontResolver.SegoeMDL2AssetsFamilyName;
 
-    // ===========================================================================
-    // Network tray glyphs
-    // ===========================================================================
+    public static Glyph NETWORK_ETHERNET => Glyph("NetworkEthernet");
+    public static Glyph NETWORK_WIFI_0 => Glyph("NetworkWifi0");
+    public static Glyph NETWORK_WIFI_1 => Glyph("NetworkWifi1");
+    public static Glyph NETWORK_WIFI_2 => Glyph("NetworkWifi2");
+    public static Glyph NETWORK_WIFI_3 => Glyph("NetworkWifi3");
+    public static Glyph NETWORK_WIFI_4 => Glyph("NetworkWifi4");
+    public static Glyph NETWORK_NONE => Glyph("NetworkNone");
 
-    public static readonly Glyph NETWORK_ETHERNET = Glyph.SegoeFluent("\uE839"); // Fluent, Ethernet
-    public static readonly Glyph NETWORK_WIFI_0 = Glyph.SegoeFluent("\uE871"); // Fluent, SignalNotConnected
-    public static readonly Glyph NETWORK_WIFI_1 = Glyph.SegoeFluent("\uE872"); // Fluent, Wifi1
-    public static readonly Glyph NETWORK_WIFI_2 = Glyph.SegoeFluent("\uE873"); // Fluent, Wifi2
-    public static readonly Glyph NETWORK_WIFI_3 = Glyph.SegoeFluent("\uE874"); // Fluent, Wifi3
-    public static readonly Glyph NETWORK_WIFI_4 = Glyph.SegoeFluent("\uE701"); // Fluent, Wifi
-    public static readonly Glyph NETWORK_NONE = Glyph.SegoeFluent("\uF384"); // Fluent, NetworkOffline
+    private static Glyph Glyph(string name) => Resources.Value.Glyph(name);
 }

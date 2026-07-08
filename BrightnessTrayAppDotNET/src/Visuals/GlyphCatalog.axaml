@@ -1,0 +1,48 @@
+<ResourceDictionary
+    x:Class="BrightnessTrayAppDotNET.Visuals.GlyphCatalogResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.EclipsedSun" Text="&#xEC8A;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.HalfSun" Text="&#xE793;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircleSmall" Text="&#xE915;" Font="SegoeFluentIcons" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentSun" Text="&#xF08C;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentMoonOld" Text="&#xE708;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentMoon" Text="&#xEC46;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentMoonBold" Text="&#xF0CE;" Font="SegoeFluentIcons" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.EmptyCircle0" Text="&#xEDAF;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.EmptyCircle3" Text="&#xEA3A;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircle0" Text="&#xED67;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircle1" Text="&#xEDAF;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircle2" Text="&#xEDB0;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircle3" Text="&#xEA3B;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircle4" Text="&#xF0B6;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircleLarge" Text="&#xE91F;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledSquare" Text="&#xE978;" Font="SegoeFluentIcons" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Lightbulb" Text="&#xEA80;" Font="SegoeFluentIcons" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeClose" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUp" Text="&#xE70E;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDown" Text="&#xE70D;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronLeft" Text="&#xE76B;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronRight" Text="&#xE76C;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Calendar" Text="&#xE787;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Stopwatch" Text="&#xE916;" Font="SegoeMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CheckMark" Text="&#xE73E;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Monitor" Text="&#xE7F4;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SyncBadge" Text="&#xEDAB;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.DisplaySettings" Text="&#xE7F8;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ProfileSave" Text="&#xE74E;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ProfileIndicator" Text="&#xE915;" Font="SegoeFluentIcons" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.MapCenter" Text="&#xE73E;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.MapPin" Text="&#xECAF;" Font="SegoeFluentIconsThenMDL2Assets" />
+</ResourceDictionary>

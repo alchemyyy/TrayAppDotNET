@@ -1,0 +1,16 @@
+<ResourceDictionary
+    x:Class="NetworkTrayAppDotNET.Visuals.GlyphCatalogResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkEthernet" Text="&#xE839;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi0" Text="&#xE871;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi1" Text="&#xE872;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi2" Text="&#xE873;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi3" Text="&#xE874;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi4" Text="&#xE701;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkNone" Text="&#xF384;" Font="SegoeFluentIcons" />
+</ResourceDictionary>

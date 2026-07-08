@@ -1,0 +1,50 @@
+<ResourceDictionary
+    x:Class="FanControlTrayAppDotNET.Visuals.GlyphCatalogResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Info" Text="&#xE946;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Undock" Text="&#xE75B;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Redock" Text="&#xE75A;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Fan" Text="&#xF1111;" Font="FanFont" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Voltage" Text="&#xE945;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Load" Text="&#xEAFC;" Font="SegoeFluentIconsThenMDL2Assets" ScaleX="0.9" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Wattage" Text="&#xECAD;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Probe" Text="&#xE9CA;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Temperature" Text="&#xE9CA;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Clock" Text="&#xE916;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ArrowLeft" Text="&#xF0D5;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.ArrowRight" Text="&#xF0D6;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CurveWindow" Text="&#xE9E9;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Add" Text="&#xE710;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Check" Text="&#xE8FB;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Group" Text="&#xE81E;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Delete" Text="&#xE653;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Close" Text="&#xE653;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.View" Text="&#xE890;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Hide" Text="&#xED1A;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.DragHandle" Text="&#xE700;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Pin" Text="&#xE718;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Pinned" Text="&#xE840;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Collapsed" Text="&#xE96D;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Expanded" Text="&#xE96E;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FlyoutFanControlModeManual" Text="&#xE72E;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.FlyoutFanControlModeCurve" Text="&#xE785;" Font="SegoeFluentIconsThenMDL2Assets" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Circle" Text="&#xE91F;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Diamond" Text="&#xEB4B;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Star" Text="&#xE735;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Square" Text="&#xE003;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Heart" Text="&#xEB52;" Font="SegoeFluentIconsThenMDL2Assets" />
+</ResourceDictionary>
