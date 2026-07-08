@@ -11,6 +11,9 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
     private const double MicrophoneGlyphScale = 20.5 / 26.0;
     private const double DisabledPlaybackDeviceGlyphScale = 34.0 / 18.0;
+    private const double DeviceStateCircleGlyphOffsetY = -1.0;
+    private const double ExpandedDrawerChevronGlyphOffsetY = 1.0;
+    private const double CollapsedDrawerChevronGlyphOffsetY = -1.0;
 
     // ===========================================================================
     // Generic UI glyphs
@@ -24,8 +27,10 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new static readonly Glyph WARNING = Glyph.Fluent(CommonGlyphCatalog.WARNING);
 
     // Window-chrome / spinner / combobox chevrons.
-    public new static readonly Glyph CHEVRON_UP_BIG = Glyph.Fluent(CommonGlyphCatalog.CHEVRON_UP_BIG);
-    public new static readonly Glyph CHEVRON_DOWN_BIG = Glyph.Fluent(CommonGlyphCatalog.CHEVRON_DOWN_BIG);
+    public new static readonly Glyph CHEVRON_UP_BIG = Glyph.Fluent(CommonGlyphCatalog.CHEVRON_UP_BIG.Text,
+        translateY: ExpandedDrawerChevronGlyphOffsetY);
+    public new static readonly Glyph CHEVRON_DOWN_BIG = Glyph.Fluent(CommonGlyphCatalog.CHEVRON_DOWN_BIG.Text,
+        translateY: CollapsedDrawerChevronGlyphOffsetY);
 
     public new static readonly Glyph UNDOCK = Glyph.Fluent(CommonGlyphCatalog.UNDOCK);
     public new static readonly Glyph REDOCK = Glyph.Fluent(CommonGlyphCatalog.REDOCK);
@@ -88,8 +93,10 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     // Device-icon button states (flyout footer + tray menu device entries)
     // ===========================================================================
 
-    public static readonly Glyph PLAYBACK_DEVICE_DEFAULT = Glyph.Fluent("\uF137"); // Fluent, StatusCircleInner
-    public static readonly Glyph PLAYBACK_DEVICE_ENABLED = Glyph.Fluent("\uF138"); // Fluent, StatusCircleRing
+    public static readonly Glyph PLAYBACK_DEVICE_DEFAULT = Glyph.Fluent("\uF137",
+        translateY: DeviceStateCircleGlyphOffsetY); // Fluent, StatusCircleInner
+    public static readonly Glyph PLAYBACK_DEVICE_ENABLED = Glyph.Fluent("\uF138",
+        translateY: DeviceStateCircleGlyphOffsetY); // Fluent, StatusCircleRing
     public static readonly Glyph PLAYBACK_DEVICE_DISABLED = Glyph.Fluent("\uF13D",
         scaleX: DisabledPlaybackDeviceGlyphScale,
         scaleY: DisabledPlaybackDeviceGlyphScale,

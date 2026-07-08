@@ -64,12 +64,14 @@
         <Thickness x:Key="Flyout.DeviceCellOuterMargin">-1,0</Thickness>
         <Thickness x:Key="Flyout.DeviceCellContentPadding">0,8,0,0</Thickness>
         <Thickness x:Key="Flyout.DeviceAppBandGridPadding">13,1,11,2</Thickness>
-        <Thickness x:Key="Flyout.DeviceAppBandSliderBottomPadding">14,0,12,10</Thickness>
+        <Thickness x:Key="Flyout.DeviceAppBandSliderBottomPadding">10,0,12,10</Thickness>
         <Thickness x:Key="Flyout.DeviceAppBandSliderTopPadding">14,0,12,4</Thickness>
         <Thickness x:Key="Flyout.DeviceAppBandGridBottomMargin">0,-2,0,2</Thickness>
         <Thickness x:Key="Flyout.DeviceAppBandGridTopMargin">0,-6,0,-4</Thickness>
-        <Thickness x:Key="Flyout.DeviceBandBottomPadding">14,12,12,0</Thickness>
+        <Thickness x:Key="Flyout.DeviceBandBottomPadding">14,0,12,1</Thickness>
+        <Thickness x:Key="Flyout.DeviceBandBottomPaddingSliderAboveTitle">14,0,12,1</Thickness>
         <Thickness x:Key="Flyout.DeviceBandTopPadding">17,0,12,12</Thickness>
+        <Thickness x:Key="Flyout.DeviceBandTopPaddingSliderAboveTitle">17,0,12,1</Thickness>
         <Thickness x:Key="Flyout.DeviceOutlineBorderThickness">1</Thickness>
         <CornerRadius x:Key="Flyout.DeviceCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="Flyout.FooterBottomCornerRadius">0,0,8,8</CornerRadius>
@@ -86,7 +88,7 @@
         <Thickness x:Key="Flyout.AppSliderRowMargin">0,0,0,-2</Thickness>
         <Thickness x:Key="Flyout.AppSliderIconMargin">0,0,10,0</Thickness>
 
-        <Thickness x:Key="Flyout.DeviceTitleRowMarginAbove">-1,-4,0,1</Thickness>
+        <Thickness x:Key="Flyout.DeviceTitleRowMarginAbove">-1,-4,0,8</Thickness>
         <Thickness x:Key="Flyout.DeviceTitleRowMarginInline">-1,-7,0,2</Thickness>
         <TranslateTransform x:Key="Flyout.DeviceTitleNameNoFormatTransform" Y="2" />
         <sys:Double x:Key="Flyout.DeviceTitleFontSize">14</sys:Double>

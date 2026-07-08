@@ -646,7 +646,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Border deviceBand = new()
         {
             Background = Brush(p.FooterBackground),
-            Padding = appsBottom ? Layout.DeviceBandBottomPadding : Layout.DeviceBandTopPadding,
+            Padding = ResolveDeviceBandPadding(appsBottom),
             CornerRadius = ResolveDeviceBandRadius(isLast, appsBottom, drawerVisible),
             Child = BuildDeviceRow(device, groups, p)
         };
@@ -1049,6 +1049,16 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 }
             }
         }
+    }
+
+    private Thickness ResolveDeviceBandPadding(bool appsBottom)
+    {
+        if (_settings.FlyoutDeviceTitlePosition == FlyoutDeviceTitlePosition.AboveSlider)
+            return appsBottom
+                ? Layout.DeviceBandBottomPaddingSliderAboveTitle
+                : Layout.DeviceBandTopPaddingSliderAboveTitle;
+
+        return appsBottom ? Layout.DeviceBandBottomPadding : Layout.DeviceBandTopPadding;
     }
 
     private Grid BuildDeviceSliderRow(AudioDevice device, FlyoutPalette p)
