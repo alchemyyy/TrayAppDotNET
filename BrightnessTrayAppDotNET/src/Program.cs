@@ -1,3 +1,4 @@
+using BrightnessTrayAppDotNET.DDCCI;
 using TrayAppDotNETCommon.Models;
 
 namespace BrightnessTrayAppDotNET;
@@ -21,8 +22,13 @@ internal static class Program
 
     public static InstallScope UninstallerScope => TrayAppDotNETProgram.UninstallerScope;
 
-    public static int Main(string[] args) =>
-        TrayAppDotNETProgram.Run(args, ApplicationName, Constants.AppGUID, CreateProgramOptions);
+    public static int Main(string[] args)
+    {
+        if (DDCHelperServer.TryRun(args, out int helperExitCode))
+            return helperExitCode;
+
+        return TrayAppDotNETProgram.Run(args, ApplicationName, Constants.AppGUID, CreateProgramOptions);
+    }
 
     private static TrayAppDotNETProgramOptions CreateProgramOptions() =>
         new(

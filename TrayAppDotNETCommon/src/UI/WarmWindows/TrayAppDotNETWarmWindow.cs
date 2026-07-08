@@ -12,6 +12,15 @@ public interface ITrayAppDotNETWarmWindow
     void CloseForWarmEviction();
 }
 
+public interface ITrayAppDotNETWarmResourceOwner
+{
+    /// <summary>Releases heavyweight hidden resources while keeping the warm window alive.</summary>
+    void TrimHiddenWarmResources();
+
+    /// <summary>Releases all warm-window owned resources before final eviction or close.</summary>
+    void DisposeWarmResources();
+}
+
 public static class TrayAppDotNETWarmWindowDefaults
 {
     public const int OffscreenPosition = -32000;
@@ -164,6 +173,8 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         if (sender is not TWindow window || !ReferenceEquals(window, Cached)) return;
+        DisposeWindowWarmResources(window);
+
         Detach(window);
         Cached = null;
         CancelIdleEviction();
@@ -177,6 +188,19 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
             warmWindow.WarmDismissed -= OnWarmDismissed;
             warmWindow.IsManagedByWarmSlot = false;
             warmWindow.IsWarmPriming = false;
+        }
+    }
+
+    private void DisposeWindowWarmResources(TWindow window)
+    {
+        try
+        {
+            if (window is ITrayAppDotNETWarmResourceOwner resourceOwner)
+                resourceOwner.DisposeWarmResources();
+        }
+        catch (Exception ex)
+        {
+            logError?.Invoke(ex);
         }
     }
 

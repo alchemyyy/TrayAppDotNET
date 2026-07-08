@@ -23,6 +23,9 @@ public sealed class ProcessSnapshot
 //   * Persistence of process-matched fan profiles
 public sealed class ProcessRunningService : IDisposable
 {
+    // Disabled while we investigate long-run memory growth from Process.GetProcesses churn
+    private static readonly bool IsProcessEnumerationEnabled = false;
+
     private readonly Dispatcher _dispatcher;
     private readonly Dictionary<int, ProcessSnapshot> _processes = [];
     private readonly ObservableCollection<ProcessSnapshot> _observable = [];
@@ -44,11 +47,16 @@ public sealed class ProcessRunningService : IDisposable
 
     public void Start()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_pollCts != null) return;
-
-        _dispatcher.Post(InitialSnapshot);
+        if (!IsProcessEnumerationEnabled)
+        {
+            TADNLog.Log("ProcessRunningService.Start: process enumeration disabled");
+            return;
+        }
 
         _pollCts = new CancellationTokenSource();
+        _dispatcher.Post(InitialSnapshot);
         _pollTask = Task.Run(() => PollLoop(_pollCts.Token));
     }
 
@@ -72,16 +80,31 @@ public sealed class ProcessRunningService : IDisposable
     // Cold-start sweep using Process.GetProcesses.
     private void InitialSnapshot()
     {
+        if (_disposed || _pollCts == null) return;
+
         DateTime now = DateTime.UtcNow;
-        foreach (Process p in Process.GetProcesses())
+        Process[] processes = Process.GetProcesses();
+        try
         {
-            string image = SafeProcessName(p);
-            ProcessSnapshot snap = new()
+            foreach (Process process in processes)
             {
-                PID = p.Id, ImageName = image, CommandLine = string.Empty, FirstSeenUtc = now
-            };
-            if (_processes.TryAdd(p.Id, snap)) _observable.Add(snap);
-            p.Dispose();
+                if (_disposed) break;
+
+                string image = SafeProcessName(process);
+                ProcessSnapshot snapshot = new()
+                {
+                    PID = process.Id,
+                    ImageName = image,
+                    CommandLine = string.Empty,
+                    FirstSeenUtc = now
+                };
+                if (_processes.TryAdd(process.Id, snapshot)) _observable.Add(snapshot);
+            }
+        }
+        finally
+        {
+            foreach (Process process in processes)
+                process.Dispose();
         }
     }
 
@@ -95,13 +118,7 @@ public sealed class ProcessRunningService : IDisposable
         {
             try
             {
-                HashSet<int> currentPIDs = new(
-                    Process.GetProcesses().Select(p =>
-                    {
-                        int id = p.Id;
-                        p.Dispose();
-                        return id;
-                    }));
+                HashSet<int> currentPIDs = SnapshotCurrentPIDs();
 
                 List<ProcessSnapshot> newcomers = [];
                 foreach (int pid in currentPIDs)
@@ -126,6 +143,8 @@ public sealed class ProcessRunningService : IDisposable
 
                 await _dispatcher.InvokeAsync(() =>
                 {
+                    if (_disposed || token.IsCancellationRequested) return;
+
                     foreach (int gone in _processes.Keys.Where(id => !currentPIDs.Contains(id)).ToList())
                         RemovePID(gone);
 
@@ -144,6 +163,24 @@ public sealed class ProcessRunningService : IDisposable
         }
     }
 
+    private static HashSet<int> SnapshotCurrentPIDs()
+    {
+        HashSet<int> currentPIDs = [];
+        foreach (Process process in Process.GetProcesses())
+        {
+            try
+            {
+                currentPIDs.Add(process.Id);
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        return currentPIDs;
+    }
+
     private void RemovePID(int pid)
     {
         if (!_processes.Remove(pid, out ProcessSnapshot? snap)) return;
@@ -154,7 +191,10 @@ public sealed class ProcessRunningService : IDisposable
     private static string SafeProcessName(Process p)
     {
         try { return p.ProcessName + ".exe"; }
-        catch { return string.Empty; }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     public void Dispose()

@@ -52,6 +52,8 @@ public static class TrayAppDotNETWindowPrimer
             await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
 
             window.Hide();
+            if (window is ITrayAppDotNETWarmResourceOwner resourceOwner)
+                resourceOwner.TrimHiddenWarmResources();
         }
         finally
         {

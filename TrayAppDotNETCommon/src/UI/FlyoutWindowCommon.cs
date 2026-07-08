@@ -61,11 +61,17 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     public virtual void DismissForWarmCache()
     {
         Hide();
+        if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
+            resourceOwner.TrimHiddenWarmResources();
+
         NotifyWarmDismissed();
     }
 
     public virtual void CloseForWarmEviction()
     {
+        if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
+            resourceOwner.DisposeWarmResources();
+
         IsManagedByWarmSlot = false;
         Close();
     }

@@ -59,9 +59,7 @@ internal sealed class ProcessExitMonitor : IDisposable
     {
         if (_disposed || pid == 0)
         {
-            try { onExit(); }
-            catch { }
-
+            InvokeExitCallback(onExit);
             return false;
         }
 
@@ -69,16 +67,18 @@ internal sealed class ProcessExitMonitor : IDisposable
         if (handle == IntPtr.Zero)
         {
             // Process gone between session creation and our subscribe, or denied. Fire now.
-            try { onExit(); }
-            catch { }
-
+            InvokeExitCallback(onExit);
             return false;
         }
 
-        bool wake;
+        bool invokeNow = false;
         lock (_gate)
         {
-            if (_watches.TryGetValue(pid, out WatchEntry? existing))
+            if (_disposed)
+            {
+                invokeNow = true;
+            }
+            else if (_watches.TryGetValue(pid, out WatchEntry? existing))
             {
                 // Already watching this PID - fold the new callback into the existing watch
                 // and drop the redundant handle. SYNCHRONIZE handles refcount on the kernel
@@ -87,20 +87,26 @@ internal sealed class ProcessExitMonitor : IDisposable
                 Action prev = existing.Callback;
                 existing.Callback = () =>
                 {
-                    try { prev(); }
-                    catch { }
-
-                    try { onExit(); }
-                    catch { }
+                    InvokeExitCallback(prev);
+                    InvokeExitCallback(onExit);
                 };
                 return true;
             }
-
-            _watches[pid] = new WatchEntry { Handle = handle, Callback = onExit };
-            wake = true;
+            else
+            {
+                _watches[pid] = new WatchEntry { Handle = handle, Callback = onExit };
+                Kernel32Wait.SetEvent(_wakeEvent);
+                return true;
+            }
         }
 
-        if (wake) Kernel32Wait.SetEvent(_wakeEvent);
+        if (invokeNow)
+        {
+            Kernel32.CloseHandle(handle);
+            InvokeExitCallback(onExit);
+            return false;
+        }
+
         return true;
     }
 
@@ -115,17 +121,26 @@ internal sealed class ProcessExitMonitor : IDisposable
         IntPtr toClose = IntPtr.Zero;
         lock (_gate)
         {
+            if (_disposed) return;
+
             if (_watches.TryGetValue(pid, out WatchEntry? w))
             {
                 toClose = w.Handle;
                 _watches.Remove(pid);
+                Kernel32Wait.SetEvent(_wakeEvent);
             }
         }
 
         if (toClose != IntPtr.Zero)
-        {
             Kernel32.CloseHandle(toClose);
-            Kernel32Wait.SetEvent(_wakeEvent);
+    }
+
+    private static void InvokeExitCallback(Action callback)
+    {
+        try { callback(); }
+        catch
+        {
+            /* process-exit callbacks are best-effort */
         }
     }
 
@@ -189,22 +204,24 @@ internal sealed class ProcessExitMonitor : IDisposable
             }
 
             if (toClose != IntPtr.Zero) Kernel32.CloseHandle(toClose);
-            try { callback?.Invoke(); }
-            catch
-            {
-                /* never let a callback bring down the watcher */
-            }
+            if (callback != null) InvokeExitCallback(callback);
         }
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
 
         Kernel32Wait.SetEvent(_wakeEvent);
         try { _thread.Join(500); }
-        catch { }
+        catch
+        {
+            /* best-effort during shutdown */
+        }
 
         lock (_gate)
         {

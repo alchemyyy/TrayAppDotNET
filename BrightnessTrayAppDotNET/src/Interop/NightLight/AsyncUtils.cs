@@ -10,19 +10,68 @@ public static class AsyncUtils
 
     public static Task<bool> WaitOneAsync(WaitHandle handle, int timeoutMs)
     {
-        TaskCompletionSource<bool> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        RegisteredWaitHandle? rwh = null;
-        _ = ThreadPool.RegisterWaitForSingleObject(
+        ArgumentNullException.ThrowIfNull(handle);
+
+        WaitRegistrationState state = new();
+        RegisteredWaitHandle registeredWaitHandle = ThreadPool.RegisterWaitForSingleObject(
             waitObject: handle,
-            (_, timedOut) =>
+            callBack: static (callbackState, timedOut) =>
             {
-                rwh?.Unregister(null);
-                tcs.TrySetResult(!timedOut);
+                WaitRegistrationState registrationState = (WaitRegistrationState)callbackState!;
+                registrationState.Complete(!timedOut);
             },
-            state: null,
+            state: state,
             millisecondsTimeOutInterval: timeoutMs,
             executeOnlyOnce: true);
-        return tcs.Task;
+        state.SetRegistration(registeredWaitHandle);
+        return state.Task;
+    }
+
+    private sealed class WaitRegistrationState
+    {
+        private readonly TaskCompletionSource<bool> _taskCompletionSource =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private RegisteredWaitHandle? _registeredWaitHandle;
+        private int _completed;
+
+        public Task<bool> Task => _taskCompletionSource.Task;
+
+        public void SetRegistration(RegisteredWaitHandle registeredWaitHandle)
+        {
+            if (Volatile.Read(ref _completed) != 0)
+            {
+                registeredWaitHandle.Unregister(null);
+                return;
+            }
+
+            RegisteredWaitHandle? previous =
+                Interlocked.CompareExchange(ref _registeredWaitHandle, registeredWaitHandle, null);
+            if (previous != null)
+            {
+                registeredWaitHandle.Unregister(null);
+                return;
+            }
+
+            // The wait can fire before RegisterWaitForSingleObject returns its registration handle.
+            if (Volatile.Read(ref _completed) != 0)
+                Unregister();
+        }
+
+        public void Complete(bool signaled)
+        {
+            if (Interlocked.Exchange(ref _completed, 1) != 0) return;
+
+            Unregister();
+            _taskCompletionSource.TrySetResult(signaled);
+        }
+
+        private void Unregister()
+        {
+            RegisteredWaitHandle? registeredWaitHandle =
+                Interlocked.Exchange(ref _registeredWaitHandle, null);
+            registeredWaitHandle?.Unregister(null);
+        }
     }
 
     /// <summary>

@@ -74,8 +74,8 @@ public sealed class MonitorService : IDisposable
     // Per-monitor DDC mutex registry.
     // Every dxva2 call against a given physical monitor goes through WithDDCLock(...) keyed by DeviceID so a recovery
     // probe and a slider-driven write can't interleave on the bus.
-    // Layer 1's per-op timeout bounds the caller wait; DisplayService also suppresses same-monitor overlap while an
-    // abandoned timed-out dxva2 task is still releasing its physical-monitor handles.
+    // DisplayService runs timed dxva2 calls in a killable helper process; this lock keeps app-level operations
+    // serialized before they cross that process boundary.
     private readonly Dictionary<string, SemaphoreSlim> _ddcLocks = new(StringComparer.Ordinal);
     private readonly Lock _ddcLocksGate = new();
 
@@ -1200,7 +1200,7 @@ public sealed class MonitorService : IDisposable
         if (_entries.TryGetValue(info.ID, out MonitorEntry? _))
         {
             // Drop any queued write for this monitor -
-            // its in-flight Task.Run'd SetVCPFeature may still complete (and may fail, which is fine and logged)
+            // its in-flight SetVCPFeature may still complete (and may fail, which is fine and logged)
             // but no new work will be picked up for this (now-removed) monitor.
             _writeThrottler.Drop(info.ID);
             _entries.TryRemove(info.ID, out _);
@@ -2492,16 +2492,25 @@ public sealed class MonitorService : IDisposable
         }
 
         // Tear down the throttler - cancels any in-flight payload at its next dwell-await
-        // and rejects further enqueues. In-flight DDC ops still finish naturally on their threadpool thread.
+        // and rejects further enqueues. In-flight DDC ops are bounded by the helper process timeout.
         try { _writeThrottler.Dispose(); }
         catch
         {
             /* best-effort during shutdown */
         }
 
+        if (_display is IDisposable disposableDisplay)
+        {
+            try { disposableDisplay.Dispose(); }
+            catch
+            {
+                /* best-effort during shutdown */
+            }
+        }
+
         // Release the per-monitor mutexes. Anything still holding one is in-flight;
         // SemaphoreSlim doesn't track owner so we can't preempt,
-        // but the per-op timeout caps how long it'll run.
+        // but the helper process timeout caps how long app-level callers wait.
         lock (_ddcLocksGate)
         {
             foreach (SemaphoreSlim sem in _ddcLocks.Values)
@@ -2521,8 +2530,8 @@ public sealed class MonitorService : IDisposable
     /// Draining handshake the rest of the app uses on shutdown.
     /// Sets the <c>_draining</c> flag so every public entry-point bails on new work,
     /// then polls <see cref="_activeDDCOps"/> until it hits zero or <paramref name="timeout"/> elapses.
-    /// Returns true on clean drain, false on timeout
-    /// (caller should still proceed with shutdown - Layer 1's per-op timeout caps total stuck time).
+    /// Returns true on clean drain, false on timeout.
+    /// Caller should still proceed with shutdown; DisplayService kills the helper process for stuck dxva2 calls.
     ///
     /// Idempotent: calling this multiple times is safe.
     /// Doesn't dispose anything; <see cref="Dispose"/> is the actual teardown step
@@ -2534,7 +2543,7 @@ public sealed class MonitorService : IDisposable
         DateTime deadline = DateTime.UtcNow + timeout;
 
         // Drain the throttler first so its driver loops stop scheduling new work,
-        // then wait for any DDC ops they kicked off to finish releasing their physical-monitor handles.
+        // then wait for any DDC ops they kicked off to finish or time out through the helper process.
         TimeSpan throttlerBudget = deadline - DateTime.UtcNow;
         if (throttlerBudget > TimeSpan.Zero)
         {
@@ -2628,13 +2637,11 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Async variant of <see cref="WithDDCLock{T}"/>.
-    /// The func itself is sync (Layer 1's RunWithTimeout uses Task.Run + sync Wait internally),
-    /// so we explicitly dispatch it via <see cref="Task.Run(Action)"/> here too.
+    /// The func itself is sync, so we explicitly dispatch it via <see cref="Task.Run(Action)"/>.
     /// Without that extra hop, an uncontended <c>sem.WaitAsync()</c> can complete inline,
     /// which means the func then runs on the original calling thread -
-    /// and if that's the UI thread (true on the kick path from <c>OnMonitorPropertyChanged</c>),
-    /// the inner Wait blocks the UI for the whole dxva2 round-trip and the slider feels stuck.
-    /// The double Task.Run is cheap (microseconds of dispatch) and guarantees we always yield the calling thread.
+    /// and if that's the UI thread (true on the kick path from <c>OnMonitorPropertyChanged</c>), the helper IPC
+    /// wait blocks the UI for the whole DDC round-trip and the slider feels stuck.
     /// </summary>
     private async Task<T> WithDDCLockAsync<T>(DDCMonitor monitor, Func<T> func)
     {

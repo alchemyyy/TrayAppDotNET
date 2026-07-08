@@ -20,11 +20,13 @@ using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Tray;
+using TrayAppDotNETCommon.UI.WarmWindows;
 using BrightnessAppTheme = BrightnessTrayAppDotNET.Visuals.AppTheme;
 
 namespace BrightnessTrayAppDotNET.UI.Flyout;
 
-public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotifyPropertyChanged
+public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotifyPropertyChanged,
+    ITrayAppDotNETWarmResourceOwner
 {
     private static readonly FontFamily FlyoutFont = new("Segoe UI");
 
@@ -201,6 +203,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public event Action<bool>? PreviewSweepStateChanged;
     public event Action<double>? PreviewSweepProgress;
 
+    void ITrayAppDotNETWarmResourceOwner.TrimHiddenWarmResources() => TrimHiddenWarmResources();
+
+    void ITrayAppDotNETWarmResourceOwner.DisposeWarmResources() => DisposeWarmResources();
+
     public ObservableCollection<MonitorInfo> Monitors => _session.Monitors;
     public ObservableCollection<MonitorInfo> AllItems => _session.AllItems;
     public ObservableCollection<ProfileButtonItem> ProfileButtons { get; } = [];
@@ -345,8 +351,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         CancelPreviewSweep();
         CancelConfirmOverlay();
         base.Hide();
+        TrimHiddenWarmResources();
         NotifyWarmDismissed();
     }
+
+    public override void DismissForWarmCache() => Hide();
+
+    private static void TrimHiddenWarmResources() =>
+        SkiaFlyoutGlyphIcon.ClearBitmapCache();
+
+    private static void DisposeWarmResources() =>
+        SkiaFlyoutGlyphIcon.DisposeSharedResources();
 
     public void Redock()
     {
@@ -2932,6 +2947,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        DisposeWarmResources();
         ClearPreviewDateCurve();
         CancelPreviewSweep();
         StopCurveStopwatchTimer();

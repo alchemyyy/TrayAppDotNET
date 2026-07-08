@@ -235,6 +235,9 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         if (IsManagedByWarmSlot)
         {
             Hide();
+            if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
+                resourceOwner.TrimHiddenWarmResources();
+
             WarmDismissed?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -244,6 +247,9 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
     public virtual void CloseForWarmEviction()
     {
+        if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
+            resourceOwner.DisposeWarmResources();
+
         IsManagedByWarmSlot = false;
         Close();
     }

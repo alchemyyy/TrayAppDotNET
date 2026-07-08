@@ -12,8 +12,9 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
 {
     private const string IconFontFamily = GlyphCatalog.SEGOE_FLUENT_ICONS;
 
-    private Bitmap? _bitmap;
-    private BitmapKey _bitmapKey;
+    private static readonly Lock s_cacheLock = new();
+    private static readonly Dictionary<BitmapKey, Bitmap> s_bitmapCache = [];
+    private static readonly Dictionary<SKFontStyleWeight, SKTypeface> s_typefaceCache = [];
 
     protected SkiaFlyoutGlyphIcon()
     {
@@ -29,7 +30,7 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
         {
             if (field == value) return;
             field = value;
-            ClearBitmap();
+            ClearBitmapCache();
             InvalidateVisual();
         }
     } = AppTheme.Default.IconForeground.For(AppTheme.Default.IsLightTheme);
@@ -47,7 +48,7 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
 
         double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
         int pixelSize = Math.Max(1, (int)Math.Ceiling(logicalSize * renderScaling));
-        Bitmap bitmap = EnsureBitmap(pixelSize);
+        Bitmap bitmap = GetOrCreateBitmap(pixelSize);
 
         double drawSize = pixelSize / renderScaling;
         Rect dest = new(
@@ -58,16 +59,46 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
         context.DrawImage(bitmap, dest);
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        ClearBitmap();
-        base.OnDetachedFromVisualTree(e);
-    }
-
     protected void InvalidateIcon()
     {
-        ClearBitmap();
+        ClearBitmapCache();
         InvalidateVisual();
+    }
+
+    /// <summary>Disposes all cached glyph bitmaps while keeping reusable font faces alive.</summary>
+    internal static void ClearBitmapCache()
+    {
+        List<Bitmap> bitmaps = [];
+        lock (s_cacheLock)
+        {
+            foreach (Bitmap bitmap in s_bitmapCache.Values)
+                bitmaps.Add(bitmap);
+
+            s_bitmapCache.Clear();
+        }
+
+        DisposeBitmaps(bitmaps);
+    }
+
+    /// <summary>Disposes every shared Skia flyout glyph resource owned by this renderer.</summary>
+    internal static void DisposeSharedResources()
+    {
+        List<Bitmap> bitmaps = [];
+        List<SKTypeface> typefaces = [];
+        lock (s_cacheLock)
+        {
+            foreach (Bitmap bitmap in s_bitmapCache.Values)
+                bitmaps.Add(bitmap);
+
+            foreach (SKTypeface typeface in s_typefaceCache.Values)
+                typefaces.Add(typeface);
+
+            s_bitmapCache.Clear();
+            s_typefaceCache.Clear();
+        }
+
+        DisposeBitmaps(bitmaps);
+        DisposeTypefaces(typefaces);
     }
 
     protected abstract void RenderGlyph(SKCanvas canvas, int size, SKColor color);
@@ -161,17 +192,29 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
 
     }
 
-    private Bitmap EnsureBitmap(int pixelSize)
+    private Bitmap GetOrCreateBitmap(int pixelSize)
     {
-        BitmapKey key = new(pixelSize, IconColor, StateHash);
-        if (_bitmap != null && _bitmapKey == key) return _bitmap;
+        BitmapKey key = new(GetType(), pixelSize, IconColor, StateHash);
+        lock (s_cacheLock)
+        {
+            if (s_bitmapCache.TryGetValue(key, out Bitmap? cachedBitmap)) return cachedBitmap;
+        }
 
-        ClearBitmap();
         byte[] png = RenderPng(pixelSize, ToSKColor(IconColor));
         using MemoryStream stream = new(png);
-        _bitmap = new Bitmap(stream);
-        _bitmapKey = key;
-        return _bitmap;
+        Bitmap bitmap = new(stream);
+
+        lock (s_cacheLock)
+        {
+            if (s_bitmapCache.TryGetValue(key, out Bitmap? cachedBitmap))
+            {
+                bitmap.Dispose();
+                return cachedBitmap;
+            }
+
+            s_bitmapCache[key] = bitmap;
+            return bitmap;
+        }
     }
 
     private byte[] RenderPng(int size, SKColor color)
@@ -202,28 +245,70 @@ internal abstract class SkiaFlyoutGlyphIcon : Control
         return data.ToArray();
     }
 
-    private void ClearBitmap()
-    {
-        _bitmap?.Dispose();
-        _bitmap = null;
-    }
-
     private static SKFont CreateIconFont(double fontSize, SKFontStyleWeight weight) =>
-        new(ResolveIconTypeface(weight), (float)fontSize)
+        new(GetOrCreateIconTypeface(weight), (float)fontSize)
         {
             Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.Normal, Subpixel = false
         };
 
     private static SKPaint CreateMeasurePaint() => new() { IsAntialias = true };
 
-    private static SKTypeface ResolveIconTypeface(SKFontStyleWeight weight) =>
-        SKTypeface.FromFamilyName(
+    private static SKTypeface GetOrCreateIconTypeface(SKFontStyleWeight weight)
+    {
+        lock (s_cacheLock)
+        {
+            if (s_typefaceCache.TryGetValue(weight, out SKTypeface? cachedTypeface))
+                return cachedTypeface;
+        }
+
+        SKTypeface typeface = ResolveIconTypeface(weight);
+        lock (s_cacheLock)
+        {
+            if (s_typefaceCache.TryGetValue(weight, out SKTypeface? cachedTypeface))
+            {
+                typeface.Dispose();
+                return cachedTypeface;
+            }
+
+            s_typefaceCache[weight] = typeface;
+            return typeface;
+        }
+    }
+
+    private static SKTypeface ResolveIconTypeface(SKFontStyleWeight weight)
+    {
+        SKTypeface? typeface = SKTypeface.FromFamilyName(
             IconFontFamily,
             weight,
             SKFontStyleWidth.Normal,
             SKFontStyleSlant.Upright);
+        if (typeface != null && typeface.FamilyName.Equals(IconFontFamily, StringComparison.OrdinalIgnoreCase))
+            return typeface;
+
+        typeface?.Dispose();
+        WPFLog.Log("SkiaFlyoutGlyphIcon.ResolveIconTypeface: icon font unavailable; using Skia default typeface");
+        return SKTypeface.Default;
+    }
+
+    private static void DisposeBitmaps(List<Bitmap> bitmaps)
+    {
+        foreach (Bitmap bitmap in bitmaps)
+        {
+            try { bitmap.Dispose(); }
+            catch (Exception ex) { WPFLog.Log($"SkiaFlyoutGlyphIcon.DisposeBitmap: {ex.Message}"); }
+        }
+    }
+
+    private static void DisposeTypefaces(List<SKTypeface> typefaces)
+    {
+        foreach (SKTypeface typeface in typefaces)
+        {
+            try { typeface.Dispose(); }
+            catch (Exception ex) { WPFLog.Log($"SkiaFlyoutGlyphIcon.DisposeTypeface: {ex.Message}"); }
+        }
+    }
 
     private static SKColor ToSKColor(Color color) => new(color.R, color.G, color.B, color.A);
 
-    private readonly record struct BitmapKey(int PixelSize, Color IconColor, int StateHash);
+    private readonly record struct BitmapKey(Type IconType, int PixelSize, Color IconColor, int StateHash);
 }

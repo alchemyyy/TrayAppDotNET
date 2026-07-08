@@ -52,72 +52,91 @@ public sealed class NetworkMonitor : IDisposable
         if (Volatile.Read(ref _disposed) != 0) return;
 
         NetworkIconState previousState = CurrentState;
-        List<(string Name, bool IsWifi, bool HasInternet)> connections = [];
 
         try
         {
-            ConnectionProfile? profile = NetworkInformation.GetInternetConnectionProfile();
-            if (profile == null)
-            {
-                UpdateState(NetworkIconState.NoNetwork, 0, string.Empty, connections, previousState);
-                return;
-            }
-
-            NetworkConnectivityLevel connectivity = profile.GetNetworkConnectivityLevel();
-            string networkName = profile.ProfileName?.Trim() ?? string.Empty;
-
-            // GetSignalBars returns 1-5 for Wi-Fi, null for non-Wi-Fi (Ethernet, etc.)
-            byte? signalBars = profile.GetSignalBars();
-
-            // Build per-connection list for tooltip display
-            foreach (ConnectionProfile? p in NetworkInformation.GetConnectionProfiles())
-            {
-                NetworkConnectivityLevel level = p.GetNetworkConnectivityLevel();
-                if (level == NetworkConnectivityLevel.None) continue;
-
-                string name = p.ProfileName?.Trim() ?? "Unknown";
-                bool isWifi = p.GetSignalBars() != null;
-                bool hasInternet = level == NetworkConnectivityLevel.InternetAccess;
-                connections.Add((name, isWifi, hasInternet));
-            }
-
-            if (signalBars != null)
-            {
-                int bars = Math.Clamp((int)signalBars.Value, 1, 4);
-
-                bool hasInternet = connectivity == NetworkConnectivityLevel.InternetAccess;
-                NetworkIconState newState = (hasInternet, bars) switch
-                {
-                    (true, 0) => NetworkIconState.Wifi0Bars,
-                    (true, 1) => NetworkIconState.Wifi1Bar,
-                    (true, 2) => NetworkIconState.Wifi2Bars,
-                    (true, 3) => NetworkIconState.Wifi3Bars,
-                    (true, _) => NetworkIconState.Wifi4Bars,
-                    (false, 0) => NetworkIconState.Wifi0BarsNoInternet,
-                    (false, 1) => NetworkIconState.Wifi1BarNoInternet,
-                    (false, 2) => NetworkIconState.Wifi2BarsNoInternet,
-                    (false, 3) => NetworkIconState.Wifi3BarsNoInternet,
-                    _ => NetworkIconState.Wifi4BarsNoInternet
-                };
-                UpdateState(newState, bars, networkName, connections, previousState);
-                return;
-            }
-
-            // No signal bars = Ethernet or other wired connection
-            NetworkIconState ethernetState = connectivity switch
-            {
-                NetworkConnectivityLevel.InternetAccess => NetworkIconState.EthernetConnected,
-                NetworkConnectivityLevel.LocalAccess
-                    or NetworkConnectivityLevel.ConstrainedInternetAccess => NetworkIconState.EthernetNoInternet,
-                _ => NetworkIconState.EthernetDisconnected
-            };
-            UpdateState(ethernetState, 0, networkName, connections, previousState);
+            NetworkSnapshot snapshot = BuildSnapshot();
+            UpdateState(snapshot.State, snapshot.Bars, snapshot.Name, snapshot.Connections, previousState);
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NetworkMonitor.RefreshState: {ex.Message}");
-            UpdateState(NetworkIconState.NoNetwork, 0, string.Empty, connections, previousState);
+            UpdateState(NetworkIconState.NoNetwork, 0, string.Empty, [], previousState);
         }
+        finally
+        {
+            ReleaseWinRTProjectionReferencesAfterRefresh();
+        }
+    }
+
+    private static NetworkSnapshot BuildSnapshot()
+    {
+        List<(string Name, bool IsWifi, bool HasInternet)> connections = [];
+        ConnectionProfile? profile = NetworkInformation.GetInternetConnectionProfile();
+        if (profile == null)
+            return new NetworkSnapshot(NetworkIconState.NoNetwork, 0, string.Empty, connections);
+
+        NetworkConnectivityLevel connectivity = profile.GetNetworkConnectivityLevel();
+        string networkName = profile.ProfileName?.Trim() ?? string.Empty;
+
+        // GetSignalBars returns 1-5 for Wi-Fi, null for non-Wi-Fi such as Ethernet
+        byte? signalBars = profile.GetSignalBars();
+
+        // Build per-connection list for tooltip display
+        foreach (ConnectionProfile? connectionProfile in NetworkInformation.GetConnectionProfiles())
+        {
+            NetworkConnectivityLevel level = connectionProfile.GetNetworkConnectivityLevel();
+            if (level == NetworkConnectivityLevel.None) continue;
+
+            string name = connectionProfile.ProfileName?.Trim() ?? "Unknown";
+            bool isWifi = connectionProfile.GetSignalBars() != null;
+            bool hasInternet = level == NetworkConnectivityLevel.InternetAccess;
+            connections.Add((name, isWifi, hasInternet));
+        }
+
+        if (signalBars != null)
+        {
+            int bars = Math.Clamp((int)signalBars.Value, 1, 4);
+            bool hasInternet = connectivity == NetworkConnectivityLevel.InternetAccess;
+            NetworkIconState state = (hasInternet, bars) switch
+            {
+                (true, 0) => NetworkIconState.Wifi0Bars,
+                (true, 1) => NetworkIconState.Wifi1Bar,
+                (true, 2) => NetworkIconState.Wifi2Bars,
+                (true, 3) => NetworkIconState.Wifi3Bars,
+                (true, _) => NetworkIconState.Wifi4Bars,
+                (false, 0) => NetworkIconState.Wifi0BarsNoInternet,
+                (false, 1) => NetworkIconState.Wifi1BarNoInternet,
+                (false, 2) => NetworkIconState.Wifi2BarsNoInternet,
+                (false, 3) => NetworkIconState.Wifi3BarsNoInternet,
+                _ => NetworkIconState.Wifi4BarsNoInternet
+            };
+            return new NetworkSnapshot(state, bars, networkName, connections);
+        }
+
+        // No signal bars = Ethernet or other wired connection
+        NetworkIconState ethernetState = connectivity switch
+        {
+            NetworkConnectivityLevel.InternetAccess => NetworkIconState.EthernetConnected,
+            NetworkConnectivityLevel.LocalAccess
+                or NetworkConnectivityLevel.ConstrainedInternetAccess => NetworkIconState.EthernetNoInternet,
+            _ => NetworkIconState.EthernetDisconnected
+        };
+        return new NetworkSnapshot(ethernetState, 0, networkName, connections);
+    }
+
+    /// <summary>
+    /// Forces C#/WinRT projection wrappers to release native COM references after each refresh.
+    /// </summary>
+    private static void ReleaseWinRTProjectionReferencesAfterRefresh()
+    {
+        // ConnectionProfile and the profile list returned by GetConnectionProfiles do not implement
+        // IDisposable. Long-run dumps showed ConnectionProfileServer and CAgileReferenceMarshaled buildup
+        // after repeated refreshes. Refreshes are low frequency, so a full blocking GC is acceptable for now.
+        // TODO network: replace this hot path with lower-level APIs that expose explicit native ownership.
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);
+        GC.WaitForPendingFinalizers();
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: false);
     }
 
     private void UpdateState(NetworkIconState state, int bars, string name,
@@ -163,4 +182,10 @@ public sealed class NetworkMonitor : IDisposable
 
         NetworkStateChanged = null;
     }
+
+    private readonly record struct NetworkSnapshot(
+        NetworkIconState State,
+        int Bars,
+        string Name,
+        List<(string Name, bool IsWifi, bool HasInternet)> Connections);
 }

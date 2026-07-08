@@ -28,7 +28,8 @@ public sealed class LHMService : IDisposable
         IsGpuEnabled = true,
         IsMotherboardEnabled = true,
         IsMemoryEnabled = true,
-        IsStorageEnabled = true,
+        // Disabled while we investigate long-run DiskInfoToolkit/LHM storage allocation growth
+        IsStorageEnabled = false,
         IsNetworkEnabled = false,
         IsControllerEnabled = true
     };

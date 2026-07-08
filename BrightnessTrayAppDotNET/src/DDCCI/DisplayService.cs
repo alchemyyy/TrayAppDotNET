@@ -21,13 +21,31 @@ namespace BrightnessTrayAppDotNET.DDCCI;
 /// aren't programming errors and flow through the same path as any other "bus said no" outcome.
 /// The only throw is <see cref="ArgumentNullException"/> for a null monitor, which IS a programmer error.
 /// </summary>
-public class DisplayService : IDisplayService
+public class DisplayService : IDisplayService, IDisposable
 {
-    private readonly Lock _abandonedOpsGate = new();
-    private readonly Dictionary<string, Task> _abandonedOpsByMonitor = new(StringComparer.Ordinal);
+    private readonly bool _useHelperProcess;
+    private readonly DDCHelperClient? _helperClient;
+    private bool _disposed;
+
+    public DisplayService() : this(useHelperProcess: true) { }
+
+    internal DisplayService(bool useHelperProcess)
+    {
+        _useHelperProcess = useHelperProcess;
+        if (useHelperProcess)
+            _helperClient = new DDCHelperClient();
+    }
 
     /// <inheritdoc />
     public int OperationTimeoutMs { get; set; } = TimeConstants.DisplayServiceOperationTimeoutMs;
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _disposed = true;
+        _helperClient?.Dispose();
+    }
 
     public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
     {
@@ -239,7 +257,9 @@ public class DisplayService : IDisplayService
                 return DDCCallOutcome<string>.Ok(capabilitiesBuffer.ToString());
             }),
             opLabel: $"GetCapabilities('{monitor.Name}')",
-            ct: ct);
+            ct: ct,
+            helperOp: (helper, timeoutMs, helperCancellationToken) =>
+                helper.TryGetCapabilities(monitor, timeoutMs, helperCancellationToken));
 
         capabilities = outcome.Value;
         error = outcome.Error;
@@ -315,7 +335,9 @@ public class DisplayService : IDisplayService
                 return DDCCallOutcome<(uint, uint)>.Ok((c, m));
             }),
             opLabel: $"TryGetVCPFeature('{monitor.Name}', 0x{code:X2})",
-            ct: ct);
+            ct: ct,
+            helperOp: (helper, timeoutMs, helperCancellationToken) =>
+                helper.TryGetVCPFeature(monitor, code, timeoutMs, helperCancellationToken));
 
         currentValue = outcome.Value.Cur;
         maxValue = outcome.Value.Max;
@@ -342,7 +364,13 @@ public class DisplayService : IDisplayService
                 return DDCCallOutcome<bool>.Ok(true);
             }),
             opLabel: $"TrySetVCPFeature('{monitor.Name}', 0x{code:X2}={value})",
-            ct: ct);
+            ct: ct,
+            helperOp: (helper, timeoutMs, helperCancellationToken) => helper.TrySetVCPFeature(
+                monitor,
+                code,
+                value,
+                timeoutMs,
+                helperCancellationToken));
 
         error = outcome.Error;
         return outcome.Success;
@@ -548,43 +576,31 @@ public class DisplayService : IDisplayService
     }
 
     /// <summary>
-    /// Runs <paramref name="op"/> on a threadpool thread, waiting up to <see cref="OperationTimeoutMs"/>
-    /// (or until <paramref name="ct"/> is signalled).
-    /// On timeout or cancellation, abandons the wait and returns a fail outcome
-    /// - the task keeps running until the underlying dxva2 call returns,
-    /// at which point <see cref="TryWithPhysicalMonitor{T}"/>'s finally block releases the
-    /// <c>PHYSICAL_MONITOR</c> handles.
-    /// Cleanup is preserved even after the caller leaves.
+    /// Runs <paramref name="op"/> through the DDC helper process when hard timeouts are enabled.
+    /// If a dxva2 call hangs, the helper process is killed and Windows releases that process's
+    /// <c>PHYSICAL_MONITOR</c> handles. The tray process no longer abandons a blocked thread that
+    /// owns native monitor handles.
     ///
-    /// <paramref name="op"/> reports failure via <see cref="DDCCallOutcome{T}"/> rather than throwing.
-    /// Genuinely unexpected exceptions (NullReferenceException etc.) still propagate
-    /// - those signal a real programming error and shouldn't be swallowed.
-    ///
-    /// With <see cref="OperationTimeoutMs"/> &lt;= 0 AND <c>default</c> <paramref name="ct"/>, runs inline.
-    /// A cancellable <paramref name="ct"/> is honoured even when the per-op timeout is disabled,
-    /// so a sequence-level deadline can still terminate the chain.
+    /// With <see cref="OperationTimeoutMs"/> &lt;= 0, or in the helper process itself, runs inline.
+    /// Inline execution intentionally does not pretend cancellation can abort a blocking P/Invoke.
     /// </summary>
     private DDCCallOutcome<T> RunWithTimeout<T>(
-        DDCMonitor monitor, Func<DDCCallOutcome<T>> op, string opLabel, CancellationToken ct = default)
+        DDCMonitor monitor,
+        Func<DDCCallOutcome<T>> op,
+        string opLabel,
+        CancellationToken ct = default,
+        Func<DDCHelperClient, int, CancellationToken, DDCCallOutcome<T>>? helperOp = null)
     {
-        // Pre-check the sequence-level token: a budgeted-out sequence short-circuits without paying for a Task.Run.
+        if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
+
+        // Pre-check the sequence-level token before launching or touching the helper process.
         if (ct.IsCancellationRequested)
             return DDCCallOutcome<T>.WithError($"DDC op '{opLabel}' cancelled by sequence deadline.");
 
-        string monitorKey = DDCGateKey(monitor);
-        if (TryGetActiveAbandonedOp(monitorKey, out _))
-        {
-            string message =
-                $"DDC op '{opLabel}' deferred because a prior timed-out op for '{monitorKey}' "
-                + "is still releasing physical-monitor handles.";
-            WPFLog.Log($"DisplayService: {message}");
-            return DDCCallOutcome<T>.WithError(message);
-        }
-
         int timeoutMs = OperationTimeoutMs;
-        if (timeoutMs <= 0 && !ct.CanBeCanceled)
+        if (_useHelperProcess && timeoutMs > 0 && _helperClient != null && helperOp != null)
         {
-            try { return op(); }
+            try { return helperOp(_helperClient, timeoutMs, ct); }
             catch (Exception ex)
             {
                 WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
@@ -592,92 +608,15 @@ public class DisplayService : IDisplayService
             }
         }
 
-        Task<DDCCallOutcome<T>> operationTask = Task.Run(() =>
-        {
-            try { return op(); }
-            catch (Exception ex)
-            {
-                WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
-                return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
-            }
-        }, ct);
-
-        // Wait for whichever fires first: op completion, sequence deadline, or per-op timeout.
-        // task.Wait(int, CancellationToken) returns false on timeout and throws OperationCanceledException
-        // when the token is signalled, letting us distinguish the two failure modes for the trace message.
-        int effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : Timeout.Infinite;
         try
         {
-            if (operationTask.Wait(effectiveTimeoutMs, ct)) return operationTask.Result;
+            return op();
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            WPFLog.Log(
-                $"DisplayService: {opLabel} cancelled by sequence deadline; "
-                + "abandoning op (handles will be released when it eventually completes).");
-            TrackAbandoned(monitorKey, operationTask, opLabel);
-            return DDCCallOutcome<T>.WithError($"DDC op '{opLabel}' cancelled by sequence deadline.");
+            WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
+            return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
         }
-
-        WPFLog.Log(
-            $"DisplayService: {opLabel} exceeded {timeoutMs}ms timeout; "
-            + "abandoning op (handles will be released when it eventually completes).");
-        TrackAbandoned(monitorKey, operationTask, opLabel);
-        return DDCCallOutcome<T>.WithError($"DDC op '{opLabel}' exceeded {timeoutMs}ms timeout.");
-    }
-
-    /// <summary>
-    /// Tracks an abandoned op until it finishes, preventing later DDC calls from opening fresh
-    /// physical-monitor handles against the same panel while the timed-out dxva2 call is still unwinding.
-    /// </summary>
-    private void TrackAbandoned<T>(string monitorKey, Task<DDCCallOutcome<T>> task, string opLabel)
-    {
-        lock (_abandonedOpsGate)
-            _abandonedOpsByMonitor[monitorKey] = task;
-
-        _ = task.ContinueWith(t =>
-        {
-            if (t.IsFaulted)
-            {
-                WPFLog.Log(
-                    $"DisplayService: abandoned op '{opLabel}' faulted post-abandonment: "
-                    + $"{t.Exception?.GetBaseException().Message}");
-            }
-            else
-            {
-                WPFLog.Log(
-                    $"DisplayService: abandoned op '{opLabel}' completed post-abandonment (handles released).");
-            }
-
-            lock (_abandonedOpsGate)
-            {
-                if (_abandonedOpsByMonitor.TryGetValue(monitorKey, out Task? active)
-                    && ReferenceEquals(active, task))
-                    _abandonedOpsByMonitor.Remove(monitorKey);
-            }
-        }, TaskScheduler.Default);
-    }
-
-    private bool TryGetActiveAbandonedOp(string monitorKey, out Task? task)
-    {
-        lock (_abandonedOpsGate)
-        {
-            if (!_abandonedOpsByMonitor.TryGetValue(monitorKey, out task))
-                return false;
-
-            if (!task.IsCompleted) return true;
-
-            _abandonedOpsByMonitor.Remove(monitorKey);
-            task = null;
-            return false;
-        }
-    }
-
-    private static string DDCGateKey(DDCMonitor monitor)
-    {
-        if (!string.IsNullOrWhiteSpace(monitor.DeviceID)) return monitor.DeviceID;
-        if (!string.IsNullOrWhiteSpace(monitor.EDIDSerial)) return $"edid:{monitor.EDIDSerial}";
-        return string.IsNullOrWhiteSpace(monitor.Name) ? "<unknown-monitor>" : monitor.Name;
     }
 
     /// <summary>
