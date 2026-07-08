@@ -13,6 +13,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private const int TaskbarRecoveryRetryCount = 5;
     private const int TaskbarRecoveryRetryDelayMs = 500;
     private const bool TrayInputDiagnosticsEnabled = true;
+    private const int MaxTooltipTextLength = 127;
     private const uint GestureIdZoom = 3;
     private const uint GestureIdPan = 4;
     private const uint GestureIdTwoFingerTap = 6;
@@ -48,6 +49,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private bool _tooltipDirty;
     private bool _tooltipShowRequested;
     private bool _tooltipKeepOpenRequested;
+    private bool _tooltipHoverSyncPending = true;
+    private bool _isPointerOverIcon;
     private bool _isTouchWindowRegistered;
     private bool _isGestureConfigured;
 
@@ -174,8 +177,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         if (_disposed || (text == _tooltipText && !_tooltipDirty)) return;
         SetTooltipText(text);
-        RequestTooltipUpdate();
-        RequestMouseInputRegistrationRefresh();
+        if (_isPointerOverIcon || _tooltipKeepOpenRequested)
+            RequestTooltipUpdate();
     }
 
     public void ShowTooltip()
@@ -268,7 +271,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             uFlags = flags | NotifyIconFlags.NIF_GUID,
             uCallbackMessage = (flags & NotifyIconFlags.NIF_MESSAGE) != 0 ? (uint)WM_CALLBACKMOUSEMSG : 0,
             hIcon = (flags & NotifyIconFlags.NIF_ICON) != 0 ? _currentIcon?.Handle ?? IntPtr.Zero : IntPtr.Zero,
-            szTip = _tooltipText.Length > 127 ? _tooltipText[..127] : _tooltipText,
+            szTip = TruncateTooltipText(_tooltipText),
             guidItem = _iconGUID
         };
 
@@ -285,17 +288,19 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         RequestIconAndTooltipUpdate();
     }
 
-    private void SyncTooltip()
+    private void SyncTooltip(bool force = false)
     {
-        if (_disposed || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
-        if (!_tooltipDirty && !_tooltipShowRequested) return;
+        if (_disposed || !_isVisible) return;
+        if (string.IsNullOrWhiteSpace(_tooltipText) && !_tooltipDirty) return;
+        if (!force && !_tooltipDirty && !_tooltipShowRequested) return;
 
-        NOTIFYICONDATAW data = MakeData(NotifyIconFlags.NIF_TIP | NotifyIconFlags.NIF_SHOWTIP);
+        NOTIFYICONDATAW data = MakeData(GetTooltipShellFlags(includeEmptyTip: true));
         if (TryNotify(Shell32.NotifyIconMessage.NIM_MODIFY, ref data, out int error))
         {
             _isCreated = true;
             _tooltipDirty = false;
             _tooltipShowRequested = false;
+            _tooltipHoverSyncPending = false;
             RequestMouseInputRegistrationRefresh();
             return;
         }
@@ -307,7 +312,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void RequestTooltipUpdate()
     {
-        if (_disposed || !_isVisible || string.IsNullOrWhiteSpace(_tooltipText)) return;
+        if (_disposed || !_isVisible) return;
+        if (string.IsNullOrWhiteSpace(_tooltipText) && !_tooltipDirty) return;
 
         _ = _trayUpdateThrottler.RunAsync(TrayUpdateKind.Tooltip, RunTooltipShowAsync);
     }
@@ -317,6 +323,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (_tooltipText == text) return;
         _tooltipText = text;
         _tooltipDirty = true;
+        _tooltipHoverSyncPending = true;
     }
 
     private void RequestIconAndTooltipUpdate()
@@ -371,7 +378,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         {
             if (TryModifyTrayIcon(
                     ref iconData,
-                    clearsTooltipDirty: forceFullUpdate,
+                    syncsTooltip: forceFullUpdate,
                     setVersion: false,
                     out int modifyError))
                 return;
@@ -386,7 +393,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
             if (TryModifyTrayIcon(
                     ref addData,
-                    clearsTooltipDirty: true,
+                    syncsTooltip: true,
                     setVersion: true,
                     out int retryModifyError))
                 return;
@@ -400,7 +407,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (TryModifyTrayIcon(
                 ref iconData,
-                clearsTooltipDirty: forceFullUpdate,
+                syncsTooltip: forceFullUpdate,
                 setVersion: true,
                 out int preAddModifyError))
             return;
@@ -415,7 +422,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (TryModifyTrayIcon(
                 ref fullData,
-                clearsTooltipDirty: true,
+                syncsTooltip: true,
                 setVersion: true,
                 out int modifyRecoveryError))
             return;
@@ -431,24 +438,28 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private bool TryModifyTrayIcon(
         ref NOTIFYICONDATAW data,
-        bool clearsTooltipDirty,
+        bool syncsTooltip,
         bool setVersion,
         out int error)
     {
         if (!TryNotify(Shell32.NotifyIconMessage.NIM_MODIFY, ref data, out error))
             return false;
 
+        bool forceShowAfterIconChange = _tooltipShowRequested || _tooltipKeepOpenRequested;
+        bool shouldRefreshVisibleTooltip = forceShowAfterIconChange || _isPointerOverIcon;
         _isCreated = true;
         _forceFullIconUpdate = false;
-        if (clearsTooltipDirty)
+        if (syncsTooltip)
         {
             _tooltipDirty = false;
             _tooltipShowRequested = false;
+            _tooltipHoverSyncPending = false;
         }
 
         if (setVersion) SetTrayIconVersion(ref data);
         CompleteIconUpdate();
-        if (!clearsTooltipDirty) RequestTooltipUpdateAfterIconChange();
+        if (!syncsTooltip || shouldRefreshVisibleTooltip)
+            RequestTooltipUpdateAfterIconChange(forceShow: forceShowAfterIconChange);
         return true;
     }
 
@@ -462,8 +473,13 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         _isCreated = true;
         _forceFullIconUpdate = false;
-        _tooltipDirty = false;
-        _tooltipShowRequested = false;
+        if (IncludesTooltipText(data.uFlags))
+        {
+            _tooltipDirty = false;
+            _tooltipShowRequested = false;
+            _tooltipHoverSyncPending = true;
+        }
+
         SetTrayIconVersion(ref data);
         RefreshMouseInputRegistration();
         CompleteIconUpdate();
@@ -495,6 +511,20 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         return false;
     }
 
+    private NotifyIconFlags GetTooltipShellFlags(bool includeEmptyTip)
+    {
+        if (!string.IsNullOrWhiteSpace(_tooltipText))
+            return NotifyIconFlags.NIF_TIP | NotifyIconFlags.NIF_SHOWTIP;
+
+        return includeEmptyTip && _tooltipDirty ? NotifyIconFlags.NIF_TIP : 0;
+    }
+
+    private static bool IncludesTooltipText(NotifyIconFlags flags) =>
+        (flags & NotifyIconFlags.NIF_TIP) != 0;
+
+    private static string TruncateTooltipText(string text) =>
+        text.Length > MaxTooltipTextLength ? text[..MaxTooltipTextLength] : text;
+
     private static NativeIcon? CloneIcon(NativeIcon icon, string caller)
     {
         try
@@ -525,6 +555,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         _trayUpdateThrottler.Drop(TrayUpdateKind.Tooltip);
         _tooltipShowRequested = false;
         _tooltipKeepOpenRequested = false;
+        _tooltipHoverSyncPending = true;
+        _isPointerOverIcon = false;
         if (!_isCreated) return;
 
         NOTIFYICONDATAW data = MakeData(0);
@@ -666,7 +698,9 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_POPUPOPEN:
                 _tooltipKeepOpenRequested = true;
-                SyncTooltip();
+                _isPointerOverIcon = true;
+                _tooltipShowRequested = true;
+                SyncTooltip(force: true);
                 PostEvent(TooltipPopup, nameof(TooltipPopup));
                 break;
             case (short)Shell32.NotifyIconNotification.NIN_POPUPCLOSE:
@@ -683,7 +717,9 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void OnNotifyIconMouseMove()
     {
-        SyncTooltip();
+        bool isNewHover = !_isPointerOverIcon;
+        _isPointerOverIcon = true;
+        SyncTooltip(force: isNewHover || _tooltipHoverSyncPending);
         RefreshMouseInputRegistration();
     }
 
@@ -1155,6 +1191,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (inBounds) StartListeningForInput();
         else
         {
+            _isPointerOverIcon = false;
+            _tooltipHoverSyncPending = true;
             _tooltipKeepOpenRequested = false;
             StopListeningForInput();
         }
@@ -1165,12 +1203,13 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     /// <summary>
     /// Re-shows a hover-requested tooltip after a shell icon swap.
     /// </summary>
-    private void RequestTooltipUpdateAfterIconChange()
+    private void RequestTooltipUpdateAfterIconChange(bool forceShow)
     {
-        if (_tooltipKeepOpenRequested)
+        if (forceShow || _tooltipKeepOpenRequested)
             _tooltipShowRequested = true;
 
-        RequestTooltipUpdate();
+        if (forceShow || _tooltipKeepOpenRequested || _isPointerOverIcon)
+            RequestTooltipUpdate();
     }
 
     /// <summary>
@@ -1181,12 +1220,18 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (!_tooltipKeepOpenRequested) return;
         if (!TryUpdateTrayIconLocation() || !User32.GetCursorPos(out User32.POINT cursor))
         {
+            _isPointerOverIcon = false;
+            _tooltipHoverSyncPending = true;
             _tooltipKeepOpenRequested = false;
             return;
         }
 
         if (!_trayIconLocation.Contains(cursor))
+        {
+            _isPointerOverIcon = false;
+            _tooltipHoverSyncPending = true;
             _tooltipKeepOpenRequested = false;
+        }
     }
 
     private void StartListeningForInput()
