@@ -81,20 +81,23 @@ public sealed class TrayWheelBrightnessAdjustmentTests
     }
 
     [Theory]
-    [InlineData(false, false, false, true)]
-    [InlineData(true, true, false, true)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, false, false, false)]
+    [InlineData(false, false, false, true, true)]
+    [InlineData(true, true, false, true, true)]
+    [InlineData(true, false, true, true, true)]
+    [InlineData(true, false, false, true, false)]
+    [InlineData(false, false, false, false, false)]
     public void ManualNightLightStrengthWritesOnlyWhenUserOwnsHardware(
         bool isCurveEnabled,
         bool isInDisabledPeriod,
         bool isCurveReleased,
+        bool isNightLightActive,
         bool expected)
     {
         bool shouldApply = BrightnessFlyoutWindow.ShouldApplyManualNightLightStrength(
             isCurveEnabled,
             isInDisabledPeriod,
-            isCurveReleased);
+            isCurveReleased,
+            isNightLightActive);
 
         Assert.Equal(expected, shouldApply);
     }

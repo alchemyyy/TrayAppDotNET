@@ -131,38 +131,10 @@ internal static class NightLightProvider
     public static void SetStrength(int percent, bool persistAsLastUserValue)
     {
         percent = Math.Clamp(percent, 0, 100);
-        switch (GetCachedBackend())
-        {
-            case Backend.Registry:
-                // Spaced bracket: three SETTINGS writes (kelvin only -> kelvin + IsDragging=true ->
-                // kelvin + IsDragging=false) gated by RegNotifyChangeKeyValue waits between them.
-                // The IsDragging false->true edge triggers the broker's fb3daf apply lambda which
-                // bypasses the wedged +36 inflight gate without flicker. Equivalent to the
-                // SettingsHandler bracket but via raw registry writes only - no SettingsHandlers_Display
-                // RVA dependency.
-                NightLightRegistry.EnqueueSetStrengthSpaced(percent);
-                break;
-            case Backend.SettingsHandler:
-                NightLightSettingsHandler.SetStrength(percent);
-                break;
-        }
+        WriteStrength(GetCachedBackend(), percent);
 
-        if (persistAsLastUserValue
-            && percent > 0
-            && _settings != null
-            && _settings.NightLightLastNonZeroStrength != percent)
-        {
-            // Update the property under the gate, then Save outside the gate. AppSettings.Save is a
-            // synchronous XML write on the calling thread (UI thread on slider drags); holding _gate across
-            // it would block backend-cache resolution / settings-changed reentrancy for the full I/O.
-            AppSettings settings = _settings;
-            lock (_gate) settings.NightLightLastNonZeroStrength = percent;
-            try { settings.Save(); }
-            catch (Exception ex)
-            {
-                WPFLog.Log($"NightLightProvider.SetStrength persist last-strength: {ex.Message}");
-            }
-        }
+        if (persistAsLastUserValue)
+            PersistLastUserStrength(percent);
 
         // Optional auto-off at zero.
         // Runs after the strength write so the backends settle on 0 first, then we flip the on/off bit.
@@ -196,7 +168,9 @@ internal static class NightLightProvider
 
     /// <summary>
     /// Turns night light on or off on the active backend.
-    /// Transitioning to enabled while the live strength is 0
+    /// When <paramref name="enableStrength"/> is supplied, primes the backend to that strength before
+    /// enabling so curve-owned toggles do not flash at the stale manual value first.
+    /// Otherwise, transitioning to enabled while the live strength is 0
     /// silently restores <see cref="AppSettings.NightLightLastNonZeroStrength"/> first -
     /// otherwise the user sees no visible change after toggling on, which feels broken.
     /// Toggling off preserves the live strength so the next toggle-on returns the user's same warmth.
@@ -204,10 +178,13 @@ internal static class NightLightProvider
     /// matched; false if the registry write failed, the readback diverged, or no backend is
     /// available. Failures are logged via <see cref="WPFLog"/>.
     /// </summary>
-    public static bool SetEnabled(bool enabled)
+    public static bool SetEnabled(
+        bool enabled,
+        int? enableStrength = null,
+        bool persistEnableStrengthAsLastUserValue = true)
     {
         Backend backend = GetCachedBackend();
-        if (enabled) EnsureNonZeroStrengthBeforeEnable(backend);
+        if (enabled) EnsureStrengthBeforeEnable(backend, enableStrength, persistEnableStrengthAsLastUserValue);
         else CancelBackendResendTimers();
 
         bool ok = backend switch
@@ -248,12 +225,16 @@ internal static class NightLightProvider
     /// Flips the enabled state on the active backend. Returns true if the toggle landed
     /// (post-write readback shows the inverted state), false on write failure, readback
     /// divergence, or no backend available. Failures are logged via <see cref="WPFLog"/>.
+    /// Optional <paramref name="enableStrength"/> has the same curve-handoff semantics as
+    /// <see cref="SetEnabled(bool, int?, bool)"/>.
     /// </summary>
-    public static bool Toggle()
+    public static bool Toggle(
+        int? enableStrength = null,
+        bool persistEnableStrengthAsLastUserValue = true)
     {
         Backend backend = GetCachedBackend();
         bool willEnable = !IsEnabled();
-        if (willEnable) EnsureNonZeroStrengthBeforeEnable(backend);
+        if (willEnable) EnsureStrengthBeforeEnable(backend, enableStrength, persistEnableStrengthAsLastUserValue);
         else CancelBackendResendTimers();
 
         bool ok = backend switch
@@ -274,6 +255,23 @@ internal static class NightLightProvider
         }
 
         return ok;
+    }
+
+    private static void EnsureStrengthBeforeEnable(
+        Backend backend,
+        int? enableStrength,
+        bool persistEnableStrengthAsLastUserValue)
+    {
+        if (enableStrength.HasValue)
+        {
+            int targetStrength = Math.Clamp(enableStrength.Value, 0, 100);
+            WriteStrength(backend, targetStrength);
+            if (persistEnableStrengthAsLastUserValue)
+                PersistLastUserStrength(targetStrength);
+            return;
+        }
+
+        EnsureNonZeroStrengthBeforeEnable(backend);
     }
 
     private static void EnsureNonZeroStrengthBeforeEnable(Backend backend)
@@ -299,6 +297,41 @@ internal static class NightLightProvider
             case Backend.SettingsHandler:
                 NightLightSettingsHandler.SetStrength(restored);
                 break;
+        }
+    }
+
+    private static void WriteStrength(Backend backend, int percent)
+    {
+        switch (backend)
+        {
+            case Backend.Registry:
+                // Spaced bracket: three SETTINGS writes (kelvin only -> kelvin + IsDragging=true ->
+                // kelvin + IsDragging=false) gated by RegNotifyChangeKeyValue waits between them.
+                // The IsDragging false->true edge triggers the broker's fb3daf apply lambda which
+                // bypasses the wedged +36 inflight gate without flicker. Equivalent to the
+                // SettingsHandler bracket but via raw registry writes only - no SettingsHandlers_Display
+                // RVA dependency.
+                NightLightRegistry.EnqueueSetStrengthSpaced(percent);
+                break;
+            case Backend.SettingsHandler:
+                NightLightSettingsHandler.SetStrength(percent);
+                break;
+        }
+    }
+
+    private static void PersistLastUserStrength(int percent)
+    {
+        if (percent <= 0 || _settings == null || _settings.NightLightLastNonZeroStrength == percent) return;
+
+        // Update the property under the gate, then Save outside the gate. AppSettings.Save is a
+        // synchronous XML write on the calling thread (UI thread on slider drags); holding _gate across
+        // it would block backend-cache resolution / settings-changed reentrancy for the full I/O.
+        AppSettings settings = _settings;
+        lock (_gate) settings.NightLightLastNonZeroStrength = percent;
+        try { settings.Save(); }
+        catch (Exception ex)
+        {
+            WPFLog.Log($"NightLightProvider.SetStrength persist last-strength: {ex.Message}");
         }
     }
 

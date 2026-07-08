@@ -417,7 +417,8 @@ internal sealed class BrightnessAvaloniaApp : Application
                 AdjustAllMonitorBrightness(-HotkeyStep);
                 break;
             case BrightnessHotkeyAction.ToggleNightLight:
-                if (NightLightProvider.IsSupported()) NightLightProvider.Toggle();
+                if (_brightnessFlyout != null) _brightnessFlyout.ToggleNightLight();
+                else if (NightLightProvider.IsSupported()) NightLightProvider.Toggle();
                 break;
             case BrightnessHotkeyAction.IncrementNightLight:
                 AdjustNightLightBrightness(HotkeyStep);

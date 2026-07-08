@@ -137,10 +137,22 @@ public sealed class EnvironmentalCurveService : IDisposable
     /// rather than the user's last manual pick.
     /// </summary>
     public int? GetActiveNightLightCurveStrength()
+        => GetNightLightCurveStrength(requireActiveState: true);
+
+    /// <summary>
+    /// Returns the current night-light curve strength for a transition that is about to enable
+    /// Windows Night Light. Ignores stale Enabled state so the backend can be primed with the
+    /// curve target before Windows applies tint, but respects explicit released/sleeping ownership.
+    /// </summary>
+    public int? GetNightLightCurveStrengthForEnable()
+        => GetNightLightCurveStrength(requireActiveState: false);
+
+    private int? GetNightLightCurveStrength(bool requireActiveState)
     {
         if (_disposed) return null;
         if (!IsNightLightCurveEnabled) return null;
-        if (_nightLightMonitor.SliderState != SliderState.CurveActive) return null;
+        if (_nightLightMonitor.SliderState == SliderState.CurveReleased) return null;
+        if (requireActiveState && _nightLightMonitor.SliderState != SliderState.CurveActive) return null;
 
         EnvironmentalCurve? curve = ResolveLiveCurve();
         EnvironmentalCurve? stored = ResolveStoredCurve();
@@ -403,7 +415,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     public void DisengageNightLightCurveStates()
     {
         if (_disposed) return;
-        _curveHardwareThrottler.Drop(NightLightHardwareKey);
+        SignalAndDropQueuedHardwareWrite(NightLightHardwareKey);
         _nightLightMonitor.ClearCurveTargetBrightness();
         _nightLightMonitor.SliderState = SliderStateMachine.OnCurveDisengaged(_nightLightMonitor.SliderState);
     }
@@ -562,7 +574,10 @@ public sealed class EnvironmentalCurveService : IDisposable
     /// Skipped silently if no profile is loaded or the curve is missing
     /// - the evaluator is best-effort and never throws past this method.
     /// </summary>
-    public void Evaluate()
+    /// <param name="immediateHardware">
+    /// True for mode-handoff events that must bypass normal curve/write cooldowns.
+    /// </param>
+    public void Evaluate(bool immediateHardware = false)
     {
         if (_disposed) return;
 
@@ -612,10 +627,20 @@ public sealed class EnvironmentalCurveService : IDisposable
             double smoothness = (_appSettings?.EnvironmentalCurveSmoothness ?? 100) / 100.0;
             bool absolute = IsCurveAbsoluteMode;
 
-            if (IsBrightnessCurveEnabled) ApplyBrightnessCurve(curve, t, smoothness, absolute);
+            if (IsBrightnessCurveEnabled) ApplyBrightnessCurve(
+                curve,
+                t,
+                smoothness,
+                absolute,
+                immediateHardware: immediateHardware);
             else DisengageBrightnessCurveStates();
 
-            if (IsNightLightCurveEnabled) ApplyNightLightCurve(curve, t, smoothness, absolute);
+            if (IsNightLightCurveEnabled) ApplyNightLightCurve(
+                curve,
+                t,
+                smoothness,
+                absolute,
+                immediateHardware: immediateHardware);
             else DisengageNightLightCurveStates();
         }
         catch (Exception ex)
@@ -708,7 +733,11 @@ public sealed class EnvironmentalCurveService : IDisposable
         foreach (MonitorInfo m in _monitors)
         {
             if (m.SliderState != SliderState.CurveSleeping) continue;
-            QueueBrightnessHardwareWrite(m, m.RoundedBrightness, allowWhileSuspended);
+            QueueBrightnessHardwareWrite(
+                m,
+                m.RoundedBrightness,
+                allowWhileSuspended,
+                requiredState: SliderState.CurveSleeping);
         }
     }
 
@@ -724,48 +753,86 @@ public sealed class EnvironmentalCurveService : IDisposable
         int sliderStrength = _flipIfNightLightInverted(_nightLightMonitor.RoundedBrightness);
         // Already-known user value being re-pushed for hardware sync. Skip the persist path -
         // it adds nothing here and would burn an XML save on every sleep-entry transition.
-        QueueNightLightHardwareWrite(sliderStrength, allowWhileSuspended);
+        QueueNightLightHardwareWrite(
+            sliderStrength,
+            allowWhileSuspended,
+            requiredState: SliderState.CurveSleeping);
     }
 
     private void QueueBrightnessHardwareWrite(
         MonitorInfo monitor,
         int percent,
-        bool allowWhileSuspended = false)
+        bool allowWhileSuspended = false,
+        SliderState? requiredState = null,
+        bool skipIfDragging = false,
+        bool immediateHardware = false)
     {
         if (_disposed) return;
         if (_isSuspended && !allowWhileSuspended) return;
         if (string.IsNullOrEmpty(monitor.ID)) return;
 
-        QueueHardwareWrite(
-            BrightnessHardwareKey(monitor.ID),
-            allowWhileSuspended,
-            () => _monitorService.EnqueueDirectBrightness(monitor, percent));
+        if (immediateHardware)
+        {
+            SignalAndDropQueuedHardwareWrite(BrightnessHardwareKey(monitor.ID));
+            ApplyBrightnessWrite();
+            return;
+        }
+
+        QueueHardwareWrite(BrightnessHardwareKey(monitor.ID), allowWhileSuspended, ApplyBrightnessWrite);
+        return;
+
+        void ApplyBrightnessWrite()
+        {
+            if (!ShouldApplyBrightnessWrite()) return;
+            if (immediateHardware)
+                _monitorService.EnqueueDirectBrightnessImmediate(monitor, percent, ShouldApplyBrightnessWrite);
+            else _monitorService.EnqueueDirectBrightness(monitor, percent);
+        }
+
+        bool ShouldApplyBrightnessWrite()
+        {
+            if (requiredState.HasValue && monitor.SliderState != requiredState.Value) return false;
+            if (skipIfDragging && monitor.IsDragging) return false;
+            return true;
+        }
     }
 
-    private void QueueNightLightHardwareWrite(int strength, bool allowWhileSuspended = false)
+    private void QueueNightLightHardwareWrite(
+        int strength,
+        bool allowWhileSuspended = false,
+        SliderState? requiredState = null,
+        bool immediateHardware = false)
     {
         if (_disposed) return;
         if (_isSuspended && !allowWhileSuspended) return;
         if (!NightLightProvider.IsSupported() || !NightLightProvider.IsEnabled())
         {
-            _curveHardwareThrottler.Drop(NightLightHardwareKey);
+            SignalAndDropQueuedHardwareWrite(NightLightHardwareKey);
             NightLightProvider.CancelPendingStrengthWrites();
             return;
         }
 
-        QueueHardwareWrite(
-            NightLightHardwareKey,
-            allowWhileSuspended,
-            () =>
-            {
-                if (!NightLightProvider.IsEnabled())
-                {
-                    NightLightProvider.CancelPendingStrengthWrites();
-                    return;
-                }
+        if (immediateHardware)
+        {
+            SignalAndDropQueuedHardwareWrite(NightLightHardwareKey);
+            _ = Task.Run(ApplyNightLightWrite);
+            return;
+        }
 
-                NightLightProvider.SetStrength(strength, persistAsLastUserValue: false);
-            });
+        QueueHardwareWrite(NightLightHardwareKey, allowWhileSuspended, ApplyNightLightWrite);
+        return;
+
+        void ApplyNightLightWrite()
+        {
+            if (requiredState.HasValue && _nightLightMonitor.SliderState != requiredState.Value) return;
+            if (!NightLightProvider.IsEnabled())
+            {
+                NightLightProvider.CancelPendingStrengthWrites();
+                return;
+            }
+
+            NightLightProvider.SetStrength(strength, persistAsLastUserValue: false);
+        }
     }
 
     private void QueueHardwareWrite(string key, bool allowWhileSuspended, Action action)
@@ -788,12 +855,19 @@ public sealed class EnvironmentalCurveService : IDisposable
 
     private void DropQueuedHardwareWrites()
     {
-        _curveHardwareThrottler.Drop(NightLightHardwareKey);
+        SignalAndDropQueuedHardwareWrite(NightLightHardwareKey);
         foreach (MonitorInfo monitor in _monitors)
         {
             if (string.IsNullOrEmpty(monitor.ID)) continue;
-            _curveHardwareThrottler.Drop(BrightnessHardwareKey(monitor.ID));
+            SignalAndDropQueuedHardwareWrite(BrightnessHardwareKey(monitor.ID));
         }
+    }
+
+    private void SignalAndDropQueuedHardwareWrite(string key)
+    {
+        if (_curveHardwareThrottler.IsBusy(key))
+            _ = _curveHardwareThrottler.RunAsync(key, _ => Task.CompletedTask);
+        _curveHardwareThrottler.Drop(key);
     }
 
     private static string BrightnessHardwareKey(string monitorID) => BrightnessHardwareKeyPrefix + monitorID;
@@ -995,7 +1069,8 @@ public sealed class EnvironmentalCurveService : IDisposable
         double t,
         double smoothness,
         bool absolute,
-        bool allowWhileSuspended = false)
+        bool allowWhileSuspended = false,
+        bool immediateHardware = false)
     {
         if (!absolute) ResetAutoEngageTracking();
 
@@ -1041,9 +1116,15 @@ public sealed class EnvironmentalCurveService : IDisposable
                 foreach (MonitorInfo monitor in _monitors)
                 {
                     if (monitor.SliderState != SliderState.CurveActive) continue;
-                    if (monitor.IsDragging) continue;
+                    if (monitor.IsDragging && !immediateHardware) continue;
                     int rowTargetPct = (int)Math.Round(Math.Clamp(absoluteMasterTarget + monitor.Offset, 0.0, 100.0));
-                    QueueBrightnessHardwareWrite(monitor, rowTargetPct, allowWhileSuspended);
+                    QueueBrightnessHardwareWrite(
+                        monitor,
+                        rowTargetPct,
+                        allowWhileSuspended,
+                        requiredState: SliderState.CurveActive,
+                        skipIfDragging: !immediateHardware,
+                        immediateHardware: immediateHardware);
                 }
             },
             applyOffsetPercent: offsetPercent =>
@@ -1073,10 +1154,16 @@ public sealed class EnvironmentalCurveService : IDisposable
                     if (monitor.SliderState != SliderState.CurveActive) continue;
                     // H-10: skip writes against a row whose user is mid-drag - the curve write would
                     // shove the bound slider thumb out from under the user's mouse.
-                    if (monitor.IsDragging) continue;
+                    if (monitor.IsDragging && !immediateHardware) continue;
                     int hwTarget = (int)Math.Round(
                         Math.Clamp(monitor.LastUserBrightness + offsetPercent, 0.0, 100.0));
-                    QueueBrightnessHardwareWrite(monitor, hwTarget, allowWhileSuspended);
+                    QueueBrightnessHardwareWrite(
+                        monitor,
+                        hwTarget,
+                        allowWhileSuspended,
+                        requiredState: SliderState.CurveActive,
+                        skipIfDragging: !immediateHardware,
+                        immediateHardware: immediateHardware);
                 }
             });
     }
@@ -1096,7 +1183,8 @@ public sealed class EnvironmentalCurveService : IDisposable
         double t,
         double smoothness,
         bool absolute,
-        bool allowWhileSuspended = false)
+        bool allowWhileSuspended = false,
+        bool immediateHardware = false)
     {
         ApplyCurveCore(
             curve.NightLight,
@@ -1118,7 +1206,11 @@ public sealed class EnvironmentalCurveService : IDisposable
                 // Curve-driven strength is not user intent - skip persisting NightLightLastNonZeroStrength.
                 // Persisting it would jitter the dispatcher (sync XML write per tick) AND save curve
                 // samples as the "last user-chosen warmth," breaking restore-on-toggle behavior.
-                QueueNightLightHardwareWrite(strength, allowWhileSuspended);
+                QueueNightLightHardwareWrite(
+                    strength,
+                    allowWhileSuspended,
+                    requiredState: SliderState.CurveActive,
+                    immediateHardware: immediateHardware);
             },
             applyOffsetPercent: strengthOffsetPercent =>
             {
@@ -1135,7 +1227,11 @@ public sealed class EnvironmentalCurveService : IDisposable
                     _nightLightMonitor.CurveTargetBrightness = _flipIfNightLightInverted(targetStrength);
                 if (_nightLightMonitor.SliderState != SliderState.CurveActive) return;
                 // Curve-driven strength is not user intent - see absolute-mode comment above.
-                QueueNightLightHardwareWrite(targetStrength, allowWhileSuspended);
+                QueueNightLightHardwareWrite(
+                    targetStrength,
+                    allowWhileSuspended,
+                    requiredState: SliderState.CurveActive,
+                    immediateHardware: immediateHardware);
             });
     }
 

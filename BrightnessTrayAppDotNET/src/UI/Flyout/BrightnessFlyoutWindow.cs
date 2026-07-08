@@ -405,13 +405,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void SelectProfileByIndex(int index) => SelectProfileApplyingMode(index);
 
+    public void ToggleNightLight() => ToggleNightLightState();
+
     internal void SyncAllIndividualsToMaster()
     {
         double target = Math.Round(MasterMonitor.Brightness);
         _suppressPropagation = true;
-        IDisposable? hardwareWriteSuspension = IsBrightnessCurveEnabled
-            ? _monitorService.SuspendHardwareWrites()
-            : null;
         try
         {
             foreach (MonitorInfo monitor in Monitors)
@@ -422,11 +421,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
         finally
         {
-            hardwareWriteSuspension?.Dispose();
             _suppressPropagation = false;
         }
 
         CaptureOffsetsFromMaster();
+        ApplyBrightnessCurveImmediatelyIfActive();
         CheckAndUpdateUnsavedChanges();
         BrightnessUpdated?.Invoke();
         RebuildVisual();
@@ -447,9 +446,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         target = Math.Round(target);
         _suppressPropagation = true;
-        IDisposable? hardwareWriteSuspension = IsBrightnessCurveEnabled
-            ? _monitorService.SuspendHardwareWrites()
-            : null;
         try
         {
             MasterMonitor.Brightness = target;
@@ -461,11 +457,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
         finally
         {
-            hardwareWriteSuspension?.Dispose();
             _suppressPropagation = false;
         }
 
         CaptureOffsetsFromMaster();
+        ApplyBrightnessCurveImmediatelyIfActive();
         CheckAndUpdateUnsavedChanges();
         BrightnessUpdated?.Invoke();
         RebuildVisual();
@@ -1214,7 +1210,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ReengageCurveReleasedMonitor(monitor);
             if (monitor.IsMaster) ReengageIndividualBrightnessCurveOverridesFromMaster();
             UpdateCurveStopwatchVisibility(monitor);
-            _curveService.Evaluate();
+            _curveService.Evaluate(immediateHardware: true);
             RebuildVisual();
             e.Handled = true;
         };
@@ -1411,6 +1407,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return target;
     }
 
+    private void ApplyBrightnessCurveImmediatelyIfActive()
+    {
+        if (!IsBrightnessCurveEnabled) return;
+        _curveService.Evaluate(immediateHardware: true);
+    }
+
     private void ApplyNightLightSliderValue(FlyoutSlider? slider, double value)
     {
         double target = ApplyMonitorSliderValue(slider, NightLightMonitor, value);
@@ -1421,10 +1423,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ApplyManualNightLightStrength(double sliderTarget)
     {
         if (!NightLightProvider.IsSupported()) return;
+        bool isNightLightActive = _isNightLightActive && NightLightProvider.IsEnabled();
         if (!ShouldApplyManualNightLightStrength(
                 IsNightLightCurveEnabled,
                 _isInCurveDisabledPeriod,
-                NightLightMonitor.IsCurveReleased))
+                NightLightMonitor.IsCurveReleased,
+                isNightLightActive))
             return;
 
         int nightLightTarget = FlipIfNightLightInverted((int)sliderTarget);
@@ -1434,8 +1438,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     internal static bool ShouldApplyManualNightLightStrength(
         bool isNightLightCurveEnabled,
         bool isInCurveDisabledPeriod,
-        bool isNightLightCurveReleased)
+        bool isNightLightCurveReleased,
+        bool isNightLightActive)
     {
+        if (!isNightLightActive) return false;
         if (!isNightLightCurveEnabled) return true;
         if (isInCurveDisabledPeriod) return true;
         return isNightLightCurveReleased;
@@ -1736,7 +1742,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ClearPreviewDateCurve();
         ClearProfilePreview();
         CheckAndUpdateUnsavedChanges();
-        _curveService.Evaluate();
+        _curveService.Evaluate(immediateHardware: true);
         QueueRebuildVisual();
     }
 
@@ -2076,15 +2082,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (monitor.IsNightLight)
         {
-            if (!NightLightProvider.IsSupported()) return;
-            if (!NightLightProvider.IsEnabled()
-                && _curveService.GetActiveNightLightCurveStrength() is { } curveStrength and > 0)
-                NightLightProvider.SetStrength(curveStrength, persistAsLastUserValue: false);
-
-            NightLightProvider.Toggle();
-            _isNightLightActive = NightLightProvider.IsEnabled();
-            OnPropertyChanged(nameof(IsNightLightActive));
-            RebuildVisual();
+            ToggleNightLightState();
             return;
         }
 
@@ -2130,10 +2128,25 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ? SliderStateMachine.OnUserToggleOn(previous, IsBrightnessCurveEnabled, _isInCurveDisabledPeriod)
             : SliderStateMachine.OnUserToggleOff(previous);
 
-        bool wasCurveDriven =
-            previous is SliderState.CurveActive or SliderState.CurveSleeping or SliderState.CurveReleased;
-        if (wasCurveDriven && monitor.SliderState == SliderState.Disabled)
-            _monitorService.EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
+        if (previous == SliderState.Disabled && monitor.IsCurveDriven)
+            _curveService.Evaluate(immediateHardware: true);
+    }
+
+    private void ToggleNightLightState()
+    {
+        if (!NightLightProvider.IsSupported()) return;
+
+        bool wasEnabled = NightLightProvider.IsEnabled();
+        int? enableStrength = wasEnabled ? null : _curveService.GetNightLightCurveStrengthForEnable();
+        NightLightProvider.SetEnabled(
+            !wasEnabled,
+            enableStrength,
+            persistEnableStrengthAsLastUserValue: !enableStrength.HasValue);
+        _isNightLightActive = NightLightProvider.IsEnabled();
+        OnPropertyChanged(nameof(IsNightLightActive));
+        if (_isNightLightActive && enableStrength.HasValue)
+            _curveService.Evaluate(immediateHardware: true);
+        RebuildVisual();
     }
 
     private void RunHardPowerOff(MonitorInfo monitor)
@@ -2298,7 +2311,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         _curveService.Start();
-        _curveService.Evaluate();
+        _curveService.Evaluate(immediateHardware: IsBrightnessCurveEnabled || IsNightLightCurveEnabled);
     }
 
     private void ResyncBrightnessHardwareToSliders()
@@ -2476,7 +2489,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
         ResyncCurveStopwatchManualOverridesToSliders();
-        _curveService.Evaluate();
+        _curveService.Evaluate(immediateHardware: true);
         ProcessCurveStopwatchDeadlines();
         StartCurveStopwatchTimerIfNeeded();
     }
@@ -2647,7 +2660,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _curveStopwatchReengageBlockedByMaster.Add(CurveStopwatchKeyFor(monitor));
 
         UpdateCurveStopwatchVisibility(monitor, saveIfDisabled: false);
-        _curveService.Evaluate();
+        _curveService.Evaluate(immediateHardware: true);
     }
 
     private void ReengageIndividualBrightnessCurveOverridesFromMaster()

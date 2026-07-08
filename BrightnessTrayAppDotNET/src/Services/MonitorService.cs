@@ -2119,34 +2119,8 @@ public sealed class MonitorService : IDisposable
     /// </summary>
     public void EnqueueDirectBrightness(MonitorInfo? monitor, int percent)
     {
-        if (_disposed || _draining) return;
-        if (monitor == null) return;
-        if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? entry)) return;
-
-        // Apply the per-monitor norm curve first: the slider stays on the linear 0..100 range
-        // and the curve reshapes which hardware brightness each slider position maps to.
-        // No-op when no curve is set (xs/ys are null). Lives ahead of the floor/ceiling clamp so
-        // a curve that targets values outside the cap window still respects the user's cap below.
-        int shaped = ApplyNormCurve(entry, percent);
-
-        // Clamp first to the absolute 0..100 envelope, then to the per-monitor override window.
-        // The slider itself stays on the normalised 0-100 range; this is the single boundary where
-        // the per-monitor floor/ceiling actually constrain hardware. Every write path flows through
-        // here (slider drag, master propagation, curve writes, topology replay), so the cap is enforced
-        // uniformly without the slider, profile, or curve code having to know about it.
-        int floor = entry.FloorPercent;
-        int ceiling = entry.CeilingPercent;
-        if (floor > ceiling) floor = ceiling;
-        int pct = Math.Clamp(Math.Clamp(shaped, 0, 100), floor, ceiling);
-
-        // Skip duplicate enqueues.
-        // The throttler already collapses bursts queued during a write,
-        // but doesn't dedupe across completed writes
-        // - so a curve sample that holds the same integer pct across many ticks would re-write the bus every tick.
-        // Skipping here drops those redundant payloads at the source,
-        // which is also where closure allocations happen.
-        // Topology paths that need to force a fresh write reset entry.LastEnqueuedPercentage first.
-        if (Interlocked.Exchange(ref entry.LastEnqueuedPercentage, pct) == pct) return;
+        if (!TryPrepareDirectBrightnessWrite(monitor, percent, force: false, out MonitorEntry entry, out int pct))
+            return;
 
         // Schedule a payload that closes over (entry, pct). The throttler does latest-pending-wins:
         // a flurry of EnqueueDirectBrightness calls during the cooldown collapse to a single payload
@@ -2155,6 +2129,77 @@ public sealed class MonitorService : IDisposable
         // before letting the next queued payload run,
         // mirroring the pre-throttler hand-rolled write loop's "write -> wait -> verify -> loop" pacing.
         _ = _writeThrottler.RunAsync(entry.ID, ctx => DoBrightnessWriteAsync(entry, pct, ctx));
+    }
+
+    /// <summary>
+    /// Writes a direct brightness target without waiting for the per-monitor cooldown window.
+    /// Used only for mode handoff boundaries where stale manual hardware state must be superseded now
+    /// (for example, returning a released row to curve ownership).
+    /// The DDC lock and write verification still run, so this bypasses pacing but not bus safety.
+    /// </summary>
+    public void EnqueueDirectBrightnessImmediate(
+        MonitorInfo? monitor,
+        int percent,
+        Func<bool>? shouldWrite = null)
+    {
+        if (!TryPrepareDirectBrightnessWrite(monitor, percent, force: true, out MonitorEntry entry, out int pct))
+            return;
+
+        if (_writeThrottler.IsBusy(entry.ID))
+        {
+            // Mark any in-flight throttled payload stale so its verification path cannot re-apply
+            // the manual value after this handoff write lands.
+            _ = _writeThrottler.RunAsync(entry.ID, _ => Task.CompletedTask);
+            _writeThrottler.Drop(entry.ID);
+        }
+
+        _ = Task.Run(() => DoBrightnessWriteAsync(entry, pct, default, shouldWrite, verify: false));
+    }
+
+    private bool TryPrepareDirectBrightnessWrite(
+        MonitorInfo? monitor,
+        int percent,
+        bool force,
+        out MonitorEntry entry,
+        out int pct)
+    {
+        entry = null!;
+        pct = 0;
+        if (_disposed || _draining) return false;
+        if (monitor == null) return false;
+        if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? resolvedEntry)) return false;
+
+        // Apply the per-monitor norm curve first: the slider stays on the linear 0..100 range
+        // and the curve reshapes which hardware brightness each slider position maps to.
+        // No-op when no curve is set (xs/ys are null). Lives ahead of the floor/ceiling clamp so
+        // a curve that targets values outside the cap window still respects the user's cap below.
+        int shaped = ApplyNormCurve(resolvedEntry, percent);
+
+        // Clamp first to the absolute 0..100 envelope, then to the per-monitor override window.
+        // The slider itself stays on the normalised 0-100 range; this is the single boundary where
+        // the per-monitor floor/ceiling actually constrain hardware. Every write path flows through
+        // here (slider drag, master propagation, curve writes, topology replay), so the cap is enforced
+        // uniformly without the slider, profile, or curve code having to know about it.
+        int floor = resolvedEntry.FloorPercent;
+        int ceiling = resolvedEntry.CeilingPercent;
+        if (floor > ceiling) floor = ceiling;
+        int clampedPercent = Math.Clamp(Math.Clamp(shaped, 0, 100), floor, ceiling);
+
+        // Skip duplicate enqueues.
+        // The throttler already collapses bursts queued during a write,
+        // but doesn't dedupe across completed writes
+        // - so a curve sample that holds the same integer pct across many ticks would re-write the bus every tick.
+        // Skipping here drops those redundant payloads at the source,
+        // which is also where closure allocations happen.
+        // Topology paths that need to force a fresh write reset entry.LastEnqueuedPercentage first.
+        if (!force && Interlocked.Exchange(ref resolvedEntry.LastEnqueuedPercentage, clampedPercent) == clampedPercent)
+            return false;
+
+        if (force) Volatile.Write(ref resolvedEntry.LastEnqueuedPercentage, clampedPercent);
+
+        entry = resolvedEntry;
+        pct = clampedPercent;
+        return true;
     }
 
     /// <summary>
@@ -2198,9 +2243,15 @@ public sealed class MonitorService : IDisposable
     /// - preserves the pre-throttler write loop's "don't keep verifying a now-stale value" behaviour
     /// even though the underlying mechanism (queued payload vs <c>entry.Pending</c> flag) is different.
     /// </summary>
-    private async Task DoBrightnessWriteAsync(MonitorEntry entry, int pct, ThrottlerContext ctx)
+    private async Task DoBrightnessWriteAsync(
+        MonitorEntry entry,
+        int pct,
+        ThrottlerContext ctx,
+        Func<bool>? shouldWrite = null,
+        bool verify = true)
     {
         if (_disposed || _draining) return;
+        if (shouldWrite?.Invoke() == false) return;
 
         uint raw = ScaleBrightnessPercentToRaw(pct, entry.Max);
 
@@ -2221,7 +2272,7 @@ public sealed class MonitorService : IDisposable
             int waitMs = ScaledRetryDwellMs(attempt, writeAttempts, writeFinalDwellMs);
             if (waitMs > 0)
             {
-                if (_disposed || _draining || ctx.HasReplacement)
+                if (_disposed || _draining || ctx.HasReplacement || shouldWrite?.Invoke() == false)
                 {
                     lastWriteError = null;
                     break;
@@ -2230,6 +2281,8 @@ public sealed class MonitorService : IDisposable
                 try { await Task.Delay(waitMs, ctx.CancellationToken).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
             }
+
+            if (shouldWrite?.Invoke() == false) return;
 
             (bool ok, string? writeErr) = await WithDDCLockAsync(entry.DDC, () =>
             {
@@ -2283,6 +2336,8 @@ public sealed class MonitorService : IDisposable
         // If the throttler has a replacement queued, the next payload will overwrite this value
         // and any verification result would be stale - skip it.
         if (_disposed || ctx.HasReplacement) return;
+        if (!verify) return;
+        if (shouldWrite?.Invoke() == false) return;
 
         await VerifyAppliedAsync(entry, raw, ctx).ConfigureAwait(false);
     }
