@@ -8,7 +8,7 @@ namespace VolumeTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
-    private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
+    private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => []);
 
     public new const string SEGOE_FLUENT_ICONS = CommonGlyphCatalog.SEGOE_FLUENT_ICONS;
     public new const string SEGOE_MDL2_ASSETS = CommonGlyphCatalog.SEGOE_MDL2_ASSETS;

@@ -1049,7 +1049,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private void LogTouchDiagnostics(IntPtr wParam, IntPtr lParam)
     {
         uint count = LoWord(wParam);
-        User32.TOUCHINPUT[] inputs = count == 0 || count > 256 ? [] : new User32.TOUCHINPUT[count];
+        User32.TOUCHINPUT[] inputs = count is 0 or > 256 ? [] : new User32.TOUCHINPUT[count];
         bool gotInfo = false;
         int error = 0;
 

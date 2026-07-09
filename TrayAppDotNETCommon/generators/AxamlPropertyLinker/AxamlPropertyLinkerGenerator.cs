@@ -80,8 +80,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (classSeparatorIndex <= 0 || classSeparatorIndex == classFullName.Length - 1)
             return null;
 
-        string classNamespace = classFullName.Substring(0, classSeparatorIndex);
-        string className = classFullName.Substring(classSeparatorIndex + 1);
+        string classNamespace = classFullName[..classSeparatorIndex];
+        string className = classFullName[(classSeparatorIndex + 1)..];
         if (!IsQualifiedNamespace(classNamespace) || !IsIdentifier(className))
             return null;
 
