@@ -66,7 +66,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private readonly FlyoutWindowDragHelper _dragHelper = new();
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private FlyoutUndockButtonController? _undockButtonController;
-    private FlyoutUndockButtonController? _buildingUndockButtonController;
+    private Control? _chromeCaptureOwner;
+    private IPointer? _chromeCapturedPointer;
     private bool _isPowerModeChanging;
     private bool _isEnergySaverChanging;
     private bool _isUndocked;
@@ -74,6 +75,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private bool _isRebuilding;
     private bool _rebuildPending;
     private bool _rebuildQueued;
+    private bool _isClosed;
 
     public BatteryFlyoutWindow(BatteryMonitorService batteryMonitor, AppSettings settings, Action openSettings)
     {
@@ -99,14 +101,18 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         };
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
+        WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
         _settings.Changed += OnSettingsChanged;
+        WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
-        Closed += OnClosed;
+        WindowResources.Add(() => SystemEvents.PowerModeChanged -= OnPowerModeChanged);
         Rebuild();
     }
 
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
+        if (_isClosed) return;
+
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         if (_isUndocked && !_settings.AllowFlyoutUndock)
@@ -121,13 +127,17 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Show();
         }
 
-        Dispatcher.UIThread.Post(() =>
-        {
-            UpdateLayout();
-            ApplyWorkAreaMaxHeight();
-            PositionNearTray();
-            if (activate) Activate();
-        }, DispatcherPriority.Loaded);
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                UpdateLayout();
+                ApplyWorkAreaMaxHeight();
+                PositionNearTray();
+                if (activate) Activate();
+            },
+            DispatcherPriority.Loaded);
     }
 
     public new void Hide()
@@ -138,7 +148,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     public void Redock()
     {
-        if (!_isUndocked) return;
+        if (_isClosed || !_isUndocked) return;
         _isUndocked = false;
         _settings.FlyoutUndocked = false;
         _settings.Save();
@@ -151,34 +161,55 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     protected override void HideFlyout() => Hide();
 
-    private void OnBatteryStateChanged() => QueueRebuild();
+    private void OnBatteryStateChanged()
+    {
+        if (_isClosed) return;
+        QueueRebuild();
+    }
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode is not (PowerModes.StatusChange or PowerModes.Resume)) return;
 
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!IsVisible) return;
-            _batteryMonitor.ForceRefresh();
-            QueueRebuild();
-        }, DispatcherPriority.Background);
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible) return;
+                _batteryMonitor.ForceRefresh();
+                QueueRebuild();
+            },
+            DispatcherPriority.Background);
     }
 
-    private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
+    private void OnSettingsChanged()
     {
-        if (_isUndocked && !_settings.AllowFlyoutUndock)
-        {
-            Redock();
-            return;
-        }
+        if (_isClosed) return;
 
-        QueueRebuild();
-    });
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosed || cancellationToken.IsCancellationRequested) return;
+            if (_isUndocked && !_settings.AllowFlyoutUndock)
+            {
+                Redock();
+                return;
+            }
+
+            QueueRebuild();
+        });
+    }
 
     /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
     private void Rebuild()
     {
+        if (_isClosed) return;
+        if (IsRebuildBlockedByPointerCapture())
+        {
+            _rebuildPending = true;
+            return;
+        }
+
         try { RebuildCore(); }
         catch (Exception ex)
         {
@@ -202,8 +233,37 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         _rebuildQueued = false;
         _rebuildPending = false;
         _isRebuilding = true;
-        _buildingUndockButtonController = null;
 
+        try
+        {
+            (UIContentGeneration replacement, FlyoutUndockButtonController? replacementUndockButtonController) =
+                BuildContentGeneration();
+            FlyoutUndockButtonController? previousUndockButtonController = _undockButtonController;
+            _undockButtonController = replacementUndockButtonController;
+            try
+            {
+                CommitContentGeneration(replacement);
+            }
+            catch
+            {
+                _undockButtonController = previousUndockButtonController;
+                throw;
+            }
+
+            QueuePositionNearTray();
+        }
+        finally
+        {
+            _isRebuilding = false;
+        }
+
+        FlushPendingRebuild();
+    }
+
+    private (UIContentGeneration Generation, FlyoutUndockButtonController? UndockButtonController)
+        BuildContentGeneration()
+    {
+        UIResourceScope resources = new($"{nameof(BatteryFlyoutWindow)}.Content");
         try
         {
             bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
@@ -272,7 +332,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             body.Children.Add(BuildBottomSection(details, snapshot, fp, p));
 
             DockPanel root = new() { LastChildFill = true };
-            Control header = BuildHeader(fp, titleBarBackground);
+            (Border header, FlyoutUndockButtonController? undockButtonController) =
+                BuildHeader(fp, titleBarBackground, resources);
             DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
             root.Children.Add(header);
             root.Children.Add(body);
@@ -281,7 +342,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             content.Children.Add(root);
             if (_settings.FlyoutHeaderAtBottom && _settings.AllowFlyoutUndock)
             {
-                Border floatingUndock = BuildUndockButton(fp, FloatingUndockMargin);
+                undockButtonController = BuildUndockButton(fp, resources, FloatingUndockMargin);
+                Border floatingUndock = undockButtonController.Button;
                 floatingUndock.HorizontalAlignment = HorizontalAlignment.Right;
                 floatingUndock.VerticalAlignment = VerticalAlignment.Top;
                 content.Children.Add(floatingUndock);
@@ -299,18 +361,26 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             chrome.PointerMoved += OnChromePointerMoved;
             chrome.PointerReleased += OnChromePointerReleased;
             chrome.PointerCaptureLost += OnChromePointerCaptureLost;
+            resources.Add(() =>
+            {
+                ReleaseChromeCapture(chrome);
+                chrome.PointerCaptureLost -= OnChromePointerCaptureLost;
+                chrome.PointerReleased -= OnChromePointerReleased;
+                chrome.PointerMoved -= OnChromePointerMoved;
+                chrome.PointerPressed -= OnChromePointerPressed;
+            });
 
-            Content = chrome;
-            _undockButtonController = _buildingUndockButtonController;
-            QueuePositionNearTray();
+            UIContentGeneration generation = new(
+                $"{nameof(BatteryFlyoutWindow)}.Content",
+                chrome,
+                resources);
+            return (generation, undockButtonController);
         }
-        finally
+        catch
         {
-            _buildingUndockButtonController = null;
-            _isRebuilding = false;
+            resources.Dispose();
+            throw;
         }
-
-        FlushPendingRebuild();
     }
 
     /// <summary>
@@ -318,13 +388,23 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     /// </summary>
     private void QueueRebuild()
     {
+        if (_isClosed) return;
+
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(QueueRebuild, DispatcherPriority.Background);
+            CancellationToken cancellationToken = WindowResources.CancellationToken;
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                    QueueRebuild();
+                },
+                DispatcherPriority.Background);
             return;
         }
 
-        if (!IsVisible && !IsWarmPriming || _isRebuilding)
+        if (_isClosed) return;
+        if (!IsVisible && !IsWarmPriming || _isRebuilding || IsRebuildBlockedByPointerCapture())
         {
             _rebuildPending = true;
             return;
@@ -333,26 +413,39 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         if (_rebuildQueued) return;
 
         _rebuildQueued = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            _rebuildQueued = false;
-            Rebuild();
-        }, DispatcherPriority.Background);
+        CancellationToken queuedCancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_isClosed || queuedCancellationToken.IsCancellationRequested) return;
+                _rebuildQueued = false;
+                Rebuild();
+            },
+            DispatcherPriority.Background);
     }
 
     /// <summary>Runs a deferred rebuild after the current rebuild completes.</summary>
     private void FlushPendingRebuild()
     {
-        if (!_rebuildPending || _isRebuilding) return;
+        if (_isClosed || !_rebuildPending || _isRebuilding || IsRebuildBlockedByPointerCapture()) return;
 
         _rebuildPending = false;
         QueueRebuild();
     }
 
-    private Border BuildHeader(FlyoutControlPalette p, Color titleBarBackground)
+    private bool IsRebuildBlockedByPointerCapture() =>
+        _isDraggingWindow
+        || _chromeCapturedPointer != null
+        || _undockButtonController?.IsPointerCaptured == true;
+
+    private (Border Header, FlyoutUndockButtonController? UndockButtonController) BuildHeader(
+        FlyoutControlPalette p,
+        Color titleBarBackground,
+        UIResourceScope resources)
     {
         bool bottomHeader = _settings.FlyoutHeaderAtBottom;
         Grid grid = new();
+        FlyoutUndockButtonController? undockButtonController = null;
 
         if (bottomHeader)
         {
@@ -370,14 +463,15 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
             if (_settings.AllowFlyoutUndock)
             {
-                Border undock = BuildUndockButton(p);
+                undockButtonController = BuildUndockButton(p, resources);
+                Border undock = undockButtonController.Button;
                 undock.HorizontalAlignment = HorizontalAlignment.Right;
                 undock.VerticalAlignment = VerticalAlignment.Center;
                 grid.Children.Add(undock);
             }
         }
 
-        return new Border
+        Border header = new()
         {
             Height = TitleBarHeight,
             Background = Brush(titleBarBackground),
@@ -385,6 +479,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Padding = TitleBarPadding,
             Child = grid
         };
+        return (header, undockButtonController);
     }
 
     private StackPanel BuildTitleBarActions(FlyoutControlPalette p, bool settingsLast)
@@ -454,7 +549,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Background = Brushes.Transparent,
             ClipToBounds = false,
             Child = text,
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = TrayAppDotNETCursors.Hand
         };
         TrayAppDotNETToolTip.SetTip(button, tooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
@@ -467,7 +562,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return button;
     }
 
-    private Border BuildUndockButton(FlyoutControlPalette p, Thickness? margin = null)
+    private FlyoutUndockButtonController BuildUndockButton(
+        FlyoutControlPalette p,
+        UIResourceScope resources,
+        Thickness? margin = null)
     {
         FlyoutUndockButtonController controller = new(new FlyoutUndockButtonOptions
         {
@@ -479,7 +577,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             SetUndockedFromDrag = SetUndockedFromDrag,
             ToggleUndocked = ToggleUndocked,
             CommitDragPosition = CommitDragPosition,
-            DraggingChanged = dragging => _isDraggingWindow = dragging,
+            DraggingChanged = OnUndockDraggingChanged,
             UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
             RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
             Width = TitleBarUndockButtonSize,
@@ -499,8 +597,27 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             }
         };
         UseDefaultGlyphRendering(controller.Glyph);
-        _buildingUndockButtonController = controller;
-        return controller.Button;
+        resources.Add(() =>
+        {
+            if (ReferenceEquals(_undockButtonController, controller))
+                _undockButtonController = null;
+        });
+        return resources.Own(controller);
+    }
+
+    private void OnUndockDraggingChanged(bool isDragging)
+    {
+        _isDraggingWindow = isDragging;
+        if (isDragging || _isClosed) return;
+
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                FlushPendingRebuild();
+            },
+            DispatcherPriority.Background);
     }
 
     private static void UseDefaultGlyphRendering(TextBlock glyph)
@@ -641,19 +758,24 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void QueuePositionNearTray()
     {
-        if (!IsVisible || _isDraggingWindow) return;
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!IsVisible || _isDraggingWindow) return;
-            UpdateLayout();
-            ApplyWorkAreaMaxHeight();
-            PositionNearTray();
-        }, DispatcherPriority.Loaded);
+        if (_isClosed || !IsVisible || _isDraggingWindow) return;
+
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible || _isDraggingWindow)
+                    return;
+                UpdateLayout();
+                ApplyWorkAreaMaxHeight();
+                PositionNearTray();
+            },
+            DispatcherPriority.Loaded);
     }
 
     private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!_isUndocked) return;
+        if (_isClosed || !_isUndocked) return;
         if (_undockButtonController?.IsPointerCaptured == true) return;
         if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
@@ -662,8 +784,21 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
         PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
-        e.Pointer.Capture(control);
+        _chromeCaptureOwner = control;
+        _chromeCapturedPointer = e.Pointer;
         _isDraggingWindow = true;
+        try
+        {
+            e.Pointer.Capture(control);
+        }
+        catch
+        {
+            _chromeCaptureOwner = null;
+            _chromeCapturedPointer = null;
+            _isDraggingWindow = false;
+            throw;
+        }
+
         e.Handled = true;
     }
 
@@ -671,6 +806,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         if (!_isDraggingWindow || !_isUndocked || _undockButtonController?.IsPointerCaptured == true) return;
         if (sender is not Control control) return;
+        if (!ReferenceEquals(_chromeCaptureOwner, control)) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
         {
             EndChromeDrag(e.Pointer, commit: true);
@@ -687,22 +823,60 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private void OnChromePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (!_isDraggingWindow || _undockButtonController?.IsPointerCaptured == true) return;
+        if (!ReferenceEquals(_chromeCaptureOwner, sender)) return;
         EndChromeDrag(e.Pointer, commit: true);
         e.Handled = true;
     }
 
     private void OnChromePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
-        if (_isDraggingWindow && _undockButtonController?.IsPointerCaptured != true)
-            CommitDragPosition();
+        if (!ReferenceEquals(_chromeCaptureOwner, sender)) return;
+
+        bool commit = _isDraggingWindow && _undockButtonController?.IsPointerCaptured != true;
+        _chromeCaptureOwner = null;
+        _chromeCapturedPointer = null;
         _isDraggingWindow = false;
+        if (commit)
+            CommitDragPosition();
+        FlushPendingRebuild();
     }
 
     private void EndChromeDrag(IPointer pointer, bool commit)
     {
+        _chromeCaptureOwner = null;
+        _chromeCapturedPointer = null;
         _isDraggingWindow = false;
-        pointer.Capture(null);
+        try
+        {
+            pointer.Capture(null);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"BatteryFlyoutWindow pointer release failed: {exception.Message}");
+        }
+
         if (commit) CommitDragPosition();
+        FlushPendingRebuild();
+    }
+
+    private void ReleaseChromeCapture(Control captureOwner)
+    {
+        if (!ReferenceEquals(_chromeCaptureOwner, captureOwner)) return;
+
+        IPointer? capturedPointer = _chromeCapturedPointer;
+        _chromeCaptureOwner = null;
+        _chromeCapturedPointer = null;
+        _isDraggingWindow = false;
+        if (capturedPointer == null) return;
+
+        try
+        {
+            capturedPointer.Capture(null);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"BatteryFlyoutWindow pointer release failed: {exception.Message}");
+        }
     }
 
     private Grid BuildBottomSection(
@@ -1015,7 +1189,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void SetPowerMode(FlyoutPowerMode mode)
     {
-        if (_isPowerModeChanging) return;
+        if (_isClosed || _isPowerModeChanging) return;
 
         _isPowerModeChanging = true;
         Rebuild();
@@ -1024,7 +1198,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void SetEnergySaver(bool enabled)
     {
-        if (_isEnergySaverChanging) return;
+        if (_isClosed || _isEnergySaverChanging) return;
 
         _isEnergySaverChanging = true;
         Rebuild();
@@ -1033,9 +1207,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private async Task SetPowerModeAsync(FlyoutPowerMode mode)
     {
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
         bool success = await Task.Run(() => SetActivePowerMode(mode));
+        if (_isClosed || cancellationToken.IsCancellationRequested) return;
+
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            if (_isClosed || cancellationToken.IsCancellationRequested) return;
             _isPowerModeChanging = false;
             if (!success) TADNLog.Log($"BatteryFlyoutWindow.SetPowerModeAsync({mode}): powercfg failed");
             _batteryMonitor.ForceRefresh();
@@ -1106,9 +1284,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private async Task SetEnergySaverAsync(bool enabled)
     {
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
         bool success = await Task.Run(() => SetEnergySaverThreshold(enabled));
+        if (_isClosed || cancellationToken.IsCancellationRequested) return;
+
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            if (_isClosed || cancellationToken.IsCancellationRequested) return;
             _isEnergySaverChanging = false;
             if (!success) TADNLog.Log($"BatteryFlyoutWindow.SetEnergySaverAsync({enabled}): powercfg failed");
             _batteryMonitor.ForceRefresh();
@@ -1269,11 +1451,30 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    protected override void OnClosed(EventArgs e)
     {
-        _batteryMonitor.StateChanged -= OnBatteryStateChanged;
-        _settings.Changed -= OnSettingsChanged;
-        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
-        Closed -= OnClosed;
+        _isClosed = true;
+        _rebuildPending = false;
+        _rebuildQueued = false;
+        _isRebuilding = false;
+        _isPowerModeChanging = false;
+        _isEnergySaverChanging = false;
+
+        Control? chromeCaptureOwner = _chromeCaptureOwner;
+        if (chromeCaptureOwner != null)
+            ReleaseChromeCapture(chromeCaptureOwner);
+        _isDraggingWindow = false;
+
+        try
+        {
+            base.OnClosed(e);
+        }
+        finally
+        {
+            _undockButtonController = null;
+            _chromeCaptureOwner = null;
+            _chromeCapturedPointer = null;
+            _lastTrayIcon = null;
+        }
     }
 }

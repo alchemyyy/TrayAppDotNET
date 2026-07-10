@@ -29,9 +29,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 {
     private readonly AppSettings _settings;
     private readonly Action<string, BatteryInstallScope> _showUninstaller;
+    private readonly List<StackPanel> _triggerPagePanels = [];
+    private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
     private StackPanel? _triggerPanel;
+    private StackPanel? _draggedTriggerPanel;
     private Border? _draggedTriggerRow;
     private BatteryTriggerEntry? _draggedTrigger;
+    private IPointer? _triggerCapturedPointer;
     private Point _triggerDragStart;
     private double _draggedTriggerPointerOffsetY;
     private double _draggedTriggerHeight;
@@ -108,16 +112,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
-    private Control BuildSettingsPage(BatterySettingsPage page, Func<Control> buildPage)
-    {
-        if (page != BatterySettingsPage.About)
-            StopAboutUpdateRefresh();
-
-        return buildPage();
-    }
+    private static Control BuildSettingsPage(Func<Control> buildPage) => buildPage();
 
     private StackPanel BuildGeneralPage() =>
-        (StackPanel)BuildSettingsPage(BatterySettingsPage.General, () =>
+        (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
             StackPanel stack = PageStack(L("Settings_General_SectionHeader", "General"), p);
@@ -213,7 +211,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     }
 
     private StackPanel BuildTriggersPage() =>
-        (StackPanel)BuildSettingsPage(BatterySettingsPage.Triggers, () =>
+        (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
             StackPanel stack = PageStack(L("Settings_Triggers_SectionHeader", "Triggers"), p);
@@ -224,9 +222,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 new Thickness(0, 0, 0, 12)));
 
             _settings.EnsureTriggerDefaults();
-            _triggerPanel = new StackPanel();
+            StackPanel triggerPanel = new();
+            _triggerPagePanels.Add(triggerPanel);
+            _triggerPanel = triggerPanel;
+            AddPageCleanup(() => CleanupTriggerPage(triggerPanel));
             RenderTriggerCards();
-            stack.Children.Add(_triggerPanel);
+            stack.Children.Add(triggerPanel);
             return stack;
         });
 
@@ -303,7 +304,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Margin = new Thickness(0, 0, 0, 6),
             Child = content,
             Focusable = true,
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = TrayAppDotNETCursors.Hand
         };
 
         bool pointerOver = false;
@@ -325,21 +326,40 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         {
             if (!e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) return;
             if (IsTriggerCardInteractiveSource(e.Source, card)) return;
+            StackPanel? triggerPanel = _triggerPanel;
+            if (triggerPanel == null) return;
+
             _draggedTrigger = trigger;
+            _draggedTriggerPanel = triggerPanel;
             _draggedTriggerRow = card;
-            _triggerDragStart = e.GetPosition(_triggerPanel);
+            _triggerCapturedPointer = e.Pointer;
+            _triggerDragStart = e.GetPosition(triggerPanel);
             _draggedTriggerPointerOffsetY = e.GetPosition(card).Y;
             _draggedTriggerHeight = Math.Max(1, card.Bounds.Height);
             _draggedTriggerTargetIndex = _settings.Triggers.IndexOf(trigger);
             pointerPressed = true;
             UpdateTriggerCardVisual(card, trigger, p, pointerOver, pointerPressed);
-            e.Pointer.Capture(card);
+            try
+            {
+                e.Pointer.Capture(card);
+            }
+            catch
+            {
+                pointerPressed = false;
+                ClearTriggerDragState();
+                UpdateTriggerCardVisual(card, trigger, p, pointerOver, pointerPressed);
+                throw;
+            }
+
             e.Handled = true;
         };
         card.PointerMoved += (_, e) =>
         {
-            if (_draggedTrigger == null || _triggerPanel == null) return;
-            Point current = e.GetPosition(_triggerPanel);
+            StackPanel? triggerPanel = _draggedTriggerPanel;
+            if (_draggedTrigger == null || triggerPanel == null) return;
+            if (!ReferenceEquals(_draggedTriggerRow, card)) return;
+
+            Point current = e.GetPosition(triggerPanel);
             if (Math.Abs(current.Y - _triggerDragStart.Y) < 4) return;
             double draggedMidpoint = current.Y - _draggedTriggerPointerOffsetY + _draggedTriggerHeight / 2.0;
             _draggedTriggerTargetIndex = TriggerInsertionIndexFromMidpoint(draggedMidpoint);
@@ -457,7 +477,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         bool pointerOver,
         bool pointerPressed)
     {
-        bool dragging = ReferenceEquals(trigger, _draggedTrigger);
+        bool dragging = ReferenceEquals(trigger, _draggedTrigger)
+                        && ReferenceEquals(_triggerPanel, _draggedTriggerPanel);
         Color background = pointerPressed
             ? p.Pressed
             : pointerOver
@@ -472,13 +493,15 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     private int TriggerInsertionIndexFromMidpoint(double draggedMidpointY)
     {
-        if (_triggerPanel == null) return -1;
+        StackPanel? triggerPanel = _draggedTriggerPanel;
+        if (triggerPanel == null) return -1;
+
         int insertion = 0;
-        for (int i = 0; i < _triggerPanel.Children.Count; i++)
+        for (int i = 0; i < triggerPanel.Children.Count; i++)
         {
-            Control child = _triggerPanel.Children[i];
+            Control child = triggerPanel.Children[i];
             if (ReferenceEquals(child, _draggedTriggerRow)) continue;
-            Point? topLeft = child.TranslatePoint(new Point(0, 0), _triggerPanel);
+            Point? topLeft = child.TranslatePoint(new Point(0, 0), triggerPanel);
             if (topLeft == null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
@@ -490,7 +513,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     private void ApplyTriggerDragPreview()
     {
-        if (_triggerPanel == null || _draggedTrigger == null || _draggedTriggerRow == null) return;
+        StackPanel? triggerPanel = _draggedTriggerPanel;
+        if (triggerPanel == null || _draggedTrigger == null || _draggedTriggerRow == null) return;
         ResetTriggerDragPreview();
 
         int sourceIndex = _settings.Triggers.IndexOf(_draggedTrigger);
@@ -505,23 +529,25 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         }
         else if (targetIndex > sourceIndex)
         {
-            for (int i = sourceIndex + 1; i <= targetIndex && i < _triggerPanel.Children.Count; i++)
+            for (int i = sourceIndex + 1; i <= targetIndex && i < triggerPanel.Children.Count; i++)
                 SetTriggerPreviewOffset(i, -offset);
         }
     }
 
     private void SetTriggerPreviewOffset(int index, double offset)
     {
-        if (_triggerPanel == null) return;
-        if (index < 0 || index >= _triggerPanel.Children.Count) return;
-        if (ReferenceEquals(_triggerPanel.Children[index], _draggedTriggerRow)) return;
-        _triggerPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+        StackPanel? triggerPanel = _draggedTriggerPanel;
+        if (triggerPanel == null) return;
+        if (index < 0 || index >= triggerPanel.Children.Count) return;
+        if (ReferenceEquals(triggerPanel.Children[index], _draggedTriggerRow)) return;
+        triggerPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
     }
 
     private void ResetTriggerDragPreview()
     {
-        if (_triggerPanel == null) return;
-        foreach (Control child in _triggerPanel.Children)
+        StackPanel? triggerPanel = _draggedTriggerPanel;
+        if (triggerPanel == null) return;
+        foreach (Control child in triggerPanel.Children)
         {
             if (ReferenceEquals(child, _draggedTriggerRow)) continue;
             child.RenderTransform = null;
@@ -530,23 +556,20 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     private void EndTriggerDrag(IPointer? pointer)
     {
+        StackPanel? draggedTriggerPanel = _draggedTriggerPanel;
         BatteryTriggerEntry? dragged = _draggedTrigger;
         int targetIndex = _draggedTriggerTargetIndex;
         bool hadDrag = dragged != null;
         bool reordered = false;
         _draggedTriggerRow?.RenderTransform = null;
-        if (_triggerPanel != null)
+        if (draggedTriggerPanel != null)
         {
-            foreach (Control child in _triggerPanel.Children)
+            foreach (Control child in draggedTriggerPanel.Children)
                 child.RenderTransform = null;
         }
 
-        _draggedTriggerRow = null;
-        _draggedTrigger = null;
-        _draggedTriggerTargetIndex = -1;
-        _draggedTriggerPointerOffsetY = 0;
-        _draggedTriggerHeight = 0;
-        pointer?.Capture(null);
+        ClearTriggerDragState();
+        ReleaseTriggerPointerCapture(pointer);
 
         if (dragged != null && targetIndex >= 0)
         {
@@ -560,7 +583,56 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         }
 
         if (reordered) Save();
-        if (hadDrag) RenderTriggerCards();
+        if (hadDrag && ReferenceEquals(_triggerPanel, draggedTriggerPanel)) RenderTriggerCards();
+    }
+
+    private void CleanupTriggerPage(StackPanel triggerPanel)
+    {
+        IPointer? capturedPointer = null;
+        if (ReferenceEquals(_draggedTriggerPanel, triggerPanel))
+        {
+            foreach (Control child in triggerPanel.Children)
+                child.RenderTransform = null;
+
+            capturedPointer = _triggerCapturedPointer;
+            ClearTriggerDragState();
+        }
+
+        _triggerPagePanels.Remove(triggerPanel);
+        if (ReferenceEquals(_triggerPanel, triggerPanel))
+        {
+            _triggerPanel = _triggerPagePanels.Count > 0
+                ? _triggerPagePanels[^1]
+                : null;
+        }
+
+        ReleaseTriggerPointerCapture(capturedPointer);
+    }
+
+    private void ClearTriggerDragState()
+    {
+        _draggedTriggerPanel = null;
+        _draggedTriggerRow = null;
+        _draggedTrigger = null;
+        _triggerCapturedPointer = null;
+        _triggerDragStart = default;
+        _draggedTriggerTargetIndex = -1;
+        _draggedTriggerPointerOffsetY = 0;
+        _draggedTriggerHeight = 0;
+    }
+
+    private static void ReleaseTriggerPointerCapture(IPointer? pointer)
+    {
+        if (pointer == null) return;
+
+        try
+        {
+            pointer.Capture(null);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"BatterySettingsWindow trigger pointer release failed: {exception.Message}");
+        }
     }
 
     private static bool IsTriggerCardInteractiveSource(object? source, Border card)
@@ -578,7 +650,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     }
 
     private StackPanel BuildFlyoutPage() =>
-        (StackPanel)BuildSettingsPage(BatterySettingsPage.Flyout, () =>
+        (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
             StackPanel stack = PageStack(L("Settings_Flyout_SectionHeader", "Flyout"), p);
@@ -627,7 +699,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         });
 
     private StackPanel BuildTrayIconPage() =>
-        (StackPanel)BuildSettingsPage(BatterySettingsPage.TrayIcon, () =>
+        (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
             StackPanel stack = PageStack(L("Settings_TrayIcon_SectionHeader", "Tray Icon"), p);
@@ -656,7 +728,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         });
 
     private StackPanel BuildHotkeysPage() =>
-        (StackPanel)BuildSettingsPage(BatterySettingsPage.Hotkeys, () =>
+        (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
             StackPanel stack = PageStack(L("Settings_Hotkeys_SectionHeader", "Hotkeys"), p);
@@ -729,7 +801,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
         TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
         keyBox.IsReadOnly = true;
-        keyBox.Cursor = new Cursor(StandardCursorType.Ibeam);
+        keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
         SettingsButton addButton = Button(L("Settings_Hotkeys_Add_Button", "Add"), p);
         addButton.MinWidth = 70;
@@ -938,7 +1010,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     }
 
     private StackPanel BuildThemePage() =>
-        (StackPanel)BuildSettingsPage(BatterySettingsPage.Theme, () =>
+        (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
             StackPanel stack = PageStack(L("Settings_Theme_SectionHeader", "Theme"), p);
@@ -1083,33 +1155,47 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     private StackPanel BuildAboutPage()
     {
-        _aboutPage = new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
-        {
-            Palette = Palette,
-            ButtonRadius = RadiusMedium,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            ApplicationName = Constants.ApplicationName,
-            Tagline = L("Settings_About_Tagline", "A tray-based battery status monitor."),
-            BuildNumber = BuildInfo.BuildNumber,
-            Publisher = Constants.Publisher,
-            HelpLink = Constants.HelpLink,
-            UpdateSettings = _settings,
-            UpdateService = static () => AppServices.UpdateCheckService,
-            ConfirmAsync = ConfirmAsync,
-            PromptOwner = () => this,
-            SupportsFlyoutUpdateButton = false,
-            Shutdown = () =>
+        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(
+            new TrayAppDotNETAboutPageOptions
             {
-                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-                    desktop.Shutdown();
-            },
-            Log = TADNLog.Log,
-            RebuildAboutPage = () => RebuildShell(BatterySettingsPage.About),
-            StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
+                Palette = Palette,
+                ButtonRadius = RadiusMedium,
+                CardRadius = RadiusLarge,
+                Localize = L,
+                Save = Save,
+                ApplicationName = Constants.ApplicationName,
+                Tagline = L("Settings_About_Tagline", "A tray-based battery status monitor."),
+                BuildNumber = BuildInfo.BuildNumber,
+                Publisher = Constants.Publisher,
+                HelpLink = Constants.HelpLink,
+                UpdateSettings = _settings,
+                UpdateService = static () => AppServices.UpdateCheckService,
+                ConfirmAsync = ConfirmAsync,
+                PromptOwner = () => this,
+                SupportsFlyoutUpdateButton = false,
+                Shutdown = () =>
+                {
+                    if (Application.Current?.ApplicationLifetime
+                        is IClassicDesktopStyleApplicationLifetime desktop)
+                        desktop.Shutdown();
+                },
+                Log = TADNLog.Log,
+                RebuildAboutPage = () => RebuildShell(BatterySettingsPage.About),
+                StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
+                UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
+            }));
+        _aboutPageGenerations.Add(aboutPage);
+        _aboutPage = aboutPage;
+        AddPageCleanup(() =>
+        {
+            _aboutPageGenerations.Remove(aboutPage);
+            if (ReferenceEquals(_aboutPage, aboutPage))
+            {
+                _aboutPage = _aboutPageGenerations.Count > 0
+                    ? _aboutPageGenerations[^1]
+                    : null;
+            }
         });
-        return _aboutPage.Build();
+        return aboutPage.Build();
     }
 }

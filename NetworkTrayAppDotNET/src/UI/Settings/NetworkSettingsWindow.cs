@@ -22,6 +22,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
     private readonly AppSettings _settings;
     private readonly Action<string, InstallScope> _showUninstaller;
     private readonly TrayAppDotNETSettingsColorCardCoordinator _colorCardCoordinator = new();
+    private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
     private TrayAppDotNETAboutPage? _aboutPage;
 
     public NetworkSettingsWindow()
@@ -139,8 +140,12 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
             VariantPickerTitle,
             ColorPickerStrings(),
             Save,
-            () => RebuildShell(CurrentPageKey),
-            () => IsClosing);
+            RebuildCurrentPageShell,
+            IsSettingsWindowClosing);
+
+    private void RebuildCurrentPageShell() => RebuildShell(CurrentPageKey);
+
+    private bool IsSettingsWindowClosing() => IsClosing;
 
     private static string VariantPickerTitle(string title, bool isLight) =>
         string.Format(

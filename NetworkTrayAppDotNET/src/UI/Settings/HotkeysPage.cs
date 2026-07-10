@@ -72,7 +72,7 @@ public sealed partial class NetworkSettingsWindow
 
         TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
         keyBox.IsReadOnly = true;
-        keyBox.Cursor = new Cursor(StandardCursorType.Ibeam);
+        keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
         SettingsButton addButton = Button(Loc("Settings_Hotkeys_Add_Button"), p);
         addButton.MinWidth = 70;

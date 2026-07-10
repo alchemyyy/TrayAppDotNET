@@ -7,35 +7,47 @@ public sealed partial class NetworkSettingsWindow
 {
     private StackPanel BuildAboutPage()
     {
-        StopAboutUpdateRefresh();
-        _aboutPage = new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
-        {
-            Palette = Palette,
-            ButtonRadius = RadiusMedium,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            ApplicationName = Constants.ApplicationName,
-            Tagline = L("Settings_About_Tagline", "A tray-based network controller."),
-            BuildNumber = BuildInfo.BuildNumber,
-            Publisher = Constants.Publisher,
-            HelpLink = Constants.HelpLink,
-            UpdateSettings = _settings,
-            UpdateService = static () => AppServices.UpdateCheckService,
-            ConfirmAsync = ConfirmAsync,
-            PromptOwner = () => this,
-            SupportsFlyoutUpdateButton = false,
-            Shutdown = static () =>
+        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(
+            new TrayAppDotNETAboutPageOptions
             {
-                if (Avalonia.Application.Current?.ApplicationLifetime
-                    is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-                    desktop.Shutdown();
-            },
-            Log = message => TADNLog.Log(message),
-            RebuildAboutPage = () => RebuildShell(NetworkSettingsPage.About),
-            StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
+                Palette = Palette,
+                ButtonRadius = RadiusMedium,
+                CardRadius = RadiusLarge,
+                Localize = L,
+                Save = Save,
+                ApplicationName = Constants.ApplicationName,
+                Tagline = L("Settings_About_Tagline", "A tray-based network controller."),
+                BuildNumber = BuildInfo.BuildNumber,
+                Publisher = Constants.Publisher,
+                HelpLink = Constants.HelpLink,
+                UpdateSettings = _settings,
+                UpdateService = static () => AppServices.UpdateCheckService,
+                ConfirmAsync = ConfirmAsync,
+                PromptOwner = () => this,
+                SupportsFlyoutUpdateButton = false,
+                Shutdown = static () =>
+                {
+                    if (Avalonia.Application.Current?.ApplicationLifetime
+                        is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                        desktop.Shutdown();
+                },
+                Log = message => TADNLog.Log(message),
+                RebuildAboutPage = () => RebuildShell(NetworkSettingsPage.About),
+                StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
+                UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
+            }));
+        _aboutPageGenerations.Add(aboutPage);
+        _aboutPage = aboutPage;
+        AddPageCleanup(() =>
+        {
+            _aboutPageGenerations.Remove(aboutPage);
+            if (ReferenceEquals(_aboutPage, aboutPage))
+            {
+                _aboutPage = _aboutPageGenerations.Count > 0
+                    ? _aboutPageGenerations[^1]
+                    : null;
+            }
         });
-        return _aboutPage.Build();
+        return aboutPage.Build();
     }
 }
