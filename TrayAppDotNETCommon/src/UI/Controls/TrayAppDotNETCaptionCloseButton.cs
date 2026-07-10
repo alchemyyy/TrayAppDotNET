@@ -47,7 +47,7 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
         Width = width;
         Height = height;
         Background = Brushes.Transparent;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
 
         _glyph = new TextBlock

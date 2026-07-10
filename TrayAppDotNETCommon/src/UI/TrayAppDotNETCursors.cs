@@ -1,0 +1,14 @@
+using Avalonia.Input;
+
+namespace TrayAppDotNETCommon.UI;
+
+/// <summary>
+/// Bounded application-lifetime standard cursors shared by programmatic UI generations.
+/// </summary>
+public static class TrayAppDotNETCursors
+{
+    public static Cursor Arrow { get; } = new(StandardCursorType.Arrow);
+    public static Cursor Hand { get; } = new(StandardCursorType.Hand);
+    public static Cursor IBeam { get; } = new(StandardCursorType.Ibeam);
+    public static Cursor Cross { get; } = new(StandardCursorType.Cross);
+}

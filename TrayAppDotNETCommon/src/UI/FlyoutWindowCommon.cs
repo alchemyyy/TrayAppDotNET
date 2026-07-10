@@ -8,6 +8,9 @@ namespace TrayAppDotNETCommon.UI;
 
 public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 {
+    private readonly UIResourceScope _windowResources;
+    private UIContentGeneration? _activeContentGeneration;
+
     public bool KeepOpenForSettingsWindow { get; set; }
     public bool IsWarmPriming { get; set; }
     public bool IsManagedByWarmSlot { get; set; }
@@ -18,12 +21,9 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 
     protected FlyoutWindowCommon()
     {
-        Deactivated += (_, _) =>
-        {
-            if (!ShouldHideWhenInactive()) return;
-            if (ConsumeNextAutoHideSuppression()) return;
-            HideFlyout();
-        };
+        _windowResources = new UIResourceScope(GetType().Name);
+        Deactivated += OnDeactivated;
+        _windowResources.Add(() => Deactivated -= OnDeactivated);
     }
 
     protected virtual bool HasOpenChildWindow => false;
@@ -31,6 +31,47 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     protected virtual bool ShouldAutoHideWhenDeactivated => true;
 
     protected virtual void HideFlyout() => Hide();
+
+    /// <summary>Gets the resources owned for the complete flyout-window lifetime.</summary>
+    protected UIResourceScope WindowResources => _windowResources;
+
+    /// <summary>Gets the currently active replaceable content generation.</summary>
+    protected UIContentGeneration? ActiveContentGeneration => _activeContentGeneration;
+
+    /// <summary>
+    /// Publishes a completely built generation, then retires the previous generation.
+    /// </summary>
+    protected void CommitContentGeneration(UIContentGeneration replacement)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        if (replacement.IsDisposed)
+            throw new ObjectDisposedException(replacement.OwnerName);
+
+        UIContentGeneration? previous = _activeContentGeneration;
+        try
+        {
+            Content = replacement.Root;
+            _activeContentGeneration = replacement;
+        }
+        catch
+        {
+            replacement.Dispose();
+            throw;
+        }
+
+        previous?.Dispose();
+    }
+
+    /// <summary>Detaches and retires the active content generation.</summary>
+    protected void DisposeContentGeneration()
+    {
+        UIContentGeneration? generation = Interlocked.Exchange(ref _activeContentGeneration, null);
+        if (generation == null) return;
+
+        if (!generation.IsDisposed && ReferenceEquals(Content, generation.Root))
+            Content = null;
+        generation.Dispose();
+    }
 
     protected void SuppressNextAutoHideWhenPressed(Control control)
     {
@@ -99,11 +140,26 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         && CanHideFromCoordinator
         && !KeepOpenForSettingsWindow;
 
+    private void OnDeactivated(object? sender, EventArgs e)
+    {
+        if (!ShouldHideWhenInactive()) return;
+        if (ConsumeNextAutoHideSuppression()) return;
+        HideFlyout();
+    }
+
     private bool ConsumeNextAutoHideSuppression()
     {
         if (!_suppressNextAutoHide) return false;
 
         _suppressNextAutoHide = false;
         return true;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        DisposeContentGeneration();
+        _windowResources.Dispose();
+        WarmDismissed = null;
+        base.OnClosed(e);
     }
 }

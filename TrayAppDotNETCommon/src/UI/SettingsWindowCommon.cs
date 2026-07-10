@@ -26,9 +26,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private ContentControl _content = new();
     private readonly SettingsWindowCommonResources _settingsResources = new();
     private readonly CommonBindingsResources _commonBindingResources = new();
-    private readonly Dictionary<TPageKey, Func<Control>> _pages = [];
-    private readonly Dictionary<TPageKey, SettingsNavItem> _navItems = [];
+    private Dictionary<TPageKey, Func<Control>> _pages = [];
+    private Dictionary<TPageKey, SettingsNavItem> _navItems = [];
     private readonly Dictionary<TPageKey, double> _pageScrollOffsets = [];
+    private readonly UIResourceScope _windowResources;
+    private UIContentGeneration? _shellGeneration;
+    private UIContentGeneration? _pageGeneration;
+    private UIResourceScope? _buildingPageResources;
     private SettingsScrollHost? _scrollHost;
     private TaskCompletionSource<bool>? _confirmTcs;
     private Border? _confirmOverlay;
@@ -65,11 +69,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected SettingsWindowCommon()
     {
+        _windowResources = new UIResourceScope(GetType().Name);
         Resources.MergedDictionaries.Add(_settingsResources);
         Resources.MergedDictionaries.Add(_commonBindingResources);
         _wndProcHook = WndProcHook;
-        Opened += (_, _) => AttachWndProcHook();
-        Closed += (_, _) => DetachWndProcHook();
+        Opened += OnWindowOpened;
+        Closed += OnWindowClosed;
+        _windowResources.Add(() => Closed -= OnWindowClosed);
+        _windowResources.Add(() => Opened -= OnWindowOpened);
     }
 
     protected void ConfigureSettingsWindow(string title, WindowIcon? icon) =>
@@ -118,16 +125,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (_shellInitialized) return;
 
         _shellInitialized = true;
-        CurrentPageKey = DefaultPageKey;
-        SetSettingsContent(BuildRoot());
-        ShowPage(CurrentPageKey);
-
-        Closed += (_, _) =>
-        {
-            IsClosing = true;
-            CancelPendingConfirm();
-            OnSettingsWindowClosed();
-        };
+        BuildAndCommitShell(DefaultPageKey);
     }
 
     protected virtual void OnSettingsWindowClosed()
@@ -169,10 +167,29 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (_hasShownPage && _scrollHost != null)
             _pageScrollOffsets[CurrentPageKey] = _scrollHost.VerticalOffset;
 
-        _content = new ContentControl();
-        _hasShownPage = false;
-        SetSettingsContent(BuildRoot());
-        ShowPage(selectedPageKey, force: true);
+        BuildAndCommitShell(selectedPageKey);
+    }
+
+    /// <summary>Adds cleanup owned by the settings page currently being constructed.</summary>
+    protected void AddPageCleanup(Action cleanup)
+    {
+        ArgumentNullException.ThrowIfNull(cleanup);
+        UIResourceScope? resources = _buildingPageResources;
+        if (resources == null)
+            throw new InvalidOperationException("Page cleanup can only be registered while building a page.");
+
+        resources.Add(cleanup);
+    }
+
+    /// <summary>Registers and returns a disposable resource owned by the page being constructed.</summary>
+    protected T OwnPageResource<T>(T resource)
+        where T : IDisposable
+    {
+        UIResourceScope? resources = _buildingPageResources;
+        if (resources == null)
+            throw new InvalidOperationException("Page resources can only be registered while building a page.");
+
+        return resources.Own(resource);
     }
 
     protected static string L(string key, string fallback = "")
@@ -283,8 +300,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected Task ShowMessage(string title, string message) =>
         ConfirmAsync(title, message, "OK", "OK");
-
-    private void SetSettingsContent(Control content) => Content = content;
 
     private Border BuildRoot()
     {
@@ -528,9 +543,128 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         CurrentPageKey = key;
         foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
             item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, key);
-        _content.Content = factory();
+
+        UIContentGeneration replacement = BuildPageGeneration(key, factory);
+        UIContentGeneration? previous = _pageGeneration;
+        try
+        {
+            _content.Content = replacement.Root;
+            _pageGeneration = replacement;
+        }
+        catch
+        {
+            replacement.Dispose();
+            throw;
+        }
+
+        previous?.Dispose();
         RestorePageScroll(key, resetBeforeLayout: !force);
         _hasShownPage = true;
+    }
+
+    private void BuildAndCommitShell(TPageKey selectedPageKey)
+    {
+        CancelPendingConfirm();
+
+        ContentControl previousContent = _content;
+        Dictionary<TPageKey, Func<Control>> previousPages = _pages;
+        Dictionary<TPageKey, SettingsNavItem> previousNavItems = _navItems;
+        SettingsScrollHost? previousScrollHost = _scrollHost;
+        Border? previousConfirmOverlay = _confirmOverlay;
+        TextBlock? previousConfirmTitle = _confirmTitle;
+        TextBlock? previousConfirmMessage = _confirmMessage;
+        SettingsButton? previousConfirmOK = _confirmOk;
+        SettingsButton? previousConfirmCancel = _confirmCancel;
+        TPageKey previousPageKey = CurrentPageKey;
+        bool previousHasShownPage = _hasShownPage;
+        UIContentGeneration? previousShellGeneration = _shellGeneration;
+        UIContentGeneration? previousPageGeneration = _pageGeneration;
+
+        UIContentGeneration? replacementShellGeneration = null;
+        UIContentGeneration? replacementPageGeneration = null;
+        Dictionary<TPageKey, Func<Control>> replacementPages = [];
+        Dictionary<TPageKey, SettingsNavItem> replacementNavItems = [];
+
+        try
+        {
+            _content = new ContentControl();
+            _pages = replacementPages;
+            _navItems = replacementNavItems;
+            _scrollHost = null;
+            _confirmOverlay = null;
+            _confirmTitle = null;
+            _confirmMessage = null;
+            _confirmOk = null;
+            _confirmCancel = null;
+            CurrentPageKey = selectedPageKey;
+            _hasShownPage = false;
+
+            Border replacementRoot = BuildRoot();
+            if (!_pages.TryGetValue(selectedPageKey, out Func<Control>? selectedPageFactory))
+                throw new InvalidOperationException($"Settings page '{selectedPageKey}' is not registered.");
+
+            replacementPageGeneration = BuildPageGeneration(selectedPageKey, selectedPageFactory);
+            _content.Content = replacementPageGeneration.Root;
+            foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
+                item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, selectedPageKey);
+            _hasShownPage = true;
+
+            UIResourceScope shellResources = new($"{GetType().Name}.Shell");
+            shellResources.Add(replacementNavItems.Clear);
+            shellResources.Add(replacementPages.Clear);
+            replacementShellGeneration = new UIContentGeneration(
+                $"{GetType().Name}.Shell",
+                replacementRoot,
+                shellResources);
+
+            Content = replacementShellGeneration.Root;
+            _shellGeneration = replacementShellGeneration;
+            _pageGeneration = replacementPageGeneration;
+        }
+        catch
+        {
+            replacementPageGeneration?.Dispose();
+            replacementShellGeneration?.Dispose();
+
+            _content = previousContent;
+            _pages = previousPages;
+            _navItems = previousNavItems;
+            _scrollHost = previousScrollHost;
+            _confirmOverlay = previousConfirmOverlay;
+            _confirmTitle = previousConfirmTitle;
+            _confirmMessage = previousConfirmMessage;
+            _confirmOk = previousConfirmOK;
+            _confirmCancel = previousConfirmCancel;
+            CurrentPageKey = previousPageKey;
+            _hasShownPage = previousHasShownPage;
+            _shellGeneration = previousShellGeneration;
+            _pageGeneration = previousPageGeneration;
+            throw;
+        }
+
+        previousPageGeneration?.Dispose();
+        previousShellGeneration?.Dispose();
+        RestorePageScroll(selectedPageKey, resetBeforeLayout: false);
+    }
+
+    private UIContentGeneration BuildPageGeneration(TPageKey key, Func<Control> factory)
+    {
+        UIResourceScope resources = new($"{GetType().Name}.Page.{key}");
+        _buildingPageResources = resources;
+        try
+        {
+            Control root = factory();
+            return new UIContentGeneration($"{GetType().Name}.Page.{key}", root, resources);
+        }
+        catch
+        {
+            resources.Dispose();
+            throw;
+        }
+        finally
+        {
+            _buildingPageResources = null;
+        }
     }
 
     private void RestorePageScroll(TPageKey key, bool resetBeforeLayout)
@@ -610,6 +744,47 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
         tcs?.TrySetResult(false);
+    }
+
+    private void OnWindowOpened(object? sender, EventArgs e) => AttachWndProcHook();
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        if (IsClosing) return;
+        IsClosing = true;
+        CancelPendingConfirm();
+
+        try
+        {
+            OnSettingsWindowClosed();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"{GetType().Name}.OnSettingsWindowClosed failed: {exception.GetType().Name}: {exception.Message}");
+        }
+
+        DetachWndProcHook();
+        Content = null;
+
+        UIContentGeneration? pageGeneration = Interlocked.Exchange(ref _pageGeneration, null);
+        UIContentGeneration? shellGeneration = Interlocked.Exchange(ref _shellGeneration, null);
+        pageGeneration?.Dispose();
+        shellGeneration?.Dispose();
+
+        _buildingPageResources?.Dispose();
+        _buildingPageResources = null;
+        _content.Content = null;
+        _pages.Clear();
+        _navItems.Clear();
+        _pageScrollOffsets.Clear();
+        _scrollHost = null;
+        _confirmOverlay = null;
+        _confirmTitle = null;
+        _confirmMessage = null;
+        _confirmOk = null;
+        _confirmCancel = null;
+        _windowResources.Dispose();
     }
 
     private void AttachWndProcHook()

@@ -85,7 +85,10 @@ public sealed class TrayMenuWindowOptions
 public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 {
     private readonly TrayMenuWindowOptions _options;
-    private readonly ScrollViewer _scrollViewer;
+    private readonly UIResourceScope _windowResources;
+    private UIContentGeneration? _contentGeneration;
+    private ScrollViewer? _scrollViewer;
+    private bool _closed;
     public bool IsWarmPriming { get; set; }
     public bool IsManagedByWarmSlot { get; set; }
     public event EventHandler? WarmDismissed;
@@ -96,6 +99,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
+        _windowResources = new UIResourceScope(GetType().Name);
 
         WindowDecorations = WindowDecorations.None;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
@@ -106,12 +110,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         SizeToContent = SizeToContent.WidthAndHeight;
 
         StackPanel items = new();
+        UIResourceScope contentResources = new($"{GetType().Name}.Content");
         foreach (TrayMenuEntry entry in entries)
         {
-            items.Children.Add(new TrayMenuItemControl(
+            TrayMenuItemControl item = contentResources.Own(new TrayMenuItemControl(
                 entry,
                 _options,
                 () => InvokeAndClose(entry.Click)));
+            items.Children.Add(item);
         }
 
         _scrollViewer = new ScrollViewer
@@ -140,15 +146,15 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             });
         }
 
-        Content = root;
-        Deactivated += (_, _) => DismissForWarmCache();
-        KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Escape) return;
-
-            DismissForWarmCache();
-            e.Handled = true;
-        };
+        _contentGeneration = new UIContentGeneration(
+            $"{GetType().Name}.Content",
+            root,
+            contentResources);
+        Content = _contentGeneration.Root;
+        Deactivated += OnDeactivated;
+        KeyDown += OnKeyDown;
+        _windowResources.Add(() => KeyDown -= OnKeyDown);
+        _windowResources.Add(() => Deactivated -= OnDeactivated);
     }
 
     public void ShowAt(
@@ -156,14 +162,20 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         PixelPoint cursorPoint,
         TrayMenuWindowPlacement placement)
     {
+        if (_closed) return;
+
         Opacity = 0;
         Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
         Show();
 
         Dispatcher.UIThread.Post(() =>
         {
+            if (_windowResources.IsDisposed || !IsVisible) return;
+            ScrollViewer? scrollViewer = _scrollViewer;
+            if (scrollViewer == null) return;
+
             PixelRect workArea = ResolveWorkArea(cursorPoint);
-            _scrollViewer.MaxHeight = Math.Max(
+            scrollViewer.MaxHeight = Math.Max(
                 _options.PixelMinSize,
                 (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
 
@@ -218,8 +230,11 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
     private void ScrollToBottom()
     {
-        double maxOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
-        _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, maxOffset);
+        ScrollViewer? scrollViewer = _scrollViewer;
+        if (scrollViewer == null) return;
+
+        double maxOffset = Math.Max(0, scrollViewer.Extent.Height - scrollViewer.Viewport.Height);
+        scrollViewer.Offset = new Vector(scrollViewer.Offset.X, maxOffset);
     }
 
     private void InvokeAndClose(Action action)
@@ -254,14 +269,38 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         Close();
     }
 
+    protected override void OnClosed(EventArgs e)
+    {
+        _closed = true;
+        Content = null;
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        contentGeneration?.Dispose();
+        _scrollViewer = null;
+        _windowResources.Dispose();
+        WarmDismissed = null;
+        base.OnClosed(e);
+    }
+
+    private void OnDeactivated(object? sender, EventArgs e) => DismissForWarmCache();
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+
+        DismissForWarmCache();
+        e.Handled = true;
+    }
+
     private CornerRadius ResolveCornerRadius(CornerRadius roundedRadius) =>
         _options.Rounded ? roundedRadius : new CornerRadius(0);
 
-    private sealed class TrayMenuItemControl : Border
+    private sealed class TrayMenuItemControl : Border, IDisposable
     {
         private readonly TrayMenuWindowOptions _options;
         private readonly Border _itemBorder;
+        private readonly Action _click;
         private bool _isPointerOver;
+        private bool _disposed;
 
         public TrayMenuItemControl(
             TrayMenuEntry entry,
@@ -269,8 +308,9 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             Action click)
         {
             _options = options;
+            _click = click;
             Background = Brushes.Transparent;
-            Cursor = new Cursor(StandardCursorType.Hand);
+            Cursor = TrayAppDotNETCursors.Hand;
             Focusable = true;
 
             _itemBorder = new Border
@@ -306,30 +346,10 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
             Child = layout;
 
-            PointerEntered += (_, _) =>
-            {
-                _isPointerOver = true;
-                UpdateVisual();
-            };
-            PointerExited += (_, _) =>
-            {
-                _isPointerOver = false;
-                UpdateVisual();
-            };
-            PointerPressed += (_, e) =>
-            {
-                if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-
-                click();
-                e.Handled = true;
-            };
-            KeyDown += (_, e) =>
-            {
-                if (e.Key is not (Key.Enter or Key.Space)) return;
-
-                click();
-                e.Handled = true;
-            };
+            PointerEntered += OnPointerEntered;
+            PointerExited += OnPointerExited;
+            PointerPressed += OnPointerPressed;
+            KeyDown += OnKeyDown;
         }
 
         private static Control BuildContent(TrayMenuEntry entry, TrayMenuWindowOptions options)
@@ -367,6 +387,48 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             Color background = _isPointerOver ? _options.Palette.Hover : Colors.Transparent;
             _itemBorder.Background = TrayAppDotNETSettingsUI.Brush(background);
+        }
+
+        private void OnPointerEntered(object? sender, PointerEventArgs e)
+        {
+            if (_disposed) return;
+            _isPointerOver = true;
+            UpdateVisual();
+        }
+
+        private void OnPointerExited(object? sender, PointerEventArgs e)
+        {
+            if (_disposed) return;
+            _isPointerOver = false;
+            UpdateVisual();
+        }
+
+        private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+        {
+            if (_disposed || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+            _click();
+            e.Handled = true;
+        }
+
+        private void OnKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (_disposed || e.Key is not (Key.Enter or Key.Space)) return;
+
+            _click();
+            e.Handled = true;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            PointerEntered -= OnPointerEntered;
+            PointerExited -= OnPointerExited;
+            PointerPressed -= OnPointerPressed;
+            KeyDown -= OnKeyDown;
+            Cursor = null;
+            Child = null;
         }
 
         private static CornerRadius ResolveCornerRadius(TrayMenuWindowOptions options, CornerRadius roundedRadius) =>

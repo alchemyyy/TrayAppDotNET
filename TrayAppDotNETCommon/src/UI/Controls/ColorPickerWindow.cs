@@ -683,7 +683,7 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control
     {
         _palette = palette;
         Focusable = true;
-        Cursor = new Cursor(StandardCursorType.Cross);
+        Cursor = TrayAppDotNETCursors.Cross;
     }
 
     public event EventHandler<TrayAppDotNETSaturationValueChangedEventArgs>? SelectionChanged;
@@ -810,7 +810,7 @@ internal sealed class TrayAppDotNETColorSlider : Control
         _kind = kind;
         _palette = palette;
         Focusable = true;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
     }
 
     public event EventHandler<double>? ValueChanged;

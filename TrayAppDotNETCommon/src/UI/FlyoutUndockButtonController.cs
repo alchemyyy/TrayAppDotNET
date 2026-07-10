@@ -32,7 +32,7 @@ public sealed class FlyoutUndockButtonOptions
     public CornerRadius CornerRadius { get; init; } = FlyoutUndockButtonLayout.CornerRadius;
 }
 
-public sealed class FlyoutUndockButtonController
+public sealed class FlyoutUndockButtonController : IDisposable
 {
     private readonly Window _owner;
     private readonly FlyoutWindowDragHelper _dragHelper;
@@ -49,6 +49,8 @@ public sealed class FlyoutUndockButtonController
     private readonly bool _applyGlyphFontFamily;
 
     private bool _pointerInside;
+    private bool _disposed;
+    private IPointer? _capturedPointer;
 
     public FlyoutUndockButtonController(FlyoutUndockButtonOptions options)
     {
@@ -80,7 +82,7 @@ public sealed class FlyoutUndockButtonController
             CornerRadius = options.CornerRadius,
             Background = Brushes.Transparent,
             Child = Glyph,
-            Cursor = options.IsEnabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
+            Cursor = options.IsEnabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
             IsEnabled = options.IsEnabled,
             IsVisible = options.IsVisible
         };
@@ -111,50 +113,64 @@ public sealed class FlyoutUndockButtonController
 
     private void WireButton()
     {
-        Button.PointerEntered += (_, _) =>
-        {
-            _pointerInside = true;
-            if (!IsDragging && Button.IsEnabled)
-                Button.Background = TrayAppDotNETFlyoutUI.Brush(_palette.Hover);
-        };
-        Button.PointerExited += (_, _) =>
-        {
-            _pointerInside = false;
-            if (!IsDragging)
-                Button.Background = Brushes.Transparent;
-        };
-        Button.PointerPressed += (_, e) =>
-        {
-            if (!Button.IsEnabled) return;
-            if (e.GetCurrentPoint(Button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+        Button.PointerEntered += OnPointerEntered;
+        Button.PointerExited += OnPointerExited;
+        Button.PointerPressed += OnPointerPressed;
+        Button.PointerMoved += OnPointerMoved;
+        Button.PointerReleased += OnPointerReleased;
+        Button.PointerCaptureLost += OnPointerCaptureLost;
+    }
 
-            _pointerInside = true;
-            BeginButtonDrag(e);
-            Button.Background = TrayAppDotNETFlyoutUI.Brush(_palette.Pressed);
-            e.Handled = true;
-        };
-        Button.PointerMoved += (_, e) =>
-        {
-            if (!IsPointerCaptured) return;
-            ContinueButtonDrag(e);
-            e.Handled = true;
-        };
-        Button.PointerReleased += (_, e) =>
-        {
-            if (!IsPointerCaptured || e.InitialPressMouseButton != MouseButton.Left) return;
+    private void OnPointerEntered(object? sender, PointerEventArgs e)
+    {
+        if (_disposed) return;
+        _pointerInside = true;
+        if (!IsDragging && Button.IsEnabled)
+            Button.Background = TrayAppDotNETFlyoutUI.Brush(_palette.Hover);
+    }
 
-            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(Button, e);
-            FinishButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: releasedInside);
-            Button.Background = releasedInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
-            e.Handled = true;
-        };
-        Button.PointerCaptureLost += (_, _) =>
-        {
-            if (!IsPointerCaptured) return;
+    private void OnPointerExited(object? sender, PointerEventArgs e)
+    {
+        if (_disposed) return;
+        _pointerInside = false;
+        if (!IsDragging)
+            Button.Background = Brushes.Transparent;
+    }
 
-            FinishButtonDrag(null, commitDrag: DragOccurred, clickWhenNotDragged: false);
-            Button.Background = _pointerInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
-        };
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_disposed || !Button.IsEnabled) return;
+        if (e.GetCurrentPoint(Button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+
+        _pointerInside = true;
+        BeginButtonDrag(e);
+        Button.Background = TrayAppDotNETFlyoutUI.Brush(_palette.Pressed);
+        e.Handled = true;
+    }
+
+    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_disposed || !IsPointerCaptured) return;
+        ContinueButtonDrag(e);
+        e.Handled = true;
+    }
+
+    private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_disposed || !IsPointerCaptured || e.InitialPressMouseButton != MouseButton.Left) return;
+
+        bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(Button, e);
+        FinishButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: releasedInside);
+        Button.Background = releasedInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
+        e.Handled = true;
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_disposed || !IsPointerCaptured) return;
+
+        FinishButtonDrag(null, commitDrag: DragOccurred, clickWhenNotDragged: false);
+        Button.Background = _pointerInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
     }
 
     private void BeginButtonDrag(PointerPressedEventArgs e)
@@ -165,6 +181,7 @@ public sealed class FlyoutUndockButtonController
         _dragHelper.BeginDrag(pointer, _owner.Position, dockedPosition, snapTolerance);
         IsPointerCaptured = true;
         DragOccurred = false;
+        _capturedPointer = e.Pointer;
         SetDragging(true);
         e.Pointer.Capture(Button);
     }
@@ -198,6 +215,7 @@ public sealed class FlyoutUndockButtonController
         bool dragOccurred = DragOccurred;
         IsPointerCaptured = false;
         DragOccurred = false;
+        _capturedPointer = null;
         SetDragging(false);
         pointer?.Capture(null);
 
@@ -215,6 +233,45 @@ public sealed class FlyoutUndockButtonController
         if (IsDragging == value) return;
         IsDragging = value;
         _draggingChanged?.Invoke(value);
+    }
+
+    /// <summary>Releases pointer capture and every handler owned by the generated button.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        IPointer? capturedPointer = _capturedPointer;
+        _capturedPointer = null;
+        IsPointerCaptured = false;
+        DragOccurred = false;
+        if (IsDragging)
+        {
+            IsDragging = false;
+            _draggingChanged?.Invoke(false);
+        }
+
+        if (capturedPointer != null)
+        {
+            try
+            {
+                capturedPointer.Capture(null);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"FlyoutUndockButtonController pointer release failed: {exception.Message}");
+            }
+        }
+
+        Button.PointerEntered -= OnPointerEntered;
+        Button.PointerExited -= OnPointerExited;
+        Button.PointerPressed -= OnPointerPressed;
+        Button.PointerMoved -= OnPointerMoved;
+        Button.PointerReleased -= OnPointerReleased;
+        Button.PointerCaptureLost -= OnPointerCaptureLost;
+        TrayAppDotNETToolTip.SetTip(Button, null);
+        Button.Cursor = null;
+        Button.Child = null;
     }
 }
 

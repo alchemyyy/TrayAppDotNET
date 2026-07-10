@@ -36,9 +36,11 @@ public readonly record struct FlyoutSliderPeakValues(float Min, float Max)
     public static readonly FlyoutSliderPeakValues Zero = new(0f, 0f);
 }
 
-public sealed class FlyoutSlider : Control
+public sealed class FlyoutSlider : Control, IDisposable
 {
     private bool _dragging;
+    private bool _disposed;
+    private IPointer? _capturedPointer;
     private double _minimum;
     private double _maximum = FlyoutSliderLayout.DefaultMaximum;
     private double _value;
@@ -46,7 +48,7 @@ public sealed class FlyoutSlider : Control
     public FlyoutSlider()
     {
         Focusable = true;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
     }
 
     public event EventHandler<double>? ValueChanged;
@@ -491,6 +493,7 @@ public sealed class FlyoutSlider : Control
         Focus();
         BeginUserAdjustment();
         _dragging = true;
+        _capturedPointer = e.Pointer;
         e.Pointer.Capture(this);
         DragStarted?.Invoke(this, EventArgs.Empty);
         SetValueFromPoint(e.GetPosition(this).X, notify: true);
@@ -608,9 +611,40 @@ public sealed class FlyoutSlider : Control
     private void EndDrag(IPointer? pointer)
     {
         _dragging = false;
-        pointer?.Capture(null);
+        IPointer? capturedPointer = pointer ?? _capturedPointer;
+        _capturedPointer = null;
+        capturedPointer?.Capture(null);
         DragCompleted?.Invoke(this, EventArgs.Empty);
         EndUserAdjustment();
+    }
+
+    /// <summary>Releases pointer capture and subscribers owned by a retired UI generation.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        IPointer? capturedPointer = _capturedPointer;
+        _capturedPointer = null;
+        _dragging = false;
+        if (capturedPointer != null)
+        {
+            try
+            {
+                capturedPointer.Capture(null);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"FlyoutSlider pointer release failed: {exception.Message}");
+            }
+        }
+
+        ValueChanged = null;
+        UserAdjustmentStarted = null;
+        UserAdjustmentCompleted = null;
+        DragStarted = null;
+        DragCompleted = null;
+        Cursor = null;
     }
 
     private void BeginUserAdjustment() => UserAdjustmentStarted?.Invoke(this, EventArgs.Empty);

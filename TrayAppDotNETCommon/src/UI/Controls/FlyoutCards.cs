@@ -158,7 +158,7 @@ public static class TrayAppDotNETFlyoutUI
             CornerRadius = FlyoutCardsLayout.IconButtonRadius,
             Background = Brushes.Transparent,
             Child = content,
-            Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
+            Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
             IsEnabled = enabled
         };
 
@@ -205,7 +205,7 @@ public static class TrayAppDotNETFlyoutUI
             CornerRadius = FlyoutCardsLayout.IconButtonRadius,
             Background = Brushes.Transparent,
             Child = content,
-            Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
+            Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
             IsEnabled = enabled
         };
 
@@ -243,7 +243,7 @@ public static class TrayAppDotNETFlyoutUI
             CornerRadius = FlyoutCardsLayout.TextButtonRadius,
             Padding = padding ?? FlyoutCardsLayout.TextButtonPadding,
             Child = label,
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = TrayAppDotNETCursors.Hand
         };
 
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);

@@ -636,7 +636,7 @@ internal sealed class SettingsSearchableListBoxItemRow : Border
         Padding = padding;
         Margin = margin;
         CornerRadius = cornerRadius;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         Child = _content;
 

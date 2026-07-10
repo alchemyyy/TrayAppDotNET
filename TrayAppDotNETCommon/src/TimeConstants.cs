@@ -31,8 +31,6 @@ public abstract class TimeConstants
 
     // Warm windows / resource purge
     protected internal const int WarmWindowIdleEvictionDelayMs = 10_000;
-    protected internal const int WarmWindowFirstRenderDrainDelayMs = 150;
-    protected internal const int WarmWindowSecondCollectionDelayMs = 150;
 
     // Logging
     // 7 days in ms = 7 * 24 * 60 * 60 * 1000 = 604_800_000.

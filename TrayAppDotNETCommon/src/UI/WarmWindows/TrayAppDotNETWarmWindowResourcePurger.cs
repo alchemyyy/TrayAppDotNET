@@ -1,8 +1,4 @@
-using System.Diagnostics;
-using System.Runtime;
-using System.Runtime.InteropServices;
 using Avalonia.Threading;
-using SkiaSharp;
 
 namespace TrayAppDotNETCommon.UI.WarmWindows;
 
@@ -31,14 +27,7 @@ public static class TrayAppDotNETWarmWindowResourcePurger
         try
         {
             await DrainUiAsync();
-            await Task.Delay(TimeConstants.WarmWindowFirstRenderDrainDelayMs).ConfigureAwait(false);
             await DrainUiAsync();
-            await Dispatcher.UIThread.InvokeAsync(TryPurgeSkiaCaches, DispatcherPriority.ContextIdle);
-
-            ForceFullManagedCleanup();
-            await Task.Delay(TimeConstants.WarmWindowSecondCollectionDelayMs).ConfigureAwait(false);
-            ForceFullManagedCleanup();
-            TryTrimWorkingSet();
         }
         catch (Exception ex)
         {
@@ -52,41 +41,4 @@ public static class TrayAppDotNETWarmWindowResourcePurger
 
     private static async Task DrainUiAsync() =>
         await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
-
-    private static void TryPurgeSkiaCaches()
-    {
-        try
-        {
-            SKGraphics.PurgeAllCaches();
-            SKGraphics.PurgeFontCache();
-            SKGraphics.PurgeResourceCache();
-        }
-        catch
-        {
-        }
-    }
-
-    private static void ForceFullManagedCleanup()
-    {
-        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-        GC.WaitForPendingFinalizers();
-        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-    }
-
-    private static void TryTrimWorkingSet()
-    {
-        try
-        {
-            using Process currentProcess = Process.GetCurrentProcess();
-            EmptyWorkingSet(currentProcess.Handle);
-        }
-        catch
-        {
-        }
-    }
-
-    [DllImport("psapi.dll")]
-    private static extern bool EmptyWorkingSet(IntPtr process);
 }

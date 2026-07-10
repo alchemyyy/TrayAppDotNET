@@ -157,7 +157,7 @@ public sealed class SettingsNavItem : Border
         _palette = palette;
         Background = Brushes.Transparent;
         Margin = SettingsUILayout.NavItemMargin;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
@@ -260,7 +260,7 @@ public sealed class SettingsNavAction : Border
         _palette = palette;
         Background = Brushes.Transparent;
         Margin = SettingsUILayout.NavActionMargin;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
@@ -366,7 +366,7 @@ public sealed class SettingsButton : Border
         CornerRadius = SettingsUILayout.ButtonRadius;
         MinHeight = SettingsUILayout.ButtonMinHeight;
         Padding = SettingsUILayout.ButtonPadding;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         Child = navGutter ? CreateNavContent(_label) : _label;
 
@@ -488,7 +488,7 @@ public sealed class SettingsToggle : Border
         Width = SettingsUILayout.ToggleWidth;
         Height = SettingsUILayout.ToggleHeight;
         Background = Brushes.Transparent;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
 
         Grid grid = new()
@@ -612,7 +612,7 @@ public sealed class SettingsSwatch : Border
         BorderThickness = SettingsUILayout.SwatchBorderThickness;
         BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
         Margin = SettingsUILayout.SwatchMargin;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
 
         PointerEntered += (_, _) =>
@@ -731,7 +731,7 @@ internal sealed class SettingsScrollBar : Control
     {
         _palette = palette;
         Width = SettingsUILayout.ScrollBarTotalWidth;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = false;
         IsHitTestVisible = true;
 
@@ -902,7 +902,7 @@ public sealed class SettingsComboBoxItem : Border
 
         Background = Brushes.Transparent;
         Padding = SettingsUILayout.ComboItemPadding;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
@@ -1046,7 +1046,7 @@ public sealed class SettingsComboBox : Grid
         MinWidth = SettingsUILayout.ComboDefaultMinWidth;
         Width = autoSizeToText ? double.NaN : width;
         Height = SettingsUILayout.ComboHeight;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         ClipToBounds = false;
 
@@ -1870,7 +1870,7 @@ internal sealed class SettingsSpinnerButton : Border
         _palette = palette;
         Background = Brushes.Transparent;
         CornerRadius = SettingsUILayout.SpinnerButtonRadius;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = false;
         _glyph = new TextBlock
         {

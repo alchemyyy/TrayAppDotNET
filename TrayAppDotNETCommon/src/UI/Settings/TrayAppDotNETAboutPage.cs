@@ -449,7 +449,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         if (!string.IsNullOrEmpty(openUrl))
         {
             valueBlock.TextDecorations = TextDecorations.Underline;
-            valueBlock.Cursor = new Cursor(StandardCursorType.Hand);
+            valueBlock.Cursor = TrayAppDotNETCursors.Hand;
             valueBlock.PointerPressed += (_, e) =>
             {
                 if (!e.GetCurrentPoint(valueBlock).Properties.IsLeftButtonPressed) return;

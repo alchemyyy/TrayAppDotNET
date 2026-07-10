@@ -65,7 +65,7 @@ public sealed class SettingsMiniToggle : Border
         VerticalAlignment = VerticalAlignment.Center;
         Margin = layout.Margin;
         Background = Brushes.Transparent;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
 
         Grid toggle = new()

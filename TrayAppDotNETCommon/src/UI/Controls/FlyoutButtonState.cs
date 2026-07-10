@@ -37,7 +37,7 @@ public sealed class FlyoutButtonState
         _isEnabled = enabled;
 
         _button.IsEnabled = enabled;
-        _button.Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow);
+        _button.Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
 
         _button.PointerEntered += OnPointerEntered;
         _button.PointerExited += OnPointerExited;
@@ -61,7 +61,7 @@ public sealed class FlyoutButtonState
             _isEnabled = value;
             if (!_isEnabled) _isPressed = false;
             _button.IsEnabled = value;
-            _button.Cursor = value ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow);
+            _button.Cursor = value ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
             Refresh();
         }
     }
