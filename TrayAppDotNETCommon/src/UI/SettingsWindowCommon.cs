@@ -29,6 +29,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Dictionary<TPageKey, Func<Control>> _pages = [];
     private Dictionary<TPageKey, SettingsNavItem> _navItems = [];
     private readonly Dictionary<TPageKey, double> _pageScrollOffsets = [];
+    private readonly HashSet<TrayAppDotNETColorPickerWindow> _openColorPickers = [];
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _shellGeneration;
     private UIContentGeneration? _pageGeneration;
@@ -540,26 +541,46 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (_hasShownPage && _scrollHost != null)
             _pageScrollOffsets[CurrentPageKey] = _scrollHost.VerticalOffset;
 
-        CurrentPageKey = key;
-        foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
-            item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, key);
-
-        UIContentGeneration replacement = BuildPageGeneration(key, factory);
+        TPageKey previousPageKey = CurrentPageKey;
+        bool previousHasShownPage = _hasShownPage;
         UIContentGeneration? previous = _pageGeneration;
+        Control? previousRoot = previous?.Root;
+        Dictionary<TPageKey, bool> previousNavSelections = [];
+        foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
+            previousNavSelections[navKey] = item.IsSelected;
+
+        UIContentGeneration replacement;
+        CurrentPageKey = key;
+        try
+        {
+            replacement = BuildPageGeneration(key, factory);
+        }
+        catch
+        {
+            CurrentPageKey = previousPageKey;
+            throw;
+        }
+
         try
         {
             _content.Content = replacement.Root;
             _pageGeneration = replacement;
+            foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
+                item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, key);
+            _hasShownPage = true;
         }
-        catch
+        catch (Exception exception)
         {
+            CurrentPageKey = previousPageKey;
+            _hasShownPage = previousHasShownPage;
+            _pageGeneration = previous;
+            RestorePageCommitState(previousRoot, previousNavSelections, exception);
             replacement.Dispose();
             throw;
         }
 
         previous?.Dispose();
-        RestorePageScroll(key, resetBeforeLayout: !force);
-        _hasShownPage = true;
+        RestorePageScroll(key, resetBeforeLayout: !force, replacement.ID);
     }
 
     private void BuildAndCommitShell(TPageKey selectedPageKey)
@@ -579,6 +600,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         bool previousHasShownPage = _hasShownPage;
         UIContentGeneration? previousShellGeneration = _shellGeneration;
         UIContentGeneration? previousPageGeneration = _pageGeneration;
+        object? previousWindowContent = Content;
 
         UIContentGeneration? replacementShellGeneration = null;
         UIContentGeneration? replacementPageGeneration = null;
@@ -621,10 +643,21 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _shellGeneration = replacementShellGeneration;
             _pageGeneration = replacementPageGeneration;
         }
-        catch
+        catch (Exception exception)
         {
             replacementPageGeneration?.Dispose();
             replacementShellGeneration?.Dispose();
+
+            try
+            {
+                Content = previousWindowContent;
+            }
+            catch (Exception rollbackException)
+            {
+                TADNLog.Log(
+                    $"{GetType().Name} shell rollback failed after {exception.GetType().Name}: " +
+                    $"{rollbackException.GetType().Name}: {rollbackException.Message}");
+            }
 
             _content = previousContent;
             _pages = previousPages;
@@ -644,7 +677,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         previousPageGeneration?.Dispose();
         previousShellGeneration?.Dispose();
-        RestorePageScroll(selectedPageKey, resetBeforeLayout: false);
+        RestorePageScroll(selectedPageKey, resetBeforeLayout: false, replacementPageGeneration.ID);
     }
 
     private UIContentGeneration BuildPageGeneration(TPageKey key, Func<Control> factory)
@@ -654,6 +687,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             Control root = factory();
+            OwnDisposablePageControls(root, resources);
             return new UIContentGeneration($"{GetType().Name}.Page.{key}", root, resources);
         }
         catch
@@ -667,7 +701,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         }
     }
 
-    private void RestorePageScroll(TPageKey key, bool resetBeforeLayout)
+    private void RestorePageScroll(TPageKey key, bool resetBeforeLayout, long pageGenerationID)
     {
         SettingsScrollHost? scrollHost = _scrollHost;
         if (scrollHost == null) return;
@@ -680,9 +714,77 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             () =>
             {
                 if (!EqualityComparer<TPageKey>.Default.Equals(CurrentPageKey, key)) return;
+                if (_pageGeneration?.ID != pageGenerationID) return;
                 _scrollHost?.SetVerticalOffset(requestedOffset);
             },
             DispatcherPriority.Loaded);
+    }
+
+    private void RestorePageCommitState(
+        Control? previousRoot,
+        Dictionary<TPageKey, bool> previousNavSelections,
+        Exception commitException)
+    {
+        try
+        {
+            _content.Content = previousRoot;
+        }
+        catch (Exception rollbackException)
+        {
+            TADNLog.Log(
+                $"{GetType().Name} page rollback failed after {commitException.GetType().Name}: " +
+                $"{rollbackException.GetType().Name}: {rollbackException.Message}");
+        }
+
+        foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
+        {
+            if (previousNavSelections.TryGetValue(navKey, out bool wasSelected))
+                item.IsSelected = wasSelected;
+        }
+    }
+
+    private static void OwnDisposablePageControls(Control root, UIResourceScope resources)
+    {
+        List<Control> pending = [root];
+        HashSet<Control> visited = new(ReferenceEqualityComparer.Instance);
+        while (pending.Count > 0)
+        {
+            int lastIndex = pending.Count - 1;
+            Control control = pending[lastIndex];
+            pending.RemoveAt(lastIndex);
+            if (!visited.Add(control)) continue;
+
+            if (control is IDisposable disposable)
+            {
+                resources.Own(disposable);
+                // Disposable controls own their dynamic descendants and form a lifetime boundary
+                continue;
+            }
+
+            switch (control)
+            {
+                case Panel panel:
+                    foreach (Control child in panel.Children)
+                        pending.Add(child);
+                    break;
+
+                case Decorator decorator when decorator.Child != null:
+                    pending.Add(decorator.Child);
+                    break;
+
+                case ContentControl contentControl when contentControl.Content is Control child:
+                    pending.Add(child);
+                    break;
+
+                case ItemsControl itemsControl:
+                    foreach (object? item in itemsControl.Items)
+                    {
+                        if (item is Control itemControl)
+                            pending.Add(itemControl);
+                    }
+                    break;
+            }
+        }
     }
 
     private Border BuildConfirmOverlay()
@@ -763,6 +865,19 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             TADNLog.Log(
                 $"{GetType().Name}.OnSettingsWindowClosed failed: {exception.GetType().Name}: {exception.Message}");
         }
+
+        foreach (TrayAppDotNETColorPickerWindow picker in _openColorPickers.ToArray())
+        {
+            try
+            {
+                picker.Close();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"{GetType().Name} color picker close failed: {exception.Message}");
+            }
+        }
+        _openColorPickers.Clear();
 
         DetachWndProcHook();
         Content = null;

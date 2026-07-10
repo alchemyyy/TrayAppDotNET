@@ -659,6 +659,7 @@ public sealed class SettingsSwatch : Border
 
 public sealed class SettingsScrollHost : Grid
 {
+    private readonly Border _contentHost;
     private readonly ScrollViewer _scrollViewer;
 
     public SettingsScrollHost(Control content, SettingsPalette palette, Thickness padding)
@@ -666,14 +667,14 @@ public sealed class SettingsScrollHost : Grid
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
         ClipToBounds = true;
 
-        Border paddedContent = new()
+        _contentHost = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background), Padding = padding, Child = content
         };
 
         _scrollViewer = new ScrollViewer
         {
-            Content = paddedContent,
+            Content = _contentHost,
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
@@ -691,6 +692,13 @@ public sealed class SettingsScrollHost : Grid
     public double VerticalOffset => _scrollViewer.Offset.Y;
 
     public double ViewportHeight => _scrollViewer.Viewport.Height;
+
+    /// <summary>Replaces the scrollable content without rebuilding the scroll host.</summary>
+    public void SetContent(Control content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        _contentHost.Child = content;
+    }
 
     public void SetVerticalOffset(double offset)
     {
@@ -879,14 +887,16 @@ internal sealed class SettingsScrollBar : Control
     }
 }
 
-public sealed class SettingsComboBoxItem : Border
+public sealed class SettingsComboBoxItem : Border, IDisposable
 {
     private readonly SettingsPalette _palette;
     private readonly Border _inner;
     private readonly Border _selectionBar;
     private readonly Func<Control>? _contentFactory;
+    private Control? _itemContent;
     private bool _isPointerOver;
     private bool _isSelected;
+    private int _disposed;
 
     public SettingsComboBoxItem(object tag, string text, SettingsPalette palette)
         : this(tag, text, palette, contentFactory: null)
@@ -915,16 +925,16 @@ public sealed class SettingsComboBoxItem : Border
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        Control content = CreateContent();
-        content.VerticalAlignment = VerticalAlignment.Center;
+        _itemContent = CreateContent();
+        _itemContent.VerticalAlignment = VerticalAlignment.Center;
 
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboIndicatorColumnWidth)));
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SettingsUILayout.ComboIndicatorGapWidth)));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
         row.Children.Add(_selectionBar);
-        Grid.SetColumn(content, 2);
-        row.Children.Add(content);
+        Grid.SetColumn(_itemContent, 2);
+        row.Children.Add(_itemContent);
 
         _inner = new Border
         {
@@ -935,30 +945,10 @@ public sealed class SettingsComboBoxItem : Border
         };
         Child = _inner;
 
-        PointerEntered += (_, _) =>
-        {
-            _isPointerOver = true;
-            UpdateVisual();
-        };
-        PointerExited += (_, _) =>
-        {
-            _isPointerOver = false;
-            UpdateVisual();
-        };
-        PointerPressed += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-            Pressed?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        };
-        KeyDown += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (e.Key is not (Key.Enter or Key.Space)) return;
-            Pressed?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-        };
+        PointerEntered += OnPointerEntered;
+        PointerExited += OnPointerExited;
+        PointerPressed += OnPointerPressed;
+        KeyDown += OnKeyDown;
     }
 
     public event EventHandler? Pressed;
@@ -967,6 +957,7 @@ public sealed class SettingsComboBoxItem : Border
 
     internal Control CreateSelectionContent()
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         Control content = CreateContent();
         content.VerticalAlignment = VerticalAlignment.Center;
         return content;
@@ -975,8 +966,16 @@ public sealed class SettingsComboBoxItem : Border
     internal double MeasureContentWidth()
     {
         Control content = CreateSelectionContent();
-        content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        return content.DesiredSize.Width;
+        try
+        {
+            content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return content.DesiredSize.Width;
+        }
+        finally
+        {
+            if (content is IDisposable disposable)
+                disposable.Dispose();
+        }
     }
 
     public bool IsSelected
@@ -1007,6 +1006,50 @@ public sealed class SettingsComboBoxItem : Border
         label.VerticalAlignment = VerticalAlignment.Center;
         return label;
     }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        PointerEntered -= OnPointerEntered;
+        PointerExited -= OnPointerExited;
+        PointerPressed -= OnPointerPressed;
+        KeyDown -= OnKeyDown;
+        Pressed = null;
+        _inner.Child = null;
+        Child = null;
+        Control? itemContent = Interlocked.Exchange(ref _itemContent, null);
+        if (itemContent is IDisposable disposable)
+            disposable.Dispose();
+    }
+
+    private void OnPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _isPointerOver = true;
+        UpdateVisual();
+    }
+
+    private void OnPointerExited(object? sender, PointerEventArgs e)
+    {
+        _isPointerOver = false;
+        UpdateVisual();
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        Pressed?.Invoke(this, EventArgs.Empty);
+        e.Handled = true;
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (e.Key is not (Key.Enter or Key.Space)) return;
+        Pressed?.Invoke(this, EventArgs.Empty);
+        e.Handled = true;
+    }
 }
 
 public enum SettingsComboBoxAutoSizeMode
@@ -1015,7 +1058,7 @@ public enum SettingsComboBoxAutoSizeMode
     SelectedItem
 }
 
-public sealed class SettingsComboBox : Grid
+public sealed class SettingsComboBox : Grid, IDisposable
 {
     private readonly SettingsPalette _palette;
     private readonly SettingsComboBoxItemCollection _items;
@@ -1030,7 +1073,9 @@ public sealed class SettingsComboBox : Grid
     private bool _isPressed;
     private bool _isDropDownOpen;
     private SettingsComboBoxItem? _selectedItem;
+    private Control? _selectionContent;
     private Thickness _contentPadding = SettingsUILayout.ComboContentPadding;
+    private int _disposed;
 
     public SettingsComboBox(
         SettingsPalette palette,
@@ -1102,57 +1147,13 @@ public sealed class SettingsComboBox : Grid
         };
         Children.Add(_popup);
 
-        PointerEntered += (_, _) =>
-        {
-            _isPointerOver = true;
-            UpdateSurface();
-        };
-        PointerExited += (_, _) =>
-        {
-            _isPointerOver = false;
-            _isPressed = false;
-            UpdateSurface();
-        };
-        PointerPressed += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-            _isPressed = true;
-            IsDropDownOpen = !IsDropDownOpen;
-            Focus();
-            e.Handled = true;
-        };
-        PointerReleased += (_, e) =>
-        {
-            if (_isPressed)
-            {
-                _isPressed = false;
-                UpdateSurface();
-                e.Handled = true;
-            }
-        };
-        KeyDown += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (e.Key is Key.Enter or Key.Space or Key.Down)
-            {
-                IsDropDownOpen = true;
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Escape && IsDropDownOpen)
-            {
-                IsDropDownOpen = false;
-                e.Handled = true;
-            }
-        };
-        _popup.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == Popup.IsOpenProperty && !_popup.IsOpen && _isDropDownOpen)
-            {
-                _isDropDownOpen = false;
-                UpdateSurface();
-            }
-        };
+        PointerEntered += OnPointerEntered;
+        PointerExited += OnPointerExited;
+        PointerPressed += OnPointerPressed;
+        PointerReleased += OnPointerReleased;
+        KeyDown += OnKeyDown;
+        _popup.PropertyChanged += OnPopupPropertyChanged;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
 
         TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, 0.4);
         UpdateSurface();
@@ -1201,6 +1202,7 @@ public sealed class SettingsComboBox : Grid
         get => _isDropDownOpen;
         set
         {
+            if (Volatile.Read(ref _disposed) != 0) return;
             if (_isDropDownOpen == value) return;
             _isDropDownOpen = value;
             if (value) RebuildPopupItems();
@@ -1214,11 +1216,33 @@ public sealed class SettingsComboBox : Grid
         get => _selectedItem;
         set
         {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (_selectedItem == value) return;
-            _selectedItem?.IsSelected = false;
-            _selectedItem = value;
-            _selectedItem?.IsSelected = true;
-            _selectionPresenter.Content = _selectedItem?.CreateSelectionContent();
+
+            Control? replacementContent = value?.CreateSelectionContent();
+            Control? previousContent = _selectionContent;
+            SettingsComboBoxItem? previousItem = _selectedItem;
+            try
+            {
+                _selectionPresenter.Content = replacementContent;
+                _selectionContent = replacementContent;
+                previousItem?.IsSelected = false;
+                _selectedItem = value;
+                _selectedItem?.IsSelected = true;
+            }
+            catch
+            {
+                _selectionPresenter.Content = previousContent;
+                _selectionContent = previousContent;
+                _selectedItem = previousItem;
+                previousItem?.IsSelected = true;
+                if (replacementContent is IDisposable failedDisposable)
+                    failedDisposable.Dispose();
+                throw;
+            }
+
+            if (previousContent is IDisposable disposable)
+                disposable.Dispose();
             UpdateAutoWidth();
             SelectionChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -1242,7 +1266,14 @@ public sealed class SettingsComboBox : Grid
 
     internal void OnItemAdded(SettingsComboBoxItem item)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            item.Dispose();
+            return;
+        }
+
         item.Pressed += OnItemPressed;
+        RebuildPopupItemsIfOpen();
         UpdateAutoWidth();
     }
 
@@ -1250,13 +1281,31 @@ public sealed class SettingsComboBox : Grid
     {
         item.Pressed -= OnItemPressed;
         if (ReferenceEquals(_selectedItem, item)) SelectedItem = null;
+        RebuildPopupItemsIfOpen();
+        item.Dispose();
         UpdateAutoWidth();
     }
 
-    internal void OnItemsReset()
+    internal void OnItemReplaced(SettingsComboBoxItem oldItem, SettingsComboBoxItem newItem)
+    {
+        oldItem.Pressed -= OnItemPressed;
+        newItem.Pressed += OnItemPressed;
+        if (ReferenceEquals(_selectedItem, oldItem)) SelectedItem = null;
+        oldItem.Dispose();
+        RebuildPopupItemsIfOpen();
+        UpdateAutoWidth();
+    }
+
+    internal void OnItemsCleared(IReadOnlyList<SettingsComboBoxItem> removedItems)
     {
         _itemsPanel.Children.Clear();
-        SelectedItem = null;
+        if (_selectedItem != null) SelectedItem = null;
+        foreach (SettingsComboBoxItem item in removedItems)
+        {
+            item.Pressed -= OnItemPressed;
+            item.Dispose();
+        }
+
         UpdateAutoWidth();
     }
 
@@ -1277,6 +1326,12 @@ public sealed class SettingsComboBox : Grid
         }
 
         _popupBorder.MinWidth = Math.Max(SettingsUILayout.ComboDefaultMinWidth, Bounds.Width);
+    }
+
+    private void RebuildPopupItemsIfOpen()
+    {
+        if (_isDropDownOpen)
+            RebuildPopupItems();
     }
 
     private void UpdateSurface()
@@ -1314,6 +1369,99 @@ public sealed class SettingsComboBox : Grid
             widest = Math.Max(widest, item.MeasureContentWidth());
         return widest;
     }
+
+    /// <summary>Closes the popup and releases generated selection and item content.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        DetachedFromVisualTree -= OnDetachedFromVisualTree;
+        PointerEntered -= OnPointerEntered;
+        PointerExited -= OnPointerExited;
+        PointerPressed -= OnPointerPressed;
+        PointerReleased -= OnPointerReleased;
+        KeyDown -= OnKeyDown;
+        _popup.PropertyChanged -= OnPopupPropertyChanged;
+        _isDropDownOpen = false;
+        _popup.IsOpen = false;
+        _itemsPanel.Children.Clear();
+        _selectionPresenter.Content = null;
+        if (_selectionContent is IDisposable selectionDisposable)
+            selectionDisposable.Dispose();
+        _selectionContent = null;
+
+        List<SettingsComboBoxItem> items = [.. _items];
+        _items.ClearWithoutNotification();
+        foreach (SettingsComboBoxItem item in items)
+        {
+            item.Pressed -= OnItemPressed;
+            item.Dispose();
+        }
+
+        _selectedItem = null;
+        SelectionChanged = null;
+    }
+
+    private void OnPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _isPointerOver = true;
+        UpdateSurface();
+    }
+
+    private void OnPointerExited(object? sender, PointerEventArgs e)
+    {
+        _isPointerOver = false;
+        _isPressed = false;
+        UpdateSurface();
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        _isPressed = true;
+        IsDropDownOpen = !IsDropDownOpen;
+        Focus();
+        e.Handled = true;
+    }
+
+    private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isPressed) return;
+
+        _isPressed = false;
+        UpdateSurface();
+        e.Handled = true;
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!IsEnabled) return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+            case Key.Space:
+            case Key.Down:
+                IsDropDownOpen = true;
+                e.Handled = true;
+                return;
+
+            case Key.Escape when IsDropDownOpen:
+                IsDropDownOpen = false;
+                e.Handled = true;
+                return;
+        }
+    }
+
+    private void OnPopupPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != Popup.IsOpenProperty || _popup.IsOpen || !_isDropDownOpen) return;
+
+        _isDropDownOpen = false;
+        UpdateSurface();
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
 }
 
 public sealed class SettingsComboBoxItemCollection(SettingsComboBox owner) : Collection<SettingsComboBoxItem>
@@ -1327,9 +1475,8 @@ public sealed class SettingsComboBoxItemCollection(SettingsComboBox owner) : Col
     protected override void SetItem(int index, SettingsComboBoxItem item)
     {
         SettingsComboBoxItem old = this[index];
-        owner.OnItemRemoved(old);
         base.SetItem(index, item);
-        owner.OnItemAdded(item);
+        owner.OnItemReplaced(old, item);
     }
 
     protected override void RemoveItem(int index)
@@ -1341,11 +1488,12 @@ public sealed class SettingsComboBoxItemCollection(SettingsComboBox owner) : Col
 
     protected override void ClearItems()
     {
-        foreach (SettingsComboBoxItem item in this)
-            owner.OnItemRemoved(item);
+        List<SettingsComboBoxItem> removedItems = [.. this];
         base.ClearItems();
-        owner.OnItemsReset();
+        owner.OnItemsCleared(removedItems);
     }
+
+    internal void ClearWithoutNotification() => base.ClearItems();
 }
 
 public sealed class SettingsNumberValueChangedEventArgs(double? oldValue, double? newValue) : EventArgs

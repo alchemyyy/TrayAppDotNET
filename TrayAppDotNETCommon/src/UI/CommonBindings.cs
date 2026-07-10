@@ -155,6 +155,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             picker.Closed += (sender, _) =>
             {
                 TrayAppDotNETColorPickerWindow closed = (TrayAppDotNETColorPickerWindow)sender!;
+                _openColorPickers.Remove(closed);
                 if (closed.IsDirty)
                 {
                     commitHex(NullableThemeColor.ToHex(closed.CurrentColor));
@@ -164,6 +165,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 setTemporary(null);
                 if (!IsClosing) RebuildShell(CurrentPageKey);
             };
+            _openColorPickers.Add(picker);
             picker.Show(this);
         };
         resetButton.Click += (_, _) =>
@@ -243,6 +245,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         picker.Closed += (sender, _) =>
         {
             TrayAppDotNETColorPickerWindow closed = (TrayAppDotNETColorPickerWindow)sender!;
+            _openColorPickers.Remove(closed);
             if (closed.IsDirty)
             {
                 Color finalColor = closed.CurrentColor;
@@ -257,6 +260,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             if (!IsClosing) RebuildShell(CurrentPageKey);
         };
 
+        _openColorPickers.Add(picker);
         picker.Show(this);
     }
 

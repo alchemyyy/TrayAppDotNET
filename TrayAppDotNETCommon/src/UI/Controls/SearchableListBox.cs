@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Utils;
 using TrayAppDotNETCommon.Visuals;
 
@@ -42,7 +43,7 @@ internal static class SearchableListBoxLayout
 /// <summary>
 /// Searchable settings list that commits selection by double-click or Enter.
 /// </summary>
-public sealed class SettingsSearchableListBox : Grid
+public sealed class SettingsSearchableListBox : Grid, IDisposable
 {
     private const string DefaultPlaceholderText = "Search";
     private const string NoResultsText = "No results";
@@ -52,9 +53,10 @@ public sealed class SettingsSearchableListBox : Grid
     private readonly Grid _searchRow;
     private readonly TextBox _searchBox;
     private readonly SettingsButton _clearButton;
-    private readonly StackPanel _itemsPanel;
+    private StackPanel _itemsPanel;
     private readonly SettingsScrollHost _scrollHost;
     private readonly Border _listBorder;
+    private UIResourceScope _rowResources;
     private List<SettingsSearchableListBoxItem> _visibleItems = [];
     private SettingsSearchableListBoxItem? _selectedItem;
     private SettingsSearchableListBoxItem? _activeItem;
@@ -62,11 +64,15 @@ public sealed class SettingsSearchableListBox : Grid
     private Thickness _itemPadding = SearchableListBoxLayout.ItemPadding;
     private Thickness _itemMargin = SearchableListBoxLayout.ItemMargin;
     private CornerRadius _itemCornerRadius = SearchableListBoxLayout.ItemRadius;
+    private Thickness _listContentMargin;
+    private long _rowGenerationID;
+    private int _disposed;
 
     public SettingsSearchableListBox(SettingsPalette palette)
     {
         _palette = palette;
         _items = new SettingsSearchableListBoxItemCollection(this);
+        _rowResources = new UIResourceScope($"{nameof(SettingsSearchableListBox)}.Rows");
         Width = SearchableListBoxLayout.Width;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
@@ -105,7 +111,7 @@ public sealed class SettingsSearchableListBox : Grid
         _clearButton.Padding = SearchableListBoxLayout.ClearButtonPadding;
         _clearButton.Label.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         _clearButton.Label.FontSize = SearchableListBoxLayout.ClearButtonFontSize;
-        _clearButton.Click += (_, _) => ClearSearch();
+        _clearButton.Click += OnClearButtonClick;
 
         _searchRow = new Grid
         {
@@ -139,13 +145,9 @@ public sealed class SettingsSearchableListBox : Grid
         Grid.SetRow(_listBorder, 1);
         Children.Add(_listBorder);
 
-        _searchBox.TextChanged += (_, _) =>
-        {
-            RebuildItems();
-            _scrollHost.SetVerticalOffset(0);
-            UpdateClearButton();
-        };
+        _searchBox.TextChanged += OnSearchTextChanged;
         KeyDown += OnKeyboardNavigation;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
         UpdateClearButton();
         RebuildItems();
     }
@@ -255,8 +257,12 @@ public sealed class SettingsSearchableListBox : Grid
 
     public Thickness ListContentMargin
     {
-        get => _itemsPanel.Margin;
-        set => _itemsPanel.Margin = value;
+        get => _listContentMargin;
+        set
+        {
+            _listContentMargin = value;
+            _itemsPanel.Margin = value;
+        }
     }
 
     public Thickness ItemPadding
@@ -321,34 +327,45 @@ public sealed class SettingsSearchableListBox : Grid
     /// <summary>
     /// Handles an item removal.
     /// </summary>
-    internal void OnItemRemoved(SettingsSearchableListBoxItem item)
+    internal bool OnItemRemoved(SettingsSearchableListBoxItem item)
     {
-        if (ReferenceEquals(_selectedItem, item))
-            SetSelectedItem(null, raiseChanged: true);
-
-        if (ReferenceEquals(_activeItem, item))
-            _activeItem = null;
-
-        RebuildItems();
+        bool selectionChanged = ReferenceEquals(_selectedItem, item);
+        SettingsSearchableListBoxItem? candidateSelectedItem = selectionChanged ? null : _selectedItem;
+        SettingsSearchableListBoxItem? candidateActiveItem = ReferenceEquals(_activeItem, item) ? null : _activeItem;
+        RebuildItems(candidateSelectedItem, candidateActiveItem);
+        return selectionChanged;
     }
 
     /// <summary>
-    /// Handles collection reset.
+    /// Handles an item replacement with one visual generation change.
     /// </summary>
-    internal void OnItemsReset()
+    internal bool OnItemReplaced(SettingsSearchableListBoxItem oldItem)
     {
-        SetSelectedItem(null, raiseChanged: true);
-        _activeItem = null;
-        RebuildItems();
+        bool selectionChanged = ReferenceEquals(_selectedItem, oldItem);
+        SettingsSearchableListBoxItem? candidateSelectedItem = selectionChanged ? null : _selectedItem;
+        SettingsSearchableListBoxItem? candidateActiveItem = ReferenceEquals(_activeItem, oldItem) ? null : _activeItem;
+        RebuildItems(candidateSelectedItem, candidateActiveItem);
+        return selectionChanged;
     }
+
+    /// <summary>
+    /// Handles collection reset with one visual generation change.
+    /// </summary>
+    internal bool OnItemsCleared(IReadOnlyList<SettingsSearchableListBoxItem> removedItems)
+    {
+        bool selectionChanged = _selectedItem != null && removedItems.Contains(_selectedItem);
+        RebuildItems(selectedItem: null, activeItem: null);
+        return selectionChanged;
+    }
+
+    internal void RaiseSelectionChanged() => SelectionChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Marks an item as active without committing selection.
     /// </summary>
     internal void ActivateItem(SettingsSearchableListBoxItem item)
     {
-        _activeItem = item;
-        RebuildItems();
+        RebuildItems(_selectedItem, item);
         Focus();
     }
 
@@ -364,63 +381,99 @@ public sealed class SettingsSearchableListBox : Grid
     /// <summary>
     /// Rebuilds visible item rows from the current query.
     /// </summary>
-    private void RebuildItems()
+    private void RebuildItems() => RebuildItems(_selectedItem, _activeItem);
+
+    private void RebuildItems(
+        SettingsSearchableListBoxItem? selectedItem,
+        SettingsSearchableListBoxItem? activeItem)
     {
-        _itemsPanel.Children.Clear();
-        _visibleItems = SearchMatcher.FilterAndRank(
+        if (Volatile.Read(ref _disposed) != 0) return;
+
+        List<SettingsSearchableListBoxItem> candidateVisibleItems = SearchMatcher.FilterAndRank(
             _items,
             _searchBox.Text,
             static item => item.SearchText);
-        EnsureActiveItemVisible();
+        SettingsSearchableListBoxItem? candidateActiveItem = ActiveItemFor(
+            candidateVisibleItems,
+            selectedItem,
+            activeItem);
+        StackPanel candidatePanel = new() { Margin = _listContentMargin };
+        UIResourceScope candidateResources = new($"{nameof(SettingsSearchableListBox)}.Rows");
+        candidateResources.Add(candidatePanel.Children.Clear);
 
-        if (_visibleItems.Count == 0)
+        try
         {
-            TextBlock empty = TrayAppDotNETSettingsUI.Text(NoResultsText, _palette, _itemFontSize);
-            empty.Opacity = SearchableListBoxLayout.EmptyOpacity;
-            Border emptyHost = new()
+            if (candidateVisibleItems.Count == 0)
             {
-                Background = Brushes.Transparent,
-                Padding = _itemPadding,
-                Margin = _itemMargin,
-                Child = empty
-            };
-            _itemsPanel.Children.Add(emptyHost);
-            return;
+                TextBlock empty = TrayAppDotNETSettingsUI.Text(NoResultsText, _palette, _itemFontSize);
+                empty.Opacity = SearchableListBoxLayout.EmptyOpacity;
+                Border emptyHost = new()
+                {
+                    Background = Brushes.Transparent,
+                    Padding = _itemPadding,
+                    Margin = _itemMargin,
+                    Child = empty
+                };
+                candidatePanel.Children.Add(emptyHost);
+            }
+            else
+            {
+                foreach (SettingsSearchableListBoxItem item in candidateVisibleItems)
+                {
+                    SettingsSearchableListBoxItemRow row = candidateResources.Own(new SettingsSearchableListBoxItemRow(
+                        item,
+                        this,
+                        _palette,
+                        _itemFontSize,
+                        _itemPadding,
+                        _itemMargin,
+                        _itemCornerRadius));
+                    row.IsSelected = ReferenceEquals(item, selectedItem);
+                    row.IsActive = ReferenceEquals(item, candidateActiveItem);
+                    candidatePanel.Children.Add(row);
+                }
+            }
+        }
+        catch
+        {
+            candidateResources.Dispose();
+            throw;
         }
 
-        foreach (SettingsSearchableListBoxItem item in _visibleItems)
+        UIResourceScope previousResources = _rowResources;
+        try
         {
-            SettingsSearchableListBoxItemRow row = new(
-                item,
-                this,
-                _palette,
-                _itemFontSize,
-                _itemPadding,
-                _itemMargin,
-                _itemCornerRadius) { IsSelected = ReferenceEquals(item, _selectedItem), IsActive = ReferenceEquals(item, _activeItem) };
-            _itemsPanel.Children.Add(row);
+            _scrollHost.SetContent(candidatePanel);
+            _itemsPanel = candidatePanel;
+            _rowResources = candidateResources;
+            _visibleItems = candidateVisibleItems;
+            _selectedItem = selectedItem;
+            _activeItem = candidateActiveItem;
+            _rowGenerationID++;
         }
+        catch
+        {
+            candidateResources.Dispose();
+            throw;
+        }
+
+        previousResources.Dispose();
     }
 
     /// <summary>
     /// Keeps keyboard selection on a visible row.
     /// </summary>
-    private void EnsureActiveItemVisible()
+    private static SettingsSearchableListBoxItem? ActiveItemFor(
+        List<SettingsSearchableListBoxItem> visibleItems,
+        SettingsSearchableListBoxItem? selectedItem,
+        SettingsSearchableListBoxItem? activeItem)
     {
-        if (_visibleItems.Count == 0)
-        {
-            _activeItem = null;
-            return;
-        }
+        if (visibleItems.Count == 0) return null;
 
-        if (_activeItem != null && _visibleItems.Contains(_activeItem)) return;
-        if (_selectedItem != null && _visibleItems.Contains(_selectedItem))
-        {
-            _activeItem = _selectedItem;
-            return;
-        }
+        if (activeItem != null && visibleItems.Contains(activeItem)) return activeItem;
+        if (selectedItem != null && visibleItems.Contains(selectedItem)) return selectedItem;
 
-        _activeItem = _visibleItems[0];
+        return visibleItems[0];
     }
 
     /// <summary>
@@ -461,8 +514,8 @@ public sealed class SettingsSearchableListBox : Grid
             index = delta >= 0 ? -1 : 0;
 
         int nextIndex = Math.Clamp(index + delta, 0, _visibleItems.Count - 1);
-        _activeItem = _visibleItems[nextIndex];
-        RebuildItems();
+        SettingsSearchableListBoxItem activeItem = _visibleItems[nextIndex];
+        RebuildItems(_selectedItem, activeItem);
         QueueScrollActiveItemIntoView();
     }
 
@@ -472,11 +525,7 @@ public sealed class SettingsSearchableListBox : Grid
     private void SetSelectedItem(SettingsSearchableListBoxItem? item, bool raiseChanged)
     {
         if (ReferenceEquals(_selectedItem, item)) return;
-        _selectedItem = item;
-        if (item != null)
-            _activeItem = item;
-
-        RebuildItems();
+        RebuildItems(item, item ?? _activeItem);
         QueueScrollActiveItemIntoView();
         if (raiseChanged)
             SelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -490,8 +539,18 @@ public sealed class SettingsSearchableListBox : Grid
     /// <summary>
     /// Scrolls after layout has measured rebuilt rows.
     /// </summary>
-    private void QueueScrollActiveItemIntoView() =>
-        Dispatcher.UIThread.Post(ScrollActiveItemIntoView, DispatcherPriority.Loaded);
+    private void QueueScrollActiveItemIntoView()
+    {
+        long expectedGenerationID = _rowGenerationID;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                if (Volatile.Read(ref _disposed) != 0) return;
+                if (_rowGenerationID != expectedGenerationID) return;
+                ScrollActiveItemIntoView();
+            },
+            DispatcherPriority.Loaded);
+    }
 
     /// <summary>
     /// Scrolls the keyboard-active item into the visible list area.
@@ -524,6 +583,38 @@ public sealed class SettingsSearchableListBox : Grid
         if (rowBottom <= visibleBottom) return;
         _scrollHost.SetVerticalOffset(rowBottom - viewportHeight);
     }
+
+    /// <summary>Releases generated rows, queued work, and event handlers.</summary>
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        DetachedFromVisualTree -= OnDetachedFromVisualTree;
+        KeyDown -= OnKeyboardNavigation;
+        _searchBox.KeyDown -= OnKeyboardNavigation;
+        _searchBox.TextChanged -= OnSearchTextChanged;
+        _clearButton.Click -= OnClearButtonClick;
+
+        _itemsPanel = new StackPanel();
+        _scrollHost.SetContent(_itemsPanel);
+        _rowResources.Dispose();
+        _items.ClearWithoutNotification();
+        _visibleItems.Clear();
+        _selectedItem = null;
+        _activeItem = null;
+        SelectionChanged = null;
+    }
+
+    private void OnClearButtonClick(object? sender, EventArgs e) => ClearSearch();
+
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        RebuildItems();
+        _scrollHost.SetVerticalOffset(0);
+        UpdateClearButton();
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
 }
 
 /// <summary>
@@ -568,7 +659,15 @@ public sealed class SettingsSearchableListBoxItemCollection(SettingsSearchableLi
     protected override void InsertItem(int index, SettingsSearchableListBoxItem item)
     {
         base.InsertItem(index, item);
-        owner.OnItemAdded(item);
+        try
+        {
+            owner.OnItemAdded(item);
+        }
+        catch
+        {
+            base.RemoveItem(index);
+            throw;
+        }
     }
 
     /// <summary>
@@ -577,9 +676,20 @@ public sealed class SettingsSearchableListBoxItemCollection(SettingsSearchableLi
     protected override void SetItem(int index, SettingsSearchableListBoxItem item)
     {
         SettingsSearchableListBoxItem old = this[index];
-        owner.OnItemRemoved(old);
         base.SetItem(index, item);
-        owner.OnItemAdded(item);
+        bool selectionChanged;
+        try
+        {
+            selectionChanged = owner.OnItemReplaced(old);
+        }
+        catch
+        {
+            base.SetItem(index, old);
+            throw;
+        }
+
+        if (selectionChanged)
+            owner.RaiseSelectionChanged();
     }
 
     /// <summary>
@@ -589,7 +699,19 @@ public sealed class SettingsSearchableListBoxItemCollection(SettingsSearchableLi
     {
         SettingsSearchableListBoxItem old = this[index];
         base.RemoveItem(index);
-        owner.OnItemRemoved(old);
+        bool selectionChanged;
+        try
+        {
+            selectionChanged = owner.OnItemRemoved(old);
+        }
+        catch
+        {
+            base.InsertItem(index, old);
+            throw;
+        }
+
+        if (selectionChanged)
+            owner.RaiseSelectionChanged();
     }
 
     /// <summary>
@@ -597,25 +719,40 @@ public sealed class SettingsSearchableListBoxItemCollection(SettingsSearchableLi
     /// </summary>
     protected override void ClearItems()
     {
-        foreach (SettingsSearchableListBoxItem item in this)
-            owner.OnItemRemoved(item);
+        List<SettingsSearchableListBoxItem> removedItems = [.. this];
         base.ClearItems();
-        owner.OnItemsReset();
+        bool selectionChanged;
+        try
+        {
+            selectionChanged = owner.OnItemsCleared(removedItems);
+        }
+        catch
+        {
+            foreach (SettingsSearchableListBoxItem item in removedItems)
+                base.InsertItem(Count, item);
+            throw;
+        }
+
+        if (selectionChanged)
+            owner.RaiseSelectionChanged();
     }
+
+    internal void ClearWithoutNotification() => base.ClearItems();
 }
 
 /// <summary>
 /// Visual row for one searchable-list item.
 /// </summary>
-internal sealed class SettingsSearchableListBoxItemRow : Border
+internal sealed class SettingsSearchableListBoxItemRow : Border, IDisposable
 {
     private readonly SettingsSearchableListBoxItem _item;
     private readonly SettingsSearchableListBox _owner;
     private readonly SettingsPalette _palette;
-    private readonly Control _content;
+    private Control? _content;
     private bool _isPointerOver;
     private bool _isSelected;
     private bool _isActive;
+    private int _disposed;
 
     public SettingsSearchableListBoxItemRow(
         SettingsSearchableListBoxItem item,
@@ -640,34 +777,10 @@ internal sealed class SettingsSearchableListBoxItemRow : Border
         Focusable = true;
         Child = _content;
 
-        PointerEntered += (_, _) =>
-        {
-            _isPointerOver = true;
-            UpdateVisual();
-        };
-        PointerExited += (_, _) =>
-        {
-            _isPointerOver = false;
-            UpdateVisual();
-        };
-        PointerPressed += (_, e) =>
-        {
-            if (!IsEnabled) return;
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
-
-            if (e.ClickCount >= 2)
-                _owner.CommitItem(_item);
-            else
-                _owner.ActivateItem(_item);
-
-            e.Handled = true;
-        };
-        KeyDown += (_, e) =>
-        {
-            if (e.Key is not Key.Enter) return;
-            _owner.CommitItem(_item);
-            e.Handled = true;
-        };
+        PointerEntered += OnPointerEntered;
+        PointerExited += OnPointerExited;
+        PointerPressed += OnPointerPressed;
+        KeyDown += OnKeyDown;
 
         UpdateVisual();
     }
@@ -724,5 +837,51 @@ internal sealed class SettingsSearchableListBoxItemRow : Border
         double blue = background.B / 255.0;
         double luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
         return luminance > 0.55 ? Colors.Black : Colors.White;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        PointerEntered -= OnPointerEntered;
+        PointerExited -= OnPointerExited;
+        PointerPressed -= OnPointerPressed;
+        KeyDown -= OnKeyDown;
+        Child = null;
+        Control? content = Interlocked.Exchange(ref _content, null);
+        if (content is IDisposable disposable)
+            disposable.Dispose();
+    }
+
+    private void OnPointerEntered(object? sender, PointerEventArgs e)
+    {
+        _isPointerOver = true;
+        UpdateVisual();
+    }
+
+    private void OnPointerExited(object? sender, PointerEventArgs e)
+    {
+        _isPointerOver = false;
+        UpdateVisual();
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!IsEnabled) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        if (e.ClickCount >= 2)
+            _owner.CommitItem(_item);
+        else
+            _owner.ActivateItem(_item);
+
+        e.Handled = true;
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not Key.Enter) return;
+        _owner.CommitItem(_item);
+        e.Handled = true;
     }
 }

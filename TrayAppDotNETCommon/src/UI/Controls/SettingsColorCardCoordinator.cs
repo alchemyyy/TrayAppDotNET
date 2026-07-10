@@ -58,8 +58,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 colorPickerStrings,
                 save,
                 rebuild,
-                isClosing,
-                Update);
+                isClosing);
         };
         dark.Click += (_, _) =>
         {
@@ -73,8 +72,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 colorPickerStrings,
                 save,
                 rebuild,
-                isClosing,
-                Update);
+                isClosing);
         };
         reset.Click += (_, _) =>
         {
@@ -108,8 +106,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         TrayAppDotNETColorPickerStrings colorPickerStrings,
         Action save,
         Action rebuild,
-        Func<bool> isClosing,
-        Action updateSwatches)
+        Func<bool> isClosing)
     {
         (NullableThemeColor Target, bool IsLight) key = (target, isLight);
         if (_openColorPickers.TryGetValue(key, out TrayAppDotNETColorPickerWindow? existing))
@@ -134,10 +131,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             else target.TemporaryDarkColor = editedColor;
 
             if (!isClosing())
-            {
-                updateSwatches();
                 rebuild();
-            }
         };
 
         picker.Closed += (sender, _) =>
@@ -156,10 +150,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             else target.TemporaryDarkColor = null;
 
             if (!isClosing())
-            {
-                updateSwatches();
                 rebuild();
-            }
         };
 
         _openColorPickers[key] = picker;
