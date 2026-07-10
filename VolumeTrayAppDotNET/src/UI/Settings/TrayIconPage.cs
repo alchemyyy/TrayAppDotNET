@@ -25,6 +25,24 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.WheelVolumeStepPercent = v,
             p,
             Loc("Common_PercentSuffix"))));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
+            Loc("Settings_General_WheelVolumeStepFinePercent_Title"),
+            Loc("Settings_General_WheelVolumeStepFinePercent_Description"),
+            _settings.WheelVolumeStepFinePercent,
+            AppSettings.WheelVolumeStepFinePercentMin,
+            AppSettings.WheelVolumeStepFinePercentMax,
+            v => _settings.WheelVolumeStepFinePercent = v,
+            p,
+            Loc("Common_PercentSuffix"))));
+        stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
+            Loc("Settings_General_WheelVolumeStepCoarsePercent_Title"),
+            Loc("Settings_General_WheelVolumeStepCoarsePercent_Description"),
+            _settings.WheelVolumeStepCoarsePercent,
+            AppSettings.WheelVolumeStepCoarsePercentMin,
+            AppSettings.WheelVolumeStepCoarsePercentMax,
+            v => _settings.WheelVolumeStepCoarsePercent = v,
+            p,
+            Loc("Common_PercentSuffix"))));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
             Loc("Settings_TrayIcon_PrecisionTouchpadScroll_Title"),
             Loc("Settings_TrayIcon_PrecisionTouchpadScroll_Description"),
@@ -83,6 +101,12 @@ public sealed partial class VolumeSettingsWindow
             TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_TrayIcon_ModifiedActions_Header"), p));
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             Loc("Settings_TrayIcon_ModifiedActions_Description"), p, new Avalonia.Thickness(0, 0, 0, 8)));
+        AddTrayWheelActionCard(stack, Loc("Settings_TrayIcon_MouseWheel_Title"), _settings.TrayWheelAction,
+            v => _settings.TrayWheelAction = v, p);
+        AddTrayWheelActionCard(stack, Loc("Settings_TrayIcon_CtrlMouseWheel_Title"), _settings.TrayCtrlWheelAction,
+            v => _settings.TrayCtrlWheelAction = v, p);
+        AddTrayWheelActionCard(stack, Loc("Settings_TrayIcon_AltMouseWheel_Title"), _settings.TrayAltWheelAction,
+            v => _settings.TrayAltWheelAction = v, p);
         AddTrayClickActionCard(stack, Loc("Settings_TrayIcon_CtrlLeftClick_Title"), _settings.TrayCtrlLeftClickAction,
             v => _settings.TrayCtrlLeftClickAction = v, p);
         AddTrayClickActionCard(stack, Loc("Settings_TrayIcon_AltLeftClick_Title"), _settings.TrayAltLeftClickAction,
@@ -119,6 +143,29 @@ public sealed partial class VolumeSettingsWindow
             selected,
             set,
             p));
+
+    private void AddTrayWheelActionCard(
+        StackPanel stack,
+        string title,
+        TrayWheelVolumeStep selected,
+        Action<TrayWheelVolumeStep> set,
+        SettingsPalette p)
+    {
+        Border card = StringComboCard(
+            title,
+            string.Empty,
+            [
+                (TrayWheelVolumeStep.Nothing, Loc("Settings_TrayIcon_ClickAction_Nothing")),
+                (TrayWheelVolumeStep.Default, Loc("Settings_General_WheelVolumeStepPercent_Title")),
+                (TrayWheelVolumeStep.Fine, Loc("Settings_General_WheelVolumeStepFinePercent_Title")),
+                (TrayWheelVolumeStep.Coarse, Loc("Settings_General_WheelVolumeStepCoarsePercent_Title"))
+            ],
+            selected,
+            set,
+            p);
+        card.IsEnabled = _settings.TrayScrollEnabled;
+        stack.Children.Add(card);
+    }
 
     private void AddTrayClickActionCard(
         StackPanel stack,

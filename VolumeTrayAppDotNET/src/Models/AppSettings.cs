@@ -588,6 +588,48 @@ public class AppSettings : AppSettingsCommon
             Math.Clamp(value, WheelVolumeStepPercentMin, WheelVolumeStepPercentMax));
     } = WheelVolumeStepPercentDefault;
 
+    public const int WheelVolumeStepFinePercentDefault = 1;
+    public const int WheelVolumeStepFinePercentMin = 1;
+    public const int WheelVolumeStepFinePercentMax = 100;
+
+    public int WheelVolumeStepFinePercent
+    {
+        get;
+        set => SetField(
+            ref field,
+            Math.Clamp(value, WheelVolumeStepFinePercentMin, WheelVolumeStepFinePercentMax));
+    } = WheelVolumeStepFinePercentDefault;
+
+    public const int WheelVolumeStepCoarsePercentDefault = 5;
+    public const int WheelVolumeStepCoarsePercentMin = 1;
+    public const int WheelVolumeStepCoarsePercentMax = 100;
+
+    public int WheelVolumeStepCoarsePercent
+    {
+        get;
+        set => SetField(
+            ref field,
+            Math.Clamp(value, WheelVolumeStepCoarsePercentMin, WheelVolumeStepCoarsePercentMax));
+    } = WheelVolumeStepCoarsePercentDefault;
+
+    public TrayWheelVolumeStep TrayWheelAction
+    {
+        get;
+        set => SetField(ref field, value);
+    } = TrayWheelVolumeStep.Default;
+
+    public TrayWheelVolumeStep TrayCtrlWheelAction
+    {
+        get;
+        set => SetField(ref field, value);
+    } = TrayWheelVolumeStep.Fine;
+
+    public TrayWheelVolumeStep TrayAltWheelAction
+    {
+        get;
+        set => SetField(ref field, value);
+    } = TrayWheelVolumeStep.Coarse;
+
     public bool PrecisionTouchpadScrollEnabled
     {
         get;

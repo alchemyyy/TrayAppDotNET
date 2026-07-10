@@ -20,6 +20,17 @@ public enum TrayClickAction
 }
 
 /// <summary>
+/// Volume-step preset used for a tray-icon mouse-wheel binding.
+/// </summary>
+public enum TrayWheelVolumeStep
+{
+    Nothing,
+    Default,
+    Fine,
+    Coarse
+}
+
+/// <summary>
 /// Where the tray right-click menu appears.
 /// Classic opens at the cursor position (the OS default for tray menus).
 /// Modern docks the menu in the bottom-right corner of the primary work area with an 8px inset,

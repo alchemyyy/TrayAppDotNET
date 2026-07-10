@@ -483,12 +483,43 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void OnTrayScrolled(int delta)
     {
-        int stepPercent = _settings?.WheelVolumeStepPercent ?? AppSettings.WheelVolumeStepPercentDefault;
+        if (_settings == null) return;
+
+        TrayWheelVolumeStep action = ResolveTrayWheelAction(_settings);
+        int stepPercent = ResolveTrayWheelStepPercent(_settings, action);
+        if (stepPercent == 0) return;
+
         AdjustTrackedDeviceVolume(delta, stepPercent);
     }
 
     private void OnTrayPrecisionTouchpadScrolled(int delta) =>
         AdjustTrackedDeviceVolume(delta, stepPercent: 1);
+
+    private static TrayWheelVolumeStep ResolveTrayWheelAction(AppSettings settings)
+    {
+        bool isCtrlDown = IsCtrlDown();
+        bool isAltDown = IsAltDown();
+        TrayWheelVolumeStep action = settings.TrayWheelAction;
+        if (isCtrlDown) action = settings.TrayCtrlWheelAction;
+        else if (isAltDown) action = settings.TrayAltWheelAction;
+
+        return action == TrayWheelVolumeStep.Nothing && (isCtrlDown || isAltDown)
+            ? settings.TrayWheelAction
+            : action;
+    }
+
+    private static int ResolveTrayWheelStepPercent(AppSettings settings, TrayWheelVolumeStep action) =>
+        action switch
+        {
+            TrayWheelVolumeStep.Default => settings.WheelVolumeStepPercent,
+            TrayWheelVolumeStep.Fine => settings.WheelVolumeStepFinePercent,
+            TrayWheelVolumeStep.Coarse => settings.WheelVolumeStepCoarsePercent,
+            _ => 0
+        };
+
+    private static bool IsCtrlDown() => (User32.GetAsyncKeyState(User32.VK_CONTROL) & 0x8000) != 0;
+
+    private static bool IsAltDown() => (User32.GetAsyncKeyState(User32.VK_MENU) & 0x8000) != 0;
 
     private void AdjustTrackedDeviceVolume(int delta, int stepPercent)
     {

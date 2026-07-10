@@ -553,7 +553,19 @@
     <value>Wheel volume step (%)</value>
   </data>
   <data name="Settings_General_WheelVolumeStepPercent_Description" xml:space="preserve">
-    <value>Amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders.</value>
+    <value>Default amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders.</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepFinePercent_Title" xml:space="preserve">
+    <value>Wheel volume step (%) - Fine</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepFinePercent_Description" xml:space="preserve">
+    <value>Fine amount to raise or lower volume when a tray-icon scroll uses the Fine action.</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepCoarsePercent_Title" xml:space="preserve">
+    <value>Wheel volume step (%) - Coarse</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepCoarsePercent_Description" xml:space="preserve">
+    <value>Coarse amount to raise or lower volume when a tray-icon scroll uses the Coarse action.</value>
   </data>
   <data name="TrayTooltip_NoAudioDevice" xml:space="preserve">
     <value>No audio device</value>
@@ -914,6 +926,9 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_AltLeftClick_Title" xml:space="preserve">
     <value>Alt + left click</value>
   </data>
+  <data name="Settings_TrayIcon_AltMouseWheel_Title" xml:space="preserve">
+    <value>Alt + mouse wheel</value>
+  </data>
   <data name="Settings_TrayIcon_AltRightClick_Title" xml:space="preserve">
     <value>Alt + right click</value>
   </data>
@@ -925,6 +940,9 @@ Target: {1}</value>
   </data>
   <data name="Settings_TrayIcon_CtrlLeftClick_Title" xml:space="preserve">
     <value>Ctrl + left click</value>
+  </data>
+  <data name="Settings_TrayIcon_CtrlMouseWheel_Title" xml:space="preserve">
+    <value>Ctrl + mouse wheel</value>
   </data>
   <data name="Settings_TrayIcon_CtrlRightClick_Title" xml:space="preserve">
     <value>Ctrl + right click</value>
@@ -960,7 +978,7 @@ Target: {1}</value>
     <value>Menu position</value>
   </data>
   <data name="Settings_TrayIcon_ModifiedActions_Description" xml:space="preserve">
-    <value>Assign actions to modified clicks on the tray icon. Entries set to Nothing fall back to the default behavior.</value>
+    <value>Assign actions to clicks or scrolls on the tray icon. Modified entries set to Nothing fall back to the default behavior.</value>
   </data>
   <data name="Settings_TrayIcon_ModifiedActions_Header" xml:space="preserve">
     <value>Modified actions</value>

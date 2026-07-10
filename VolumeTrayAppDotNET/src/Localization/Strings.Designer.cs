@@ -2367,11 +2367,47 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders..
+        ///   Looks up a localized string similar to Default amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders..
         /// </summary>
         public static string Settings_General_WheelVolumeStepPercent_Description {
             get {
                 return ResourceManager.GetString("Settings_General_WheelVolumeStepPercent_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Coarse amount to raise or lower volume when a tray-icon scroll uses the Coarse action..
+        /// </summary>
+        public static string Settings_General_WheelVolumeStepCoarsePercent_Description {
+            get {
+                return ResourceManager.GetString("Settings_General_WheelVolumeStepCoarsePercent_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Wheel volume step (%) - Coarse.
+        /// </summary>
+        public static string Settings_General_WheelVolumeStepCoarsePercent_Title {
+            get {
+                return ResourceManager.GetString("Settings_General_WheelVolumeStepCoarsePercent_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fine amount to raise or lower volume when a tray-icon scroll uses the Fine action..
+        /// </summary>
+        public static string Settings_General_WheelVolumeStepFinePercent_Description {
+            get {
+                return ResourceManager.GetString("Settings_General_WheelVolumeStepFinePercent_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Wheel volume step (%) - Fine.
+        /// </summary>
+        public static string Settings_General_WheelVolumeStepFinePercent_Title {
+            get {
+                return ResourceManager.GetString("Settings_General_WheelVolumeStepFinePercent_Title", resourceCulture);
             }
         }
         
@@ -3247,6 +3283,15 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_TrayIcon_AltLeftClick_Title", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Alt + mouse wheel.
+        /// </summary>
+        public static string Settings_TrayIcon_AltMouseWheel_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_AltMouseWheel_Title", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Alt + right click.
@@ -3281,6 +3326,15 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Settings_TrayIcon_CtrlLeftClick_Title {
             get {
                 return ResourceManager.GetString("Settings_TrayIcon_CtrlLeftClick_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ctrl + mouse wheel.
+        /// </summary>
+        public static string Settings_TrayIcon_CtrlMouseWheel_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_CtrlMouseWheel_Title", resourceCulture);
             }
         }
         
@@ -3384,7 +3438,7 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Assign actions to modified clicks on the tray icon. Entries set to Nothing fall back to the default behavior..
+        ///   Looks up a localized string similar to Assign actions to clicks or scrolls on the tray icon. Modified entries set to Nothing fall back to the default behavior..
         /// </summary>
         public static string Settings_TrayIcon_ModifiedActions_Description {
             get {
