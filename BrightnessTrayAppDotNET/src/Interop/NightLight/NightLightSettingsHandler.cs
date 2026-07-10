@@ -1,16 +1,15 @@
-using TrayAppDotNETCommon.Services;
-
 namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
 /// <summary>
-/// Drives the night-light kelvin slider via <see cref="NightLightCloudStore"/>,
-/// which calls <c>BlueLightSingleton::SetTargetColorTemperature</c> by RVA.
+/// Drives the night-light kelvin slider through <see cref="NightLightHelperClient"/>. The recyclable helper
+/// process owns <see cref="NightLightCloudStore"/> and every native SettingsHandlers/CDP allocation.
+/// <c>NightLightCloudStore</c> calls <c>BlueLightSingleton::SetTargetColorTemperature</c> by RVA.
 /// That triggers <c>SaveSettingsAsync</c> on SHTaskPool,
 /// where the eventual <c>ICloudStore::Save</c> succeeds and bumps the CloudStore version
 /// - which is what the BlueLightReductionService watcher fires on,
 /// so the live kelvin filter reapplies without flicker.
 ///
-/// This class is the throttler-fronted entry point that <see cref="NightLightProvider"/> dispatches to.
+/// This class is the entry point that <see cref="NightLightProvider"/> dispatches to.
 /// Reads (<see cref="GetStrength"/>, <see cref="IsEnabled"/>)
 /// and on/off mutations (<see cref="SetEnabled"/>, <see cref="Toggle"/>) delegate to <see cref="NightLightRegistry"/>
 /// because the registry is the source of truth for those.
@@ -25,16 +24,12 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 /// </summary>
 internal static class NightLightSettingsHandler
 {
-    // Callback guards naturally rate-limit this, so 0ms throttling is fine.
-    private const string ThrottlerKey = "nightlight";
-    private static readonly AsyncThrottler<string> _throttler = new(0, StringComparer.Ordinal);
-
     // -1 = no recorded strength yet; SetEnabled/Toggle will snapshot the registry on first arm
     // so the deferred fire always has a real value to write.
     private static int _deferredStrengthPercent = -1;
     private static Timer? _deferredRegistryTimer;
 
-    public static bool IsSupported() => NightLightCloudStore.IsSupported();
+    public static bool IsSupported() => NightLightHelperClient.IsSupported();
 
     /// <summary>Strength 0-100. Source of truth is the registry, same as the other backends.</summary>
     public static int GetStrength() => NightLightRegistry.GetStrength();
@@ -66,29 +61,22 @@ internal static class NightLightSettingsHandler
     }
 
     /// <summary>
-    /// Schedules a kelvin write via <see cref="NightLightCloudStore.SaveSettingsKelvinAsync"/>.
-    /// The throttler's length-1 latest-wins queue keeps the most recent slider value pending across the cooldown,
-    /// so when you let go the user's final position is what eventually saves.
+    /// Queues a kelvin write through the recyclable helper process. The main-process queue is length-one and
+    /// latest-wins, so slider input returns immediately. The helper acknowledges as soon as the value enters its
+    /// MTA streaming queue, keeps native preview mode active across the gesture, and releases preview after input
+    /// goes quiet.
     /// No-ops when the backend is unavailable.
-    ///
-    /// The payload is genuinely async (<c>SaveSettingsKelvinAsync</c> yields on the first registry-notify wait),
-    /// so the throttler's slot driver also yields on its first turn
-    /// - callers running on the UI thread return immediately and the bracket runs on the thread pool.
     ///
     /// Also records the latest kelvin and arms the deferred registry settle-write.
     /// </summary>
     public static void SetStrength(int percent)
     {
-        if (!IsSupported()) return;
-
         int clamped = Math.Clamp(percent, 0, 100);
+        if (!NightLightHelperClient.TryQueueSettingsKelvin(clamped)) return;
+
         Volatile.Write(ref _deferredStrengthPercent, clamped);
-        _ = _throttler.RunAsync(ThrottlerKey, _ => RunSetStrengthAsync(clamped));
         ArmDeferredRegistryWrite();
     }
-
-    private static Task<bool> RunSetStrengthAsync(int percent) =>
-        NightLightCloudStore.SaveSettingsKelvinAsync(percent);
 
     /// <summary>
     /// First-time seed for the deferred-strength field. SetStrength always overwrites it with the
@@ -154,21 +142,24 @@ internal static class NightLightSettingsHandler
     }
 
     /// <summary>
-    /// Stops and releases the shared deferred registry-settle timer during app shutdown.
+    /// Stops the deferred registry-settle timer and terminates every Night Light helper generation.
     /// </summary>
     public static void Shutdown()
     {
         Volatile.Write(ref _deferredStrengthPercent, -1);
 
         Timer? timer = Interlocked.Exchange(ref _deferredRegistryTimer, null);
-        if (timer == null) return;
-
-        try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
-        catch (ObjectDisposedException)
+        if (timer != null)
         {
-            WPFLog.Log("NightLightSettingsHandler.Shutdown: deferred registry timer was already disposed");
+            try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
+            catch (ObjectDisposedException)
+            {
+                WPFLog.Log("NightLightSettingsHandler.Shutdown: deferred registry timer was already disposed");
+            }
+
+            timer.Dispose();
         }
 
-        timer.Dispose();
+        NightLightHelperClient.Shutdown();
     }
 }

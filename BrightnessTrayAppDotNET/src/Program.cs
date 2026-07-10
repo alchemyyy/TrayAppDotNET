@@ -1,4 +1,5 @@
 using BrightnessTrayAppDotNET.DDCCI;
+using BrightnessTrayAppDotNET.Interop.NightLight;
 using TrayAppDotNETCommon.Models;
 
 namespace BrightnessTrayAppDotNET;
@@ -24,6 +25,9 @@ internal static class Program
 
     public static int Main(string[] args)
     {
+        if (NightLightHelperServer.TryRun(args, out int nightLightHelperExitCode))
+            return nightLightHelperExitCode;
+
         if (DDCHelperServer.TryRun(args, out int helperExitCode))
             return helperExitCode;
 

@@ -1456,6 +1456,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void CompleteSliderGesture(MonitorInfo monitor)
     {
         FlushDeferredManualCurveOverrideResync(monitor);
+        CheckAndUpdateUnsavedChanges();
 
         if (!_deferredSliderGestureRebuild)
         {
@@ -1771,12 +1772,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         MasterSliderMode mode = CurrentMasterSliderMode;
         int nightlight = FlipIfNightLightInverted(NightLightMonitor.RoundedBrightness);
-        if (_settings?.Autosave == true
+        bool isAnySliderDragging = MasterMonitor.IsDragging || NightLightMonitor.IsDragging ||
+                                   Monitors.Any(monitor => monitor.IsDragging);
+        if (CanAutosaveProfile(_settings?.Autosave == true, isAnySliderDragging)
             && _profileManager.HasPendingChanges(Monitors, mode, nightlight))
             _profileManager.SaveCurrentState(Monitors, mode, nightlight);
 
         _profileManager.CheckForUnsavedChanges(Monitors, mode, nightlight);
     }
+
+    internal static bool CanAutosaveProfile(bool autosaveEnabled, bool isAnySliderDragging) =>
+        autosaveEnabled && !isAnySliderDragging;
 
     private void SelectProfileApplyingMode(int index)
     {

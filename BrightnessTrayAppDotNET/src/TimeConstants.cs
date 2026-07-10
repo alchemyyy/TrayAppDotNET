@@ -73,6 +73,15 @@ public abstract class TimeConstants : CommonTimeConstants
     // PDB symbol resolver
     public const int PDBSymbolResolverDownloadTimeout = 60_000;
 
+    // Night Light helper process
+    public const int NightLightHelperStartTimeoutMs = PDBSymbolResolverDownloadTimeout + 5_000;
+    public const int NightLightHelperHotPathTimeoutMs = 1_000;
+    public const int NightLightHelperExitTimeoutMs = 2_000;
+    public const int NightLightHelperRecoveryDelayMs = 250;
+    public const int NightLightStreamingPreviewReleaseDelayMs = 150;
+    public const int NightLightHelperRecycleQuietDelayMs = 200;
+    public const int NightLightLastStrengthSaveDebounceMs = 500;
+
     // AppSettings defaults & floors (the values themselves are user-configurable;
     // the defaults and the minimum-allowed floor for the brightness update rate live here
     // so all initial timings sit in one file)

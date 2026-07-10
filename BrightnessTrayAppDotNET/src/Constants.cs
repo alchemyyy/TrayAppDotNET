@@ -16,4 +16,9 @@ internal static class Constants
     public const string TaskbarWindowClassName = "Shell_TrayWnd";
     public const string MonitorDeviceInterfaceGUID = "e6f07b5f-ee97-4a90-b076-33f57bf4eaa7";
     public const string MonitorSetupClassGUID = "4d36e96e-e325-11ce-bfc1-08002be10318";
+
+    // One operation is one accepted streaming strength command. A replacement helper starts before the limit
+    // and takes over after the current input burst goes quiet.
+    public const int NightLightHelperRecycleOperationCount = 256;
+    public const int NightLightHelperWarmupLeadOperationCount = 16;
 }

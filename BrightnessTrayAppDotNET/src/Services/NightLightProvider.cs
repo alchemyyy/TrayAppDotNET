@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using BrightnessTrayAppDotNET.Interop.NightLight;
 
 namespace BrightnessTrayAppDotNET.Services;
@@ -12,8 +13,7 @@ namespace BrightnessTrayAppDotNET.Services;
 /// / <see cref="GetStrength"/> / <see cref="IsEnabled"/>
 /// and the right thing happens.
 ///
-/// Backend resolution runs lazily on first use,
-/// and is recomputed whenever the user changes the fallback mode.
+/// Backend resolution runs during initialization and is recomputed whenever the user changes the fallback mode.
 /// </summary>
 internal static class NightLightProvider
 {
@@ -24,6 +24,10 @@ internal static class NightLightProvider
     private static Backend _lastResolvedBackend = Backend.None;
     private static bool _backendCached;
     private static NightLightFallbackMode _lastResolvedFallbackMode = NightLightFallbackMode.Auto;
+    private static Timer? _lastStrengthSaveTimer;
+    private static bool _lastStrengthSavePending;
+    private static bool _lastStrengthSaveDispatchQueued;
+    private static long _lastStrengthUpdateTick;
 
     /// <summary>
     /// Wires the provider to the live <see cref="AppSettings"/>.
@@ -34,6 +38,8 @@ internal static class NightLightProvider
     public static void Initialize(AppSettings settings)
     {
         if (ReferenceEquals(_settings, settings)) return;
+
+        FlushPendingLastStrengthSave(force: true);
 
         if (_settings != null) _settings.Changed -= OnSettingsChanged;
 
@@ -49,13 +55,24 @@ internal static class NightLightProvider
     public static void Shutdown()
     {
         AppSettings? settings;
+        Timer? lastStrengthSaveTimer;
+        bool shouldSaveLastStrength;
         lock (_gate)
         {
             settings = _settings;
+            shouldSaveLastStrength = _lastStrengthSavePending && settings != null;
+            _lastStrengthSavePending = false;
+            _lastStrengthSaveDispatchQueued = false;
+            lastStrengthSaveTimer = _lastStrengthSaveTimer;
+            _lastStrengthSaveTimer = null;
             _settings = null;
             _backendCached = false;
             _lastResolvedBackend = Backend.None;
         }
+
+        lastStrengthSaveTimer?.Dispose();
+        if (shouldSaveLastStrength && settings != null)
+            SaveLastStrength(settings);
 
         if (settings != null) settings.Changed -= OnSettingsChanged;
 
@@ -123,10 +140,8 @@ internal static class NightLightProvider
 
     /// <summary>
     /// As <see cref="SetStrength(int)"/>, but lets curve-driven callers opt out of persisting
-    /// <see cref="AppSettings.NightLightLastNonZeroStrength"/>. The save is a synchronous XML write
-    /// on the calling thread; the env curve service hits the UI thread up to ~100x during a 10s
-    /// preview sweep, so persisting transient curve samples would both jitter the dispatcher and
-    /// pollute "last user-chosen warmth" with values the user never picked.
+    /// <see cref="AppSettings.NightLightLastNonZeroStrength"/>. User-selected values are saved once after
+    /// the input burst goes quiet; curve samples opt out so they cannot overwrite user intent.
     /// </summary>
     public static void SetStrength(int percent, bool persistAsLastUserValue)
     {
@@ -288,7 +303,7 @@ internal static class NightLightProvider
         // Use the spaced/throttled write rather than the bare synchronous SetStrength: the registry path's
         // bare write triggers the wedged-+36-inflight broker bug and visibly flickers on toggle-on. The
         // spaced bracket bypasses that gate via the IsDragging false->true edge. SettingsHandler's
-        // SetStrength is already the throttled CloudStore-bracket entry point.
+        // SetStrength is already the latest-wins helper-process entry point.
         switch (backend)
         {
             case Backend.Registry:
@@ -321,17 +336,105 @@ internal static class NightLightProvider
 
     private static void PersistLastUserStrength(int percent)
     {
-        if (percent <= 0 || _settings == null || _settings.NightLightLastNonZeroStrength == percent) return;
+        if (percent <= 0) return;
 
-        // Update the property under the gate, then Save outside the gate. AppSettings.Save is a
-        // synchronous XML write on the calling thread (UI thread on slider drags); holding _gate across
-        // it would block backend-cache resolution / settings-changed reentrancy for the full I/O.
-        AppSettings settings = _settings;
-        lock (_gate) settings.NightLightLastNonZeroStrength = percent;
+        Timer? saveTimer;
+        lock (_gate)
+        {
+            AppSettings? settings = _settings;
+            if (settings == null) return;
+
+            if (settings.NightLightLastNonZeroStrength == percent && !_lastStrengthSavePending)
+                return;
+
+            settings.NightLightLastNonZeroStrength = percent;
+            _lastStrengthSavePending = true;
+            _lastStrengthUpdateTick = Environment.TickCount64;
+            _lastStrengthSaveTimer ??= new Timer(
+                OnLastStrengthSaveTimerFired,
+                state: null,
+                Timeout.Infinite,
+                Timeout.Infinite);
+            saveTimer = _lastStrengthSaveTimer;
+        }
+
+        try
+        {
+            saveTimer.Change(TimeConstants.NightLightLastStrengthSaveDebounceMs, Timeout.Infinite);
+        }
+        catch (ObjectDisposedException ex)
+        {
+            WPFLog.Log($"NightLightProvider.PersistLastUserStrength timer disposed: {ex.Message}");
+        }
+    }
+
+    private static void OnLastStrengthSaveTimerFired(object? state)
+    {
+        lock (_gate)
+        {
+            if (!_lastStrengthSavePending || _lastStrengthSaveDispatchQueued) return;
+            _lastStrengthSaveDispatchQueued = true;
+        }
+
+        try
+        {
+            Dispatcher.UIThread.Post(
+                static () => FlushPendingLastStrengthSave(force: false),
+                DispatcherPriority.Background);
+        }
+        catch (Exception ex)
+        {
+            lock (_gate)
+                _lastStrengthSaveDispatchQueued = false;
+            WPFLog.Log($"NightLightProvider last-strength dispatch failed: {ex.Message}");
+        }
+    }
+
+    private static void FlushPendingLastStrengthSave(bool force)
+    {
+        AppSettings? settingsToSave = null;
+        Timer? timerToRearm = null;
+        int remainingDelayMs = 0;
+
+        lock (_gate)
+        {
+            _lastStrengthSaveDispatchQueued = false;
+            if (!_lastStrengthSavePending) return;
+
+            long elapsedMs = Environment.TickCount64 - _lastStrengthUpdateTick;
+            if (!force && elapsedMs < TimeConstants.NightLightLastStrengthSaveDebounceMs)
+            {
+                remainingDelayMs =
+                    TimeConstants.NightLightLastStrengthSaveDebounceMs - (int)elapsedMs;
+                timerToRearm = _lastStrengthSaveTimer;
+            }
+            else
+            {
+                settingsToSave = _settings;
+                _lastStrengthSavePending = false;
+            }
+        }
+
+        if (remainingDelayMs > 0 && timerToRearm != null)
+        {
+            try { timerToRearm.Change(remainingDelayMs, Timeout.Infinite); }
+            catch (ObjectDisposedException ex)
+            {
+                WPFLog.Log($"NightLightProvider last-strength rearm failed: {ex.Message}");
+            }
+            return;
+        }
+
+        if (settingsToSave != null)
+            SaveLastStrength(settingsToSave);
+    }
+
+    private static void SaveLastStrength(AppSettings settings)
+    {
         try { settings.Save(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightProvider.SetStrength persist last-strength: {ex.Message}");
+            WPFLog.Log($"NightLightProvider last-strength save failed: {ex.Message}");
         }
     }
 

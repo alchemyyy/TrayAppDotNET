@@ -1,3 +1,5 @@
+using BrightnessTrayAppDotNET.Interop.NightLight;
+
 namespace BrightnessTrayAppDotNET.Tests.NightLight;
 
 /// <summary>
@@ -14,6 +16,9 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        if (NightLightHelperServer.TryRun(args, out int helperExitCode))
+            return helperExitCode;
+
         // Mode selector:
         //   "cloudstore" => exercise NightLightCloudStore.SaveSettingsKelvin.
         //   "chain"      => band-by-band chain probe (singleton state + registry LastWriteTime).

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Xml.Serialization;
@@ -7,7 +8,8 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
 /// <summary>
 /// Drives the night-light kelvin slider by calling <c>BlueLightSingleton::SetTargetColorTemperature</c> via
-/// RVA in <c>SettingsHandlers_Display.dll</c>. That path:
+/// RVA in <c>SettingsHandlers_Display.dll</c>. Production loads this type only inside the recyclable Night Light
+/// helper process so process exit reclaims CDP allocations retained by the Windows implementation. That path:
 /// <list type="number">
 ///   <item>writes the new kelvin into the singleton's <c>cloud_store_data&lt;Settings&gt;</c>;</item>
 ///   <item>calls <c>BlueLightSingleton::SaveSettingsAsync</c>, which queues
@@ -34,6 +36,10 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 /// </summary>
 internal static class NightLightCloudStore
 {
+    private const uint ROInitMultithreaded = 1;
+    private const int BackendShutdownTimeoutMs = 10_000;
+    private const string BackendThreadName = "NightLightCloudStore-MTA";
+
     // The three bracket calls (kelvin, IsDragging-on, IsDragging-off) must each reach the broker as a distinct
     // save+notification - if SHTaskPool tag-258 dedup collapses them, the broker only sees the final IsDragging=0
     // state and never observes the preview-toggle edge that queues ColorTemperatureControl's fb3daf apply lambda.
@@ -81,18 +87,248 @@ internal static class NightLightCloudStore
         KnownSettingsHandlersRVAs = LoadKnownRVAs();
 
     private static readonly Lock _gate = new();
-    private static bool _initAttempted;
-    private static bool _supported;
+    private static readonly Lock _streamGate = new();
+    private static volatile bool _supported;
+    private static bool _shutdownRequested;
+    private static BlockingCollection<BackendRequest>? _backendRequests;
+    private static Thread? _backendThread;
+    private static Task<bool>? _initializationTask;
+
+    private static Timer? _streamReleaseTimer;
+    private static int _pendingStreamingKelvin;
+    private static bool _hasPendingStreamingKelvin;
+    private static bool _streamDrainScheduled;
+    private static bool _streamReleaseRequested;
+    private static bool _streamPreviewActive;
+    private static long _lastStreamingRequestTick;
+    private static TaskCompletionSource<bool>? _streamDrainCompletionSource;
 
     private static IntPtr _hSettingsHandlersDll;
     private static IntPtr _singleton; // SettingsHandlersDll + SInstanceRva
     private static IntPtr _setTargetColorTemperatureFn;
     private static IntPtr _setPreviewColorTemperatureChangesFn;
+    private static SetTargetColorTemperatureDel? _setTargetColorTemperature;
+    private static SetPreviewColorTemperatureChangesDel? _setPreviewColorTemperatureChanges;
 
     public static bool IsSupported()
     {
         EnsureInit();
         return _supported;
+    }
+
+    /// <summary>
+    /// Accepts a hot-path slider update without waiting for CloudStore persistence. Updates are latest-wins on
+    /// the MTA thread. Preview mode remains active across a burst and is released after input goes quiet.
+    /// </summary>
+    public static bool TryQueueStreamingKelvin(int percent)
+    {
+        if (!IsSupported()) return false;
+
+        int kelvin = NightLightKelvin.PercentToKelvin(percent);
+        bool shouldSchedule;
+        Timer releaseTimer;
+        lock (_streamGate)
+        {
+            _pendingStreamingKelvin = kelvin;
+            _hasPendingStreamingKelvin = true;
+            _streamReleaseRequested = false;
+            _lastStreamingRequestTick = Environment.TickCount64;
+            shouldSchedule = !_streamDrainScheduled;
+            if (shouldSchedule)
+                _streamDrainScheduled = true;
+
+            _streamReleaseTimer ??= new Timer(
+                OnStreamReleaseTimerFired,
+                state: null,
+                Timeout.Infinite,
+                Timeout.Infinite);
+            releaseTimer = _streamReleaseTimer;
+        }
+
+        releaseTimer.Change(TimeConstants.NightLightStreamingPreviewReleaseDelayMs, Timeout.Infinite);
+        return !shouldSchedule || ScheduleStreamingDrain();
+    }
+
+    /// <summary>
+    /// Flushes the latest streaming value and emits preview-off on the MTA thread. This waits only for native
+    /// calls to be issued; it does not wait for registry notifications or broker propagation.
+    /// </summary>
+    public static Task<bool> DrainStreamingAsync()
+    {
+        if (!IsSupported()) return Task.FromResult(false);
+
+        bool shouldSchedule;
+        Timer? releaseTimer;
+        TaskCompletionSource<bool> completionSource;
+        lock (_streamGate)
+        {
+            _streamReleaseRequested = true;
+            _streamDrainCompletionSource ??=
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            completionSource = _streamDrainCompletionSource;
+            shouldSchedule = !_streamDrainScheduled;
+            if (shouldSchedule)
+                _streamDrainScheduled = true;
+            releaseTimer = _streamReleaseTimer;
+        }
+
+        try { releaseTimer?.Change(Timeout.Infinite, Timeout.Infinite); }
+        catch (ObjectDisposedException)
+        {
+            // Shutdown already owns the timer
+        }
+
+        if (shouldSchedule && !ScheduleStreamingDrain())
+            CompleteStreamingDrain(success: false);
+
+        return completionSource.Task;
+    }
+
+    private static bool ScheduleStreamingDrain()
+    {
+        Task<bool> drainTask = QueueBackendRequest(DrainStreamingOnMTAThread);
+        if (drainTask.IsCompletedSuccessfully && !drainTask.GetAwaiter().GetResult())
+        {
+            CompleteStreamingDrain(success: false);
+            return false;
+        }
+
+        _ = ObserveStreamingDrainAsync(drainTask);
+        return true;
+    }
+
+    private static async Task ObserveStreamingDrainAsync(Task<bool> drainTask)
+    {
+        try
+        {
+            bool succeeded = await drainTask.ConfigureAwait(false);
+            if (!succeeded)
+                CompleteStreamingDrain(success: false);
+        }
+        catch (Exception ex)
+        {
+            WPFLog.Log($"NightLightCloudStore streaming drain failed: {ex.Message}");
+            CompleteStreamingDrain(success: false);
+        }
+    }
+
+    private static bool DrainStreamingOnMTAThread()
+    {
+        SetTargetColorTemperatureDel? setTargetColorTemperature = _setTargetColorTemperature;
+        SetPreviewColorTemperatureChangesDel? setPreviewColorTemperatureChanges =
+            _setPreviewColorTemperatureChanges;
+        if (setTargetColorTemperature == null || setPreviewColorTemperatureChanges == null)
+        {
+            CompleteStreamingDrain(success: false);
+            return false;
+        }
+
+        try
+        {
+            while (true)
+            {
+                int kelvin = 0;
+                bool hasKelvin;
+                bool releasePreview;
+                lock (_streamGate)
+                {
+                    hasKelvin = _hasPendingStreamingKelvin;
+                    if (hasKelvin)
+                    {
+                        kelvin = _pendingStreamingKelvin;
+                        _hasPendingStreamingKelvin = false;
+                        releasePreview = false;
+                    }
+                    else
+                    {
+                        releasePreview = _streamReleaseRequested;
+                        _streamReleaseRequested = false;
+                        if (!releasePreview)
+                        {
+                            _streamDrainScheduled = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (hasKelvin)
+                {
+                    setTargetColorTemperature(_singleton, kelvin);
+                    if (!_streamPreviewActive)
+                    {
+                        setPreviewColorTemperatureChanges(_singleton, 1);
+                        _streamPreviewActive = true;
+                    }
+
+                    continue;
+                }
+
+                if (releasePreview && _streamPreviewActive)
+                {
+                    setPreviewColorTemperatureChanges(_singleton, 0);
+                    _streamPreviewActive = false;
+                }
+            }
+
+            CompleteStreamingDrain(success: true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            WPFLog.Log($"NightLightCloudStore streaming native call failed: {ex.Message}");
+            CompleteStreamingDrain(success: false);
+            return false;
+        }
+    }
+
+    private static void OnStreamReleaseTimerFired(object? state)
+    {
+        bool shouldSchedule = false;
+        int remainingDelayMs = 0;
+        lock (_streamGate)
+        {
+            long elapsedMs = Environment.TickCount64 - _lastStreamingRequestTick;
+            if (elapsedMs < TimeConstants.NightLightStreamingPreviewReleaseDelayMs)
+            {
+                remainingDelayMs = TimeConstants.NightLightStreamingPreviewReleaseDelayMs - (int)elapsedMs;
+            }
+            else
+            {
+                _streamReleaseRequested = true;
+                shouldSchedule = !_streamDrainScheduled;
+                if (shouldSchedule)
+                    _streamDrainScheduled = true;
+            }
+        }
+
+        if (remainingDelayMs > 0)
+        {
+            try { _streamReleaseTimer?.Change(remainingDelayMs, Timeout.Infinite); }
+            catch (ObjectDisposedException)
+            {
+                // Shutdown already owns the timer
+            }
+            return;
+        }
+
+        if (shouldSchedule)
+            _ = ScheduleStreamingDrain();
+    }
+
+    private static void CompleteStreamingDrain(bool success)
+    {
+        TaskCompletionSource<bool>? completionSource;
+        lock (_streamGate)
+        {
+            if (success && _streamDrainScheduled) return;
+
+            if (!success)
+                _streamDrainScheduled = false;
+            completionSource = _streamDrainCompletionSource;
+            _streamDrainCompletionSource = null;
+        }
+
+        completionSource?.TrySetResult(success);
     }
 
     /// <summary>
@@ -108,105 +344,271 @@ internal static class NightLightCloudStore
     /// <c>ApplyTemperatureChangeToMonitorsImmediate</c> unconditionally - bypassing the <c>+36 inflight</c> gate
     /// that wedges the <c>SetTargetTemperature</c> apply path on this build.
     ///
-    /// Fully async: yields on the first registry-notify wait, so callers running on the UI thread (or on the
-    /// throttler driver's first turn) return immediately and the bracket runs on the thread pool. Steady-state
-    /// bracket time is ~100-200ms (saves typically land at +30-50ms each). Worst case per step is bounded by
-    /// <see cref="TimeConstants.NightLightSaveNotifyTimeoutMs"/>.
+    /// After one-time initialization, callers enqueue the bracket and return immediately. Every native call runs
+    /// on the same permanent MTA thread that initialized the singleton; registry notifications still complete on
+    /// the thread pool. Steady-state bracket time is ~100-200ms (saves typically land at +30-50ms each). Worst
+    /// case per step is bounded by <see cref="TimeConstants.NightLightSaveNotifyTimeoutMs"/>.
     /// </summary>
-    public static async Task<bool> SaveSettingsKelvinAsync(int percent)
+    public static Task<bool> SaveSettingsKelvinAsync(int percent)
     {
-        if (!IsSupported()) return false;
+        if (!IsSupported()) return Task.FromResult(false);
 
         int kelvin = NightLightKelvin.PercentToKelvin(percent);
+        Thread? backendThread;
+        lock (_gate)
+            backendThread = _backendThread;
 
-        SetTargetColorTemperatureDel setTargetColorTemperature;
-        SetPreviewColorTemperatureChangesDel setPreviewColorTemperatureChanges;
-        try
-        {
-            setTargetColorTemperature = Marshal.GetDelegateForFunctionPointer<SetTargetColorTemperatureDel>(
-                _setTargetColorTemperatureFn);
-            setPreviewColorTemperatureChanges =
-                Marshal.GetDelegateForFunctionPointer<SetPreviewColorTemperatureChangesDel>(
-                    _setPreviewColorTemperatureChangesFn);
-        }
-        catch (Exception ex)
-        {
-            WPFLog.Log(
-                $"NightLightCloudStore.SaveSettingsKelvinAsync: delegate marshalling threw: {ex.Message}");
+        if (ReferenceEquals(Thread.CurrentThread, backendThread))
+            return Task.FromResult(SaveSettingsKelvinOnMTAThread(kelvin));
+
+        return QueueBackendRequest(() => SaveSettingsKelvinOnMTAThread(kelvin));
+    }
+
+    private static bool SaveSettingsKelvinOnMTAThread(int kelvin)
+    {
+        SetTargetColorTemperatureDel? setTargetColorTemperature = _setTargetColorTemperature;
+        SetPreviewColorTemperatureChangesDel? setPreviewColorTemperatureChanges =
+            _setPreviewColorTemperatureChanges;
+        if (setTargetColorTemperature == null || setPreviewColorTemperatureChanges == null)
             return false;
-        }
 
         try
         {
-            await AsyncUtils.IssueWithSaveNotifyAsync(
+            // Each wait is completed before starting the next step so all native calls execute on this MTA thread
+            AsyncUtils.IssueWithSaveNotifyAsync(
                     SettingsBlobKeyPath, () => setTargetColorTemperature(_singleton, kelvin),
                     TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightCloudStoreFallbackDwellMs,
                     CallerName)
-                .ConfigureAwait(false);
-            await AsyncUtils.IssueWithSaveNotifyAsync(
+                .GetAwaiter().GetResult();
+            AsyncUtils.IssueWithSaveNotifyAsync(
                     SettingsBlobKeyPath, () => setPreviewColorTemperatureChanges(_singleton, 1),
                     TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightCloudStoreFallbackDwellMs,
                     CallerName)
-                .ConfigureAwait(false);
-            await AsyncUtils.IssueWithSaveNotifyAsync(
+                .GetAwaiter().GetResult();
+            AsyncUtils.IssueWithSaveNotifyAsync(
                     SettingsBlobKeyPath, () => setPreviewColorTemperatureChanges(_singleton, 0),
                     TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightCloudStoreFallbackDwellMs,
                     CallerName)
-                .ConfigureAwait(false);
+                .GetAwaiter().GetResult();
             return true;
         }
         catch (Exception ex)
         {
             WPFLog.Log(
-                $"NightLightCloudStore.SaveSettingsKelvinAsync: bracket emission threw: {ex.Message}");
+                $"NightLightCloudStore.SaveSettingsKelvinOnMTAThread: bracket emission threw: {ex.Message}");
             return false;
         }
     }
 
     /// <summary>
     /// Synchronous wrapper around <see cref="SaveSettingsKelvinAsync"/>. Blocks the calling thread for the
-    /// duration of the bracket. Kept for non-async callers (the test runner); production code should call
-    /// <see cref="SaveSettingsKelvinAsync"/> directly so the bracket runs on the thread pool instead of the
-    /// caller's thread.
+    /// duration of the bracket. Retained for direct diagnostic test runners; production uses the streaming
+    /// helper methods above.
     /// </summary>
     public static bool SaveSettingsKelvin(int percent) =>
         SaveSettingsKelvinAsync(percent).GetAwaiter().GetResult();
 
-    private static void EnsureInit()
+    /// <summary>
+    /// Stops accepting work, drains the backend queue, and balances WinRT initialization on the backend thread.
+    /// </summary>
+    public static void Shutdown()
     {
+        BlockingCollection<BackendRequest>? backendRequests;
+        Thread? backendThread;
+        Timer? streamReleaseTimer;
+
+        lock (_streamGate)
+        {
+            streamReleaseTimer = _streamReleaseTimer;
+            _streamReleaseTimer = null;
+        }
+
+        try { streamReleaseTimer?.Change(Timeout.Infinite, Timeout.Infinite); }
+        catch (ObjectDisposedException)
+        {
+            // A concurrent shutdown path already disposed it
+        }
+
         lock (_gate)
         {
-            if (_initAttempted) return;
-            _initAttempted = true;
+            if (_shutdownRequested) return;
 
-            // BlueLightSingleton::Initialize must run on an MTA thread because it activates WinRT factories
-            // internally (CloudStore, Geolocator). Thread.Join is fine because EnsureInit runs at most once
-            // per process and we want IsSupported() to be definitive before the first slider event.
-            Exception? initError = null;
-            Thread thread = new(() =>
-            {
-                try { InitOnMtaThread(); }
-                catch (Exception ex) { initError = ex; }
-            }) { IsBackground = true, Name = "NightLightCloudStore-Init" };
-            thread.SetApartmentState(ApartmentState.MTA);
-            thread.Start();
-            thread.Join();
+            _shutdownRequested = true;
+            _supported = false;
+            backendRequests = _backendRequests;
+            backendThread = _backendThread;
 
-            if (initError != null)
+            if (backendRequests is { IsAddingCompleted: false })
+                backendRequests.CompleteAdding();
+        }
+
+        if (backendThread == null || ReferenceEquals(Thread.CurrentThread, backendThread))
+        {
+            streamReleaseTimer?.Dispose();
+            CompleteStreamingDrain(success: false);
+            return;
+        }
+
+        if (!backendThread.Join(BackendShutdownTimeoutMs))
+        {
+            WPFLog.Log(
+                $"NightLightCloudStore.Shutdown: backend thread did not stop within " +
+                $"{BackendShutdownTimeoutMs}ms");
+            streamReleaseTimer?.Dispose();
+            CompleteStreamingDrain(success: false);
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (ReferenceEquals(_backendThread, backendThread))
             {
-                WPFLog.Log($"NightLightCloudStore init failed: {initError.Message}");
-                return;
+                _backendThread = null;
+                _backendRequests = null;
+            }
+        }
+
+        backendRequests?.Dispose();
+        streamReleaseTimer?.Dispose();
+        CompleteStreamingDrain(success: false);
+    }
+
+    private static Task<bool> QueueBackendRequest(Func<bool> operation)
+    {
+        BackendRequest request = new(operation);
+
+        lock (_gate)
+        {
+            BlockingCollection<BackendRequest>? backendRequests = _backendRequests;
+            if (_shutdownRequested || !_supported || backendRequests == null ||
+                backendRequests.IsAddingCompleted)
+            {
+                return Task.FromResult(false);
             }
 
-            _supported = true;
+            try
+            {
+                backendRequests.Add(request);
+            }
+            catch (InvalidOperationException)
+            {
+                return Task.FromResult(false);
+            }
+        }
+
+        return request.CompletionTask;
+    }
+
+    private static void EnsureInit()
+    {
+        Task<bool>? initializationTask;
+
+        lock (_gate)
+        {
+            if (_shutdownRequested) return;
+
+            if (_initializationTask == null)
+                StartBackendThreadLocked();
+
+            initializationTask = _initializationTask;
+        }
+
+        if (initializationTask == null) return;
+        _ = initializationTask.GetAwaiter().GetResult();
+    }
+
+    private static void StartBackendThreadLocked()
+    {
+        BlockingCollection<BackendRequest> backendRequests = new();
+        TaskCompletionSource<bool> initializationCompletionSource =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Thread backendThread = new(
+            () => BackendThreadMain(backendRequests, initializationCompletionSource))
+        {
+            IsBackground = true,
+            Name = BackendThreadName
+        };
+        backendThread.SetApartmentState(ApartmentState.MTA);
+
+        _backendRequests = backendRequests;
+        _backendThread = backendThread;
+        _initializationTask = initializationCompletionSource.Task;
+
+        try
+        {
+            backendThread.Start();
+        }
+        catch (Exception ex)
+        {
+            _backendRequests = null;
+            _backendThread = null;
+            backendRequests.Dispose();
+            initializationCompletionSource.TrySetResult(false);
+            WPFLog.Log($"NightLightCloudStore: failed to start backend thread: {ex.Message}");
         }
     }
 
-    private static void InitOnMtaThread()
+    private static void BackendThreadMain(
+        BlockingCollection<BackendRequest> backendRequests,
+        TaskCompletionSource<bool> initializationCompletionSource)
     {
-        _ = CoInitializeEx(IntPtr.Zero, 0); // COINIT_MULTITHREADED, idempotent
-        _ = RoInitialize(0); // no-op once the thread is already MTA
+        bool windowsRuntimeInitialized = false;
 
+        try
+        {
+            int initializationResult = RoInitialize(ROInitMultithreaded);
+            if (initializationResult < 0)
+                Marshal.ThrowExceptionForHR(initializationResult);
+
+            windowsRuntimeInitialized = true;
+            InitializeNativeBackendOnMTAThread();
+
+            _setTargetColorTemperature =
+                Marshal.GetDelegateForFunctionPointer<SetTargetColorTemperatureDel>(
+                    _setTargetColorTemperatureFn);
+            _setPreviewColorTemperatureChanges =
+                Marshal.GetDelegateForFunctionPointer<SetPreviewColorTemperatureChangesDel>(
+                    _setPreviewColorTemperatureChangesFn);
+
+            bool initializationAccepted;
+            lock (_gate)
+            {
+                initializationAccepted = !_shutdownRequested;
+                if (initializationAccepted)
+                    _supported = true;
+            }
+
+            initializationCompletionSource.TrySetResult(initializationAccepted);
+            if (!initializationAccepted) return;
+
+            foreach (BackendRequest request in backendRequests.GetConsumingEnumerable())
+                request.Execute();
+        }
+        catch (Exception ex)
+        {
+            WPFLog.Log($"NightLightCloudStore backend thread failed: {ex.Message}");
+        }
+        finally
+        {
+            _supported = false;
+            initializationCompletionSource.TrySetResult(false);
+            FailPendingRequests(backendRequests);
+            _setTargetColorTemperature = null;
+            _setPreviewColorTemperatureChanges = null;
+
+            if (windowsRuntimeInitialized)
+                RoUninitialize();
+        }
+    }
+
+    private static void FailPendingRequests(BlockingCollection<BackendRequest> backendRequests)
+    {
+        while (backendRequests.TryTake(out BackendRequest? request))
+            request.Fail();
+    }
+
+    private static void InitializeNativeBackendOnMTAThread()
+    {
         if (!File.Exists(SettingsHandlersDllPath))
             throw new InvalidOperationException($"'{SettingsHandlersDllPath}' missing");
         _hSettingsHandlersDll = LoadLibraryW(SettingsHandlersDllPath);
@@ -288,23 +690,47 @@ internal static class NightLightCloudStore
                 $"(state=0x{stateInner.ToInt64():X16}, settings=0x{settingsInner.ToInt64():X16})");
         }
 
-        WPFLog.Log("NightLightCloudStore: BlueLight singleton initialized");
+        WPFLog.Log("NightLightCloudStore: BlueLight singleton initialized on permanent MTA thread");
     }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadLibraryW([MarshalAs(UnmanagedType.LPWStr)] string fileName);
 
-    [DllImport("ole32.dll")]
-    private static extern int CoInitializeEx(IntPtr reserved, uint coInit);
-
     [DllImport("api-ms-win-core-winrt-l1-1-0.dll")]
     private static extern int RoInitialize(uint initType);
+
+    [DllImport("api-ms-win-core-winrt-l1-1-0.dll")]
+    private static extern void RoUninitialize();
 
     private delegate void InitDel(IntPtr thisPtr);
 
     private delegate void SetTargetColorTemperatureDel(IntPtr thisPtr, int kelvin);
 
     private delegate void SetPreviewColorTemperatureChangesDel(IntPtr thisPtr, byte isDragging);
+
+    private sealed class BackendRequest(Func<bool> operation)
+    {
+        private readonly Func<bool> _operation = operation;
+        private readonly TaskCompletionSource<bool> _completionSource =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<bool> CompletionTask => _completionSource.Task;
+
+        public void Execute()
+        {
+            try
+            {
+                _completionSource.TrySetResult(_operation());
+            }
+            catch (Exception ex)
+            {
+                WPFLog.Log($"NightLightCloudStore.BackendRequest: operation threw: {ex.Message}");
+                _completionSource.TrySetResult(false);
+            }
+        }
+
+        public void Fail() => _completionSource.TrySetResult(false);
+    }
 
     // Canonical defaults: the only thing that ships with the binary. Empty today; add an entry here to seed
     // a new Windows build's RVAs into the on-disk file on first run.

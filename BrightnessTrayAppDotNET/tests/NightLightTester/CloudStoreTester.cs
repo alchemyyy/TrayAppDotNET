@@ -11,8 +11,8 @@ internal static class CloudStoreTester
 {
     private static readonly int[] Sequence = [0, 25, 50, 75, 100, 0];
     private const int StepDelayMs = 400;
-    // Rapid-fire sweep: 0..100 in 1% steps, then 100..0, ~100Hz. Mimics the worst-case slider drag
-    // the throttler would feed into the backend. We want to see whether SHTaskPool tag-258 dedup
+    // Rapid-fire sweep: 0..100 in 1% steps, then 100..0, ~100Hz. Bypasses the production latest-value
+    // coordinator to stress the native backend directly. We want to see whether SHTaskPool tag-258 dedup
     // drops intermediate writes and whether the final readback matches the last value sent.
     private const int RapidStepDelayMs = 10;
 
@@ -85,17 +85,17 @@ internal static class CloudStoreTester
         else
             ConsoleLog.Warn($"Final readback {finalRapid}% (expected 0%). SHTaskPool may have dropped the last call.");
 
-        ConsoleLog.Header("Pass 4: NightLightSettingsHandler.SetStrength (throttler path used in prod)");
+        ConsoleLog.Header("Pass 4: NightLightSettingsHandler.SetStrength (helper path used in prod)");
         // The flyout calls NightLightProvider.SetStrength which calls NightLightSettingsHandler.SetStrength.
-        // That goes through AsyncThrottler with a 100ms cooldown, so a quick sequence of distinct values
-        // produces at most ~10 actual SHTaskPool tasks per second. Verify the final value still lands.
+        // The main-process helper coordinator acknowledges immediately and retains only the latest pending value
+        // while one native bracket is in flight. Verify the final value still lands.
         int[] sliderTrajectory = [10, 25, 40, 55, 70, 85, 100, 85, 70, 55, 40, 25, 10, 0];
         foreach (int p in sliderTrajectory)
         {
             NightLightSettingsHandler.SetStrength(p);
             Thread.Sleep(15);
         }
-        Thread.Sleep(1500);  // throttler + SHTaskPool drain
+        Thread.Sleep(1500);  // Helper queue + SHTaskPool drain
         int finalThrottled = NightLightRegistry.GetStrength();
         if (finalThrottled == 0)
             ConsoleLog.Ok($"Throttled trajectory final readback {finalThrottled}% matches last value (0%).");
