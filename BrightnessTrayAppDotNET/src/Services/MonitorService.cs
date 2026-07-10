@@ -901,6 +901,7 @@ public sealed class MonitorService : IDisposable
                     {
                         entry.Max = NormalizeBrightnessMax(probe.Max);
                         existingInfo.LastKnownBrightnessMax = entry.Max;
+                        RecordDDCCapableObservation(existingInfo);
                         existingInfo.IsReadDegraded = false;
                         existingInfo.LastDDCError = null;
                     }
@@ -965,6 +966,10 @@ public sealed class MonitorService : IDisposable
                         // produced visible master jitter on cold start).
                         SliderState recoveredState = SliderStateMachine.OnHardwareRecovered(
                             existingInfo.SliderState, curveEngagedAtPromote, inDisabledAtPromote);
+                        // Publish recovery eligibility before the functional state. Candidate snapshots may run
+                        // concurrently under non-Avalonia dispatchers and must never observe a capable row without
+                        // its sticky capability bit.
+                        RecordDDCCapableObservation(existingInfo);
                         SetRecoveredSliderState(existingInfo, recoveredState);
                         existingInfo.LastDDCError = null;
                         acquired.Add(existingInfo);
@@ -1011,11 +1016,16 @@ public sealed class MonitorService : IDisposable
                 LastKnownBrightnessMax = newBrightnessMax,
                 SupportsPowerControl = ddc.SupportsVcpPower,
                 IsPoweredOn = true,
+                // A successful probe is the authoritative capability observation. Set the runtime sticky bit
+                // before Monitors.Add publishes this row; displays.json persistence happens below.
+                WasEverDDCCapable = supported,
                 LastDDCError = supported ? null : newRead.Error
             };
             info.InitializeBrightnessFromHardware(seededBrightness);
             if (initialSliderState is SliderState.CurveActive or SliderState.CurveSleeping)
                 info.SeedCurveTargetBrightnessFromSlider();
+            if (supported)
+                RecordDDCCapableObservation(info);
             info.SliderState = initialSliderState;
 
             if (supported)
@@ -1125,7 +1135,12 @@ public sealed class MonitorService : IDisposable
     {
         IReadOnlyList<KnownDisplayEntry> known = _knownDisplays.Entries;
         foreach (MonitorInfo m in Monitors)
-            m.WasEverDDCCapable = IsKnownDDCCapable(m, known);
+        {
+            // A failed or delayed persistence write must never erase a capability observed in this process.
+            // "Was ever" is monotonic; projection can promote false to true but cannot demote true to false.
+            if (!m.WasEverDDCCapable && IsKnownDDCCapable(m, known))
+                m.WasEverDDCCapable = true;
+        }
     }
 
     /// <summary>
@@ -1414,16 +1429,22 @@ public sealed class MonitorService : IDisposable
         foreach (MonitorInfo m in Monitors)
         {
             if (!m.IsHardwareFunctional) continue;
+            RecordDDCCapableObservation(m);
+        }
+    }
 
-            if (string.IsNullOrEmpty(m.EDIDKey)) continue;
+    private void RecordDDCCapableObservation(MonitorInfo monitor)
+    {
+        // This is a monotonic fact. Publish it before any functional-state transition and persist it at the
+        // successful probe point so a concurrent demotion cannot make terminal refresh bookkeeping skip it.
+        monitor.WasEverDDCCapable = true;
+        if (string.IsNullOrEmpty(monitor.EDIDKey)) return;
 
-            // MarkDDCCapable is idempotent and self-saves only on the false->true transition,
-            // so the loop is cheap and emits at most one displays.json write per Refresh.
-            if (_knownDisplays.MarkDDCCapable(m.EDIDKey))
-            {
-                WPFLog.Log(
-                    $"MonitorService: recorded DDC/CI capability for '{m.Name}' ({m.EDIDKey})");
-            }
+        // MarkDDCCapable is idempotent and saves only on the false-to-true transition.
+        if (_knownDisplays.MarkDDCCapable(monitor.EDIDKey))
+        {
+            WPFLog.Log(
+                $"MonitorService: recorded DDC/CI capability for '{monitor.Name}' ({monitor.EDIDKey})");
         }
     }
 
@@ -1811,12 +1832,10 @@ public sealed class MonitorService : IDisposable
         bool inDisabledAtPromote = IsBrightnessCurveDisabledPeriodActive();
         SliderState recoveredState = SliderStateMachine.OnHardwareRecovered(
             info.SliderState, curveEngagedAtPromote, inDisabledAtPromote);
+        RecordDDCCapableObservation(info);
         SetRecoveredSliderState(info, recoveredState);
         info.IsReadDegraded = true;
         info.LastDDCError = readError;
-        info.WasEverDDCCapable = true;
-        string EDIDKey = ComputeEDIDKey(ddc);
-        if (!string.IsNullOrEmpty(EDIDKey)) _knownDisplays.MarkDDCCapable(EDIDKey);
         WPFLog.Log($"MonitorService: '{ddc.Name}' is read-degraded (write probe landed, reads failing)");
         MonitorsAcquired?.Invoke([info]);
         MonitorsRefreshed?.Invoke();
@@ -1936,17 +1955,11 @@ public sealed class MonitorService : IDisposable
         // comment for the master-jitter rationale).
         SliderState recoveredState = SliderStateMachine.OnHardwareRecovered(
             info.SliderState, curveEngagedAtPromote, inDisabledAtPromote);
+        RecordDDCCapableObservation(info);
         SetRecoveredSliderState(info, recoveredState);
         info.IsReadDegraded = false;
         info.LastDDCError = null;
-        info.WasEverDDCCapable = true;
         WPFLog.Log($"MonitorService: recovered '{ddc.Name}' to DDC/CI-supported");
-
-        // Belt-and-braces - RecordDDCCapableObservations on the next refresh would catch this anyway,
-        // but recovery promotion is a canonical "we just saw DDC respond on this hardware" event,
-        // so persist eagerly.
-        string EDIDKey = ComputeEDIDKey(ddc);
-        if (!string.IsNullOrEmpty(EDIDKey)) _knownDisplays.MarkDDCCapable(EDIDKey);
 
         MonitorsAcquired?.Invoke([info]);
         MonitorsRefreshed?.Invoke();

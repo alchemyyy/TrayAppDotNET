@@ -521,17 +521,13 @@ internal static class DDCHelperServer
         if (!TryResolveMonitor(displayService, identity, out DDCMonitor monitor, out string? resolveError))
             return Fail(resolveError ?? "Monitor not found.");
 
-        switch (fields[0])
+        return fields[0] switch
         {
-            case "CAPS":
-                return HandleCapabilities(displayService, monitor);
-            case "GETVCP":
-                return HandleGetVCP(displayService, monitor, fields);
-            case "SETVCP":
-                return HandleSetVCP(displayService, monitor, fields);
-            default:
-                return Fail("Unknown DDC helper command.");
-        }
+            "CAPS" => HandleCapabilities(displayService, monitor),
+            "GETVCP" => HandleGetVCP(displayService, monitor, fields),
+            "SETVCP" => HandleSetVCP(displayService, monitor, fields),
+            _ => Fail("Unknown DDC helper command.")
+        };
     }
 
     private static string HandleCapabilities(DisplayService displayService, DDCMonitor monitor)
@@ -662,7 +658,7 @@ internal static class DDCHelperServer
 
     private static void StartParentWatchdog(int? parentProcessID)
     {
-        if (parentProcessID is not { } parentPID || parentPID <= 0) return;
+        if (parentProcessID is not ({ } parentPID and > 0)) return;
 
         Thread watchdog = new(() => WatchParent(parentPID))
         {

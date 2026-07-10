@@ -23,6 +23,10 @@ public sealed class MonitorRecoveryTests
         string originalID = monitor.ID;
         Assert.Equal("num:3", originalID);
         Assert.Equal("port:DISPLAY\\PORT-A", monitor.EDIDKey);
+        // Regression: a successful initial probe used to publish the functional row through Monitors.Add before
+        // WasEverDDCCapable was set. A second Refresh could demote that half-published row first, making recovery
+        // candidate selection nondeterministically return an empty list.
+        Assert.True(monitor.WasEverDDCCapable);
 
         display.SetRead("DISPLAY\\PORT-A", ok: false, error: "simulated read failure");
         service.Refresh();
