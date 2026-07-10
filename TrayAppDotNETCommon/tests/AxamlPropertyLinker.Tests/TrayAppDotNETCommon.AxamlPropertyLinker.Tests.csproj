@@ -21,9 +21,6 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <ProjectReference Include="..\..\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
-                      Targets="GetTargetPath" />
-    <ProjectReference Include="..\..\generators\AxamlPropertyLinker\TrayAppDotNETCommon.AxamlPropertyLinker.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'" />
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)" />
   </ItemGroup>
 </Project>

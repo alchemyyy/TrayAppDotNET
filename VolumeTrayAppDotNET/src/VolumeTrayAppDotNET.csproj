@@ -12,6 +12,8 @@
     <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <IsAotCompatible>true</IsAotCompatible>
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">win-x64</RuntimeIdentifiers>
+    <PublishAot Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging'">true</PublishAot>
     <AvaloniaVersion>12.0.4</AvaloniaVersion>
     <HotAvaloniaPackageVersion>3.1.1</HotAvaloniaPackageVersion>
     <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
@@ -133,25 +135,24 @@
   <Target Name="PublishAfterBuild" AfterTargets="Build"
           Condition="'$(SkipPublishAfterBuild)' != 'true' and '$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
-      <_PublishOutputPath>$(OutputPath)</_PublishOutputPath>
-      <_PublishOutputPath Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
+      <_PublishOutputPath>$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
     </PropertyGroup>
     <Message Importance="High" Text="Publishing Native AOT release..." />
     <RemoveDir Directories="$(_PublishOutputPath)" Condition="Exists('$(_PublishOutputPath)')" ContinueOnError="WarnAndContinue" />
     <MakeDir Directories="$(_PublishOutputPath)" />
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true $(TrayAppDotNETPublishAggregateProperties) -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 --no-restore -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true -p:TrayAppDotNETBuildSharedProjectReferences=false $(TrayAppDotNETPublishAggregateProperties) -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
     <Delete Files="$(_PublishOutputPath)Dia2Lib.dll;$(_PublishOutputPath)TraceReloggerLib.dll" ContinueOnError="WarnAndContinue" />
     <RemoveDir Directories="$(_PublishOutputPath)amd64;$(_PublishOutputPath)win-x64" Condition="Exists('$(_PublishOutputPath)amd64') or Exists('$(_PublishOutputPath)win-x64')" ContinueOnError="WarnAndContinue" />
-    <ItemGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
-      <_AggregatePublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
+    <ItemGroup>
+      <_TrayAppDotNETPublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(_AggregatePublishedFile)"
-          DestinationFiles="@(_AggregatePublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
+    <Copy SourceFiles="@(_TrayAppDotNETPublishedFile)"
+          DestinationFiles="@(_TrayAppDotNETPublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
           Retries="$(CopyRetryCount)"
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
           ContinueOnError="WarnAndContinue"
-          Condition="'$(TrayAppDotNETAggregateBuild)' == 'true' and '@(_AggregatePublishedFile)' != ''" />
+          Condition="'@(_TrayAppDotNETPublishedFile)' != ''" />
     <Message Importance="High" Text="Published to $(OutputPath)" />
   </Target>
 </Project>

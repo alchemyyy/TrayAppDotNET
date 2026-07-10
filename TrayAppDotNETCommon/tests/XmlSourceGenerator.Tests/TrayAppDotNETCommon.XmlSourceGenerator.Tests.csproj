@@ -21,15 +21,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <ProjectReference Include="..\..\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
-                      Targets="GetTargetPath" />
-    <ProjectReference Include="..\..\generators\XmlSourceGenerator\TrayAppDotNETCommon.XmlSourceGenerator.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'" />
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)" />
     <ProjectReference Include="..\..\src\TrayAppDotNETCommon.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
-                      Targets="GetTargetPath" />
-    <ProjectReference Include="..\..\src\TrayAppDotNETCommon.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'"
-                      AdditionalProperties="TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false" />
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)" />
   </ItemGroup>
 </Project>

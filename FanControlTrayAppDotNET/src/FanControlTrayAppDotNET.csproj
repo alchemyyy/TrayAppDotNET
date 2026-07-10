@@ -9,7 +9,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">win-x64</RuntimeIdentifiers>
+    <PublishAot Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging'">true</PublishAot>
     <StartupObject>FanControlTrayAppDotNET.Program</StartupObject>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
@@ -24,9 +25,7 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
-    <FanControlDesignTimeNCalcCoreOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.Core\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcCoreOutputPath>
-    <FanControlDesignTimeNCalcDomainOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.Domain\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcDomainOutputPath>
-    <FanControlDesignTimeNCalcParserOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.Parser\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcParserOutputPath>
+    <FanControlDesignTimeNCalcAotOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcAotOutputPath>
     <FanControlDesignTimeLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlDesignTimeLibreHardwareMonitorOutputPath>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
@@ -43,10 +42,6 @@
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <StripSymbols>false</StripSymbols>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">
-    <DisableParlotParserCompilation>true</DisableParlotParserCompilation>
   </PropertyGroup>
 
   <!-- Debug LHM uses Mono.Posix.NETStandard through its OpCode path. Keep this enabled
@@ -114,16 +109,8 @@
       <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)HidSharp.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="NCalc.Core" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcCoreOutputPath)NCalc.Core.dll')">
-      <HintPath>$(FanControlDesignTimeNCalcCoreOutputPath)NCalc.Core.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Domain" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcDomainOutputPath)NCalc.Domain.dll')">
-      <HintPath>$(FanControlDesignTimeNCalcDomainOutputPath)NCalc.Domain.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="NCalc.Parser" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcParserOutputPath)NCalc.Parser.dll')">
-      <HintPath>$(FanControlDesignTimeNCalcParserOutputPath)NCalc.Parser.dll</HintPath>
+    <Reference Include="NCalc.AOT" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcAotOutputPath)NCalc.AOT.dll')">
+      <HintPath>$(FanControlDesignTimeNCalcAotOutputPath)NCalc.AOT.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
@@ -143,21 +130,10 @@
       <PrivateAssets>all</PrivateAssets>
       <Visible>false</Visible>
     </ProjectReference>
-    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+    <ProjectReference Include="..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj"
                       Condition="'$(DesignTimeBuild)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
-      <SetTargetFramework Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0</SetTargetFramework>
-      <SetTargetFramework Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true</SetTargetFramework>
-      <AdditionalProperties>TreatWarningsAsErrors=false;NoWarn=RCS1194</AdditionalProperties>
-      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
-      <Private>true</Private>
-      <PrivateAssets>all</PrivateAssets>
-      <Visible>false</Visible>
-    </ProjectReference>
-    <ProjectReference Include="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
-                      Condition="'$(DesignTimeBuild)' != 'true'"
-                      Targets="GetTargetPath">
-      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetPlatform>Platform=x64</SetPlatform>
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
       <AdditionalProperties>TreatWarningsAsErrors=false</AdditionalProperties>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
@@ -171,12 +147,12 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
-    <!-- Required for Debug LHM startup. ProjectReference restore does not reliably flow
-         LHM's package runtime assets into the app dependency context. Do not remove these:
-         Debug Computer.Open() needs Mono.Posix for OpCode and System.IO.Ports for controller
+    <!-- Required for LHM startup. ProjectReference restore does not reliably root LHM's
+         package runtime assets in the app, especially for Native AOT. Do not remove these:
+         Computer.Open() needs Mono.Posix for OpCode and System.IO.Ports for controller
          probing. This intentionally does not add System.Management/BMC/IPMI assemblies. -->
-    <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''" />
-    <PackageReference Include="System.IO.Ports" Version="10.0.9" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''" />
+    <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.9" />
   </ItemGroup>
 
   <ItemGroup>
@@ -215,8 +191,7 @@
            IPMI/BMC or RAM SPD paths into the Debug LHM sidecar. -->
       <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
       <_LibreHardwareMonitorBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableIpmiWmi=true;DisableRamSpd=true</_LibreHardwareMonitorBuildProperties>
-      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' == '' or ('$(Configuration)' != 'Release' and '$(Configuration)' != 'ReleaseWithDebugging')">TargetFramework=net10.0;TreatWarningsAsErrors=false;NoWarn=RCS1194</_NCalcCoreBuildProperties>
-      <_NCalcCoreBuildProperties Condition="'$(RuntimeIdentifier)' != '' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging')">TargetFramework=net10.0;DisableParlotParserCompilation=true;TreatWarningsAsErrors=false;NoWarn=RCS1194</_NCalcCoreBuildProperties>
+      <_NCalcAotBuildProperties>TargetFramework=net10.0;TreatWarningsAsErrors=false</_NCalcAotBuildProperties>
     </PropertyGroup>
 
     <MSBuild Projects="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
@@ -224,24 +199,11 @@
              BuildInParallel="$(BuildInParallel)"
              Properties="$(_VendoredReferenceBuildProperties);Platform=x64;$(_LibreHardwareMonitorBuildProperties)"
              RemoveProperties="$(_VendoredReferencePropertiesToRemove)" />
-    <MSBuild Projects="..\vendor\NCalc\src\NCalc.Core\NCalc.Core.csproj"
+    <MSBuild Projects="..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj"
              Targets="Build"
              BuildInParallel="$(BuildInParallel)"
-             Properties="$(_VendoredReferenceBuildProperties);Platform=$(Platform);$(_NCalcCoreBuildProperties)"
+             Properties="$(_VendoredReferenceBuildProperties);Platform=x64;$(_NCalcAotBuildProperties)"
              RemoveProperties="$(_VendoredReferencePropertiesToRemove);RuntimeIdentifier;RuntimeIdentifiers" />
-  </Target>
-
-  <!-- NCalc.Core exposes NCalc.Domain types in public APIs. Keep a direct
-       reference for compile metadata and build it serially here so clean
-       Debug rebuilds do not race the transitive NCalc.Core build. -->
-  <Target Name="BuildNCalcDomainReference"
-          BeforeTargets="ResolveProjectReferences"
-          Condition="'$(DesignTimeBuild)' != 'true'">
-    <MSBuild Projects="..\vendor\NCalc\src\NCalc.Domain\NCalc.Domain.csproj"
-             Targets="Build"
-             BuildInParallel="$(BuildInParallel)"
-             Properties="Configuration=$(Configuration);Platform=x64;TargetFramework=net10.0;BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;TreatWarningsAsErrors=false"
-             RemoveProperties="BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir" />
   </Target>
 
   <Target Name="IncludeLibreHardwareMonitorSidecar" AfterTargets="ComputeFilesToPublish" Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != ''">
@@ -330,18 +292,17 @@
 
   <Target Name="PublishAfterBuild" AfterTargets="Build" Condition="'$(SkipPublishAfterBuild)' != 'true' and ('$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging') and '$(RuntimeIdentifier)' == ''">
     <PropertyGroup>
-      <_PublishOutputPath>$(OutputPath)</_PublishOutputPath>
-      <_PublishOutputPath Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
+      <_PublishOutputPath>$(IntermediateOutputPath)native-publish\</_PublishOutputPath>
     </PropertyGroup>
     <Message Importance="High" Text="Publishing Native AOT release..." />
     <RemoveDir Directories="$(_PublishOutputPath)" Condition="Exists('$(_PublishOutputPath)')" ContinueOnError="WarnAndContinue" />
     <MakeDir Directories="$(_PublishOutputPath)" />
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true $(TrayAppDotNETPublishAggregateProperties) -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFullPath)&quot; -c $(Configuration) -r win-x64 --no-restore -o &quot;$(_PublishOutputPath).&quot; -p:SkipPublishAfterBuild=true -p:TrayAppDotNETBuildSharedProjectReferences=false $(TrayAppDotNETPublishAggregateProperties) -p:SkipKillRunningInstance=$(SkipKillRunningInstance)" />
     <RemoveDir Directories="$(_PublishOutputPath)win-x64" Condition="Exists('$(_PublishOutputPath)win-x64')" ContinueOnError="WarnAndContinue" />
-    <ItemGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
-      <_AggregatePublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
+    <ItemGroup>
+      <_TrayAppDotNETPublishedFile Include="$(_PublishOutputPath)**\*" Exclude="$(_PublishOutputPath)native\**\*" />
     </ItemGroup>
-    <Copy SourceFiles="@(_AggregatePublishedFile)" DestinationFiles="@(_AggregatePublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="$(CopyRetryCount)" RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" ContinueOnError="WarnAndContinue" Condition="'$(TrayAppDotNETAggregateBuild)' == 'true' and '@(_AggregatePublishedFile)' != ''" />
+    <Copy SourceFiles="@(_TrayAppDotNETPublishedFile)" DestinationFiles="@(_TrayAppDotNETPublishedFile->'$(OutputPath)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" Retries="$(CopyRetryCount)" RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" ContinueOnError="WarnAndContinue" Condition="'@(_TrayAppDotNETPublishedFile)' != ''" />
     <Message Importance="High" Text="Published to $(OutputPath)" />
   </Target>
 </Project>

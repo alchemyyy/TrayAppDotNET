@@ -22,10 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
-                      Targets="GetTargetPath" />
-    <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
-                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'"
-                      AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;Platform=x64" />
+                      Targets="$(TrayAppDotNETSharedProjectReferenceTargets)">
+      <AdditionalProperties
+          Condition="'$(Configuration)' == 'Release' and '$(TrayAppDotNETAggregateBuild)' != 'true' and ('$(SolutionFileName)' == '' or '$(SolutionFileName)' == '*Undefined*')">SkipPublishAfterBuild=true</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
 </Project>

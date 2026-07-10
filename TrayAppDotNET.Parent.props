@@ -6,7 +6,9 @@
     <TrayAppDotNETIsRootSolutionBuild Condition="'$(SolutionDir)' == '$(TrayAppDotNETRoot)'">true</TrayAppDotNETIsRootSolutionBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == '' and '$(TrayAppDotNETIsRootSolutionBuild)' == 'true'">true</TrayAppDotNETAggregateBuild>
     <TrayAppDotNETAggregateBuild Condition="'$(TrayAppDotNETAggregateBuild)' == ''">false</TrayAppDotNETAggregateBuild>
-    <TrayAppDotNETBuildSharedProjectReferences Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">false</TrayAppDotNETBuildSharedProjectReferences>
+    <!-- Normal builds use the ProjectReference graph so MSBuild builds each shared
+         project once and blocks consumers until its artifacts are ready. Prebuilt
+         publish flows can explicitly disable shared project builds. -->
     <TrayAppDotNETBuildSharedProjectReferences Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == ''">true</TrayAppDotNETBuildSharedProjectReferences>
     <TrayAppDotNETSharedProjectReferenceTargets Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == 'false'">GetTargetPath</TrayAppDotNETSharedProjectReferenceTargets>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
