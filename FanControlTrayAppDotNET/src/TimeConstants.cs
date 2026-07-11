@@ -9,7 +9,6 @@ namespace FanControlTrayAppDotNET;
 public abstract class TimeConstants : CommonTimeConstants
 {
     // Settings UI
-    public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;
     public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
 
     // Auto-update

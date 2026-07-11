@@ -244,14 +244,15 @@ public sealed class FanDragEngineTests
         List<FanFlyoutCell> cells = [rig.CellA, rig.GroupCell, rig.CellC];
 
         rig.FanA.Group = rig.GroupCell.GroupName;
-        List<FanFlyoutCell> grouped = FanDragEngine.MoveFanIntoGroup(cells, rig.FanA, rig.GroupCell, 1);
+        List<FanDragCellArrangement> grouped =
+            FanDragEngine.MoveFanIntoGroup(cells, rig.FanA, rig.GroupCell, 1);
 
-        FanFlyoutCell groupedCell = Assert.Single(grouped, cell => cell.HasGroupHeader);
+        FanDragCellArrangement groupedCell = Assert.Single(grouped, cell => cell.HasGroupHeader);
         Assert.Equal([rig.GroupFan0, rig.FanA, rig.GroupFan1], groupedCell.Fans.ToArray());
         Assert.DoesNotContain(grouped, cell => !cell.HasGroupHeader && cell.Fans.Contains(rig.FanA));
 
         rig.FanA.Group = null;
-        List<FanFlyoutCell> ungrouped = FanDragEngine.MoveFanToTopLevel(grouped, rig.FanA, 1);
+        List<FanDragCellArrangement> ungrouped = FanDragEngine.MoveFanToTopLevel(grouped, rig.FanA, 1);
 
         Assert.Equal([rig.GroupCell.GroupName!, rig.FanA.DisplayName, rig.FanC.DisplayName],
             DescribeCells(ungrouped));
@@ -392,7 +393,7 @@ public sealed class FanDragEngineTests
         };
     }
 
-    private static string[] DescribeCells(IEnumerable<FanFlyoutCell> cells)
+    private static string[] DescribeCells(IEnumerable<FanDragCellArrangement> cells)
     {
         return
         [

@@ -5,6 +5,19 @@ using FanControlTrayAppDotNET.Models;
 
 namespace FanControlTrayAppDotNET.UI.Flyout;
 
+/// <summary>
+/// Describes a prospective fan-cell arrangement without creating a subscribed live cell.
+/// </summary>
+internal sealed record FanDragCellArrangement(FanGroup? GroupSettings, IReadOnlyList<Fan> Fans)
+{
+    public string? GroupName => GroupSettings?.Name;
+
+    public bool HasGroupHeader => GroupName != null;
+
+    public static FanDragCellArrangement FromCell(FanFlyoutCell cell) =>
+        new(cell.GroupSettings, [.. cell.Fans]);
+}
+
 internal static class FanDragEngine
 {
     private const double SlotPassRatio = 0.62;
@@ -137,17 +150,29 @@ internal static class FanDragEngine
         return Math.Clamp(insertionIndex, 1, childCount);
     }
 
-    public static List<FanFlyoutCell> MoveFanToTopLevel(List<FanFlyoutCell> cells, Fan fan, int targetIndex)
+    public static List<FanDragCellArrangement> MoveFanToTopLevel(
+        IEnumerable<FanFlyoutCell> cells,
+        Fan fan,
+        int targetIndex) =>
+        MoveFanToTopLevel([.. cells.Select(FanDragCellArrangement.FromCell)], fan, targetIndex);
+
+    public static List<FanDragCellArrangement> MoveFanToTopLevel(
+        IReadOnlyList<FanDragCellArrangement> cells,
+        Fan fan,
+        int targetIndex)
     {
-        List<FanFlyoutCell> result = [];
-        foreach (FanFlyoutCell cell in cells)
+        List<FanDragCellArrangement> result = [];
+        foreach (FanDragCellArrangement cell in cells)
         {
             if (cell.Fans.Contains(fan))
             {
                 if (cell.HasGroupHeader)
                 {
-                    List<Fan> remaining = [.. cell.Fans.Where(f => !ReferenceEquals(f, fan))];
-                    result.Add(new FanFlyoutCell(cell.GroupSettings, remaining));
+                    List<Fan> remaining =
+                    [
+                        .. cell.Fans.Where(candidate => !ReferenceEquals(candidate, fan))
+                    ];
+                    result.Add(new FanDragCellArrangement(cell.GroupSettings, remaining));
                 }
 
                 continue;
@@ -157,24 +182,37 @@ internal static class FanDragEngine
         }
 
         if (fan.Group == null)
-            result.Insert(Math.Clamp(targetIndex, 0, result.Count), new FanFlyoutCell(null, [fan]));
+            result.Insert(Math.Clamp(targetIndex, 0, result.Count), new FanDragCellArrangement(null, [fan]));
         return result;
     }
 
-    public static List<FanFlyoutCell> MoveFanIntoGroup(
-        List<FanFlyoutCell> cells,
+    public static List<FanDragCellArrangement> MoveFanIntoGroup(
+        IEnumerable<FanFlyoutCell> cells,
         Fan fan,
         FanFlyoutCell targetGroup,
+        int targetFanIndex) =>
+        MoveFanIntoGroup(
+            [.. cells.Select(FanDragCellArrangement.FromCell)],
+            fan,
+            targetGroup.GroupSettings,
+            targetGroup.GroupName,
+            targetFanIndex);
+
+    public static List<FanDragCellArrangement> MoveFanIntoGroup(
+        IReadOnlyList<FanDragCellArrangement> cells,
+        Fan fan,
+        FanGroup? targetGroupSettings,
+        string? targetGroupName,
         int targetFanIndex)
     {
-        List<FanFlyoutCell> result = [];
-        foreach (FanFlyoutCell cell in cells)
+        List<FanDragCellArrangement> result = [];
+        foreach (FanDragCellArrangement cell in cells)
         {
-            if (IsSameGroup(cell, targetGroup))
+            if (IsSameGroup(cell, targetGroupSettings, targetGroupName))
             {
                 List<Fan> fans = [.. cell.Fans.Where(candidate => !ReferenceEquals(candidate, fan))];
                 fans.Insert(Math.Clamp(targetFanIndex, 0, fans.Count), fan);
-                result.Add(new FanFlyoutCell(cell.GroupSettings, fans));
+                result.Add(new FanDragCellArrangement(cell.GroupSettings, fans));
                 continue;
             }
 
@@ -183,7 +221,7 @@ internal static class FanDragEngine
                 if (cell.HasGroupHeader)
                 {
                     List<Fan> remaining = [.. cell.Fans.Where(candidate => !ReferenceEquals(candidate, fan))];
-                    result.Add(new FanFlyoutCell(cell.GroupSettings, remaining));
+                    result.Add(new FanDragCellArrangement(cell.GroupSettings, remaining));
                 }
 
                 continue;
@@ -193,6 +231,21 @@ internal static class FanDragEngine
         }
 
         return result;
+    }
+
+    private static bool IsSameGroup(
+        FanDragCellArrangement cell,
+        FanGroup? targetGroupSettings,
+        string? targetGroupName)
+    {
+        if (cell.GroupSettings != null && targetGroupSettings != null)
+        {
+            return ReferenceEquals(cell.GroupSettings, targetGroupSettings)
+                   || string.Equals(cell.GroupName, targetGroupName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return !string.IsNullOrWhiteSpace(cell.GroupName)
+               && string.Equals(cell.GroupName, targetGroupName, StringComparison.OrdinalIgnoreCase);
     }
 
     public static int IndexOfFan(FanFlyoutCell cell, Fan fan)
@@ -222,7 +275,8 @@ internal static class FanDragEngine
     {
         for (int i = 0; i < snapshot.Slots.Count; i++)
         {
-            FanFlyoutCell candidate = snapshot.Slots[i].Cell;
+            FanFlyoutCell? candidate = snapshot.Slots[i].Cell;
+            if (candidate == null) continue;
             if (ReferenceEquals(candidate, cell)
                 || candidate.GroupSettings != null
                 && cell.GroupSettings != null
@@ -269,13 +323,14 @@ internal static class FanDragEngine
         {
             FanDragSlot root = snapshot.Slots[rootIndex];
             bool rootIsSource = IsRootSource(snapshot, rootIndex);
-            if (!root.Cell.HasGroupHeader || snapshot.DraggedFan == null)
+            FanFlyoutCell? rootCell = root.Cell;
+            if (rootCell?.HasGroupHeader != true || snapshot.DraggedFan == null)
             {
                 targets.Add(RootTarget(snapshot, root, rootIndex, rootIsSource));
                 continue;
             }
 
-            AddGroupTargets(snapshot, targets, root, rootIndex, rootIsSource);
+            AddGroupTargets(snapshot, targets, root, rootCell, rootIndex, rootIsSource);
         }
 
         return [.. targets.OrderBy(slot => slot.Range.Top)];
@@ -285,6 +340,7 @@ internal static class FanDragEngine
         FanDragSnapshot snapshot,
         List<FanDragTarget> targets,
         FanDragSlot root,
+        FanFlyoutCell rootCell,
         int rootIndex,
         bool rootIsSource)
     {
@@ -296,22 +352,22 @@ internal static class FanDragEngine
             rootPlacement,
             rootIsSource));
 
-        List<FanDragFanSlot> fanSlots = GroupFanSlots(snapshot, root.Cell, excludeDraggedFan: true);
+        List<FanDragFanSlot> fanSlots = GroupFanSlots(snapshot, rootCell, excludeDraggedFan: true);
         for (int i = 0; i < fanSlots.Count; i++)
         {
             FanDragFanSlot fanSlot = fanSlots[i];
             double top = i == 0 ? Math.Min(root.GroupInsertionTop, fanSlot.Top) : fanSlot.Top;
-            targets.Add(GroupFanTarget(snapshot, root.Cell, fanSlot, top));
+            targets.Add(GroupFanTarget(snapshot, rootCell, fanSlot, top));
         }
 
         FanDragRange appendRange = GroupAppendRange(root, fanSlots);
         if (appendRange.Height <= 1) return;
 
-        int appendIndex = AdjustGroupFanInsertionIndex(snapshot, root.Cell, root.Cell.Fans.Count);
+        int appendIndex = AdjustGroupFanInsertionIndex(snapshot, rootCell, rootCell.Fans.Count);
         targets.Add(new FanDragTarget(
             FanDragTargetKind.GroupAppend,
             appendRange,
-            FanDragPlacement.IntoGroup(root.Cell, appendIndex),
+            FanDragPlacement.IntoGroup(rootCell, appendIndex),
             TopLevelPlacementForRootInsertion(snapshot, rootIndex + 1),
             false));
     }
@@ -625,7 +681,7 @@ internal readonly record struct FanDragPlacement(
 }
 
 internal sealed record FanDragSlot(
-    FanFlyoutCell Cell,
+    FanFlyoutCell? Cell,
     Control Visual,
     double Top,
     double Height,

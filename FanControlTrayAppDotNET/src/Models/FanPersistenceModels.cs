@@ -8,6 +8,8 @@ namespace FanControlTrayAppDotNET.Models;
 // so applying a fan profile or swapping fan settings can move a fan without changing the catalog.
 public class FanGroup : INotifyPropertyChanged
 {
+    private bool _suppressRegistryUpdate;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public static readonly Dictionary<string, FanGroup> FanGroups =
@@ -28,7 +30,8 @@ public class FanGroup : INotifyPropertyChanged
                 && ReferenceEquals(registered, this))
                 FanGroups.Remove(oldName);
 
-            Register(this);
+            if (!_suppressRegistryUpdate)
+                Register(this);
             OnPropertyChanged();
         }
     } = string.Empty;
@@ -130,6 +133,22 @@ public class FanGroup : INotifyPropertyChanged
     {
         if (string.IsNullOrEmpty(name)) return null;
         return FanGroups.GetValueOrDefault(name);
+    }
+
+    /// <summary>Creates a named group without publishing it to the process registry.</summary>
+    internal static FanGroup CreateUnregistered(string name)
+    {
+        FanGroup group = new() { _suppressRegistryUpdate = true };
+        try
+        {
+            group.Name = name;
+        }
+        finally
+        {
+            group._suppressRegistryUpdate = false;
+        }
+
+        return group;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? name = null)

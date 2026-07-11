@@ -8,17 +8,16 @@ using Avalonia.Threading;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
-public sealed class FanCurveEditor : Control
+public sealed class FanCurveEditor : Control, IDisposable
 {
     private readonly record struct DisplayNode(CurveNode Raw, double X, double Y);
 
     private static readonly bool IsSelectedReadoutAutoSwitchEnabled = false;
 
-    private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
-    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
-
     private Curve? _curve;
     private DataSource? _dataSource;
+    private Curve? _subscribedCurve;
+    private DataSource? _subscribedDataSource;
     private FanCurveEditorPalette _palette = FanCurveEditorPalette.Default;
     private FanCurveEditorWindow.FanCurveEditorAxamlProperties? _layout;
 
@@ -27,12 +26,14 @@ public sealed class FanCurveEditor : Control
     private CurveNode? _selectedNode;
     private IPointer? _capturedPointer;
     private Point? _cursorPos;
-    private DispatcherTimer? _redrawTimer;
+    private bool _isAttached;
+    private bool _isResettingPointerCapture;
+    private bool _disposed;
 
     public FanCurveEditor()
     {
         Focusable = true;
-        Cursor = ArrowCursor;
+        Cursor = TrayAppDotNETCursors.Arrow;
         GotFocus += (_, _) => EnsureSelectionOnFocus();
         LostFocus += (_, _) =>
         {
@@ -84,17 +85,19 @@ public sealed class FanCurveEditor : Control
 
     public void SetCurve(Curve curve, DataSource? source)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (ReferenceEquals(_curve, curve) && ReferenceEquals(_dataSource, source)) return;
-        UnsubscribeDataSource();
+        UnsubscribeModels();
         _curve = curve;
         _dataSource = source;
         _selectedNode = null;
-        SubscribeDataSource();
+        SubscribeModels();
         InvalidateVisual();
     }
 
     public void SetDataSource(DataSource? source)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (ReferenceEquals(_dataSource, source)) return;
         UnsubscribeDataSource();
         _dataSource = source;
@@ -116,14 +119,16 @@ public sealed class FanCurveEditor : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        StartTimer();
+        if (_disposed) return;
+        _isAttached = true;
+        SubscribeModels();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        StopTimer();
-        UnsubscribeDataSource();
-        ReleasePointerCapture();
+        _isAttached = false;
+        UnsubscribeModels();
+        ResetPointerInteraction();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -148,6 +153,7 @@ public sealed class FanCurveEditor : Control
     {
         base.OnPointerPressed(e);
         if (!IsEnabled || _curve == null) return;
+        if (_capturedPointer != null) return;
 
         PointerPoint point = e.GetCurrentPoint(this);
         Point pos = e.GetPosition(this);
@@ -202,6 +208,7 @@ public sealed class FanCurveEditor : Control
 
         if (_dragNode != null)
         {
+            if (!ReferenceEquals(_capturedPointer, e.Pointer)) return;
             DragNode(_dragNode, pos, plot);
             InvalidateVisual();
             CurveChanged?.Invoke();
@@ -216,7 +223,7 @@ public sealed class FanCurveEditor : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
-        if (_dragNode == null) return;
+        if (_dragNode == null || !ReferenceEquals(_capturedPointer, e.Pointer)) return;
 
         _dragNode = null;
         ReleasePointerCapture();
@@ -228,9 +235,16 @@ public sealed class FanCurveEditor : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        if (_isResettingPointerCapture
+            || _disposed
+            || !ReferenceEquals(_capturedPointer, e.Pointer))
+        {
+            return;
+        }
+
+        _capturedPointer = null;
         if (_dragNode == null) return;
         _dragNode = null;
-        ReleasePointerCapture();
         CurveChanged?.Invoke();
         InvalidateVisual();
     }
@@ -241,7 +255,7 @@ public sealed class FanCurveEditor : Control
         if (_dragNode != null) return;
         _cursorPos = null;
         _hoverNode = null;
-        Cursor = ArrowCursor;
+        Cursor = TrayAppDotNETCursors.Arrow;
         InvalidateVisual();
     }
 
@@ -606,12 +620,12 @@ public sealed class FanCurveEditor : Control
         if (!plot.Contains(pos))
         {
             _hoverNode = null;
-            Cursor = ArrowCursor;
+            Cursor = TrayAppDotNETCursors.Arrow;
             return;
         }
 
         _hoverNode = TryHitNode(pos, plot, out CurveNode? hit) ? hit : null;
-        Cursor = _hoverNode != null ? HandCursor : ArrowCursor;
+        Cursor = _hoverNode != null ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
     }
 
     private bool TryHitNode(Point pos, Rect plot, out CurveNode? hit)
@@ -852,49 +866,170 @@ public sealed class FanCurveEditor : Control
         return value.ToString("0.0", CultureInfo.InvariantCulture);
     }
 
+    private void SubscribeModels()
+    {
+        SubscribeCurve();
+        SubscribeDataSource();
+    }
+
+    private void UnsubscribeModels()
+    {
+        UnsubscribeCurve();
+        UnsubscribeDataSource();
+    }
+
+    private void SubscribeCurve()
+    {
+        if (!_isAttached || _curve == null || ReferenceEquals(_subscribedCurve, _curve)) return;
+
+        UnsubscribeCurve();
+        _curve.PropertyChanged += OnCurvePropertyChanged;
+        _subscribedCurve = _curve;
+    }
+
+    private void UnsubscribeCurve()
+    {
+        Curve? subscribedCurve = _subscribedCurve;
+        _subscribedCurve = null;
+        if (subscribedCurve != null)
+            subscribedCurve.PropertyChanged -= OnCurvePropertyChanged;
+    }
+
     private void SubscribeDataSource()
     {
-        if (_dataSource != null)
-            _dataSource.PropertyChanged += OnDataSourcePropertyChanged;
+        if (!_isAttached || _dataSource == null || ReferenceEquals(_subscribedDataSource, _dataSource)) return;
+
+        UnsubscribeDataSource();
+        _dataSource.PropertyChanged += OnDataSourcePropertyChanged;
+        _subscribedDataSource = _dataSource;
     }
 
     private void UnsubscribeDataSource()
     {
-        if (_dataSource != null)
-            _dataSource.PropertyChanged -= OnDataSourcePropertyChanged;
+        DataSource? subscribedDataSource = _subscribedDataSource;
+        _subscribedDataSource = null;
+        if (subscribedDataSource != null)
+            subscribedDataSource.PropertyChanged -= OnDataSourcePropertyChanged;
     }
 
     private void OnDataSourcePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(DataSource.Value) or nameof(DataSource.UserDefinedName))
-            Dispatcher.UIThread.Post(InvalidateVisual);
+        if (ReferenceEquals(sender, _subscribedDataSource)
+            && e.PropertyName is nameof(DataSource.Value) or nameof(DataSource.UserDefinedName))
+        {
+            RequestModelRedraw(sender);
+        }
     }
 
-    private void StartTimer()
+    private void OnCurvePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (_redrawTimer != null) return;
-        _redrawTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TimeConstants.LHMPollIntervalMs) };
-        _redrawTimer.Tick += (_, _) => InvalidateVisual();
-        _redrawTimer.Start();
+        if (ReferenceEquals(sender, _subscribedCurve))
+            RequestModelRedraw(sender);
     }
 
-    private void StopTimer()
+    private void RequestModelRedraw(object? publisher)
     {
-        if (_redrawTimer == null) return;
-        _redrawTimer.Stop();
-        _redrawTimer = null;
+        if (_disposed || !_isAttached || !IsCurrentModelPublisher(publisher)) return;
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            InvalidateVisual();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_disposed && _isAttached && IsCurrentModelPublisher(publisher))
+                InvalidateVisual();
+        });
     }
+
+    private bool IsCurrentModelPublisher(object? publisher) =>
+        ReferenceEquals(publisher, _subscribedCurve)
+        || ReferenceEquals(publisher, _subscribedDataSource);
 
     private void CapturePointer(PointerPressedEventArgs e)
     {
-        _capturedPointer = e.Pointer;
-        e.Pointer.Capture(this);
+        IPointer pointer = e.Pointer;
+        if (_capturedPointer != null)
+            throw new InvalidOperationException("The curve editor already owns a pointer capture.");
+
+        _capturedPointer = pointer;
+        try
+        {
+            pointer.Capture(this);
+        }
+        catch
+        {
+            Interlocked.CompareExchange(ref _capturedPointer, null, pointer);
+            bool wasResetting = _isResettingPointerCapture;
+            _isResettingPointerCapture = true;
+            _dragNode = null;
+            try
+            {
+                try { pointer.Capture(null); }
+                catch (Exception releaseException)
+                {
+                    TADNLog.Log($"FanCurveEditor capture rollback failed: {releaseException.Message}");
+                }
+            }
+            finally
+            {
+                _isResettingPointerCapture = wasResetting;
+            }
+
+            throw;
+        }
     }
 
     private void ReleasePointerCapture()
     {
-        _capturedPointer?.Capture(null);
-        _capturedPointer = null;
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        if (capturedPointer == null) return;
+
+        try
+        {
+            capturedPointer.Capture(null);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"FanCurveEditor pointer release failed: {exception.Message}");
+        }
+    }
+
+    private void ResetPointerInteraction()
+    {
+        bool wasResetting = _isResettingPointerCapture;
+        _isResettingPointerCapture = true;
+        _dragNode = null;
+        _hoverNode = null;
+        _cursorPos = null;
+        try
+        {
+            ReleasePointerCapture();
+        }
+        finally
+        {
+            _isResettingPointerCapture = wasResetting;
+        }
+    }
+
+    /// <summary>Releases model subscriptions, pointer capture, and event subscribers.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _isAttached = false;
+        UnsubscribeModels();
+        _dragNode = null;
+        _hoverNode = null;
+        _selectedNode = null;
+        _cursorPos = null;
+        CurveChanged = null;
+        GraphEditStarting = null;
+        ResetPointerInteraction();
+        _curve = null;
+        _dataSource = null;
+        Cursor = null;
     }
 
     private static double InterpolateLinear(double[] xs, double[] ys, double x)

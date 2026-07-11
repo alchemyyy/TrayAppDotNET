@@ -45,6 +45,8 @@ public sealed partial class FanPropertiesWindow : Window
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
     private readonly List<FanCurveEditorWindow> _curveEditorWindows = [];
+    private readonly Dictionary<FanCurveEditorWindow, UIResourceScope> _curveEditorSubscriptionResources = [];
+    private readonly UIResourceScope _windowResources = new(nameof(FanPropertiesWindow));
     private bool _forceClose;
     private bool _isUpdatingPropertyUnitControls;
 
@@ -80,67 +82,85 @@ public sealed partial class FanPropertiesWindow : Window
         _fan = fan;
         _settings = settings;
 
-        InitializeComponent();
-        InitializeComponentState();
-
-        SettingsPalette palette = FanSettingsWindow.CreatePalette(
-            AppServices.Theme,
-            _settings,
-            AppTheme.ResolveEffectiveIsLightTheme(_settings));
-        bool rounded = _settings.EnableRoundedCorners;
-
-        _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", palette, Layout.TitleFontSize,
-            FontWeight.SemiBold);
-        _fanIDText = ValueText(palette);
-        _sensorControllerText = ValueText(palette);
-        _nameBox = TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth);
-        _groupCombo = TrayAppDotNETSettingsUI.ComboBox(palette, Layout.TextBoxWidth, autoSizeToText: true);
-        _curveCombo = TrayAppDotNETSettingsUI.ComboBox(palette, Layout.CurveComboWidth, autoSizeToText: true);
-        _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
-        _curveModeRadio = CompactRadio("Curve", palette);
-        _manualModeRadio = CompactRadio("Manual", palette);
-        _detachedModeRadio = CompactRadio("Detached", palette);
-        _jumpstartBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
-        _clampHighBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
-        _clampLowBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
-        _warnLowBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
-        _warnHighBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix);
-        _deltaMaxBox = Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleRateSuffix);
-        _offsetBox = Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix);
-        _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", palette);
-
-        _pinButton = CaptionButton(GlyphCatalog.PIN, palette);
-        SettingsButton closeButton = CaptionButton(GlyphCatalog.EXIT, palette);
-        _pinButton.Click += (_, _) => IsPinned = !IsPinned;
-        closeButton.Click += (_, _) => RequestClose();
-
-        Grid titleBar = BuildTitleBar(palette, _pinButton, closeButton);
-        Grid body = BuildBody(palette);
-        Grid footer = BuildFooter(palette);
-
-        Grid chrome = new();
-        chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TitleBarHeight)));
-        chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.FooterHeight)));
-        chrome.Children.Add(titleBar);
-        Grid.SetRow(body, 1);
-        chrome.Children.Add(body);
-        Grid.SetRow(footer, 2);
-        chrome.Children.Add(footer);
-
-        Content = new Border
+        try
         {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = Layout.RootBorderThickness,
-            CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
-            Child = chrome
-        };
+            InitializeComponent();
+            InitializeComponentState();
 
-        LoadFromFan();
-        _fan.PropertyChanged += OnFanPropertyChanged;
-        _settings.Changed += OnSettingsChanged;
-        Closed += OnClosed;
+            SettingsPalette palette = FanSettingsWindow.CreatePalette(
+                AppServices.Theme,
+                _settings,
+                AppTheme.ResolveEffectiveIsLightTheme(_settings));
+            bool rounded = _settings.EnableRoundedCorners;
+
+            _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", palette, Layout.TitleFontSize,
+                FontWeight.SemiBold);
+            _fanIDText = ValueText(palette);
+            _sensorControllerText = ValueText(palette);
+            _nameBox = TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth);
+            _groupCombo = _windowResources.Own(
+                TrayAppDotNETSettingsUI.ComboBox(palette, Layout.TextBoxWidth, autoSizeToText: true));
+            _curveCombo = _windowResources.Own(
+                TrayAppDotNETSettingsUI.ComboBox(palette, Layout.CurveComboWidth, autoSizeToText: true));
+            _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
+            _curveModeRadio = CompactRadio("Curve", palette);
+            _manualModeRadio = CompactRadio("Manual", palette);
+            _detachedModeRadio = CompactRadio("Detached", palette);
+            _jumpstartBox = _windowResources.Own(
+                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+            _clampHighBox = _windowResources.Own(
+                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+            _clampLowBox = _windowResources.Own(
+                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+            _warnLowBox = _windowResources.Own(
+                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+            _warnHighBox = _windowResources.Own(
+                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+            _deltaMaxBox = _windowResources.Own(
+                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleRateSuffix));
+            _offsetBox = _windowResources.Own(
+                Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix));
+            _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", palette);
+
+            _pinButton = CaptionButton(GlyphCatalog.PIN, palette);
+            SettingsButton closeButton = CaptionButton(GlyphCatalog.EXIT, palette);
+            _pinButton.Click += (_, _) => IsPinned = !IsPinned;
+            closeButton.Click += (_, _) => RequestClose();
+
+            Grid titleBar = BuildTitleBar(palette, _pinButton, closeButton);
+            Grid body = BuildBody(palette);
+            Grid footer = BuildFooter(palette);
+
+            Grid chrome = new();
+            chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TitleBarHeight)));
+            chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+            chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.FooterHeight)));
+            chrome.Children.Add(titleBar);
+            Grid.SetRow(body, 1);
+            chrome.Children.Add(body);
+            Grid.SetRow(footer, 2);
+            chrome.Children.Add(footer);
+
+            Content = new Border
+            {
+                Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
+                BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+                BorderThickness = Layout.RootBorderThickness,
+                CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
+                Child = chrome
+            };
+
+            LoadFromFan();
+            _fan.PropertyChanged += OnFanPropertyChanged;
+            _windowResources.Add(() => _fan.PropertyChanged -= OnFanPropertyChanged);
+            _settings.Changed += OnSettingsChanged;
+            _windowResources.Add(() => _settings.Changed -= OnSettingsChanged);
+        }
+        catch
+        {
+            _windowResources.Dispose();
+            throw;
+        }
     }
 
     private void InitializeComponentState() => _layout = AxamlFanProperties;
@@ -186,18 +206,36 @@ public sealed partial class FanPropertiesWindow : Window
         }
     }
 
+    /// <summary>Hides this pinned window after retiring curve editors owned by the visible flyout session.</summary>
+    internal void HideForFlyoutDismissal()
+    {
+        ForceCloseAllCurveEditorWindows();
+        Hide();
+    }
+
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (!_forceClose && IsPinned)
+        if (ShouldCancelPinnedClose(_forceClose, IsPinned, e.CloseReason))
         {
             e.Cancel = true;
-            if (!IsVisible) Show();
+            if (!IsVisible && Owner is Window owner)
+                Show(owner);
             Activate();
             return;
         }
 
         base.OnClosing(e);
     }
+
+    internal static bool ShouldCancelPinnedClose(
+        bool forceClose,
+        bool isPinned,
+        WindowCloseReason closeReason) =>
+        !forceClose
+        && isPinned
+        && closeReason is not (WindowCloseReason.OwnerWindowClosing
+            or WindowCloseReason.ApplicationShutdown
+            or WindowCloseReason.OSShutdown);
 
     private Grid BuildTitleBar(SettingsPalette p, SettingsButton pinButton, SettingsButton closeButton)
     {
@@ -488,9 +526,23 @@ public sealed partial class FanPropertiesWindow : Window
             Topmost = Topmost,
             ShowInTaskbar = false
         };
-        _curveEditorWindows.Add(window);
-        window.Closed += OnCurveEditorWindowClosed;
-        window.Show(this);
+        try
+        {
+            _curveEditorWindows.Add(window);
+            RegisterCurveEditorWindow(window);
+            window.Show(this);
+        }
+        catch
+        {
+            ReleaseCurveEditorWindowSubscription(window);
+            _curveEditorWindows.Remove(window);
+            try { window.Close(); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"FanPropertiesWindow failed curve editor cleanup: {exception.Message}");
+            }
+            throw;
+        }
     }
 
     /// <summary>
@@ -500,7 +552,7 @@ public sealed partial class FanPropertiesWindow : Window
     {
         if (sender is not FanCurveEditorWindow window) return;
 
-        window.Closed -= OnCurveEditorWindowClosed;
+        ReleaseCurveEditorWindowSubscription(window);
         _curveEditorWindows.Remove(window);
         if (!IsVisible) return;
 
@@ -515,7 +567,7 @@ public sealed partial class FanPropertiesWindow : Window
     {
         foreach (FanCurveEditorWindow window in _curveEditorWindows.ToArray())
         {
-            window.Closed -= OnCurveEditorWindowClosed;
+            ReleaseCurveEditorWindowSubscription(window);
             try { window.Close(); }
             catch (Exception ex)
             {
@@ -524,6 +576,30 @@ public sealed partial class FanPropertiesWindow : Window
         }
 
         _curveEditorWindows.Clear();
+        _curveEditorSubscriptionResources.Clear();
+    }
+
+    private void RegisterCurveEditorWindow(FanCurveEditorWindow window)
+    {
+        UIResourceScope resources = _windowResources.CreateChild(
+            $"{nameof(FanPropertiesWindow)}.CurveEditorSubscription");
+        try
+        {
+            window.Closed += OnCurveEditorWindowClosed;
+            resources.Add(() => window.Closed -= OnCurveEditorWindowClosed);
+            _curveEditorSubscriptionResources.Add(window, resources);
+        }
+        catch
+        {
+            resources.Dispose();
+            throw;
+        }
+    }
+
+    private void ReleaseCurveEditorWindowSubscription(FanCurveEditorWindow window)
+    {
+        if (!_curveEditorSubscriptionResources.Remove(window, out UIResourceScope? resources)) return;
+        resources.Dispose();
     }
 
     private Curve CreateCurveForFan()
@@ -575,17 +651,32 @@ public sealed partial class FanPropertiesWindow : Window
 
     private void OnFanPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (!ReferenceEquals(sender, _fan) || _windowResources.IsDisposed) return;
+
         if (string.IsNullOrEmpty(e.PropertyName)
             || e.PropertyName == nameof(Fan.DisplayName)
             || e.PropertyName == nameof(Fan.UserDefinedName))
-            Dispatcher.UIThread.Post(UpdateTitle);
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_windowResources.IsDisposed)
+                    UpdateTitle();
+            });
+        }
 
         if (e.PropertyName == nameof(Fan.MaxRPM))
-            Dispatcher.UIThread.Post(RefreshPropertyUnitControls);
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_windowResources.IsDisposed)
+                    RefreshPropertyUnitControls();
+            });
+        }
     }
 
     private void OnSettingsChanged()
     {
+        if (_windowResources.IsDisposed) return;
         if (Content is Border root)
             root.CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius;
     }
@@ -597,12 +688,12 @@ public sealed partial class FanPropertiesWindow : Window
         _titleText.Text = title;
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    protected override void OnClosed(EventArgs e)
     {
-        Closed -= OnClosed;
+        // Detach model publishers before any child-window close can fail
+        _windowResources.Dispose();
         ForceCloseAllCurveEditorWindows();
-        _fan.PropertyChanged -= OnFanPropertyChanged;
-        _settings.Changed -= OnSettingsChanged;
+        base.OnClosed(e);
     }
 
     private SettingsPalette Palette() =>

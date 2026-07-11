@@ -47,7 +47,8 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
             if (File.Exists(filePath)) return new WindowIcon(filePath);
 
             Uri resource = new(Constants.AppIconResourceUri);
-            return new WindowIcon(AssetLoader.Open(resource));
+            using Stream stream = AssetLoader.Open(resource);
+            return new WindowIcon(stream);
         }
         catch (Exception ex)
         {

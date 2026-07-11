@@ -30,6 +30,7 @@ public sealed partial class FanCurveEditorWindow : Window
     private readonly SettingsToggle _preventDecreasingToggle;
     private readonly Border _maxRPMRow;
     private readonly SettingsButton _rescaleCurveButton;
+    private readonly UIResourceScope _windowResources = new(nameof(FanCurveEditorWindow));
     private FanCurveEditorAxamlProperties? _layout;
     private bool _suppressEvents;
     private bool _rescaleCurvePending;
@@ -67,84 +68,94 @@ public sealed partial class FanCurveEditorWindow : Window
         _curve = curve;
         _settings = settings;
 
-        InitializeComponent();
-        InitializeComponentState();
-
-        _palette = FanSettingsWindow.CreatePalette(
-            AppServices.Theme,
-            settings,
-            AppTheme.ResolveEffectiveIsLightTheme(settings));
-
-        _curve.EnsureEditorDefaults(DefaultMaxRPM(fan));
-        ClampCurveLimits();
-        EnsureCurveDataSource();
-        EnsureCurveNodesOnDataSourceAxis();
-        Curve.Register(_curve);
-
-        Title = $"Fan Curve: {_curve.CurveName}";
-
-        _editor = new FanCurveEditor
+        try
         {
-            Width = Layout.GraphWidth,
-            Height = Layout.GraphHeight,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
-            EditorLayout = Layout,
-            Palette = FanCurveEditorPalette.FromSettingsPalette(
-                _palette,
-                AppServices.Theme ?? AppTheme.Default,
-                AppTheme.ResolveEffectiveIsLightTheme(settings))
-        };
-        _editor.CurveChanged += OnEditorCurveChanged;
-        _editor.GraphEditStarting += OnEditorGraphEditStarting;
-        _hasPreservedNonMonotonicNodes = _curve.PreventDecreasing;
+            InitializeComponent();
+            InitializeComponentState();
 
-        _dataSourceSelectionText = DataSourceSelectionText();
-        _dataSourceSelectionBox = DataSourceSelectionBox(_dataSourceSelectionText);
-        _dataSourceList = DataSourceList();
-        _rpmModeToggle = TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged);
-        _maxRPMBox = Number(
+            _palette = FanSettingsWindow.CreatePalette(
+                AppServices.Theme,
+                settings,
+                AppTheme.ResolveEffectiveIsLightTheme(settings));
+
+            _curve.EnsureEditorDefaults(DefaultMaxRPM(fan));
+            ClampCurveLimits();
+            EnsureCurveDataSource();
+            EnsureCurveNodesOnDataSourceAxis();
+            Curve.Register(_curve);
+
+            Title = $"Fan Curve: {_curve.CurveName}";
+
+            _editor = new FanCurveEditor
+            {
+                Width = Layout.GraphWidth,
+                Height = Layout.GraphHeight,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                EditorLayout = Layout,
+                Palette = FanCurveEditorPalette.FromSettingsPalette(
+                    _palette,
+                    AppServices.Theme ?? AppTheme.Default,
+                    AppTheme.ResolveEffectiveIsLightTheme(settings))
+            };
+            _windowResources.Own(_editor);
+            _editor.CurveChanged += OnEditorCurveChanged;
+            _windowResources.Add(() => _editor.CurveChanged -= OnEditorCurveChanged);
+            _editor.GraphEditStarting += OnEditorGraphEditStarting;
+            _windowResources.Add(() => _editor.GraphEditStarting -= OnEditorGraphEditStarting);
+            _hasPreservedNonMonotonicNodes = _curve.PreventDecreasing;
+
+            _dataSourceSelectionText = DataSourceSelectionText();
+            _dataSourceSelectionBox = DataSourceSelectionBox(_dataSourceSelectionText);
+            _dataSourceList = _windowResources.Own(DataSourceList());
+            _rpmModeToggle = TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged);
+            _maxRPMBox = _windowResources.Own(Number(
             _curve.MaxRPM,
             1,
             Math.Max(10000, _curve.MaxRPM),
             "RPM",
-            Layout.MaxRPMNumberBoxMinWidth);
-        _minRPMBox = Number(
+            Layout.MaxRPMNumberBoxMinWidth));
+            _minRPMBox = _windowResources.Own(Number(
             _curve.MinRPM,
             0,
             Math.Max(10000, _curve.MaxRPM),
             "RPM",
-            Layout.MinRPMNumberBoxMinWidth);
-        _maxDutyBox = Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.MaxDutyNumberBoxMinWidth);
-        _minDutyBox = Number(_curve.MinDutyCycle, 0, 100, "%", Layout.MinDutyNumberBoxMinWidth);
-        _smoothnessBox = Number(
+            Layout.MinRPMNumberBoxMinWidth));
+            _maxDutyBox = _windowResources.Own(
+                Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.MaxDutyNumberBoxMinWidth));
+            _minDutyBox = _windowResources.Own(
+                Number(_curve.MinDutyCycle, 0, 100, "%", Layout.MinDutyNumberBoxMinWidth));
+            _smoothnessBox = _windowResources.Own(Number(
             _curve.SmoothingFactor,
             SmoothnessMin,
             SmoothnessMax,
             string.Empty,
-            Layout.SmoothnessNumberBoxMinWidth);
-        _preventDecreasingToggle =
-            TrayAppDotNETSettingsUI.Toggle(_palette, _curve.PreventDecreasing, OnPreventDecreasingChanged);
-        _rescaleCurveButton = RescaleCurveButton();
-        _rescaleCurveButton.Click += (_, _) => ApplyPendingNodeRescale();
+            Layout.SmoothnessNumberBoxMinWidth));
+            _preventDecreasingToggle =
+                TrayAppDotNETSettingsUI.Toggle(_palette, _curve.PreventDecreasing, OnPreventDecreasingChanged);
+            _rescaleCurveButton = RescaleCurveButton();
+            _rescaleCurveButton.Click += (_, _) => ApplyPendingNodeRescale();
 
-        PopulateDataSources();
-        WireControls();
-        _maxRPMRow = BuildMaxRPMRow();
+            PopulateDataSources();
+            WireControls();
+            _maxRPMRow = BuildMaxRPMRow();
 
-        Content = BuildContent();
-        LoadControlState();
-        RefreshEditorBinding();
+            Content = BuildContent();
+            LoadControlState();
+            RefreshEditorBinding();
+            // Dispose the editor first so its DataSource publisher root is detached before child controls
+            _windowResources.Add(_editor.Dispose);
+        }
+        catch
+        {
+            _windowResources.Dispose();
+            throw;
+        }
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        if (_editor != null)
-        {
-            _editor.CurveChanged -= OnEditorCurveChanged;
-            _editor.GraphEditStarting -= OnEditorGraphEditStarting;
-        }
-
+        _windowResources.Dispose();
         base.OnClosed(e);
     }
 

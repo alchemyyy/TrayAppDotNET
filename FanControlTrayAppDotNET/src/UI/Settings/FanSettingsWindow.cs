@@ -31,15 +31,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     private readonly AppSettings _settings;
     private readonly Action<string, FanInstallScope> _showUninstaller;
-    private readonly List<FanSettingsSlotEntry> _fanSlots = [];
-    private StackPanel? _fanSlotPanel;
-    private Border? _draggedSlotRow;
-    private FanSettingsSlotEntry? _draggedSlot;
-    private Point _dragStart;
-    private double _draggedSlotPointerOffsetY;
-    private double _draggedSlotHeight;
-    private int _draggedSlotTargetIndex = -1;
-    private TrayAppDotNETAboutPage? _aboutPage;
+    private readonly List<FanPropertiesPageGeneration> _fanPropertiesPageGenerations = [];
+    private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
 
     public FanSettingsWindow()
         : this(new AppSettings(), static (_, _) => { })
@@ -84,19 +77,19 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     protected override IReadOnlyList<SettingsPageDescriptor<FanSettingsPage>> CreatePageDescriptors() =>
     [
         new(FanSettingsPage.General, Loc("Settings_Common_Page_General"),
-            () => BuildSettingsPage(FanSettingsPage.General, BuildGeneralPage)),
+            BuildGeneralPage),
         new(FanSettingsPage.FanProperties, L("Settings_Common_Page_FanProperties", "Fan properties"),
-            () => BuildSettingsPage(FanSettingsPage.FanProperties, BuildFanPropertiesPage)),
+            BuildFanPropertiesPage),
         new(FanSettingsPage.Flyout, L("Settings_Common_Page_Flyout", "Flyout"),
-            () => BuildSettingsPage(FanSettingsPage.Flyout, BuildFlyoutPage)),
+            BuildFlyoutPage),
         new(FanSettingsPage.TrayIcon, L("Settings_Common_Page_TrayIcon", "Tray icon"),
-            () => BuildSettingsPage(FanSettingsPage.TrayIcon, BuildTrayIconPage)),
+            BuildTrayIconPage),
         new(FanSettingsPage.Hotkeys, Loc("Settings_Common_Page_Hotkeys"),
-            () => BuildSettingsPage(FanSettingsPage.Hotkeys, BuildHotkeysPage)),
+            BuildHotkeysPage),
         new(FanSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
-            () => BuildSettingsPage(FanSettingsPage.Theme, BuildThemePage)),
+            BuildThemePage),
         new(FanSettingsPage.About, Loc("Settings_Common_Page_About"),
-            () => BuildSettingsPage(FanSettingsPage.About, BuildAboutPage))
+            BuildAboutPage)
     ];
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)
@@ -127,20 +120,6 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     }
 
     private bool ResolveEffectiveIsLight() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
-
-    private Control BuildSettingsPage(FanSettingsPage page, Func<Control> buildPage)
-    {
-        if (page != FanSettingsPage.About)
-            StopAboutUpdateRefresh();
-
-        return buildPage();
-    }
-
-    protected override void OnSettingsWindowClosed()
-    {
-        StopAboutUpdateRefresh();
-        base.OnSettingsWindowClosed();
-    }
 
     private StackPanel BuildGeneralPage()
     {
@@ -248,15 +227,17 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             new Thickness(0, 0, 0, 12)));
 
-        _fanSlotPanel = new StackPanel();
-        RebuildFanSlots();
-        stack.Children.Add(RawCard(_fanSlotPanel, p));
+        FanPropertiesPageGeneration pageGeneration = new();
+        _fanPropertiesPageGenerations.Add(pageGeneration);
+        AddPageCleanup(() => RetireFanPropertiesPage(pageGeneration));
+        RebuildFanSlots(pageGeneration);
+        stack.Children.Add(RawCard(pageGeneration.FanSlotPanel, p));
 
         SettingsButton apply = Button(L("Settings_FanProperties_ApplyFanSwaps_Button", "Apply swaps"), p);
         apply.HorizontalAlignment = HorizontalAlignment.Right;
         apply.Margin = new Thickness(0, 6, 0, 14);
-        apply.IsEnabled = _fanSlots.Count > 1;
-        apply.Click += (_, _) => ApplyFanSlotSwaps();
+        apply.IsEnabled = pageGeneration.FanSlots.Count > 1;
+        apply.Click += (_, _) => ApplyFanSlotSwaps(pageGeneration);
         stack.Children.Add(apply);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
@@ -517,8 +498,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     private StackPanel BuildAboutPage()
     {
-        StopAboutUpdateRefresh();
-        _aboutPage = new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
+        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(
+            new TrayAppDotNETAboutPageOptions
         {
             Palette = Palette,
             ButtonRadius = RadiusMedium,
@@ -538,12 +519,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             RebuildAboutPage = () => RebuildShell(FanSettingsPage.About),
             StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
             UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs
-        });
-        return _aboutPage.Build();
+        }));
+        _aboutPageGenerations.Add(aboutPage);
+        AddPageCleanup(() => _aboutPageGenerations.Remove(aboutPage));
+        return aboutPage.Build();
     }
-
-    private void StopAboutUpdateRefresh() =>
-        _aboutPage?.StopUpdateRefresh();
 
     private void AddHotkeyRow(StackPanel stack, FanHotkeyAction action, string title, string description,
         SettingsPalette p)
@@ -559,7 +539,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
         TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
         keyBox.IsReadOnly = true;
-        keyBox.Cursor = new Cursor(StandardCursorType.Ibeam);
+        keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
         SettingsButton addButton = Button(Loc("Settings_Hotkeys_Add_Button"), p);
         addButton.MinWidth = 70;
@@ -739,36 +719,42 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         };
     }
 
-    private void RebuildFanSlots()
+    private void RebuildFanSlots(FanPropertiesPageGeneration pageGeneration)
     {
-        _fanSlots.Clear();
+        pageGeneration.FanSlots.Clear();
         foreach (Fan fan in GetLiveFans())
         {
-            _fanSlots.Add(new FanSettingsSlotEntry(
+            pageGeneration.FanSlots.Add(new FanSettingsSlotEntry(
                 KeyForFan(fan),
                 fan.DisplayName,
                 fan.ControllerDisplayLabel));
         }
 
-        RenderFanSlots();
+        RenderFanSlots(pageGeneration);
     }
 
-    private void RenderFanSlots()
+    private void RenderFanSlots(FanPropertiesPageGeneration pageGeneration)
     {
-        if (_fanSlotPanel == null) return;
-        _fanSlotPanel.Children.Clear();
-        if (_fanSlots.Count == 0)
+        pageGeneration.FanSlotPanel.Children.Clear();
+        if (pageGeneration.FanSlots.Count == 0)
         {
-            _fanSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
+            pageGeneration.FanSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
                 L("Settings_FanProperties_NoFans", "No live fans detected."), Palette));
             return;
         }
 
-        for (int i = 0; i < _fanSlots.Count; i++)
-            _fanSlotPanel.Children.Add(BuildFanSlotRow(_fanSlots[i], i, Palette));
+        for (int index = 0; index < pageGeneration.FanSlots.Count; index++)
+        {
+            pageGeneration.FanSlotPanel.Children.Add(
+                BuildFanSlotRow(pageGeneration, pageGeneration.FanSlots[index], index, Palette));
+        }
     }
 
-    private Border BuildFanSlotRow(FanSettingsSlotEntry slot, int index, SettingsPalette p)
+    private Border BuildFanSlotRow(
+        FanPropertiesPageGeneration pageGeneration,
+        FanSettingsSlotEntry slot,
+        int index,
+        SettingsPalette p)
     {
         TextBlock handle = TrayAppDotNETSettingsUI.Text(GlyphCatalog.DRAG_HANDLE.Text, p, 16);
         GlyphApplicator.ApplyTo(handle, GlyphCatalog.DRAG_HANDLE);
@@ -798,70 +784,91 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Margin = new Thickness(0, 0, 0, 4),
             Child = grid,
             Focusable = true,
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = TrayAppDotNETCursors.Hand
         };
 
         bool pointerOver = false;
         bool pointerPressed = false;
-        UpdateFanSlotRowVisual(row, slot, p, pointerOver, pointerPressed);
+        UpdateFanSlotRowVisual(pageGeneration, row, slot, p, pointerOver, pointerPressed);
 
         row.PointerEntered += (_, _) =>
         {
             pointerOver = true;
-            UpdateFanSlotRowVisual(row, slot, p, pointerOver, pointerPressed);
+            UpdateFanSlotRowVisual(pageGeneration, row, slot, p, pointerOver, pointerPressed);
         };
         row.PointerExited += (_, _) =>
         {
             pointerOver = false;
             pointerPressed = false;
-            UpdateFanSlotRowVisual(row, slot, p, pointerOver, pointerPressed);
+            UpdateFanSlotRowVisual(pageGeneration, row, slot, p, pointerOver, pointerPressed);
         };
         row.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
-            _draggedSlot = slot;
-            _draggedSlotRow = row;
-            _dragStart = e.GetPosition(_fanSlotPanel);
-            _draggedSlotPointerOffsetY = e.GetPosition(row).Y;
-            _draggedSlotHeight = Math.Max(1, row.Bounds.Height);
-            _draggedSlotTargetIndex = _fanSlots.IndexOf(slot);
+            if (pageGeneration.CapturedPointer != null)
+            {
+                e.Handled = true;
+                return;
+            }
+
+            pageGeneration.DraggedSlot = slot;
+            pageGeneration.DraggedSlotRow = row;
+            pageGeneration.DragStart = e.GetPosition(pageGeneration.FanSlotPanel);
+            pageGeneration.DraggedSlotPointerOffsetY = e.GetPosition(row).Y;
+            pageGeneration.DraggedSlotHeight = Math.Max(1, row.Bounds.Height);
+            pageGeneration.DraggedSlotTargetIndex = pageGeneration.FanSlots.IndexOf(slot);
             pointerPressed = true;
-            UpdateFanSlotRowVisual(row, slot, p, pointerOver, pointerPressed);
-            e.Pointer.Capture(row);
+            UpdateFanSlotRowVisual(pageGeneration, row, slot, p, pointerOver, pointerPressed);
+            CaptureFanSlotPointer(
+                pageGeneration,
+                e.Pointer,
+                row,
+                () =>
+                {
+                    pointerPressed = false;
+                    ResetFanSlotGesture(pageGeneration, e.Pointer);
+                    UpdateFanSlotRowVisual(pageGeneration, row, slot, p, pointerOver, pointerPressed);
+                });
             e.Handled = true;
         };
         row.PointerMoved += (_, e) =>
         {
-            if (_draggedSlot == null || _fanSlotPanel == null) return;
-            Point current = e.GetPosition(_fanSlotPanel);
-            if (Math.Abs(current.Y - _dragStart.Y) < 4) return;
-            double draggedMidpoint = current.Y - _draggedSlotPointerOffsetY + _draggedSlotHeight / 2.0;
-            _draggedSlotTargetIndex = FanSlotInsertionIndexFromMidpoint(draggedMidpoint);
-            ApplyFanSlotDragPreview();
-            row.RenderTransform = new TranslateTransform(0, current.Y - _dragStart.Y);
+            if (!ReferenceEquals(pageGeneration.CapturedPointer, e.Pointer)) return;
+            if (pageGeneration.DraggedSlot == null) return;
+            Point current = e.GetPosition(pageGeneration.FanSlotPanel);
+            if (Math.Abs(current.Y - pageGeneration.DragStart.Y) < 4) return;
+            double draggedMidpoint = current.Y - pageGeneration.DraggedSlotPointerOffsetY
+                + pageGeneration.DraggedSlotHeight / 2.0;
+            pageGeneration.DraggedSlotTargetIndex =
+                FanSlotInsertionIndexFromMidpoint(pageGeneration, draggedMidpoint);
+            ApplyFanSlotDragPreview(pageGeneration);
+            row.RenderTransform = new TranslateTransform(0, current.Y - pageGeneration.DragStart.Y);
             e.Handled = true;
         };
         row.PointerReleased += (_, e) =>
         {
+            if (!ReferenceEquals(pageGeneration.CapturedPointer, e.Pointer)) return;
             pointerPressed = false;
-            EndFanSlotDrag(e.Pointer);
+            EndFanSlotDrag(pageGeneration, e.Pointer);
         };
-        row.PointerCaptureLost += (_, _) =>
+        row.PointerCaptureLost += (_, e) =>
         {
+            if (!ReferenceEquals(pageGeneration.CapturedPointer, e.Pointer)) return;
             pointerPressed = false;
-            EndFanSlotDrag(null);
+            if (!pageGeneration.IsRetiring && !pageGeneration.IsResettingGesture)
+                EndFanSlotDrag(pageGeneration, e.Pointer);
         };
         row.KeyDown += (_, e) =>
         {
             if ((e.KeyModifiers & KeyModifiers.Control) == 0) return;
             if (e.Key is not (Key.Up or Key.Down)) return;
-            int currentIndex = _fanSlots.IndexOf(slot);
+            int currentIndex = pageGeneration.FanSlots.IndexOf(slot);
             int nextIndex = e.Key == Key.Up ? currentIndex - 1 : currentIndex + 1;
-            if (currentIndex >= 0 && nextIndex >= 0 && nextIndex < _fanSlots.Count)
+            if (currentIndex >= 0 && nextIndex >= 0 && nextIndex < pageGeneration.FanSlots.Count)
             {
-                _fanSlots.RemoveAt(currentIndex);
-                _fanSlots.Insert(nextIndex, slot);
-                RenderFanSlots();
+                pageGeneration.FanSlots.RemoveAt(currentIndex);
+                pageGeneration.FanSlots.Insert(nextIndex, slot);
+                RenderFanSlots(pageGeneration);
             }
 
             e.Handled = true;
@@ -872,14 +879,15 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         return row;
     }
 
-    private void UpdateFanSlotRowVisual(
+    private static void UpdateFanSlotRowVisual(
+        FanPropertiesPageGeneration pageGeneration,
         Border row,
         FanSettingsSlotEntry slot,
         SettingsPalette p,
         bool pointerOver,
         bool pointerPressed)
     {
-        bool dragging = ReferenceEquals(slot, _draggedSlot);
+        bool dragging = ReferenceEquals(slot, pageGeneration.DraggedSlot);
         Color background = pointerPressed
             ? p.Pressed
             : pointerOver
@@ -892,110 +900,204 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         row.SetValue(ZIndexProperty, dragging ? 1 : 0);
     }
 
-    private int FanSlotInsertionIndexFromMidpoint(double draggedMidpointY)
+    private static int FanSlotInsertionIndexFromMidpoint(
+        FanPropertiesPageGeneration pageGeneration,
+        double draggedMidpointY)
     {
-        if (_fanSlotPanel == null) return -1;
         int insertion = 0;
-        for (int i = 0; i < _fanSlotPanel.Children.Count; i++)
+        for (int index = 0; index < pageGeneration.FanSlotPanel.Children.Count; index++)
         {
-            Control child = _fanSlotPanel.Children[i];
-            if (ReferenceEquals(child, _draggedSlotRow)) continue;
-            Point? topLeft = child.TranslatePoint(new Point(0, 0), _fanSlotPanel);
+            Control child = pageGeneration.FanSlotPanel.Children[index];
+            if (ReferenceEquals(child, pageGeneration.DraggedSlotRow)) continue;
+            Point? topLeft = child.TranslatePoint(new Point(0, 0), pageGeneration.FanSlotPanel);
             if (topLeft == null) continue;
             if (draggedMidpointY > topLeft.Value.Y + child.Bounds.Height / 2.0) insertion++;
             else break;
         }
 
-        int max = _fanSlots.Count - (_draggedSlot != null ? 1 : 0);
+        int max = pageGeneration.FanSlots.Count - (pageGeneration.DraggedSlot != null ? 1 : 0);
         return Math.Clamp(insertion, 0, Math.Max(0, max));
     }
 
-    private void ApplyFanSlotDragPreview()
+    private static void ApplyFanSlotDragPreview(FanPropertiesPageGeneration pageGeneration)
     {
-        if (_fanSlotPanel == null || _draggedSlot == null || _draggedSlotRow == null) return;
-        ResetFanSlotDragPreview();
+        if (pageGeneration.DraggedSlot == null || pageGeneration.DraggedSlotRow == null) return;
+        ResetFanSlotDragPreview(pageGeneration);
 
-        int sourceIndex = _fanSlots.IndexOf(_draggedSlot);
+        int sourceIndex = pageGeneration.FanSlots.IndexOf(pageGeneration.DraggedSlot);
         if (sourceIndex < 0) return;
 
-        int targetIndex = Math.Clamp(_draggedSlotTargetIndex, 0, Math.Max(0, _fanSlots.Count - 1));
-        double offset = Math.Max(1, _draggedSlotHeight + Math.Max(0, _draggedSlotRow.Margin.Bottom));
+        int targetIndex = Math.Clamp(
+            pageGeneration.DraggedSlotTargetIndex,
+            0,
+            Math.Max(0, pageGeneration.FanSlots.Count - 1));
+        double offset = Math.Max(1, pageGeneration.DraggedSlotHeight
+            + Math.Max(0, pageGeneration.DraggedSlotRow.Margin.Bottom));
         if (targetIndex < sourceIndex)
         {
             for (int i = targetIndex; i < sourceIndex; i++)
-                SetFanSlotPreviewOffset(i, offset);
+                SetFanSlotPreviewOffset(pageGeneration, i, offset);
         }
         else if (targetIndex > sourceIndex)
         {
-            for (int i = sourceIndex + 1; i <= targetIndex && i < _fanSlotPanel.Children.Count; i++)
-                SetFanSlotPreviewOffset(i, -offset);
+            for (int index = sourceIndex + 1;
+                 index <= targetIndex && index < pageGeneration.FanSlotPanel.Children.Count;
+                 index++)
+            {
+                SetFanSlotPreviewOffset(pageGeneration, index, -offset);
+            }
         }
     }
 
-    private void SetFanSlotPreviewOffset(int index, double offset)
+    private static void SetFanSlotPreviewOffset(
+        FanPropertiesPageGeneration pageGeneration,
+        int index,
+        double offset)
     {
-        if (_fanSlotPanel == null) return;
-        if (index < 0 || index >= _fanSlotPanel.Children.Count) return;
-        if (ReferenceEquals(_fanSlotPanel.Children[index], _draggedSlotRow)) return;
-        _fanSlotPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
+        if (index < 0 || index >= pageGeneration.FanSlotPanel.Children.Count) return;
+        if (ReferenceEquals(pageGeneration.FanSlotPanel.Children[index], pageGeneration.DraggedSlotRow)) return;
+        pageGeneration.FanSlotPanel.Children[index].RenderTransform = new TranslateTransform(0, offset);
     }
 
-    private void ResetFanSlotDragPreview()
+    private static void ResetFanSlotDragPreview(FanPropertiesPageGeneration pageGeneration)
     {
-        if (_fanSlotPanel == null) return;
-        foreach (Control child in _fanSlotPanel.Children)
+        foreach (Control child in pageGeneration.FanSlotPanel.Children)
         {
-            if (ReferenceEquals(child, _draggedSlotRow)) continue;
+            if (ReferenceEquals(child, pageGeneration.DraggedSlotRow)) continue;
             child.RenderTransform = null;
         }
     }
 
-    private void EndFanSlotDrag(IPointer? pointer)
+    private void EndFanSlotDrag(FanPropertiesPageGeneration pageGeneration, IPointer? pointer)
     {
-        FanSettingsSlotEntry? dragged = _draggedSlot;
-        int targetIndex = _draggedSlotTargetIndex;
+        FanSettingsSlotEntry? dragged = pageGeneration.DraggedSlot;
+        int targetIndex = pageGeneration.DraggedSlotTargetIndex;
         bool hadDrag = dragged != null;
-        _draggedSlotRow?.RenderTransform = null;
-        if (_fanSlotPanel != null)
-        {
-            foreach (Control child in _fanSlotPanel.Children)
-                child.RenderTransform = null;
-        }
-
-        _draggedSlotRow = null;
-        _draggedSlot = null;
-        _draggedSlotTargetIndex = -1;
-        _draggedSlotPointerOffsetY = 0;
-        _draggedSlotHeight = 0;
-        pointer?.Capture(null);
+        ResetFanSlotGesture(pageGeneration, pointer);
         if (dragged != null && targetIndex >= 0)
         {
-            int currentIndex = _fanSlots.IndexOf(dragged);
+            int currentIndex = pageGeneration.FanSlots.IndexOf(dragged);
             if (currentIndex >= 0 && targetIndex != currentIndex)
             {
-                _fanSlots.RemoveAt(currentIndex);
-                _fanSlots.Insert(Math.Clamp(targetIndex, 0, _fanSlots.Count), dragged);
+                pageGeneration.FanSlots.RemoveAt(currentIndex);
+                pageGeneration.FanSlots.Insert(
+                    Math.Clamp(targetIndex, 0, pageGeneration.FanSlots.Count), dragged);
             }
         }
 
-        if (hadDrag) RenderFanSlots();
+        if (hadDrag) RenderFanSlots(pageGeneration);
     }
 
-    private void ApplyFanSlotSwaps()
+    private static void ResetFanSlotGesture(
+        FanPropertiesPageGeneration pageGeneration,
+        IPointer? fallbackPointer)
+    {
+        bool wasResetting = pageGeneration.IsResettingGesture;
+        pageGeneration.IsResettingGesture = true;
+        IPointer? capturedPointer = pageGeneration.CapturedPointer ?? fallbackPointer;
+        pageGeneration.CapturedPointer = null;
+        Border? draggedRow = pageGeneration.DraggedSlotRow;
+        pageGeneration.DraggedSlotRow = null;
+        pageGeneration.DraggedSlot = null;
+        pageGeneration.DragStart = default;
+        pageGeneration.DraggedSlotTargetIndex = -1;
+        pageGeneration.DraggedSlotPointerOffsetY = 0;
+        pageGeneration.DraggedSlotHeight = 0;
+        try
+        {
+            if (draggedRow != null)
+                draggedRow.RenderTransform = null;
+            foreach (Control child in pageGeneration.FanSlotPanel.Children)
+                child.RenderTransform = null;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"FanSettingsWindow slot visual reset failed: {exception.Message}");
+        }
+        finally
+        {
+            ReleaseFanSlotPointer(capturedPointer, "slot drag");
+            pageGeneration.IsResettingGesture = wasResetting;
+        }
+    }
+
+    private static void CaptureFanSlotPointer(
+        FanPropertiesPageGeneration pageGeneration,
+        IPointer pointer,
+        Control target,
+        Action rollbackGesture)
+    {
+        if (pageGeneration.CapturedPointer != null)
+            throw new InvalidOperationException("The Fan Properties page already owns a pointer capture.");
+
+        pageGeneration.CapturedPointer = pointer;
+        try
+        {
+            pointer.Capture(target);
+        }
+        catch
+        {
+            if (ReferenceEquals(pageGeneration.CapturedPointer, pointer))
+                pageGeneration.CapturedPointer = null;
+            bool wasResetting = pageGeneration.IsResettingGesture;
+            pageGeneration.IsResettingGesture = true;
+            try
+            {
+                rollbackGesture();
+            }
+            finally
+            {
+                pageGeneration.IsResettingGesture = wasResetting;
+            }
+
+            throw;
+        }
+    }
+
+    private static void ReleaseFanSlotPointer(IPointer? pointer, string gestureName)
+    {
+        if (pointer == null) return;
+
+        try
+        {
+            pointer.Capture(null);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"FanSettingsWindow {gestureName} pointer release failed: {exception.Message}");
+        }
+    }
+
+    private void RetireFanPropertiesPage(FanPropertiesPageGeneration pageGeneration)
+    {
+        pageGeneration.IsRetiring = true;
+        try
+        {
+            ResetFanSlotGesture(pageGeneration, null);
+        }
+        finally
+        {
+            pageGeneration.FanSlotPanel.Children.Clear();
+            pageGeneration.FanSlots.Clear();
+            _fanPropertiesPageGenerations.Remove(pageGeneration);
+        }
+    }
+
+    private void ApplyFanSlotSwaps(FanPropertiesPageGeneration pageGeneration)
     {
         List<Fan> fans = GetLiveFans();
-        if (fans.Count < 2 || fans.Count != _fanSlots.Count) return;
+        if (fans.Count < 2 || fans.Count != pageGeneration.FanSlots.Count) return;
 
         Dictionary<string, FanUserSettings> snapshots = fans
             .ToDictionary(KeyForFan, f => f.SnapshotUserSettings(), StringComparer.OrdinalIgnoreCase);
-        if (_fanSlots.Any(slot => !snapshots.ContainsKey(slot.Key))) return;
+        if (pageGeneration.FanSlots.Any(slot => !snapshots.ContainsKey(slot.Key))) return;
 
-        for (int i = 0; i < fans.Count; i++)
-            fans[i].ApplyUserSettings(snapshots[_fanSlots[i].Key]);
+        for (int index = 0; index < fans.Count; index++)
+            fans[index].ApplyUserSettings(snapshots[pageGeneration.FanSlots[index].Key]);
 
         AppServices.LHMService?.PersistLiveState(save: false);
         Save();
-        RebuildFanSlots();
+        RebuildFanSlots(pageGeneration);
     }
 
     private static List<Fan> GetLiveFans() => AppServices.LHMService?.Fans.ToList() ?? [];
@@ -1060,6 +1162,22 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     private static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> HotkeyModifierOptions =>
         TrayAppDotNETHotkeyModifierOptions.Create(Loc);
+
+    /// <summary>Owns retained controls and gesture state for one Fan Properties page candidate.</summary>
+    private sealed class FanPropertiesPageGeneration
+    {
+        public List<FanSettingsSlotEntry> FanSlots { get; } = [];
+        public StackPanel FanSlotPanel { get; } = new();
+        public Border? DraggedSlotRow { get; set; }
+        public FanSettingsSlotEntry? DraggedSlot { get; set; }
+        public IPointer? CapturedPointer { get; set; }
+        public Point DragStart { get; set; }
+        public double DraggedSlotPointerOffsetY { get; set; }
+        public double DraggedSlotHeight { get; set; }
+        public int DraggedSlotTargetIndex { get; set; } = -1;
+        public bool IsResettingGesture { get; set; }
+        public bool IsRetiring { get; set; }
+    }
 
     private sealed record FanSettingsSlotEntry(string Key, string DisplayName, string Detail);
 }
