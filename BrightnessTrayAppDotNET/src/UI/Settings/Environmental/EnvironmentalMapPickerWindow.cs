@@ -28,6 +28,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private readonly bool _isLight;
     private readonly EnvironmentalMapPickerCanvas _map;
     private readonly TextBlock _coordinateText;
+    private bool _isRetiring;
 
     public EnvironmentalMapPickerWindow(
         double latitude,
@@ -52,10 +53,11 @@ public sealed class EnvironmentalMapPickerWindow : Window
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
         Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
+        Closing += OnClosing;
         KeyDown += (_, e) =>
         {
             if (e.Key != Key.Escape) return;
-            Close();
+            Hide();
             e.Handled = true;
         };
 
@@ -101,7 +103,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         {
             Width = CloseButtonWidth, Height = TitleBarHeight, Padding = new Thickness(0), Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
         };
-        close.Click += (_, _) => Close();
+        close.Click += (_, _) => Hide();
         TrayAppDotNETToolTip.SetTip(close, L("Common_Close", "Close"));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         Grid.SetColumn(close, 1);
@@ -170,7 +172,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         abort.MinWidth = 64;
         apply.Margin = new Thickness(0, 0, 6, 0);
         apply.Click += (_, _) => ApplyAndClose();
-        abort.Click += (_, _) => Close();
+        abort.Click += (_, _) => Hide();
 
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(apply, abort);
         buttons.Margin = new Thickness(0, 8, 0, 0);
@@ -277,7 +279,47 @@ public sealed class EnvironmentalMapPickerWindow : Window
     {
         GeoCoordinate selected = _map.SelectedCoordinate.ClampToWorld();
         Applied?.Invoke(selected.Latitude, selected.Longitude);
+        Hide();
+    }
+
+    /// <summary>Closes the page-owned picker when its settings-page generation retires.</summary>
+    internal void CloseForPageRetirement()
+    {
+        _isRetiring = true;
         Close();
+    }
+
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        if (!ShouldCancelCloseForReuse(_isRetiring, e.CloseReason))
+        {
+            _isRetiring = true;
+            return;
+        }
+
+        e.Cancel = true;
+        Hide();
+    }
+
+    internal static bool ShouldCancelCloseForReuse(bool isRetiring, WindowCloseReason closeReason) =>
+        !isRetiring
+        && closeReason is not (WindowCloseReason.OwnerWindowClosing
+            or WindowCloseReason.ApplicationShutdown
+            or WindowCloseReason.OSShutdown);
+
+    protected override void OnClosed(EventArgs e)
+    {
+        Closing -= OnClosing;
+        Applied = null;
+        try
+        {
+            _map.Dispose();
+        }
+        finally
+        {
+            try { Content = null; }
+            finally { base.OnClosed(e); }
+        }
     }
 
     private void UpdateCoordinateText()

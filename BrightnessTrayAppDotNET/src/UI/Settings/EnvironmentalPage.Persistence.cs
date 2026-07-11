@@ -101,6 +101,7 @@ public sealed partial class BrightnessSettingsWindow
 
     private async Task ResetEnvironmentalCurvesAsync()
     {
+        long pageGeneration = _environmentalPageGeneration;
         EnvironmentalCurve? curve = SelectedEnvironmentalCurve();
         if (curve == null) return;
 
@@ -110,7 +111,7 @@ public sealed partial class BrightnessSettingsWindow
                 "This resets the visible curve mode for the selected profile."),
             L("Settings_Environmental_ResetCurves_ConfirmButton", "Reset"),
             L("Common_Cancel", "Cancel"));
-        if (!ok) return;
+        if (!ok || !IsCurrentEnvironmentalPage(pageGeneration)) return;
 
         if (_settings.EnvironmentalOffsetMode)
         {
@@ -158,9 +159,11 @@ public sealed partial class BrightnessSettingsWindow
     {
         if (_environmentalCurveRuntimeNotifyQueued) return;
         _environmentalCurveRuntimeNotifyQueued = true;
+        long pageGeneration = _environmentalPageGeneration;
         Dispatcher.UIThread.Post(
             () =>
             {
+                if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
                 _environmentalCurveRuntimeNotifyQueued = false;
                 AppServices.BrightnessFlyout?.RequestCurveReevaluation();
             },
@@ -171,24 +174,54 @@ public sealed partial class BrightnessSettingsWindow
     {
         if (_profileManager == null) return;
 
-        if (_curveSaveDebounceTimer == null)
+        StopCurveSaveDebounceTimer(flushPendingSave: false);
+        DispatcherTimer timer = new()
         {
-            _curveSaveDebounceTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalCurveSaveDebounceMs)
-            };
-            _curveSaveDebounceTimer.Tick += (_, _) => FlushDebouncedCurveSave();
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.EnvironmentalCurveSaveDebounceMs)
+        };
+        timer.Tick += OnCurveSaveDebounceTimerTick;
+        _curveSaveDebounceTimer = timer;
+        try { timer.Start(); }
+        catch
+        {
+            StopCurveSaveDebounceTimer(flushPendingSave: false);
+            throw;
         }
-
-        _curveSaveDebounceTimer.Stop();
-        _curveSaveDebounceTimer.Start();
     }
 
     private void FlushDebouncedCurveSave()
     {
         if (_curveSaveDebounceTimer is not { IsEnabled: true }) return;
 
-        _curveSaveDebounceTimer.Stop();
+        try { _curveSaveDebounceTimer.Stop(); }
+        catch
+        {
+            StopCurveSaveDebounceTimer(flushPendingSave: false);
+            throw;
+        }
         _profileManager?.Save();
+    }
+
+    private void OnCurveSaveDebounceTimerTick(object? sender, EventArgs e)
+    {
+        // Each arm owns a distinct timer so a queued tick cannot stop its replacement
+        if (!ReferenceEquals(sender, _curveSaveDebounceTimer)) return;
+        FlushDebouncedCurveSave();
+    }
+
+    private void StopCurveSaveDebounceTimer(bool flushPendingSave)
+    {
+        DispatcherTimer? timer = _curveSaveDebounceTimer;
+        _curveSaveDebounceTimer = null;
+        if (timer == null) return;
+
+        bool hadPendingSave = timer.IsEnabled;
+        try { timer.Stop(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"Brightness environmental save timer stop failed: {exception.Message}");
+        }
+        timer.Tick -= OnCurveSaveDebounceTimerTick;
+        if (flushPendingSave && hadPendingSave) _profileManager?.Save();
     }
 }

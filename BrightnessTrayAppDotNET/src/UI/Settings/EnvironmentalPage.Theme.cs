@@ -28,21 +28,24 @@ public sealed partial class BrightnessSettingsWindow
     private void WireEnvironmentalColorCallbacks()
     {
         if (_environmentalCurveColorCallbacksWired) return;
+        _environmentalCurveColorCallbacksWired = true;
         foreach (NullableThemeColor color in EnumerateEnvironmentalCurveColors())
         {
             color.Unsubscribe(DeferredEnvironmentalCurveRedraw);
             color.Subscribe(DeferredEnvironmentalCurveRedraw);
         }
-
-        _environmentalCurveColorCallbacksWired = true;
     }
 
     private void UnwireEnvironmentalColorCallbacks()
     {
         if (!_environmentalCurveColorCallbacksWired) return;
-        foreach (NullableThemeColor color in EnumerateEnvironmentalCurveColors())
-            color.Unsubscribe(DeferredEnvironmentalCurveRedraw);
         _environmentalCurveColorCallbacksWired = false;
+        foreach (NullableThemeColor color in EnumerateEnvironmentalCurveColors())
+        {
+            RunEnvironmentalPageCleanup(
+                "UnsubscribeEnvironmentalCurveColor",
+                () => color.Unsubscribe(DeferredEnvironmentalCurveRedraw));
+        }
     }
 
     private IEnumerable<NullableThemeColor> EnumerateEnvironmentalCurveColors()
@@ -57,9 +60,11 @@ public sealed partial class BrightnessSettingsWindow
 
     private void DeferredEnvironmentalCurveRedraw()
     {
+        long pageGeneration = _environmentalPageGeneration;
         Dispatcher.UIThread.Post(
             () =>
             {
+                if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
                 EnvironmentalCurveEditorPalette palette = BuildEnvironmentalEditorPalette(Palette);
                 _environmentalCurveEditor?.Palette = palette;
                 ApplyLegendColor(_brightnessLegendItem, palette.BrightnessCurve);

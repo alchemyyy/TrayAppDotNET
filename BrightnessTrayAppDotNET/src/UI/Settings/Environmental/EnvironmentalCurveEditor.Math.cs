@@ -43,19 +43,31 @@ public sealed partial class EnvironmentalCurveEditor
             Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveEditorClockIndicatorRefreshIntervalMs)
         };
         _currentTimeTimer.Tick += CurrentTimeTimerTick;
-        _currentTimeTimer.Start();
+        try { _currentTimeTimer.Start(); }
+        catch
+        {
+            StopCurrentTimeTimer();
+            throw;
+        }
     }
 
     private void StopCurrentTimeTimer()
     {
-        if (_currentTimeTimer == null) return;
-        _currentTimeTimer.Tick -= CurrentTimeTimerTick;
-        _currentTimeTimer.Stop();
+        DispatcherTimer? currentTimeTimer = _currentTimeTimer;
         _currentTimeTimer = null;
+        if (currentTimeTimer == null) return;
+        currentTimeTimer.Tick -= CurrentTimeTimerTick;
+        try { currentTimeTimer.Stop(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"EnvironmentalCurveEditor current-time timer stop failed: {exception.Message}");
+        }
     }
 
     private void CurrentTimeTimerTick(object? sender, EventArgs e)
     {
+        // A detached editor timer may already have queued a tick before it was stopped
+        if (_disposed || !ReferenceEquals(sender, _currentTimeTimer)) return;
         if (!_previewSweepRunning) InvalidateVisual();
     }
 

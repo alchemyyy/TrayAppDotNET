@@ -127,19 +127,10 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 
     private bool ResolveEffectiveIsLight() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
 
-    private Control BuildSettingsPage(BrightnessSettingsPage page, Func<Control> buildPage)
-    {
-        if (page != BrightnessSettingsPage.Environmental)
-            StopEnvironmentalPageSession();
-        if (page != BrightnessSettingsPage.About)
-            StopAboutUpdateRefresh();
-        return buildPage();
-    }
+    private static Control BuildSettingsPage(BrightnessSettingsPage _, Func<Control> buildPage) => buildPage();
 
     protected override void OnSettingsWindowClosed()
     {
-        StopEnvironmentalPageSession();
-        StopAboutUpdateRefresh();
         base.OnSettingsWindowClosed();
     }
 }

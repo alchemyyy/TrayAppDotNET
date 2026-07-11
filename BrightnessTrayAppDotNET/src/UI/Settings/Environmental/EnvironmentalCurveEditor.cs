@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using BrightnessTrayAppDotNET.SunriseSunset;
+using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
@@ -96,7 +98,7 @@ public readonly record struct EnvironmentalCurveEditorPalette(
 /// Brightness environmental curve editor. The control mutates the supplied
 /// <see cref="EnvironmentalCurve"/> directly and leaves persistence with the settings page.
 /// </summary>
-public sealed partial class EnvironmentalCurveEditor : Control
+public sealed partial class EnvironmentalCurveEditor : Control, IDisposable
 {
     private enum Series
     {
@@ -149,8 +151,8 @@ public sealed partial class EnvironmentalCurveEditor : Control
     private const double MinimumMeasureWidth = 260.0;
     private const double MinimumMeasureHeight = 160.0;
 
-    private static readonly Cursor ArrowCursor = new(StandardCursorType.Arrow);
-    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
+    private static Cursor ArrowCursor => TrayAppDotNETCursors.Arrow;
+    private static Cursor HandCursor => TrayAppDotNETCursors.Hand;
 
     private EnvironmentalCurve? _curveData;
     private List<EnvironmentalCurvePoint> _brightness = EnvironmentalCurve.CreateDefaultBrightness();
@@ -197,13 +199,14 @@ public sealed partial class EnvironmentalCurveEditor : Control
     private bool _sunOverlayCacheFailed;
     private SolarPosition? _sunOverlayNoonPositionCache;
     private bool _sunOverlayNoonPositionCached;
+    private bool _disposed;
 
     public EnvironmentalCurveEditor()
     {
         Focusable = true;
         Cursor = ArrowCursor;
-        GotFocus += (_, _) => EnsureSelectionOnFocus();
-        LostFocus += (_, _) => ClearSelectionOnLostFocus();
+        GotFocus += OnEditorGotFocus;
+        LostFocus += OnEditorLostFocus;
     }
 
     public event Action? CurveChanged;
@@ -366,6 +369,7 @@ public sealed partial class EnvironmentalCurveEditor : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        if (_disposed) return;
         StartCurrentTimeTimer();
     }
 
@@ -375,4 +379,29 @@ public sealed partial class EnvironmentalCurveEditor : Control
         ReleasePointerCapture();
         base.OnDetachedFromVisualTree(e);
     }
+
+    /// <summary>Stops timers, releases pointer capture, and severs page/model callbacks.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        StopCurrentTimeTimer();
+        ReleasePointerCapture();
+        GotFocus -= OnEditorGotFocus;
+        LostFocus -= OnEditorLostFocus;
+        CurveChanged = null;
+        ExitPreviewModeRequested = null;
+        DisabledPeriodChanged = null;
+        _curveData = null;
+        _brightness = [];
+        _nightLight = [];
+        _selectedPoint = null;
+        _dragPoint = null;
+        Cursor = null;
+    }
+
+    private void OnEditorGotFocus(object? sender, RoutedEventArgs e) => EnsureSelectionOnFocus();
+
+    private void OnEditorLostFocus(object? sender, RoutedEventArgs e) => ClearSelectionOnLostFocus();
 }

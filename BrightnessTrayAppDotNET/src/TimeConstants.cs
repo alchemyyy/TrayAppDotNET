@@ -15,7 +15,6 @@ public abstract class TimeConstants : CommonTimeConstants
     public new const int DrainPollIntervalMs = CommonTimeConstants.DrainPollIntervalMs;
 
     // Settings UI
-    public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;
     public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
 
     // Auto-update

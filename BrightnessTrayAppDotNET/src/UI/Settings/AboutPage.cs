@@ -5,12 +5,11 @@ namespace BrightnessTrayAppDotNET.UI.Settings;
 
 public sealed partial class BrightnessSettingsWindow
 {
-    private TrayAppDotNETAboutPage? _aboutPage;
+    private readonly List<TrayAppDotNETAboutPage> _aboutPageGenerations = [];
 
     private StackPanel BuildAboutPage()
     {
-        StopAboutUpdateRefresh();
-        _aboutPage = new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
+        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
         {
             Palette = Palette,
             ButtonRadius = RadiusMedium,
@@ -42,10 +41,9 @@ public sealed partial class BrightnessSettingsWindow
                     L("Settings_About_DDCCorruption_Description",
                         "If a monitor becomes unrecoverable, its slider will show with a warning triangle glyph. The monitor will have to be power cycled to restore DDC."))
             ]
-        });
-        return _aboutPage.Build();
+        }));
+        _aboutPageGenerations.Add(aboutPage);
+        AddPageCleanup(() => _aboutPageGenerations.Remove(aboutPage));
+        return aboutPage.Build();
     }
-
-    private void StopAboutUpdateRefresh() =>
-        _aboutPage?.StopUpdateRefresh();
 }

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Threading;
+using BrightnessTrayAppDotNET.UI.Flyout;
 using TrayAppDotNETCommon.UI.Controls;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
@@ -41,68 +42,87 @@ public sealed partial class BrightnessSettingsWindow
     private void AttachEnvironmentalEvents()
     {
         if (_environmentalEventsAttached) return;
-
-        if (_profileManager != null)
-            _profileManager.ProfilesListChanged += OnEnvironmentalProfilesListChanged;
-
-        if (_brightnessRangeProvider != null)
-        {
-            _brightnessRangeProvider.LiveBrightnessRangeChanged += OnLiveBrightnessRangeChanged;
-            _brightnessRangeProvider.EmitCurrent();
-        }
-
-        _environmentalFlyout = AppServices.BrightnessFlyout;
-        if (_environmentalFlyout != null)
-        {
-            _environmentalFlyout.PropertyChanged += OnEnvironmentalCurveEngagedStateChanged;
-            _environmentalFlyout.PreviewSweepStateChanged += OnEnvironmentalPreviewSweepStateChanged;
-            _environmentalFlyout.PreviewSweepProgress += OnEnvironmentalPreviewSweepProgress;
-        }
-
-        if (_environmentalCurveEditor != null)
-        {
-            _environmentalCurveEditor.CurveChanged += OnEnvironmentalCurveChanged;
-            _environmentalCurveEditor.ExitPreviewModeRequested += OnEnvironmentalExitPreviewRequested;
-            _environmentalCurveEditor.DisabledPeriodChanged += OnEnvironmentalDisabledPeriodChanged;
-        }
-
-        WireEnvironmentalColorCallbacks();
-
         _environmentalEventsAttached = true;
+
+        try
+        {
+            if (_profileManager != null)
+                _profileManager.ProfilesListChanged += OnEnvironmentalProfilesListChanged;
+
+            if (_brightnessRangeProvider != null)
+            {
+                _brightnessRangeProvider.LiveBrightnessRangeChanged += OnLiveBrightnessRangeChanged;
+                _brightnessRangeProvider.EmitCurrent();
+            }
+
+            _environmentalFlyout = AppServices.BrightnessFlyout;
+            if (_environmentalFlyout != null)
+            {
+                _environmentalFlyout.PropertyChanged += OnEnvironmentalCurveEngagedStateChanged;
+                _environmentalFlyout.PreviewSweepStateChanged += OnEnvironmentalPreviewSweepStateChanged;
+                _environmentalFlyout.PreviewSweepProgress += OnEnvironmentalPreviewSweepProgress;
+            }
+
+            if (_environmentalCurveEditor != null)
+            {
+                _environmentalCurveEditor.CurveChanged += OnEnvironmentalCurveChanged;
+                _environmentalCurveEditor.ExitPreviewModeRequested += OnEnvironmentalExitPreviewRequested;
+                _environmentalCurveEditor.DisabledPeriodChanged += OnEnvironmentalDisabledPeriodChanged;
+            }
+
+            WireEnvironmentalColorCallbacks();
+        }
+        catch
+        {
+            StopEnvironmentalPageSession(clearPreviewHardware: false);
+            throw;
+        }
     }
 
-    private void StopEnvironmentalPageSession()
+    private void StopEnvironmentalPageSession(bool clearPreviewHardware = true)
     {
-        FlushDebouncedCurveSave();
-        ClearEnvironmentalPreviewHardwareState();
-        ReleaseEnvironmentalSunOverlayCalendar();
-
-        if (!_environmentalEventsAttached) return;
-
-        if (_profileManager != null)
-            _profileManager.ProfilesListChanged -= OnEnvironmentalProfilesListChanged;
-
-        if (_brightnessRangeProvider != null)
-            _brightnessRangeProvider.LiveBrightnessRangeChanged -= OnLiveBrightnessRangeChanged;
-
-        if (_environmentalFlyout != null)
-        {
-            _environmentalFlyout.PropertyChanged -= OnEnvironmentalCurveEngagedStateChanged;
-            _environmentalFlyout.PreviewSweepStateChanged -= OnEnvironmentalPreviewSweepStateChanged;
-            _environmentalFlyout.PreviewSweepProgress -= OnEnvironmentalPreviewSweepProgress;
-            _environmentalFlyout = null;
-        }
-
-        if (_environmentalCurveEditor != null)
-        {
-            _environmentalCurveEditor.CurveChanged -= OnEnvironmentalCurveChanged;
-            _environmentalCurveEditor.ExitPreviewModeRequested -= OnEnvironmentalExitPreviewRequested;
-            _environmentalCurveEditor.DisabledPeriodChanged -= OnEnvironmentalDisabledPeriodChanged;
-            _environmentalCurveEditor.SetPreviewSweepRunning(false);
-        }
-
-        UnwireEnvironmentalColorCallbacks();
+        bool eventsAttached = _environmentalEventsAttached;
         _environmentalEventsAttached = false;
+        BrightnessFlyoutWindow? flyout = _environmentalFlyout;
+        _environmentalFlyout = null;
+        Environmental.EnvironmentalCurveEditor? curveEditor = _environmentalCurveEditor;
+
+        if (eventsAttached)
+        {
+            if (_profileManager != null)
+                _profileManager.ProfilesListChanged -= OnEnvironmentalProfilesListChanged;
+
+            if (_brightnessRangeProvider != null)
+                _brightnessRangeProvider.LiveBrightnessRangeChanged -= OnLiveBrightnessRangeChanged;
+
+            if (flyout != null)
+            {
+                flyout.PropertyChanged -= OnEnvironmentalCurveEngagedStateChanged;
+                flyout.PreviewSweepStateChanged -= OnEnvironmentalPreviewSweepStateChanged;
+                flyout.PreviewSweepProgress -= OnEnvironmentalPreviewSweepProgress;
+            }
+
+            if (curveEditor != null)
+            {
+                curveEditor.CurveChanged -= OnEnvironmentalCurveChanged;
+                curveEditor.ExitPreviewModeRequested -= OnEnvironmentalExitPreviewRequested;
+                curveEditor.DisabledPeriodChanged -= OnEnvironmentalDisabledPeriodChanged;
+            }
+        }
+
+        RunEnvironmentalPageCleanup(nameof(UnwireEnvironmentalColorCallbacks), UnwireEnvironmentalColorCallbacks);
+        RunEnvironmentalPageCleanup(nameof(ReleaseEnvironmentalSunOverlayCalendar), ReleaseEnvironmentalSunOverlayCalendar);
+        RunEnvironmentalPageCleanup(nameof(FlushDebouncedCurveSave), FlushDebouncedCurveSave);
+        if (clearPreviewHardware)
+        {
+            RunEnvironmentalPageCleanup(
+                nameof(ClearEnvironmentalPreviewHardwareState),
+                ClearEnvironmentalPreviewHardwareState);
+        }
+        if (curveEditor != null)
+            RunEnvironmentalPageCleanup(
+                nameof(Environmental.EnvironmentalCurveEditor.SetPreviewSweepRunning),
+                () => curveEditor.SetPreviewSweepRunning(false));
     }
 
     private void OnEnvironmentalProfilesListChanged()
@@ -126,8 +146,15 @@ public sealed partial class BrightnessSettingsWindow
         }
     }
 
-    private void OnLiveBrightnessRangeChanged(double? min, double? max) =>
-        Dispatcher.UIThread.Post(() => _environmentalCurveEditor?.SetActiveBrightnessRange(min, max));
+    private void OnLiveBrightnessRangeChanged(double? min, double? max)
+    {
+        long pageGeneration = _environmentalPageGeneration;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
+            _environmentalCurveEditor?.SetActiveBrightnessRange(min, max);
+        });
+    }
 
     private void PopulateEnvironmentalProfileCombo()
     {

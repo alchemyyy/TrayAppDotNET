@@ -5,9 +5,11 @@ using Avalonia.Threading;
 using BrightnessTrayAppDotNET.DDCCI;
 using BrightnessTrayAppDotNET.Interop.NightLight;
 using BrightnessTrayAppDotNET.Localization;
+using BrightnessTrayAppDotNET.Services;
 using BrightnessTrayAppDotNET.UI.Flyout;
 using BrightnessTrayAppDotNET.UI.Settings;
 using BrightnessTrayAppDotNET.UI.Tray;
+using BrightnessTrayAppDotNET.Visuals;
 using HotAvalonia;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
@@ -348,12 +350,15 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private void ScheduleKeepWarmPriming()
     {
+        if (_shuttingDown) return;
         Dispatcher.UIThread.Post(async void () =>
         {
             try
             {
+                if (_shuttingDown) return;
                 if (_settings?.KeepFlyoutWarm == true && _monitorService != null)
                     await BrightnessFlyoutWarmSlot.PrimeAsync(CreateManagedBrightnessFlyout);
+                if (_shuttingDown) return;
                 if (_settings?.KeepTrayContextMenuWarm == true && _trayIcon != null)
                     await TrayMenuWarmSlot.PrimeAsync(CreateTrayMenuWindow);
             }
@@ -888,8 +893,6 @@ internal sealed class BrightnessAvaloniaApp : Application
             _settingsWindow = null;
         }
 
-        _ = Task.Delay(TimeConstants.PostSettingsCloseGCDelayMs).ContinueWith(
-            _ => GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true), TaskScheduler.Default);
     }
 
     private void ShowUninstallerWindow(string installDir, BrightnessInstallScope scope)
@@ -1209,9 +1212,11 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+        bool glyphConsumersClosed = true;
 
         try
         {
+            DisplayIdentifierService.Hide();
             if (_hotkeyService != null)
             {
                 _hotkeyService.Fired -= OnHotkeyFired;
@@ -1288,7 +1293,15 @@ internal sealed class BrightnessAvaloniaApp : Application
             Safe.Dispose(_settingsFlyoutKeepOpen);
             _settingsFlyoutKeepOpen = null;
 
-            Safe.Dispose(_brightnessFlyoutWarmSlot);
+            if (_brightnessFlyoutWarmSlot != null)
+            {
+                try { _brightnessFlyoutWarmSlot.Dispose(); }
+                catch (Exception exception)
+                {
+                    glyphConsumersClosed = false;
+                    WPFLog.Log($"Brightness flyout warm-slot shutdown failed: {exception.Message}");
+                }
+            }
             _brightnessFlyoutWarmSlot = null;
             Safe.Dispose(_trayMenuWarmSlot);
             _trayMenuWarmSlot = null;
@@ -1297,7 +1310,10 @@ internal sealed class BrightnessAvaloniaApp : Application
             {
                 _settingsWindow.Closed -= OnSettingsWindowClosed;
                 try { _settingsWindow.Close(); }
-                catch { }
+                catch (Exception exception)
+                {
+                    WPFLog.Log($"Brightness settings-window shutdown failed: {exception.Message}");
+                }
 
                 _settingsWindow = null;
             }
@@ -1309,16 +1325,26 @@ internal sealed class BrightnessAvaloniaApp : Application
                 _brightnessFlyout.SettingsRequested -= OpenSettings;
                 _brightnessFlyout.Closed -= OnBrightnessFlyoutClosed;
                 try { _brightnessFlyout.Close(); }
-                catch { }
+                catch (Exception exception)
+                {
+                    glyphConsumersClosed = false;
+                    WPFLog.Log($"Brightness flyout shutdown failed: {exception.Message}");
+                }
 
                 _brightnessFlyout = null;
                 AppServices.BrightnessFlyout = null;
             }
 
+            if (glyphConsumersClosed)
+                SkiaFlyoutGlyphIcon.DisposeSharedResources();
+
             if (_trayMenuWindow != null)
             {
                 try { _trayMenuWindow.Close(); }
-                catch { }
+                catch (Exception exception)
+                {
+                    WPFLog.Log($"Brightness tray-menu shutdown failed: {exception.Message}");
+                }
 
                 _trayMenuWindow = null;
             }

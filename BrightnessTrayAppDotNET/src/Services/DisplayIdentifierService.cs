@@ -29,8 +29,7 @@ public static class DisplayIdentifierService
             return;
         }
 
-        _timer?.Stop();
-        _timer = null;
+        StopTimer();
         CloseAll();
     }
 
@@ -48,12 +47,9 @@ public static class DisplayIdentifierService
 
         TimeSpan visibleFor = duration ?? TimeSpan.FromMilliseconds(TimeConstants.DisplayIdentifierDefaultDurationMs);
 
-        // Tear down any prior pass before opening a new one. Without stopping the old timer, its
-        // closure captures the static _timer field by name - when it eventually ticks it would stop
-        // the NEW timer, null the field, and CloseAll() the NEW overlays mid-flash. CloseAll() also
-        // disposes the old overlay windows; new ones are built fresh below.
-        _timer?.Stop();
-        _timer = null;
+        // Tear down any prior pass before opening a new one. A tick already queued by the old timer can still run;
+        // OnTimerTick checks sender identity so that stale tick cannot stop the replacement timer or overlays
+        StopTimer();
         CloseAll();
 
         foreach ((int number, int x, int y, int w, int h) in EnumerateMonitors())
@@ -66,13 +62,34 @@ public static class DisplayIdentifierService
         if (_active.Count == 0) return;
 
         _timer = new DispatcherTimer { Interval = visibleFor };
-        _timer.Tick += (_, _) =>
+        _timer.Tick += OnTimerTick;
+        try { _timer.Start(); }
+        catch
         {
-            _timer?.Stop();
-            _timer = null;
+            StopTimer();
             CloseAll();
-        };
-        _timer.Start();
+            throw;
+        }
+    }
+
+    private static void OnTimerTick(object? sender, EventArgs e)
+    {
+        if (!ReferenceEquals(sender, _timer)) return;
+        StopTimer();
+        CloseAll();
+    }
+
+    private static void StopTimer()
+    {
+        DispatcherTimer? timer = _timer;
+        _timer = null;
+        if (timer == null) return;
+        try { timer.Stop(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"DisplayIdentifierService.StopTimer: {exception.Message}");
+        }
+        timer.Tick -= OnTimerTick;
     }
 
     private static void CloseAll()
@@ -80,9 +97,9 @@ public static class DisplayIdentifierService
         foreach (DisplayIdentifierOverlayWindow overlayWindow in _active)
         {
             try { overlayWindow.Close(); }
-            catch
+            catch (Exception exception)
             {
-                // ignored
+                WPFLog.Log($"DisplayIdentifierService.CloseAll: {exception.Message}");
             }
         }
 

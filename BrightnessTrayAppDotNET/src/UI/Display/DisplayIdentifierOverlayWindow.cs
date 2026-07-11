@@ -45,7 +45,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
         IsHitTestVisible = false;
 
         Content = BuildContent(displayNumber);
-        Opened += (_, _) => ApplyWindowChrome();
+        Opened += OnOpened;
     }
 
     private static Grid BuildContent(int displayNumber)
@@ -97,6 +97,15 @@ public sealed class DisplayIdentifierOverlayWindow : Window
         int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
         _ = SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
         _ = SetWindowPos(hwnd, IntPtr.Zero, _pxLeft, _pxTop, _pxWidth, _pxHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
+    private void OnOpened(object? sender, EventArgs e) => ApplyWindowChrome();
+
+    protected override void OnClosed(EventArgs e)
+    {
+        Opened -= OnOpened;
+        Content = null;
+        base.OnClosed(e);
     }
 
     private static double ResolveDPIScale(int pxLeft, int pxTop, int pxWidth, int pxHeight)

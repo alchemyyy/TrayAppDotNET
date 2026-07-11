@@ -32,9 +32,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private readonly BrightnessFlyoutSession _session;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
+    private readonly UIResourceScope _externalResources = new(nameof(BrightnessFlyoutWindow) + ".External");
+    private readonly HashSet<MonitorInfo> _subscribedMonitors = [];
     private readonly HashSet<string> _curveStopwatchReengageBlockedByMaster = [];
     private readonly HashSet<MonitorInfo> _deferredManualCurveOverrideResync = [];
-    private readonly Dictionary<MonitorInfo, ProfilePreviewRowVisuals> _profilePreviewRows = [];
+    private readonly AnimationGenerationTracker _previewSweepFrames = new();
+
+    private Dictionary<MonitorInfo, ProfilePreviewRowVisuals> _profilePreviewRows = [];
+    private FlyoutVisualState? _visualState;
 
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private Border? _rootCard;
@@ -62,7 +67,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private bool _isRebuildingVisual;
     private bool _rebuildVisualPending;
     private bool _rebuildVisualQueued;
-    private bool _previewSweepAnimationFrameQueued;
+    private bool _isClosed;
+    private long _visibilityGeneration;
     private EnvironmentalCurve? _previewSweepCurveOverride;
     private EnvironmentalCurve? _previewSweepDisabledPeriodOverride;
     private EnvironmentalCurve? _previewDateCurveOverride;
@@ -78,6 +84,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private AppSettings? _settings => _session.Settings;
     private MonitorService _monitorService => _session.MonitorService;
     private EnvironmentalCurveService _curveService => _session.CurveService;
+
+    private bool IsWindowAlive => !_isClosed && !WindowResources.CancellationToken.IsCancellationRequested;
 
     private bool _isBrightnessCurveEnabled
     {
@@ -130,6 +138,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     internal BrightnessFlyoutWindow(ProfileManager profileManager, BrightnessAppTheme theme,
         MonitorService monitorService)
     {
+        WindowResources.Own(_externalResources);
+        _externalResources.Add(UnsubscribeAllMonitors);
         _session = new BrightnessFlyoutSession(
             profileManager,
             theme,
@@ -140,46 +150,79 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             inDisabled => IsInCurveDisabledPeriod = inDisabled,
             AutoEngageBrightnessCurveManualOverride);
 
-        InitializeComponent();
-        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-
-        _profileManager.EnsureProfileCount(Math.Max(1, _theme.ProfileButtons.ButtonCount));
-        RestoreInitialProfileState();
-        if (Monitors.Count > 0) MasterMonitor.Brightness = ComputeMasterFromEnabledIndividuals();
-        CaptureOffsetsFromMaster();
-
-        MasterMonitor.PropertyChanged += OnMonitorPropertyChanged;
-        foreach (MonitorInfo monitor in Monitors)
-            monitor.PropertyChanged += OnMonitorPropertyChanged;
-        NightLightMonitor.PropertyChanged += OnNightLightPropertyChanged;
-        Monitors.CollectionChanged += OnMonitorsCollectionChanged;
-        _monitorService.MonitorsAcquired += OnMonitorsAcquired;
-        _monitorService.MonitorsRefreshed += OnInitialMonitorEnrollmentRefreshed;
-        _profileManager.SelectedProfileChanged += OnSelectedProfileChanged;
-        _profileManager.UnsavedChangesStatusChanged += UpdateSaveButtonState;
-        _profileManager.ProfilesListChanged += OnProfilesListChanged;
-        if (_settings != null) _settings.Changed += OnSettingsChanged;
-        if (AppServices.UpdateCheckService != null)
-            AppServices.UpdateCheckService.StateChanged += NotifyUpdateStateChanged;
-
-        BuildProfileButtonItems();
-
-        _isUndocked = _settings is
+        try
         {
-            FlyoutUndocked: true,
-            FlyoutHasSavedPosition: true,
-            AllowFlyoutUndock: true,
-            RestoreFlyoutUndockedOnStartup: true
-        };
+            InitializeComponent();
+            TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
-        CheckAndUpdateUnsavedChanges();
-        if (_isBrightnessCurveEnabled || _isNightLightCurveEnabled) OnCurveToggleStateChanged();
-        RestoreCurveStopwatchesFromSettings();
+            _profileManager.EnsureProfileCount(Math.Max(1, _theme.ProfileButtons.ButtonCount));
+            RestoreInitialProfileState();
+            if (Monitors.Count > 0) MasterMonitor.Brightness = ComputeMasterFromEnabledIndividuals();
+            CaptureOffsetsFromMaster();
 
-        KeyDown += OnWindowKeyDown;
-        Closed += OnClosed;
-        InitializeComponentState();
-        NotifyUpdateStateChanged();
+            MasterMonitor.PropertyChanged += OnMonitorPropertyChanged;
+            _externalResources.Add(() => MasterMonitor.PropertyChanged -= OnMonitorPropertyChanged);
+            foreach (MonitorInfo monitor in Monitors)
+                SubscribeMonitor(monitor);
+            NightLightMonitor.PropertyChanged += OnNightLightPropertyChanged;
+            _externalResources.Add(() => NightLightMonitor.PropertyChanged -= OnNightLightPropertyChanged);
+            Monitors.CollectionChanged += OnMonitorsCollectionChanged;
+            _externalResources.Add(() => Monitors.CollectionChanged -= OnMonitorsCollectionChanged);
+            _monitorService.MonitorsAcquired += OnMonitorsAcquired;
+            _externalResources.Add(() => _monitorService.MonitorsAcquired -= OnMonitorsAcquired);
+            _monitorService.MonitorsRefreshed += OnInitialMonitorEnrollmentRefreshed;
+            _externalResources.Add(() => _monitorService.MonitorsRefreshed -= OnInitialMonitorEnrollmentRefreshed);
+            _profileManager.SelectedProfileChanged += OnSelectedProfileChanged;
+            _externalResources.Add(() => _profileManager.SelectedProfileChanged -= OnSelectedProfileChanged);
+            _profileManager.UnsavedChangesStatusChanged += UpdateSaveButtonState;
+            _externalResources.Add(() => _profileManager.UnsavedChangesStatusChanged -= UpdateSaveButtonState);
+            _profileManager.ProfilesListChanged += OnProfilesListChanged;
+            _externalResources.Add(() => _profileManager.ProfilesListChanged -= OnProfilesListChanged);
+            if (_settings != null)
+            {
+                _settings.Changed += OnSettingsChanged;
+                _externalResources.Add(() => _settings.Changed -= OnSettingsChanged);
+            }
+
+            UpdateCheckService? updateCheckService = AppServices.UpdateCheckService;
+            if (updateCheckService != null)
+            {
+                updateCheckService.StateChanged += NotifyUpdateStateChanged;
+                _externalResources.Add(() => updateCheckService.StateChanged -= NotifyUpdateStateChanged);
+            }
+
+            BuildProfileButtonItems();
+
+            _isUndocked = _settings is
+            {
+                FlyoutUndocked: true,
+                FlyoutHasSavedPosition: true,
+                AllowFlyoutUndock: true,
+                RestoreFlyoutUndockedOnStartup: true
+            };
+
+            CheckAndUpdateUnsavedChanges();
+            if (_isBrightnessCurveEnabled || _isNightLightCurveEnabled) OnCurveToggleStateChanged();
+            RestoreCurveStopwatchesFromSettings();
+
+            KeyDown += OnWindowKeyDown;
+            WindowResources.Add(() => KeyDown -= OnWindowKeyDown);
+            InitializeComponentState();
+            NotifyUpdateStateChanged();
+        }
+        catch
+        {
+            UIContentGeneration? failedGeneration = ActiveContentGeneration;
+            RunCloseCleanup(nameof(DisposeContentGeneration), () =>
+            {
+                try { DisposeContentGeneration(); }
+                finally { failedGeneration?.Dispose(); }
+            });
+            RunCloseCleanup(nameof(UIResourceScope.Dispose), _externalResources.Dispose);
+            RunCloseCleanup("WindowResources.Dispose", WindowResources.Dispose);
+            RunCloseCleanup(nameof(BrightnessFlyoutSession.Dispose), _session.Dispose);
+            throw;
+        }
     }
 
     private void InitializeComponentState()
@@ -288,6 +331,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
+        if (!IsWindowAlive) return;
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
@@ -296,11 +340,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Opacity = 0;
             Position = OffscreenPosition();
-            Show();
+            base.Show();
         }
 
+        long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
         {
+            if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
             AppServices.DisplayEventManager?.RunSingleGatedScan();
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
@@ -312,10 +358,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public new void Show()
     {
+        if (!IsWindowAlive) return;
+        if (ActiveContentGeneration == null) RebuildVisual();
         base.Show();
         AppServices.DisplayEventManager?.RunSingleGatedScan();
+        long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
         {
+            if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
@@ -325,6 +375,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void ShowWithoutActivating()
     {
+        if (!IsWindowAlive) return;
+        if (ActiveContentGeneration == null) RebuildVisual();
         ShowActivated = false;
         try
         {
@@ -336,8 +388,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         AppServices.DisplayEventManager?.RunSingleGatedScan();
+        long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
         {
+            if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
@@ -348,6 +402,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public new void Hide()
     {
+        _visibilityGeneration++;
         CancelPreviewSweep();
         CancelConfirmOverlay();
         base.Hide();
@@ -357,11 +412,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public override void DismissForWarmCache() => Hide();
 
-    private static void TrimHiddenWarmResources() =>
-        SkiaFlyoutGlyphIcon.ClearBitmapCache();
+    private static void TrimHiddenWarmResources()
+    {
+        // Keep exactly one current generation warm. Hidden structural changes retire it in QueueRebuildVisual.
+    }
 
-    private static void DisposeWarmResources() =>
-        SkiaFlyoutGlyphIcon.DisposeSharedResources();
+    private void DisposeWarmResources() => DisposeContentGeneration();
 
     public void Redock()
     {
@@ -390,6 +446,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void NotifyUpdateStateChanged() => Dispatcher.UIThread.Post(() =>
     {
+        if (!IsWindowAlive) return;
         bool toggleOn = _settings?.ShowUpdateButtonInFlyout ?? true;
         bool available = AppServices.UpdateCheckService?.AvailableUpdate != null;
         _isUpdateButtonVisible = toggleOn && available;
@@ -605,6 +662,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     /// <summary>Rebuilds the flyout and logs failures before they can escape the dispatcher.</summary>
     private void RebuildVisual()
     {
+        if (_isClosed) return;
+        if (_isDraggingWindow || IsAnySliderGestureActive())
+        {
+            _rebuildVisualPending = true;
+            if (IsAnySliderGestureActive()) _deferredSliderGestureRebuild = true;
+            return;
+        }
+
         try { RebuildVisualCore(); }
         catch (Exception ex)
         {
@@ -617,7 +682,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     /// <summary>Builds the visual tree before replacing the existing content.</summary>
     private void RebuildVisualCore()
     {
-        if (_layout == null) return;
+        if (_layout == null || _isClosed) return;
         if (_isRebuildingVisual)
         {
             _rebuildVisualPending = true;
@@ -628,10 +693,15 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _rebuildVisualPending = false;
         _rebuildVisualQueued = false;
 
+        UIResourceScope candidateResources = new(
+            nameof(BrightnessFlyoutWindow) + ".Content",
+            exception => WPFLog.Log(
+                $"BrightnessFlyoutWindow content cleanup failed: {exception.GetType().Name}: {exception.Message}"));
+        FlyoutVisualState candidate = new();
+        candidateResources.Add(() => ReleaseVisualState(candidate));
+
         try
         {
-            _profilePreviewRows.Clear();
-
             bool isLight = BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings);
             SettingsPalette settingsPalette = CreateSettingsPalette(_theme, _settings, isLight);
             FlyoutControlPalette palette = CreateFlyoutPalette(_theme, _settings, settingsPalette, isLight);
@@ -641,22 +711,22 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-            ScrollViewer rows = BuildRows(palette);
+            ScrollViewer rows = BuildRows(palette, candidate, candidateResources);
             Grid.SetRow(rows, 0);
             rootGrid.Children.Add(rows);
 
-            Border footer = BuildFooter(palette, rounded);
+            Border footer = BuildFooter(palette, rounded, candidateResources);
             Grid.SetRow(footer, 1);
             rootGrid.Children.Add(footer);
 
-            AddFloatingButtons(rootGrid, palette);
+            AddFloatingButtons(rootGrid, palette, candidate, candidateResources);
 
-            _confirmOverlay = BuildConfirmOverlay(settingsPalette, rounded);
-            _confirmOverlay.IsVisible = false;
-            Grid.SetRowSpan(_confirmOverlay, 2);
-            rootGrid.Children.Add(_confirmOverlay);
+            candidate.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, rounded, candidate);
+            candidate.ConfirmOverlay.IsVisible = false;
+            Grid.SetRowSpan(candidate.ConfirmOverlay, 2);
+            rootGrid.Children.Add(candidate.ConfirmOverlay);
 
-            _rootCard = new Border
+            candidate.RootCard = new Border
             {
                 Background = TrayAppDotNETFlyoutUI.Brush(_theme.ResolveBackground(_settings, isLight)),
                 BorderBrush = TrayAppDotNETFlyoutUI.Brush(_theme.Border.For(isLight)),
@@ -678,11 +748,27 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                     Child = rootGrid
                 }
             };
-            _rootCard.PointerPressed += OnRootPointerPressed;
-            _rootCard.PointerMoved += OnRootPointerMoved;
-            _rootCard.PointerReleased += OnRootPointerReleased;
-            _rootCard.PointerCaptureLost += OnRootPointerCaptureLost;
-            Content = _rootCard;
+            candidate.RootCard.PointerPressed += OnRootPointerPressed;
+            candidateResources.Add(() => candidate.RootCard.PointerPressed -= OnRootPointerPressed);
+            candidate.RootCard.PointerMoved += OnRootPointerMoved;
+            candidateResources.Add(() => candidate.RootCard.PointerMoved -= OnRootPointerMoved);
+            candidate.RootCard.PointerReleased += OnRootPointerReleased;
+            candidateResources.Add(() => candidate.RootCard.PointerReleased -= OnRootPointerReleased);
+            candidate.RootCard.PointerCaptureLost += OnRootPointerCaptureLost;
+            candidateResources.Add(() => candidate.RootCard.PointerCaptureLost -= OnRootPointerCaptureLost);
+
+            UIContentGeneration replacement = new(
+                nameof(BrightnessFlyoutWindow),
+                candidate.RootCard,
+                candidateResources,
+                logError: exception => WPFLog.Log(
+                    $"BrightnessFlyoutWindow root release failed: {exception.GetType().Name}: {exception.Message}"));
+            PublishAndCommitVisualState(candidate, replacement);
+        }
+        catch
+        {
+            candidateResources.Dispose();
+            throw;
         }
         finally
         {
@@ -692,19 +778,96 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         FlushPendingRebuildVisual();
     }
 
+    private void PublishAndCommitVisualState(FlyoutVisualState candidate, UIContentGeneration replacement)
+    {
+        FlyoutVisualState? previous = _visualState;
+        try
+        {
+            ApplyVisualState(candidate);
+            CommitContentGeneration(replacement);
+        }
+        catch
+        {
+            if (!ReferenceEquals(ActiveContentGeneration, replacement))
+            {
+                replacement.Dispose();
+                ApplyVisualState(previous);
+            }
+
+            throw;
+        }
+    }
+
+    private void ApplyVisualState(FlyoutVisualState? candidate)
+    {
+        _profilePreviewRows = candidate?.ProfilePreviewRows ?? [];
+        _rootCard = candidate?.RootCard;
+        _undockButton = candidate?.UndockButton;
+        _undockButtonController = candidate?.UndockButtonController;
+        _scrollViewer = candidate?.ScrollViewer;
+        _confirmOverlay = candidate?.ConfirmOverlay;
+        _confirmTitle = candidate?.ConfirmTitle;
+        _confirmMessage = candidate?.ConfirmMessage;
+        _confirmOK = candidate?.ConfirmOK;
+        _confirmCancel = candidate?.ConfirmCancel;
+        _visualState = candidate;
+    }
+
+    private void ReleaseVisualState(FlyoutVisualState candidate)
+    {
+        IPointer? capturedPointer = candidate.RootCapturedPointer;
+        candidate.RootCapturedPointer = null;
+        if (capturedPointer != null)
+        {
+            try { capturedPointer.Capture(null); }
+            catch (Exception exception)
+            {
+                WPFLog.Log($"BrightnessFlyoutWindow root pointer release failed: {exception.Message}");
+            }
+        }
+
+        SettingsButton? confirmOK = candidate.ConfirmOK;
+        if (confirmOK != null)
+        {
+            confirmOK.Click -= OnConfirmOKClicked;
+            confirmOK.Tag = null;
+        }
+
+        SettingsButton? confirmCancel = candidate.ConfirmCancel;
+        if (confirmCancel != null)
+            confirmCancel.Click -= OnConfirmCancelClicked;
+
+        if (!ReferenceEquals(_visualState, candidate)) return;
+
+        ApplyVisualState(null);
+        _isDraggingWindow = false;
+    }
+
     /// <summary>Queues one coalesced visual rebuild and defers hidden warm-window churn.</summary>
     private void QueueRebuildVisual()
     {
+        if (!IsWindowAlive) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(QueueRebuildVisual, DispatcherPriority.Background);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (IsWindowAlive) QueueRebuildVisual();
+            }, DispatcherPriority.Background);
             return;
         }
 
         if (_layout == null) return;
-        if (!IsVisible && !IsWarmPriming || _isRebuildingVisual)
+        if (!IsVisible && !IsWarmPriming)
         {
             _rebuildVisualPending = true;
+            DisposeContentGeneration();
+            return;
+        }
+
+        if (_isRebuildingVisual || _isDraggingWindow || IsAnySliderGestureActive())
+        {
+            _rebuildVisualPending = true;
+            if (IsAnySliderGestureActive()) _deferredSliderGestureRebuild = true;
             return;
         }
 
@@ -713,6 +876,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _rebuildVisualQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
+            if (!IsWindowAlive) return;
             _rebuildVisualQueued = false;
             RebuildVisual();
         }, DispatcherPriority.Background);
@@ -727,14 +891,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         QueueRebuildVisual();
     }
 
-    private ScrollViewer BuildRows(FlyoutControlPalette palette)
+    private ScrollViewer BuildRows(
+        FlyoutControlPalette palette,
+        FlyoutVisualState candidate,
+        UIResourceScope resources)
     {
         StackPanel rows = new() { Spacing = 0, Margin = Layout.RowsMargin };
 
         if ((_settings?.ShowIndividualSliders ?? true) && Monitors.Count > 0)
         {
             foreach (MonitorInfo monitor in Monitors)
-                rows.Children.Add(BuildRow(monitor, palette));
+                rows.Children.Add(BuildRow(monitor, palette, candidate, resources));
         }
         else if (Monitors.Count == 0)
         {
@@ -745,12 +912,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         if (_settings?.ShowMasterSlider ?? true)
-            rows.Children.Add(BuildRow(MasterMonitor, palette));
+            rows.Children.Add(BuildRow(MasterMonitor, palette, candidate, resources));
 
         if (_settings?.ShowNightLightSlider ?? true)
-            rows.Children.Add(BuildRow(NightLightMonitor, palette));
+            rows.Children.Add(BuildRow(NightLightMonitor, palette, candidate, resources));
 
-        _scrollViewer = new ScrollViewer
+        candidate.ScrollViewer = new ScrollViewer
         {
             Content = rows,
             Focusable = false,
@@ -758,10 +925,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
-        return _scrollViewer;
+        return candidate.ScrollViewer;
     }
 
-    private Border BuildRow(MonitorInfo monitor, FlyoutControlPalette palette)
+    private Border BuildRow(
+        MonitorInfo monitor,
+        FlyoutControlPalette palette,
+        FlyoutVisualState candidate,
+        UIResourceScope resources)
     {
         Grid grid = new()
         {
@@ -795,7 +966,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Margin = Layout.RowStopwatchMargin
             };
             if (monitor.IsCurveStopwatchEnabled)
-                stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor));
+                stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor, resources));
             stopwatch.Children.Add(BuildCurveStopwatchButton(monitor, palette));
             TrayAppDotNETToolTip.SetTip(stopwatch, monitor.CurveStopwatchToolTip);
             Grid.SetColumn(stopwatch, 2);
@@ -843,7 +1014,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
-        FlyoutSlider slider = CreateSlider(monitor, palette);
+        FlyoutSlider slider = CreateSlider(monitor, palette, resources);
         Grid.SetColumn(slider, 0);
         sliderRow.Children.Add(slider);
 
@@ -865,11 +1036,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Background = Brushes.Transparent, Margin = Layout.RowMargin, Child = grid, Opacity = RowOpacity(monitor)
         };
-        _profilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value);
+        candidate.ProfilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value);
         return row;
     }
 
-    private Border BuildFooter(FlyoutControlPalette palette, bool rounded)
+    private Border BuildFooter(FlyoutControlPalette palette, bool rounded, UIResourceScope resources)
     {
         Grid grid = new()
         {
@@ -886,7 +1057,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center
         };
         foreach (ProfileButtonItem item in ProfileButtons)
-            profiles.Children.Add(BuildProfileFooterButton(item, palette));
+            profiles.Children.Add(BuildProfileFooterButton(item, palette, resources));
         if (_settings?.Autosave == false)
             profiles.Children.Add(BuildSaveProfileButton(palette));
         Grid.SetColumn(profiles, 0);
@@ -956,7 +1127,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return crowded ? Layout.FooterPaddingCrowded : Layout.FooterPaddingNormal;
     }
 
-    private Border BuildProfileFooterButton(ProfileButtonItem item, FlyoutControlPalette palette)
+    private Border BuildProfileFooterButton(
+        ProfileButtonItem item,
+        FlyoutControlPalette palette,
+        UIResourceScope resources)
     {
         Grid content = new() { IsHitTestVisible = false };
         TextBlock label = TrayAppDotNETFlyoutUI.Text(item.Glyph, palette, Layout.ProfileGlyphFontSize, FontWeight.Bold);
@@ -984,7 +1158,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _ => SelectProfileApplyingMode(item.Index), Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, 0,
             tooltip: ProfileTooltip(item.Index));
         button.Child = content;
-        AttachProfilePreviewHandlers(button, item.Index);
+        AttachProfilePreviewHandlers(button, item.Index, resources);
         return button;
     }
 
@@ -1036,11 +1210,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return button;
     }
 
-    private SettingsNumberBox BuildCurveStopwatchNumberBox(MonitorInfo monitor)
+    private SettingsNumberBox BuildCurveStopwatchNumberBox(MonitorInfo monitor, UIResourceScope resources)
     {
         bool isLight = BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings);
         SettingsNumberBox number =
-            new(CreateSettingsPalette(_theme, _settings, isLight), monitor.CurveStopwatchMinutes, 1, 1440,
+            resources.Own(new SettingsNumberBox(
+                CreateSettingsPalette(_theme, _settings, isLight), monitor.CurveStopwatchMinutes, 1, 1440,
                 Layout.StopwatchBoxWidth, "m")
             {
                 Height = Layout.StopwatchBoxHeight,
@@ -1050,7 +1225,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 LargeStep = 30,
                 ExtraLargeStep = 60,
                 HandleMouseWheelWhenMouseOver = true
-            };
+            });
         number.ValueChanged += (_, e) =>
         {
             int value = e.NewValue.HasValue
@@ -1135,7 +1310,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return new EnvironmentalCurveGlyphIcon { Width = size, Height = size, IconColor = palette.IconForeground };
     }
 
-    private void AddFloatingButtons(Grid rootGrid, FlyoutControlPalette palette)
+    private void AddFloatingButtons(
+        Grid rootGrid,
+        FlyoutControlPalette palette,
+        FlyoutVisualState candidate,
+        UIResourceScope resources)
     {
         if (IsUpdateButtonVisible)
         {
@@ -1150,15 +1329,18 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             rootGrid.Children.Add(update);
         }
 
-        _undockButton = BuildUndockButton(palette);
-        _undockButton.HorizontalAlignment = HorizontalAlignment.Right;
-        _undockButton.VerticalAlignment = VerticalAlignment.Top;
-        _undockButton.Margin = Layout.UndockButtonMargin;
-        Grid.SetRow(_undockButton, 0);
-        rootGrid.Children.Add(_undockButton);
+        candidate.UndockButton = BuildUndockButton(palette, candidate, resources);
+        candidate.UndockButton.HorizontalAlignment = HorizontalAlignment.Right;
+        candidate.UndockButton.VerticalAlignment = VerticalAlignment.Top;
+        candidate.UndockButton.Margin = Layout.UndockButtonMargin;
+        Grid.SetRow(candidate.UndockButton, 0);
+        rootGrid.Children.Add(candidate.UndockButton);
     }
 
-    private FlyoutSlider CreateSlider(MonitorInfo monitor, FlyoutControlPalette palette)
+    private FlyoutSlider CreateSlider(
+        MonitorInfo monitor,
+        FlyoutControlPalette palette,
+        UIResourceScope resources)
     {
         bool isLight = BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings);
         bool curveDrivenWithTarget = monitor is
@@ -1192,6 +1374,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             IndicatorOpacity = monitor.IsCurveSleeping ? 0.45 : 1.0,
             ThumbOpacity = curveDrivenWithTarget && IsCurveAbsoluteMode ? 0.4 : 1.0
         };
+        resources.Own(slider);
         slider.UserAdjustmentStarted += (_, _) =>
         {
             BeginSliderGesture(monitor);
@@ -1218,9 +1401,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return slider;
     }
 
-    private Border BuildUndockButton(FlyoutControlPalette palette)
+    private Border BuildUndockButton(
+        FlyoutControlPalette palette,
+        FlyoutVisualState candidate,
+        UIResourceScope resources)
     {
-        _undockButtonController = new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
+        candidate.UndockButtonController = resources.Own(
+            new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
         {
             Width = Layout.HeaderButtonSize,
             Height = Layout.HeaderButtonSize,
@@ -1236,39 +1423,43 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             SetUndockedFromDrag = SetUndockedFromDrag,
             ToggleUndocked = ToggleUndocked,
             CommitDragPosition = CommitDragPosition,
-            DraggingChanged = dragging => _isDraggingWindow = dragging,
+            DraggingChanged = dragging =>
+            {
+                _isDraggingWindow = dragging;
+                if (!dragging) FlushPendingRebuildVisual();
+            },
             UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
             RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
             DragThreshold = Layout.DragThreshold,
             CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
-        });
-        return _undockButtonController.Button;
+        }));
+        return candidate.UndockButtonController.Button;
     }
 
-    private Border BuildConfirmOverlay(SettingsPalette palette, bool rounded)
+    private Border BuildConfirmOverlay(SettingsPalette palette, bool rounded, FlyoutVisualState candidate)
     {
-        _confirmTitle = TrayAppDotNETFlyoutUI.Text(string.Empty,
+        candidate.ConfirmTitle = TrayAppDotNETFlyoutUI.Text(string.Empty,
             CreateFlyoutPalette(_theme, _settings, palette, BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
             Layout.ConfirmTitleFontSize, FontWeight.SemiBold);
-        _confirmMessage = TrayAppDotNETFlyoutUI.Text(string.Empty,
+        candidate.ConfirmMessage = TrayAppDotNETFlyoutUI.Text(string.Empty,
             CreateFlyoutPalette(_theme, _settings, palette, BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
             Layout.ConfirmMessageFontSize, color: palette.SecondaryForeground);
-        _confirmMessage.TextWrapping = TextWrapping.Wrap;
+        candidate.ConfirmMessage.TextWrapping = TextWrapping.Wrap;
 
-        _confirmOK = TrayAppDotNETSettingsUI.Button("OK", palette);
-        _confirmCancel = TrayAppDotNETSettingsUI.Button("Cancel", palette);
+        candidate.ConfirmOK = TrayAppDotNETSettingsUI.Button("OK", palette);
+        candidate.ConfirmCancel = TrayAppDotNETSettingsUI.Button("Cancel", palette);
         StackPanel buttons = new()
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             Spacing = Layout.ConfirmButtonsSpacing
         };
-        buttons.Children.Add(_confirmCancel);
-        buttons.Children.Add(_confirmOK);
+        buttons.Children.Add(candidate.ConfirmCancel);
+        buttons.Children.Add(candidate.ConfirmOK);
 
         StackPanel panel = new() { Spacing = Layout.ConfirmPanelSpacing };
-        panel.Children.Add(_confirmTitle);
-        panel.Children.Add(_confirmMessage);
+        panel.Children.Add(candidate.ConfirmTitle);
+        panel.Children.Add(candidate.ConfirmMessage);
         panel.Children.Add(buttons);
 
         Border box = new()
@@ -1295,7 +1486,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private async void ShowUpdateConfirmation()
     {
-        if (_isUpdateDownloadInFlight) return;
+        if (!IsWindowAlive || _isUpdateDownloadInFlight) return;
         UpdateCheckService? service = AppServices.UpdateCheckService;
         UpdateInfo? info = service?.AvailableUpdate;
         if (service == null || info == null) return;
@@ -1318,9 +1509,18 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
                     lifetime.Shutdown();
             },
-            SetPromptOpen = open => _isUpdateDialogOpen = open,
-            SetDownloadInFlight = inFlight => _isUpdateDownloadInFlight = inFlight,
-            PromptClosed = NotifyChildWindowClosedFromDeactivation
+            SetPromptOpen = open =>
+            {
+                if (IsWindowAlive) _isUpdateDialogOpen = open;
+            },
+            SetDownloadInFlight = inFlight =>
+            {
+                if (IsWindowAlive) _isUpdateDownloadInFlight = inFlight;
+            },
+            PromptClosed = () =>
+            {
+                if (IsWindowAlive) NotifyChildWindowClosedFromDeactivation();
+            }
         });
     }
 
@@ -1516,6 +1716,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnMonitorPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (!IsWindowAlive) return;
         if (e.PropertyName == nameof(MonitorInfo.EffectiveRoundedBrightness))
         {
             BrightnessUpdated?.Invoke();
@@ -1581,6 +1782,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnNightLightPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (!IsWindowAlive) return;
         if (e.PropertyName == nameof(MonitorInfo.SliderState))
         {
             UpdateCurveStopwatchVisibility(NightLightMonitor);
@@ -1599,6 +1801,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnMonitorsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (!IsWindowAlive) return;
         switch (e.Action)
         {
             case NotifyCollectionChangedAction.Add:
@@ -1662,6 +1865,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnInitialMonitorEnrollmentRefreshed()
     {
+        if (!IsWindowAlive) return;
         if (!_awaitingInitialAsyncMonitorEnrollment || Monitors.Count == 0) return;
         _awaitingInitialAsyncMonitorEnrollment = false;
         _suppressPropagation = true;
@@ -1678,6 +1882,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnMonitorsAcquired(IReadOnlyList<MonitorInfo> acquired)
     {
+        if (!IsWindowAlive) return;
         if (acquired.Count == 0 || IsBrightnessCurveEnabled) return;
 
         foreach (MonitorInfo monitor in acquired)
@@ -1698,7 +1903,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (masterIndex < 0) AllItems.Add(monitor);
         else AllItems.Insert(masterIndex, monitor);
 
-        monitor.PropertyChanged += OnMonitorPropertyChanged;
+        SubscribeMonitor(monitor);
         _suppressPropagation = true;
         try
         {
@@ -1728,7 +1933,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void DetachMonitor(MonitorInfo monitor)
     {
         _deferredManualCurveOverrideResync.Remove(monitor);
-        monitor.PropertyChanged -= OnMonitorPropertyChanged;
+        UnsubscribeMonitor(monitor);
         MasterMonitor.Dependents.Remove(monitor);
         AllItems.Remove(monitor);
         _suppressPropagation = true;
@@ -1736,8 +1941,28 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         finally { _suppressPropagation = false; }
     }
 
+    private void SubscribeMonitor(MonitorInfo monitor)
+    {
+        if (!_subscribedMonitors.Add(monitor)) return;
+        monitor.PropertyChanged += OnMonitorPropertyChanged;
+    }
+
+    private void UnsubscribeMonitor(MonitorInfo monitor)
+    {
+        if (!_subscribedMonitors.Remove(monitor)) return;
+        monitor.PropertyChanged -= OnMonitorPropertyChanged;
+    }
+
+    private void UnsubscribeAllMonitors()
+    {
+        foreach (MonitorInfo monitor in _subscribedMonitors.ToArray())
+            monitor.PropertyChanged -= OnMonitorPropertyChanged;
+        _subscribedMonitors.Clear();
+    }
+
     private void OnSelectedProfileChanged(int newIndex)
     {
+        if (!IsWindowAlive) return;
         foreach (ProfileButtonItem item in ProfileButtons)
             item.IsSelected = item.Index == newIndex;
         ClearPreviewDateCurve();
@@ -1749,6 +1974,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnProfilesListChanged()
     {
+        if (!IsWindowAlive) return;
         ClearPreviewDateCurve();
         BuildProfileButtonItems();
         QueueRebuildVisual();
@@ -1756,6 +1982,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void UpdateSaveButtonState(bool hasUnsavedChanges)
     {
+        if (!IsWindowAlive) return;
         if (_hasUnsavedChanges == hasUnsavedChanges) return;
         _hasUnsavedChanges = hasUnsavedChanges;
         OnPropertyChanged(nameof(HasUnsavedChanges));
@@ -1886,10 +2113,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         RefreshProfilePreviewVisuals();
     }
 
-    private void AttachProfilePreviewHandlers(Border button, int profileIndex)
+    private void AttachProfilePreviewHandlers(Border button, int profileIndex, UIResourceScope resources)
     {
-        button.PointerEntered += (_, _) => ShowProfilePreview(profileIndex);
-        button.PointerExited += (_, _) => ClearProfilePreviewFromButton(profileIndex, button);
+        EventHandler<PointerEventArgs> entered = (_, _) => ShowProfilePreview(profileIndex);
+        EventHandler<PointerEventArgs> exited = (_, _) => ClearProfilePreviewFromButton(profileIndex, button);
+        button.PointerEntered += entered;
+        resources.Add(() => button.PointerEntered -= entered);
+        button.PointerExited += exited;
+        resources.Add(() => button.PointerExited -= exited);
     }
 
     private void ClearProfilePreviewFromButton(int profileIndex, Border button)
@@ -2071,6 +2302,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
     {
+        if (!IsWindowAlive) return;
         UpdateMasterFromEnabledIndividuals();
         int providerStrength = NightLightProvider.IsSupported() ? NightLightProvider.GetStrength() : 0;
         int displayValue = FlipIfNightLightInverted(providerStrength);
@@ -2157,7 +2389,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void RunHardPowerOff(MonitorInfo monitor)
     {
+        if (!IsWindowAlive) return;
         string EDIDSerial = monitor.EDIDSerial;
+        string? lastDDCError = monitor.LastDDCError;
+        MonitorService monitorService = _monitorService;
+        WeakReference<BrightnessFlyoutWindow> windowReference = new(this);
+        CancellationToken cancellationToken = WindowResources.CancellationToken;
         ShowConfirmOverlay(
             L("Flyout_HardPowerOff_Title", "Power off display"),
             L("Flyout_HardPowerOff_InProgress", "Sending hard power-off command..."),
@@ -2167,11 +2404,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         _ = Task.Run(() =>
         {
+            if (cancellationToken.IsCancellationRequested) return;
             bool ok;
             string? error;
             try
             {
-                ok = _monitorService.TryHardPowerOffByEDIDSerial(EDIDSerial, out error);
+                ok = monitorService.TryHardPowerOffByEDIDSerial(EDIDSerial, out error);
             }
             catch (Exception ex)
             {
@@ -2182,6 +2420,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
             Dispatcher.UIThread.Post(() =>
             {
+                if (cancellationToken.IsCancellationRequested ||
+                    !windowReference.TryGetTarget(out BrightnessFlyoutWindow? window) ||
+                    !window.IsWindowAlive)
+                    return;
                 string message = ok
                     ? L("Flyout_HardPowerOff_Success", "The hard power-off command was sent.")
                     : string.Format(
@@ -2189,14 +2431,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                         L("Flyout_HardPowerOff_FailedFormat", "Hard power-off failed: {0}"),
                         !string.IsNullOrWhiteSpace(error)
                             ? error
-                            : monitor.LastDDCError ?? L("Flyout_HardPowerOff_NoResponseDetail",
+                            : lastDDCError ?? L("Flyout_HardPowerOff_NoResponseDetail",
                                 "No response from the display."));
-                ShowConfirmOverlay(
+                window.ShowConfirmOverlay(
                     L("Flyout_HardPowerOff_Title", "Power off display"),
                     message,
                     okText: L("Common_OK", "OK"),
                     cancelText: null,
-                    onOK: CancelConfirmOverlay);
+                    onOK: window.CancelConfirmOverlay);
             });
         });
     }
@@ -2340,6 +2582,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void RunPreviewSweep(EnvironmentalCurve? previewCurve, EnvironmentalCurve? disabledPeriodCurve)
     {
+        if (!IsWindowAlive) return;
         _previewSweepCurveOverride = previewCurve ?? _previewDateCurveOverride;
         _previewSweepDisabledPeriodOverride = disabledPeriodCurve ?? _previewDateDisabledPeriodOverride;
         _previewSweepSuspendedCurveService = !_previewDateHardwareActive;
@@ -2349,37 +2592,48 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _previewSweepStopwatch = Stopwatch.StartNew();
         int rateMs = Math.Max(TimeConstants.BrightnessUpdateRateMinMs,
             _settings?.BrightnessUpdateRateMs ?? TimeConstants.BrightnessUpdateRateDefaultMs);
-        _previewSweepTimer =
-            new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(rateMs) };
-        _previewSweepTimer.Tick += PreviewSweepHardwareTick;
-        PreviewSweepStateChanged?.Invoke(true);
-        QueuePreviewSweepAnimationFrame();
-        _previewSweepTimer.Start();
-        PreviewSweepHardwareTick(null, EventArgs.Empty);
+        DispatcherTimer previewTimer =
+            new(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(rateMs) };
+        previewTimer.Tick += PreviewSweepHardwareTick;
+        _previewSweepTimer = previewTimer;
+        long animationGeneration = _previewSweepFrames.Start();
+        RaisePreviewSweepStateChanged(true);
+        if (!ReferenceEquals(_previewSweepTimer, previewTimer) || !IsWindowAlive) return;
+        QueuePreviewSweepAnimationFrame(animationGeneration);
+        try
+        {
+            previewTimer.Start();
+            PreviewSweepHardwareTick(null, EventArgs.Empty);
+        }
+        catch
+        {
+            if (ReferenceEquals(_previewSweepTimer, previewTimer)) FinishPreviewSweep();
+            throw;
+        }
     }
 
-    private void QueuePreviewSweepAnimationFrame()
+    private void QueuePreviewSweepAnimationFrame(long generation)
     {
-        if (_previewSweepAnimationFrameQueued || _previewSweepStopwatch == null) return;
-        _previewSweepAnimationFrameQueued = true;
-        RequestAnimationFrame(OnPreviewSweepAnimationFrame);
+        if (!IsWindowAlive || _previewSweepStopwatch == null || !_previewSweepFrames.TryQueue(generation)) return;
+        RequestAnimationFrame(timestamp => OnPreviewSweepAnimationFrame(timestamp, generation));
     }
 
-    private void OnPreviewSweepAnimationFrame(TimeSpan _)
+    private void OnPreviewSweepAnimationFrame(TimeSpan _, long generation)
     {
-        _previewSweepAnimationFrameQueued = false;
-        if (_previewSweepStopwatch == null) return;
+        if (!IsWindowAlive || !_previewSweepFrames.TryConsume(generation) || _previewSweepStopwatch == null) return;
         double s = _previewSweepStopwatch.Elapsed.TotalMilliseconds /
                    TimeConstants.BrightnessFlyoutPreviewSweepDurationMs;
         if (s > 1.0) s = 1.0;
-        PreviewSweepProgress?.Invoke(WrapSweepFraction(s));
+        RaisePreviewSweepProgress(WrapSweepFraction(s));
         if (s < 1.0)
-            QueuePreviewSweepAnimationFrame();
+            QueuePreviewSweepAnimationFrame(generation);
     }
 
     private void PreviewSweepHardwareTick(object? sender, EventArgs e)
     {
-        if (_previewSweepStopwatch == null) return;
+        // A stopped timer can still have a queued tick; ignore ticks from a superseded sweep
+        if (sender != null && !ReferenceEquals(sender, _previewSweepTimer)) return;
+        if (!IsWindowAlive || _previewSweepStopwatch == null) return;
         double s = _previewSweepStopwatch.Elapsed.TotalMilliseconds /
                    TimeConstants.BrightnessFlyoutPreviewSweepDurationMs;
         bool finished = s >= 1.0;
@@ -2406,24 +2660,56 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void FinishPreviewSweep()
     {
-        if (_previewSweepTimer != null)
+        DispatcherTimer? previewTimer = _previewSweepTimer;
+        _previewSweepTimer = null;
+        if (previewTimer != null)
         {
-            _previewSweepTimer.Stop();
-            _previewSweepTimer.Tick -= PreviewSweepHardwareTick;
-            _previewSweepTimer = null;
+            try { previewTimer.Stop(); }
+            catch (Exception exception)
+            {
+                WPFLog.Log($"BrightnessFlyoutWindow preview timer stop failed: {exception.Message}");
+            }
+
+            previewTimer.Tick -= PreviewSweepHardwareTick;
         }
 
         _previewSweepStopwatch = null;
         _previewSweepCurveOverride = null;
         _previewSweepDisabledPeriodOverride = null;
-        _previewSweepAnimationFrameQueued = false;
+        _previewSweepFrames.Invalidate();
         bool resumeLiveCurveService = _previewSweepSuspendedCurveService;
         _previewSweepSuspendedCurveService = false;
-        PreviewSweepStateChanged?.Invoke(false);
-        if (resumeLiveCurveService)
-            _curveService.Resume();
-        else if (_previewDateHardwareActive)
-            ApplyPreviewDateCurveAtCurrentTime();
+        try
+        {
+            if (resumeLiveCurveService)
+                _curveService.Resume();
+            else if (_previewDateHardwareActive)
+                ApplyPreviewDateCurveAtCurrentTime();
+        }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessFlyoutWindow.FinishPreviewSweep restore failed: {exception.Message}");
+        }
+
+        RaisePreviewSweepStateChanged(false);
+    }
+
+    private void RaisePreviewSweepStateChanged(bool isRunning)
+    {
+        try { PreviewSweepStateChanged?.Invoke(isRunning); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessFlyoutWindow preview state subscriber failed: {exception.Message}");
+        }
+    }
+
+    private void RaisePreviewSweepProgress(double progress)
+    {
+        try { PreviewSweepProgress?.Invoke(progress); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessFlyoutWindow preview progress subscriber failed: {exception.Message}");
+        }
     }
 
     /// <summary>
@@ -2605,26 +2891,44 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         if (_curveStopwatchTimer == null)
         {
-            _curveStopwatchTimer =
-                new DispatcherTimer(DispatcherPriority.Background)
+            DispatcherTimer curveStopwatchTimer =
+                new(DispatcherPriority.Background)
                 {
                     Interval = TimeSpan.FromMilliseconds(TimeConstants.CurveStopwatchRefreshIntervalMs)
                 };
-            _curveStopwatchTimer.Tick += OnCurveStopwatchTimerTick;
+            curveStopwatchTimer.Tick += OnCurveStopwatchTimerTick;
+            _curveStopwatchTimer = curveStopwatchTimer;
         }
 
-        if (!_curveStopwatchTimer.IsEnabled) _curveStopwatchTimer.Start();
+        if (_curveStopwatchTimer.IsEnabled) return;
+        try { _curveStopwatchTimer.Start(); }
+        catch
+        {
+            StopCurveStopwatchTimer();
+            throw;
+        }
     }
 
     private void StopCurveStopwatchTimer()
     {
-        if (_curveStopwatchTimer == null) return;
-        _curveStopwatchTimer.Stop();
-        _curveStopwatchTimer.Tick -= OnCurveStopwatchTimerTick;
+        DispatcherTimer? curveStopwatchTimer = _curveStopwatchTimer;
         _curveStopwatchTimer = null;
+        if (curveStopwatchTimer == null) return;
+        try { curveStopwatchTimer.Stop(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessFlyoutWindow curve stopwatch timer stop failed: {exception.Message}");
+        }
+
+        curveStopwatchTimer.Tick -= OnCurveStopwatchTimerTick;
     }
 
-    private void OnCurveStopwatchTimerTick(object? sender, EventArgs e) => ProcessCurveStopwatchDeadlines();
+    private void OnCurveStopwatchTimerTick(object? sender, EventArgs e)
+    {
+        // Do not let a queued tick from a stopped timer act on its replacement
+        if (!ReferenceEquals(sender, _curveStopwatchTimer)) return;
+        ProcessCurveStopwatchDeadlines();
+    }
 
     private void ProcessCurveStopwatchDeadlines()
     {
@@ -2755,7 +3059,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnRootPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        FlyoutVisualState? visualState = _visualState;
+        if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
         if (!_isUndocked) return;
+        if (_isDraggingWindow || visualState.RootCapturedPointer != null) return;
         if (_undockButtonController?.IsPointerCaptured == true) return;
         if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
@@ -2764,13 +3071,29 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
         PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
-        e.Pointer.Capture(control);
+        visualState.RootCapturedPointer = e.Pointer;
         _isDraggingWindow = true;
+        try { e.Pointer.Capture(control); }
+        catch
+        {
+            if (ReferenceEquals(visualState.RootCapturedPointer, e.Pointer))
+                visualState.RootCapturedPointer = null;
+            _isDraggingWindow = false;
+            try { e.Pointer.Capture(null); }
+            catch (Exception releaseException)
+            {
+                WPFLog.Log($"BrightnessFlyoutWindow capture rollback failed: {releaseException.Message}");
+            }
+            throw;
+        }
         e.Handled = true;
     }
 
     private void OnRootPointerMoved(object? sender, PointerEventArgs e)
     {
+        FlyoutVisualState? visualState = _visualState;
+        if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
+        if (!ReferenceEquals(e.Pointer, visualState.RootCapturedPointer)) return;
         if (!_isDraggingWindow || !_isUndocked || _undockButtonController?.IsPointerCaptured == true) return;
         if (sender is not Control control) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
@@ -2788,6 +3111,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnRootPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        FlyoutVisualState? visualState = _visualState;
+        if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
+        if (!ReferenceEquals(e.Pointer, visualState.RootCapturedPointer)) return;
         if (!_isDraggingWindow || _undockButtonController?.IsPointerCaptured == true) return;
         EndRootDrag(e.Pointer, commit: true);
         e.Handled = true;
@@ -2795,16 +3121,31 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void OnRootPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
+        FlyoutVisualState? visualState = _visualState;
+        if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
+        if (!ReferenceEquals(e.Pointer, visualState.RootCapturedPointer)) return;
+
+        visualState.RootCapturedPointer = null;
         if (_isDraggingWindow && _undockButtonController?.IsPointerCaptured != true)
             CommitDragPosition();
         _isDraggingWindow = false;
+        FlushPendingRebuildVisual();
     }
 
     private void EndRootDrag(IPointer pointer, bool commit)
     {
+        FlyoutVisualState? visualState = _visualState;
+        if (visualState == null || !ReferenceEquals(visualState.RootCapturedPointer, pointer)) return;
+
         _isDraggingWindow = false;
-        pointer.Capture(null);
+        visualState.RootCapturedPointer = null;
+        try { pointer.Capture(null); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessFlyoutWindow pointer release failed: {exception.Message}");
+        }
         if (commit) CommitDragPosition();
+        FlushPendingRebuildVisual();
     }
 
     private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition() =>
@@ -2920,10 +3261,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void QueuePositionNearTray()
     {
-        if (!IsVisible || _isDraggingWindow) return;
+        if (!IsWindowAlive || !IsVisible || _isDraggingWindow) return;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!IsVisible || _isDraggingWindow) return;
+            if (!IsWindowAlive || !IsVisible || _isDraggingWindow) return;
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
@@ -2964,32 +3305,60 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         e.Handled = true;
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    protected override void OnClosed(EventArgs e)
     {
-        DisposeWarmResources();
-        ClearPreviewDateCurve();
-        CancelPreviewSweep();
-        StopCurveStopwatchTimer();
-        MasterMonitor.PropertyChanged -= OnMonitorPropertyChanged;
-        foreach (MonitorInfo monitor in Monitors)
-            monitor.PropertyChanged -= OnMonitorPropertyChanged;
-        NightLightMonitor.PropertyChanged -= OnNightLightPropertyChanged;
-        Monitors.CollectionChanged -= OnMonitorsCollectionChanged;
-        _monitorService.MonitorsAcquired -= OnMonitorsAcquired;
-        _monitorService.MonitorsRefreshed -= OnInitialMonitorEnrollmentRefreshed;
-        _profileManager.SelectedProfileChanged -= OnSelectedProfileChanged;
-        _profileManager.UnsavedChangesStatusChanged -= UpdateSaveButtonState;
-        _profileManager.ProfilesListChanged -= OnProfilesListChanged;
-        if (_settings != null) _settings.Changed -= OnSettingsChanged;
-        if (AppServices.UpdateCheckService != null)
-            AppServices.UpdateCheckService.StateChanged -= NotifyUpdateStateChanged;
-        try { _session.Dispose(); }
-        catch (Exception ex) { WPFLog.Log($"BrightnessFlyoutWindow.OnClosed: {ex.Message}"); }
-
-        if (_settings != null)
+        if (_isClosed)
         {
-            _settings.LastMasterBrightness = (int)Math.Round(Math.Clamp(MasterMonitor.Brightness, 0, 100));
-            _settings.Save();
+            base.OnClosed(e);
+            return;
+        }
+
+        _isClosed = true;
+        try
+        {
+            // External publishers are the roots that can keep this window alive. Remove them before hardware work.
+            RunCloseCleanup(nameof(UIResourceScope.Dispose), _externalResources.Dispose);
+            UIContentGeneration? closingGeneration = ActiveContentGeneration;
+            RunCloseCleanup(nameof(DisposeContentGeneration), () =>
+            {
+                try { DisposeContentGeneration(); }
+                finally { closingGeneration?.Dispose(); }
+            });
+            RunCloseCleanup(nameof(StopCurveStopwatchTimer), StopCurveStopwatchTimer);
+
+            BrightnessUpdated = null;
+            SettingsRequested = null;
+            FlyoutDeactivated = null;
+            PreviewSweepStateChanged = null;
+            PreviewSweepProgress = null;
+            PropertyChanged = null;
+
+            RunCloseCleanup(nameof(CancelPreviewSweep), CancelPreviewSweep);
+            RunCloseCleanup(nameof(ClearPreviewDateCurve), ClearPreviewDateCurve);
+
+            if (_settings != null)
+            {
+                RunCloseCleanup("SaveLastMasterBrightness", () =>
+                {
+                    _settings.LastMasterBrightness = (int)Math.Round(Math.Clamp(MasterMonitor.Brightness, 0, 100));
+                    _settings.Save();
+                });
+            }
+
+            RunCloseCleanup(nameof(BrightnessFlyoutSession.Dispose), _session.Dispose);
+        }
+        finally
+        {
+            base.OnClosed(e);
+        }
+    }
+
+    private static void RunCloseCleanup(string operation, Action cleanup)
+    {
+        try { cleanup(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessFlyoutWindow.OnClosed {operation} failed: {exception.Message}");
         }
     }
 
@@ -3149,6 +3518,21 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 }
 
 internal sealed record ProfilePreviewRowVisuals(FlyoutSlider Slider, Border Row, TextBlock Value);
+
+internal sealed class FlyoutVisualState
+{
+    public Dictionary<MonitorInfo, ProfilePreviewRowVisuals> ProfilePreviewRows { get; } = [];
+    public Border RootCard { get; set; } = null!;
+    public Border UndockButton { get; set; } = null!;
+    public FlyoutUndockButtonController UndockButtonController { get; set; } = null!;
+    public ScrollViewer ScrollViewer { get; set; } = null!;
+    public Border ConfirmOverlay { get; set; } = null!;
+    public TextBlock ConfirmTitle { get; set; } = null!;
+    public TextBlock ConfirmMessage { get; set; } = null!;
+    public SettingsButton ConfirmOK { get; set; } = null!;
+    public SettingsButton ConfirmCancel { get; set; } = null!;
+    public IPointer? RootCapturedPointer { get; set; }
+}
 
 public sealed class ProfileButtonItem : INotifyPropertyChanged
 {

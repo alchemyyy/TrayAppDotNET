@@ -47,6 +47,8 @@ public sealed class EnvironmentalCurveService : IDisposable
     private readonly AsyncThrottler<string> _curveHardwareThrottler = new(0, StringComparer.Ordinal);
 
     private DispatcherTimer? _curveTimer;
+    private EventHandler? _curveTimerTickHandler;
+    private long _curveTimerGeneration;
 
     // Sun-shifted runtime curve cache so we don't pay an SPA round trip every tick. Keyed by
     // (source-curve reference, source-curve Version, today's date, current location, DST flag);
@@ -212,9 +214,18 @@ public sealed class EnvironmentalCurveService : IDisposable
         {
             if (_curveTimer == null)
             {
-                _curveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = interval };
-                _curveTimer.Tick += (_, _) => Evaluate();
-                _curveTimer.Start();
+                DispatcherTimer timer = new(DispatcherPriority.Background) { Interval = interval };
+                long generation = Interlocked.Increment(ref _curveTimerGeneration);
+                EventHandler tickHandler = (sender, e) => OnCurveTimerTick(sender, e, generation);
+                _curveTimer = timer;
+                _curveTimerTickHandler = tickHandler;
+                timer.Tick += tickHandler;
+                try { timer.Start(); }
+                catch
+                {
+                    StopCurveTimer();
+                    throw;
+                }
                 return;
             }
 
@@ -223,7 +234,10 @@ public sealed class EnvironmentalCurveService : IDisposable
             if (_curveTimer.Interval != interval) _curveTimer.Interval = interval;
             if (!_curveTimer.IsEnabled) _curveTimer.Start();
         }
-        else if (_curveTimer is { IsEnabled: true }) _curveTimer.Stop();
+        else
+        {
+            StopCurveTimer();
+        }
     }
 
     /// <summary>
@@ -233,7 +247,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     public void Stop()
     {
         if (_disposed) return;
-        if (_curveTimer is { IsEnabled: true }) _curveTimer.Stop();
+        StopCurveTimer();
     }
 
     /// <summary>
@@ -244,7 +258,7 @@ public sealed class EnvironmentalCurveService : IDisposable
     {
         if (_disposed) return;
         _isSuspended = true;
-        if (_curveTimer is { IsEnabled: true }) _curveTimer.Stop();
+        StopCurveTimer();
         _curveEventEvaluationThrottler.Drop(CurveEventEvaluationKey);
         DropQueuedHardwareWrites();
     }
@@ -260,6 +274,34 @@ public sealed class EnvironmentalCurveService : IDisposable
         DropQueuedHardwareWrites();
         Start();
         Evaluate();
+    }
+
+    private void OnCurveTimerTick(object? sender, EventArgs e, long generation)
+    {
+        // A stopped dispatcher timer may already have queued a tick before retirement
+        if (_disposed || _isSuspended) return;
+        if (generation != Volatile.Read(ref _curveTimerGeneration)) return;
+        if (!ReferenceEquals(sender, _curveTimer)) return;
+        Evaluate();
+    }
+
+    private void StopCurveTimer()
+    {
+        Interlocked.Increment(ref _curveTimerGeneration);
+        DispatcherTimer? timer = _curveTimer;
+        EventHandler? tickHandler = _curveTimerTickHandler;
+        _curveTimer = null;
+        _curveTimerTickHandler = null;
+        if (timer == null) return;
+
+        try { timer.Stop(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"EnvironmentalCurveService timer stop failed: {exception.Message}");
+        }
+
+        if (tickHandler != null)
+            timer.Tick -= tickHandler;
     }
 
     /// <summary>
@@ -1291,11 +1333,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         _monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
         SystemEvents.TimeChanged -= OnSystemTimeChanged;
 
-        if (_curveTimer != null)
-        {
-            _curveTimer.Stop();
-            _curveTimer = null;
-        }
+        StopCurveTimer();
 
         _curveEventEvaluationThrottler.Dispose();
         _curveHardwareThrottler.Dispose();

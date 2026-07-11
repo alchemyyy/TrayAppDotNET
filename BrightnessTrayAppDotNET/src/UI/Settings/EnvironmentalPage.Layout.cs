@@ -51,7 +51,9 @@ public sealed partial class BrightnessSettingsWindow
 
     private StackPanel BuildEnvironmentalProfileRow(SettingsPalette p)
     {
-        _environmentalProfileCombo = TrayAppDotNETSettingsUI.ComboBox(p, 140, autoSizeToText: true);
+        SettingsComboBox profileCombo = TrayAppDotNETSettingsUI.ComboBox(p, 140, autoSizeToText: true);
+        _environmentalPageResources?.Own(profileCombo);
+        _environmentalProfileCombo = profileCombo;
         _environmentalProfileCombo.SelectionChanged += (_, _) =>
         {
             if (_suppressEnvironmentalEvents) return;
@@ -126,6 +128,7 @@ public sealed partial class BrightnessSettingsWindow
                 NotifyRuntimeCurveChanged();
             });
 
+        SettingsToggle disabledPeriodFollowTheSunToggle;
         _disabledPeriodFollowTheSunRow = AddToggleRow(panel, p,
             L("Settings_Environmental_DisabledPeriodFollowTheSun_Title", "Disabled period follows sun"), false,
             (_, enabled) =>
@@ -138,7 +141,8 @@ public sealed partial class BrightnessSettingsWindow
                 _profileManager?.Save();
                 ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
                 NotifyRuntimeCurveChanged();
-            }, out _disabledPeriodFollowTheSunToggle, indent: 8);
+            }, out disabledPeriodFollowTheSunToggle, indent: 8);
+        _disabledPeriodFollowTheSunToggle = disabledPeriodFollowTheSunToggle;
 
         StackPanel fields = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 6) };
         _disabledPeriodStartBox = TimeBox(p);

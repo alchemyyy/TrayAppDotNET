@@ -14,7 +14,9 @@ public sealed partial class BrightnessSettingsWindow
     private const double AutoEngageEnvironmentalCurveDelayBoxWidth = 96;
     private const double AutoEngageEnvironmentalCurveControlSpacing = 8;
 
-    private readonly List<ProfileSlotEntry> _profileSlots = [];
+    private readonly List<StackPanel> _profileSlotPanelGenerations = [];
+    private readonly List<List<ProfileSlotEntry>> _profileSlotEntryGenerations = [];
+    private List<ProfileSlotEntry> _profileSlots = [];
     private StackPanel? _profileSlotPanel;
 
     private StackPanel BuildGeneralPage()
@@ -133,9 +135,34 @@ public sealed partial class BrightnessSettingsWindow
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_General_Profiles_Header", "Profiles"), p));
-        _profileSlotPanel = new StackPanel();
+        StackPanel profileSlotPanel = new();
+        List<ProfileSlotEntry> profileSlots = [];
+        _profileSlotPanelGenerations.Add(profileSlotPanel);
+        _profileSlotEntryGenerations.Add(profileSlots);
+        _profileSlotPanel = profileSlotPanel;
+        _profileSlots = profileSlots;
+        AddPageCleanup(() =>
+        {
+            _profileSlotPanelGenerations.Remove(profileSlotPanel);
+            _profileSlotEntryGenerations.Remove(profileSlots);
+            if (ReferenceEquals(_profileSlotPanel, profileSlotPanel))
+            {
+                _profileSlotPanel = _profileSlotPanelGenerations.Count > 0
+                    ? _profileSlotPanelGenerations[^1]
+                    : null;
+            }
+
+            if (ReferenceEquals(_profileSlots, profileSlots))
+            {
+                _profileSlots = _profileSlotEntryGenerations.Count > 0
+                    ? _profileSlotEntryGenerations[^1]
+                    : [];
+            }
+
+            profileSlots.Clear();
+        });
         RebuildProfileSlots();
-        stack.Children.Add(RawCard(_profileSlotPanel, p));
+        stack.Children.Add(RawCard(profileSlotPanel, p));
 
         return stack;
     }

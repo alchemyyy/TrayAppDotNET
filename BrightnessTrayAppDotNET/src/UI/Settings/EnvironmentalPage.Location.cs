@@ -59,16 +59,23 @@ public sealed partial class BrightnessSettingsWindow
 
     private async Task ApproximateEnvironmentalLocationFromIPAsync(SettingsButton button)
     {
+        long pageGeneration = _environmentalPageGeneration;
+        CancellationToken cancellationToken = _environmentalPageResources?.CancellationToken ??
+                                              new CancellationToken(canceled: true);
+        if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
+
         button.IsEnabled = false;
         string original = button.Text;
         button.Text = L("Settings_Environmental_ApproxFromIP_Locating", "Locating...");
         try
         {
             using HttpResponseMessage response = await EnvironmentalHttpClient
-                .GetAsync("https://am.i.mullvad.net/json")
+                .GetAsync("https://am.i.mullvad.net/json", cancellationToken)
                 .ConfigureAwait(true);
+            if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
             response.EnsureSuccessStatusCode();
             string json = await response.Content.ReadAsStringAsync().ConfigureAwait(true);
+            if (!IsCurrentEnvironmentalPage(pageGeneration)) return;
 
             using JsonDocument doc = JsonDocument.Parse(json);
             JsonElement root = doc.RootElement;
@@ -79,28 +86,73 @@ public sealed partial class BrightnessSettingsWindow
 
             ApplyEnvironmentalCoordinates(latitude, longitude);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            WPFLog.Log("BrightnessSettingsWindow.ApproximateEnvironmentalLocationFromIPAsync: page retired");
+        }
         catch (Exception ex)
         {
             WPFLog.Log($"BrightnessSettingsWindow.ApproximateEnvironmentalLocationFromIPAsync: {ex.Message}");
         }
         finally
         {
-            button.Text = original;
-            button.IsEnabled = true;
+            if (IsCurrentEnvironmentalPage(pageGeneration))
+            {
+                button.Text = original;
+                button.IsEnabled = true;
+            }
         }
     }
 
     private void OpenEnvironmentalMapPicker()
     {
-        EnvironmentalMapPickerWindow picker = new(
-            _settings.EnvironmentalLatitude,
-            _settings.EnvironmentalLongitude,
-            Palette,
-            AppServices.Theme ?? AppTheme.Default,
-            _settings,
-            ResolveEffectiveIsLight()) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
-        picker.Applied += ApplyEnvironmentalCoordinates;
-        picker.Show(this);
+        if (_environmentalPageResources is not { IsDisposed: false } pageResources) return;
+
+        if (_environmentalMapPicker == null)
+        {
+            EnvironmentalMapPickerWindow picker = new(
+                _settings.EnvironmentalLatitude,
+                _settings.EnvironmentalLongitude,
+                Palette,
+                AppServices.Theme ?? AppTheme.Default,
+                _settings,
+                ResolveEffectiveIsLight()) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            picker.Applied += ApplyEnvironmentalCoordinates;
+            picker.Closed += OnEnvironmentalMapPickerClosed;
+            pageResources.Add(() =>
+            {
+                picker.Applied -= ApplyEnvironmentalCoordinates;
+                picker.Closed -= OnEnvironmentalMapPickerClosed;
+                picker.CloseForPageRetirement();
+                if (ReferenceEquals(_environmentalMapPicker, picker)) _environmentalMapPicker = null;
+            });
+            _environmentalMapPicker = picker;
+        }
+
+        if (!_environmentalMapPicker.IsVisible)
+            _environmentalMapPicker.Show(this);
+        else
+            _environmentalMapPicker.Activate();
+    }
+
+    private void CloseEnvironmentalMapPicker()
+    {
+        EnvironmentalMapPickerWindow? picker = _environmentalMapPicker;
+        _environmentalMapPicker = null;
+        if (picker == null) return;
+
+        picker.Applied -= ApplyEnvironmentalCoordinates;
+        picker.Closed -= OnEnvironmentalMapPickerClosed;
+        try { picker.CloseForPageRetirement(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"BrightnessSettingsWindow.CloseEnvironmentalMapPicker: {exception.Message}");
+        }
+    }
+
+    private void OnEnvironmentalMapPickerClosed(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(_environmentalMapPicker, sender)) _environmentalMapPicker = null;
     }
 
     private void ApplyEnvironmentalCoordinates(double latitude, double longitude)

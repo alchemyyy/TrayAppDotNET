@@ -21,4 +21,5 @@ internal static class Constants
     // and takes over after the current input burst goes quiet.
     public const int NightLightHelperRecycleOperationCount = 256;
     public const int NightLightHelperWarmupLeadOperationCount = 16;
+    public const int SkiaFlyoutGlyphBitmapCacheCapacity = 128;
 }

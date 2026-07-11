@@ -79,6 +79,7 @@ public sealed partial class BrightnessSettingsWindow
             p,
             autoSizeToText: true,
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem);
+        OwnPageResource(sliderThumbCombo);
         foreach (SliderThumbGlyphOption option in _settings.SliderThumbOptions)
         {
             string label = SliderThumbDisplayName(option.Name);

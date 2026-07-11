@@ -4,12 +4,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
+using BrightnessTrayAppDotNET.UI;
+using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
-internal sealed class EnvironmentalMapPickerCanvas : Control
+internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
 {
     private const string MapResourceUri = "avares://BrightnessTrayAppDotNET/Visuals/map_fla-shop.com_ccby4.0.svg";
 
@@ -38,6 +40,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
 
     private readonly SettingsPalette _palette;
     private readonly Color _pinColor;
+    private readonly AnimationGenerationTracker _autoPanFrames = new();
     private GeoCoordinate _selectedCoordinate = GeoCoordinate.Zero;
     private MapViewportTransform _viewport = MapViewportTransform.Identity;
     private bool _needsCenterOnPin = true;
@@ -48,26 +51,24 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
     private Point _lastDragViewport;
     private Rect _pinHitRect;
     private Vector _autoPanVelocity;
-    private bool _autoPanFrameQueued;
     private TimeSpan _lastAutoPanFrameTime;
+    private IPointer? _capturedPointer;
+    private long _autoPanGeneration;
+    private bool _isAutoPanRunning;
+    private bool _disposed;
 
     public EnvironmentalMapPickerCanvas(SettingsPalette palette, Color pinColor)
     {
         _palette = palette;
         _pinColor = pinColor;
         ClipToBounds = true;
-        Cursor = new Cursor(StandardCursorType.Hand);
+        Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
         PointerReleased += OnPointerReleased;
         PointerWheelChanged += OnPointerWheelChanged;
-        PointerCaptureLost += (_, _) =>
-        {
-            _isDraggingPin = false;
-            _isPanning = false;
-            StopAutoPan();
-        };
+        PointerCaptureLost += OnPointerCaptureLost;
     }
 
     public event EventHandler? CoordinateChanged;
@@ -108,6 +109,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         StopAutoPan();
+        ReleasePointerCapture();
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -162,13 +164,15 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (_disposed || _capturedPointer != null) return;
+
         PointerPoint point = e.GetCurrentPoint(this);
         Point position = e.GetPosition(this);
         if (point.Properties.IsRightButtonPressed)
         {
             _isPanning = true;
             _lastPanPoint = position;
-            e.Pointer.Capture(this);
+            CapturePointer(e.Pointer);
             e.Handled = true;
             return;
         }
@@ -182,7 +186,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
             Point pin = Projection.Project(_selectedCoordinate);
             Point cursorMap = _viewport.ViewportToMap(position);
             _pinDragOffset = cursorMap - pin;
-            e.Pointer.Capture(this);
+            CapturePointer(e.Pointer);
             e.Handled = true;
             return;
         }
@@ -193,6 +197,8 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
 
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
+        if ((_isPanning || _isDraggingPin) && !ReferenceEquals(e.Pointer, _capturedPointer)) return;
+
         Point position = e.GetPosition(this);
         if (_isPanning)
         {
@@ -212,10 +218,13 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
 
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (!ReferenceEquals(e.Pointer, _capturedPointer)) return;
+
         if (_isPanning)
         {
             _isPanning = false;
-            e.Pointer.Capture(null);
+            _capturedPointer = null;
+            ReleasePointer(e.Pointer);
             e.Handled = true;
             return;
         }
@@ -223,7 +232,8 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
         if (!_isDraggingPin) return;
         _isDraggingPin = false;
         StopAutoPan();
-        e.Pointer.Capture(null);
+        _capturedPointer = null;
+        ReleasePointer(e.Pointer);
         SetCoordinateFromMapPoint(_viewport.ViewportToMap(e.GetPosition(this)) - _pinDragOffset);
         e.Handled = true;
     }
@@ -267,23 +277,31 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
             EdgeAutoPanPeakSpeed);
 
         if (_autoPanVelocity.X != 0.0 || _autoPanVelocity.Y != 0.0)
+        {
+            if (!_isAutoPanRunning)
+            {
+                _isAutoPanRunning = true;
+                _autoPanGeneration = _autoPanFrames.Start();
+            }
             QueueAutoPanFrame();
+        }
         else
             StopAutoPan();
     }
 
     private void QueueAutoPanFrame()
     {
-        if (_autoPanFrameQueued) return;
+        if (_disposed) return;
         if (TopLevel.GetTopLevel(this) is not { } topLevel) return;
+        if (!_autoPanFrames.TryQueue(_autoPanGeneration)) return;
 
-        _autoPanFrameQueued = true;
-        topLevel.RequestAnimationFrame(OnAutoPanFrame);
+        long generation = _autoPanGeneration;
+        topLevel.RequestAnimationFrame(timestamp => OnAutoPanFrame(timestamp, generation));
     }
 
-    private void OnAutoPanFrame(TimeSpan timestamp)
+    private void OnAutoPanFrame(TimeSpan timestamp, long generation)
     {
-        _autoPanFrameQueued = false;
+        if (_disposed || !_autoPanFrames.TryConsume(generation)) return;
         if (!_isDraggingPin || _autoPanVelocity is { X: 0.0, Y: 0.0 })
         {
             _lastAutoPanFrameTime = TimeSpan.Zero;
@@ -307,8 +325,70 @@ internal sealed class EnvironmentalMapPickerCanvas : Control
 
     private void StopAutoPan()
     {
+        _autoPanFrames.Invalidate();
+        _isAutoPanRunning = false;
         _autoPanVelocity = default;
         _lastAutoPanFrameTime = TimeSpan.Zero;
+    }
+
+    private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (!ReferenceEquals(e.Pointer, _capturedPointer)) return;
+
+        _capturedPointer = null;
+        _isDraggingPin = false;
+        _isPanning = false;
+        StopAutoPan();
+    }
+
+    private void ReleasePointerCapture()
+    {
+        IPointer? capturedPointer = _capturedPointer;
+        _capturedPointer = null;
+        if (capturedPointer == null) return;
+
+        ReleasePointer(capturedPointer);
+    }
+
+    private void CapturePointer(IPointer pointer)
+    {
+        _capturedPointer = pointer;
+        try { pointer.Capture(this); }
+        catch
+        {
+            if (ReferenceEquals(_capturedPointer, pointer))
+                _capturedPointer = null;
+            _isDraggingPin = false;
+            _isPanning = false;
+            StopAutoPan();
+            ReleasePointer(pointer);
+            throw;
+        }
+    }
+
+    private static void ReleasePointer(IPointer pointer)
+    {
+        try { pointer.Capture(null); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"EnvironmentalMapPickerCanvas pointer release failed: {exception.Message}");
+        }
+    }
+
+    /// <summary>Stops queued animation work and releases input/event resources.</summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        StopAutoPan();
+        ReleasePointerCapture();
+        PointerPressed -= OnPointerPressed;
+        PointerMoved -= OnPointerMoved;
+        PointerReleased -= OnPointerReleased;
+        PointerWheelChanged -= OnPointerWheelChanged;
+        PointerCaptureLost -= OnPointerCaptureLost;
+        CoordinateChanged = null;
+        Cursor = null;
     }
 
     private static Geometry? LoadMapGeometry()

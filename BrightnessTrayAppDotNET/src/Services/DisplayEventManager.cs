@@ -36,13 +36,17 @@ public sealed class DisplayEventManager : IDisposable
     private readonly string _profilesPath;
 
     private readonly Win32Window _window;
-    private readonly DispatcherTimer _coalesce;
     private readonly Dispatcher _dispatcher;
+    private readonly Lock _burstGate = new();
+    private DispatcherTimer? _coalesce;
+    private EventHandler? _coalesceTickHandler;
+    private long _coalesceGeneration;
     private IntPtr _devNotify;
 
     private Timer? _burstTimer;
     private int _burstTickCount;
     private volatile bool _burstActive;
+    private long _burstGeneration;
     private int _scanInProgress;
     private bool _started;
     private bool _disposed;
@@ -60,11 +64,6 @@ public sealed class DisplayEventManager : IDisposable
 
         _window = new Win32Window();
 
-        _coalesce = new DispatcherTimer(DispatcherPriority.Normal)
-        {
-            Interval = TimeSpan.FromMilliseconds(TimeConstants.DisplayEventDebounceIntervalMs)
-        };
-        _coalesce.Tick += OnCoalesceTick;
     }
 
     /// <summary>
@@ -159,14 +158,30 @@ public sealed class DisplayEventManager : IDisposable
             return;
         }
 
-        _coalesce.Stop();
-        _coalesce.Start();
+        StopCoalesceTimer();
+        DispatcherTimer timer = new(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.DisplayEventDebounceIntervalMs)
+        };
+        long generation = Interlocked.Increment(ref _coalesceGeneration);
+        EventHandler tickHandler = (sender, e) => OnCoalesceTick(sender, e, generation);
+        _coalesce = timer;
+        _coalesceTickHandler = tickHandler;
+        timer.Tick += tickHandler;
+        try { timer.Start(); }
+        catch
+        {
+            StopCoalesceTimer();
+            throw;
+        }
     }
 
-    private void OnCoalesceTick(object? sender, EventArgs e)
+    private void OnCoalesceTick(object? sender, EventArgs e, long generation)
     {
-        _coalesce.Stop();
-        if (_disposed) return;
+        // A stopped debounce timer can still dispatch a queued tick after its replacement starts
+        if (_disposed || generation != Volatile.Read(ref _coalesceGeneration)) return;
+        if (!ReferenceEquals(sender, _coalesce)) return;
+        StopCoalesceTimer();
 
         try
         {
@@ -178,44 +193,89 @@ public sealed class DisplayEventManager : IDisposable
         }
     }
 
+    private void StopCoalesceTimer()
+    {
+        Interlocked.Increment(ref _coalesceGeneration);
+        DispatcherTimer? timer = _coalesce;
+        EventHandler? tickHandler = _coalesceTickHandler;
+        _coalesce = null;
+        _coalesceTickHandler = null;
+        if (timer == null) return;
+
+        try { timer.Stop(); }
+        catch (Exception exception)
+        {
+            WPFLog.Log($"DisplayEventManager debounce stop failed: {exception.Message}");
+        }
+
+        if (tickHandler != null)
+            timer.Tick -= tickHandler;
+    }
+
     private void OnMonitorHardwareEvent()
     {
         if (_disposed) return;
 
         // Idempotent restart: reset the tick counter so a second hot-plug mid-burst gets a full 10-second
         // window, but don't spawn a second timer.
-        _burstTickCount = 0;
-        if (_burstActive) return;
+        lock (_burstGate)
+        {
+            _burstTickCount = 0;
+            if (_burstActive) return;
 
-        _burstActive = true;
+            _burstActive = true;
+            long generation = ++_burstGeneration;
+            try
+            {
+                _burstTimer = new Timer(OnBurstTick, generation, 0, TimeConstants.DisplayEventBurstIntervalMs);
+            }
+            catch
+            {
+                _burstActive = false;
+                _burstGeneration++;
+                throw;
+            }
+        }
+
         WPFLog.Log("DisplayEventManager: burst start");
-        _burstTimer = new Timer(OnBurstTick, null, 0, TimeConstants.DisplayEventBurstIntervalMs);
     }
 
-    private void OnBurstTick(object? _)
+    private void OnBurstTick(object? state)
     {
         // Threading.Timer callbacks run on the threadpool with no DispatcherUnhandledException net - an
         // unhandled throw here would tear down the process. Belt-and-braces: inner calls are already
         // try/catch'd, but we wrap the dispatch loop too.
         try
         {
-            if (_disposed || !_burstActive) return;
+            if (state is not long generation) return;
+            int tickCount;
+            lock (_burstGate)
+            {
+                if (_disposed || !_burstActive || generation != _burstGeneration) return;
+                tickCount = ++_burstTickCount;
+            }
 
             if (AllProfileMonitorsLoaded())
             {
                 WPFLog.Log("DisplayEventManager: short-circuit (burst)");
-                StopBurst();
+                StopBurst(generation);
                 return;
             }
 
-            _burstTickCount++;
-            WPFLog.Log($"DisplayEventManager: tick {_burstTickCount}");
+            WPFLog.Log($"DisplayEventManager: tick {tickCount}");
             ScanAndReconcile();
 
-            if (_burstTickCount >= BurstMaxTicks)
+            bool timedOut;
+            lock (_burstGate)
+            {
+                if (_disposed || !_burstActive || generation != _burstGeneration) return;
+                timedOut = _burstTickCount >= BurstMaxTicks;
+            }
+
+            if (timedOut)
             {
                 WPFLog.Log("DisplayEventManager: burst timed out");
-                StopBurst();
+                StopBurst(generation);
             }
         }
         catch (Exception ex)
@@ -233,11 +293,20 @@ public sealed class DisplayEventManager : IDisposable
         }
     }
 
-    private void StopBurst()
+    private void StopBurst(long? expectedGeneration = null)
     {
-        _burstActive = false;
-        _burstTimer?.Dispose();
-        _burstTimer = null;
+        Timer? timer;
+        lock (_burstGate)
+        {
+            if (expectedGeneration.HasValue && expectedGeneration.Value != _burstGeneration) return;
+
+            _burstGeneration++;
+            _burstActive = false;
+            timer = _burstTimer;
+            _burstTimer = null;
+        }
+
+        timer?.Dispose();
     }
 
     private void ScanAndReconcile()
@@ -443,8 +512,7 @@ public sealed class DisplayEventManager : IDisposable
 
         _disposed = true;
 
-        _coalesce.Stop();
-        _coalesce.Tick -= OnCoalesceTick;
+        StopCoalesceTimer();
 
         if (_started)
         {
@@ -455,9 +523,7 @@ public sealed class DisplayEventManager : IDisposable
             _monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
         }
 
-        _burstActive = false;
-        _burstTimer?.Dispose();
-        _burstTimer = null;
+        StopBurst();
 
         if (_devNotify != IntPtr.Zero)
         {

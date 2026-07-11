@@ -171,7 +171,7 @@ public sealed partial class BrightnessSettingsWindow
 
         TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
         keyBox.IsReadOnly = true;
-        keyBox.Cursor = new Cursor(StandardCursorType.Ibeam);
+        keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
         SettingsButton addButton = Button(L("Settings_Hotkeys_Add_Button", "Add"), p);
         addButton.MinWidth = 70;
