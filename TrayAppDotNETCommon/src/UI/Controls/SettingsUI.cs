@@ -657,10 +657,12 @@ public sealed class SettingsSwatch : Border
         BorderBrush = TrayAppDotNETSettingsUI.Brush(_isPointerOver ? _palette.Accent : _palette.Border);
 }
 
-public sealed class SettingsScrollHost : Grid
+public sealed class SettingsScrollHost : Grid, IDisposable
 {
     private readonly Border _contentHost;
     private readonly ScrollViewer _scrollViewer;
+    private readonly SettingsScrollBar _scrollBar;
+    private int _disposed;
 
     public SettingsScrollHost(Control content, SettingsPalette palette, Thickness padding)
     {
@@ -681,12 +683,12 @@ public sealed class SettingsScrollHost : Grid
         };
         Children.Add(_scrollViewer);
 
-        SettingsScrollBar scrollBar = new(palette)
+        _scrollBar = new SettingsScrollBar(palette)
         {
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch
         };
-        scrollBar.Attach(_scrollViewer);
-        Children.Add(scrollBar);
+        _scrollBar.Attach(_scrollViewer);
+        Children.Add(_scrollBar);
     }
 
     public double VerticalOffset => _scrollViewer.Offset.Y;
@@ -697,6 +699,7 @@ public sealed class SettingsScrollHost : Grid
     public void SetContent(Control content)
     {
         ArgumentNullException.ThrowIfNull(content);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         _contentHost.Child = content;
     }
 
@@ -725,15 +728,28 @@ public sealed class SettingsScrollHost : Grid
     }
 
     private double MaxOffset => Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        _scrollBar.Dispose();
+        _contentHost.Child = null;
+        _scrollViewer.Content = null;
+        Children.Clear();
+    }
+
 }
 
-internal sealed class SettingsScrollBar : Control
+internal sealed class SettingsScrollBar : Control, IDisposable
 {
     private readonly SettingsPalette _palette;
     private ScrollViewer? _viewer;
     private bool _isPointerOver;
     private bool _isDragging;
     private double _dragOffset;
+    private IPointer? _capturedPointer;
+    private int _disposed;
 
     public SettingsScrollBar(SettingsPalette palette)
     {
@@ -757,16 +773,14 @@ internal sealed class SettingsScrollBar : Control
 
     public void Attach(ScrollViewer viewer)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (ReferenceEquals(_viewer, viewer)) return;
+
+        DetachViewer();
         _viewer = viewer;
-        viewer.ScrollChanged += (_, _) => InvalidateVisual();
-        viewer.EffectiveViewportChanged += (_, _) => InvalidateVisual();
-        viewer.PropertyChanged += (_, e) =>
-        {
-            if (e.Property == ScrollViewer.OffsetProperty ||
-                e.Property == ScrollViewer.ExtentProperty ||
-                e.Property == ScrollViewer.ViewportProperty)
-                InvalidateVisual();
-        };
+        viewer.ScrollChanged += OnViewerScrollChanged;
+        viewer.EffectiveViewportChanged += OnViewerEffectiveViewportChanged;
+        viewer.PropertyChanged += OnViewerPropertyChanged;
     }
 
     public override void Render(DrawingContext context)
@@ -805,7 +819,17 @@ internal sealed class SettingsScrollBar : Control
         Rect thumb = ThumbRect();
         _isDragging = true;
         _dragOffset = thumb.Contains(position) ? position.Y - thumb.Y : thumb.Height / 2;
-        e.Pointer.Capture(this);
+        _capturedPointer = e.Pointer;
+        try
+        {
+            e.Pointer.Capture(this);
+        }
+        catch
+        {
+            _capturedPointer = null;
+            _isDragging = false;
+            throw;
+        }
         SetOffsetFromPointer(position.Y);
         InvalidateVisual();
         e.Handled = true;
@@ -828,6 +852,7 @@ internal sealed class SettingsScrollBar : Control
         if (_isDragging)
         {
             _isDragging = false;
+            _capturedPointer = null;
             e.Pointer.Capture(null);
             InvalidateVisual();
             e.Handled = true;
@@ -839,6 +864,7 @@ internal sealed class SettingsScrollBar : Control
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
+        _capturedPointer = null;
         _isDragging = false;
         InvalidateVisual();
         base.OnPointerCaptureLost(e);
@@ -884,6 +910,49 @@ internal sealed class SettingsScrollBar : Control
         double top = Math.Clamp(pointerY - _dragOffset, 0, available);
         double next = top / available * MaxOffset;
         _viewer.Offset = new Vector(_viewer.Offset.X, next);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        _isDragging = false;
+        if (capturedPointer != null)
+        {
+            try { capturedPointer.Capture(null); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"SettingsScrollBar pointer release failed: {exception.Message}");
+            }
+        }
+
+        DetachViewer();
+        Cursor = null;
+    }
+
+    private void DetachViewer()
+    {
+        ScrollViewer? viewer = _viewer;
+        _viewer = null;
+        if (viewer == null) return;
+
+        viewer.ScrollChanged -= OnViewerScrollChanged;
+        viewer.EffectiveViewportChanged -= OnViewerEffectiveViewportChanged;
+        viewer.PropertyChanged -= OnViewerPropertyChanged;
+    }
+
+    private void OnViewerScrollChanged(object? sender, ScrollChangedEventArgs e) => InvalidateVisual();
+
+    private void OnViewerEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e) =>
+        InvalidateVisual();
+
+    private void OnViewerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == ScrollViewer.OffsetProperty
+            || e.Property == ScrollViewer.ExtentProperty
+            || e.Property == ScrollViewer.ViewportProperty)
+            InvalidateVisual();
     }
 }
 
@@ -1067,6 +1136,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
     private readonly Popup _popup;
     private readonly Border _popupBorder;
     private readonly StackPanel _itemsPanel;
+    private readonly SettingsScrollHost _popupScrollHost;
     private bool _autoSizeToText;
     private SettingsComboBoxAutoSizeMode _autoSizeMode;
     private bool _isPointerOver;
@@ -1121,7 +1191,10 @@ public sealed class SettingsComboBox : Grid, IDisposable
         Children.Add(_surface);
 
         _itemsPanel = new StackPanel();
-        SettingsScrollHost scrollHost = new(_itemsPanel, palette, SettingsUILayout.ComboPopupScrollPadding)
+        _popupScrollHost = new SettingsScrollHost(
+            _itemsPanel,
+            palette,
+            SettingsUILayout.ComboPopupScrollPadding)
         {
             MaxHeight = SettingsUILayout.ComboPopupMaxHeight
         };
@@ -1134,7 +1207,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
             CornerRadius = SettingsUILayout.ComboPopupRadius,
             Padding = SettingsUILayout.ComboPopupPadding,
             Margin = SettingsUILayout.ComboPopupMargin,
-            Child = scrollHost
+            Child = _popupScrollHost
         };
 
         _popup = new Popup
@@ -1385,6 +1458,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
         _isDropDownOpen = false;
         _popup.IsOpen = false;
         _itemsPanel.Children.Clear();
+        _popupScrollHost.Dispose();
         _selectionPresenter.Content = null;
         if (_selectionContent is IDisposable selectionDisposable)
             selectionDisposable.Dispose();
@@ -1461,7 +1535,11 @@ public sealed class SettingsComboBox : Grid, IDisposable
         UpdateSurface();
     }
 
-    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (Volatile.Read(ref _disposed) == 0)
+            IsDropDownOpen = false;
+    }
 }
 
 public sealed class SettingsComboBoxItemCollection(SettingsComboBox owner) : Collection<SettingsComboBoxItem>
@@ -1502,7 +1580,7 @@ public sealed class SettingsNumberValueChangedEventArgs(double? oldValue, double
     public double? NewValue { get; } = newValue;
 }
 
-public sealed class SettingsNumberBox : Grid
+public sealed class SettingsNumberBox : Grid, IDisposable
 {
     private readonly SettingsPalette _palette;
     private readonly Border _valueBorder;
@@ -1519,6 +1597,7 @@ public sealed class SettingsNumberBox : Grid
     private int _maximum;
     private double? _value;
     private double? _valueAtTextFocus;
+    private int _disposed;
 
     public SettingsNumberBox(SettingsPalette palette, int value, int min, int max, double width = 100,
         string suffix = "")
@@ -1676,6 +1755,7 @@ public sealed class SettingsNumberBox : Grid
         _downButton.Click += (_, _) => ChangeBy(-Step);
 
         Value = value;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
         TrayAppDotNETSettingsUI.ApplyDisabledOpacity(this, 0.4);
         UpdateValueBorder();
     }
@@ -1855,6 +1935,7 @@ public sealed class SettingsNumberBox : Grid
 
     private void AttachOutsidePointerHandler()
     {
+        if (Volatile.Read(ref _disposed) != 0) return;
         TopLevel? host = TopLevel.GetTopLevel(this);
         if (host == null || ReferenceEquals(host, _outsidePointerHost)) return;
 
@@ -1886,6 +1967,18 @@ public sealed class SettingsNumberBox : Grid
         if (ReferenceEquals(visual, this)) return true;
         return visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, this));
     }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        DetachedFromVisualTree -= OnDetachedFromVisualTree;
+        DetachOutsidePointerHandler();
+        ValueChanged = null;
+    }
+
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) =>
+        DetachOutsidePointerHandler();
 
     private void SetValue(double? next, bool raiseChanged)
     {

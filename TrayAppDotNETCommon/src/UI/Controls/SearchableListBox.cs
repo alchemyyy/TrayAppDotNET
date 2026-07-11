@@ -595,9 +595,9 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         _searchBox.TextChanged -= OnSearchTextChanged;
         _clearButton.Click -= OnClearButtonClick;
 
-        _itemsPanel = new StackPanel();
-        _scrollHost.SetContent(_itemsPanel);
         _rowResources.Dispose();
+        _scrollHost.Dispose();
+        _itemsPanel = new StackPanel();
         _items.ClearWithoutNotification();
         _visibleItems.Clear();
         _selectedItem = null;
@@ -614,7 +614,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
         UpdateClearButton();
     }
 
-    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) => Dispose();
+    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e) => _rowGenerationID++;
 }
 
 /// <summary>

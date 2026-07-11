@@ -52,24 +52,30 @@ public sealed record TrayAppDotNETUninstallerWindowOptions
 /// <summary>
 /// Shared custom-chrome uninstaller confirmation window.
 /// </summary>
-public class TrayAppDotNETUninstallerWindow : Window
+public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 {
     private const int UninstallProcessOwnershipGraceMs = 5000;
     private const string SettingsChoiceGroupName = "SettingsChoice";
 
-    private readonly TrayAppDotNETUninstallerWindowOptions _options;
-    private readonly RadioButton _keepSettings;
-    private readonly RadioButton _deleteSettings;
-    private readonly object _uninstallProcessGate = new();
-    private Process? _uninstallProcess;
-    private bool _uninstallProcessOwnershipTransferred;
+    private TrayAppDotNETUninstallerWindowOptions? _options;
+    private RadioButton? _keepSettings;
+    private RadioButton? _deleteSettings;
+    private SettingsButton? _uninstallButton;
+    private SettingsButton? _cancelButton;
+    private readonly UIResourceScope _windowResources;
+    private UIContentGeneration? _contentGeneration;
+    private UninstallProcessOwner? _uninstallProcessOwner;
+    private int _disposeState;
+    private bool _closed;
+    private bool _uninstallStarted;
 
     public TrayAppDotNETUninstallerWindow(TrayAppDotNETUninstallerWindowOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
+        _windowResources = new UIResourceScope(nameof(TrayAppDotNETUninstallerWindow));
 
-        Title = Localize("Uninstaller_Title", $"Uninstall {_options.ApplicationName}");
+        Title = Localize("Uninstaller_Title", $"Uninstall {options.ApplicationName}");
         Width = TrayAppDotNETDialogChromeLayout.UninstallerWindowWidth;
         Height = TrayAppDotNETDialogChromeLayout.UninstallerWindowHeight;
         MinWidth = TrayAppDotNETDialogChromeLayout.UninstallerWindowMinWidth;
@@ -80,36 +86,39 @@ public class TrayAppDotNETUninstallerWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-        Icon = _options.Icon;
+        Icon = options.Icon;
 
         _keepSettings = CreateChoiceRadio(isChecked: true);
         _deleteSettings = CreateChoiceRadio(isChecked: false);
 
-        Content = BuildRoot();
+        KeyDown += OnWindowKeyDown;
+        _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
+        Closed += OnWindowClosed;
+        _windowResources.Add(() => Closed -= OnWindowClosed);
 
-        KeyDown += (_, e) =>
+        UIResourceScope contentResources = new(nameof(TrayAppDotNETUninstallerWindow) + ".Content");
+        try
         {
-            if (e.Key != Key.Escape) return;
-
-            Close();
-            e.Handled = true;
-        };
+            Border root = BuildRoot(contentResources);
+            UIContentGeneration contentGeneration = new(
+                nameof(TrayAppDotNETUninstallerWindow),
+                root,
+                contentResources);
+            _contentGeneration = contentGeneration;
+            Content = root;
+            _windowResources.Add(() => RetireContent(contentGeneration));
+        }
+        catch
+        {
+            contentResources.Dispose();
+            DisposeCore();
+            throw;
+        }
     }
 
     public Process? UninstallProcess
     {
-        get
-        {
-            lock (_uninstallProcessGate)
-            {
-                _uninstallProcessOwnershipTransferred = true;
-                if (_uninstallProcess != null)
-                    _uninstallProcess.Exited -= OnTrackedUninstallProcessExited;
-
-                return _uninstallProcess;
-            }
-        }
-        private set => TrackUninstallProcess(value);
+        get => Interlocked.Exchange(ref _uninstallProcessOwner, null)?.Transfer();
     }
 
     public bool ConfirmedUninstall { get; private set; }
@@ -123,28 +132,31 @@ public class TrayAppDotNETUninstallerWindow : Window
             Margin = TrayAppDotNETDialogChromeLayout.OptionRadioMargin
         };
 
-    private Border BuildRoot()
+    private TrayAppDotNETUninstallerWindowOptions Options =>
+        _options ?? throw new ObjectDisposedException(nameof(TrayAppDotNETUninstallerWindow));
+
+    private Border BuildRoot(UIResourceScope resources)
     {
         Grid chrome = new();
         chrome.RowDefinitions.Add(new RowDefinition(new GridLength(TrayAppDotNETDialogChromeLayout.TitleBarHeight)));
         chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        chrome.Children.Add(BuildTitleBar());
+        chrome.Children.Add(BuildTitleBar(resources));
 
-        Grid body = BuildBody();
+        Grid body = BuildBody(resources);
         Grid.SetRow(body, 1);
         chrome.Children.Add(body);
 
         return new Border
         {
-            Background = TrayAppDotNETSettingsUI.Brush(_options.Palette.Background),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(_options.Palette.Border),
+            Background = TrayAppDotNETSettingsUI.Brush(Options.Palette.Background),
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(Options.Palette.Border),
             BorderThickness = TrayAppDotNETDialogChromeLayout.RootBorderThickness,
             CornerRadius = Rounded(TrayAppDotNETDialogChromeLayout.RootCornerRadius),
             Child = chrome
         };
     }
 
-    private Grid BuildTitleBar()
+    private Grid BuildTitleBar(UIResourceScope resources)
     {
         Grid titleBar = new()
         {
@@ -155,32 +167,28 @@ public class TrayAppDotNETUninstallerWindow : Window
                 new ColumnDefinition(GridLength.Auto)
             }
         };
-        titleBar.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
-
-            BeginMoveDrag(e);
-            e.Handled = true;
-        };
+        titleBar.PointerPressed += OnTitleBarPointerPressed;
+        resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(
-            Localize("Uninstaller_Title", $"Uninstall {_options.ApplicationName}"),
-            _options.Palette,
+            Localize("Uninstaller_Title", $"Uninstall {Options.ApplicationName}"),
+            Options.Palette,
             13);
         title.VerticalAlignment = VerticalAlignment.Center;
         title.Margin = TrayAppDotNETDialogChromeLayout.TitleMargin;
         titleBar.Children.Add(title);
 
-        TrayAppDotNETCaptionCloseButton close = new(_options.Palette);
+        TrayAppDotNETCaptionCloseButton close = new(Options.Palette);
         TrayAppDotNETToolTip.SetTip(close, Localize("Uninstaller_Caption_Close", "Close"));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        close.Click += (_, _) => Close();
+        close.Click += OnCancelClick;
+        resources.Add(() => close.Click -= OnCancelClick);
         Grid.SetColumn(close, 1);
         titleBar.Children.Add(close);
         return titleBar;
     }
 
-    private Grid BuildBody()
+    private Grid BuildBody(UIResourceScope resources)
     {
         Grid body = new() { Margin = TrayAppDotNETDialogChromeLayout.BodyMargin };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -189,66 +197,61 @@ public class TrayAppDotNETUninstallerWindow : Window
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         TextBlock header = TrayAppDotNETSettingsUI.SectionHeader(
-            Localize("Uninstaller_SectionHeader", $"Uninstall {_options.ApplicationName}"),
-            _options.Palette);
+            Localize("Uninstaller_SectionHeader", $"Uninstall {Options.ApplicationName}"),
+            Options.Palette);
         body.Children.Add(header);
 
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
             UninstallDescription(),
-            _options.Palette,
+            Options.Palette,
             TrayAppDotNETDialogChromeLayout.DescriptionMargin);
         Grid.SetRow(description, 1);
         body.Children.Add(description);
 
         StackPanel choices = new();
         choices.Children.Add(BuildOptionCard(
-            _keepSettings,
+            _keepSettings!,
             Localize("Uninstaller_KeepSettings_Title", "Keep my settings"),
             Localize("Uninstaller_KeepSettings_Description",
-                "Leave settings.xml in place so a future install picks them up.")));
+                "Leave settings.xml in place so a future install picks them up."),
+            resources));
         choices.Children.Add(BuildOptionCard(
-            _deleteSettings,
+            _deleteSettings!,
             Localize("Uninstaller_DeleteSettings_Title", "Delete my settings"),
             string.Format(
                 CultureInfo.CurrentCulture,
                 Localize("Uninstaller_DeleteSettings_Description_Format",
                     "Also remove \"{0}\" including settings.xml."),
-                _options.SettingsDirectory)));
+                Options.SettingsDirectory),
+            resources));
         Grid.SetRow(choices, 2);
         body.Children.Add(choices);
 
-        StackPanel buttons = BuildButtons();
+        StackPanel buttons = BuildButtons(resources);
         Grid.SetRow(buttons, 3);
         body.Children.Add(buttons);
         return body;
     }
 
-    private StackPanel BuildButtons()
+    private StackPanel BuildButtons(UIResourceScope resources)
     {
         SettingsButton uninstall = TrayAppDotNETSettingsUI.Button(
             Localize("Uninstaller_UninstallButton", "Uninstall"),
-            _options.Palette);
+            Options.Palette);
         uninstall.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(
             Localize("Uninstaller_Cancel", "Cancel"),
-            _options.Palette);
+            Options.Palette);
         cancel.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
         cancel.Margin = TrayAppDotNETDialogChromeLayout.CancelButtonMargin;
 
-        uninstall.Click += (_, _) =>
-        {
-            bool deleteSettings = _deleteSettings.IsChecked == true;
-            uninstall.IsEnabled = false;
-            cancel.IsEnabled = false;
-            uninstall.Text = Localize("Uninstaller_UninstallingButton", "Uninstalling...");
-
-            _options.RetargetStartupShortcut(_options.InstallScope);
-            ConfirmedUninstall = true;
-            UninstallProcess = _options.RunUninstall(_options.InstallScope, deleteSettings);
-            Close();
-        };
-        cancel.Click += (_, _) => Close();
+        _uninstallButton = uninstall;
+        _cancelButton = cancel;
+        uninstall.Click += OnUninstallClick;
+        resources.Add(() => uninstall.Click -= OnUninstallClick);
+        cancel.Click += OnCancelClick;
+        resources.Add(() => cancel.Click -= OnCancelClick);
 
         return new StackPanel
         {
@@ -262,54 +265,25 @@ public class TrayAppDotNETUninstallerWindow : Window
 
     private void TrackUninstallProcess(Process? process)
     {
-        lock (_uninstallProcessGate)
-        {
-            if (_uninstallProcess != null)
-                _uninstallProcess.Exited -= OnTrackedUninstallProcessExited;
-
-            _uninstallProcess = process;
-            _uninstallProcessOwnershipTransferred = false;
-
-            if (_uninstallProcess == null) return;
-
-            _uninstallProcess.EnableRaisingEvents = true;
-            _uninstallProcess.Exited += OnTrackedUninstallProcessExited;
-            if (_uninstallProcess.HasExited)
-                QueueUnclaimedUninstallProcessDispose();
-        }
+        UninstallProcessOwner? replacement = process == null
+            ? null
+            : new UninstallProcessOwner(process, UninstallProcessOwnershipGraceMs);
+        UninstallProcessOwner? previous = Interlocked.Exchange(ref _uninstallProcessOwner, replacement);
+        previous?.Dispose();
     }
 
-    private void OnTrackedUninstallProcessExited(object? sender, EventArgs e) =>
-        QueueUnclaimedUninstallProcessDispose();
-
-    private void QueueUnclaimedUninstallProcessDispose() =>
-        _ = DisposeUnclaimedUninstallProcessAsync();
-
-    private async Task DisposeUnclaimedUninstallProcessAsync()
-    {
-        await Task.Delay(UninstallProcessOwnershipGraceMs).ConfigureAwait(false);
-
-        Process? process;
-        lock (_uninstallProcessGate)
-        {
-            if (_uninstallProcessOwnershipTransferred || _uninstallProcess == null) return;
-
-            process = _uninstallProcess;
-            _uninstallProcess = null;
-            process.Exited -= OnTrackedUninstallProcessExited;
-        }
-
-        process.Dispose();
-    }
-
-    private Border BuildOptionCard(RadioButton radio, string title, string description)
+    private Border BuildOptionCard(
+        RadioButton radio,
+        string title,
+        string description,
+        UIResourceScope resources)
     {
         StackPanel text = new()
         {
             Children =
             {
-                TrayAppDotNETSettingsUI.TitleText(title, _options.Palette),
-                TrayAppDotNETSettingsUI.DescriptionText(description, _options.Palette)
+                TrayAppDotNETSettingsUI.TitleText(title, Options.Palette),
+                TrayAppDotNETSettingsUI.DescriptionText(description, Options.Palette)
             }
         };
 
@@ -322,31 +296,258 @@ public class TrayAppDotNETUninstallerWindow : Window
 
         Border card = new()
         {
-            Background = TrayAppDotNETSettingsUI.Brush(_options.Palette.CardBackground),
+            Background = TrayAppDotNETSettingsUI.Brush(Options.Palette.CardBackground),
             CornerRadius = Rounded(TrayAppDotNETDialogChromeLayout.CardCornerRadius),
             Padding = TrayAppDotNETDialogChromeLayout.OptionCardPadding,
             Margin = TrayAppDotNETDialogChromeLayout.OptionCardMargin,
             Child = grid
         };
-        card.PointerPressed += (_, e) =>
+        EventHandler<PointerPressedEventArgs> pointerPressed = (_, e) =>
         {
+            if (_closed) return;
             if (!e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) return;
 
             radio.IsChecked = true;
             e.Handled = true;
         };
+        card.PointerPressed += pointerPressed;
+        resources.Add(() => card.PointerPressed -= pointerPressed);
         return card;
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_closed || e.Key != Key.Escape) return;
+
+        Close();
+        e.Handled = true;
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_closed || sender is not Control titleBar) return;
+        if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
+
+        BeginMoveDrag(e);
+        e.Handled = true;
+    }
+
+    private void OnUninstallClick(object? sender, EventArgs e)
+    {
+        if (_closed || _uninstallStarted) return;
+
+        TrayAppDotNETUninstallerWindowOptions options = Options;
+        bool deleteSettings = _deleteSettings?.IsChecked == true;
+        _uninstallStarted = true;
+        if (_uninstallButton != null)
+        {
+            _uninstallButton.IsEnabled = false;
+            _uninstallButton.Text = Localize("Uninstaller_UninstallingButton", "Uninstalling...");
+        }
+
+        if (_cancelButton != null)
+            _cancelButton.IsEnabled = false;
+
+        options.RetargetStartupShortcut(options.InstallScope);
+        ConfirmedUninstall = true;
+        TrackUninstallProcess(options.RunUninstall(options.InstallScope, deleteSettings));
+        Close();
+    }
+
+    private void OnCancelClick(object? sender, EventArgs e)
+    {
+        if (_closed) return;
+        Close();
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e) => DisposeCore();
+
+    /// <summary>Closes the dialog when necessary and releases all window-owned resources.</summary>
+    public void Dispose()
+    {
+        if (!_closed && IsVisible)
+        {
+            try
+            {
+                Close();
+            }
+            finally
+            {
+                DisposeCore();
+            }
+
+            return;
+        }
+
+        DisposeCore();
+    }
+
+    private void DisposeCore()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        _closed = true;
+        _windowResources.Dispose();
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        if (contentGeneration != null)
+        {
+            try
+            {
+                if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
+                    Content = null;
+            }
+            finally
+            {
+                contentGeneration.Dispose();
+            }
+        }
+
+        Icon = null;
+        _keepSettings = null;
+        _deleteSettings = null;
+        _uninstallButton = null;
+        _cancelButton = null;
+        _options = null;
+    }
+
+    private void RetireContent(UIContentGeneration contentGeneration)
+    {
+        if (ReferenceEquals(_contentGeneration, contentGeneration))
+            _contentGeneration = null;
+        try
+        {
+            if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
+                Content = null;
+        }
+        finally
+        {
+            contentGeneration.Dispose();
+        }
     }
 
     private string UninstallDescription()
     {
-        string fallback = $"This will remove {_options.ApplicationName} installed at \"{{0}}\" and its entry in Windows Settings > Apps. Choose what to do with your settings.";
+        string fallback = $"This will remove {Options.ApplicationName} installed at \"{{0}}\" and its entry in Windows Settings > Apps. Choose what to do with your settings.";
         string format = Localize("Uninstaller_Description_Format", fallback);
-        return string.Format(CultureInfo.CurrentCulture, format, _options.InstallDirectory);
+        return string.Format(CultureInfo.CurrentCulture, format, Options.InstallDirectory);
     }
 
     private CornerRadius Rounded(CornerRadius radius) =>
-        _options.EnableRoundedCorners ? radius : TrayAppDotNETDialogChromeLayout.ZeroCornerRadius;
+        Options.EnableRoundedCorners ? radius : TrayAppDotNETDialogChromeLayout.ZeroCornerRadius;
 
-    private string Localize(string key, string fallback) => _options.Localize(key, fallback);
+    private string Localize(string key, string fallback) => Options.Localize(key, fallback);
+
+    private sealed class UninstallProcessOwner : IDisposable
+    {
+        private readonly object _gate = new();
+        private readonly int _ownershipGraceMilliseconds;
+        private Process? _process;
+        private System.Threading.Timer? _disposalTimer;
+        private bool _finished;
+
+        public UninstallProcessOwner(Process process, int ownershipGraceMilliseconds)
+        {
+            ArgumentNullException.ThrowIfNull(process);
+            _process = process;
+            _ownershipGraceMilliseconds = ownershipGraceMilliseconds;
+
+            try
+            {
+                process.EnableRaisingEvents = true;
+                process.Exited += OnProcessExited;
+                if (process.HasExited)
+                    ScheduleUnclaimedDisposal();
+            }
+            catch
+            {
+                Dispose();
+                throw;
+            }
+        }
+
+        public Process? Transfer()
+        {
+            Process? process;
+            System.Threading.Timer? disposalTimer;
+            lock (_gate)
+            {
+                if (_finished) return null;
+
+                _finished = true;
+                process = _process;
+                _process = null;
+                disposalTimer = _disposalTimer;
+                _disposalTimer = null;
+            }
+
+            disposalTimer?.Dispose();
+            DetachExitedHandler(process);
+            return process;
+        }
+
+        private void OnProcessExited(object? sender, EventArgs e)
+        {
+            lock (_gate)
+            {
+                if (_finished || !ReferenceEquals(sender, _process)) return;
+            }
+
+            ScheduleUnclaimedDisposal();
+        }
+
+        private void ScheduleUnclaimedDisposal()
+        {
+            lock (_gate)
+            {
+                if (_finished || _disposalTimer != null) return;
+
+                _disposalTimer = new System.Threading.Timer(
+                    static state => ((UninstallProcessOwner)state!).Dispose(),
+                    this,
+                    _ownershipGraceMilliseconds,
+                    Timeout.Infinite);
+            }
+        }
+
+        public void Dispose()
+        {
+            Process? process;
+            System.Threading.Timer? disposalTimer;
+            lock (_gate)
+            {
+                if (_finished) return;
+
+                _finished = true;
+                process = _process;
+                _process = null;
+                disposalTimer = _disposalTimer;
+                _disposalTimer = null;
+            }
+
+            disposalTimer?.Dispose();
+            DetachExitedHandler(process);
+            try
+            {
+                process?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Uninstall process disposal failed: {exception.Message}");
+            }
+        }
+
+        private void DetachExitedHandler(Process? process)
+        {
+            if (process == null) return;
+
+            try
+            {
+                process.Exited -= OnProcessExited;
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Uninstall process event detachment failed: {exception.Message}");
+            }
+        }
+    }
 }

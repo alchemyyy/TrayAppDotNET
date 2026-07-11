@@ -33,6 +33,8 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     where TWindow : Window
 {
     private DispatcherTimer? _evictionTimer;
+    private EventHandler? _evictionTickHandler;
+    private long _evictionVersion;
     private bool _disposed;
     private bool _evicting;
 
@@ -45,7 +47,16 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         TWindow window = TakeOrCreate(createWindow);
         if (window.IsVisible) return;
 
-        await TrayAppDotNETWindowPrimer.PrimeAsync(window);
+        try
+        {
+            await TrayAppDotNETWindowPrimer.PrimeAsync(window);
+        }
+        catch
+        {
+            if (ReferenceEquals(Cached, window))
+                EvictNow();
+            throw;
+        }
     }
 
     public TWindow TakeOrCreate(Func<TWindow> createWindow)
@@ -56,14 +67,25 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
 
         TWindow window = createWindow();
         Cached = window;
-        window.Closed += OnWindowClosed;
-        if (window is ITrayAppDotNETWarmWindow warmWindow)
+        try
         {
-            warmWindow.IsManagedByWarmSlot = true;
-            warmWindow.WarmDismissed += OnWarmDismissed;
-        }
+            window.Closed += OnWindowClosed;
+            if (window is ITrayAppDotNETWarmWindow warmWindow)
+            {
+                warmWindow.IsManagedByWarmSlot = true;
+                warmWindow.WarmDismissed += OnWarmDismissed;
+            }
 
-        return window;
+            return window;
+        }
+        catch
+        {
+            Detach(window);
+            DisposeWindowWarmResources(window);
+            if (ReferenceEquals(Cached, window)) Cached = null;
+            TryCloseWindow(window);
+            throw;
+        }
     }
 
     public void MarkDismissed()
@@ -84,7 +106,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         if (isKeepWarmEnabled())
         {
             CancelIdleEviction();
-            _ = PrimeAsync(createWindow);
+            _ = PrimeWithoutThrowAsync(createWindow);
         }
         else if (Cached is { IsVisible: false }) ScheduleIdleEviction();
     }
@@ -102,6 +124,11 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     {
         if (_disposed) return;
         CancelIdleEviction();
+        EvictCachedWindow();
+    }
+
+    private void EvictCachedWindow()
+    {
         TWindow? window = Cached;
         if (window == null) return;
 
@@ -115,13 +142,17 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         }
         catch (Exception ex)
         {
-            logError?.Invoke(ex);
+            Log(ex);
         }
         finally
         {
             _evicting = false;
-            Detach(window);
-            if (ReferenceEquals(Cached, window)) Cached = null;
+            if (ReferenceEquals(Cached, window))
+            {
+                DisposeWindowWarmResources(window);
+                Detach(window);
+                Cached = null;
+            }
             TrayAppDotNETWarmWindowResourcePurger.RequestAfterEviction(logError);
         }
     }
@@ -129,8 +160,9 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     public void Dispose()
     {
         if (_disposed) return;
-        EvictNow();
         _disposed = true;
+        CancelIdleEviction();
+        EvictCachedWindow();
     }
 
     private void OnWarmDismissed(object? sender, EventArgs e)
@@ -144,25 +176,46 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     {
         if (Cached == null) return;
 
-        _evictionTimer ??= new DispatcherTimer
+        CancelIdleEviction();
+        long version = ++_evictionVersion;
+        DispatcherTimer timer = new()
         {
             Interval = TimeSpan.FromMilliseconds(TimeConstants.WarmWindowIdleEvictionDelayMs)
         };
-        _evictionTimer.Tick -= OnEvictionTimerTick;
-        _evictionTimer.Tick += OnEvictionTimerTick;
-        _evictionTimer.Stop();
-        _evictionTimer.Start();
+        EventHandler tickHandler = (sender, e) => OnEvictionTimerTick(timer, version);
+        _evictionTimer = timer;
+        _evictionTickHandler = tickHandler;
+        timer.Tick += tickHandler;
+        try
+        {
+            timer.Start();
+        }
+        catch
+        {
+            CancelIdleEviction();
+            throw;
+        }
     }
 
     private void CancelIdleEviction()
     {
-        if (_evictionTimer == null) return;
-        _evictionTimer.Stop();
-        _evictionTimer.Tick -= OnEvictionTimerTick;
+        _evictionVersion++;
+        DispatcherTimer? timer = _evictionTimer;
+        EventHandler? tickHandler = _evictionTickHandler;
+        _evictionTimer = null;
+        _evictionTickHandler = null;
+        if (timer == null) return;
+
+        TryCleanup(timer.Stop);
+        if (tickHandler != null)
+            TryCleanup(() => timer.Tick -= tickHandler);
     }
 
-    private void OnEvictionTimerTick(object? sender, EventArgs e)
+    private void OnEvictionTimerTick(DispatcherTimer timer, long version)
     {
+        if (_disposed) return;
+        if (!ReferenceEquals(timer, _evictionTimer) || version != _evictionVersion) return;
+
         CancelIdleEviction();
         if (Cached is { IsVisible: true }) return;
         if (isKeepWarmEnabled()) return;
@@ -173,21 +226,20 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         if (sender is not TWindow window || !ReferenceEquals(window, Cached)) return;
+        CancelIdleEviction();
         DisposeWindowWarmResources(window);
-
         Detach(window);
         Cached = null;
-        CancelIdleEviction();
     }
 
     private void Detach(TWindow window)
     {
-        window.Closed -= OnWindowClosed;
+        TryCleanup(() => window.Closed -= OnWindowClosed);
         if (window is ITrayAppDotNETWarmWindow warmWindow)
         {
-            warmWindow.WarmDismissed -= OnWarmDismissed;
-            warmWindow.IsManagedByWarmSlot = false;
-            warmWindow.IsWarmPriming = false;
+            TryCleanup(() => warmWindow.WarmDismissed -= OnWarmDismissed);
+            TryCleanup(() => warmWindow.IsManagedByWarmSlot = false);
+            TryCleanup(() => warmWindow.IsWarmPriming = false);
         }
     }
 
@@ -200,8 +252,65 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         }
         catch (Exception ex)
         {
-            logError?.Invoke(ex);
+            Log(ex);
         }
+    }
+
+    private async Task PrimeWithoutThrowAsync(Func<TWindow> createWindow)
+    {
+        try
+        {
+            await PrimeAsync(createWindow);
+        }
+        catch (Exception exception)
+        {
+            Log(exception);
+        }
+    }
+
+    private void TryCloseWindow(TWindow window)
+    {
+        try
+        {
+            if (window is ITrayAppDotNETWarmWindow warmWindow)
+                warmWindow.CloseForWarmEviction();
+            else
+                window.Close();
+        }
+        catch (Exception exception)
+        {
+            Log(exception);
+        }
+    }
+
+    private void TryCleanup(Action cleanup)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (Exception exception)
+        {
+            Log(exception);
+        }
+    }
+
+    private void Log(Exception exception)
+    {
+        if (logError != null)
+        {
+            try
+            {
+                logError(exception);
+                return;
+            }
+            catch (Exception loggerException)
+            {
+                TADNLog.Log($"Warm-window logger failed: {loggerException.Message}");
+            }
+        }
+
+        TADNLog.Log($"Warm-window cleanup failed: {exception.Message}");
     }
 
     private void ThrowIfDisposed()

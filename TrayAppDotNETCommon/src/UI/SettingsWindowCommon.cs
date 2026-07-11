@@ -76,6 +76,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _wndProcHook = WndProcHook;
         Opened += OnWindowOpened;
         Closed += OnWindowClosed;
+        _windowResources.Add(DetachWndProcHook);
         _windowResources.Add(() => Closed -= OnWindowClosed);
         _windowResources.Add(() => Opened -= OnWindowOpened);
     }
@@ -634,6 +635,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             UIResourceScope shellResources = new($"{GetType().Name}.Shell");
             shellResources.Add(replacementNavItems.Clear);
             shellResources.Add(replacementPages.Clear);
+            if (_scrollHost != null)
+                shellResources.Own(_scrollHost);
             replacementShellGeneration = new UIContentGeneration(
                 $"{GetType().Name}.Shell",
                 replacementRoot,
@@ -879,17 +882,20 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         }
         _openColorPickers.Clear();
 
-        DetachWndProcHook();
-        Content = null;
+        RunWindowCloseCleanup(nameof(DetachWndProcHook), DetachWndProcHook);
+        RunWindowCloseCleanup("ClearWindowContent", () => Content = null);
 
         UIContentGeneration? pageGeneration = Interlocked.Exchange(ref _pageGeneration, null);
         UIContentGeneration? shellGeneration = Interlocked.Exchange(ref _shellGeneration, null);
-        pageGeneration?.Dispose();
-        shellGeneration?.Dispose();
+        if (pageGeneration != null)
+            RunWindowCloseCleanup("DisposePageGeneration", pageGeneration.Dispose);
+        if (shellGeneration != null)
+            RunWindowCloseCleanup("DisposeShellGeneration", shellGeneration.Dispose);
 
-        _buildingPageResources?.Dispose();
-        _buildingPageResources = null;
-        _content.Content = null;
+        UIResourceScope? buildingPageResources = Interlocked.Exchange(ref _buildingPageResources, null);
+        if (buildingPageResources != null)
+            RunWindowCloseCleanup("DisposeBuildingPageResources", buildingPageResources.Dispose);
+        RunWindowCloseCleanup("ClearPageContent", () => _content.Content = null);
         _pages.Clear();
         _navItems.Clear();
         _pageScrollOffsets.Clear();
@@ -900,6 +906,20 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmOk = null;
         _confirmCancel = null;
         _windowResources.Dispose();
+    }
+
+    private void RunWindowCloseCleanup(string operation, Action cleanup)
+    {
+        try
+        {
+            cleanup();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"{GetType().Name}.{operation} failed during close: " +
+                $"{exception.GetType().Name}: {exception.Message}");
+        }
     }
 
     private void AttachWndProcHook()

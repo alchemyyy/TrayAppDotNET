@@ -38,8 +38,13 @@ internal static class UpdateConfirmationLayout
     public static Thickness TitleMargin => AXAMLResources.AxamlUpdateConfirmation.TitleMargin;
 }
 
-public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
+public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 {
+    private readonly UIResourceScope _windowResources;
+    private UIContentGeneration? _contentGeneration;
+    private int _disposeState;
+    private bool _closed;
+
     public TrayAppDotNETUpdateConfirmationWindow(UpdateInfo info, SettingsPalette palette, bool rounded)
         : this(
             string.Format(CultureInfo.CurrentCulture, L("UpdateDialog_TitleFormat", "Update available: {0}"),
@@ -64,6 +69,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         SettingsPalette palette,
         bool rounded)
     {
+        _windowResources = new UIResourceScope(nameof(TrayAppDotNETUpdateConfirmationWindow));
         Title = title;
         Width = UpdateConfirmationLayout.WindowWidth;
         MinWidth = UpdateConfirmationLayout.WindowMinWidth;
@@ -75,25 +81,46 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
-        Content = new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
-            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = UpdateConfirmationLayout.RootBorderThickness,
-            CornerRadius = rounded
-                ? UpdateConfirmationLayout.RootCornerRadius
-                : UpdateConfirmationLayout.ZeroCornerRadius,
-            Child = BuildContent(title, description, changelog, confirmText, cancelText, palette, rounded)
-        };
+        KeyDown += OnWindowKeyDown;
+        _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
+        Closed += OnWindowClosed;
+        _windowResources.Add(() => Closed -= OnWindowClosed);
 
-        KeyDown += (_, e) =>
+        UIResourceScope contentResources = new(nameof(TrayAppDotNETUpdateConfirmationWindow) + ".Content");
+        try
         {
-            if (e.Key == Key.Escape)
+            Border root = new()
             {
-                Close(false);
-                e.Handled = true;
-            }
-        };
+                Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
+                BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+                BorderThickness = UpdateConfirmationLayout.RootBorderThickness,
+                CornerRadius = rounded
+                    ? UpdateConfirmationLayout.RootCornerRadius
+                    : UpdateConfirmationLayout.ZeroCornerRadius,
+                Child = BuildContent(
+                    title,
+                    description,
+                    changelog,
+                    confirmText,
+                    cancelText,
+                    palette,
+                    rounded,
+                    contentResources)
+            };
+            UIContentGeneration contentGeneration = new(
+                nameof(TrayAppDotNETUpdateConfirmationWindow),
+                root,
+                contentResources);
+            _contentGeneration = contentGeneration;
+            Content = root;
+            _windowResources.Add(() => RetireContent(contentGeneration));
+        }
+        catch
+        {
+            contentResources.Dispose();
+            DisposeCore();
+            throw;
+        }
     }
 
     private Grid BuildContent(
@@ -103,13 +130,14 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         string confirmText,
         string? cancelText,
         SettingsPalette palette,
-        bool rounded)
+        bool rounded,
+        UIResourceScope resources)
     {
         Grid root = new();
         root.RowDefinitions.Add(new RowDefinition(new GridLength(UpdateConfirmationLayout.TitleBarHeight)));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        root.Children.Add(BuildTitleBar(title, palette));
+        root.Children.Add(BuildTitleBar(title, palette, resources));
 
         Grid body = new() { Margin = UpdateConfirmationLayout.BodyMargin };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -160,7 +188,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
 
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
         install.Padding = UpdateConfirmationLayout.ButtonPadding;
-        install.Click += (_, _) => Close(true);
+        install.Click += OnConfirmClick;
+        resources.Add(() => install.Click -= OnConfirmClick);
 
         StackPanel buttons = new()
         {
@@ -172,7 +201,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
             SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
             cancel.Padding = UpdateConfirmationLayout.ButtonPadding;
             cancel.Margin = UpdateConfirmationLayout.CancelButtonMargin;
-            cancel.Click += (_, _) => Close(false);
+            cancel.Click += OnCancelClick;
+            resources.Add(() => cancel.Click -= OnCancelClick);
             buttons.Children.Add(cancel);
         }
 
@@ -186,7 +216,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         return root;
     }
 
-    private Grid BuildTitleBar(string title, SettingsPalette palette)
+    private Grid BuildTitleBar(string title, SettingsPalette palette, UIResourceScope resources)
     {
         Grid bar = new()
         {
@@ -202,18 +232,99 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window
         TrayAppDotNETCaptionCloseButton close = new(palette);
         TrayAppDotNETToolTip.SetTip(close, L("UpdateDialog_CaptionClose_Tooltip", "Close"));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        close.Click += (_, _) => Close(false);
+        close.Click += OnCancelClick;
+        resources.Add(() => close.Click -= OnCancelClick);
         Grid.SetColumn(close, 1);
         bar.Children.Add(close);
 
-        bar.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(bar).Properties.IsLeftButtonPressed) return;
-            BeginMoveDrag(e);
-            e.Handled = true;
-        };
+        bar.PointerPressed += OnTitleBarPointerPressed;
+        resources.Add(() => bar.PointerPressed -= OnTitleBarPointerPressed);
 
         return bar;
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_closed || e.Key != Key.Escape) return;
+
+        Complete(false);
+        e.Handled = true;
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_closed || sender is not Control titleBar) return;
+        if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
+
+        BeginMoveDrag(e);
+        e.Handled = true;
+    }
+
+    private void OnConfirmClick(object? sender, EventArgs e) => Complete(true);
+
+    private void OnCancelClick(object? sender, EventArgs e) => Complete(false);
+
+    private void Complete(bool result)
+    {
+        if (_closed) return;
+        Close(result);
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e) => DisposeCore();
+
+    /// <summary>Closes the prompt when necessary and releases all owned UI resources.</summary>
+    public void Dispose()
+    {
+        if (!_closed && IsVisible)
+        {
+            try
+            {
+                Close(false);
+            }
+            finally
+            {
+                DisposeCore();
+            }
+
+            return;
+        }
+
+        DisposeCore();
+    }
+
+    private void DisposeCore()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        _closed = true;
+        _windowResources.Dispose();
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        if (contentGeneration == null) return;
+
+        try
+        {
+            if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
+                Content = null;
+        }
+        finally
+        {
+            contentGeneration.Dispose();
+        }
+    }
+
+    private void RetireContent(UIContentGeneration contentGeneration)
+    {
+        if (ReferenceEquals(_contentGeneration, contentGeneration))
+            _contentGeneration = null;
+        try
+        {
+            if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
+                Content = null;
+        }
+        finally
+        {
+            contentGeneration.Dispose();
+        }
     }
 
     private static string L(string key, string fallback)

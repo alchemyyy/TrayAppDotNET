@@ -7,54 +7,97 @@ using TrayAppDotNETCommon.Interop;
 
 namespace TrayAppDotNETCommon.UI;
 
-public sealed class SettingsFlyoutKeepOpenCoordinator(
-    Func<Window?> window,
-    Func<FlyoutWindowCommon?> flyoutWindow,
-    Action? showFlyoutWithoutActivation = null)
-    : IDisposable
+public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
 {
+    private Func<Window?>? _windowProvider;
+    private Func<FlyoutWindowCommon?>? _flyoutWindowProvider;
+    private Action? _showFlyoutWithoutActivation;
     private Window? _attachedSettingsWindow;
+    private UIResourceScope? _settingsWindowResources;
     private FlyoutWindowCommon? _attachedFlyoutWindow;
-    private readonly HashSet<Window> _attachedSettingsChildWindows = [];
+    private UIResourceScope? _flyoutResources;
+    private readonly Dictionary<Window, UIResourceScope> _attachedSettingsChildWindows = [];
     private Window? _immediateSettingsCloseWindow;
+    private UIResourceScope? _immediateSettingsCloseResources;
     private int _immediateSettingsCloseRestoreVersion;
+    private FlyoutWindowCommon? _pendingHideFlyout;
+    private UIResourceScope? _pendingHideResources;
+    private long _pendingHideVersion;
+    private long _attachmentVersion;
+    private long _queuedFocusGroupVersion;
     private bool _focusGroupEvaluationQueued;
     private bool _isHandlingSettingsActivation;
     private bool _hideRestoredFlyoutOnImmediateSettingsClose;
     private bool _disposed;
 
+    public SettingsFlyoutKeepOpenCoordinator(
+        Func<Window?> window,
+        Func<FlyoutWindowCommon?> flyoutWindow,
+        Action? showFlyoutWithoutActivation = null)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(flyoutWindow);
+        _windowProvider = window;
+        _flyoutWindowProvider = flyoutWindow;
+        _showFlyoutWithoutActivation = showFlyoutWithoutActivation;
+    }
+
     public void Attach(Window settingsWindow)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(settingsWindow);
         if (ReferenceEquals(_attachedSettingsWindow, settingsWindow)) return;
 
         if (_attachedSettingsWindow != null)
-            Detach();
+            DetachCore();
 
+        CancelPendingHide();
+        InvalidateQueuedFocusGroupEvaluation();
+
+        UIResourceScope resources = new(nameof(SettingsFlyoutKeepOpenCoordinator) + ".SettingsWindow");
         _attachedSettingsWindow = settingsWindow;
-        settingsWindow.Activated += OnSettingsWindowActivated;
-        settingsWindow.Deactivated += OnSettingsWindowDeactivated;
-        settingsWindow.PropertyChanged += OnSettingsWindowPropertyChanged;
-        settingsWindow.Closed += OnSettingsWindowClosed;
-        AttachSettingsChildWindows(settingsWindow);
+        try
+        {
+            settingsWindow.Activated += OnSettingsWindowActivated;
+            resources.Add(() => settingsWindow.Activated -= OnSettingsWindowActivated);
+            settingsWindow.Deactivated += OnSettingsWindowDeactivated;
+            resources.Add(() => settingsWindow.Deactivated -= OnSettingsWindowDeactivated);
+            settingsWindow.PropertyChanged += OnSettingsWindowPropertyChanged;
+            resources.Add(() => settingsWindow.PropertyChanged -= OnSettingsWindowPropertyChanged);
+            settingsWindow.Closed += OnSettingsWindowClosed;
+            resources.Add(() => settingsWindow.Closed -= OnSettingsWindowClosed);
+            _settingsWindowResources = resources;
+            AttachSettingsChildWindows(settingsWindow);
+        }
+        catch
+        {
+            _attachedSettingsWindow = null;
+            _settingsWindowResources = null;
+            DetachSettingsChildWindows();
+            resources.Dispose();
+            InvalidateQueuedFocusGroupEvaluation();
+            throw;
+        }
     }
 
     public void HoldOpen()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        Window? settingsWindow = window();
+        CancelPendingHide();
+
+        Window? settingsWindow = _windowProvider?.Invoke();
         if (settingsWindow == null || settingsWindow.WindowState == WindowState.Minimized) return;
 
         AttachSettingsChildWindows(settingsWindow);
 
-        FlyoutWindowCommon? flyout = flyoutWindow();
+        FlyoutWindowCommon? flyout = _flyoutWindowProvider?.Invoke();
         if (flyout is not { IsVisible: true })
         {
             // Restore only a flyout that was already paired with settings
-            if (_attachedFlyoutWindow != null && showFlyoutWithoutActivation != null)
+            if (_attachedFlyoutWindow != null && _showFlyoutWithoutActivation != null)
             {
-                showFlyoutWithoutActivation();
-                flyout = flyoutWindow();
+                _showFlyoutWithoutActivation();
+                flyout = _flyoutWindowProvider?.Invoke();
                 if (flyout is { IsVisible: true })
                 {
                     AttachFlyout(flyout);
@@ -67,7 +110,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
             if (_attachedFlyoutWindow != null)
                 _attachedFlyoutWindow.KeepOpenForSettingsWindow = false;
-            DetachFlyout();
+            DetachFlyout(cancelPendingHide: true);
             return;
         }
 
@@ -75,53 +118,91 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         flyout.KeepOpenForSettingsWindow = true;
     }
 
-    public void Release() => Release(hideFlyout: true, activateFlyout: false);
-
-    private void Release(bool hideFlyout, bool activateFlyout)
+    public void Release()
     {
-        FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? flyoutWindow();
+        if (_disposed) return;
+        ReleaseCore(hideFlyout: true, activateFlyout: false);
+    }
 
-        if (flyout != null)
+    private void ReleaseCore(bool hideFlyout, bool activateFlyout)
+    {
+        FlyoutWindowCommon? flyout = _attachedFlyoutWindow;
+        if (flyout == null && !_disposed)
+            flyout = _flyoutWindowProvider?.Invoke();
+
+        bool preservePendingHide = false;
+        try
         {
-            flyout.KeepOpenForSettingsWindow = false;
-            if (hideFlyout)
-                HideFlyoutNowOrWhenOpened(flyout);
-            else if (activateFlyout && flyout is { IsVisible: true, CanHideFromCoordinator: true })
-                flyout.Activate();
+            if (flyout != null)
+            {
+                flyout.KeepOpenForSettingsWindow = false;
+                if (hideFlyout)
+                    preservePendingHide = HideFlyoutNowOrWhenOpened(flyout);
+                else if (activateFlyout && flyout is { IsVisible: true, CanHideFromCoordinator: true })
+                    flyout.Activate();
+            }
         }
-
-        DetachFlyout();
-        DetachSettingsChildWindows();
+        finally
+        {
+            DetachFlyout(cancelPendingHide: !preservePendingHide);
+            DetachSettingsChildWindows();
+        }
     }
 
     public void Detach()
     {
-        Release(hideFlyout: false, activateFlyout: false);
-        ClearImmediateSettingsCloseTracking();
-        DetachSettingsWindow();
+        if (_disposed) return;
+        DetachCore();
+    }
+
+    private void DetachCore()
+    {
+        InvalidateQueuedFocusGroupEvaluation();
+        CancelPendingHide();
+        try
+        {
+            ReleaseCore(hideFlyout: false, activateFlyout: false);
+        }
+        finally
+        {
+            ClearImmediateSettingsCloseTracking();
+            DetachSettingsWindow();
+        }
     }
 
     private void DetachSettingsWindow()
     {
-        if (_attachedSettingsWindow == null) return;
-
-        _attachedSettingsWindow.Activated -= OnSettingsWindowActivated;
-        _attachedSettingsWindow.Deactivated -= OnSettingsWindowDeactivated;
-        _attachedSettingsWindow.PropertyChanged -= OnSettingsWindowPropertyChanged;
-        _attachedSettingsWindow.Closed -= OnSettingsWindowClosed;
         _attachedSettingsWindow = null;
+        UIResourceScope? resources = Interlocked.Exchange(ref _settingsWindowResources, null);
+        resources?.Dispose();
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        Detach();
+        InvalidateQueuedFocusGroupEvaluation();
+
+        try
+        {
+            CancelPendingHide();
+            ReleaseCore(hideFlyout: false, activateFlyout: false);
+        }
+        finally
+        {
+            ClearImmediateSettingsCloseTracking();
+            DetachSettingsChildWindows();
+            DetachFlyout(cancelPendingHide: true);
+            DetachSettingsWindow();
+            _windowProvider = null;
+            _flyoutWindowProvider = null;
+            _showFlyoutWithoutActivation = null;
+        }
     }
 
     private void OnSettingsWindowActivated(object? sender, EventArgs e)
     {
-        if (!ReferenceEquals(sender, _attachedSettingsWindow)) return;
+        if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
 
         _isHandlingSettingsActivation = true;
         try
@@ -133,74 +214,96 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
             _isHandlingSettingsActivation = false;
         }
 
-        (_attachedFlyoutWindow ?? flyoutWindow())?.ClearNextAutoHideSuppression();
+        (_attachedFlyoutWindow ?? _flyoutWindowProvider?.Invoke())?.ClearNextAutoHideSuppression();
     }
 
     private void OnSettingsWindowDeactivated(object? sender, EventArgs e)
     {
-        if (!ReferenceEquals(sender, _attachedSettingsWindow)) return;
-
+        if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
         QueueFocusGroupEvaluation();
     }
 
     private void OnSettingsWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (!ReferenceEquals(sender, _attachedSettingsWindow)) return;
+        if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
         if (e.Property != Window.WindowStateProperty) return;
 
         if (sender is Window settingsWindow && settingsWindow.WindowState == WindowState.Minimized)
-            Release();
+            ReleaseCore(hideFlyout: true, activateFlyout: false);
         else
             QueueFocusGroupEvaluation();
     }
 
     private void OnFlyoutWindowDeactivated(object? sender, EventArgs e)
     {
-        if (!ReferenceEquals(sender, _attachedFlyoutWindow)) return;
+        if (_disposed || !ReferenceEquals(sender, _attachedFlyoutWindow)) return;
         if (sender is not FlyoutWindowCommon flyout) return;
-
-        if (!flyout.IsVisible || !flyout.CanHideFromCoordinator)
-            return;
+        if (!flyout.IsVisible || !flyout.CanHideFromCoordinator) return;
 
         QueueFocusGroupEvaluation();
     }
 
     private void OnSettingsWindowClosed(object? sender, EventArgs e)
     {
+        if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
+
         bool hideFlyout = _hideRestoredFlyoutOnImmediateSettingsClose;
         ClearImmediateSettingsCloseTracking();
-
-        Release(hideFlyout: hideFlyout, activateFlyout: !hideFlyout);
-        DetachSettingsWindow();
+        try
+        {
+            ReleaseCore(hideFlyout: hideFlyout, activateFlyout: !hideFlyout);
+        }
+        finally
+        {
+            DetachSettingsWindow();
+            InvalidateQueuedFocusGroupEvaluation();
+        }
     }
 
     private void MarkRestoredFlyoutForImmediateSettingsClose()
     {
-        if (!IsLeftMouseButtonDown()) return;
+        if (_disposed || !IsLeftMouseButtonDown()) return;
 
-        Window? settingsWindow = _attachedSettingsWindow ?? window();
+        Window? settingsWindow = _attachedSettingsWindow ?? _windowProvider?.Invoke();
         if (settingsWindow == null) return;
 
         ClearImmediateSettingsCloseTracking();
         _hideRestoredFlyoutOnImmediateSettingsClose = true;
         _immediateSettingsCloseWindow = settingsWindow;
-        _immediateSettingsCloseRestoreVersion++;
-        settingsWindow.AddHandler(
-            InputElement.PointerReleasedEvent,
-            OnImmediateSettingsClosePointerReleased,
-            RoutingStrategies.Bubble,
-            handledEventsToo: true);
+        int restoreVersion = ++_immediateSettingsCloseRestoreVersion;
+        UIResourceScope resources = new(nameof(SettingsFlyoutKeepOpenCoordinator) + ".ImmediateClose");
+        try
+        {
+            settingsWindow.AddHandler(
+                InputElement.PointerReleasedEvent,
+                OnImmediateSettingsClosePointerReleased,
+                RoutingStrategies.Bubble,
+                handledEventsToo: true);
+            resources.Add(() => settingsWindow.RemoveHandler(
+                InputElement.PointerReleasedEvent,
+                OnImmediateSettingsClosePointerReleased));
+            _immediateSettingsCloseResources = resources;
+        }
+        catch
+        {
+            resources.Dispose();
+            if (restoreVersion == _immediateSettingsCloseRestoreVersion)
+                ClearImmediateSettingsCloseTracking();
+            throw;
+        }
     }
 
     private void OnImmediateSettingsClosePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (!ReferenceEquals(sender, _immediateSettingsCloseWindow)) return;
+        if (_disposed || !ReferenceEquals(sender, _immediateSettingsCloseWindow)) return;
 
         int restoreVersion = _immediateSettingsCloseRestoreVersion;
+        Window? trackedWindow = _immediateSettingsCloseWindow;
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (_immediateSettingsCloseRestoreVersion != restoreVersion) return;
+                if (_disposed || _immediateSettingsCloseRestoreVersion != restoreVersion) return;
+                if (!ReferenceEquals(trackedWindow, _immediateSettingsCloseWindow)) return;
                 ClearImmediateSettingsCloseTracking();
             },
             DispatcherPriority.ApplicationIdle);
@@ -208,40 +311,37 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
     private void ClearImmediateSettingsCloseTracking()
     {
-        if (_immediateSettingsCloseWindow != null)
-        {
-            _immediateSettingsCloseWindow.RemoveHandler(
-                InputElement.PointerReleasedEvent,
-                OnImmediateSettingsClosePointerReleased);
-        }
-
         _immediateSettingsCloseWindow = null;
         _hideRestoredFlyoutOnImmediateSettingsClose = false;
         _immediateSettingsCloseRestoreVersion++;
+        UIResourceScope? resources = Interlocked.Exchange(ref _immediateSettingsCloseResources, null);
+        resources?.Dispose();
     }
 
     private void OnSettingsChildWindowActivated(object? sender, EventArgs e)
     {
-        if (sender is Window childWindow && _attachedSettingsChildWindows.Contains(childWindow))
+        if (_disposed) return;
+        if (sender is Window childWindow && _attachedSettingsChildWindows.ContainsKey(childWindow))
             HoldOpen();
     }
 
     private void OnSettingsChildWindowDeactivated(object? sender, EventArgs e)
     {
-        if (sender is Window childWindow && _attachedSettingsChildWindows.Contains(childWindow))
+        if (_disposed) return;
+        if (sender is Window childWindow && _attachedSettingsChildWindows.ContainsKey(childWindow))
             QueueFocusGroupEvaluation();
     }
 
     private void OnSettingsChildWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property != Window.WindowStateProperty) return;
-        if (sender is Window childWindow && _attachedSettingsChildWindows.Contains(childWindow))
+        if (_disposed || e.Property != Window.WindowStateProperty) return;
+        if (sender is Window childWindow && _attachedSettingsChildWindows.ContainsKey(childWindow))
             QueueFocusGroupEvaluation();
     }
 
     private void OnSettingsChildWindowClosed(object? sender, EventArgs e)
     {
-        if (sender is not Window childWindow) return;
+        if (_disposed || sender is not Window childWindow) return;
 
         DetachSettingsChildWindow(childWindow);
         QueueFocusGroupEvaluation();
@@ -251,37 +351,49 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
     {
         if (_disposed || _focusGroupEvaluationQueued) return;
 
+        long version = _attachmentVersion;
+        Window? settingsWindow = _attachedSettingsWindow;
         _focusGroupEvaluationQueued = true;
+        _queuedFocusGroupVersion = version;
         Dispatcher.UIThread.Post(
             () =>
             {
-                _focusGroupEvaluationQueued = false;
+                if (_queuedFocusGroupVersion == version)
+                    _focusGroupEvaluationQueued = false;
+                if (_disposed || version != _attachmentVersion) return;
+                if (!ReferenceEquals(settingsWindow, _attachedSettingsWindow)) return;
                 EvaluateFocusGroup();
             },
             DispatcherPriority.Input);
+    }
+
+    private void InvalidateQueuedFocusGroupEvaluation()
+    {
+        _attachmentVersion++;
+        _focusGroupEvaluationQueued = false;
+        _queuedFocusGroupVersion = 0;
     }
 
     private void EvaluateFocusGroup()
     {
         if (_disposed) return;
 
-        Window? settingsWindow = window();
-        FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? flyoutWindow();
+        Window? settingsWindow = _windowProvider?.Invoke();
+        FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? _flyoutWindowProvider?.Invoke();
 
         if (settingsWindow == null || !settingsWindow.IsVisible)
         {
-            Release(hideFlyout: false, activateFlyout: false);
+            ReleaseCore(hideFlyout: false, activateFlyout: false);
             return;
         }
 
         if (settingsWindow.WindowState == WindowState.Minimized)
         {
-            Release();
+            ReleaseCore(hideFlyout: true, activateFlyout: false);
             return;
         }
 
         AttachSettingsChildWindows(settingsWindow);
-
         if (flyout == null) return;
         AttachFlyout(flyout);
 
@@ -302,24 +414,46 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
     private void AttachFlyout(FlyoutWindowCommon flyout)
     {
+        CancelPendingHide();
         if (ReferenceEquals(_attachedFlyoutWindow, flyout)) return;
 
-        DetachFlyout();
+        DetachFlyout(cancelPendingHide: false);
+        InvalidateQueuedFocusGroupEvaluation();
+        UIResourceScope resources = new(nameof(SettingsFlyoutKeepOpenCoordinator) + ".Flyout");
         _attachedFlyoutWindow = flyout;
-        flyout.Deactivated += OnFlyoutWindowDeactivated;
-        flyout.Closed += OnFlyoutWindowClosed;
+        try
+        {
+            flyout.Deactivated += OnFlyoutWindowDeactivated;
+            resources.Add(() => flyout.Deactivated -= OnFlyoutWindowDeactivated);
+            flyout.Closed += OnFlyoutWindowClosed;
+            resources.Add(() => flyout.Closed -= OnFlyoutWindowClosed);
+            _flyoutResources = resources;
+        }
+        catch
+        {
+            _attachedFlyoutWindow = null;
+            resources.Dispose();
+            throw;
+        }
     }
 
-    private void DetachFlyout()
+    private void DetachFlyout(bool cancelPendingHide)
     {
-        if (_attachedFlyoutWindow == null) return;
+        if (cancelPendingHide)
+            CancelPendingHide();
 
-        _attachedFlyoutWindow.Deactivated -= OnFlyoutWindowDeactivated;
-        _attachedFlyoutWindow.Closed -= OnFlyoutWindowClosed;
+        if (_attachedFlyoutWindow == null && _flyoutResources == null) return;
         _attachedFlyoutWindow = null;
+        UIResourceScope? resources = Interlocked.Exchange(ref _flyoutResources, null);
+        resources?.Dispose();
+        InvalidateQueuedFocusGroupEvaluation();
     }
 
-    private void OnFlyoutWindowClosed(object? sender, EventArgs e) => DetachFlyout();
+    private void OnFlyoutWindowClosed(object? sender, EventArgs e)
+    {
+        if (!ReferenceEquals(sender, _attachedFlyoutWindow)) return;
+        DetachFlyout(cancelPendingHide: true);
+    }
 
     private void AttachSettingsChildWindows(Window settingsWindow)
     {
@@ -332,7 +466,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
             AttachSettingsChildWindow(childWindow);
         }
 
-        foreach (Window attachedChild in _attachedSettingsChildWindows.ToArray())
+        foreach (Window attachedChild in _attachedSettingsChildWindows.Keys.ToArray())
         {
             if (!ownedNow.Contains(attachedChild))
                 DetachSettingsChildWindow(attachedChild);
@@ -341,27 +475,37 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
 
     private void AttachSettingsChildWindow(Window childWindow)
     {
-        if (!_attachedSettingsChildWindows.Add(childWindow)) return;
+        if (_attachedSettingsChildWindows.ContainsKey(childWindow)) return;
 
-        childWindow.Activated += OnSettingsChildWindowActivated;
-        childWindow.Deactivated += OnSettingsChildWindowDeactivated;
-        childWindow.PropertyChanged += OnSettingsChildWindowPropertyChanged;
-        childWindow.Closed += OnSettingsChildWindowClosed;
+        UIResourceScope resources = new(nameof(SettingsFlyoutKeepOpenCoordinator) + ".SettingsChild");
+        try
+        {
+            childWindow.Activated += OnSettingsChildWindowActivated;
+            resources.Add(() => childWindow.Activated -= OnSettingsChildWindowActivated);
+            childWindow.Deactivated += OnSettingsChildWindowDeactivated;
+            resources.Add(() => childWindow.Deactivated -= OnSettingsChildWindowDeactivated);
+            childWindow.PropertyChanged += OnSettingsChildWindowPropertyChanged;
+            resources.Add(() => childWindow.PropertyChanged -= OnSettingsChildWindowPropertyChanged);
+            childWindow.Closed += OnSettingsChildWindowClosed;
+            resources.Add(() => childWindow.Closed -= OnSettingsChildWindowClosed);
+            _attachedSettingsChildWindows.Add(childWindow, resources);
+        }
+        catch
+        {
+            resources.Dispose();
+            throw;
+        }
     }
 
     private void DetachSettingsChildWindow(Window childWindow)
     {
-        if (!_attachedSettingsChildWindows.Remove(childWindow)) return;
-
-        childWindow.Activated -= OnSettingsChildWindowActivated;
-        childWindow.Deactivated -= OnSettingsChildWindowDeactivated;
-        childWindow.PropertyChanged -= OnSettingsChildWindowPropertyChanged;
-        childWindow.Closed -= OnSettingsChildWindowClosed;
+        if (!_attachedSettingsChildWindows.Remove(childWindow, out UIResourceScope? resources)) return;
+        resources.Dispose();
     }
 
     private void DetachSettingsChildWindows()
     {
-        foreach (Window childWindow in _attachedSettingsChildWindows.ToArray())
+        foreach (Window childWindow in _attachedSettingsChildWindows.Keys.ToArray())
             DetachSettingsChildWindow(childWindow);
     }
 
@@ -370,7 +514,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
         if (settingsWindow.IsActive) return true;
 
         AttachSettingsChildWindows(settingsWindow);
-        foreach (Window childWindow in _attachedSettingsChildWindows)
+        foreach (Window childWindow in _attachedSettingsChildWindows.Keys)
         {
             if (ReferenceEquals(childWindow.Owner, settingsWindow)
                 && childWindow.IsVisible
@@ -389,24 +533,53 @@ public sealed class SettingsFlyoutKeepOpenCoordinator(
             flyout.HideFromCoordinator();
     }
 
-    private static void HideFlyoutNowOrWhenOpened(FlyoutWindowCommon flyout)
+    private bool HideFlyoutNowOrWhenOpened(FlyoutWindowCommon flyout)
     {
+        CancelPendingHide();
         if (flyout.IsVisible)
         {
             if (flyout.CanHideFromCoordinator)
                 flyout.HideFromCoordinator();
-            return;
+            return false;
         }
 
-        flyout.Opened += OnOpened;
-        return;
-
-        void OnOpened(object? sender, EventArgs e)
+        long version = ++_pendingHideVersion;
+        UIResourceScope resources = new(nameof(SettingsFlyoutKeepOpenCoordinator) + ".PendingHide");
+        EventHandler opened = (sender, e) => CompletePendingHide(flyout, version, opened: true);
+        EventHandler closed = (sender, e) => CompletePendingHide(flyout, version, opened: false);
+        _pendingHideFlyout = flyout;
+        _pendingHideResources = resources;
+        try
         {
-            flyout.Opened -= OnOpened;
-            if (flyout is { IsVisible: true, CanHideFromCoordinator: true })
-                flyout.HideFromCoordinator();
+            flyout.Opened += opened;
+            resources.Add(() => flyout.Opened -= opened);
+            flyout.Closed += closed;
+            resources.Add(() => flyout.Closed -= closed);
+            return true;
         }
+        catch
+        {
+            CancelPendingHide();
+            throw;
+        }
+    }
+
+    private void CompletePendingHide(FlyoutWindowCommon flyout, long version, bool opened)
+    {
+        if (!ReferenceEquals(flyout, _pendingHideFlyout) || version != _pendingHideVersion) return;
+
+        CancelPendingHide();
+        if (_disposed || !opened) return;
+        if (flyout is { IsVisible: true, CanHideFromCoordinator: true })
+            flyout.HideFromCoordinator();
+    }
+
+    private void CancelPendingHide()
+    {
+        _pendingHideVersion++;
+        _pendingHideFlyout = null;
+        UIResourceScope? resources = Interlocked.Exchange(ref _pendingHideResources, null);
+        resources?.Dispose();
     }
 
     private static bool IsLeftMouseButtonDown() =>

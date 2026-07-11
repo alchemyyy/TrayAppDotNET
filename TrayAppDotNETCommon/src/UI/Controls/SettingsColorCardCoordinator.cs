@@ -92,7 +92,16 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
     public void CloseOpenColorPickers()
     {
         foreach (TrayAppDotNETColorPickerWindow picker in _openColorPickers.Values.ToArray())
-            picker.Close();
+        {
+            try
+            {
+                picker.Close();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Settings color picker close failed: {exception.Message}");
+            }
+        }
         _openColorPickers.Clear();
     }
 
@@ -154,6 +163,14 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         };
 
         _openColorPickers[key] = picker;
-        picker.Show(owner);
+        try
+        {
+            picker.Show(owner);
+        }
+        catch
+        {
+            _openColorPickers.Remove(key);
+            throw;
+        }
     }
 }

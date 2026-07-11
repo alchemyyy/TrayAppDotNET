@@ -7,6 +7,8 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class UIResourceScopeTests
 {
+    private const int ReplacementStressCount = 2_000;
+
     [Fact]
     public void DisposeCancelsThenReleasesInReverseOrder()
     {
@@ -89,6 +91,21 @@ public sealed class UIResourceScopeTests
         Assert.Null(retainedRoot);
     }
 
+    [Fact]
+    public void ThousandsOfGenerationReplacementsRetireEveryPreviousRoot()
+    {
+        (UIContentGeneration activeGeneration, List<WeakReference<Control>> retiredRoots, int disposedCount) =
+            RunReplacementStress();
+
+        ForceCollection();
+
+        int retainedCount = retiredRoots.Count(reference => reference.TryGetTarget(out Control? _));
+        Assert.Equal(0, retainedCount);
+        Assert.Equal(ReplacementStressCount - 1, disposedCount);
+        Assert.False(activeGeneration.IsDisposed);
+        activeGeneration.Dispose();
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference<Control> CreateRetiredGenerationReference()
     {
@@ -97,6 +114,34 @@ public sealed class UIResourceScopeTests
         WeakReference<Control> reference = generation.CreateRootWeakReference();
         generation.Dispose();
         return reference;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (UIContentGeneration ActiveGeneration, List<WeakReference<Control>> RetiredRoots,
+        int DisposedCount) RunReplacementStress()
+    {
+        ContentControl host = new();
+        List<WeakReference<Control>> retiredRoots = [];
+        int disposedCount = 0;
+        UIContentGeneration? activeGeneration = null;
+
+        for (int index = 0; index < ReplacementStressCount; index++)
+        {
+            UIResourceScope resources = new($"Stress.{index}");
+            resources.Add(() => disposedCount++);
+            Border root = new() { Child = new TextBlock { Text = index.ToString() } };
+            UIContentGeneration replacement = new($"Stress.{index}", root, resources);
+
+            UIContentGeneration? previous = activeGeneration;
+            host.Content = replacement.Root;
+            activeGeneration = replacement;
+            if (previous == null) continue;
+
+            retiredRoots.Add(previous.CreateRootWeakReference());
+            previous.Dispose();
+        }
+
+        return (activeGeneration!, retiredRoots, disposedCount);
     }
 
     private static void ForceCollection()

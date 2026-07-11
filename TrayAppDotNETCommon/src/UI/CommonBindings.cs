@@ -166,7 +166,15 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 if (!IsClosing) RebuildShell(CurrentPageKey);
             };
             _openColorPickers.Add(picker);
-            picker.Show(this);
+            try
+            {
+                picker.Show(this);
+            }
+            catch
+            {
+                _openColorPickers.Remove(picker);
+                throw;
+            }
         };
         resetButton.Click += (_, _) =>
         {
@@ -261,7 +269,15 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         };
 
         _openColorPickers.Add(picker);
-        picker.Show(this);
+        try
+        {
+            picker.Show(this);
+        }
+        catch
+        {
+            _openColorPickers.Remove(picker);
+            throw;
+        }
     }
 
     private static SettingsToggle Toggle(bool value, SettingsPalette palette, Action<bool> changed) =>

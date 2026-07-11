@@ -272,13 +272,19 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     protected override void OnClosed(EventArgs e)
     {
         _closed = true;
-        Content = null;
         UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
-        contentGeneration?.Dispose();
-        _scrollViewer = null;
-        _windowResources.Dispose();
-        WarmDismissed = null;
-        base.OnClosed(e);
+        try
+        {
+            Content = null;
+        }
+        finally
+        {
+            contentGeneration?.Dispose();
+            _scrollViewer = null;
+            _windowResources.Dispose();
+            WarmDismissed = null;
+            base.OnClosed(e);
+        }
     }
 
     private void OnDeactivated(object? sender, EventArgs e) => DismissForWarmCache();

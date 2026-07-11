@@ -68,9 +68,15 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         UIContentGeneration? generation = Interlocked.Exchange(ref _activeContentGeneration, null);
         if (generation == null) return;
 
-        if (!generation.IsDisposed && ReferenceEquals(Content, generation.Root))
-            Content = null;
-        generation.Dispose();
+        try
+        {
+            if (!generation.IsDisposed && ReferenceEquals(Content, generation.Root))
+                Content = null;
+        }
+        finally
+        {
+            generation.Dispose();
+        }
     }
 
     protected void SuppressNextAutoHideWhenPressed(Control control)
@@ -124,16 +130,20 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         WarmDismissed?.Invoke(this, EventArgs.Empty);
     }
 
-    protected void NotifyChildWindowClosedFromDeactivation() =>
+    protected void NotifyChildWindowClosedFromDeactivation()
+    {
+        CancellationToken cancellationToken = _windowResources.CancellationToken;
         Dispatcher.UIThread.Post(
             () =>
             {
+                if (cancellationToken.IsCancellationRequested) return;
                 ClearNextAutoHideSuppression();
                 if (!IsVisible || IsActive) return;
                 if (!ShouldHideWhenInactive()) return;
                 HideFlyout();
             },
             DispatcherPriority.Input);
+    }
 
     private bool ShouldHideWhenInactive() =>
         !IsWarmPriming
@@ -157,9 +167,15 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 
     protected override void OnClosed(EventArgs e)
     {
-        DisposeContentGeneration();
-        _windowResources.Dispose();
-        WarmDismissed = null;
-        base.OnClosed(e);
+        try
+        {
+            DisposeContentGeneration();
+        }
+        finally
+        {
+            _windowResources.Dispose();
+            WarmDismissed = null;
+            base.OnClosed(e);
+        }
     }
 }

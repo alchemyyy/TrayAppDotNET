@@ -61,6 +61,39 @@ public sealed class UIControlLifetimeTests
     });
 
     [Fact]
+    public void SearchableListFailedCandidateKeepsActiveRowsAndCollection()
+        => AvaloniaTestHost.Run(() =>
+        {
+            int createdCount = 0;
+            int disposedCount = 0;
+            SettingsSearchableListBox list = new(Palette());
+            list.Items.Add(new SettingsSearchableListBoxItem(
+                "stable",
+                "Stable",
+                contentFactory: () => new CountingControl(
+                    () => createdCount++,
+                    () => disposedCount++)));
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                list.Items.Add(new SettingsSearchableListBoxItem(
+                    "failing",
+                    "Failing",
+                    contentFactory: static () => throw new InvalidOperationException("expected row failure"))));
+
+            Assert.Equal("expected row failure", exception.Message);
+            Assert.Single(list.Items);
+            Assert.Equal("stable", list.Items[0].Tag);
+            Assert.Equal(2, createdCount);
+            Assert.Equal(1, disposedCount);
+
+            list.ItemMargin = new Avalonia.Thickness(1);
+            Assert.Equal(3, createdCount);
+            Assert.Equal(2, disposedCount);
+            list.Dispose();
+            Assert.Equal(3, disposedCount);
+        });
+
+    [Fact]
     public void ComboBoxDisposesMeasuredSelectedAndItemFactoryContent() => AvaloniaTestHost.Run(() =>
     {
         int createdCount = 0;
@@ -93,6 +126,34 @@ public sealed class UIControlLifetimeTests
         comboBox.Dispose();
         Assert.Equal(4, disposedCount);
     });
+
+    [Fact]
+    public void ComboBoxFailedSelectionContentKeepsPreviousSelection()
+        => AvaloniaTestHost.Run(() =>
+        {
+            int factoryCallCount = 0;
+            SettingsComboBox comboBox = new(Palette(), autoSizeToText: false);
+            SettingsComboBoxItem item = new(
+                "item",
+                "Item",
+                Palette(),
+                () =>
+                {
+                    factoryCallCount++;
+                    if (factoryCallCount > 1)
+                        throw new InvalidOperationException("expected selection failure");
+                    return new Border();
+                });
+            comboBox.Items.Add(item);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                comboBox.SelectedItem = item);
+
+            Assert.Equal("expected selection failure", exception.Message);
+            Assert.Null(comboBox.SelectedItem);
+            Assert.Equal(-1, comboBox.SelectedIndex);
+            comboBox.Dispose();
+        });
 
     private static SettingsPalette Palette() => new(
         Colors.Black,

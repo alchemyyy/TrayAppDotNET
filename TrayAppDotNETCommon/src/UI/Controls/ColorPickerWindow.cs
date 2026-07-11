@@ -58,7 +58,7 @@ public sealed record TrayAppDotNETColorPickerStrings(
     string DefaultButton,
     string ResetButton);
 
-public sealed class TrayAppDotNETColorPickerWindow : Window
+public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 {
     private readonly SettingsPalette _palette;
     private readonly TrayAppDotNETColorPickerStrings _strings;
@@ -77,6 +77,9 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     private readonly TextBox _rgbaBox;
     private readonly TextBox _argbBox;
     private readonly DispatcherTimer _notifyTimer;
+    private readonly UIResourceScope _windowResources;
+    private UIContentGeneration? _contentGeneration;
+    private int _disposeState;
     private bool _closed;
     private bool _suppressArgb;
     private bool _suppressRgba;
@@ -150,25 +153,51 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         _bValueLabel = ChannelValueLabel("0");
         _rgbaBox = HexBox();
         _argbBox = HexBox();
+        _windowResources = new UIResourceScope(nameof(TrayAppDotNETColorPickerWindow));
 
         _notifyTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromMilliseconds(TimeConstants.ColorPickerChangeCooldownMs)
         };
         _notifyTimer.Tick += OnNotifyTimerTick;
-
-        Content = BuildContent(Title);
-        WireEvents();
-
-        RefreshHueFromColor();
-        SyncControlsFromColor();
-
-        Closed += (_, _) =>
+        _windowResources.Add(() =>
         {
-            _closed = true;
             _notifyTimer.Stop();
-            _pendingNotification = null;
-        };
+            _notifyTimer.Tick -= OnNotifyTimerTick;
+        });
+
+        Closed += OnWindowClosed;
+        _windowResources.Add(() => Closed -= OnWindowClosed);
+
+        UIResourceScope contentResources = new(nameof(TrayAppDotNETColorPickerWindow) + ".Content");
+        try
+        {
+            contentResources.Own(_svPicker);
+            contentResources.Own(_hueSlider);
+            contentResources.Own(_alphaSlider);
+            contentResources.Own(_rSlider);
+            contentResources.Own(_gSlider);
+            contentResources.Own(_bSlider);
+
+            Border root = BuildContent(Title, contentResources);
+            WireEvents(contentResources);
+            UIContentGeneration contentGeneration = new(
+                nameof(TrayAppDotNETColorPickerWindow),
+                root,
+                contentResources);
+            _contentGeneration = contentGeneration;
+            Content = root;
+            _windowResources.Add(() => RetireContent(contentGeneration));
+
+            RefreshHueFromColor();
+            SyncControlsFromColor();
+        }
+        catch
+        {
+            contentResources.Dispose();
+            DisposeCore();
+            throw;
+        }
     }
 
     public event EventHandler<Color>? ColorChanged;
@@ -177,17 +206,17 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
     public bool IsDirty => _currentColor != _baselineColor;
 
-    private Border BuildContent(string title)
+    private Border BuildContent(string title, UIResourceScope resources)
     {
         Grid root = new();
         root.RowDefinitions.Add(new RowDefinition(new GridLength(ColorPickerLayout.TitleBarHeight)));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        Control titleBar = BuildTitleBar(title);
+        Control titleBar = BuildTitleBar(title, resources);
         Grid.SetRow(titleBar, 0);
         root.Children.Add(titleBar);
 
-        Grid body = BuildBody();
+        Grid body = BuildBody(resources);
         Grid.SetRow(body, 1);
         root.Children.Add(body);
 
@@ -200,16 +229,13 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         };
     }
 
-    private Grid BuildTitleBar(string title)
+    private Grid BuildTitleBar(string title, UIResourceScope resources)
     {
         Grid titleBar = new() { Background = Brushes.Transparent, Height = ColorPickerLayout.TitleBarHeight };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        titleBar.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
-            BeginMoveDrag(e);
-        };
+        titleBar.PointerPressed += OnTitleBarPointerPressed;
+        resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
 
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(title, _palette);
         titleText.VerticalAlignment = VerticalAlignment.Center;
@@ -220,14 +246,15 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         TrayAppDotNETCaptionCloseButton close = new(_palette);
         TrayAppDotNETToolTip.SetTip(close, _strings.CloseTooltip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        close.Click += (_, _) => Close();
+        close.Click += OnCloseClick;
+        resources.Add(() => close.Click -= OnCloseClick);
         Grid.SetColumn(close, 1);
         titleBar.Children.Add(close);
 
         return titleBar;
     }
 
-    private Grid BuildBody()
+    private Grid BuildBody(UIResourceScope resources)
     {
         Grid body = new() { Margin = ColorPickerLayout.BodyMargin };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -238,7 +265,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         Grid.SetRow(pickerGrid, 0);
         body.Children.Add(pickerGrid);
 
-        Grid footer = BuildFooterGrid();
+        Grid footer = BuildFooterGrid(resources);
         Grid.SetRow(footer, 2);
         body.Children.Add(footer);
 
@@ -282,7 +309,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         return grid;
     }
 
-    private Grid BuildFooterGrid()
+    private Grid BuildFooterGrid(UIResourceScope resources)
     {
         Grid grid = SharedPickerColumns();
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -311,8 +338,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
         resetButton.Padding = ColorPickerLayout.ActionButtonPadding;
         defaultButton.HorizontalAlignment = HorizontalAlignment.Stretch;
         resetButton.HorizontalAlignment = HorizontalAlignment.Stretch;
-        defaultButton.Click += (_, _) => ApplyColor(_defaultColor, ColorApplySource.None, force: true);
-        resetButton.Click += (_, _) => ApplyColor(_baselineColor, ColorApplySource.None, force: true);
+        defaultButton.Click += OnDefaultClick;
+        resources.Add(() => defaultButton.Click -= OnDefaultClick);
+        resetButton.Click += OnResetClick;
+        resources.Add(() => resetButton.Click -= OnResetClick);
 
         Grid.SetColumn(defaultButton, 0);
         buttons.Children.Add(defaultButton);
@@ -408,69 +437,114 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
             LargeChange = 16
         };
 
-    private void WireEvents()
+    private void WireEvents(UIResourceScope resources)
     {
-        _svPicker.SelectionChanged += (_, e) =>
-        {
-            Color rgb = HsvToRgb(_freePickHue, e.Saturation, e.Value);
-            ApplyColor(Color.FromArgb(_currentColor.A, rgb.R, rgb.G, rgb.B), ColorApplySource.SaturationValue);
-        };
+        _svPicker.SelectionChanged += OnSaturationValueChanged;
+        resources.Add(() => _svPicker.SelectionChanged -= OnSaturationValueChanged);
+        _hueSlider.ValueChanged += OnHueChanged;
+        resources.Add(() => _hueSlider.ValueChanged -= OnHueChanged);
+        _alphaSlider.ValueChanged += OnAlphaChanged;
+        resources.Add(() => _alphaSlider.ValueChanged -= OnAlphaChanged);
+        _rSlider.ValueChanged += OnRedChanged;
+        resources.Add(() => _rSlider.ValueChanged -= OnRedChanged);
+        _gSlider.ValueChanged += OnGreenChanged;
+        resources.Add(() => _gSlider.ValueChanged -= OnGreenChanged);
+        _bSlider.ValueChanged += OnBlueChanged;
+        resources.Add(() => _bSlider.ValueChanged -= OnBlueChanged);
+        _rgbaBox.TextChanged += OnRgbaTextChanged;
+        resources.Add(() => _rgbaBox.TextChanged -= OnRgbaTextChanged);
+        _argbBox.TextChanged += OnArgbTextChanged;
+        resources.Add(() => _argbBox.TextChanged -= OnArgbTextChanged);
+    }
 
-        _hueSlider.ValueChanged += (_, value) =>
-        {
-            if (_suppressSlider) return;
-            _freePickHue = Math.Clamp(value, 0, 360);
-            (double _, double sat, double val) = RgbToHsv(_currentColor.R, _currentColor.G, _currentColor.B);
-            Color rgb = HsvToRgb(_freePickHue, sat, val);
-            ApplyColor(Color.FromArgb(_currentColor.A, rgb.R, rgb.G, rgb.B), ColorApplySource.Hue, force: true);
-        };
-        _alphaSlider.ValueChanged += (_, value) =>
-        {
-            if (_suppressSlider) return;
-            byte channel = ToByte(value);
-            ApplyColor(Color.FromArgb(channel, _currentColor.R, _currentColor.G, _currentColor.B),
-                ColorApplySource.Alpha);
-        };
-        _rSlider.ValueChanged += (_, value) =>
-        {
-            if (_suppressSlider) return;
-            byte channel = ToByte(value);
-            ApplyColor(Color.FromArgb(_currentColor.A, channel, _currentColor.G, _currentColor.B),
-                ColorApplySource.Red);
-        };
-        _gSlider.ValueChanged += (_, value) =>
-        {
-            if (_suppressSlider) return;
-            byte channel = ToByte(value);
-            ApplyColor(Color.FromArgb(_currentColor.A, _currentColor.R, channel, _currentColor.B),
-                ColorApplySource.Green);
-        };
-        _bSlider.ValueChanged += (_, value) =>
-        {
-            if (_suppressSlider) return;
-            byte channel = ToByte(value);
-            ApplyColor(Color.FromArgb(_currentColor.A, _currentColor.R, _currentColor.G, channel),
-                ColorApplySource.Blue);
-        };
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_closed || sender is not Control titleBar) return;
+        if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
+        BeginMoveDrag(e);
+    }
 
-        _rgbaBox.TextChanged += (_, _) =>
-        {
-            if (_suppressRgba) return;
-            if (!TryParseHex(_rgbaBox.Text, argbOrder: false, out Color parsed)) return;
-            if (!_hasAlpha) parsed = Color.FromArgb(0xFF, parsed.R, parsed.G, parsed.B);
-            ApplyColor(parsed, ColorApplySource.RgbaText);
-        };
-        _argbBox.TextChanged += (_, _) =>
-        {
-            if (_suppressArgb) return;
-            if (!TryParseHex(_argbBox.Text, argbOrder: true, out Color parsed)) return;
-            if (!_hasAlpha) parsed = Color.FromArgb(0xFF, parsed.R, parsed.G, parsed.B);
-            ApplyColor(parsed, ColorApplySource.ArgbText);
-        };
+    private void OnCloseClick(object? sender, EventArgs e)
+    {
+        if (_closed) return;
+        Close();
+    }
+
+    private void OnDefaultClick(object? sender, EventArgs e) =>
+        ApplyColor(_defaultColor, ColorApplySource.None, force: true);
+
+    private void OnResetClick(object? sender, EventArgs e) =>
+        ApplyColor(_baselineColor, ColorApplySource.None, force: true);
+
+    private void OnSaturationValueChanged(
+        object? sender,
+        TrayAppDotNETSaturationValueChangedEventArgs e)
+    {
+        Color rgb = HsvToRgb(_freePickHue, e.Saturation, e.Value);
+        ApplyColor(Color.FromArgb(_currentColor.A, rgb.R, rgb.G, rgb.B), ColorApplySource.SaturationValue);
+    }
+
+    private void OnHueChanged(object? sender, double value)
+    {
+        if (_closed || _suppressSlider) return;
+        _freePickHue = Math.Clamp(value, 0, 360);
+        (double _, double saturation, double brightness) =
+            RgbToHsv(_currentColor.R, _currentColor.G, _currentColor.B);
+        Color rgb = HsvToRgb(_freePickHue, saturation, brightness);
+        ApplyColor(Color.FromArgb(_currentColor.A, rgb.R, rgb.G, rgb.B), ColorApplySource.Hue, force: true);
+    }
+
+    private void OnAlphaChanged(object? sender, double value)
+    {
+        if (_closed || _suppressSlider) return;
+        byte channel = ToByte(value);
+        ApplyColor(Color.FromArgb(channel, _currentColor.R, _currentColor.G, _currentColor.B),
+            ColorApplySource.Alpha);
+    }
+
+    private void OnRedChanged(object? sender, double value)
+    {
+        if (_closed || _suppressSlider) return;
+        byte channel = ToByte(value);
+        ApplyColor(Color.FromArgb(_currentColor.A, channel, _currentColor.G, _currentColor.B),
+            ColorApplySource.Red);
+    }
+
+    private void OnGreenChanged(object? sender, double value)
+    {
+        if (_closed || _suppressSlider) return;
+        byte channel = ToByte(value);
+        ApplyColor(Color.FromArgb(_currentColor.A, _currentColor.R, channel, _currentColor.B),
+            ColorApplySource.Green);
+    }
+
+    private void OnBlueChanged(object? sender, double value)
+    {
+        if (_closed || _suppressSlider) return;
+        byte channel = ToByte(value);
+        ApplyColor(Color.FromArgb(_currentColor.A, _currentColor.R, _currentColor.G, channel),
+            ColorApplySource.Blue);
+    }
+
+    private void OnRgbaTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_closed || _suppressRgba) return;
+        if (!TryParseHex(_rgbaBox.Text, argbOrder: false, out Color parsed)) return;
+        if (!_hasAlpha) parsed = Color.FromArgb(0xFF, parsed.R, parsed.G, parsed.B);
+        ApplyColor(parsed, ColorApplySource.RgbaText);
+    }
+
+    private void OnArgbTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_closed || _suppressArgb) return;
+        if (!TryParseHex(_argbBox.Text, argbOrder: true, out Color parsed)) return;
+        if (!_hasAlpha) parsed = Color.FromArgb(0xFF, parsed.R, parsed.G, parsed.B);
+        ApplyColor(parsed, ColorApplySource.ArgbText);
     }
 
     private void ApplyColor(Color color, ColorApplySource source, bool force = false)
     {
+        if (_closed) return;
         if (!_hasAlpha)
             color = Color.FromArgb(0xFF, color.R, color.G, color.B);
         if (!force && color == _currentColor) return;
@@ -533,6 +607,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
     private void EnqueueColorChangedNotification()
     {
+        if (_closed) return;
         _pendingNotification = _currentColor;
         if (!_notifyTimer.IsEnabled)
             _notifyTimer.Start();
@@ -555,6 +630,65 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
 
         _pendingNotification = null;
         ColorChanged?.Invoke(this, snapshot);
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e) => DisposeCore();
+
+    /// <summary>Closes the picker when necessary and deterministically releases its UI resources.</summary>
+    public void Dispose()
+    {
+        if (!_closed && IsVisible)
+        {
+            try
+            {
+                Close();
+            }
+            finally
+            {
+                DisposeCore();
+            }
+
+            return;
+        }
+
+        DisposeCore();
+    }
+
+    private void DisposeCore()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        _closed = true;
+        _pendingNotification = null;
+        ColorChanged = null;
+        _windowResources.Dispose();
+        UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
+        if (contentGeneration == null) return;
+
+        try
+        {
+            if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
+                Content = null;
+        }
+        finally
+        {
+            contentGeneration.Dispose();
+        }
+    }
+
+    private void RetireContent(UIContentGeneration contentGeneration)
+    {
+        if (ReferenceEquals(_contentGeneration, contentGeneration))
+            _contentGeneration = null;
+        try
+        {
+            if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
+                Content = null;
+        }
+        finally
+        {
+            contentGeneration.Dispose();
+        }
     }
 
     private static string FormatArgb(Color color) => $"{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
@@ -670,9 +804,11 @@ public sealed class TrayAppDotNETColorPickerWindow : Window
     }
 }
 
-internal sealed class TrayAppDotNETSaturationValuePicker : Control
+internal sealed class TrayAppDotNETSaturationValuePicker : Control, IDisposable
 {
     private readonly SettingsPalette _palette;
+    private IPointer? _capturedPointer;
+    private int _disposeState;
     private bool _dragging;
     private Color _hueColor = AppTheme.ColorPickerHueRed;
     private Color _currentColor = AppTheme.ColorPickerHueRed;
@@ -737,7 +873,17 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         Focus();
         _dragging = true;
-        e.Pointer.Capture(this);
+        _capturedPointer = e.Pointer;
+        try
+        {
+            e.Pointer.Capture(this);
+        }
+        catch
+        {
+            _capturedPointer = null;
+            _dragging = false;
+            throw;
+        }
         UpdateFromPoint(e.GetPosition(this));
         e.Handled = true;
     }
@@ -762,10 +908,32 @@ internal sealed class TrayAppDotNETSaturationValuePicker : Control
         e.Handled = true;
     }
 
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        _capturedPointer = null;
+        _dragging = false;
+        base.OnPointerCaptureLost(e);
+    }
+
     private void StopDragging(PointerEventArgs e)
     {
         _dragging = false;
+        _capturedPointer = null;
         e.Pointer.Capture(null);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        _dragging = false;
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        try { capturedPointer?.Capture(null); }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Color picker pointer release failed: {exception.Message}");
+        }
+        SelectionChanged = null;
     }
 
     private void UpdateFromPoint(Point point)
@@ -798,10 +966,12 @@ internal enum TrayAppDotNETColorSliderKind
     Alpha
 }
 
-internal sealed class TrayAppDotNETColorSlider : Control
+internal sealed class TrayAppDotNETColorSlider : Control, IDisposable
 {
     private readonly SettingsPalette _palette;
     private readonly TrayAppDotNETColorSliderKind _kind;
+    private IPointer? _capturedPointer;
+    private int _disposeState;
     private bool _dragging;
     private double _value;
 
@@ -853,7 +1023,17 @@ internal sealed class TrayAppDotNETColorSlider : Control
         if (!IsEnabled || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         Focus();
         _dragging = true;
-        e.Pointer.Capture(this);
+        _capturedPointer = e.Pointer;
+        try
+        {
+            e.Pointer.Capture(this);
+        }
+        catch
+        {
+            _capturedPointer = null;
+            _dragging = false;
+            throw;
+        }
         Value = ValueFromY(e.GetPosition(this).Y);
         e.Handled = true;
     }
@@ -876,6 +1056,13 @@ internal sealed class TrayAppDotNETColorSlider : Control
         if (!_dragging) return;
         StopDragging(e);
         e.Handled = true;
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        _capturedPointer = null;
+        _dragging = false;
+        base.OnPointerCaptureLost(e);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -910,7 +1097,22 @@ internal sealed class TrayAppDotNETColorSlider : Control
     private void StopDragging(PointerEventArgs e)
     {
         _dragging = false;
+        _capturedPointer = null;
         e.Pointer.Capture(null);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        _dragging = false;
+        IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
+        try { capturedPointer?.Capture(null); }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Color slider pointer release failed: {exception.Message}");
+        }
+        ValueChanged = null;
     }
 
     private void SetValue(double value, bool raise)
