@@ -57,10 +57,20 @@
     <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
   </PropertyGroup>
 
+  <!-- Inner aggregate publishes consume the shared outputs already built by the
+       outer solution graph instead of compiling them concurrently. -->
+  <PropertyGroup Condition="'$(TrayAppDotNETUseAggregateSharedOutput)' == 'true' and '$(TrayAppDotNETIsSharedBuildProject)' == 'true'">
+    <TrayAppDotNETOutputRoot Condition="'$(TrayAppDotNETOutputRoot)' == ''">$(TrayAppDotNETRoot)bin\</TrayAppDotNETOutputRoot>
+    <OutDir>$(TrayAppDotNETOutputRoot)$(Configuration)\</OutDir>
+    <OutputPath>$(OutDir)</OutputPath>
+    <GenerateProjectSpecificOutputFolder>false</GenerateProjectSpecificOutputFolder>
+    <UseCommonOutputDirectory>true</UseCommonOutputDirectory>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
     <!-- Keep inner Native AOT builds out of the aggregate output. A completed publish
          otherwise leaves framework DLLs that can shadow the next app's AOT reference pack. -->
-    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=false -p:TrayAppDotNETUseRootOutput=false -p:TrayAppDotNETBuildSharedProjectReferences=true</TrayAppDotNETPublishAggregateProperties>
+    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=false -p:TrayAppDotNETUseRootOutput=false -p:TrayAppDotNETUseAggregateSharedOutput=true</TrayAppDotNETPublishAggregateProperties>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
