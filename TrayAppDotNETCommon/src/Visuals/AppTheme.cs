@@ -11,22 +11,19 @@ namespace TrayAppDotNETCommon.Visuals;
 /// </summary>
 public class ThemeColor
 {
-    private string _lightHex = "#000000";
-    private string _darkHex = "#000000";
-
     [XmlAttribute]
     public string LightHex
     {
-        get => _lightHex;
-        set => _lightHex = Normalize(value);
-    }
+        get;
+        set => field = Normalize(value);
+    } = "#000000";
 
     [XmlAttribute]
     public string DarkHex
     {
-        get => _darkHex;
-        set => _darkHex = Normalize(value);
-    }
+        get;
+        set => field = Normalize(value);
+    } = "#000000";
 
     public Color Light => ParseHexStrict(LightHex);
     public Color Dark => ParseHexStrict(DarkHex);

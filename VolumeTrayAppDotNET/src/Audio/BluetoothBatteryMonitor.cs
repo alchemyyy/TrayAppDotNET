@@ -190,8 +190,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
 
     private void OnPollTick(object? sender, EventArgs e)
     {
-        DispatcherTimer? pollTimer = sender as DispatcherTimer;
-        if (pollTimer == null) return;
+        if (sender is not DispatcherTimer pollTimer) return;
 
         long generation = Volatile.Read(ref _activePollGeneration);
         PollGenerationLease pollLease = new(pollTimer, generation);

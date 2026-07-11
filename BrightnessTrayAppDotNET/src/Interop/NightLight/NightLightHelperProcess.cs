@@ -431,7 +431,7 @@ internal static class NightLightHelperClient
             warmingTask = _warmingHelperTask;
         }
 
-        if (warmingTask == null || !warmingTask.IsCompleted ||
+        if (warmingTask is not { IsCompleted: true } ||
             !IsRecycleBoundaryStillQuiet(activeHelper))
         {
             return activeHelper;
@@ -1047,8 +1047,7 @@ internal static class NightLightHelperServer
 
     private static void RunLoop(StreamReader reader, StreamWriter writer)
     {
-        string? line;
-        while ((line = reader.ReadLine()) != null)
+        while (reader.ReadLine() is { } line)
         {
             if (line.Equals(ExitCommand, StringComparison.Ordinal))
             {

@@ -540,9 +540,8 @@ internal sealed class BrightnessAvaloniaApp : Application
     private void AdjustNightLightBrightness(int delta)
     {
         BrightnessFlyoutWindow? flyout = _brightnessFlyout;
-        if (flyout == null) return;
 
-        flyout.AdjustNightLightBrightness(delta);
+        flyout?.AdjustNightLightBrightness(delta);
     }
 
     private int ResolveNightLightStrength(int sliderValue) =>

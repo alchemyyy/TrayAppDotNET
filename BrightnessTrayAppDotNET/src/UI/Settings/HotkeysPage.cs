@@ -533,9 +533,7 @@ public sealed partial class BrightnessSettingsWindow
                 number);
         }
 
-        if (HotkeyTarget.TryParseEDID(parameter, out string EDIDKey))
-            return EDIDKey;
-        return parameter;
+        return HotkeyTarget.TryParseEDID(parameter, out string EDIDKey) ? EDIDKey : parameter;
     }
 
     private static string FormatHotkey(BrightnessHotkeyBinding binding)

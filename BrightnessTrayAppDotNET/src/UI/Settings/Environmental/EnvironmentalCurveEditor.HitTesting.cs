@@ -127,9 +127,6 @@ public sealed partial class EnvironmentalCurveEditor
         return double.IsNaN(value) ? double.NaN : Math.Abs(clickY - ScreenY(value, plot));
     }
 
-    private double SampleCurveAt(List<EnvironmentalCurvePoint> series, double t)
-    {
-        if (series.Count == 0) return double.NaN;
-        return EnvironmentalCurveSampler.Sample(series, t, _smoothness);
-    }
+    private double SampleCurveAt(List<EnvironmentalCurvePoint> series, double t) =>
+        series.Count == 0 ? double.NaN : EnvironmentalCurveSampler.Sample(series, t, _smoothness);
 }

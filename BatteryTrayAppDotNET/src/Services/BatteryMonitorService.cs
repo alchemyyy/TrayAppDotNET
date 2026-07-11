@@ -181,7 +181,7 @@ public sealed class BatteryMonitorService : IDisposable
     }
 
     private static float? MilliwattsToWatts(int? milliwatts) =>
-        milliwatts.HasValue ? milliwatts.Value / 1000f : null;
+        milliwatts / 1000f;
 
     private static PowerStatus GetWindowsPowerStatus()
     {

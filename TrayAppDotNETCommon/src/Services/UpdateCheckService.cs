@@ -452,8 +452,7 @@ public sealed class UpdateCheckService : IDisposable
     private TimeSpan NormalizedInterval(TimeSpan requested)
     {
         if (requested < _options.MinPollInterval) return _options.MinPollInterval;
-        if (requested > _options.MaxPollInterval) return _options.MaxPollInterval;
-        return requested;
+        return requested > _options.MaxPollInterval ? _options.MaxPollInterval : requested;
     }
 
     private async Task PollOnceAsync(CancellationToken token)

@@ -43,9 +43,7 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
         };
 
     public TranslateTransform TranslateTransform(string name) =>
-        Resource(name) is TranslateTransform value
-            ? value
-            : throw InvalidType(name, nameof(TranslateTransform));
+        Resource(name) as TranslateTransform ?? throw InvalidType(name, nameof(TranslateTransform));
 
     public TranslateTransform CloneTranslateTransform(string name)
     {

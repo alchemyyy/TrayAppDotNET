@@ -108,8 +108,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
                 }
             }
 
-            if (_attachedFlyoutWindow != null)
-                _attachedFlyoutWindow.KeepOpenForSettingsWindow = false;
+            _attachedFlyoutWindow?.KeepOpenForSettingsWindow = false;
             DetachFlyout(cancelPendingHide: true);
             return;
         }
@@ -228,7 +227,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
         if (e.Property != Window.WindowStateProperty) return;
 
-        if (sender is Window settingsWindow && settingsWindow.WindowState == WindowState.Minimized)
+        if (sender is Window { WindowState: WindowState.Minimized })
             ReleaseCore(hideFlyout: true, activateFlyout: false);
         else
             QueueFocusGroupEvaluation();
@@ -381,7 +380,7 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
         Window? settingsWindow = _windowProvider?.Invoke();
         FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? _flyoutWindowProvider?.Invoke();
 
-        if (settingsWindow == null || !settingsWindow.IsVisible)
+        if (settingsWindow is not { IsVisible: true })
         {
             ReleaseCore(hideFlyout: false, activateFlyout: false);
             return;

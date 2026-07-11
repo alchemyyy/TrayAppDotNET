@@ -331,13 +331,13 @@ internal sealed class StringAdditionalText(string path, string text) : Additiona
 
 internal sealed class TestAnalyzerConfigOptionsProvider(string rootNamespace) : AnalyzerConfigOptionsProvider
 {
-    private readonly AnalyzerConfigOptions _globalOptions = new TestAnalyzerConfigOptions(new Dictionary<string, string>
+    public override AnalyzerConfigOptions GlobalOptions
     {
-        ["build_property.RootNamespace"] = rootNamespace,
-        ["build_property.MSBuildProjectName"] = rootNamespace
+        get;
+    } = new TestAnalyzerConfigOptions(new Dictionary<string, string>
+    {
+        ["build_property.RootNamespace"] = rootNamespace, ["build_property.MSBuildProjectName"] = rootNamespace
     });
-
-    public override AnalyzerConfigOptions GlobalOptions => _globalOptions;
 
     public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => TestAnalyzerConfigOptions.Empty;
 

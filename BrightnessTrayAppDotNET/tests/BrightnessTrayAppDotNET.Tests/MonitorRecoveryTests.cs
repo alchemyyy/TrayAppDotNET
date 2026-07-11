@@ -17,7 +17,7 @@ public sealed class MonitorRecoveryTests
         display.SetRead("DISPLAY\\PORT-A", ok: true, current: 40, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.DisplayNumber);
-        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         string originalID = monitor.ID;
@@ -56,7 +56,7 @@ public sealed class MonitorRecoveryTests
         display.SetRead("DISPLAY\\PORT-B", ok: true, current: 35, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
-        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         string portFallbackID = monitor.ID;
@@ -88,7 +88,7 @@ public sealed class MonitorRecoveryTests
         display.SetRead("DISPLAY\\PORT-C", ok: true, current: 60, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
-        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         monitor.Brightness = 42;
@@ -134,7 +134,7 @@ public sealed class MonitorRecoveryTests
         display.SetRead("DISPLAY\\INTERNAL", ok: true, current: 45, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
-        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         Assert.False(monitor.SupportsPowerControl);

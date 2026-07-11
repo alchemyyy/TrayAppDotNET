@@ -855,7 +855,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         {
             if (!ReferenceEquals(pageGeneration.CapturedPointer, e.Pointer)) return;
             pointerPressed = false;
-            if (!pageGeneration.IsRetiring && !pageGeneration.IsResettingGesture)
+            if (pageGeneration is { IsRetiring: false, IsResettingGesture: false })
                 EndFanSlotDrag(pageGeneration, e.Pointer);
         };
         row.KeyDown += (_, e) =>
@@ -1005,8 +1005,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         pageGeneration.DraggedSlotHeight = 0;
         try
         {
-            if (draggedRow != null)
-                draggedRow.RenderTransform = null;
+            draggedRow?.RenderTransform = null;
             foreach (Control child in pageGeneration.FanSlotPanel.Children)
                 child.RenderTransform = null;
         }

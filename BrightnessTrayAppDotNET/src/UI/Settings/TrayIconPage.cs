@@ -36,7 +36,7 @@ public sealed partial class BrightnessSettingsWindow
             v => _settings.PrecisionTouchpadScrollEnabled = v,
             p,
             afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon))));
-        stack.Children.Add(Maybe(_settings.TrayScrollEnabled && _settings.PrecisionTouchpadScrollEnabled, IntCard(
+        stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true }, IntCard(
             L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title", "Touchpad sensitivity"),
             L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description",
                 "Raw touchpad movement units required for each 1% brightness step. Lower values are more sensitive."),

@@ -711,8 +711,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 L("Settings_TrayIcon_MenuPosition_Description",
                     "Choose where the right-click tray menu opens."),
                 [
-                    (ContextMenuPosition.Classic.ToString(), L("Settings_TrayIcon_MenuPosition_Classic", "Classic")),
-                    (ContextMenuPosition.Modern.ToString(), L("Settings_TrayIcon_MenuPosition_Modern", "Modern"))
+                    (nameof(ContextMenuPosition.Classic), L("Settings_TrayIcon_MenuPosition_Classic", "Classic")),
+                    (nameof(ContextMenuPosition.Modern), L("Settings_TrayIcon_MenuPosition_Modern", "Modern"))
                 ],
                 _settings.ContextMenuPosition.ToString(),
                 tag =>
@@ -1033,9 +1033,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 L("Settings_Theme_ThemeStyle_Title", "Theme"),
                 L("Settings_Theme_ThemeStyle_Description", "Choose the app theme mode."),
                 [
-                    (ThemeMode.System.ToString(), L("Settings_Theme_ThemeStyle_System", "System")),
-                    (ThemeMode.Light.ToString(), L("Settings_Theme_ThemeStyle_Light", "Light")),
-                    (ThemeMode.Dark.ToString(), L("Settings_Theme_ThemeStyle_Dark", "Dark"))
+                    (nameof(ThemeMode.System), L("Settings_Theme_ThemeStyle_System", "System")),
+                    (nameof(ThemeMode.Light), L("Settings_Theme_ThemeStyle_Light", "Light")),
+                    (nameof(ThemeMode.Dark), L("Settings_Theme_ThemeStyle_Dark", "Dark"))
                 ],
                 _settings.ThemeMode.ToString(),
                 tag =>
@@ -1104,9 +1104,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 L("Settings_Theme_Animations_Title", "Animations"),
                 L("Settings_Theme_Animations_Description", "Controls whether tooltip fades and other UI animations are allowed."),
                 [
-                    (TrayAppDotNETAnimationMode.System.ToString(), L("Settings_Theme_Animations_System", "System")),
-                    (TrayAppDotNETAnimationMode.Disabled.ToString(), L("Settings_Theme_Animations_Disabled", "Disabled")),
-                    (TrayAppDotNETAnimationMode.Enabled.ToString(), L("Settings_Theme_Animations_Enabled", "Enabled"))
+                    (nameof(TrayAppDotNETAnimationMode.System), L("Settings_Theme_Animations_System", "System")),
+                    (nameof(TrayAppDotNETAnimationMode.Disabled), L("Settings_Theme_Animations_Disabled", "Disabled")),
+                    (nameof(TrayAppDotNETAnimationMode.Enabled), L("Settings_Theme_Animations_Enabled", "Enabled"))
                 ],
                 _settings.AnimationMode.ToString(),
                 tag =>

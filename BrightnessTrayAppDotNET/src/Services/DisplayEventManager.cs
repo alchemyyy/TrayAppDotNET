@@ -28,15 +28,12 @@ namespace BrightnessTrayAppDotNET.Services;
 /// not raise it directly - it nudges <see cref="MonitorService.Refresh"/> itself, which causes downstream
 /// collection updates exactly as before.
 /// </summary>
-public sealed class DisplayEventManager : IDisposable
+public sealed class DisplayEventManager(MonitorService monitorService, string profilesPath) : IDisposable
 {
     private const int BurstMaxTicks = 10;
 
-    private readonly MonitorService _monitorService;
-    private readonly string _profilesPath;
-
-    private readonly Win32Window _window;
-    private readonly Dispatcher _dispatcher;
+    private readonly Win32Window _window = new();
+    private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
     private readonly Lock _burstGate = new();
     private DispatcherTimer? _coalesce;
     private EventHandler? _coalesceTickHandler;
@@ -55,16 +52,6 @@ public sealed class DisplayEventManager : IDisposable
     /// Fires on the UI dispatcher after the debounce window expires.
     /// </summary>
     public event Action? DisplayTopologyChanged;
-
-    public DisplayEventManager(MonitorService monitorService, string profilesPath)
-    {
-        _monitorService = monitorService;
-        _profilesPath = profilesPath;
-        _dispatcher = Dispatcher.UIThread;
-
-        _window = new Win32Window();
-
-    }
 
     /// <summary>
     /// Registers the single <c>WM_DEVICECHANGE</c> sink and subscribes to <see cref="SystemEvents"/>. Must be
@@ -92,7 +79,7 @@ public sealed class DisplayEventManager : IDisposable
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionSwitch += OnSessionSwitch;
 
-        _monitorService.MonitorsRefreshed += OnMonitorsRefreshed;
+        monitorService.MonitorsRefreshed += OnMonitorsRefreshed;
     }
 
     /// <summary>
@@ -320,7 +307,7 @@ public sealed class DisplayEventManager : IDisposable
             if (knownHwids == null) return;
 
             int monitorsCount;
-            try { monitorsCount = _monitorService.Monitors.Count; }
+            try { monitorsCount = monitorService.Monitors.Count; }
             catch { return; }
 
             bool hwidGap = reportedHwids.Except(knownHwids).Any();
@@ -332,8 +319,8 @@ public sealed class DisplayEventManager : IDisposable
                 // Mark this as a topology-event-driven Refresh so MonitorService applies the
                 // post-detection settle to Phase B. Cold-start / sweep / recovery Refreshes do not
                 // call this and Phase B runs synchronously, keeping the launch path responsive.
-                _monitorService.NotifyTopologyEvent();
-                _monitorService.Refresh();
+                monitorService.NotifyTopologyEvent();
+                monitorService.Refresh();
             }
         }
         catch (Exception ex)
@@ -351,7 +338,7 @@ public sealed class DisplayEventManager : IDisposable
         try
         {
             HashSet<string> result = new(StringComparer.OrdinalIgnoreCase);
-            foreach (MonitorInfo monitor in _monitorService.Monitors)
+            foreach (MonitorInfo monitor in monitorService.Monitors)
             {
                 string? hwid = ExtractHwid(monitor.ID);
                 if (hwid != null) result.Add(hwid);
@@ -383,7 +370,7 @@ public sealed class DisplayEventManager : IDisposable
         {
             loadedIDs = new HashSet<string>(StringComparer.Ordinal);
             loadedEDIDKeys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (MonitorInfo monitor in _monitorService.Monitors)
+            foreach (MonitorInfo monitor in monitorService.Monitors)
             {
                 if (!string.IsNullOrEmpty(monitor.ID)) loadedIDs.Add(monitor.ID);
                 if (!string.IsNullOrEmpty(monitor.EDIDKey)) loadedEDIDKeys.Add(monitor.EDIDKey);
@@ -413,7 +400,7 @@ public sealed class DisplayEventManager : IDisposable
         try
         {
             if (!TrayXmlSerializer.TryReadFile(
-                    _profilesPath,
+                    profilesPath,
                     out ProfileCollection? collection,
                     ex => WPFLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}")))
                 return null;
@@ -520,7 +507,7 @@ public sealed class DisplayEventManager : IDisposable
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
             SystemEvents.SessionSwitch -= OnSessionSwitch;
 
-            _monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
+            monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
         }
 
         StopBurst();

@@ -176,7 +176,7 @@ public sealed class TrayXmlSourceGenerator : IIncrementalGenerator
                 .Where(static m => m.Shape != MemberShape.Attribute)
                 .Select(member => ReadElementCaseSource(info, member)));
             string readArrayHelpers = string.Concat(info.Members
-                .Where(static m => m.IsCollection && m.Shape == MemberShape.Array)
+                .Where(static m => m is { IsCollection: true, Shape: MemberShape.Array })
                 .Select(member => ReadArrayHelperSource(info, member)));
 
             return

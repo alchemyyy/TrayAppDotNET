@@ -8,7 +8,7 @@ using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 namespace BatteryTrayAppDotNET.Visuals;
 
 [XmlRoot("Theme")]
-public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
+public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 
@@ -87,8 +87,8 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
     public Color ResolveBatteryFill(BatterySnapshot snapshot, bool isLightTheme)
     {
         if (snapshot.IsCharging) return BatteryChargingFill.For(isLightTheme);
-        if (!snapshot.IsOnExternalPower && snapshot.ChargePercentage <= 10) return BatteryCriticalFill.For(isLightTheme);
-        if (!snapshot.IsOnExternalPower && snapshot.ChargePercentage <= 20) return BatteryLowFill.For(isLightTheme);
+        if (snapshot is { IsOnExternalPower: false, ChargePercentage: <= 10 }) return BatteryCriticalFill.For(isLightTheme);
+        if (snapshot is { IsOnExternalPower: false, ChargePercentage: <= 20 }) return BatteryLowFill.For(isLightTheme);
         return Accent.For(isLightTheme);
     }
 

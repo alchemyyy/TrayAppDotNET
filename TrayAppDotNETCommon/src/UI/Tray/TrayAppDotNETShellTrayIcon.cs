@@ -904,7 +904,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
     private void LogRawInputDiagnostics(InputHelper.RawInputDiagnostics rawInput)
     {
-        if (!TrayInputDiagnosticsEnabled || (!rawInput.HasWheelDelta && !rawInput.IsHid)) return;
+        if (!TrayInputDiagnosticsEnabled || rawInput is { HasWheelDelta: false, IsHid: false }) return;
 
         string cursor = User32.GetCursorPos(out User32.POINT cursorPoint)
             ? $"{cursorPoint.X},{cursorPoint.Y} {DescribeTrayBounds(cursorPoint)}"

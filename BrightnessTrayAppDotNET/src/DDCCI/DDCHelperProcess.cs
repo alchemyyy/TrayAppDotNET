@@ -213,7 +213,7 @@ internal sealed class DDCHelperClient : IDisposable
             return false;
         }
 
-        if (_process != null && !_process.HasExited && _writer != null && _reader != null)
+        if (_process is { HasExited: false } && _writer != null && _reader != null)
             return true;
 
         StopHelperProcess(kill: false, sendExit: false);
@@ -478,8 +478,7 @@ internal static class DDCHelperServer
 
     private static void RunLoop(DisplayService displayService, StreamReader reader, StreamWriter writer)
     {
-        string? line;
-        while ((line = reader.ReadLine()) != null)
+        while (reader.ReadLine() is { } line)
         {
             if (line.Equals(ExitCommand, StringComparison.Ordinal))
                 return;

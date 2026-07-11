@@ -379,18 +379,9 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
         }
 
-        if (service.LastResult == UpdateCheckResult.Cancelled)
-        {
-            return string.Format(
-                CultureInfo.CurrentCulture,
-                L("Settings_About_UpdateStatus_CancelledFormat", "Update check was canceled {0}."),
-                FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
-        }
-
-        return string.Format(
-            CultureInfo.CurrentCulture,
-            L("Settings_About_UpdateStatus_LastCheckedFormat", "You're up to date. Last checked {0}."),
-            FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
+        return string.Format(CultureInfo.CurrentCulture, service.LastResult == UpdateCheckResult.Cancelled
+            ? L("Settings_About_UpdateStatus_CancelledFormat", "Update check was canceled {0}.")
+            : L("Settings_About_UpdateStatus_LastCheckedFormat", "You're up to date. Last checked {0}."), FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
     }
 
     private string UpdateInstallButtonText(UpdateCheckService? service)

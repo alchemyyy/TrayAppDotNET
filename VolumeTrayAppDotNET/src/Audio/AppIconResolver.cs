@@ -541,9 +541,7 @@ internal static class AppIconResolver
                 IconExtraction.IconCursorVersion.Default,
                 IconSize, IconSize,
                 IconExtraction.LoadImageFlags.LR_DEFAULTCOLOR);
-            if (hIcon == IntPtr.Zero) return null;
-
-            return ReadIconPixels(hIcon);
+            return hIcon == IntPtr.Zero ? null : ReadIconPixels(hIcon);
         }
         catch (Exception ex)
         {
@@ -607,9 +605,7 @@ internal static class AppIconResolver
                 IconExtraction.SIZE size = new() { cx = IconSize, cy = IconSize };
                 hr = factory.GetImage(size, IconExtraction.SIIGBF.SIIGBF_RESIZETOFIT, out hBitmap);
                 if (hr < 0) return null;
-                if (hBitmap == IntPtr.Zero) return null;
-
-                return ReadHBitmapPixels(hBitmap);
+                return hBitmap == IntPtr.Zero ? null : ReadHBitmapPixels(hBitmap);
             }
             finally
             {

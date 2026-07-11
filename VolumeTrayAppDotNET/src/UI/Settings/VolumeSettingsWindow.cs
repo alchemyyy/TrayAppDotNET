@@ -76,21 +76,21 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
     protected override IReadOnlyList<SettingsPageDescriptor<VolumeSettingsPage>> CreatePageDescriptors() =>
     [
         new(VolumeSettingsPage.General, Loc("Settings_Common_Page_General"),
-            () => BuildGeneralPage()),
+            BuildGeneralPage),
         new(VolumeSettingsPage.Flyout, Loc("Settings_Common_Page_Flyout"),
-            () => BuildFlyoutPage()),
+            BuildFlyoutPage),
         new(VolumeSettingsPage.Devices, Loc("Settings_Common_Page_Devices"),
-            () => BuildDevicesPage()),
+            BuildDevicesPage),
         new(VolumeSettingsPage.DeviceAppDrawers, Loc("Settings_Common_Page_DeviceAppDrawers"),
-            () => BuildDeviceAppDrawersPage()),
+            BuildDeviceAppDrawersPage),
         new(VolumeSettingsPage.TrayIcon, Loc("Settings_Common_Page_TrayIcon"),
-            () => BuildTrayIconPage()),
+            BuildTrayIconPage),
         new(VolumeSettingsPage.Hotkeys, Loc("Settings_Common_Page_Hotkeys"),
-            () => BuildHotkeysPage()),
+            BuildHotkeysPage),
         new(VolumeSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
-            () => BuildThemePage()),
+            BuildThemePage),
         new(VolumeSettingsPage.About, Loc("Settings_Common_Page_About"),
-            () => BuildAboutPage())
+            BuildAboutPage)
     ];
 
     private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch

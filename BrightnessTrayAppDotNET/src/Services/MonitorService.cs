@@ -984,14 +984,13 @@ public sealed class MonitorService : IDisposable
 
             // New monitor - try DDC/CI; if it answers, normal path;
             // otherwise add as a disabled row that later refreshes can promote.
-            (bool Ok, uint Current, uint Max, string? Error) newRead = await TryReadBrightnessWithRetryAsync(ddc);
+            (bool supported, uint current, uint max, string? error) = await TryReadBrightnessWithRetryAsync(ddc);
             if (!IsRefreshProbePhaseCurrent(phaseGen)) return;
 
-            bool supported = newRead.Ok;
-            int newPct = supported && newRead.Max > 0
-                ? (int)Math.Round(newRead.Current * 100.0 / newRead.Max)
+            int newPct = supported && max > 0
+                ? (int)Math.Round(current * 100.0 / max)
                 : 0;
-            uint newBrightnessMax = supported ? NormalizeBrightnessMax(newRead.Max) : 100;
+            uint newBrightnessMax = supported ? NormalizeBrightnessMax(max) : 100;
 
             // New rows start from the current DDC read. Saved/profile manual values are restored by
             // BrightnessFlyout as UI state; LastBusBrightness is deliberately not an acquisition source.
@@ -1019,7 +1018,7 @@ public sealed class MonitorService : IDisposable
                 // A successful probe is the authoritative capability observation. Set the runtime sticky bit
                 // before Monitors.Add publishes this row; displays.json persistence happens below.
                 WasEverDDCCapable = supported,
-                LastDDCError = supported ? null : newRead.Error
+                LastDDCError = supported ? null : error
             };
             info.InitializeBrightnessFromHardware(seededBrightness);
             if (initialSliderState is SliderState.CurveActive or SliderState.CurveSleeping)

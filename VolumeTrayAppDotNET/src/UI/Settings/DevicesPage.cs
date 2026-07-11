@@ -63,7 +63,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowDefaultRecordingDeviceEvenIfDisabled = v,
             p,
             showLeft: !_settings.ShowDisabledPlaybackDevices,
-            showRight: _settings.ShowRecordingDevices && !_settings.ShowDisabledRecordingDevices)));
+            showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false })));
         stack.Children.Add(Maybe(!hideDefaultCards, PairBoolCard(
             Loc("Settings_Devices_ShowDefaultCommsEvenIfDisabled_Title"),
             Loc("Settings_Devices_ShowDefaultCommsEvenIfDisabled_Description"),
@@ -75,7 +75,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowDefaultCommsRecordingDeviceEvenIfDisabled = v,
             p,
             showLeft: !_settings.ShowDisabledPlaybackDevices,
-            showRight: _settings.ShowRecordingDevices && !_settings.ShowDisabledRecordingDevices)));
+            showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false })));
         stack.Children.Add(PairBoolCard(
             Loc("Settings_Devices_ShowDisconnectedPlayback_Title"),
             Loc("Settings_Devices_ShowDisconnectedPlayback_Description"),

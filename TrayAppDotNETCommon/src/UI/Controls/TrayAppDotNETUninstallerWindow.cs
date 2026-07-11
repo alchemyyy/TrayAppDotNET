@@ -345,8 +345,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
             _uninstallButton.Text = Localize("Uninstaller_UninstallingButton", "Uninstalling...");
         }
 
-        if (_cancelButton != null)
-            _cancelButton.IsEnabled = false;
+        _cancelButton?.IsEnabled = false;
 
         options.RetargetStartupShortcut(options.InstallScope);
         ConfirmedUninstall = true;

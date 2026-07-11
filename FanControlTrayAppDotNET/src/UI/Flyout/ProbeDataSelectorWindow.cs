@@ -1286,8 +1286,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _draggedSelectedProbeHeight = 0;
         try
         {
-            if (draggedRow != null)
-                draggedRow.RenderTransform = null;
+            draggedRow?.RenderTransform = null;
             if (dragPanel != null)
             {
                 foreach (Control child in dragPanel.Children)
@@ -1320,8 +1319,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _draggedNicknameRuleHeight = 0;
         try
         {
-            if (draggedRow != null)
-                draggedRow.RenderTransform = null;
+            draggedRow?.RenderTransform = null;
             if (rulesPanel != null)
             {
                 foreach (Control child in rulesPanel.Children)
@@ -2462,8 +2460,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             ValueTextByKey.Clear();
             SelectedProbeListPanel?.Children.Clear();
             SelectedProbeListPanel = null;
-            if (FocusSink != null)
-                FocusSink.DataContext = null;
+            FocusSink?.DataContext = null;
         }
     }
 

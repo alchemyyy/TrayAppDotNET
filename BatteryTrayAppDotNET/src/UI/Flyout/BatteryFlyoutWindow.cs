@@ -299,7 +299,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
             body.Children.Add(Separator(p));
 
-            if (snapshot.EstimatedTimeRemaining.HasValue && !snapshot.IsFullyCharged)
+            if (snapshot is { EstimatedTimeRemaining: not null, IsFullyCharged: false })
             {
                 body.Children.Add(DetailBlock(
                     snapshot.IsCharging ? "Time until full" : "Estimated life",
@@ -340,7 +340,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
             Grid content = new();
             content.Children.Add(root);
-            if (_settings.FlyoutHeaderAtBottom && _settings.AllowFlyoutUndock)
+            if (_settings is { FlyoutHeaderAtBottom: true, AllowFlyoutUndock: true })
             {
                 undockButtonController = BuildUndockButton(fp, resources, FloatingUndockMargin);
                 Border floatingUndock = undockButtonController.Button;

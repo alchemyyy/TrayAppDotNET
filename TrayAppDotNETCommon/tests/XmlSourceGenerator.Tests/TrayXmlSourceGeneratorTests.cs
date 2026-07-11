@@ -138,7 +138,7 @@ public sealed class TrayXmlSourceGeneratorTests
     {
         GeneratorDriverRunResult result = GeneratorHost.RunGenerator(UnsupportedSource).RunResult;
         ImmutableArray<Diagnostic> diagnostics = result.Diagnostics;
-        int unsupportedCount = diagnostics.Count(static d => d.Id == "TAXML001" && d.Severity == DiagnosticSeverity.Error);
+        int unsupportedCount = diagnostics.Count(static d => d is { Id: "TAXML001", Severity: DiagnosticSeverity.Error });
         Assert.Equal(2, unsupportedCount);
     }
 
@@ -326,7 +326,7 @@ internal static class GeneratorHost
         using MemoryStream stream = new(Encoding.UTF8.GetBytes(xml), writable: false);
         MethodInfo read = typeof(TrayXmlSerializer)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(static method => method.Name == nameof(TrayXmlSerializer.Read) && method.IsGenericMethodDefinition);
+            .Single(static method => method is { Name: nameof(TrayXmlSerializer.Read), IsGenericMethodDefinition: true });
         return read.MakeGenericMethod(type).Invoke(null, [stream])!;
     }
 

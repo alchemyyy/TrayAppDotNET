@@ -128,15 +128,13 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (key.IndexOf('.', separatorIndex + 1) >= 0)
             return null;
 
-        string prefix = key.Substring(0, separatorIndex);
-        string propertyName = key.Substring(separatorIndex + 1);
+        string prefix = key[..separatorIndex];
+        string propertyName = key[(separatorIndex + 1)..];
         if (!IsIdentifier(prefix) || !IsIdentifier(propertyName))
             return null;
 
         ResourceKind? kind = ResourceKindFromElement(elementName, propertyName);
-        if (kind == null) return null;
-
-        return new ResourceEntry(prefix, propertyName, kind.Value);
+        return kind == null ? null : new ResourceEntry(prefix, propertyName, kind.Value);
     }
 
     private static ResourceKind? ResourceKindFromElement(string elementName, string propertyName)

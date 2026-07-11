@@ -128,7 +128,6 @@ public sealed partial class BrightnessSettingsWindow
                 NotifyRuntimeCurveChanged();
             });
 
-        SettingsToggle disabledPeriodFollowTheSunToggle;
         _disabledPeriodFollowTheSunRow = AddToggleRow(panel, p,
             L("Settings_Environmental_DisabledPeriodFollowTheSun_Title", "Disabled period follows sun"), false,
             (_, enabled) =>
@@ -141,7 +140,7 @@ public sealed partial class BrightnessSettingsWindow
                 _profileManager?.Save();
                 ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
                 NotifyRuntimeCurveChanged();
-            }, out disabledPeriodFollowTheSunToggle, indent: 8);
+            }, out SettingsToggle disabledPeriodFollowTheSunToggle, indent: 8);
         _disabledPeriodFollowTheSunToggle = disabledPeriodFollowTheSunToggle;
 
         StackPanel fields = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 8, 6) };

@@ -2427,8 +2427,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void CompleteConfirm(bool result)
     {
-        if (ConfirmOverlay != null)
-            ConfirmOverlay.IsVisible = false;
+        ConfirmOverlay?.IsVisible = false;
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
         tcs?.TrySetResult(result);
@@ -2440,8 +2439,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _confirmTcs = null;
         try
         {
-            if (ConfirmOverlay != null)
-                ConfirmOverlay.IsVisible = false;
+            ConfirmOverlay?.IsVisible = false;
         }
         catch (Exception exception)
         {
@@ -5801,10 +5799,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             GroupStage.ReleaseUnpublished();
             CellStack?.Children.Clear();
             DragOverlay?.Children.Clear();
-            if (ScrollViewer != null)
-                ScrollViewer.Content = null;
-            if (RootCard != null)
-                RootCard.Child = null;
+            ScrollViewer?.Content = null;
+            RootCard?.Child = null;
         }
     }
 

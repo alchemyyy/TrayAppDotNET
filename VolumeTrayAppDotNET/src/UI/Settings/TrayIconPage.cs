@@ -50,7 +50,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.PrecisionTouchpadScrollEnabled = v,
             p,
             afterSave: RefreshCurrentPage)));
-        stack.Children.Add(Maybe(_settings.TrayScrollEnabled && _settings.PrecisionTouchpadScrollEnabled, IntCard(
+        stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true }, IntCard(
             Loc("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title"),
             Loc("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description"),
             _settings.PrecisionTouchpadUnitsPerScrollStep,

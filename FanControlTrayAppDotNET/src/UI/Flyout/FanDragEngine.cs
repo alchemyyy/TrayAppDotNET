@@ -405,7 +405,7 @@ internal static class FanDragEngine
     }
 
     private static bool HasRootSource(FanDragSnapshot snapshot) =>
-        snapshot.DragSourceTopLevelIndex >= 0 && snapshot.DragSourceTopLevelControl != null;
+        snapshot is { DragSourceTopLevelIndex: >= 0, DragSourceTopLevelControl: not null };
 
     private static bool IsRootSource(FanDragSnapshot snapshot, int rootIndex) =>
         HasRootSource(snapshot) && rootIndex == snapshot.DragSourceTopLevelIndex;
@@ -435,8 +435,7 @@ internal static class FanDragEngine
     private static int AdjustTopLevelInsertionIndex(FanDragSnapshot snapshot, int rootInsertionIndex)
     {
         int insertion = rootInsertionIndex;
-        if (snapshot.DragSourceTopLevelControl != null
-            && snapshot.DragSourceTopLevelIndex >= 0
+        if (snapshot is { DragSourceTopLevelControl: not null, DragSourceTopLevelIndex: >= 0 }
             && snapshot.DragSourceTopLevelIndex < insertion)
             insertion--;
 

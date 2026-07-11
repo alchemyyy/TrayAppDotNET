@@ -1868,10 +1868,9 @@ public sealed class SettingsNumberBox : Grid, IDisposable
 
     private void ChangeBy(int delta)
     {
-        int current;
         string text = _textBox.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text) ||
-            !int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out current))
+            !int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int current))
             current = delta > 0 ? Minimum : Maximum;
 
         Value = Math.Clamp(current + delta, Minimum, Maximum);
@@ -1964,8 +1963,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private bool IsSelfOrDescendant(Visual? visual)
     {
         if (visual == null) return false;
-        if (ReferenceEquals(visual, this)) return true;
-        return visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, this));
+        return ReferenceEquals(visual, this) || visual.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, this));
     }
 
     public void Dispose()

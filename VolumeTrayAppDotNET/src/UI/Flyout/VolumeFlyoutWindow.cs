@@ -166,8 +166,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         CloseOpenMenu();
         StopFlyoutActivity();
         bool retirePendingContent = _rebuildPending;
-        if (_activeContent != null)
-            _activeContent.ActiveVolumeSliderDragCount = 0;
+        _activeContent?.ActiveVolumeSliderDragCount = 0;
         base.Hide();
         if (retirePendingContent)
         {
@@ -322,7 +321,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void StopFlyoutActivity()
     {
-        if (_audioManager != null) _audioManager.StopMetering();
+        _audioManager?.StopMetering();
         CommunicationsDucking.Stop();
         SetAllGroupMetersVisible(false);
     }
@@ -2697,7 +2696,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content == null || !content.IsDraggingWindow || content.UndockButtonPointerCaptured) return;
+        if (content is not { IsDraggingWindow: true } || content.UndockButtonPointerCaptured) return;
         PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
         if (!properties.IsLeftButtonPressed)
         {
@@ -2718,7 +2717,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content == null || !content.IsDraggingWindow || content.UndockButtonPointerCaptured) return;
+        if (content is not { IsDraggingWindow: true } || content.UndockButtonPointerCaptured) return;
         EndWindowDrag(content, e.Pointer, commit: true);
         e.Handled = true;
     }
@@ -2726,7 +2725,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void OnChromePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
         VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content == null || !content.IsDraggingWindow || content.UndockButtonPointerCaptured) return;
+        if (content is not { IsDraggingWindow: true } || content.UndockButtonPointerCaptured) return;
         content.IsDraggingWindow = false;
         content.CapturedPointer = null;
         if (_isClosed || content.Resources.IsDisposed) return;
@@ -2809,8 +2808,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (muted) return GlyphCatalog.MICROPHONE_OFF;
         if (device.IsListeningToThisDevice) return GlyphCatalog.MICROPHONE_LISTENING;
-        if (device.IsCaptureSleeping) return GlyphCatalog.MICROPHONE_SLEEP;
-        return GlyphCatalog.MICROPHONE;
+        return device.IsCaptureSleeping ? GlyphCatalog.MICROPHONE_SLEEP : GlyphCatalog.MICROPHONE;
     }
 
     private static Glyph ExclusiveButtonGlyph(AudioDevice device) =>
@@ -2822,8 +2820,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (!device.IsActive) return GlyphCatalog.PLAYBACK_DEVICE_DISABLED;
         if (device.IsDefault) return GlyphCatalog.PLAYBACK_DEVICE_DEFAULT;
-        if (device.IsDefaultCommunications) return GlyphCatalog.PLAYBACK_DEVICE_DEFAULT_COMMS;
-        return GlyphCatalog.PLAYBACK_DEVICE_ENABLED;
+        return device.IsDefaultCommunications ? GlyphCatalog.PLAYBACK_DEVICE_DEFAULT_COMMS : GlyphCatalog.PLAYBACK_DEVICE_ENABLED;
     }
 
     private static Glyph BatteryGlyph(int level)

@@ -181,8 +181,7 @@ public sealed partial class VolumeSettingsWindow
     {
         lock (_uninstallMonitorGate)
         {
-            if (_uninstallMonitoringDisposed) return false;
-            return _uninstallMonitors.Add(owner);
+            return !_uninstallMonitoringDisposed && _uninstallMonitors.Add(owner);
         }
     }
 
@@ -267,21 +266,15 @@ public sealed partial class VolumeSettingsWindow
     }
 
     /// <summary>Owns a transferred uninstall process until completion or settings-window close.</summary>
-    private sealed class PostUninstallRefreshOwner : IDisposable
+    private sealed class PostUninstallRefreshOwner(
+        Process process,
+        Action<PostUninstallRefreshOwner, int> completed) : IDisposable
     {
         private readonly Lock _gate = new();
-        private Process? _process;
-        private Action<PostUninstallRefreshOwner, int>? _completed;
+        private Process? _process = process;
+        private Action<PostUninstallRefreshOwner, int>? _completed = completed;
         private bool _started;
         private bool _finished;
-
-        public PostUninstallRefreshOwner(
-            Process process,
-            Action<PostUninstallRefreshOwner, int> completed)
-        {
-            _process = process;
-            _completed = completed;
-        }
 
         public void Start()
         {

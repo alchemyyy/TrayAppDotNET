@@ -140,9 +140,9 @@ public sealed class UIControlLifetimeTests
                 () =>
                 {
                     factoryCallCount++;
-                    if (factoryCallCount > 1)
-                        throw new InvalidOperationException("expected selection failure");
-                    return new Border();
+                    return factoryCallCount > 1
+                        ? throw new InvalidOperationException("expected selection failure")
+                        : new Border();
                 });
             comboBox.Items.Add(item);
 

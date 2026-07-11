@@ -31,7 +31,7 @@ public sealed partial class NetworkSettingsWindow
                         is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
                         desktop.Shutdown();
                 },
-                Log = message => TADNLog.Log(message),
+                Log = TADNLog.Log,
                 RebuildAboutPage = () => RebuildShell(NetworkSettingsPage.About),
                 StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
                 UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs

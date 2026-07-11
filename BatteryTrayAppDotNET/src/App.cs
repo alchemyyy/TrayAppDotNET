@@ -383,7 +383,7 @@ internal sealed class BatteryAvaloniaApp : Application
                         : "On battery"
         ];
 
-        if (snapshot.EstimatedTimeRemaining.HasValue && !snapshot.IsFullyCharged)
+        if (snapshot is { EstimatedTimeRemaining: not null, IsFullyCharged: false })
             lines.Add($"Time remaining: {FormatTimeSpan(snapshot.EstimatedTimeRemaining.Value)}");
         if (snapshot.CurrentBatteryPowerWatts.HasValue)
             lines.Add($"Battery power: {snapshot.CurrentBatteryPowerWatts.Value:F1} W");
@@ -698,8 +698,7 @@ internal sealed class BatteryAvaloniaApp : Application
     private static string FormatTimeSpan(TimeSpan value)
     {
         if (value.TotalDays >= 1) return $"{(int)value.TotalDays}d {value.Hours}h";
-        if (value.TotalHours >= 1) return $"{(int)value.TotalHours}h {value.Minutes}m";
-        return $"{Math.Max(1, value.Minutes)}m";
+        return value.TotalHours >= 1 ? $"{(int)value.TotalHours}h {value.Minutes}m" : $"{Math.Max(1, value.Minutes)}m";
     }
 
     private static string L(string key, string fallback)

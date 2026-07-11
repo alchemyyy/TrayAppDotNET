@@ -41,10 +41,9 @@ public sealed class FanPropertyUnitTests
         Curve.Register(curve);
         Fan fan = new()
         {
-            RPMMode = false
+            RPMMode = false, AssignedCurveName = curveName
         };
 
-        fan.AssignedCurveName = curveName;
         FanCurveModeSync.ApplyToFan(fan, curve);
 
         Assert.False(fan.RPMMode);

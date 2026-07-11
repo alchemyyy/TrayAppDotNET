@@ -45,9 +45,7 @@ public static class COMActivation
                 if (releaseInputReference) UniqueComInterfaceMarshaller<T>.Free(unmanaged);
             }
 
-            if (managed == null)
-                throw new InvalidOperationException($"Failed to marshal COM interface {typeof(T).FullName}.");
-            return managed;
+            return managed ?? throw new InvalidOperationException($"Failed to marshal COM interface {typeof(T).FullName}.");
         }
     }
 

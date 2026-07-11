@@ -188,10 +188,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         where T : IDisposable
     {
         UIResourceScope? resources = _buildingPageResources;
-        if (resources == null)
-            throw new InvalidOperationException("Page resources can only be registered while building a page.");
-
-        return resources.Own(resource);
+        return resources == null ? throw new InvalidOperationException("Page resources can only be registered while building a page.") : resources.Own(resource);
     }
 
     protected static string L(string key, string fallback = "")
@@ -771,11 +768,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                         pending.Add(child);
                     break;
 
-                case Decorator decorator when decorator.Child != null:
+                case Decorator { Child: not null } decorator:
                     pending.Add(decorator.Child);
                     break;
 
-                case ContentControl contentControl when contentControl.Content is Control child:
+                case ContentControl { Content: Control child }:
                     pending.Add(child);
                     break;
 
@@ -845,7 +842,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void CancelPendingConfirm()
     {
-        if (_confirmOverlay != null) _confirmOverlay.IsVisible = false;
+        _confirmOverlay?.IsVisible = false;
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
         tcs?.TrySetResult(false);

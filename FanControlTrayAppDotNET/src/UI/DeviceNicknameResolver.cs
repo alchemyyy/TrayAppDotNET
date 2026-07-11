@@ -71,8 +71,8 @@ internal sealed class DeviceNicknameResolver
     /// </summary>
     public string Resolve(DataSource? source)
     {
-        if (source is not { } dataSource) return string.Empty;
-        DeviceMetadata device = DeviceMetadata.From(dataSource);
+        if (source is null) return string.Empty;
+        DeviceMetadata device = DeviceMetadata.From(source);
         if (string.IsNullOrWhiteSpace(device.DeviceName)) return string.Empty;
 
         DeviceKey key = DeviceKey.From(device);

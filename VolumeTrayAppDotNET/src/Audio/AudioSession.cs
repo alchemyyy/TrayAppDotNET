@@ -435,8 +435,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             // Apps occasionally hand back a "@path,resource" indirect string. Treat those as no-name
             // and fall through to the process-based resolver instead of surfacing the raw indirect.
             if (string.IsNullOrWhiteSpace(name)) return string.Empty;
-            if (name.StartsWith('@')) return string.Empty;
-            return name;
+            return name.StartsWith('@') ? string.Empty : name;
         }
         catch { return string.Empty; }
     }

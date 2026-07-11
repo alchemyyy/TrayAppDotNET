@@ -24,15 +24,12 @@ public sealed partial class BrightnessSettingsWindow
 
     private static bool TryParseSunOverlayDate(string text, out DateTime result)
     {
-        if (DateTime.TryParseExact(
-                text,
-                "yyyy-MM-dd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.AssumeLocal,
-                out result))
-            return true;
-
-        return DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out result);
+        return DateTime.TryParseExact(
+            text,
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeLocal,
+            out result) || DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out result);
     }
 
     private static string FormatDisabledPeriodTime(double t)

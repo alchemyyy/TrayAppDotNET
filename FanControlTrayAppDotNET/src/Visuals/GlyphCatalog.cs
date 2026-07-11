@@ -6,7 +6,7 @@ namespace FanControlTrayAppDotNET.Visuals;
 /// <summary>
 /// Segoe Fluent Icons codepoint strings shared by renderers, XAML, and theme defaults.
 /// </summary>
-internal abstract class GlyphCatalog : TrayAppDotNETCommon.Visuals.GlyphCatalog
+internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
 

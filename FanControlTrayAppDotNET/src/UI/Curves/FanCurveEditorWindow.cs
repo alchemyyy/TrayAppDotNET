@@ -699,7 +699,7 @@ public sealed partial class FanCurveEditorWindow : Window
             return;
         }
 
-        if (_curve.ClampXMin == 0 && _curve.ClampXMax == 100)
+        if (_curve is { ClampXMin: 0, ClampXMax: 100 })
         {
             _curve.ClampXMin = (int)Math.Round(source.DisplayMinimum);
             _curve.ClampXMax = (int)Math.Round(source.DisplayMaximum);

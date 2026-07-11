@@ -80,9 +80,9 @@ public sealed partial class NetworkSettingsWindow
             L("Settings_Theme_Animations_Description",
                 "Controls whether tooltip fades and other UI animations are allowed."),
             [
-                (TrayAppDotNETAnimationMode.System.ToString(), L("Settings_Theme_Animations_System", "System")),
-                (TrayAppDotNETAnimationMode.Disabled.ToString(), L("Settings_Theme_Animations_Disabled", "Disabled")),
-                (TrayAppDotNETAnimationMode.Enabled.ToString(), L("Settings_Theme_Animations_Enabled", "Enabled"))
+                (nameof(TrayAppDotNETAnimationMode.System), L("Settings_Theme_Animations_System", "System")),
+                (nameof(TrayAppDotNETAnimationMode.Disabled), L("Settings_Theme_Animations_Disabled", "Disabled")),
+                (nameof(TrayAppDotNETAnimationMode.Enabled), L("Settings_Theme_Animations_Enabled", "Enabled"))
             ],
             _settings.AnimationMode.ToString(),
             tag =>

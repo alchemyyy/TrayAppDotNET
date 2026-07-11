@@ -237,23 +237,21 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public const int PrecisionTouchpadUnitsPerScrollStepMin = 1;
     public const int PrecisionTouchpadUnitsPerScrollStepMax = 1000;
 
-    private int _flyoutScrollWheelStep = 2;
-    private int _precisionTouchpadUnitsPerScrollStep = PrecisionTouchpadUnitsPerScrollStepDefault;
-
     // General
     public bool RunOnStartup { get; set; } = true;
     public bool ApplyBrightnessOnStartup { get; set; } = true;
     public bool Autosave { get; set; } = true;
     public bool TrayScrollEnabled { get; set; } = true;
     public bool PrecisionTouchpadScrollEnabled { get; set; } = true;
+
     public int PrecisionTouchpadUnitsPerScrollStep
     {
-        get => _precisionTouchpadUnitsPerScrollStep;
-        set => _precisionTouchpadUnitsPerScrollStep = Math.Clamp(
+        get;
+        set => field = Math.Clamp(
             value,
             PrecisionTouchpadUnitsPerScrollStepMin,
             PrecisionTouchpadUnitsPerScrollStepMax);
-    }
+    } = PrecisionTouchpadUnitsPerScrollStepDefault;
 
     public TrayWheelTarget TrayWheelAction { get; set; } = TrayWheelTarget.Brightness;
     public TrayWheelTarget TrayCtrlWheelAction { get; set; } = TrayWheelTarget.NightLight;
@@ -311,11 +309,12 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool ShowMasterSlider { get; set; } = true;
     public bool ShowIndividualSliders { get; set; } = true;
     public bool ShowNightLightSlider { get; set; } = true;
+
     public int FlyoutScrollWheelStep
     {
-        get => _flyoutScrollWheelStep;
-        set => _flyoutScrollWheelStep = Math.Clamp(value, FlyoutScrollWheelStepMin, FlyoutScrollWheelStepMax);
-    }
+        get;
+        set => field = Math.Clamp(value, FlyoutScrollWheelStepMin, FlyoutScrollWheelStepMax);
+    } = 2;
 
     // Master switch for the undock feature.
     // When false, the undock button is hidden, and any persisted undocked state is force-redocked

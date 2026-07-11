@@ -22,193 +22,289 @@ public sealed partial class BrightnessSettingsWindow
     private EnvironmentalCurveEditor? _environmentalCurveEditor
     {
         get => _environmentalPageState?.CurveEditor;
-        set { if (_environmentalPageState != null) _environmentalPageState.CurveEditor = value; }
+        set
+        {
+            _environmentalPageState?.CurveEditor = value;
+        }
     }
 
     private SettingsComboBox? _environmentalProfileCombo
     {
         get => _environmentalPageState?.ProfileCombo;
-        set { if (_environmentalPageState != null) _environmentalPageState.ProfileCombo = value; }
+        set
+        {
+            _environmentalPageState?.ProfileCombo = value;
+        }
     }
 
     private SettingsToggle? _showBrightnessCurveToggle
     {
         get => _environmentalPageState?.ShowBrightnessCurveToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.ShowBrightnessCurveToggle = value; }
+        set
+        {
+            _environmentalPageState?.ShowBrightnessCurveToggle = value;
+        }
     }
 
     private SettingsToggle? _showNightLightCurveToggle
     {
         get => _environmentalPageState?.ShowNightLightCurveToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.ShowNightLightCurveToggle = value; }
+        set
+        {
+            _environmentalPageState?.ShowNightLightCurveToggle = value;
+        }
     }
 
     private SettingsToggle? _offsetModeToggle
     {
         get => _environmentalPageState?.OffsetModeToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.OffsetModeToggle = value; }
+        set
+        {
+            _environmentalPageState?.OffsetModeToggle = value;
+        }
     }
 
     private SettingsToggle? _followTheSunToggle
     {
         get => _environmentalPageState?.FollowTheSunToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.FollowTheSunToggle = value; }
+        set
+        {
+            _environmentalPageState?.FollowTheSunToggle = value;
+        }
     }
 
     private SettingsToggle? _useDaylightSavingsToggle
     {
         get => _environmentalPageState?.UseDaylightSavingsToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.UseDaylightSavingsToggle = value; }
+        set
+        {
+            _environmentalPageState?.UseDaylightSavingsToggle = value;
+        }
     }
 
     private SettingsToggle? _disabledPeriodToggle
     {
         get => _environmentalPageState?.DisabledPeriodToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.DisabledPeriodToggle = value; }
+        set
+        {
+            _environmentalPageState?.DisabledPeriodToggle = value;
+        }
     }
 
     private SettingsToggle? _disabledPeriodFollowTheSunToggle
     {
         get => _environmentalPageState?.DisabledPeriodFollowTheSunToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.DisabledPeriodFollowTheSunToggle = value; }
+        set
+        {
+            _environmentalPageState?.DisabledPeriodFollowTheSunToggle = value;
+        }
     }
 
     private SettingsToggle? _showCursorReadoutToggle
     {
         get => _environmentalPageState?.ShowCursorReadoutToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.ShowCursorReadoutToggle = value; }
+        set
+        {
+            _environmentalPageState?.ShowCursorReadoutToggle = value;
+        }
     }
 
     private SettingsToggle? _showSunOverlayToggle
     {
         get => _environmentalPageState?.ShowSunOverlayToggle;
-        set { if (_environmentalPageState != null) _environmentalPageState.ShowSunOverlayToggle = value; }
+        set
+        {
+            _environmentalPageState?.ShowSunOverlayToggle = value;
+        }
     }
 
     private TextBox? _disabledPeriodStartBox
     {
         get => _environmentalPageState?.DisabledPeriodStartBox;
-        set { if (_environmentalPageState != null) _environmentalPageState.DisabledPeriodStartBox = value; }
+        set
+        {
+            _environmentalPageState?.DisabledPeriodStartBox = value;
+        }
     }
 
     private TextBox? _disabledPeriodEndBox
     {
         get => _environmentalPageState?.DisabledPeriodEndBox;
-        set { if (_environmentalPageState != null) _environmentalPageState.DisabledPeriodEndBox = value; }
+        set
+        {
+            _environmentalPageState?.DisabledPeriodEndBox = value;
+        }
     }
 
     private TextBox? _sunOverlayDateBox
     {
         get => _environmentalPageState?.SunOverlayDateBox;
-        set { if (_environmentalPageState != null) _environmentalPageState.SunOverlayDateBox = value; }
+        set
+        {
+            _environmentalPageState?.SunOverlayDateBox = value;
+        }
     }
 
     private Calendar? _sunOverlayCalendar
     {
         get => _environmentalPageState?.SunOverlayCalendar;
-        set { if (_environmentalPageState != null) _environmentalPageState.SunOverlayCalendar = value; }
+        set
+        {
+            _environmentalPageState?.SunOverlayCalendar = value;
+        }
     }
 
     private Popup? _sunOverlayDatePopup
     {
         get => _environmentalPageState?.SunOverlayDatePopup;
-        set { if (_environmentalPageState != null) _environmentalPageState.SunOverlayDatePopup = value; }
+        set
+        {
+            _environmentalPageState?.SunOverlayDatePopup = value;
+        }
     }
 
     private TextBox? _latitudeBox
     {
         get => _environmentalPageState?.LatitudeBox;
-        set { if (_environmentalPageState != null) _environmentalPageState.LatitudeBox = value; }
+        set
+        {
+            _environmentalPageState?.LatitudeBox = value;
+        }
     }
 
     private TextBox? _longitudeBox
     {
         get => _environmentalPageState?.LongitudeBox;
-        set { if (_environmentalPageState != null) _environmentalPageState.LongitudeBox = value; }
+        set
+        {
+            _environmentalPageState?.LongitudeBox = value;
+        }
     }
 
     private StackPanel? _legendPanel
     {
         get => _environmentalPageState?.LegendPanel;
-        set { if (_environmentalPageState != null) _environmentalPageState.LegendPanel = value; }
+        set
+        {
+            _environmentalPageState?.LegendPanel = value;
+        }
     }
 
     private StackPanel? _brightnessLegendItem
     {
         get => _environmentalPageState?.BrightnessLegendItem;
-        set { if (_environmentalPageState != null) _environmentalPageState.BrightnessLegendItem = value; }
+        set
+        {
+            _environmentalPageState?.BrightnessLegendItem = value;
+        }
     }
 
     private StackPanel? _nightLightLegendItem
     {
         get => _environmentalPageState?.NightLightLegendItem;
-        set { if (_environmentalPageState != null) _environmentalPageState.NightLightLegendItem = value; }
+        set
+        {
+            _environmentalPageState?.NightLightLegendItem = value;
+        }
     }
 
     private StackPanel? _currentTimeLegendItem
     {
         get => _environmentalPageState?.CurrentTimeLegendItem;
-        set { if (_environmentalPageState != null) _environmentalPageState.CurrentTimeLegendItem = value; }
+        set
+        {
+            _environmentalPageState?.CurrentTimeLegendItem = value;
+        }
     }
 
     private Control? _disabledPeriodFollowTheSunRow
     {
         get => _environmentalPageState?.DisabledPeriodFollowTheSunRow;
-        set { if (_environmentalPageState != null) _environmentalPageState.DisabledPeriodFollowTheSunRow = value; }
+        set
+        {
+            _environmentalPageState?.DisabledPeriodFollowTheSunRow = value;
+        }
     }
 
     private Control? _disabledPeriodFieldsRow
     {
         get => _environmentalPageState?.DisabledPeriodFieldsRow;
-        set { if (_environmentalPageState != null) _environmentalPageState.DisabledPeriodFieldsRow = value; }
+        set
+        {
+            _environmentalPageState?.DisabledPeriodFieldsRow = value;
+        }
     }
 
     private SettingsButton? _previewSweepButton
     {
         get => _environmentalPageState?.PreviewSweepButton;
-        set { if (_environmentalPageState != null) _environmentalPageState.PreviewSweepButton = value; }
+        set
+        {
+            _environmentalPageState?.PreviewSweepButton = value;
+        }
     }
 
     private BrightnessFlyoutWindow? _environmentalFlyout
     {
         get => _environmentalPageState?.Flyout;
-        set { if (_environmentalPageState != null) _environmentalPageState.Flyout = value; }
+        set
+        {
+            _environmentalPageState?.Flyout = value;
+        }
     }
 
     private EnvironmentalCurve? _environmentalCurveDisplay
     {
         get => _environmentalPageState?.CurveDisplay;
-        set { if (_environmentalPageState != null) _environmentalPageState.CurveDisplay = value; }
+        set
+        {
+            _environmentalPageState?.CurveDisplay = value;
+        }
     }
 
     private DispatcherTimer? _curveSaveDebounceTimer
     {
         get => _environmentalPageState?.CurveSaveDebounceTimer;
-        set { if (_environmentalPageState != null) _environmentalPageState.CurveSaveDebounceTimer = value; }
+        set
+        {
+            _environmentalPageState?.CurveSaveDebounceTimer = value;
+        }
     }
 
     private UIResourceScope? _environmentalPageResources
     {
         get => _environmentalPageState?.Resources;
-        set { if (_environmentalPageState != null) _environmentalPageState.Resources = value; }
+        set
+        {
+            _environmentalPageState?.Resources = value;
+        }
     }
 
     private EnvironmentalMapPickerWindow? _environmentalMapPicker
     {
         get => _environmentalPageState?.MapPicker;
-        set { if (_environmentalPageState != null) _environmentalPageState.MapPicker = value; }
+        set
+        {
+            _environmentalPageState?.MapPicker = value;
+        }
     }
 
     private DateTime _environmentalSunOverlayDate
     {
         get => _environmentalPageState?.SunOverlayDate ?? DateTime.Today;
-        set { if (_environmentalPageState != null) _environmentalPageState.SunOverlayDate = value; }
+        set
+        {
+            _environmentalPageState?.SunOverlayDate = value;
+        }
     }
 
     private int _environmentalProfileIndex
     {
         get => _environmentalPageState?.ProfileIndex ?? -1;
-        set { if (_environmentalPageState != null) _environmentalPageState.ProfileIndex = value; }
+        set
+        {
+            _environmentalPageState?.ProfileIndex = value;
+        }
     }
 
     private long _environmentalPageGeneration => _environmentalPageState?.Generation ?? 0;
@@ -216,31 +312,46 @@ public sealed partial class BrightnessSettingsWindow
     private bool _suppressEnvironmentalEvents
     {
         get => _environmentalPageState?.SuppressEnvironmentalEvents ?? false;
-        set { if (_environmentalPageState != null) _environmentalPageState.SuppressEnvironmentalEvents = value; }
+        set
+        {
+            _environmentalPageState?.SuppressEnvironmentalEvents = value;
+        }
     }
 
     private bool _suppressSunOverlayCalendarEvents
     {
         get => _environmentalPageState?.SuppressSunOverlayCalendarEvents ?? false;
-        set { if (_environmentalPageState != null) _environmentalPageState.SuppressSunOverlayCalendarEvents = value; }
+        set
+        {
+            _environmentalPageState?.SuppressSunOverlayCalendarEvents = value;
+        }
     }
 
     private bool _environmentalEventsAttached
     {
         get => _environmentalPageState?.EventsAttached ?? false;
-        set { if (_environmentalPageState != null) _environmentalPageState.EventsAttached = value; }
+        set
+        {
+            _environmentalPageState?.EventsAttached = value;
+        }
     }
 
     private bool _environmentalCurveRuntimeNotifyQueued
     {
         get => _environmentalPageState?.CurveRuntimeNotifyQueued ?? false;
-        set { if (_environmentalPageState != null) _environmentalPageState.CurveRuntimeNotifyQueued = value; }
+        set
+        {
+            _environmentalPageState?.CurveRuntimeNotifyQueued = value;
+        }
     }
 
     private bool _environmentalCurveColorCallbacksWired
     {
         get => _environmentalPageState?.CurveColorCallbacksWired ?? false;
-        set { if (_environmentalPageState != null) _environmentalPageState.CurveColorCallbacksWired = value; }
+        set
+        {
+            _environmentalPageState?.CurveColorCallbacksWired = value;
+        }
     }
 
     private static HttpClient EnvironmentalHttpClient =>
@@ -323,7 +434,7 @@ public sealed partial class BrightnessSettingsWindow
         _environmentalPageState is
         {
             IsRetired: false,
-            Resources: { IsDisposed: false }
+            Resources.IsDisposed: false
         } pageState && pageState.Generation == pageGeneration;
 
     private void ActivateEnvironmentalPage(EnvironmentalPageState pageState)

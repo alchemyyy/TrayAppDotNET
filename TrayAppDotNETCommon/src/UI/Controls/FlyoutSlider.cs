@@ -767,7 +767,7 @@ public sealed class FlyoutSlider : Control, IDisposable
     /// Returns true when a visible thumb needs the fill cut out behind it.
     /// </summary>
     private static bool IsVisibleTranslucent(double opacity) =>
-        opacity > 0 && opacity < 0.999;
+        opacity is > 0 and < 0.999;
 
     private void DrawIndicator(DrawingContext context, double width, double height, double value)
     {

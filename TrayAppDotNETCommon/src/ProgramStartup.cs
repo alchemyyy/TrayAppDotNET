@@ -134,9 +134,7 @@ public static class TrayAppDotNETProgram
 
         if (!isMonitored && !Debugger.IsAttached && !NoWatcherRequested())
         {
-            if (!CrashHandler.LaunchWatcherDetached())
-                return 1;
-            return 0;
+            return !CrashHandler.LaunchWatcherDetached() ? 1 : 0;
         }
 
         WatcherPID = ParseWatcherPID(args);

@@ -343,7 +343,6 @@ internal static class AdapterSettingsShellMonitor
     {
         private readonly string _threadName;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly WinEventDelegate _winEventProc;
         private IntPtr _hook;
         private uint _threadId;
 
@@ -351,10 +350,13 @@ internal static class AdapterSettingsShellMonitor
         {
             _threadName = threadName;
             _cancellationTokenSource = CreateMonitorCancellationSource(timeoutMs);
-            _winEventProc = DispatchWinEvent;
+            WinEventProc = DispatchWinEvent;
         }
 
-        protected WinEventDelegate WinEventProc => _winEventProc;
+        protected WinEventDelegate WinEventProc
+        {
+            get;
+        }
 
         protected abstract IntPtr InstallHook();
 

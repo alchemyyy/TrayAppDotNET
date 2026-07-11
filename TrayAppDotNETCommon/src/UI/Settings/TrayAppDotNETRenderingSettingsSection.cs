@@ -47,7 +47,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
 
         ITrayAppDotNETWarmWindowSettings? warmWindowSettings = options.WarmWindowSettings;
         if (warmWindowSettings == null ||
-            (!options.SupportsFlyoutWarmWindow && !options.SupportsTrayContextMenuWarmWindow))
+            options is { SupportsFlyoutWarmWindow: false, SupportsTrayContextMenuWarmWindow: false })
             return;
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(

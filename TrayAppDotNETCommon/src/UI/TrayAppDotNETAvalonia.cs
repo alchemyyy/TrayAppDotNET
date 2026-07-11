@@ -118,10 +118,7 @@ public static class TrayAppDotNETAvalonia
                     continue;
 
                 string text = reader.ReadElementContentAsString();
-                if (Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend))
-                    return backend;
-
-                return defaultBackend;
+                return Enum.TryParse(text, ignoreCase: true, out TrayAppDotNETRenderingBackend backend) ? backend : defaultBackend;
             }
         }
         catch (Exception ex)

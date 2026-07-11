@@ -524,8 +524,7 @@ internal sealed class FanAvaloniaApp : Application
     {
         if (_settings == null || _trayIcon == null) return;
 
-        if (_fanFlyout == null)
-            _fanFlyout = FanFlyoutWarmSlot.TakeOrCreate(CreateManagedFanFlyout);
+        _fanFlyout ??= FanFlyoutWarmSlot.TakeOrCreate(CreateManagedFanFlyout);
 
         _fanFlyout.ShowAt(_trayIcon, activate);
         if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
