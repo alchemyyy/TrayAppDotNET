@@ -71,6 +71,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private bool _manualCheckInProgress;
     private bool _installInProgress;
     private bool _disposed;
+    private long _refreshGeneration;
 
     public TrayAppDotNETAboutPage(TrayAppDotNETAboutPageOptions options)
     {
@@ -131,17 +132,28 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
     public void StopUpdateRefresh()
     {
-        if (_updateService != null)
+        Interlocked.Increment(ref _refreshGeneration);
+        UpdateCheckService? updateService = _updateService;
+        _updateService = null;
+        if (updateService != null)
         {
-            _updateService.StateChanged -= OnUpdateStateChanged;
-            _updateService = null;
+            try { updateService.StateChanged -= OnUpdateStateChanged; }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"TrayAppDotNETAboutPage update detachment failed: {exception.Message}");
+            }
         }
 
-        if (_staleTimer != null)
+        DispatcherTimer? staleTimer = _staleTimer;
+        _staleTimer = null;
+        if (staleTimer != null)
         {
-            _staleTimer.Stop();
-            _staleTimer.Tick -= OnStaleTimerTick;
-            _staleTimer = null;
+            try { staleTimer.Stop(); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"TrayAppDotNETAboutPage timer stop failed: {exception.Message}");
+            }
+            staleTimer.Tick -= OnStaleTimerTick;
         }
 
         _updateStatusText = null;
@@ -276,6 +288,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private void StartUpdateRefresh(TextBlock statusText, SettingsButton checkButton, SettingsButton installButton)
     {
         StopUpdateRefresh();
+        Interlocked.Increment(ref _refreshGeneration);
 
         _updateStatusText = statusText;
         _checkForUpdatesButton = checkButton;
@@ -286,7 +299,12 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         _staleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(_options.StaleCheckTimerIntervalMs) };
         _staleTimer.Tick += OnStaleTimerTick;
-        _staleTimer.Start();
+        try { _staleTimer.Start(); }
+        catch
+        {
+            StopUpdateRefresh();
+            throw;
+        }
 
         RefreshUpdateUI();
     }
@@ -309,14 +327,26 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             SetRoot(null);
     }
 
-    private void OnUpdateStateChanged() =>
-        Dispatcher.UIThread.Post(RefreshUpdateUI);
+    private void OnUpdateStateChanged()
+    {
+        long generation = Volatile.Read(ref _refreshGeneration);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_disposed || generation != Volatile.Read(ref _refreshGeneration)) return;
+            RefreshUpdateUI();
+        });
+    }
 
-    private void OnStaleTimerTick(object? sender, EventArgs e) =>
+    private void OnStaleTimerTick(object? sender, EventArgs e)
+    {
+        // A retired page timer may already have queued a tick before it was stopped
+        if (_disposed || !ReferenceEquals(sender, _staleTimer)) return;
         RefreshUpdateUI();
+    }
 
     private void RefreshUpdateUI()
     {
+        if (_disposed) return;
         if (_updateStatusText == null || _checkForUpdatesButton == null || _installUpdateButton == null)
             return;
 

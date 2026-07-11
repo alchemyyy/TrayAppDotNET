@@ -66,6 +66,30 @@ public sealed class UIResourceScopeTests
     }
 
     [Fact]
+    public void IndependentlyDisposedChildIsNotRetainedByParent()
+    {
+        (UIResourceScope parent, WeakReference<UIResourceScope> childReference) =
+            CreateDisposedChildReference();
+
+        ForceCollection();
+
+        Assert.False(childReference.TryGetTarget(out UIResourceScope? retainedChild));
+        Assert.Null(retainedChild);
+        parent.Dispose();
+    }
+
+    [Fact]
+    public void ParentDisposesLiveChild()
+    {
+        UIResourceScope parent = new(nameof(ParentDisposesLiveChild));
+        UIResourceScope child = parent.CreateChild("Child");
+
+        parent.Dispose();
+
+        Assert.True(child.IsDisposed);
+    }
+
+    [Fact]
     public void ContentGenerationClearsDetachedRoot()
     {
         TextBlock child = new() { Text = "retired" };
@@ -114,6 +138,17 @@ public sealed class UIResourceScopeTests
         WeakReference<Control> reference = generation.CreateRootWeakReference();
         generation.Dispose();
         return reference;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (UIResourceScope Parent, WeakReference<UIResourceScope> ChildReference)
+        CreateDisposedChildReference()
+    {
+        UIResourceScope parent = new(nameof(CreateDisposedChildReference));
+        UIResourceScope child = parent.CreateChild("Child");
+        WeakReference<UIResourceScope> reference = new(child);
+        child.Dispose();
+        return (parent, reference);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

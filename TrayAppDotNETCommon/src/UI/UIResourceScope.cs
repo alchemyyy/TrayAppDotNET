@@ -10,8 +10,9 @@ public sealed class UIResourceScope : IDisposable
     private readonly Lock _gate = new();
     private readonly Action<Exception>? _logError;
     private readonly string _ownerName;
-    private List<Action>? _cleanupActions = [];
+    private List<CleanupRegistration>? _cleanupActions = [];
     private CancellationTokenSource? _cancellationSource = new();
+    private CleanupRegistration? _parentRegistration;
     private int _disposed;
 
     public UIResourceScope(string ownerName, Action<Exception>? logError = null)
@@ -40,17 +41,7 @@ public sealed class UIResourceScope : IDisposable
     public void Add(Action cleanup)
     {
         ArgumentNullException.ThrowIfNull(cleanup);
-
-        bool runImmediately;
-        lock (_gate)
-        {
-            runImmediately = _cleanupActions == null;
-            if (!runImmediately)
-                _cleanupActions!.Add(cleanup);
-        }
-
-        if (runImmediately)
-            RunCleanup(cleanup);
+        _ = AddRegistration(cleanup);
     }
 
     /// <summary>Registers and returns a disposable resource owned by this scope.</summary>
@@ -62,20 +53,25 @@ public sealed class UIResourceScope : IDisposable
         return resource;
     }
 
-    /// <summary>Creates a child scope that is retired with this scope.</summary>
+    /// <summary>
+    /// Creates a child scope that retires with this scope and unregisters when independently retired.
+    /// </summary>
     public UIResourceScope CreateChild(string ownerName)
     {
         UIResourceScope child = new(ownerName, _logError);
-        Add(child.Dispose);
+        CleanupRegistration registration = AddRegistration(child.Dispose);
+        child.AttachParentRegistration(registration);
         return child;
     }
 
     /// <summary>Cancels work and runs all cleanup actions once in reverse registration order.</summary>
     public void Dispose()
     {
+        CleanupRegistration? parentRegistration = Interlocked.Exchange(ref _parentRegistration, null);
+        parentRegistration?.Detach();
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-        List<Action> cleanupActions = [];
+        List<CleanupRegistration> cleanupActions = [];
         CancellationTokenSource? cancellationSource;
         lock (_gate)
         {
@@ -103,7 +99,7 @@ public sealed class UIResourceScope : IDisposable
         }
 
         for (int index = cleanupActions.Count - 1; index >= 0; index--)
-            RunCleanup(cleanupActions[index]);
+            RunRegistration(cleanupActions[index]);
 
         if (cancellationSource == null) return;
 
@@ -115,6 +111,44 @@ public sealed class UIResourceScope : IDisposable
         {
             Log(exception);
         }
+    }
+
+    private CleanupRegistration AddRegistration(Action cleanup)
+    {
+        CleanupRegistration registration = new(this, cleanup);
+        bool runImmediately;
+        lock (_gate)
+        {
+            runImmediately = _cleanupActions == null;
+            if (!runImmediately)
+                _cleanupActions!.Add(registration);
+        }
+
+        if (runImmediately)
+            RunRegistration(registration);
+        return registration;
+    }
+
+    private void AttachParentRegistration(CleanupRegistration registration)
+    {
+        _parentRegistration = registration;
+        if (!IsDisposed) return;
+
+        CleanupRegistration? parentRegistration = Interlocked.Exchange(ref _parentRegistration, null);
+        parentRegistration?.Detach();
+    }
+
+    private void RemoveRegistration(CleanupRegistration registration)
+    {
+        lock (_gate)
+            _cleanupActions?.Remove(registration);
+    }
+
+    private void RunRegistration(CleanupRegistration registration)
+    {
+        Action? cleanup = registration.ClaimCleanup();
+        if (cleanup != null)
+            RunCleanup(cleanup);
     }
 
     private void RunCleanup(Action cleanup)
@@ -148,5 +182,24 @@ public sealed class UIResourceScope : IDisposable
 
         TADNLog.Log(
             $"UIResourceScope '{_ownerName}' cleanup failed: {exception.GetType().Name}: {exception.Message}");
+    }
+
+    private sealed class CleanupRegistration(UIResourceScope owner, Action cleanup)
+    {
+        private UIResourceScope? _owner = owner;
+        private Action? _cleanup = cleanup;
+
+        public Action? ClaimCleanup()
+        {
+            Interlocked.Exchange(ref _owner, null);
+            return Interlocked.Exchange(ref _cleanup, null);
+        }
+
+        public void Detach()
+        {
+            Interlocked.Exchange(ref _cleanup, null);
+            UIResourceScope? registrationOwner = Interlocked.Exchange(ref _owner, null);
+            registrationOwner?.RemoveRegistration(this);
+        }
     }
 }
