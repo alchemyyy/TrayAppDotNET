@@ -622,11 +622,6 @@ internal sealed class NetworkAvaloniaApp : Application
             _settingsWindow.Closed -= OnSettingsWindowClosed;
             _settingsWindow = null;
         }
-
-        _ = Task.Delay(TimeConstants.PostSettingsCloseGCDelayMs).ContinueWith(_ =>
-        {
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-        }, TaskScheduler.Default);
     }
 
     private void ShowUninstallerWindow(string installDir, InstallScope scope)

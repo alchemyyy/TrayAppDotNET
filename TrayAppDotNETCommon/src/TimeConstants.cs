@@ -19,7 +19,6 @@ public abstract class TimeConstants
     protected internal const int SettingsSaveDebounceMs = 400;
 
     // Settings UI
-    protected internal const int PostSettingsCloseGCDelayMs = 10_000;
     protected internal const int AboutStaleCheckTimerIntervalMs = 1_000;
     protected internal const int ColorPickerChangeCooldownMs = 50;
     protected internal const int ToolTipShowDelayDefaultMs = 750;

@@ -13,7 +13,6 @@ public abstract class TimeConstants : CommonTimeConstants
     public new const int SettingsSaveDebounceMs = CommonTimeConstants.SettingsSaveDebounceMs;
 
     // Settings UI
-    public new const int PostSettingsCloseGCDelayMs = CommonTimeConstants.PostSettingsCloseGCDelayMs;
     public new const int AboutStaleCheckTimerIntervalMs = CommonTimeConstants.AboutStaleCheckTimerIntervalMs;
     public new const int ToolTipShowDelayDefaultMs = CommonTimeConstants.ToolTipShowDelayDefaultMs;
     public new const int ToolTipShowDelayMinMs = CommonTimeConstants.ToolTipShowDelayMinMs;
