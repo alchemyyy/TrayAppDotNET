@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using Avalonia.Media;
 using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
@@ -19,6 +18,9 @@ public enum VolumeSettingsPage
 public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSettingsPage>
 {
     private readonly AppSettings _settings;
+    private readonly Lock _uninstallMonitorGate = new();
+    private readonly HashSet<PostUninstallRefreshOwner> _uninstallMonitors = [];
+    private bool _uninstallMonitoringDisposed;
 
     public VolumeSettingsWindow()
         : this(new AppSettings(), static (_, _) => { })
@@ -59,24 +61,36 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     protected override bool ResolveEffectiveIsLightForBindings() => ResolveEffectiveIsLight();
 
+    protected override void OnSettingsWindowClosed()
+    {
+        try
+        {
+            DisposeUninstallMonitors();
+        }
+        finally
+        {
+            base.OnSettingsWindowClosed();
+        }
+    }
+
     protected override IReadOnlyList<SettingsPageDescriptor<VolumeSettingsPage>> CreatePageDescriptors() =>
     [
         new(VolumeSettingsPage.General, Loc("Settings_Common_Page_General"),
-            () => BuildSettingsPage(VolumeSettingsPage.General, BuildGeneralPage)),
+            () => BuildGeneralPage()),
         new(VolumeSettingsPage.Flyout, Loc("Settings_Common_Page_Flyout"),
-            () => BuildSettingsPage(VolumeSettingsPage.Flyout, BuildFlyoutPage)),
+            () => BuildFlyoutPage()),
         new(VolumeSettingsPage.Devices, Loc("Settings_Common_Page_Devices"),
-            () => BuildSettingsPage(VolumeSettingsPage.Devices, BuildDevicesPage)),
+            () => BuildDevicesPage()),
         new(VolumeSettingsPage.DeviceAppDrawers, Loc("Settings_Common_Page_DeviceAppDrawers"),
-            () => BuildSettingsPage(VolumeSettingsPage.DeviceAppDrawers, BuildDeviceAppDrawersPage)),
+            () => BuildDeviceAppDrawersPage()),
         new(VolumeSettingsPage.TrayIcon, Loc("Settings_Common_Page_TrayIcon"),
-            () => BuildSettingsPage(VolumeSettingsPage.TrayIcon, BuildTrayIconPage)),
+            () => BuildTrayIconPage()),
         new(VolumeSettingsPage.Hotkeys, Loc("Settings_Common_Page_Hotkeys"),
-            () => BuildSettingsPage(VolumeSettingsPage.Hotkeys, BuildHotkeysPage)),
+            () => BuildHotkeysPage()),
         new(VolumeSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
-            () => BuildSettingsPage(VolumeSettingsPage.Theme, BuildThemePage)),
+            () => BuildThemePage()),
         new(VolumeSettingsPage.About, Loc("Settings_Common_Page_About"),
-            () => BuildSettingsPage(VolumeSettingsPage.About, BuildAboutPage))
+            () => BuildAboutPage())
     ];
 
     private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch
@@ -85,18 +99,4 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
         ThemeMode.Dark => false,
         _ => AppServices.Theme?.IsLightTheme ?? false
     };
-
-    private Control BuildSettingsPage(VolumeSettingsPage page, Func<Control> buildPage)
-    {
-        if (page != VolumeSettingsPage.About)
-            StopAboutUpdateRefresh();
-
-        return buildPage();
-    }
-
-    protected override void OnSettingsWindowClosed()
-    {
-        StopAboutUpdateRefresh();
-        base.OnSettingsWindowClosed();
-    }
 }

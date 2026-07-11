@@ -67,13 +67,14 @@ public sealed partial class VolumeSettingsWindow
         uint selectedVk = 0;
 
         SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, 170);
+        OwnPageResource(modifiers);
         modifiers.Padding = new Thickness(8, 0, 2, 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
         TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
         keyBox.IsReadOnly = true;
-        keyBox.Cursor = new Cursor(StandardCursorType.Ibeam);
+        keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
         SettingsButton addButton = Button(Loc("Settings_Hotkeys_Add_Button"), p);
         addButton.MinWidth = 70;

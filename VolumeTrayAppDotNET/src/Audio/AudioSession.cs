@@ -393,6 +393,9 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         old?.Dispose();
     }
 
+    /// <summary>Acquires a visual lease that keeps the currently published bitmap alive.</summary>
+    internal AppIconResolver.IconHandle? AcquireIconHandle() => _iconHandle?.TryClone();
+
     /// <summary>
     /// If the session was constructed with a fallback identity (process unreachable at the time -
     /// DisplayName "Unknown", AppID "pid:NNN"), retry resolution now that the session is going Active.
@@ -527,24 +530,26 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         // the marshaled callback's _disposed guard collapses it to a no-op.
         if (_watchingProcess && _processExitMonitor != null)
         {
-            try { _processExitMonitor.Unwatch(ProcessID); }
-            catch { }
+            RunDisposeStep("process watcher detach", () => _processExitMonitor.Unwatch(ProcessID));
         }
 
         // Drop any queued SetMasterVolume so the throttler driver doesn't try to call into the
         // RCW we're about to release. A payload already in flight will catch the COM exception.
-        _volumeWrite.Drop();
+        RunDisposeStep("pending volume write drop", _volumeWrite.Drop);
 
-        try { _control.UnregisterAudioSessionNotification(_events); }
-        catch
-        {
-            /* session may already be gone */
-        }
+        RunDisposeStep(
+            "audio notification unregister",
+            () => _control.UnregisterAudioSessionNotification(_events));
 
-        // Release the cached icon ref. With no more refs from any session, the entry parks in the
-        // LRU "limbo" queue and stays revivable until evicted by overflow.
-        Safe.Dispose(_iconHandle);
+        // Unpublish before releasing the session lease so observers never receive a disposed bitmap.
+        AppIconResolver.IconHandle? iconHandle = _iconHandle;
         _iconHandle = null;
+        RunDisposeStep("icon unpublish", () => Icon = null);
+        PropertyChanged = null;
+        Disconnected = null;
+        StateChanged = null;
+        if (iconHandle != null)
+            RunDisposeStep("icon lease release", iconHandle.Dispose);
 
         // The COM RCWs still hold native references; release them deterministically so the
         // session control's IUnknown ref count drops as soon as we abandon it.
@@ -552,6 +557,20 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         Safe.Release(_meter);
         Safe.Release(_control2);
         Safe.Release(_control);
+    }
+
+    private void RunDisposeStep(string operation, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"AudioSession.Dispose {operation} failed for pid={ProcessID}: " +
+                $"{exception.GetType().Name}: {exception.Message}");
+        }
     }
 
     // Internal callback bridge. Lives on whatever MTA thread COM picks; every observable

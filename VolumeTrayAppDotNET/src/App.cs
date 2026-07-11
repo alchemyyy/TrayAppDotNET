@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -44,6 +45,7 @@ internal sealed class VolumeAvaloniaApp : Application
     private DeviceSettings? _deviceSettings;
     private AudioDeviceManager? _audioManager;
     private AudioDevice? _trackedDevice;
+    private readonly HashSet<AudioDevice> _trayMenuTrackedDevices = [];
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private VolumeTrayIcon? _trayIconRenderer;
     private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
@@ -150,6 +152,8 @@ internal sealed class VolumeAvaloniaApp : Application
             {
                 _audioManager = new AudioDeviceManager(Dispatcher.UIThread, _settings);
                 _audioManager.PropertyChanged += OnAudioManagerPropertyChanged;
+                ((INotifyCollectionChanged)_audioManager.Devices).CollectionChanged += OnDevicesCollectionChanged;
+                SyncTrayMenuDeviceSubscriptions();
                 AttachToTrackedDevice(_audioManager.DefaultDevice);
             }
         }
@@ -234,7 +238,82 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         if (e.PropertyName == nameof(AudioDeviceManager.DefaultDevice))
             AttachToTrackedDevice(_audioManager?.DefaultDevice);
-        _trayMenuWarmSlot?.Invalidate();
+        InvalidateTrayMenuDeviceSnapshot();
+    }
+
+    private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        SyncTrayMenuDeviceSubscriptions();
+        InvalidateTrayMenuDeviceSnapshot();
+    }
+
+    private void SyncTrayMenuDeviceSubscriptions()
+    {
+        HashSet<AudioDevice> currentDevices = [];
+        if (_audioManager != null)
+        {
+            foreach (AudioDevice device in _audioManager.Devices)
+                currentDevices.Add(device);
+        }
+
+        foreach (AudioDevice trackedDevice in _trayMenuTrackedDevices.ToArray())
+        {
+            if (currentDevices.Contains(trackedDevice)) continue;
+            trackedDevice.PropertyChanged -= OnTrayMenuDevicePropertyChanged;
+            _trayMenuTrackedDevices.Remove(trackedDevice);
+        }
+
+        foreach (AudioDevice device in currentDevices)
+        {
+            if (!_trayMenuTrackedDevices.Add(device)) continue;
+            device.PropertyChanged += OnTrayMenuDevicePropertyChanged;
+        }
+    }
+
+    private void OnTrayMenuDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(AudioDevice.FriendlyName)
+            or nameof(AudioDevice.DeviceDescription)
+            or nameof(AudioDevice.InterfaceFriendlyName)
+            or nameof(AudioDevice.State)
+            or nameof(AudioDevice.IsDefault)
+            or nameof(AudioDevice.IsDefaultCommunications))
+        {
+            InvalidateTrayMenuDeviceSnapshot();
+        }
+    }
+
+    private void ClearTrayMenuDeviceSubscriptions()
+    {
+        foreach (AudioDevice device in _trayMenuTrackedDevices)
+            device.PropertyChanged -= OnTrayMenuDevicePropertyChanged;
+        _trayMenuTrackedDevices.Clear();
+    }
+
+    /// <summary>Evicts menus whose immutable entries capture a superseded device snapshot.</summary>
+    private void InvalidateTrayMenuDeviceSnapshot()
+    {
+        if (_shuttingDown) return;
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(InvalidateTrayMenuDeviceSnapshot, DispatcherPriority.Background);
+            return;
+        }
+
+        if (_trayMenuWarmSlot != null)
+        {
+            _trayMenuWarmSlot.EvictNow();
+            return;
+        }
+
+        VolumeTrayMenuWindow? menuWindow = _trayMenuWindow;
+        if (menuWindow == null) return;
+
+        try { menuWindow.Close(); }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Volume tray menu invalidation failed: {exception.Message}");
+        }
     }
 
     private void AttachToTrackedDevice(AudioDevice? device)
@@ -289,6 +368,9 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void OnSettingsChanged()
     {
+        if (_settings != null)
+            AppIconResolver.TrimToLimit(_settings.IconLRULimit);
+
         Dispatcher.UIThread.Post(() =>
         {
             ApplyThemeVariant();
@@ -671,11 +753,6 @@ internal sealed class VolumeAvaloniaApp : Application
             _settingsWindow.Closed -= OnSettingsWindowClosed;
             _settingsWindow = null;
         }
-
-        _ = Task.Delay(TimeConstants.PostSettingsCloseGCDelayMs).ContinueWith(_ =>
-        {
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-        }, TaskScheduler.Default);
     }
 
     private void ShowUninstallerWindow(string installDir, VolumeInstallScope scope)
@@ -728,6 +805,8 @@ internal sealed class VolumeAvaloniaApp : Application
             if (_audioManager != null)
             {
                 _audioManager.PropertyChanged -= OnAudioManagerPropertyChanged;
+                ((INotifyCollectionChanged)_audioManager.Devices).CollectionChanged -= OnDevicesCollectionChanged;
+                ClearTrayMenuDeviceSubscriptions();
                 Safe.Dispose(_audioManager);
                 _audioManager = null;
             }
@@ -801,11 +880,20 @@ internal sealed class VolumeAvaloniaApp : Application
                 _settingsWindow = null;
             }
 
-            TADNLog.Flush();
         }
         catch (Exception ex)
         {
             TADNLog.Log($"VolumeAvaloniaApp.ShutdownServices: {ex}");
+        }
+        finally
+        {
+            try { AppIconResolver.Shutdown(); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"VolumeAvaloniaApp icon cache shutdown failed: {exception}");
+            }
+
+            TADNLog.Flush();
         }
     }
 

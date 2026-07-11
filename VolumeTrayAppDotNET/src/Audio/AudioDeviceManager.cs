@@ -49,8 +49,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // Volatile gives the bg thread the latest-published reference; AudioDevice[] is immutable
     // once written so a torn enumeration is impossible.
     private volatile AudioDevice[] _devicesSnapshot = [];
-    private int _peakSampleDispatchPending;
-    private int _peakRenderDispatchPending;
+    private ElapsedEventHandler? _peakSampleElapsedHandler;
+    private ElapsedEventHandler? _peakRenderElapsedHandler;
+    private long _meteringGeneration;
+    private long _activeMeteringGeneration;
+    private long _peakSampleDispatchGeneration;
+    private long _peakRenderDispatchGeneration;
     private readonly AppSettings? _settings;
 
     // Shared rate-limiter for SetMasterVolume(Level)Scalar writes. Sliders update _volume + raise
@@ -219,13 +223,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // SynchronizingObject left null on purpose so Elapsed runs on the threadpool rather than
             // any captured sync context.
             _peakSampleTimer = new System.Timers.Timer(ResolveSampleIntervalMs()) { AutoReset = true };
-            _peakSampleTimer.Elapsed += OnPeakSampleElapsed;
 
             _peakRenderTimer = new System.Timers.Timer(ResolveRenderIntervalMs()) { AutoReset = true };
-            _peakRenderTimer.Elapsed += OnPeakRenderElapsed;
 
             // Retune timers immediately when the user changes the rates from the settings page.
-            // System.Timers.Timer.Interval is thread-safe and reschedules on the next tick.
+            // Active timers stop and rearm under a fresh generation before Interval changes.
             if (_settings != null)
             {
                 _settings.MeterPeakFpsChanged += OnMeterPeakFpsChanged;
@@ -268,6 +270,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private void DisposePartialConstruction()
     {
         _disposed = true;
+        Volatile.Write(ref _activeMeteringGeneration, 0);
+        Interlocked.Exchange(ref _peakSampleDispatchGeneration, 0);
+        Interlocked.Exchange(ref _peakRenderDispatchGeneration, 0);
 
         try { SystemEvents.PowerModeChanged -= OnPowerModeChanged; }
         catch (Exception ex)
@@ -299,7 +304,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample timer stop failed: {ex.Message}");
             }
 
-            try { peakSampleTimer.Elapsed -= OnPeakSampleElapsed; }
+            ElapsedEventHandler? sampleHandler = _peakSampleElapsedHandler;
+            _peakSampleElapsedHandler = null;
+            try
+            {
+                if (sampleHandler != null) peakSampleTimer.Elapsed -= sampleHandler;
+            }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample timer unsubscribe failed: {ex.Message}");
@@ -317,7 +327,12 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: render timer stop failed: {ex.Message}");
             }
 
-            try { peakRenderTimer.Elapsed -= OnPeakRenderElapsed; }
+            ElapsedEventHandler? renderHandler = _peakRenderElapsedHandler;
+            _peakRenderElapsedHandler = null;
+            try
+            {
+                if (renderHandler != null) peakRenderTimer.Elapsed -= renderHandler;
+            }
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: render timer unsubscribe failed: {ex.Message}");
@@ -410,13 +425,19 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private void OnMeterPeakFpsChanged()
     {
         if (_disposed) return;
+        bool restartMetering = Volatile.Read(ref _activeMeteringGeneration) != 0;
+        if (restartMetering) InvalidateAndStopPeakMeterTimers();
         _peakRenderTimer.Interval = ResolveRenderIntervalMs();
+        if (restartMetering) ArmPeakMeterTimers();
     }
 
     private void OnMeterPeakSampleRateChanged()
     {
         if (_disposed) return;
+        bool restartMetering = Volatile.Read(ref _activeMeteringGeneration) != 0;
+        if (restartMetering) InvalidateAndStopPeakMeterTimers();
         _peakSampleTimer.Interval = ResolveSampleIntervalMs();
+        if (restartMetering) ArmPeakMeterTimers();
     }
 
     /// <summary>Starts the peak-meter polling + render timers, and the Bluetooth battery active-poll
@@ -424,9 +445,17 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     public void StartMetering()
     {
         if (_disposed) return;
-        _peakSampleTimer.Start();
-        _peakRenderTimer.Start();
-        _batteryMonitor.StartPolling();
+        InvalidateAndStopPeakMeterTimers();
+        ArmPeakMeterTimers();
+        try
+        {
+            _batteryMonitor.StartPolling();
+        }
+        catch
+        {
+            InvalidateAndStopPeakMeterTimers();
+            throw;
+        }
     }
 
     /// <summary>Stops the peak-meter timers and the BT battery active-poll timer. Called when the
@@ -434,10 +463,78 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     public void StopMetering()
     {
         if (_disposed) return;
-        _peakSampleTimer.Stop();
-        _peakRenderTimer.Stop();
-        _batteryMonitor.StopPolling();
+        try
+        {
+            InvalidateAndStopPeakMeterTimers();
+        }
+        finally
+        {
+            _batteryMonitor.StopPolling();
+        }
     }
+
+    private void ArmPeakMeterTimers()
+    {
+        if (_disposed) return;
+
+        long generation = Interlocked.Increment(ref _meteringGeneration);
+        ElapsedEventHandler sampleHandler = (sender, e) => OnPeakSampleElapsed(sender, e, generation);
+        ElapsedEventHandler renderHandler = (sender, e) => OnPeakRenderElapsed(sender, e, generation);
+        _peakSampleElapsedHandler = sampleHandler;
+        _peakRenderElapsedHandler = renderHandler;
+        _peakSampleTimer.Elapsed += sampleHandler;
+        _peakRenderTimer.Elapsed += renderHandler;
+        Volatile.Write(ref _activeMeteringGeneration, generation);
+
+        try
+        {
+            _peakSampleTimer.Start();
+            _peakRenderTimer.Start();
+        }
+        catch
+        {
+            InvalidateAndStopPeakMeterTimers();
+            throw;
+        }
+    }
+
+    private void InvalidateAndStopPeakMeterTimers()
+    {
+        Volatile.Write(ref _activeMeteringGeneration, 0);
+        Interlocked.Exchange(ref _peakSampleDispatchGeneration, 0);
+        Interlocked.Exchange(ref _peakRenderDispatchGeneration, 0);
+        try
+        {
+            _peakSampleTimer.Stop();
+        }
+        finally
+        {
+            try
+            {
+                _peakRenderTimer.Stop();
+            }
+            finally
+            {
+                ElapsedEventHandler? sampleHandler = _peakSampleElapsedHandler;
+                ElapsedEventHandler? renderHandler = _peakRenderElapsedHandler;
+                _peakSampleElapsedHandler = null;
+                _peakRenderElapsedHandler = null;
+                try
+                {
+                    if (sampleHandler != null) _peakSampleTimer.Elapsed -= sampleHandler;
+                }
+                finally
+                {
+                    if (renderHandler != null) _peakRenderTimer.Elapsed -= renderHandler;
+                }
+            }
+        }
+    }
+
+    private bool IsMeteringGenerationCurrent(long generation) =>
+        generation != 0
+        && !Volatile.Read(ref _disposed)
+        && Volatile.Read(ref _activeMeteringGeneration) == generation;
 
     /// <summary>
     /// Bg-thread sample tick. Reads the published <see cref="_devicesSnapshot"/> once per tick
@@ -445,9 +542,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// the UI-thread lerp arming through <see cref="OnNewSample"/>. The dispatcher only sees the
     /// arming work, never the COM call.
     /// </summary>
-    private void OnPeakSampleElapsed(object? sender, ElapsedEventArgs e)
+    private void OnPeakSampleElapsed(object? sender, ElapsedEventArgs e, long generation)
     {
-        if (_disposed) return;
+        if (!ReferenceEquals(sender, _peakSampleTimer) || !IsMeteringGenerationCurrent(generation)) return;
 
         int steps = ResolveInterpolationSteps();
         // Snapshot the unified-meter config once per tick so every device/session this sample
@@ -460,6 +557,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
         for (int i = 0; i < devices.Length; i++)
         {
+            if (!IsMeteringGenerationCurrent(generation)) return;
             try { devices[i].UpdatePeakValueBackground(unified, biasMultiplier); }
             catch
             {
@@ -467,7 +565,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
         }
 
-        if (Interlocked.Exchange(ref _peakSampleDispatchPending, 1) != 0) return;
+        if (!IsMeteringGenerationCurrent(generation)) return;
+        if (Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, generation, 0) != 0) return;
+        if (!IsMeteringGenerationCurrent(generation))
+        {
+            Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, 0, generation);
+            return;
+        }
 
         try
         {
@@ -475,7 +579,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             {
                 try
                 {
-                    if (_disposed) return;
+                    if (!IsMeteringGenerationCurrent(generation)) return;
                     for (int i = _devices.Count - 1; i >= 0; i--)
                     {
                         try { _devices[i].OnNewSample(steps); }
@@ -487,13 +591,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 }
                 finally
                 {
-                    Interlocked.Exchange(ref _peakSampleDispatchPending, 0);
+                    Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, 0, generation);
                 }
             });
         }
         catch
         {
-            Interlocked.Exchange(ref _peakSampleDispatchPending, 0);
+            Interlocked.CompareExchange(ref _peakSampleDispatchGeneration, 0, generation);
         }
     }
 
@@ -504,9 +608,9 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// stepwise intermediate values between samples - the screen at vsync catches a smoothly
     /// stepped sequence rather than a snap-to-latest-sample sequence.
     /// </summary>
-    private void OnPeakRenderElapsed(object? sender, ElapsedEventArgs e)
+    private void OnPeakRenderElapsed(object? sender, ElapsedEventArgs e, long generation)
     {
-        if (_disposed) return;
+        if (!ReferenceEquals(sender, _peakRenderTimer) || !IsMeteringGenerationCurrent(generation)) return;
 
         // Snapshot the user's MeterPeakChangeCeiling once per tick so every device/session this
         // frame paints sees a coherent value even if the user flips the spinner mid-tick. The
@@ -516,7 +620,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         int percent = _settings?.MeterPeakChangeCeiling ?? AppSettings.MeterPeakChangeCeilingDefault;
         float maxStep = percent / 100f;
 
-        if (Interlocked.Exchange(ref _peakRenderDispatchPending, 1) != 0) return;
+        if (!IsMeteringGenerationCurrent(generation)) return;
+        if (Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, generation, 0) != 0) return;
+        if (!IsMeteringGenerationCurrent(generation))
+        {
+            Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, 0, generation);
+            return;
+        }
 
         try
         {
@@ -524,7 +634,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             {
                 try
                 {
-                    if (_disposed) return;
+                    if (!IsMeteringGenerationCurrent(generation)) return;
                     for (int i = _devices.Count - 1; i >= 0; i--)
                     {
                         try { _devices[i].OnRenderTick(maxStep); }
@@ -536,13 +646,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 }
                 finally
                 {
-                    Interlocked.Exchange(ref _peakRenderDispatchPending, 0);
+                    Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, 0, generation);
                 }
             });
         }
         catch
         {
-            Interlocked.Exchange(ref _peakRenderDispatchPending, 0);
+            Interlocked.CompareExchange(ref _peakRenderDispatchGeneration, 0, generation);
         }
     }
 
@@ -1389,10 +1499,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
-        _peakSampleTimer.Stop();
-        _peakRenderTimer.Stop();
-        _peakSampleTimer.Elapsed -= OnPeakSampleElapsed;
-        _peakRenderTimer.Elapsed -= OnPeakRenderElapsed;
+        try { InvalidateAndStopPeakMeterTimers(); }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"AudioDeviceManager peak timer teardown failed: {exception.Message}");
+        }
         Safe.Dispose(_peakSampleTimer);
         Safe.Dispose(_peakRenderTimer);
         if (_settings != null)

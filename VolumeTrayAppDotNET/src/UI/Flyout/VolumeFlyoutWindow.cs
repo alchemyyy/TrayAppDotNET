@@ -35,29 +35,19 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private readonly AudioDeviceManager _audioManager;
     private readonly AppSettings _settings;
     private readonly Action _openSettings;
-    private readonly List<Action> _cleanup = [];
     private readonly AppVolumeFeedbackPlayer? _feedback;
     private readonly string? _ownAppID;
-    private FlyoutMenuWindow? _openMenu;
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
-    private ScrollViewer? _cellsScrollViewer;
     private bool _isUndocked;
     private bool _isRebuilding;
     private bool _isUpdateDownloadInFlight;
     private bool _isUpdateDialogOpen;
-    private bool _isDraggingWindow;
-    private bool _undockButtonPointerCaptured;
-    private bool _undockButtonDragOccurred;
-    private int _hoveredDeviceStateButtonCount;
-    private int _activeVolumeSliderDragCount;
-    private bool _deviceOrderingRebuildPending;
     private bool _rebuildPending;
     private bool _rebuildQueued;
     private bool _isClosed;
-    private List<Action>? _buildingCleanup;
     private FlyoutAxamlProperties? _layout;
-    private Border? _undockButton;
-    private TextBlock? _undockButtonGlyph;
+    private VolumeFlyoutContentGeneration? _activeContent;
+    private VolumeFlyoutContentGeneration? _buildingContent;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
 
     public VolumeFlyoutWindow()
@@ -88,22 +78,31 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
 
         _settings.Changed += OnSettingsChanged;
+        WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
         _audioManager.PropertyChanged += OnAudioManagerPropertyChanged;
-        ((INotifyCollectionChanged)_audioManager.Devices).CollectionChanged += OnDevicesCollectionChanged;
+        WindowResources.Add(() => _audioManager.PropertyChanged -= OnAudioManagerPropertyChanged);
+        INotifyCollectionChanged devices = (INotifyCollectionChanged)_audioManager.Devices;
+        devices.CollectionChanged += OnDevicesCollectionChanged;
+        WindowResources.Add(() => devices.CollectionChanged -= OnDevicesCollectionChanged);
 
         if (AppServices.UpdateCheckService is { } updateService)
-            updateService.StateChanged += NotifyUpdateStateChanged;
-
-        KeyDown += (_, e) =>
         {
-            if (e.Key == Key.Escape)
-            {
-                Hide();
-                e.Handled = true;
-            }
-        };
+            updateService.StateChanged += NotifyUpdateStateChanged;
+            WindowResources.Add(() => updateService.StateChanged -= NotifyUpdateStateChanged);
+        }
+
+        KeyDown += OnWindowKeyDown;
+        WindowResources.Add(() => KeyDown -= OnWindowKeyDown);
 
         InitializeComponentState();
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+
+        Hide();
+        e.Handled = true;
     }
 
     private void InitializeComponentState()
@@ -123,7 +122,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     public void Redock()
     {
-        if (!_isUndocked) return;
+        if (_isClosed || !_isUndocked) return;
         _isUndocked = false;
         UpdateUndockButtonVisual();
         _settings.FlyoutUndocked = false;
@@ -166,9 +165,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         CloseOpenMenu();
         StopFlyoutActivity();
-        _activeVolumeSliderDragCount = 0;
-        _rebuildPending = false;
+        bool retirePendingContent = _rebuildPending;
+        if (_activeContent != null)
+            _activeContent.ActiveVolumeSliderDragCount = 0;
         base.Hide();
+        if (retirePendingContent)
+        {
+            _rebuildPending = true;
+            RetireActiveContentGeneration();
+        }
+        else
+        {
+            _rebuildPending = false;
+        }
+
         NotifyWarmDismissed();
     }
 
@@ -214,10 +224,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void QueuePositionNearTray(bool scrollToBottom = false)
     {
-        if (!IsVisible || _isDraggingWindow) return;
+        if (!IsVisible || _activeContent?.IsDraggingWindow == true) return;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!IsVisible || _isDraggingWindow) return;
+            if (!IsVisible || _activeContent?.IsDraggingWindow == true) return;
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
@@ -321,7 +331,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         Dispatcher.UIThread.Post(() =>
         {
-            ScrollViewer? scroll = _cellsScrollViewer;
+            ScrollViewer? scroll = _activeContent?.CellsScrollViewer;
             if (scroll == null) return;
 
             double maxOffset = Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
@@ -331,6 +341,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void Rebuild()
     {
+        if (_isClosed) return;
+
         try { RebuildCore(); }
         catch (Exception ex)
         {
@@ -345,8 +357,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     /// </summary>
     private void RebuildCore()
     {
-        if (_layout == null) return;
-        if (_activeVolumeSliderDragCount > 0 || _isRebuilding)
+        if (_isClosed || _layout == null) return;
+        if (_activeContent?.ActiveVolumeSliderDragCount > 0 || _isRebuilding)
         {
             _rebuildPending = true;
             return;
@@ -355,21 +367,69 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _rebuildQueued = false;
         _isRebuilding = true;
         _rebuildPending = false;
-        List<Action> buildCleanup = [];
-        _buildingCleanup = buildCleanup;
         try
         {
-            double? previousScrollOffset = _cellsScrollViewer?.Offset.Y;
-            CloseOpenMenu();
+            double? previousScrollOffset = _activeContent?.CellsScrollViewer?.Offset.Y;
+            VolumeFlyoutContentGeneration candidate = BuildContentGeneration();
+            if (_isClosed)
+            {
+                candidate.Generation.Dispose();
+                return;
+            }
 
+            CommitContentGeneration(candidate.Generation);
+            if (_isClosed || candidate.Generation.IsDisposed)
+            {
+                _activeContent = null;
+                return;
+            }
+
+            _activeContent = candidate;
+
+            if (previousScrollOffset.HasValue)
+                RestoreCellsScrollOffset(candidate, previousScrollOffset.Value);
+
+            QueuePositionNearTray();
+        }
+        finally
+        {
+            _isRebuilding = false;
+        }
+
+        FlushPendingRebuild();
+    }
+
+    /// <summary>
+    /// Builds a complete unpublished generation. Failure retires only the candidate resources.
+    /// </summary>
+    private VolumeFlyoutContentGeneration BuildContentGeneration()
+    {
+        UIResourceScope resources = new(
+            "VolumeFlyoutWindow.Content",
+            exception => TADNLog.Log($"Volume flyout generation cleanup failed: {exception.Message}"));
+        VolumeFlyoutContentGeneration candidate = new(resources);
+        _buildingContent = candidate;
+
+        try
+        {
             bool isLight = ResolveEffectiveIsLight();
-            SettingsPalette p = VolumeSettingsPalette.Create(AppServices.Theme, _settings, isLight);
-            FlyoutPalette fp = FlyoutPalette.Create(p, AppServices.Theme, _settings, isLight);
+            SettingsPalette settingsPalette = VolumeSettingsPalette.Create(AppServices.Theme, _settings, isLight);
+            FlyoutPalette flyoutPalette = FlyoutPalette.Create(
+                settingsPalette,
+                AppServices.Theme,
+                _settings,
+                isLight);
 
             List<AudioDevice> devices = FlyoutDeviceOrdering.Build(_audioManager.Devices, _settings);
             StackPanel cellStack = new() { Spacing = 0 };
-            for (int i = 0; i < devices.Count; i++)
-                cellStack.Children.Add(BuildCell(devices[i], fp, isFirst: i == 0, isLast: i == devices.Count - 1));
+            for (int index = 0; index < devices.Count; index++)
+            {
+                cellStack.Children.Add(BuildCell(
+                    devices[index],
+                    flyoutPalette,
+                    isFirst: index == 0,
+                    isLast: index == devices.Count - 1));
+            }
 
             Grid body = new() { ClipToBounds = true };
             ScrollViewer scroll = new()
@@ -380,14 +440,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Focusable = false,
                 Content = cellStack
             };
-            _cellsScrollViewer = scroll;
-            if (previousScrollOffset.HasValue)
-                RestoreCellsScrollOffset(scroll, previousScrollOffset.Value);
+            candidate.CellsScrollViewer = scroll;
             body.Children.Add(scroll);
 
-            TextBlock empty = Text(L("Flyout_NoAudioDevices", "No audio devices"), fp, Layout.EmptyDevicesFontSize);
+            TextBlock empty = Text(
+                L("Flyout_NoAudioDevices", "No audio devices"),
+                flyoutPalette,
+                Layout.EmptyDevicesFontSize);
             empty.Opacity = Layout.EmptyDevicesOpacity;
-            empty.Foreground = Brush(fp.SecondaryForeground);
+            empty.Foreground = Brush(flyoutPalette.SecondaryForeground);
             empty.HorizontalAlignment = HorizontalAlignment.Center;
             empty.VerticalAlignment = VerticalAlignment.Center;
             empty.Margin = Layout.EmptyDevicesMargin;
@@ -395,21 +456,21 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             body.Children.Add(empty);
 
             DockPanel root = new() { LastChildFill = true };
-            Control header = BuildHeader(fp);
+            Control header = BuildHeader(flyoutPalette);
             DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
             root.Children.Add(header);
             root.Children.Add(body);
 
             Border chrome = new()
             {
-                Background = Brush(fp.Background),
-                BorderBrush = Brush(fp.Border),
+                Background = Brush(flyoutPalette.Background),
+                BorderBrush = Brush(flyoutPalette.Border),
                 BorderThickness = Layout.ChromeBorderThickness,
                 CornerRadius = Rounded(Layout.ChromeCornerRadius),
                 ClipToBounds = false,
                 Child = new Border
                 {
-                    Background = Brush(fp.Background),
+                    Background = Brush(flyoutPalette.Background),
                     CornerRadius = Rounded(Layout.ChromeInnerCornerRadius),
                     ClipToBounds = true,
                     Margin = Layout.ChromeInnerMargin,
@@ -420,34 +481,38 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             chrome.PointerMoved += OnChromePointerMoved;
             chrome.PointerReleased += OnChromePointerReleased;
             chrome.PointerCaptureLost += OnChromePointerCaptureLost;
+            resources.Add(() =>
+            {
+                chrome.PointerPressed -= OnChromePointerPressed;
+                chrome.PointerMoved -= OnChromePointerMoved;
+                chrome.PointerReleased -= OnChromePointerReleased;
+                chrome.PointerCaptureLost -= OnChromePointerCaptureLost;
+            });
 
-            Content = chrome;
-            RunCleanup(_cleanup);
-            _cleanup.Clear();
-            _cleanup.AddRange(buildCleanup);
-            buildCleanup.Clear();
-            _hoveredDeviceStateButtonCount = 0;
-            _deviceOrderingRebuildPending = false;
-
-            QueuePositionNearTray();
+            // Retire interaction and drag state before controls release pointer capture
+            resources.Add(candidate.Dispose);
+            candidate.Generation = new UIContentGeneration(
+                "VolumeFlyoutWindow.Content",
+                chrome,
+                resources,
+                logError: exception => TADNLog.Log(
+                    $"Volume flyout generation release failed: {exception.Message}"));
+            return candidate;
         }
         catch
         {
-            RunCleanup(buildCleanup);
-            buildCleanup.Clear();
+            candidate.Dispose();
+            resources.Dispose();
             throw;
         }
         finally
         {
-            _buildingCleanup = null;
-            _isRebuilding = false;
+            _buildingContent = null;
         }
-
-        FlushPendingRebuild();
     }
 
     /// <summary>
-    /// Queues one coalesced rebuild and defers hidden warm-window churn until the next show.
+    /// Queues one coalesced rebuild and retires stale hidden content until the next show.
     /// </summary>
     private void QueueRebuild()
     {
@@ -460,7 +525,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         if (_layout == null) return;
-        if (!IsVisible && !IsWarmPriming || _activeVolumeSliderDragCount > 0 || _isRebuilding)
+        if (!IsVisible && !IsWarmPriming)
+        {
+            _rebuildPending = true;
+            RetireActiveContentGeneration();
+            return;
+        }
+
+        if (_activeContent?.ActiveVolumeSliderDragCount > 0 || _isRebuilding)
         {
             _rebuildPending = true;
             return;
@@ -473,52 +545,57 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             if (_isClosed) return;
             _rebuildQueued = false;
+            if (!IsVisible && !IsWarmPriming)
+            {
+                _rebuildPending = true;
+                RetireActiveContentGeneration();
+                return;
+            }
+
             Rebuild();
         }, DispatcherPriority.Background);
     }
 
     /// <summary>
-    /// Adds a cleanup action to the current rebuild transaction or the active content.
+    /// Adds a cleanup action to the unpublished generation currently being built.
     /// </summary>
-    private void AddCleanup(Action cleanup)
+    private void AddCleanup(Action cleanup) => BuildingContent.Resources.Add(cleanup);
+
+    private VolumeFlyoutContentGeneration BuildingContent =>
+        _buildingContent ?? throw new InvalidOperationException("No Volume flyout generation is being built.");
+
+    private void RetireActiveContentGeneration()
     {
-        List<Action> cleanupTarget = _buildingCleanup ?? _cleanup;
-        cleanupTarget.Add(cleanup);
+        _activeContent = null;
+        DisposeContentGeneration();
     }
 
-    /// <summary>
-    /// Runs event-detach cleanup without allowing teardown failures to escape the dispatcher.
-    /// </summary>
-    private static void RunCleanup(List<Action> cleanupActions)
-    {
-        for (int i = 0; i < cleanupActions.Count; i++)
-        {
-            try { cleanupActions[i](); }
-            catch (Exception ex) { TADNLog.Log($"VolumeFlyoutWindow cleanup failed: {ex.Message}"); }
-        }
-    }
+    private static void BeginVolumeSliderDrag(VolumeFlyoutContentGeneration content) =>
+        content.ActiveVolumeSliderDragCount++;
 
-    private void BeginVolumeSliderDrag() => _activeVolumeSliderDragCount++;
-
-    private void EndVolumeSliderDrag()
+    private void EndVolumeSliderDrag(VolumeFlyoutContentGeneration content)
     {
-        _activeVolumeSliderDragCount = Math.Max(0, _activeVolumeSliderDragCount - 1);
+        content.ActiveVolumeSliderDragCount = Math.Max(0, content.ActiveVolumeSliderDragCount - 1);
+        if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
         FlushPendingRebuild();
     }
 
     private void FlushPendingRebuild()
     {
-        if (!_rebuildPending || _isRebuilding || _activeVolumeSliderDragCount > 0) return;
+        if (_isClosed || !_rebuildPending || _isRebuilding || _activeContent?.ActiveVolumeSliderDragCount > 0)
+            return;
 
         _rebuildPending = false;
         QueueRebuild();
     }
 
-    private void RestoreCellsScrollOffset(ScrollViewer scroll, double offset)
+    private void RestoreCellsScrollOffset(VolumeFlyoutContentGeneration content, double offset)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (!ReferenceEquals(_cellsScrollViewer, scroll)) return;
+            if (!ReferenceEquals(_activeContent, content)) return;
+            ScrollViewer? scroll = content.CellsScrollViewer;
+            if (scroll == null) return;
 
             double maxOffset = Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height);
             scroll.Offset = new Vector(scroll.Offset.X, Math.Clamp(offset, 0, maxOffset));
@@ -807,8 +884,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Width = Layout.AppIconGridSlotSize,
             Height = Layout.AppIconGridSlotSize,
             Background = Brushes.Transparent,
-            Cursor =
-                device.IsCaptureDevice ? new Cursor(StandardCursorType.Arrow) : new Cursor(StandardCursorType.Hand),
+            Cursor = device.IsCaptureDevice ? TrayAppDotNETCursors.Arrow : TrayAppDotNETCursors.Hand,
             Opacity = ResolveAppOpacity(device, group)
         };
         TrayAppDotNETToolTip.SetTip(cell, group.TooltipText);
@@ -883,16 +959,18 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Height = imageSize,
             Background = Brushes.Transparent,
             Cursor = clickable && !device.IsCaptureDevice
-                ? new Cursor(StandardCursorType.Hand)
-                : new Cursor(StandardCursorType.Arrow)
+                ? TrayAppDotNETCursors.Hand
+                : TrayAppDotNETCursors.Arrow
         };
         TrayAppDotNETToolTip.SetTip(root, group.TooltipText);
 
-        if (group.Icon != null)
+        AppIconResolver.IconHandle? iconHandle = group.AcquireIconHandle();
+        if (iconHandle != null)
         {
+            BuildingContent.Resources.Own(iconHandle);
             root.Children.Add(new Image
             {
-                Source = group.Icon,
+                Source = iconHandle.Icon,
                 Width = imageSize,
                 Height = imageSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -958,6 +1036,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Grid BuildDeviceTitleRow(AudioDevice device, IReadOnlyList<AudioAppGroup> groups, FlyoutPalette p)
     {
+        VolumeFlyoutContentGeneration content = BuildingContent;
         Grid row = new()
         {
             Margin = _settings.FlyoutDeviceTitlePosition == FlyoutDeviceTitlePosition.AboveSlider
@@ -986,7 +1065,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             if (e.ClickCount != 2 || e.GetCurrentPoint(nameStack).Properties.PointerUpdateKind !=
                 PointerUpdateKind.LeftButtonPressed) return;
-            BeginDeviceNameEdit(nameStack, device, p);
+            BeginDeviceNameEdit(content, nameStack, device, p);
             e.Handled = true;
         };
         nameStack.Children.Add(name);
@@ -1012,7 +1091,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         nameStack.PointerReleased += (_, e) =>
         {
             if (e.InitialPressMouseButton != MouseButton.Right) return;
-            ShowDefaultFormatMenu(nameStack, device, p);
+            ShowDefaultFormatMenu(content, nameStack, device, p);
             e.Handled = true;
         };
 
@@ -1039,7 +1118,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     break;
                 case nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications)
                     when !IsDefaultDeviceButtonVisible(device):
-                    RunOnUIThread(QueueDeviceOrderingRebuild);
+                    RunOnUIThread(() => QueueDeviceOrderingRebuild(content));
                     break;
                 default:
                 {
@@ -1159,6 +1238,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Action<double> setPercent,
         Action<bool> playFeedback)
     {
+        VolumeFlyoutContentGeneration content = BuildingContent;
         FlyoutSlider slider = new()
         {
             Value = scalar * 100.0,
@@ -1174,6 +1254,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        content.Resources.Own(slider);
 
         bool updating = false;
         bool dragging = false;
@@ -1181,14 +1262,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             if (dragging) return;
             dragging = true;
-            BeginVolumeSliderDrag();
+            BeginVolumeSliderDrag(content);
         };
         slider.DragCompleted += (_, _) =>
         {
             if (dragging)
             {
                 dragging = false;
-                EndVolumeSliderDrag();
+                EndVolumeSliderDrag(content);
             }
 
             playFeedback(true);
@@ -1226,7 +1307,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         label.Background = Brushes.Transparent;
         label.TextAlignment = TextAlignment.Right;
         label.VerticalAlignment = VerticalAlignment.Center;
-        label.Cursor = new Cursor(StandardCursorType.Ibeam);
+        label.Cursor = TrayAppDotNETCursors.IBeam;
 
         TextBox editor = new()
         {
@@ -1248,10 +1329,23 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return (host, label, editor);
     }
 
-    private static void WirePercentEditor(TextBlock label, TextBox editor, FlyoutSlider slider,
+    private void WirePercentEditor(TextBlock label, TextBox editor, FlyoutSlider slider,
         Action<double> setPercent)
     {
-        label.PointerPressed += (_, e) =>
+        label.PointerPressed += OnLabelPointerPressed;
+        editor.KeyDown += OnEditorKeyDown;
+        editor.LostFocus += OnEditorLostFocus;
+        BuildingContent.Resources.Add(() =>
+        {
+            label.PointerPressed -= OnLabelPointerPressed;
+            editor.KeyDown -= OnEditorKeyDown;
+            editor.LostFocus -= OnEditorLostFocus;
+            editor.IsVisible = false;
+            editor.Text = null;
+        });
+        return;
+
+        void OnLabelPointerPressed(object? sender, PointerPressedEventArgs e)
         {
             if (e.ClickCount != 2) return;
             if (!slider.IsEnabled || !slider.IsVisible) return;
@@ -1262,9 +1356,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             editor.Focus();
             editor.SelectAll();
             e.Handled = true;
-        };
+        }
 
-        editor.KeyDown += (_, e) =>
+        void OnEditorKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
@@ -1276,13 +1370,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             if (e.Key != Key.Enter) return;
             CommitPercentEditor(label, editor, slider, setPercent);
             e.Handled = true;
-        };
+        }
 
-        editor.LostFocus += (_, _) =>
+        void OnEditorLostFocus(object? sender, RoutedEventArgs e)
         {
             if (!editor.IsVisible) return;
             CommitPercentEditor(label, editor, slider, setPercent);
-        };
+        }
     }
 
     private static void CommitPercentEditor(TextBlock label, TextBox editor, FlyoutSlider slider,
@@ -1510,6 +1604,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (!device.IsCaptureDevice || !_settings.ShowListenButtonForRecording) return null;
 
+        VolumeFlyoutContentGeneration content = BuildingContent;
         Border? button = null;
         button = DeviceIconButton(GlyphCatalog.EAR_LISTEN, p, e =>
         {
@@ -1517,7 +1612,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 device.SetListenTarget(null, enable: true);
             else
                 device.SetListenEnabled(!device.IsListeningToThisDevice);
-        }, rightClick: _ => ShowListenTargetMenu(button!, device, p));
+        }, rightClick: _ => ShowListenTargetMenu(content, button!, device, p));
         TrayAppDotNETToolTip.SetTip(button, L("Flyout_ListenButton_Tooltip", "Listen to this device"));
         UpdateVisual();
 
@@ -1538,6 +1633,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (!IsDefaultDeviceButtonVisible(device)) return null;
 
+        VolumeFlyoutContentGeneration content = BuildingContent;
         Border button = DeviceIconButton(null, p, e =>
         {
             if ((e.KeyModifiers & KeyModifiers.Shift) != 0)
@@ -1553,7 +1649,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         glyph.VerticalAlignment = VerticalAlignment.Center;
         button.Child = glyph;
         TrayAppDotNETToolTip.SetTip(button, L("Flyout_DeviceIcon_Tooltip", "Set as default device"));
-        TrackDeviceStateButtonHover(button);
+        TrackDeviceStateButtonHover(content, button);
         UpdateVisual();
 
         device.PropertyChanged += OnDeviceChanged;
@@ -1571,7 +1667,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 UpdateVisual();
                 if (e.PropertyName is nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications))
-                    QueueDeviceOrderingRebuild();
+                    QueueDeviceOrderingRebuild(content);
             });
         }
 
@@ -1592,43 +1688,44 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             ? _settings.ShowDefaultDeviceButtonForRecording
             : _settings.ShowDefaultDeviceButtonForPlayback;
 
-    private void TrackDeviceStateButtonHover(Control button)
+    private void TrackDeviceStateButtonHover(VolumeFlyoutContentGeneration content, Control button)
     {
         bool pointerOver = false;
         button.PointerEntered += (_, _) =>
         {
             if (pointerOver) return;
             pointerOver = true;
-            _hoveredDeviceStateButtonCount++;
+            content.HoveredDeviceStateButtonCount++;
         };
         button.PointerExited += (_, _) =>
         {
             if (!pointerOver) return;
             pointerOver = false;
-            _hoveredDeviceStateButtonCount = Math.Max(0, _hoveredDeviceStateButtonCount - 1);
-            FlushDeviceOrderingRebuild();
+            content.HoveredDeviceStateButtonCount = Math.Max(0, content.HoveredDeviceStateButtonCount - 1);
+            FlushDeviceOrderingRebuild(content);
         };
         AddCleanup(() =>
         {
             if (!pointerOver) return;
             pointerOver = false;
-            _hoveredDeviceStateButtonCount = Math.Max(0, _hoveredDeviceStateButtonCount - 1);
+            content.HoveredDeviceStateButtonCount = Math.Max(0, content.HoveredDeviceStateButtonCount - 1);
         });
     }
 
-    private void QueueDeviceOrderingRebuild()
+    private void QueueDeviceOrderingRebuild(VolumeFlyoutContentGeneration content)
     {
         if (_settings.FlyoutDeviceSort != FlyoutDeviceSortOrder.StateGrouped) return;
 
-        _deviceOrderingRebuildPending = true;
-        FlushDeviceOrderingRebuild();
+        content.DeviceOrderingRebuildPending = true;
+        FlushDeviceOrderingRebuild(content);
     }
 
-    private void FlushDeviceOrderingRebuild()
+    private void FlushDeviceOrderingRebuild(VolumeFlyoutContentGeneration content)
     {
-        if (!_deviceOrderingRebuildPending || _hoveredDeviceStateButtonCount > 0) return;
+        if (!content.DeviceOrderingRebuildPending || content.HoveredDeviceStateButtonCount > 0) return;
+        if (!ReferenceEquals(_activeContent, content)) return;
 
-        _deviceOrderingRebuildPending = false;
+        content.DeviceOrderingRebuildPending = false;
         QueueRebuild();
     }
 
@@ -1697,61 +1794,65 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             CornerRadius = Rounded(Layout.HeaderIconButtonCornerRadius),
             Background = Brushes.Transparent,
             Child = text,
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = TrayAppDotNETCursors.Hand
         };
-        _undockButton = button;
-        _undockButtonGlyph = text;
-        AddCleanup(() =>
-        {
-            if (ReferenceEquals(_undockButton, button))
-            {
-                _undockButton = null;
-                _undockButtonGlyph = null;
-            }
-        });
-        UpdateUndockButtonVisual();
+        VolumeFlyoutContentGeneration content = BuildingContent;
+        content.UndockButton = button;
+        content.UndockButtonGlyph = text;
+        UpdateUndockButtonVisual(content);
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
 
         bool pointerInside = false;
         button.PointerEntered += (_, _) =>
         {
             pointerInside = true;
-            if (!_isDraggingWindow) button.Background = Brush(p.Pressed);
+            if (!content.IsDraggingWindow) button.Background = Brush(p.Pressed);
         };
         button.PointerExited += (_, _) =>
         {
             pointerInside = false;
-            if (!_isDraggingWindow) button.Background = Brushes.Transparent;
+            if (!content.IsDraggingWindow) button.Background = Brushes.Transparent;
         };
         button.PointerPressed += (_, e) =>
         {
+            if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
             if (e.GetCurrentPoint(button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
 
             pointerInside = true;
-            BeginUndockButtonDrag(button, e);
+            BeginUndockButtonDrag(content, button, e);
             button.Background = Brush(p.Pressed);
             e.Handled = true;
         };
         button.PointerMoved += (_, e) =>
         {
-            if (!_undockButtonPointerCaptured) return;
-            ContinueUndockButtonDrag(button, e);
+            if (_isClosed || !content.UndockButtonPointerCaptured) return;
+            ContinueUndockButtonDrag(content, button, e);
             e.Handled = true;
         };
         button.PointerReleased += (_, e) =>
         {
-            if (!_undockButtonPointerCaptured || e.InitialPressMouseButton != MouseButton.Left) return;
+            if (_isClosed || !content.UndockButtonPointerCaptured
+                          || e.InitialPressMouseButton != MouseButton.Left)
+                return;
 
             bool releasedInside = IsPointerInside(button, e);
-            FinishUndockButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: releasedInside);
+            FinishUndockButtonDrag(
+                content,
+                e.Pointer,
+                commitDrag: true,
+                clickWhenNotDragged: releasedInside);
             button.Background = releasedInside ? Brush(p.Pressed) : Brushes.Transparent;
             e.Handled = true;
         };
         button.PointerCaptureLost += (_, _) =>
         {
-            if (!_undockButtonPointerCaptured) return;
+            if (_isClosed || !content.UndockButtonPointerCaptured) return;
 
-            FinishUndockButtonDrag(null, commitDrag: _undockButtonDragOccurred, clickWhenNotDragged: false);
+            FinishUndockButtonDrag(
+                content,
+                null,
+                commitDrag: content.UndockButtonDragOccurred,
+                clickWhenNotDragged: false);
             button.Background = pointerInside ? Brush(p.Pressed) : Brushes.Transparent;
         };
 
@@ -1827,7 +1928,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Background = Brushes.Transparent,
             ClipToBounds = false,
             Child = content,
-            Cursor = enabled ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Arrow),
+            Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
             IsEnabled = enabled
         };
         if (tooltip != null) TrayAppDotNETToolTip.SetTip(button, tooltip);
@@ -1856,7 +1957,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             BorderThickness = Layout.TextButtonBorderThickness,
             CornerRadius = Rounded(Layout.TextButtonCornerRadius),
             Child = label,
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = TrayAppDotNETCursors.Hand
         };
         TrayAppDotNETToolTip.SuppressWhileEngaged(button);
         FlyoutButtonState.Attach(
@@ -1899,36 +2000,47 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         catch (Exception ex) { TADNLog.Log($"VolumeFlyoutWindow UI action failed: {ex.GetType().Name}: {ex.Message}"); }
     }
 
-    private void BeginUndockButtonDrag(Control source, PointerPressedEventArgs e)
+    private void BeginUndockButtonDrag(
+        VolumeFlyoutContentGeneration content,
+        Control source,
+        PointerPressedEventArgs e)
     {
+        if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
+
         (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
         PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
 
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
-        _undockButtonPointerCaptured = true;
-        _undockButtonDragOccurred = false;
-        _isDraggingWindow = true;
+        content.UndockButtonPointerCaptured = true;
+        content.UndockButtonDragOccurred = false;
+        content.IsDraggingWindow = true;
+        content.CapturedPointer = e.Pointer;
         e.Pointer.Capture(source);
     }
 
-    private void ContinueUndockButtonDrag(Control source, PointerEventArgs e)
+    private void ContinueUndockButtonDrag(
+        VolumeFlyoutContentGeneration content,
+        Control source,
+        PointerEventArgs e)
     {
+        if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
+
         PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
         if (!properties.IsLeftButtonPressed)
         {
-            FinishUndockButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: false);
+            FinishUndockButtonDrag(content, e.Pointer, commitDrag: true, clickWhenNotDragged: false);
             return;
         }
 
         PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
         PixelPoint natural = _dragHelper.ComputeNatural(pointer);
 
-        if (!_undockButtonDragOccurred)
+        if (!content.UndockButtonDragOccurred)
         {
             double thresholdPixels = Layout.DragThreshold * RenderScaling;
             if (!_dragHelper.ExceedsThreshold(natural, thresholdPixels)) return;
 
-            _undockButtonDragOccurred = true;
+            content.UndockButtonDragOccurred = true;
             _isUndocked = true;
             UpdateUndockButtonVisual();
         }
@@ -1936,13 +2048,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _dragHelper.ApplyDragPosition(this, natural);
     }
 
-    private void FinishUndockButtonDrag(IPointer? pointer, bool commitDrag, bool clickWhenNotDragged)
+    private void FinishUndockButtonDrag(
+        VolumeFlyoutContentGeneration content,
+        IPointer? pointer,
+        bool commitDrag,
+        bool clickWhenNotDragged)
     {
-        bool dragOccurred = _undockButtonDragOccurred;
-        _undockButtonPointerCaptured = false;
-        _undockButtonDragOccurred = false;
-        _isDraggingWindow = false;
-        pointer?.Capture(null);
+        bool dragOccurred = content.UndockButtonDragOccurred;
+        bool canCommit = !_isClosed
+                         && !content.Resources.IsDisposed
+                         && ReferenceEquals(_activeContent, content);
+        content.UndockButtonPointerCaptured = false;
+        content.UndockButtonDragOccurred = false;
+        content.IsDraggingWindow = false;
+        IPointer? capturedPointer = pointer ?? content.CapturedPointer;
+        content.CapturedPointer = null;
+        capturedPointer?.Capture(null);
+
+        if (!canCommit) return;
 
         if (dragOccurred)
         {
@@ -1955,6 +2078,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void ToggleUndocked()
     {
+        if (_isClosed) return;
+
         if (_isUndocked)
         {
             Redock();
@@ -1966,6 +2091,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void UndockToSavedPosition()
     {
+        if (_isClosed) return;
+
         _isUndocked = true;
         UpdateUndockButtonVisual();
         _settings.FlyoutUndocked = true;
@@ -1985,8 +2112,16 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void UpdateUndockButtonVisual()
     {
-        if (_undockButtonGlyph != null) GlyphApplicator.ApplyTo(_undockButtonGlyph, UndockButtonGlyph());
-        if (_undockButton != null) TrayAppDotNETToolTip.SetTip(_undockButton, UndockButtonTooltip());
+        VolumeFlyoutContentGeneration? content = _activeContent;
+        if (content != null) UpdateUndockButtonVisual(content);
+    }
+
+    private void UpdateUndockButtonVisual(VolumeFlyoutContentGeneration content)
+    {
+        if (content.UndockButtonGlyph != null)
+            GlyphApplicator.ApplyTo(content.UndockButtonGlyph, UndockButtonGlyph());
+        if (content.UndockButton != null)
+            TrayAppDotNETToolTip.SetTip(content.UndockButton, UndockButtonTooltip());
     }
 
     private static void ToggleCommunicationsDucking(KeyModifiers modifiers)
@@ -2033,7 +2168,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         });
     }
 
-    private void ShowDefaultFormatMenu(Control anchor, AudioDevice device, FlyoutPalette p)
+    private void ShowDefaultFormatMenu(
+        VolumeFlyoutContentGeneration content,
+        Control anchor,
+        AudioDevice device,
+        FlyoutPalette p)
     {
         List<(int Channels, int Bits, int SampleRate)> formats = device.EnumerateSupportedFormats();
         (int Channels, int Bits, int SampleRate)? current = device.GetCurrentFormat();
@@ -2064,7 +2203,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         double maxHeight = formats.Count > Layout.FormatMenuMaxVisibleItems
             ? Layout.FormatMenuMaxVisibleItems * Layout.FormatMenuItemHeight + Layout.FormatMenuPaddingReserve
             : double.PositiveInfinity;
-        ShowFlyoutMenu(anchor, entries, p, maxHeight);
+        ShowFlyoutMenu(content, anchor, entries, p, maxHeight);
     }
 
     private static List<(int Channels, int Bits, int SampleRate)> BuildFallbackFormatMenu(
@@ -2078,7 +2217,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return [.. values];
     }
 
-    private void ShowListenTargetMenu(Control anchor, AudioDevice captureDevice, FlyoutPalette p)
+    private void ShowListenTargetMenu(
+        VolumeFlyoutContentGeneration content,
+        Control anchor,
+        AudioDevice captureDevice,
+        FlyoutPalette p)
     {
         string? currentTarget = captureDevice.ListenTargetDeviceID;
         List<FlyoutMenuEntry> entries =
@@ -2107,36 +2250,82 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 () => captureDevice.SetListenTarget(targetId, enable: true)));
         }
 
-        ShowFlyoutMenu(anchor, entries, p);
+        ShowFlyoutMenu(content, anchor, entries, p);
     }
 
-    private void ShowFlyoutMenu(Control anchor, IReadOnlyList<FlyoutMenuEntry> entries, FlyoutPalette p,
+    private void ShowFlyoutMenu(
+        VolumeFlyoutContentGeneration content,
+        Control anchor,
+        IReadOnlyList<FlyoutMenuEntry> entries,
+        FlyoutPalette p,
         double maxHeight = double.PositiveInfinity)
     {
-        CloseOpenMenu();
-        FlyoutMenuWindow menu = new(entries, p, Layout, _settings.ContextMenuFontSize, _settings.EnableRoundedCorners,
-            maxHeight);
-        _openMenu = menu;
-        menu.Closed += (_, _) =>
+        if (_isClosed || !ReferenceEquals(_activeContent, content) || content.Resources.IsDisposed) return;
+
+        CloseOpenMenu(content);
+        UIResourceScope menuResources = new(
+            "VolumeFlyoutWindow.Menu",
+            exception => TADNLog.Log($"Volume flyout menu cleanup failed: {exception.Message}"));
+        FlyoutMenuWindow menu;
+        try
         {
-            if (ReferenceEquals(_openMenu, menu)) _openMenu = null;
-            if (menu.ClosedFromDeactivation)
-                NotifyChildWindowClosedFromDeactivation();
-        };
-        menu.ShowAt(anchor);
+            menu = new FlyoutMenuWindow(
+                entries,
+                p,
+                Layout,
+                _settings.ContextMenuFontSize,
+                _settings.EnableRoundedCorners,
+                maxHeight,
+                menuResources);
+        }
+        catch
+        {
+            menuResources.Dispose();
+            throw;
+        }
+
+        FlyoutMenuInteraction interaction = new(
+            menu,
+            menuResources,
+            (completedInteraction, closedFromDeactivation) =>
+            {
+                content.MenuInteraction.Complete(completedInteraction);
+                if (closedFromDeactivation && !_isClosed)
+                    NotifyChildWindowClosedFromDeactivation();
+            });
+        content.MenuInteraction.Replace(interaction);
+        try
+        {
+            interaction.ShowAt(anchor);
+        }
+        catch
+        {
+            content.MenuInteraction.Complete(interaction);
+            throw;
+        }
     }
 
     private void CloseOpenMenu()
     {
-        FlyoutMenuWindow? menu = _openMenu;
-        _openMenu = null;
-        if (menu?.IsVisible == true) menu.Close();
+        VolumeFlyoutContentGeneration? content = _activeContent;
+        if (content != null) CloseOpenMenu(content);
     }
 
-    private bool IsFlyoutMenuOpen => _openMenu?.IsVisible == true;
+    private static void CloseOpenMenu(VolumeFlyoutContentGeneration content) =>
+        content.MenuInteraction.Clear();
 
-    private void BeginDeviceNameEdit(Grid host, AudioDevice device, FlyoutPalette p)
+    private bool IsFlyoutMenuOpen => _activeContent?.MenuInteraction.Active?.IsVisible == true;
+
+    private void BeginDeviceNameEdit(
+        VolumeFlyoutContentGeneration content,
+        Grid host,
+        AudioDevice device,
+        FlyoutPalette p)
     {
+        if (_isClosed || !ReferenceEquals(_activeContent, content) || content.Resources.IsDisposed) return;
+
+        content.DeviceNameEditInteraction.Clear();
+
         TextBox editor = new()
         {
             Text = device.FriendlyName,
@@ -2151,16 +2340,38 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             VerticalAlignment = VerticalAlignment.Center,
             ZIndex = Layout.DeviceNameEditorZIndex
         };
-        bool closed = false;
+        UIResourceScope interactionResources = new(
+            "VolumeFlyoutWindow.DeviceNameEdit",
+            exception => TADNLog.Log($"Volume device-name editor cleanup failed: {exception.Message}"));
+        content.DeviceNameEditInteraction.Replace(interactionResources);
+        try
+        {
+            host.Children.Add(editor);
+            interactionResources.Add(() =>
+            {
+                if (host.Children.Contains(editor)) host.Children.Remove(editor);
+                editor.Text = null;
+            });
 
-        editor.KeyDown += OnEditorKeyDown;
-        editor.LostFocus += OnEditorLostFocus;
-        AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+            editor.KeyDown += OnEditorKeyDown;
+            interactionResources.Add(() => editor.KeyDown -= OnEditorKeyDown);
+            editor.LostFocus += OnEditorLostFocus;
+            interactionResources.Add(() => editor.LostFocus -= OnEditorLostFocus);
+            AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+            interactionResources.Add(() => RemoveHandler(PointerPressedEvent, OnWindowPointerPressed));
+        }
+        catch
+        {
+            content.DeviceNameEditInteraction.Complete(interactionResources);
+            throw;
+        }
 
-        host.Children.Add(editor);
         Dispatcher.UIThread.Post(() =>
         {
-            if (!host.Children.Contains(editor)) return;
+            if (_isClosed || interactionResources.IsDisposed || content.Resources.IsDisposed
+                          || !host.Children.Contains(editor))
+                return;
+
             editor.Focus();
             editor.SelectAll();
         }, DispatcherPriority.Input);
@@ -2185,36 +2396,26 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
         {
-            if (closed) return;
-            Point p = e.GetPosition(editor);
-            if (p is { X: >= 0, Y: >= 0 } && p.X <= editor.Bounds.Width && p.Y <= editor.Bounds.Height) return;
+            if (interactionResources.IsDisposed) return;
+            Point point = e.GetPosition(editor);
+            if (point is { X: >= 0, Y: >= 0 }
+                && point.X <= editor.Bounds.Width
+                && point.Y <= editor.Bounds.Height)
+                return;
+
             Commit();
         }
 
         void Commit()
         {
-            if (closed) return;
-            closed = true;
-            CleanupHandlers();
-            if (!host.Children.Contains(editor)) return;
-            host.Children.Remove(editor);
-            device.SetCustomFriendlyName(editor.Text);
+            if (interactionResources.IsDisposed) return;
+            string? customName = editor.Text;
+            content.DeviceNameEditInteraction.Complete(interactionResources);
+            if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
+            device.SetCustomFriendlyName(customName);
         }
 
-        void Cancel()
-        {
-            if (closed) return;
-            closed = true;
-            CleanupHandlers();
-            if (host.Children.Contains(editor)) host.Children.Remove(editor);
-        }
-
-        void CleanupHandlers()
-        {
-            editor.KeyDown -= OnEditorKeyDown;
-            editor.LostFocus -= OnEditorLostFocus;
-            RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
-        }
+        void Cancel() => content.DeviceNameEditInteraction.Complete(interactionResources);
     }
 
     private void ShowEqualizerAPONotAvailableDialog()
@@ -2462,32 +2663,45 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (_isClosed) return;
+
+        VolumeFlyoutContentGeneration? content = _activeContent;
+        if (content == null) return;
         if (!_isUndocked) return;
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
         if (IsInteractiveDragSource(e.Source)) return;
         if (sender is not Control control) return;
 
-        BeginWindowDrag(control, e);
+        BeginWindowDrag(content, control, e);
         e.Handled = true;
     }
 
-    private void BeginWindowDrag(Control source, PointerPressedEventArgs e)
+    private void BeginWindowDrag(
+        VolumeFlyoutContentGeneration content,
+        Control source,
+        PointerPressedEventArgs e)
     {
+        if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
+
         (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
         PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
 
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
-        _isDraggingWindow = true;
+        content.IsDraggingWindow = true;
+        content.CapturedPointer = e.Pointer;
         e.Pointer.Capture(source);
     }
 
     private void OnChromePointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_isDraggingWindow || _undockButtonPointerCaptured) return;
+        if (_isClosed) return;
+
+        VolumeFlyoutContentGeneration? content = _activeContent;
+        if (content == null || !content.IsDraggingWindow || content.UndockButtonPointerCaptured) return;
         PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
         if (!properties.IsLeftButtonPressed)
         {
-            EndWindowDrag(e.Pointer, commit: true);
+            EndWindowDrag(content, e.Pointer, commit: true);
             e.Handled = true;
             return;
         }
@@ -2501,27 +2715,40 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void OnChromePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (!_isDraggingWindow || _undockButtonPointerCaptured) return;
-        EndWindowDrag(e.Pointer, commit: true);
+        if (_isClosed) return;
+
+        VolumeFlyoutContentGeneration? content = _activeContent;
+        if (content == null || !content.IsDraggingWindow || content.UndockButtonPointerCaptured) return;
+        EndWindowDrag(content, e.Pointer, commit: true);
         e.Handled = true;
     }
 
     private void OnChromePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
-        if (!_isDraggingWindow || _undockButtonPointerCaptured) return;
-        _isDraggingWindow = false;
+        VolumeFlyoutContentGeneration? content = _activeContent;
+        if (content == null || !content.IsDraggingWindow || content.UndockButtonPointerCaptured) return;
+        content.IsDraggingWindow = false;
+        content.CapturedPointer = null;
+        if (_isClosed || content.Resources.IsDisposed) return;
         CommitDragPosition();
     }
 
-    private void EndWindowDrag(IPointer pointer, bool commit)
+    private void EndWindowDrag(VolumeFlyoutContentGeneration content, IPointer pointer, bool commit)
     {
-        _isDraggingWindow = false;
+        bool canCommit = commit
+                         && !_isClosed
+                         && !content.Resources.IsDisposed
+                         && ReferenceEquals(_activeContent, content);
+        content.IsDraggingWindow = false;
+        content.CapturedPointer = null;
         pointer.Capture(null);
-        if (commit) CommitDragPosition();
+        if (canCommit) CommitDragPosition();
     }
 
     private void CommitDragPosition(bool rebuildAfterSave = false)
     {
+        if (_isClosed) return;
+
         if (_dragHelper.IsCurrentlySnapped)
         {
             Redock();
@@ -2675,40 +2902,208 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     protected override void OnClosed(EventArgs e)
     {
-        base.OnClosed(e);
-
         _isClosed = true;
-        StopFlyoutActivity();
-        _activeVolumeSliderDragCount = 0;
         _rebuildPending = false;
         _rebuildQueued = false;
-        _deviceOrderingRebuildPending = false;
         _isRebuilding = false;
 
-        if (_buildingCleanup != null)
+        try
         {
-            RunCleanup(_buildingCleanup);
-            _buildingCleanup.Clear();
-            _buildingCleanup = null;
+            // Detach external publishers before any close operation that can fail
+            WindowResources.Dispose();
+            try
+            {
+                StopFlyoutActivity();
+            }
+            finally
+            {
+                try
+                {
+                    Safe.Dispose(_feedback);
+                }
+                finally
+                {
+                    VolumeFlyoutContentGeneration? buildingContent = _buildingContent;
+                    _buildingContent = null;
+                    buildingContent?.Resources.Dispose();
+                }
+            }
+        }
+        finally
+        {
+            _buildingContent = null;
+            _activeContent = null;
+            base.OnClosed(e);
+        }
+    }
+
+    /// <summary>
+    /// Holds every reference and resource whose lifetime is exactly one published visual tree.
+    /// </summary>
+    private sealed class VolumeFlyoutContentGeneration(UIResourceScope resources) : IDisposable
+    {
+        public readonly UIResourceScope Resources = resources;
+        public UIContentGeneration Generation = null!;
+        public ScrollViewer? CellsScrollViewer;
+        public Border? UndockButton;
+        public TextBlock? UndockButtonGlyph;
+        public readonly ActiveInteractionSlot<FlyoutMenuInteraction> MenuInteraction = new();
+        public readonly ActiveInteractionSlot<UIResourceScope> DeviceNameEditInteraction = new();
+        public IPointer? CapturedPointer;
+        public bool IsDraggingWindow;
+        public bool UndockButtonPointerCaptured;
+        public bool UndockButtonDragOccurred;
+        public bool DeviceOrderingRebuildPending;
+        public int HoveredDeviceStateButtonCount;
+        public int ActiveVolumeSliderDragCount;
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            IsDraggingWindow = false;
+            UndockButtonPointerCaptured = false;
+            UndockButtonDragOccurred = false;
+            ActiveVolumeSliderDragCount = 0;
+            MenuInteraction.Dispose();
+            DeviceNameEditInteraction.Dispose();
+
+            IPointer? capturedPointer = CapturedPointer;
+            CapturedPointer = null;
+            try { capturedPointer?.Capture(null); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Volume flyout pointer release failed: {exception.Message}");
+            }
+
+            CellsScrollViewer = null;
+            UndockButton = null;
+            UndockButtonGlyph = null;
+            DeviceOrderingRebuildPending = false;
+            HoveredDeviceStateButtonCount = 0;
+        }
+    }
+
+    /// <summary>Owns at most one live interaction and drops completed owners immediately.</summary>
+    private sealed class ActiveInteractionSlot<TInteraction> : IDisposable
+        where TInteraction : class, IDisposable
+    {
+        private TInteraction? _active;
+        private bool _disposed;
+
+        public TInteraction? Active => _active;
+
+        public void Replace(TInteraction interaction)
+        {
+            ArgumentNullException.ThrowIfNull(interaction);
+            if (_disposed)
+            {
+                interaction.Dispose();
+                return;
+            }
+
+            TInteraction? previous = _active;
+            _active = interaction;
+            previous?.Dispose();
         }
 
-        foreach (Action cleanup in _cleanup)
+        public void Complete(TInteraction interaction)
         {
-            try { cleanup(); }
-            catch { }
+            ArgumentNullException.ThrowIfNull(interaction);
+            if (ReferenceEquals(_active, interaction)) _active = null;
+            interaction.Dispose();
         }
 
-        _cleanup.Clear();
-
-        if (AppServices.UpdateCheckService is { } updateService)
-            updateService.StateChanged -= NotifyUpdateStateChanged;
-        if (_settings != null) _settings.Changed -= OnSettingsChanged;
-        Safe.Dispose(_feedback);
-        CloseOpenMenu();
-        if (_audioManager != null)
+        public void Clear()
         {
-            _audioManager.PropertyChanged -= OnAudioManagerPropertyChanged;
-            ((INotifyCollectionChanged)_audioManager.Devices).CollectionChanged -= OnDevicesCollectionChanged;
+            TInteraction? active = _active;
+            _active = null;
+            active?.Dispose();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            Clear();
+        }
+    }
+
+    /// <summary>Owns one menu window and its disposable visual resources.</summary>
+    private sealed class FlyoutMenuInteraction : IDisposable
+    {
+        private FlyoutMenuWindow? _menu;
+        private UIResourceScope? _resources;
+        private Action<FlyoutMenuInteraction, bool>? _completed;
+        private bool _windowClosed;
+        private int _disposed;
+
+        public FlyoutMenuInteraction(
+            FlyoutMenuWindow menu,
+            UIResourceScope resources,
+            Action<FlyoutMenuInteraction, bool> completed)
+        {
+            _menu = menu;
+            _resources = resources;
+            _completed = completed;
+            menu.Closed += OnMenuClosed;
+        }
+
+        public bool IsVisible => _menu?.IsVisible == true;
+
+        public void ShowAt(Control anchor)
+        {
+            FlyoutMenuWindow menu = _menu ?? throw new ObjectDisposedException(nameof(FlyoutMenuInteraction));
+            menu.ShowAt(anchor);
+        }
+
+        private void OnMenuClosed(object? sender, EventArgs e)
+        {
+            if (Volatile.Read(ref _disposed) != 0) return;
+            FlyoutMenuWindow? menu = _menu;
+            if (menu == null) return;
+
+            _windowClosed = true;
+            Action<FlyoutMenuInteraction, bool>? completed = _completed;
+            try
+            {
+                completed?.Invoke(this, menu.ClosedFromDeactivation);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Volume flyout menu completion failed: {exception.Message}");
+            }
+            finally
+            {
+                if (Volatile.Read(ref _disposed) == 0) Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+            FlyoutMenuWindow? menu = _menu;
+            UIResourceScope? resources = _resources;
+            _menu = null;
+            _resources = null;
+            _completed = null;
+            if (menu != null) menu.Closed -= OnMenuClosed;
+
+            try
+            {
+                if (!_windowClosed) menu?.Close();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Volume flyout menu close failed: {exception.Message}");
+            }
+            finally
+            {
+                resources?.Dispose();
+            }
         }
     }
 
@@ -2819,7 +3214,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             FlyoutAxamlProperties layout,
             int fontSize,
             bool rounded,
-            double maxHeight)
+            double maxHeight,
+            UIResourceScope resources)
         {
             _maxHeight = maxHeight;
             _layout = layout;
@@ -2839,6 +3235,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 items,
                 MenuSettingsPalette(palette),
                 layout.MenuScrollHostPadding);
+            resources.Own(scroll);
             scroll.MaxHeight = maxHeight;
 
             Content = new Border
@@ -2947,7 +3344,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Background = Brushes.Transparent;
             Margin = layout.MenuRowMargin;
             Padding = layout.MenuRowPadding;
-            Cursor = new Cursor(StandardCursorType.Hand);
+            Cursor = TrayAppDotNETCursors.Hand;
 
             Grid row = new()
             {

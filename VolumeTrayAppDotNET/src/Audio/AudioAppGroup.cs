@@ -49,6 +49,10 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
     public bool IsSystemSounds => _sessions.Count > 0 && _sessions[0].IsSystemSounds;
     public uint ProcessID => _sessions.Count > 0 ? _sessions[0].ProcessID : 0;
 
+    /// <summary>Acquires a visual lease from the representative session.</summary>
+    internal AppIconResolver.IconHandle? AcquireIconHandle() =>
+        _sessions.Count > 0 ? _sessions[0].AcquireIconHandle() : null;
+
     // Tooltip surface for the per-app icon. Computed (rather than MultiBinding in XAML) so the
     // binding stays a plain Path="TooltipText" - matches the rest of the bindable surface and
     // avoids quirks WPF has resolving MultiBindings against internal types.
@@ -343,6 +347,7 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
         foreach (AudioSession session in _sessions)
             session.PropertyChanged -= OnSessionPropertyChanged;
 
+        _sessionsSnapshot = [];
         _sessions.Clear();
     }
 

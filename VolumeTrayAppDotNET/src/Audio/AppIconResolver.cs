@@ -28,11 +28,13 @@ internal static class AppIconResolver
     private const string KeyPe = "pe";
     private const string KeyShellUwp = "shell|uwp";
     private const string KeyShellDesktop = "shell|desktop";
+    private const int MaxIdentityAliasesPerEntry = 8;
 
     private static readonly Lock s_cacheLock = new();
     private static readonly Dictionary<string, CacheEntry> s_byIdentity = new(StringComparer.Ordinal);
     private static readonly Dictionary<long, CacheEntry> s_byContent = [];
     private static readonly LinkedList<CacheEntry> s_lru = [];
+    private static bool s_shutdown;
 
     public sealed class IconHandle : IDisposable
     {
@@ -42,6 +44,17 @@ internal static class AppIconResolver
         public IImage Icon => Entry.Bitmap;
 
         internal IconHandle(CacheEntry entry) => Entry = entry;
+
+        /// <summary>Acquires an independent lease for a visual that may outlive the publishing session.</summary>
+        internal IconHandle? TryClone()
+        {
+            lock (s_cacheLock)
+            {
+                if (Volatile.Read(ref _disposed) != 0 || s_shutdown || Entry.IsRetired) return null;
+                Revive(Entry);
+                return new IconHandle(Entry);
+            }
+        }
 
         public void Dispose()
         {
@@ -54,13 +67,20 @@ internal static class AppIconResolver
     {
         public IImage Bitmap = null!;
         public long ContentHash;
-        public List<string> IdentityKeys = [];
+        public LinkedList<string> IdentityKeys = [];
         public int RefCount;
         public LinkedListNode<CacheEntry>? LRUNode;
+        public bool IsRetired;
+        public int BitmapDisposed;
     }
 
     public static IconHandle? Acquire(IAudioSessionControl control, uint processId, bool isSystemSounds)
     {
+        lock (s_cacheLock)
+        {
+            if (s_shutdown) return null;
+        }
+
         try
         {
             if (isSystemSounds)
@@ -148,6 +168,7 @@ internal static class AppIconResolver
         lock (s_cacheLock)
         {
             if (!s_byIdentity.TryGetValue(identityKey, out CacheEntry? entry)) return null;
+            AddIdentityAlias(entry, identityKey);
             Revive(entry);
             return new IconHandle(entry);
         }
@@ -155,32 +176,60 @@ internal static class AppIconResolver
 
     private readonly record struct IconPixels(int Width, int Height, byte[] Bgra);
 
-    private static IconHandle MemoizeAndCrop(IconPixels raw, string identityKey)
+    private static IconHandle? MemoizeAndCrop(IconPixels raw, string identityKey)
     {
         long contentHash = HashPixels(raw);
 
         lock (s_cacheLock)
         {
+            if (s_shutdown) return null;
+
             if (s_byIdentity.TryGetValue(identityKey, out CacheEntry? existing))
             {
+                AddIdentityAlias(existing, identityKey);
                 Revive(existing);
                 return new IconHandle(existing);
             }
 
             if (s_byContent.TryGetValue(contentHash, out CacheEntry? byContent))
             {
-                byContent.IdentityKeys.Add(identityKey);
-                s_byIdentity[identityKey] = byContent;
+                AddIdentityAlias(byContent, identityKey);
                 Revive(byContent);
                 return new IconHandle(byContent);
             }
 
             IconPixels cropped = CropTransparentBorder(raw);
             CacheEntry entry = new() { Bitmap = ToAvaloniaBitmap(cropped), ContentHash = contentHash, RefCount = 1 };
-            entry.IdentityKeys.Add(identityKey);
-            s_byIdentity[identityKey] = entry;
+            AddIdentityAlias(entry, identityKey);
             s_byContent[contentHash] = entry;
             return new IconHandle(entry);
+        }
+    }
+
+    /// <summary>Keeps a bounded recent identity set for content-deduplicated entries.</summary>
+    private static void AddIdentityAlias(CacheEntry entry, string identityKey)
+    {
+        if (s_byIdentity.TryGetValue(identityKey, out CacheEntry? previousEntry)
+            && !ReferenceEquals(previousEntry, entry))
+        {
+            previousEntry.IdentityKeys.Remove(identityKey);
+        }
+
+        entry.IdentityKeys.Remove(identityKey);
+        entry.IdentityKeys.AddLast(identityKey);
+        s_byIdentity[identityKey] = entry;
+
+        while (entry.IdentityKeys.Count > MaxIdentityAliasesPerEntry)
+        {
+            LinkedListNode<string>? oldest = entry.IdentityKeys.First;
+            if (oldest == null) break;
+
+            entry.IdentityKeys.RemoveFirst();
+            if (s_byIdentity.TryGetValue(oldest.Value, out CacheEntry? mapped)
+                && ReferenceEquals(mapped, entry))
+            {
+                s_byIdentity.Remove(oldest.Value);
+            }
         }
     }
 
@@ -197,6 +246,7 @@ internal static class AppIconResolver
 
     internal static void ReleaseEntry(CacheEntry entry)
     {
+        List<CacheEntry> disposeEntries = [];
         lock (s_cacheLock)
         {
             entry.RefCount--;
@@ -207,25 +257,119 @@ internal static class AppIconResolver
                 case < 0:
                 {
                     entry.RefCount = 0;
-                    string firstKey = entry.IdentityKeys.Count > 0 ? entry.IdentityKeys[0] : "?";
+                    string firstKey = entry.IdentityKeys.First?.Value ?? "?";
                     TADNLog.Log($"AppIconResolver.ReleaseEntry refcount underflow on {firstKey}");
                     return;
                 }
             }
 
-            entry.LRUNode ??= s_lru.AddFirst(entry);
-
-            int limit = AppServices.Settings?.IconLRULimit ?? AppSettings.IconLRULimitDefault;
-            while (s_lru.Count > limit)
+            if (s_shutdown || entry.IsRetired)
             {
-                LinkedListNode<CacheEntry>? tail = s_lru.Last;
-                if (tail == null) break;
-                CacheEntry victim = tail.Value;
-                s_lru.RemoveLast();
-                victim.LRUNode = null;
+                entry.IsRetired = true;
+                disposeEntries.Add(entry);
+            }
+            else
+            {
+                entry.LRUNode ??= s_lru.AddFirst(entry);
+                int limit = AppServices.Settings?.IconLRULimit ?? AppSettings.IconLRULimitDefault;
+                TrimCacheLocked(limit, disposeEntries);
+            }
+        }
+
+        DisposeEntries(disposeEntries);
+    }
+
+    /// <summary>Immediately applies a reduced dead-entry cache limit.</summary>
+    internal static void TrimToLimit(int limit)
+    {
+        List<CacheEntry> disposeEntries = [];
+        lock (s_cacheLock)
+        {
+            if (s_shutdown) return;
+            TrimCacheLocked(limit, disposeEntries);
+        }
+
+        DisposeEntries(disposeEntries);
+    }
+
+    /// <summary>Stops new acquisitions and retires every entry at its final handle release.</summary>
+    internal static void Shutdown()
+    {
+        List<CacheEntry> disposeEntries = [];
+        lock (s_cacheLock)
+        {
+            if (s_shutdown) return;
+            s_shutdown = true;
+
+            foreach (CacheEntry entry in s_byContent.Values)
+            {
+                entry.IsRetired = true;
+                entry.LRUNode = null;
+                entry.IdentityKeys.Clear();
+                if (entry.RefCount == 0) disposeEntries.Add(entry);
+            }
+
+            s_byIdentity.Clear();
+            s_byContent.Clear();
+            s_lru.Clear();
+        }
+
+        DisposeEntries(disposeEntries);
+    }
+
+    private static void TrimCacheLocked(int requestedLimit, List<CacheEntry> disposeEntries)
+    {
+        int limit = Math.Clamp(
+            requestedLimit,
+            AppSettings.IconLRULimitMin,
+            AppSettings.IconLRULimitMax);
+        while (s_lru.Count > limit)
+        {
+            LinkedListNode<CacheEntry>? tail = s_lru.Last;
+            if (tail == null) break;
+
+            CacheEntry victim = tail.Value;
+            s_lru.RemoveLast();
+            victim.LRUNode = null;
+            victim.IsRetired = true;
+            if (s_byContent.TryGetValue(victim.ContentHash, out CacheEntry? contentEntry)
+                && ReferenceEquals(contentEntry, victim))
+            {
                 s_byContent.Remove(victim.ContentHash);
-                for (int i = 0; i < victim.IdentityKeys.Count; i++) s_byIdentity.Remove(victim.IdentityKeys[i]);
-                if (victim.Bitmap is IDisposable disposable) disposable.Dispose();
+            }
+
+            LinkedListNode<string>? identityNode = victim.IdentityKeys.First;
+            while (identityNode != null)
+            {
+                LinkedListNode<string>? next = identityNode.Next;
+                if (s_byIdentity.TryGetValue(identityNode.Value, out CacheEntry? identityEntry)
+                    && ReferenceEquals(identityEntry, victim))
+                {
+                    s_byIdentity.Remove(identityNode.Value);
+                }
+
+                identityNode = next;
+            }
+
+            victim.IdentityKeys.Clear();
+            disposeEntries.Add(victim);
+        }
+    }
+
+    private static void DisposeEntries(List<CacheEntry> entries)
+    {
+        for (int index = 0; index < entries.Count; index++)
+        {
+            CacheEntry entry = entries[index];
+            if (Interlocked.Exchange(ref entry.BitmapDisposed, 1) != 0) continue;
+
+            try
+            {
+                if (entry.Bitmap is IDisposable disposable) disposable.Dispose();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"AppIconResolver bitmap disposal failed: {exception.Message}");
             }
         }
     }

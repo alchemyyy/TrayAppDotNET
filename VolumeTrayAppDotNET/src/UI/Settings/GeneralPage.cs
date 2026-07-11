@@ -25,13 +25,13 @@ public sealed partial class VolumeSettingsWindow
                     ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                     Elevated = false,
                     Install = static () => AppServices.Installation.InstallToLocalAppData(),
-                    UninstallAsync = async refresh =>
+                    UninstallAsync = async _ =>
                     {
                         VolumeUninstallerWindow uninstallerDialog = new(
                             AppServices.InstallLayout.LocalAppDataInstallDirectory,
                             VolumeInstallScope.LocalAppData);
                         await uninstallerDialog.ShowDialog(this);
-                        HookPostUninstallRefresh(uninstallerDialog, refresh);
+                        HookPostUninstallRefresh(uninstallerDialog);
                     }
                 },
                 new TrayAppDotNETInstallCardOptions
@@ -41,13 +41,13 @@ public sealed partial class VolumeSettingsWindow
                     ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                     Elevated = true,
                     Install = static () => AppServices.Installation.InstallSystemWide(),
-                    UninstallAsync = async refresh =>
+                    UninstallAsync = async _ =>
                     {
                         VolumeUninstallerWindow uninstallerDialog = new(
                             AppServices.InstallLayout.ProgramFilesInstallDirectory,
                             VolumeInstallScope.ProgramFiles);
                         await uninstallerDialog.ShowDialog(this);
-                        HookPostUninstallRefresh(uninstallerDialog, refresh);
+                        HookPostUninstallRefresh(uninstallerDialog);
                     }
                 }
             ],
@@ -160,41 +160,217 @@ public sealed partial class VolumeSettingsWindow
             : Loc("Settings_General_StoreNotInstalled");
     }
 
-    private void HookPostUninstallRefresh(VolumeUninstallerWindow uninstallerDialog, Action refreshAfterInstallChange)
+    private void HookPostUninstallRefresh(VolumeUninstallerWindow uninstallerDialog)
     {
         if (!uninstallerDialog.ConfirmedUninstall) return;
 
         Process? uninstallProcess = uninstallerDialog.UninstallProcess;
         if (uninstallProcess == null) return;
 
-        uninstallProcess.Exited += (_, _) => OnUninstallBatExited(uninstallProcess, refreshAfterInstallChange);
-        if (uninstallProcess.HasExited)
-            OnUninstallBatExited(uninstallProcess, refreshAfterInstallChange);
+        PostUninstallRefreshOwner owner = new(uninstallProcess, OnUninstallProcessCompleted);
+        if (!TryOwnUninstallMonitor(owner))
+        {
+            owner.Dispose();
+            return;
+        }
+
+        owner.Start();
     }
 
-    private void OnUninstallBatExited(Process bat, Action refreshAfterInstallChange)
+    private bool TryOwnUninstallMonitor(PostUninstallRefreshOwner owner)
     {
-        int exitCode;
-        try { exitCode = bat.ExitCode; }
-        catch (Exception ex)
+        lock (_uninstallMonitorGate)
         {
-            exitCode = -1;
-            TADNLog.Log($"VolumeSettingsWindow.OnUninstallBatExited: {ex.Message}");
+            if (_uninstallMonitoringDisposed) return false;
+            return _uninstallMonitors.Add(owner);
         }
-        finally
+    }
+
+    private void OnUninstallProcessCompleted(PostUninstallRefreshOwner owner, int exitCode)
+    {
+        lock (_uninstallMonitorGate)
         {
-            bat.Dispose();
+            if (!_uninstallMonitors.Remove(owner) || _uninstallMonitoringDisposed) return;
         }
 
-        Dispatcher.UIThread.Post(async void () =>
+        Dispatcher.UIThread.Post(
+            () => _ = ApplyUninstallCompletionAsync(exitCode),
+            DispatcherPriority.Background);
+    }
+
+    private async Task ApplyUninstallCompletionAsync(int exitCode)
+    {
+        lock (_uninstallMonitorGate)
         {
-            refreshAfterInstallChange();
-            if (exitCode != 0)
+            if (_uninstallMonitoringDisposed) return;
+        }
+
+        if (IsClosing) return;
+
+        try
+        {
+            AppServices.Startup.RetargetShortcutIfPresent();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Volume uninstall completion startup retarget failed: {exception.Message}");
+        }
+
+        if (CurrentPageKey == VolumeSettingsPage.General)
+        {
+            try
             {
-                await ShowMessage(
-                    Loc("Settings_General_UninstallIncomplete_Title"),
-                    Loc("Settings_General_UninstallIncomplete_Message"));
+                RefreshCurrentPage();
             }
-        });
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Volume uninstall completion refresh failed: {exception.Message}");
+            }
+        }
+
+        if (exitCode == 0 || IsClosing) return;
+
+        try
+        {
+            await ShowMessage(
+                Loc("Settings_General_UninstallIncomplete_Title"),
+                Loc("Settings_General_UninstallIncomplete_Message"));
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Volume uninstall completion message failed: {exception.Message}");
+        }
+    }
+
+    private void DisposeUninstallMonitors()
+    {
+        List<PostUninstallRefreshOwner> owners = [];
+        lock (_uninstallMonitorGate)
+        {
+            if (_uninstallMonitoringDisposed) return;
+            _uninstallMonitoringDisposed = true;
+            owners.AddRange(_uninstallMonitors);
+            _uninstallMonitors.Clear();
+        }
+
+        for (int index = 0; index < owners.Count; index++)
+        {
+            try
+            {
+                owners[index].Dispose();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Volume uninstall monitor disposal failed: {exception.Message}");
+            }
+        }
+    }
+
+    /// <summary>Owns a transferred uninstall process until completion or settings-window close.</summary>
+    private sealed class PostUninstallRefreshOwner : IDisposable
+    {
+        private readonly Lock _gate = new();
+        private Process? _process;
+        private Action<PostUninstallRefreshOwner, int>? _completed;
+        private bool _started;
+        private bool _finished;
+
+        public PostUninstallRefreshOwner(
+            Process process,
+            Action<PostUninstallRefreshOwner, int> completed)
+        {
+            _process = process;
+            _completed = completed;
+        }
+
+        public void Start()
+        {
+            Process? process;
+            lock (_gate)
+            {
+                if (_finished || _started) return;
+                _started = true;
+                process = _process;
+            }
+
+            if (process == null) return;
+
+            try
+            {
+                process.EnableRaisingEvents = true;
+                process.Exited += OnProcessExited;
+                if (process.HasExited) Complete(notify: true);
+            }
+            catch (Exception exception)
+            {
+                if (!IsFinished)
+                    TADNLog.Log($"Volume uninstall process monitoring failed: {exception.Message}");
+                Complete(notify: true);
+            }
+        }
+
+        public void Dispose() => Complete(notify: false);
+
+        private void OnProcessExited(object? sender, EventArgs e) => Complete(notify: true);
+
+        private bool IsFinished
+        {
+            get
+            {
+                lock (_gate)
+                    return _finished;
+            }
+        }
+
+        private void Complete(bool notify)
+        {
+            Process? process;
+            Action<PostUninstallRefreshOwner, int>? completed;
+            lock (_gate)
+            {
+                if (_finished) return;
+                _finished = true;
+                process = _process;
+                _process = null;
+                completed = notify ? _completed : null;
+                _completed = null;
+            }
+
+            int exitCode = -1;
+            if (process != null)
+            {
+                try { process.Exited -= OnProcessExited; }
+                catch (Exception exception)
+                {
+                    TADNLog.Log($"Volume uninstall process event detachment failed: {exception.Message}");
+                }
+
+                if (notify)
+                {
+                    try { exitCode = process.ExitCode; }
+                    catch (Exception exception)
+                    {
+                        TADNLog.Log($"Volume uninstall process exit read failed: {exception.Message}");
+                    }
+                }
+
+                try { process.Dispose(); }
+                catch (Exception exception)
+                {
+                    TADNLog.Log($"Volume uninstall process disposal failed: {exception.Message}");
+                }
+            }
+
+            if (completed == null) return;
+
+            try
+            {
+                completed(this, exitCode);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"Volume uninstall process completion failed: {exception.Message}");
+            }
+        }
     }
 }

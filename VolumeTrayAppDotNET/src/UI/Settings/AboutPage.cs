@@ -5,41 +5,37 @@ namespace VolumeTrayAppDotNET.UI.Settings;
 
 public sealed partial class VolumeSettingsWindow
 {
-    private TrayAppDotNETAboutPage? _aboutPage;
-
     private StackPanel BuildAboutPage()
     {
-        StopAboutUpdateRefresh();
-        _aboutPage = new TrayAppDotNETAboutPage(new TrayAppDotNETAboutPageOptions
-        {
-            Palette = Palette,
-            ButtonRadius = RadiusMedium,
-            CardRadius = RadiusLarge,
-            Localize = L,
-            Save = Save,
-            ApplicationName = Constants.ApplicationName,
-            Tagline = L("Settings_About_Tagline", "A tray-based volume controller."),
-            BuildNumber = BuildInfo.BuildNumber,
-            Publisher = Constants.Publisher,
-            HelpLink = Constants.HelpLink,
-            UpdateSettings = _settings,
-            UpdateService = static () => AppServices.UpdateCheckService,
-            ConfirmAsync = ConfirmAsync,
-            PromptOwner = () => this,
-            Log = static message => TADNLog.Log(message),
-            RebuildAboutPage = () => RebuildShell(VolumeSettingsPage.About),
-            StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
-            UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
-            KnownIssues =
-            [
-                new TrayAppDotNETKnownIssue(
-                    Loc("Settings_About_BluetoothCodecNotDisplaying_Title"),
-                    Loc("Settings_About_BluetoothCodecNotDisplaying_Description"))
-            ]
-        });
-        return _aboutPage.Build();
+        TrayAppDotNETAboutPage aboutPage = OwnPageResource(new TrayAppDotNETAboutPage(
+            new TrayAppDotNETAboutPageOptions
+            {
+                Palette = Palette,
+                ButtonRadius = RadiusMedium,
+                CardRadius = RadiusLarge,
+                Localize = L,
+                Save = Save,
+                ApplicationName = Constants.ApplicationName,
+                Tagline = L("Settings_About_Tagline", "A tray-based volume controller."),
+                BuildNumber = BuildInfo.BuildNumber,
+                Publisher = Constants.Publisher,
+                HelpLink = Constants.HelpLink,
+                UpdateSettings = _settings,
+                UpdateService = static () => AppServices.UpdateCheckService,
+                ConfirmAsync = ConfirmAsync,
+                PromptOwner = () => this,
+                Log = static message => TADNLog.Log(message),
+                RebuildAboutPage = () => RebuildShell(VolumeSettingsPage.About),
+                StaleCheckTimerIntervalMs = TimeConstants.AboutStaleCheckTimerIntervalMs,
+                UpdateStaleGraceMs = TimeConstants.UpdateStaleGraceMs,
+                KnownIssues =
+                [
+                    new TrayAppDotNETKnownIssue(
+                        Loc("Settings_About_BluetoothCodecNotDisplaying_Title"),
+                        Loc("Settings_About_BluetoothCodecNotDisplaying_Description"))
+                ]
+            }));
+        AddPageCleanup(aboutPage.StopUpdateRefresh);
+        return aboutPage.Build();
     }
-
-    private void StopAboutUpdateRefresh() =>
-        _aboutPage?.StopUpdateRefresh();
 }

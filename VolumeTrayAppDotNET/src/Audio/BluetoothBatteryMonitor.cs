@@ -18,6 +18,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
 {
     private static readonly Guid BluetoothClassGuid = new("e0cbf06c-cd8b-4647-bb8a-263b43f0f974");
     private const string RefreshThrottleKey = "bluetooth-battery-refresh";
+    private const string PollRefreshThrottleKey = "bluetooth-battery-poll-refresh";
 
     // Present devnodes that classify a container as Bluetooth, keyed by PnP instance id. This
     // includes both Bluetooth-class devnodes and battery-bearing devnodes that carry
@@ -32,6 +33,10 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     private readonly AsyncThrottler<string> _refreshThrottler = new(0, StringComparer.Ordinal);
 
     private DispatcherTimer? _pollTimer;
+    private long _pollGeneration;
+    private long _activePollGeneration;
+    private long _refreshRequestGeneration;
+    private long _lastAppliedRefreshGeneration;
     private bool _isRunning;
     private bool _disposed;
 
@@ -87,14 +92,21 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     /// Runs one immediate cfgmgr32 reconciliation pass. Callers use this before interpreting a
     /// newly-added audio endpoint, and the flyout polling timer uses it for battery deltas.
     /// </summary>
-    public void Refresh()
+    public void Refresh() => RefreshCore(null);
+
+    private void RefreshCore(PollGenerationLease? pollLease)
     {
-        if (_disposed) return;
-        _ = _refreshThrottler.RunAsync(RefreshThrottleKey, async ctx =>
+        if (_disposed || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value))) return;
+        long refreshGeneration = Interlocked.Increment(ref _refreshRequestGeneration);
+        string throttleKey = pollLease.HasValue ? PollRefreshThrottleKey : RefreshThrottleKey;
+        _ = _refreshThrottler.RunAsync(throttleKey, async context =>
         {
-            ReconciliationResult result = await Task.Run(BuildCurrentState, ctx.CancellationToken)
+            if (_disposed || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value))) return;
+            ReconciliationResult result = await Task.Run(BuildCurrentState, context.CancellationToken)
                 .ConfigureAwait(false);
-            if (_disposed || ctx.HasReplacement) return;
+            if (_disposed || context.HasReplacement
+                          || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value)))
+                return;
 
             if (!result.HasData)
             {
@@ -107,15 +119,20 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             {
                 await dispatcher.InvokeAsync(() =>
                 {
-                    if (_disposed) return;
+                    if (_disposed || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value))) return;
+                    if (refreshGeneration <= Volatile.Read(ref _lastAppliedRefreshGeneration)) return;
+                    Volatile.Write(ref _lastAppliedRefreshGeneration, refreshGeneration);
                     ApplyCurrentState(result.CurrentIds, result.CurrentContainers, result.CurrentBatteries);
                     TADNLog.LogDebug(
                         $"BluetoothBatteryMonitor.Reconcile: scanned={result.ScannedCount} bluetoothClass={result.BluetoothClassMatches} battery={result.BatteryMatches} activeContainers={_activeBluetoothContainers.Count}");
                 }, DispatcherPriority.Background);
+
+                if (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value)) return;
             }
-            catch
+            catch (Exception exception)
             {
-                /* dispatcher shut down */
+                if (!_disposed && (!pollLease.HasValue || IsPollGenerationCurrent(pollLease.Value)))
+                    TADNLog.Log($"BluetoothBatteryMonitor dispatcher application failed: {exception.Message}");
             }
         });
     }
@@ -128,13 +145,25 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     {
         if (_disposed || _pollTimer != null) return;
         TADNLog.LogDebug($"BluetoothBatteryMonitor.StartPolling: tracking {_idToContainer.Count} devnodes");
-        _pollTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
+        long generation = Interlocked.Increment(ref _pollGeneration);
+        DispatcherTimer pollTimer = new(DispatcherPriority.Background, dispatcher)
         {
             Interval = TimeSpan.FromMilliseconds(TimeConstants.BluetoothBatteryPollIntervalMs)
         };
-        _pollTimer.Tick += OnPollTick;
-        _pollTimer.Start();
-        Refresh();
+        _pollTimer = pollTimer;
+        Volatile.Write(ref _activePollGeneration, generation);
+        pollTimer.Tick += OnPollTick;
+        try
+        {
+            pollTimer.Start();
+        }
+        catch
+        {
+            StopPolling();
+            throw;
+        }
+
+        RefreshCore(new PollGenerationLease(pollTimer, generation));
     }
 
     /// <summary>
@@ -143,13 +172,38 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     /// </summary>
     public void StopPolling()
     {
-        if (_pollTimer == null) return;
-        _pollTimer.Stop();
-        _pollTimer.Tick -= OnPollTick;
+        Volatile.Write(ref _activePollGeneration, 0);
+        DispatcherTimer? pollTimer = _pollTimer;
         _pollTimer = null;
+        if (pollTimer == null) return;
+
+        try { pollTimer.Stop(); }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"BluetoothBatteryMonitor polling stop failed: {exception.Message}");
+        }
+        finally
+        {
+            pollTimer.Tick -= OnPollTick;
+        }
     }
 
-    private void OnPollTick(object? sender, EventArgs e) => Refresh();
+    private void OnPollTick(object? sender, EventArgs e)
+    {
+        DispatcherTimer? pollTimer = sender as DispatcherTimer;
+        if (pollTimer == null) return;
+
+        long generation = Volatile.Read(ref _activePollGeneration);
+        PollGenerationLease pollLease = new(pollTimer, generation);
+        if (!IsPollGenerationCurrent(pollLease)) return;
+        RefreshCore(pollLease);
+    }
+
+    private bool IsPollGenerationCurrent(PollGenerationLease pollLease) =>
+        pollLease.Generation != 0
+        && !_disposed
+        && ReferenceEquals(_pollTimer, pollLease.Timer)
+        && Volatile.Read(ref _activePollGeneration) == pollLease.Generation;
 
     private static ReconciliationResult BuildCurrentState()
     {
@@ -345,15 +399,22 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     {
         if (_disposed) return;
         _disposed = true;
-        IsRunning = false;
-        _pollTimer?.Stop();
-        if (_pollTimer != null) _pollTimer.Tick -= OnPollTick;
-        _pollTimer = null;
+        StopPolling();
+        try { IsRunning = false; }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"BluetoothBatteryMonitor running-state notification failed: {exception.Message}");
+        }
         Safe.Dispose(_refreshThrottler);
         _idToContainer.Clear();
         _batteries.Clear();
         _activeBluetoothContainers.Clear();
+        PropertyChanged = null;
+        BatteryChanged = null;
+        BluetoothContainerSeen = null;
     }
+
+    private readonly record struct PollGenerationLease(DispatcherTimer Timer, long Generation);
 
     private sealed record ReconciliationResult(
         Dictionary<string, Guid> CurrentIds,
