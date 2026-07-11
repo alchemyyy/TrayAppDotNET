@@ -37,7 +37,7 @@
     <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <EnableGeneratedComInterfaceComImportInterop>true</EnableGeneratedComInterfaceComImportInterop>
-    <OptimizationPreference>Size</OptimizationPreference>
+    <OptimizationPreference>Speed</OptimizationPreference>
     <InvariantGlobalization>false</InvariantGlobalization>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
@@ -147,7 +147,7 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True"
-                      Condition="'$(Configuration)' != 'Prerelease'" />
+                      Condition="'$(Configuration)' == 'Debug'" />
     <!-- Required for LHM startup. ProjectReference restore does not reliably root LHM's
          package runtime assets in the app, especially for Native AOT. Do not remove these:
          Computer.Open() needs Mono.Posix for OpCode and System.IO.Ports for controller
