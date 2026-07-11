@@ -19,9 +19,9 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'">
-    <!-- Inner publish reuses shared artifacts from the outer graph and must resolve
-         them with the same x64 aggregate output layout. -->
-    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=true -p:TrayAppDotNETUseRootOutput=true -p:TrayAppDotNETOutputRoot=&quot;$(TrayAppDotNETOutputRoot)\&quot;</TrayAppDotNETPublishAggregateProperties>
+    <!-- Keep inner Native AOT builds out of the aggregate output. A completed publish
+         otherwise leaves framework DLLs that can shadow the next app's AOT reference pack. -->
+    <TrayAppDotNETPublishAggregateProperties Condition="'$(TrayAppDotNETPublishAggregateProperties)' == ''">-p:Platform=x64 -p:TrayAppDotNETAggregateBuild=false -p:TrayAppDotNETUseRootOutput=false -p:TrayAppDotNETBuildSharedProjectReferences=true</TrayAppDotNETPublishAggregateProperties>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(OutputType)' == 'WinExe'">
