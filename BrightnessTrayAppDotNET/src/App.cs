@@ -10,7 +10,9 @@ using BrightnessTrayAppDotNET.UI.Flyout;
 using BrightnessTrayAppDotNET.UI.Settings;
 using BrightnessTrayAppDotNET.UI.Tray;
 using BrightnessTrayAppDotNET.Visuals;
+#if HOTAVALONIA_ENABLE
 using HotAvalonia;
+#endif
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI;
@@ -41,7 +43,9 @@ internal static class BrightnessAvaloniaRunner
                     builder,
                     AppSettings.GetDefaultPath,
                     WPFLog.Log);
+#if HOTAVALONIA_ENABLE
                 builder = builder.UseHotReload();
+#endif
 
                 return builder;
             });

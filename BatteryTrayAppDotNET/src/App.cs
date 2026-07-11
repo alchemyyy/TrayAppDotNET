@@ -9,7 +9,9 @@ using BatteryTrayAppDotNET.Services;
 using BatteryTrayAppDotNET.UI.Flyout;
 using BatteryTrayAppDotNET.UI.Settings;
 using BatteryTrayAppDotNET.UI.Tray;
+#if HOTAVALONIA_ENABLE
 using HotAvalonia;
+#endif
 using Microsoft.Win32;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using BatteryHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
@@ -32,7 +34,9 @@ internal static class BatteryAvaloniaRunner
                     builder,
                     AppSettings.GetDefaultPath,
                     TADNLog.Log);
+#if HOTAVALONIA_ENABLE
                 builder = builder.UseHotReload();
+#endif
 
                 return builder;
             });

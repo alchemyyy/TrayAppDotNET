@@ -3,7 +3,9 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
+#if HOTAVALONIA_ENABLE
 using HotAvalonia;
+#endif
 using Microsoft.Win32;
 using NetworkTrayAppDotNET.Interop;
 using NetworkTrayAppDotNET.Localization;
@@ -30,7 +32,9 @@ internal static class NetworkAvaloniaRunner
                     AppSettings.GetDefaultPath,
                     TADNLog.Log,
                     TrayAppDotNETRenderingBackend.Software);
+#if HOTAVALONIA_ENABLE
                 builder = builder.UseHotReload();
+#endif
 
                 return builder;
             });

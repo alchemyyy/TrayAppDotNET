@@ -12,7 +12,7 @@
     <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'BrightnessTrayAppDotNET.Tests'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
 
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
-    <Configurations>Debug;Release</Configurations>
+    <Configurations>Debug;Prerelease;Release</Configurations>
 
     <!-- x64-only: WPF + WinForms + Win32 interop and native dependencies require
          a concrete x64 build. Platforms drives the IDE platform picker; PlatformTarget

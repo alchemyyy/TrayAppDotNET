@@ -13,6 +13,7 @@
     <TrayAppDotNETSharedProjectReferenceTargets Condition="'$(TrayAppDotNETBuildSharedProjectReferences)' == 'false'">GetTargetPath</TrayAppDotNETSharedProjectReferenceTargets>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
+    <TrayAppDotNETPrereleaseProjectProperties Condition="'$(Configuration)' == 'Prerelease'">Optimize=true;DebugSymbols=false;DebugType=none;CheckForOverflowUnderflow=false</TrayAppDotNETPrereleaseProjectProperties>
     <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>
     <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>

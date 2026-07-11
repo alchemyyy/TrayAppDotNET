@@ -9,7 +9,9 @@ using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Flyout;
 using FanControlTrayAppDotNET.UI.Settings;
 using FanControlTrayAppDotNET.UI.Tray;
+#if HOTAVALONIA_ENABLE
 using HotAvalonia;
+#endif
 using TrayAppDotNETCommon.UI.WarmWindows;
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
@@ -31,7 +33,9 @@ internal static class FanAvaloniaRunner
                     builder,
                     AppSettings.GetDefaultPath,
                     TADNLog.Log);
+#if HOTAVALONIA_ENABLE
                 builder = builder.UseHotReload();
+#endif
 
                 return builder;
             });

@@ -4,7 +4,9 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Threading;
+#if HOTAVALONIA_ENABLE
 using HotAvalonia;
+#endif
 using TrayAppDotNETCommon.UI.WarmWindows;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Localization;
@@ -31,7 +33,9 @@ internal static class VolumeAvaloniaRunner
                     builder,
                     AppSettings.GetDefaultPath,
                     TADNLog.Log);
+#if HOTAVALONIA_ENABLE
                 builder = builder.UseHotReload();
+#endif
 
                 return builder;
             });

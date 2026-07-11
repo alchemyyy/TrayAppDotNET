@@ -10,6 +10,45 @@
     <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETUnlockProcessNames)' == ''">BatteryTrayAppDotNET;BrightnessTrayAppDotNET;FanControlTrayAppDotNET;NetworkTrayAppDotNET;VolumeTrayAppDotNET</TrayAppDotNETUnlockProcessNames>
   </PropertyGroup>
 
+  <!-- Prerelease is optimized JIT-compiled IL with an entirely loose-file output.
+       Keep these overrides after project evaluation so an explicit RID cannot enable
+       the Native AOT property groups in the app projects. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Prerelease'">
+    <Optimize>true</Optimize>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
+    <SelfContained>false</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+
+    <HotAvalonia>false</HotAvalonia>
+    <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
+    <HotAvaloniaInjections>disable</HotAvaloniaInjections>
+    <HotAvaloniaInitialPatching>disable</HotAvaloniaInitialPatching>
+    <HotAvaloniaRecompileResources>false</HotAvaloniaRecompileResources>
+    <HotAvaloniaMode />
+
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Prerelease' and '$(OutputType)' == 'WinExe'">
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <UseAppHost>true</UseAppHost>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(TrayAppDotNETUseRootOutput)' == 'true'">
     <TrayAppDotNETOutputRoot Condition="'$(TrayAppDotNETOutputRoot)' == ''">$(TrayAppDotNETRoot)bin\</TrayAppDotNETOutputRoot>
     <OutDir>$(TrayAppDotNETOutputRoot)$(Configuration)\</OutDir>
@@ -46,7 +85,7 @@
   </Target>
 
   <Target Name="UnlockTrayAppDotNETOutputFilesBeforePostBuildCopy"
-          BeforeTargets="CopyHotAvaloniaRuntimeAssemblies;CopyRuntimeReferencesToAggregateDebugOutput;CopyLibreHardwareMonitorDebugRuntimeAssemblies;PublishAfterBuild"
+          BeforeTargets="CopyHotAvaloniaRuntimeAssemblies;CopyRuntimeReferencesToAggregateManagedOutput;CopyLibreHardwareMonitorManagedRuntimeAssemblies;PublishAfterBuild"
           Condition="'$(SkipKillRunningInstance)' != 'true' and '$(OutputType)' == 'WinExe' and Exists('$(TrayAppDotNETUnlockScript)')">
     <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(TrayAppDotNETUnlockScript)&quot; -OutputDirectories &quot;$(TargetDir).;$(OutDir).;$(OutputPath).&quot; -AllowedProcessNames &quot;$(TrayAppDotNETUnlockProcessNames)&quot; -MaxAttempts $(TrayAppDotNETUnlockMaxAttempts) -RetryDelayMilliseconds $(TrayAppDotNETUnlockRetryDelayMilliseconds)" />
   </Target>

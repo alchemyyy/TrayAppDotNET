@@ -358,10 +358,9 @@ internal static class NightLightCloudStore
         lock (_gate)
             backendThread = _backendThread;
 
-        if (ReferenceEquals(Thread.CurrentThread, backendThread))
-            return Task.FromResult(SaveSettingsKelvinOnMTAThread(kelvin));
-
-        return QueueBackendRequest(() => SaveSettingsKelvinOnMTAThread(kelvin));
+        return ReferenceEquals(Thread.CurrentThread, backendThread)
+            ? Task.FromResult(SaveSettingsKelvinOnMTAThread(kelvin))
+            : QueueBackendRequest(() => SaveSettingsKelvinOnMTAThread(kelvin));
     }
 
     private static bool SaveSettingsKelvinOnMTAThread(int kelvin)
@@ -519,7 +518,7 @@ internal static class NightLightCloudStore
 
     private static void StartBackendThreadLocked()
     {
-        BlockingCollection<BackendRequest> backendRequests = new();
+        BlockingCollection<BackendRequest> backendRequests = [];
         TaskCompletionSource<bool> initializationCompletionSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         Thread backendThread = new(

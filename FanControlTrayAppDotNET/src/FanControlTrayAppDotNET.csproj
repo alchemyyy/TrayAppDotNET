@@ -124,7 +124,7 @@
       <!-- Keep non-fan LHM probes out of Debug too. Fan control uses PawnIO/LPC; IPMI/BMC
            and RAM SPD pull System.Management and can fail before normal sensors enumerate. -->
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <AdditionalProperties>DisableIpmiWmi=true;DisableRamSpd=true</AdditionalProperties>
+      <AdditionalProperties>DisableIpmiWmi=true;DisableRamSpd=true;$(TrayAppDotNETPrereleaseProjectProperties)</AdditionalProperties>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
@@ -135,7 +135,7 @@
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
-      <AdditionalProperties>TreatWarningsAsErrors=false</AdditionalProperties>
+      <AdditionalProperties>TreatWarningsAsErrors=false;$(TrayAppDotNETPrereleaseProjectProperties)</AdditionalProperties>
       <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
       <Private>true</Private>
       <PrivateAssets>all</PrivateAssets>
@@ -146,7 +146,8 @@
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True" />
+    <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True"
+                      Condition="'$(Configuration)' != 'Prerelease'" />
     <!-- Required for LHM startup. ProjectReference restore does not reliably root LHM's
          package runtime assets in the app, especially for Native AOT. Do not remove these:
          Computer.Open() needs Mono.Posix for OpCode and System.IO.Ports for controller
@@ -184,7 +185,7 @@
           BeforeTargets="ResolveProjectReferences"
           Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(FanControlBuildVendoredProjectReferencesInVisualStudio)' != 'false'">
     <PropertyGroup>
-      <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false</_VendoredReferenceBuildProperties>
+      <_VendoredReferenceBuildProperties>Configuration=$(Configuration);BuildingInsideVisualStudio=false;BuildProjectReferences=true;GeneratePackageOnBuild=false;$(TrayAppDotNETPrereleaseProjectProperties)</_VendoredReferenceBuildProperties>
       <_VendoredReferenceBuildProperties>$(_VendoredReferenceBuildProperties);SkipKillRunningInstance=$(SkipKillRunningInstance)</_VendoredReferenceBuildProperties>
       <_VendoredReferencePropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;OutputPath;OutDir;PublishDir</_VendoredReferencePropertiesToRemove>
       <!-- Match the normal ProjectReference: VS-triggered prebuilds must not compile
@@ -245,48 +246,48 @@
     <Copy SourceFiles="@(_HotAvaloniaRuntimeAssembly)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Retries="$(CopyRetryCount)" RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)" />
   </Target>
 
-  <Target Name="CopyRuntimeReferencesToAggregateDebugOutput" AfterTargets="Build" Condition="'$(TrayAppDotNETUseRootOutput)' == 'true' and '$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+  <Target Name="CopyRuntimeReferencesToAggregateManagedOutput" AfterTargets="Build" Condition="'$(TrayAppDotNETUseRootOutput)' == 'true' and ('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(RuntimeIdentifier)' == ''">
     <ItemGroup>
-      <_AggregateDebugRuntimeReference Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml'" />
-      <_AggregateDebugRuntimeReferenceWithDestination Include="@(_AggregateDebugRuntimeReference)" Condition="'%(_AggregateDebugRuntimeReference.DestinationSubPath)' != ''" />
-      <_AggregateDebugRuntimeReferenceWithDestination Include="@(_AggregateDebugRuntimeReference)" Condition="'%(_AggregateDebugRuntimeReference.DestinationSubPath)' == ''">
+      <_AggregateManagedRuntimeReference Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.Extension)' != '.xml'" />
+      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)" Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' != ''" />
+      <_AggregateManagedRuntimeReferenceWithDestination Include="@(_AggregateManagedRuntimeReference)" Condition="'%(_AggregateManagedRuntimeReference.DestinationSubPath)' == ''">
         <DestinationSubPath>%(Filename)%(Extension)</DestinationSubPath>
-      </_AggregateDebugRuntimeReferenceWithDestination>
+      </_AggregateManagedRuntimeReferenceWithDestination>
     </ItemGroup>
 
-    <Copy SourceFiles="@(_AggregateDebugRuntimeReferenceWithDestination)"
-          DestinationFiles="@(_AggregateDebugRuntimeReferenceWithDestination->'$(TargetDir)%(DestinationSubPath)')"
+    <Copy SourceFiles="@(_AggregateManagedRuntimeReferenceWithDestination)"
+          DestinationFiles="@(_AggregateManagedRuntimeReferenceWithDestination->'$(TargetDir)%(DestinationSubPath)')"
           SkipUnchangedFiles="true"
           Retries="$(CopyRetryCount)"
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
-          Condition="'@(_AggregateDebugRuntimeReferenceWithDestination)' != ''" />
+          Condition="'@(_AggregateManagedRuntimeReferenceWithDestination)' != ''" />
   </Target>
 
   <!-- Mono.Posix.NETStandard's Windows asset lands under runtimes\win-x64.
        Copy it beside the app because LHM loads it by simple assembly name at runtime. -->
-  <Target Name="CopyLibreHardwareMonitorDebugRuntimeAssemblies" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+  <Target Name="CopyLibreHardwareMonitorManagedRuntimeAssemblies" AfterTargets="Build" Condition="('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(RuntimeIdentifier)' == ''">
     <ItemGroup>
-      <_LibreHardwareMonitorDebugRuntimeAssembly Include="$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll" Condition="Exists('$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll')" />
+      <_LibreHardwareMonitorManagedRuntimeAssembly Include="$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll" Condition="Exists('$(TargetDir)runtimes\win-x64\lib\netstandard2.0\Mono.Posix.NETStandard.dll')" />
     </ItemGroup>
 
-    <Copy SourceFiles="@(_LibreHardwareMonitorDebugRuntimeAssembly)"
+    <Copy SourceFiles="@(_LibreHardwareMonitorManagedRuntimeAssembly)"
           DestinationFolder="$(TargetDir)"
           SkipUnchangedFiles="true"
           Retries="$(CopyRetryCount)"
           RetryDelayMilliseconds="$(CopyRetryDelayMilliseconds)"
-          Condition="'@(_LibreHardwareMonitorDebugRuntimeAssembly)' != ''" />
+          Condition="'@(_LibreHardwareMonitorManagedRuntimeAssembly)' != ''" />
   </Target>
 
-  <!-- Debug LHM intentionally excludes IPMI/BMC and RAM SPD. Remove stale copies left
-       by older Debug builds so runtime probing cannot bind those assemblies by accident. -->
-  <Target Name="RemoveLibreHardwareMonitorUnusedDebugRuntimeAssemblies" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">
+  <!-- Managed LHM builds intentionally exclude IPMI/BMC and RAM SPD. Remove stale copies
+       so runtime probing cannot bind those assemblies by accident. -->
+  <Target Name="RemoveLibreHardwareMonitorUnusedManagedRuntimeAssemblies" AfterTargets="Build" Condition="('$(Configuration)' == 'Debug' or '$(Configuration)' == 'Prerelease') and '$(RuntimeIdentifier)' == ''">
     <ItemGroup>
-      <_LibreHardwareMonitorUnusedDebugRuntimeAssembly Include="$(TargetDir)RAMSPDToolkit-NDD.dll" />
-      <_LibreHardwareMonitorUnusedDebugRuntimeAssembly Include="$(TargetDir)System.Management.dll" />
-      <_LibreHardwareMonitorUnusedDebugRuntimeAssembly Include="$(TargetDir)runtimes\win\lib\net10.0\System.Management.dll" />
+      <_LibreHardwareMonitorUnusedManagedRuntimeAssembly Include="$(TargetDir)RAMSPDToolkit-NDD.dll" />
+      <_LibreHardwareMonitorUnusedManagedRuntimeAssembly Include="$(TargetDir)System.Management.dll" />
+      <_LibreHardwareMonitorUnusedManagedRuntimeAssembly Include="$(TargetDir)runtimes\win\lib\net10.0\System.Management.dll" />
     </ItemGroup>
 
-    <Delete Files="@(_LibreHardwareMonitorUnusedDebugRuntimeAssembly)"
+    <Delete Files="@(_LibreHardwareMonitorUnusedManagedRuntimeAssembly)"
             TreatErrorsAsWarnings="true" />
   </Target>
 
