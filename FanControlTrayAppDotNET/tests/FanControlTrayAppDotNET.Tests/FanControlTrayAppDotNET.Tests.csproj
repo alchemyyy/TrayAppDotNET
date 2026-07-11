@@ -26,5 +26,7 @@
       <AdditionalProperties
           Condition="'$(Configuration)' == 'Release' and '$(TrayAppDotNETAggregateBuild)' != 'true' and ('$(SolutionFileName)' == '' or '$(SolutionFileName)' == '*Undefined*')">SkipPublishAfterBuild=true</AdditionalProperties>
     </ProjectReference>
+    <ProjectReference Include="..\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+                      AdditionalProperties="DisableIpmiWmi=true;DisableRamSpd=true" />
   </ItemGroup>
 </Project>

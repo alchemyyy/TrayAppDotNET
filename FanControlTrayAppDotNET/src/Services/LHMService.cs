@@ -185,6 +185,8 @@ public sealed class LHMService : IDisposable
         bool hasCoreEffectiveClockSensors = false;
         foreach (ISensor sensor in hardware.Sensors)
         {
+            DisableUnusedSensorHistory(sensor);
+
             string key = BuildSensorKey(hardware, sensor);
             DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
             string hardwareType = hardware.HardwareType.ToString();
@@ -244,6 +246,15 @@ public sealed class LHMService : IDisposable
             sub.Update();
             VisitHardware(sub);
         }
+    }
+
+    /// <summary>
+    /// Disables LibreHardwareMonitor's unused one-day history and releases restored samples.
+    /// </summary>
+    internal static void DisableUnusedSensorHistory(ISensor sensor)
+    {
+        sensor.ValuesTimeWindow = TimeSpan.Zero;
+        sensor.ClearValues();
     }
 
     // Walk every sensor and push its current value into the matching DataSource. Fans get their
