@@ -15,8 +15,8 @@ public interface IDisplayService
     /// <summary>
     /// Maximum wall-clock time any single dxva2-backed op (capability fetch, VCP read, VCP write) is allowed to block.
     /// Zero or negative disables the wrapper (calls block forever, matching the unwrapped dxva2 contract).
-    /// The production implementation runs timed DDC calls in a killable helper process so timeout can release
-    /// the helper-owned <c>PHYSICAL_MONITOR</c> handles by terminating that process.
+    /// The production implementation runs timed DDC calls in killable per-monitor helper processes so a timeout
+    /// can release that helper's <c>PHYSICAL_MONITOR</c> handles without blocking unrelated monitors.
     /// Settable so <c>MonitorService</c> can flow user settings changes through.
     /// </summary>
     int OperationTimeoutMs { set; }

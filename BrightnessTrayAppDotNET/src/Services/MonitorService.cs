@@ -9,21 +9,6 @@ using TrayAppDotNETCommon.Services;
 
 namespace BrightnessTrayAppDotNET.Services;
 
-/// <summary>
-/// Legacy per-monitor recovery actions retained for explicit targeted probes.
-/// The normal DDC fallback path now calls <see cref="MonitorService.TryRecoverMonitor"/> with
-/// <see cref="RefreshHandle"/> so it refreshes only the stuck monitor instead of tearing down
-/// healthy rows.
-/// </summary>
-public enum DDCRecoveryAction
-{
-    /// <summary>Re-enumerate and re-probe with no extra prep.</summary>
-    Probe,
-
-    /// <summary>Re-enumerate, refresh the cached HMONITOR, then re-probe.</summary>
-    RefreshHandle
-}
-
 internal interface IMonitorServiceDispatcher
 {
     bool CheckAccess();
@@ -50,11 +35,13 @@ internal sealed class AvaloniaMonitorServiceDispatcher(Dispatcher dispatcher) : 
 /// place in the UI; only its HMONITOR handle is refreshed.
 ///
 /// Writes are per-monitor throttled: while a write is in flight the latest requested value replaces any earlier queued
-/// one, so rapid slider drags never back up an unbounded queue - the final value always lands after one cooldown
-/// interval.
+/// one, so rapid slider drags never back up an unbounded queue. Target generations prevent an obsolete write from
+/// winning, and a target is complete only after matching readback.
 /// </summary>
 public sealed class MonitorService : IDisposable
 {
+    private const string RefreshSchedulerKey = "monitor-refresh";
+
     private readonly IDisplayService _display;
     private readonly AppSettings _settings;
     private readonly KnownDisplaysStore _knownDisplays;
@@ -66,6 +53,13 @@ public sealed class MonitorService : IDisposable
     // Owns the cooldown between brightness writes; the payloads it runs hold the per-monitor DDC mutex (the lock is
     // for bus atomicity vs other DDC ops, the throttler is for pacing - different concerns).
     private readonly AsyncThrottler<string> _writeThrottler;
+    // Mode handoffs must bypass the normal cooldown without running untracked fire-and-forget tasks.
+    // A separate zero-cooldown driver gives shutdown a drainable owner; target generations below
+    // arbitrate between the normal and immediate drivers.
+    private readonly AsyncThrottler<string> _immediateWriteThrottler;
+    // Full monitor enumeration touches CCD, the registry, and WMI. Keep it off the dispatcher and collapse topology
+    // bursts to the latest request before the UI-owned reconcile phase.
+    private readonly AsyncThrottler<string> _refreshThrottler;
     private int _writeCooldownMs;
     private int _validationDwellMs;
     private MonitorIdentityStrategy _activeStrategy;
@@ -74,8 +68,8 @@ public sealed class MonitorService : IDisposable
     // Per-monitor DDC mutex registry.
     // Every dxva2 call against a given physical monitor goes through WithDDCLock(...) keyed by DeviceID so a recovery
     // probe and a slider-driven write can't interleave on the bus.
-    // DisplayService runs timed dxva2 calls in a killable helper process; this lock keeps app-level operations
-    // serialized before they cross that process boundary.
+    // DisplayService runs timed dxva2 calls in a killable helper process per monitor; this lock keeps app-level
+    // operations serialized before they cross that monitor-specific process boundary.
     private readonly Dictionary<string, SemaphoreSlim> _ddcLocks = new(StringComparer.Ordinal);
     private readonly Lock _ddcLocksGate = new();
 
@@ -89,23 +83,33 @@ public sealed class MonitorService : IDisposable
     private volatile bool _draining;
 
     // Reentrancy guard for Refresh's Phase B probe pass.
-    // Incremented on every Refresh before Phase B is started or scheduled; async probe continuations
-    // capture the generation and bail when a newer Refresh has already incremented.
+    // Incremented for every applied refresh snapshot before Phase B is started or scheduled; async probe
+    // continuations capture the generation and bail after a newer snapshot has been applied.
     // Without this, two Refreshes within the post-detection settle window (1.5 s) would stack two
     // deferred Phase Bs running on stale captured snapshots - producing duplicate add/probe work and
     // visible churn on the flyout's CollectionChanged path.
-    // ScheduleStartupRecoverySweep's +2s/+5s Refreshes go through Refresh() so they participate in
-    // this generation naturally - the latest scheduled Phase B wins.
+    // ScheduleStartupRecoverySweep's +2s/+5s Refreshes go through Refresh() so they participate naturally -
+    // the latest scheduled Phase B wins.
     private int _refreshGen;
+    // Public refresh generation. Worker enumeration results must still own this generation when posted to the
+    // dispatcher, otherwise a newer topology/settings request superseded their snapshot.
+    private long _refreshEnumerationGeneration;
 
     // Wall-clock of the last topology event reported by the caller (via NotifyTopologyEvent).
     // Phase B uses (now - this) to decide whether the monitor MCU still needs a post-arrival
-    // settle window. Cold-start Refresh from the ctor leaves this at MinValue so Phase B runs
-    // synchronously - the monitors have been connected since boot and don't need a settle.
+    // settle window. Cold-start RefreshInitial from the ctor leaves this at MinValue so Phase B starts
+    // immediately - the monitors have been connected since boot and don't need a settle.
     // WM_DEVICECHANGE-driven Refresh from DisplayEventManager sets this to UtcNow before calling
     // Refresh, so Phase B defers for the remaining settle window. Event-driven gating, no
     // unconditional 1.5 s delay on the user's startup path.
     private DateTime _lastTopologyEventUtc = DateTime.MinValue;
+
+    // A topology reset or brightness-VCP change invalidates the last acknowledged hardware value.
+    // The generation is captured by Refresh and consumed only after its probe phase has installed fresh
+    // monitor handles and VCP maxima. This avoids replaying through stale handles while still allowing
+    // the same percentage to be written again after hardware reset.
+    private long _brightnessReplayGeneration;
+    private long _lastCompletedBrightnessReplayGeneration;
 
     /// <summary>
     /// Raised after <see cref="Refresh"/> finishes applying add/remove/handle-refresh mutations.
@@ -115,7 +119,9 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Raised for monitors whose DDC channel was newly acquired or recovered during a refresh.
-    /// Acquisition itself is read-only; subscribers decide whether a mode-specific write is warranted.
+    /// Normal and fully-readable acquisition is read-only; the explicit read-degraded compatibility path may be
+    /// preceded by one unconfirmed transport probe. Subscribers decide whether a mode-specific verified write is
+    /// warranted.
     /// Always fires on the UI thread before <see cref="MonitorsRefreshed"/>.
     /// </summary>
     public event Action<IReadOnlyList<MonitorInfo>>? MonitorsAcquired;
@@ -168,11 +174,13 @@ public sealed class MonitorService : IDisposable
         _validationDwellMs = Math.Max(0, settings.ValidationDwellMs);
         _display.OperationTimeoutMs = settings.DDCOperationTimeoutMs;
         _writeThrottler = new AsyncThrottler<string>(_writeCooldownMs, StringComparer.Ordinal);
+        _immediateWriteThrottler = new AsyncThrottler<string>(0, StringComparer.Ordinal);
+        _refreshThrottler = new AsyncThrottler<string>(0, StringComparer.Ordinal);
 
         // Re-sort the monitor list whenever the sort settings or manual override change.
         _settings.Changed += OnSettingsChanged;
 
-        Refresh();
+        RefreshInitial();
 
         // Cold-start recovery: re-Refresh a couple of seconds later so panels whose registry EDID wasn't yet populated
         // when the constructor ran get their proper edid-keyed identity before the user notices a stuck slider.
@@ -208,6 +216,7 @@ public sealed class MonitorService : IDisposable
         ApplyNameOverridesToExisting();
         if (ApplyBrightnessVcpOverridesToExisting())
         {
+            RequestBrightnessReplayAfterRefresh();
             Refresh();
             return;
         }
@@ -236,14 +245,17 @@ public sealed class MonitorService : IDisposable
 
         foreach (MonitorEntry entry in _entries.Values)
         {
-            byte before = entry.DDC.BrightnessCode;
-            entry.DDC.BrightnessCode = VCPConstants.Brightness;
-            DDCMonitorDatabase.ApplyProfile(entry.DDC);
-            ApplyBrightnessVcpOverride(entry.DDC, entry.EDIDKey, map);
-            if (entry.DDC.BrightnessCode == before) continue;
+            DDCMonitor currentDDC = Volatile.Read(ref entry.DDC);
+            DDCMonitor updatedDDC = CloneDDCMonitor(currentDDC);
+            byte before = updatedDDC.BrightnessCode;
+            updatedDDC.BrightnessCode = VCPConstants.Brightness;
+            DDCMonitorDatabase.ApplyProfile(updatedDDC);
+            ApplyBrightnessVcpOverride(updatedDDC, entry.EDIDKey, map);
+            if (updatedDDC.BrightnessCode == before) continue;
 
             changed = true;
-            Volatile.Write(ref entry.LastEnqueuedPercentage, -1);
+            Volatile.Write(ref entry.DDC, updatedDDC);
+            InvalidateBrightnessTarget(entry);
             MonitorInfo? info = Monitors.FirstOrDefault(m => m.ID == entry.ID);
             info?.LastKnownBrightnessMax = 100;
         }
@@ -256,7 +268,7 @@ public sealed class MonitorService : IDisposable
     /// (<see cref="MonitorOverrideEntry.MinBrightness"/> / <see cref="MonitorOverrideEntry.MaxBrightness"/>)
     /// onto every DDC-supported <see cref="MonitorEntry"/>'s floor/ceiling fields.
     /// Lookup is keyed by EDIDKey so the override survives identity-strategy changes.
-    /// When a bound actually changes for a monitor, the entry's last-enqueued sentinel is reset
+    /// When a bound actually changes for a monitor, the entry's previous target acknowledgement is invalidated
     /// and a fresh write of the current slider position is queued -
     /// so a freshly-tightened floor snaps the panel up to the new minimum
     /// without waiting for the user's next slider drag.
@@ -379,8 +391,8 @@ public sealed class MonitorService : IDisposable
     /// onto every DDC-supported <see cref="MonitorEntry"/> as pre-sorted xs/ys arrays
     /// ready for <see cref="EnvironmentalCurveSampler.InterpolateLinear"/>.
     /// Lookup is keyed by EDIDKey so the curve survives identity-strategy changes.
-    /// When the resolved curve actually changes for a monitor, the entry's last-enqueued sentinel
-    /// is reset and a fresh write of the current slider position is queued -
+    /// When the resolved curve actually changes for a monitor, the entry's previous target acknowledgement
+    /// is invalidated and a fresh write of the current slider position is queued -
     /// so a freshly-edited curve takes effect on hardware now,
     /// not when the user happens to touch the slider next.
     /// </summary>
@@ -395,7 +407,7 @@ public sealed class MonitorService : IDisposable
     /// and writes the pre-sorted xs/ys arrays onto the matching <see cref="MonitorEntry"/>.
     /// Skips monitors that don't have a live entry (currently DDC-unsupported / Failed) -
     /// their curve will be re-applied the next time they promote.
-    /// On a real curve change, drops the dedupe sentinel and re-pushes the current slider position
+    /// On a real curve change, invalidates the old target acknowledgement and re-pushes the current slider position
     /// so the new shape takes effect on the bus immediately.
     /// </summary>
     private void ApplyNormCurveTo(
@@ -430,9 +442,8 @@ public sealed class MonitorService : IDisposable
             ref entry.NormCurve,
             xs == null || ys == null ? null : new NormCurveProjection(xs, ys));
 
-        // Drop the dedupe sentinel: a previously-curved enqueue may have left LastEnqueuedPercentage
-        // sitting at the old shaped value, which would short-circuit the upcoming re-push.
-        Volatile.Write(ref entry.LastEnqueuedPercentage, -1);
+        // The old acknowledgement described a different percent-to-raw transform.
+        InvalidateBrightnessTarget(entry);
 
         // Acquisition/probe paths are read-only. They install the curve projection for the next explicit
         // writer but never replay a slider value as a side effect of discovering DDC support.
@@ -469,7 +480,7 @@ public sealed class MonitorService : IDisposable
     /// applies) and writes them onto the matching <see cref="MonitorEntry"/>.
     /// Skips monitors that don't have a live entry (currently DDC-unsupported / Failed) - their cap
     /// will be re-applied the next time they promote.
-    /// On a real bound change, drops the dedupe sentinel and re-pushes the current slider position
+    /// On a real bound change, invalidates the old target acknowledgement and re-pushes the current slider position
     /// so a tightened cap takes effect on the bus immediately.
     /// </summary>
     private void ApplyBrightnessBoundsTo(
@@ -498,9 +509,8 @@ public sealed class MonitorService : IDisposable
         entry.FloorPercent = floor;
         entry.CeilingPercent = ceiling;
 
-        // Drop the dedupe sentinel: a previously-clamped enqueue may have left LastEnqueuedPercentage
-        // sitting at the old floor/ceiling, which would short-circuit the upcoming re-push.
-        Volatile.Write(ref entry.LastEnqueuedPercentage, -1);
+        // The old acknowledgement described a different percent-to-raw transform.
+        InvalidateBrightnessTarget(entry);
 
         // Acquisition/probe paths are read-only. They install the floor/ceiling projection for the next explicit
         // writer but never replay a slider value as a side effect of discovering DDC support.
@@ -571,37 +581,87 @@ public sealed class MonitorService : IDisposable
     /// Cold-start, startup recovery sweep, and DDC fallback Refreshes leave this untouched so Phase B
     /// runs synchronously - no unconditional wait on the user's launch path.
     /// </summary>
-    public void NotifyTopologyEvent() => _lastTopologyEventUtc = DateTime.UtcNow;
+    public void NotifyTopologyEvent()
+    {
+        _lastTopologyEventUtc = DateTime.UtcNow;
+        RequestBrightnessReplayAfterRefresh();
+    }
+
+    private void RequestBrightnessReplayAfterRefresh() =>
+        Interlocked.Increment(ref _brightnessReplayGeneration);
 
     /// <summary>
     /// Re-enumerates physical monitors and reconciles the <see cref="Monitors"/> collection with the current hardware
     /// topology:
     /// <list type="bullet">
-    /// <item>Still-present monitors keep their <see cref="MonitorInfo"/> - only the underlying HMONITOR handle is
-    /// swapped in place.</item>
+    /// <item>Still-present monitors keep their <see cref="MonitorInfo"/> while the underlying DDC snapshot is replaced
+    /// atomically with fresh handles and capabilities.</item>
     /// <item>Newly-connected monitors get a fresh <see cref="MonitorInfo"/> appended and their hardware brightness is
     /// sampled to seed the slider.</item>
     /// <item>Detached monitors are removed from the collection; their write loop drains and exits on its next
     /// cooldown tick.</item>
     /// </list>
-    /// Safe to call from any thread - work is marshalled onto the UI dispatcher
-    /// so <see cref="ObservableCollection{T}"/> notifications fire correctly.
+    /// Safe to call from any thread. Enumeration runs on a latest-request-wins worker; only the resulting detached
+    /// snapshot is marshalled onto the UI dispatcher for <see cref="ObservableCollection{T}"/> reconciliation.
     /// </summary>
     public void Refresh()
     {
         if (_disposed || _draining) return;
 
-        if (!_dispatcher.CheckAccess())
-        {
-            _dispatcher.Post(Refresh);
-            return;
-        }
+        long enumerationGeneration = Interlocked.Increment(ref _refreshEnumerationGeneration);
+        _ = _refreshThrottler.RunAsync(
+            RefreshSchedulerKey,
+            context => RunRefreshEnumerationAsync(enumerationGeneration, context));
+    }
+
+    private Task RunRefreshEnumerationAsync(long enumerationGeneration, ThrottlerContext context)
+    {
+        if (_disposed || _draining || context.CancellationToken.IsCancellationRequested)
+            return Task.CompletedTask;
 
         if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> enumeratedRo, out string? enumError))
         {
             WPFLog.Log($"MonitorService.Refresh: enumeration failed: {enumError}");
+            return Task.CompletedTask;
+        }
+
+        List<DDCMonitor> enumerated = [.. enumeratedRo];
+        if (_disposed
+            || _draining
+            || context.CancellationToken.IsCancellationRequested
+            || enumerationGeneration != Volatile.Read(ref _refreshEnumerationGeneration))
+            return Task.CompletedTask;
+
+        _dispatcher.Post(() =>
+        {
+            if (_disposed
+                || _draining
+                || enumerationGeneration != Volatile.Read(ref _refreshEnumerationGeneration))
+                return;
+
+            ApplyRefreshSnapshot(enumerated);
+        });
+        return Task.CompletedTask;
+    }
+
+    private void RefreshInitial()
+    {
+        long enumerationGeneration = Interlocked.Increment(ref _refreshEnumerationGeneration);
+        if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> enumerated, out string? enumError))
+        {
+            WPFLog.Log($"MonitorService.RefreshInitial: enumeration failed: {enumError}");
             return;
         }
+
+        if (_disposed || _draining || enumerationGeneration != Volatile.Read(ref _refreshEnumerationGeneration))
+            return;
+
+        ApplyRefreshSnapshot(enumerated);
+    }
+
+    private void ApplyRefreshSnapshot(IReadOnlyList<DDCMonitor> enumeratedRo)
+    {
+        if (_disposed || _draining) return;
 
         List<DDCMonitor> enumerated = [.. enumeratedRo];
 
@@ -697,10 +757,11 @@ public sealed class MonitorService : IDisposable
                 existing.LastDDCError = "Monitor not currently enumerated.";
                 if (_entries.TryRemove(existing.ID, out MonitorEntry? droppedEntry))
                 {
+                    InvalidateBrightnessTarget(droppedEntry);
                     existing.LastKnownBrightnessMax = NormalizeBrightnessMax(droppedEntry.Max);
                     // In-flight write payload owns the (now-stale) DDC handle and will release cleanly;
                     // queued writes can't usefully target a missing panel, drop them.
-                    _writeThrottler.Drop(existing.ID);
+                    DropQueuedBrightnessWrites(existing.ID);
                 }
 
                 WPFLog.Log(
@@ -727,6 +788,7 @@ public sealed class MonitorService : IDisposable
         Dictionary<string, string> capturedEDIDKeyByID = EDIDKeyByID;
         Dictionary<string, string> capturedNameOverrides = nameOverridesByEDID;
         bool capturedStrategyChanged = strategyChanged;
+        long capturedBrightnessReplayGeneration = Volatile.Read(ref _brightnessReplayGeneration);
         // latestByPortForm is consumed by Phase A above; Phase B computes its own per-DDC port form
         // inline via ComputePortFormKey, so no capture is needed here.
         _ = latestByPortForm;
@@ -748,7 +810,8 @@ public sealed class MonitorService : IDisposable
                 capturedEDIDKeyByID,
                 capturedNameOverrides,
                 capturedStrategyChanged,
-                scheduledGen);
+                scheduledGen,
+                capturedBrightnessReplayGeneration);
             return;
         }
 
@@ -769,7 +832,8 @@ public sealed class MonitorService : IDisposable
                     capturedEDIDKeyByID,
                     capturedNameOverrides,
                     capturedStrategyChanged,
-                    scheduledGen);
+                    scheduledGen,
+                    capturedBrightnessReplayGeneration);
             });
         });
     }
@@ -786,7 +850,8 @@ public sealed class MonitorService : IDisposable
         Dictionary<string, string> EDIDKeyByID,
         Dictionary<string, string> nameOverridesByEDID,
         bool strategyChanged,
-        int phaseGen)
+        int phaseGen,
+        long brightnessReplayGeneration)
     {
         if (!IsRefreshProbePhaseCurrent(phaseGen)) return;
 
@@ -865,29 +930,14 @@ public sealed class MonitorService : IDisposable
 
                 if (_entries.TryGetValue(existingInfo.ID, out MonitorEntry? entry))
                 {
-                    // Already supported - refresh the live DDC handles, then re-probe to catch monitors whose DDC
+                    // Already supported - atomically install the fresh DDC snapshot, then re-probe to catch monitors whose DDC
                     // link died while the app wasn't writing to them (no SetVCPFeature failure to trigger demotion).
                     // Without this re-probe, a monitor that silently dropped DDC stays stuck IsDDCCISupported=true
                     // forever and the warning UI / DDC fallback worker never fire.
-                    entry.DDC.Handle = ddc.Handle;
-                    entry.DDC.HDC = ddc.HDC;
-                    entry.DDC.Name = ddc.Name;
-                    entry.DDC.DeviceID = ddc.DeviceID;
-                    entry.DDC.DisplayInstancePath = ddc.DisplayInstancePath;
-                    entry.DDC.DisplayNumber = ddc.DisplayNumber;
-                    entry.DDC.X = ddc.X;
-                    entry.DDC.Y = ddc.Y;
-                    entry.DDC.EDIDSerial = ddc.EDIDSerial;
-                    entry.DDC.FriendlyName = ddc.FriendlyName;
-                    entry.DDC.EDIDManufacturerID = ddc.EDIDManufacturerID;
-                    entry.DDC.EDIDProductCode = ddc.EDIDProductCode;
-                    entry.DDC.BrightnessCode = ddc.BrightnessCode;
-                    entry.DDC.ProfileModelName = ddc.ProfileModelName;
-                    entry.DDC.PowerOffCommands = ddc.PowerOffCommands;
-                    entry.DDC.ProfileQuirks = ddc.ProfileQuirks;
-                    entry.DDC.BrightnessControlKind = ddc.BrightnessControlKind;
-                    entry.DDC.WindowsBrightnessInstanceName = ddc.WindowsBrightnessInstanceName;
-                    entry.DDC.WindowsBrightnessMethodPath = ddc.WindowsBrightnessMethodPath;
+                    // Never mutate a DDCMonitor that an in-flight helper command may be reading. Reference replacement
+                    // lets that command finish against its coherent old identity while subsequent operations use this one.
+                    entry.EDIDKey = EDIDKey;
+                    Volatile.Write(ref entry.DDC, ddc);
 
                     // Use the full retry mechanism (80/160/480 backoff + final-attempt RefreshHandle) so
                     // a single transient read failure (INVALID_DEVICE / INVALID_MESSAGE_CHECKSUM) doesn't
@@ -901,6 +951,14 @@ public sealed class MonitorService : IDisposable
                     {
                         entry.Max = NormalizeBrightnessMax(probe.Max);
                         existingInfo.LastKnownBrightnessMax = entry.Max;
+                        if (!existingInfo.HasUserBrightness
+                            && !existingInfo.WasCurveDrivenBeforeFailure
+                            && !IsBrightnessCurveEnabledForHardware())
+                        {
+                            int hardwarePercent = (int)Math.Round(probe.Current * 100.0 / entry.Max);
+                            SyncBrightnessReadOnly(existingInfo, Math.Clamp(hardwarePercent, 0, 100));
+                        }
+
                         RecordDDCCapableObservation(existingInfo);
                         existingInfo.IsReadDegraded = false;
                         existingInfo.LastDDCError = null;
@@ -919,11 +977,14 @@ public sealed class MonitorService : IDisposable
                         {
                             existingInfo.SliderState = SliderStateMachine.OnHardwareFailed();
                             if (_entries.TryRemove(existingInfo.ID, out MonitorEntry? failedEntry))
+                            {
+                                InvalidateBrightnessTarget(failedEntry);
                                 existingInfo.LastKnownBrightnessMax = NormalizeBrightnessMax(failedEntry.Max);
+                            }
                             // Drop any queued write for this monitor - a fresh value applied to a now-demoted entry would
                             // only generate a doomed retry. An in-flight payload is left to drain on its own (it
                             // captured the entry's DDC handle and will release cleanly).
-                            _writeThrottler.Drop(existingInfo.ID);
+                            DropQueuedBrightnessWrites(existingInfo.ID);
                             WPFLog.Log(
                                 $"MonitorService: demoted '{ddc.Name}' during Refresh re-probe ({probe.Error})");
                         }
@@ -1048,18 +1109,17 @@ public sealed class MonitorService : IDisposable
 
         ResortMonitors();
 
-        // Project per-monitor min/max overrides onto each MonitorInfo's allowed-range bounds.
-        // Runs after the loop populates Monitors so newly-added entries are covered too.
-        // The MinAllowed/MaxAllowed setters reclamp Brightness through the public Brightness setter,
-        // which the OnMonitorPropertyChanged subscription (attached above) picks up
-        // and pushes to hardware - so a hot-plugged panel sitting outside the override window
-        // is squeezed back in without an explicit replay call here.
+        // Project per-monitor min/max overrides onto the bus-boundary clamp for every live entry.
+        // Runs after the loop populates Monitors so newly-added entries are covered too. Acquisition stays
+        // read-only here; an explicit manual replay or curve evaluation applies the projection when required.
         ApplyBrightnessBoundOverridesToExisting(replayHardware: false);
 
         // Same idea for the per-monitor norm curve: project the persisted points into pre-sorted
         // xs/ys arrays on each MonitorEntry so EnqueueDirectBrightness can sample without re-sorting
         // per write. Hot-plugged panels with a saved curve get re-shaped on their first write.
         ApplyNormCurveOverridesToExisting(replayHardware: false);
+
+        ReplayBrightnessTargetsAfterRefresh(brightnessReplayGeneration);
 
         // Record "DDC was observed" facts onto KnownDisplays before notifying listeners.
         // The flag is sticky (never cleared) and drives DDCRecoveryService's candidate selection -
@@ -1085,6 +1145,30 @@ public sealed class MonitorService : IDisposable
 
     private static uint ScaleBrightnessPercentToRaw(int percent, uint max) =>
         (uint)Math.Round(Math.Clamp(percent, 0, 100) / 100.0 * NormalizeBrightnessMax(max));
+
+    private static DDCMonitor CloneDDCMonitor(DDCMonitor source) =>
+        new()
+        {
+            Handle = source.Handle,
+            HDC = source.HDC,
+            Name = source.Name,
+            DeviceID = source.DeviceID,
+            DisplayInstancePath = source.DisplayInstancePath,
+            DisplayNumber = source.DisplayNumber,
+            EDIDSerial = source.EDIDSerial,
+            FriendlyName = source.FriendlyName,
+            EDIDManufacturerID = source.EDIDManufacturerID,
+            EDIDProductCode = source.EDIDProductCode,
+            X = source.X,
+            Y = source.Y,
+            BrightnessControlKind = source.BrightnessControlKind,
+            WindowsBrightnessInstanceName = source.WindowsBrightnessInstanceName,
+            WindowsBrightnessMethodPath = source.WindowsBrightnessMethodPath,
+            BrightnessCode = source.BrightnessCode,
+            ProfileModelName = source.ProfileModelName,
+            PowerOffCommands = source.PowerOffCommands,
+            ProfileQuirks = source.ProfileQuirks
+        };
 
     private Task<(bool Ok, uint Current, uint Max, string? Error)> TryReadBrightnessWithRetryAsync(DDCMonitor ddc) =>
         Task.Run(() =>
@@ -1211,13 +1295,13 @@ public sealed class MonitorService : IDisposable
     private void DetachMonitor(MonitorInfo info)
     {
         info.PropertyChanged -= OnMonitorPropertyChanged;
-        if (_entries.TryGetValue(info.ID, out MonitorEntry? _))
+        if (_entries.TryRemove(info.ID, out MonitorEntry? entry))
         {
+            InvalidateBrightnessTarget(entry);
             // Drop any queued write for this monitor -
             // its in-flight SetVCPFeature may still complete (and may fail, which is fine and logged)
             // but no new work will be picked up for this (now-removed) monitor.
-            _writeThrottler.Drop(info.ID);
-            _entries.TryRemove(info.ID, out _);
+            DropQueuedBrightnessWrites(info.ID);
         }
     }
 
@@ -1257,7 +1341,7 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Configurable-attempt retry helper for DDC/CI brightness reads.
-    /// Each attempt past the first waits one <see cref="AppSettings.ValidationDwellMs"/> before re-reading,
+    /// Attempts after the first use the fixed responsive backoff sequence in <see cref="TimeConstants"/>,
     /// addressing the usual transient failure modes
     /// - mid-OSD, DPMS-wake races, dropped first VCP packet on a busy I2C bus.
     /// The final attempt also refreshes the cached HMONITOR before reading,
@@ -1295,15 +1379,17 @@ public sealed class MonitorService : IDisposable
             {
                 try
                 {
-                    if (_display.RefreshHandle(ddc))
+                    bool refreshed = WithDDCLock(ddc, () => RefreshHandlePreservingBrightnessCode(ddc));
+                    if (refreshed)
                     {
                         WPFLog.Log(
                             $"MonitorService: refreshed HMONITOR for '{ddc.Name}' before final read attempt");
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    /* swallow; non-fatal - we still try to read below */
+                    WPFLog.Log(
+                        $"MonitorService: HMONITOR refresh failed for '{ddc.Name}' before final read: {ex.Message}");
                 }
             }
 
@@ -1551,8 +1637,8 @@ public sealed class MonitorService : IDisposable
             foreach (MonitorInfo m in Monitors)
             {
                 // DDC fallback probes any monitor whose read half is failing - includes the asymmetric
-                // IsReadDegraded state where writes work but reads don't, so we can detect when reads come
-                // back and full-promote via PromoteRecovered.
+                // IsReadDegraded compatibility state where write transport was accepted but application could not
+                // be confirmed, so we can detect when reads come back and full-promote via PromoteRecovered.
                 if (m is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
 
                 if (!m.IsPoweredOn) continue;
@@ -1588,9 +1674,8 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Attempts a single targeted recovery probe on a monitor that is currently reporting DDC unavailable.
-    /// Legacy callers should invoke this from off the UI thread:
-    /// the candidate snapshot + enumeration runs on the dispatcher,
-    /// the DDC I/O runs on the caller's thread,
+    /// Call from off the UI thread: only the small candidate snapshot runs on the dispatcher;
+    /// enumeration and DDC I/O run on the caller's thread,
     /// and the promotion (if any) marshals back to the dispatcher.
     /// The short-circuit cases - already supported, powered off, or a user write in flight -
     /// return without touching the bus.
@@ -1598,22 +1683,27 @@ public sealed class MonitorService : IDisposable
     /// <returns>
     /// True when the monitor is DDC-supported after the call
     /// (whether by a successful recovery or because it was already supported).
-    /// False if the recovery action didn't reconnect the monitor.
+    /// False if the targeted probe did not restore readable DDC state.
     /// </returns>
-    public bool TryRecoverMonitor(string monitorID, DDCRecoveryAction action)
+    public bool TryRecoverMonitor(string monitorID)
     {
         if (_disposed || _draining) return false;
 
         if (string.IsNullOrEmpty(monitorID)) return false;
 
-        // Snapshot live state on the UI thread:
-        // the MonitorInfo lookup, _entries contention check, and HMONITOR re-enumeration
-        // all touch UI-thread-owned state
-        // (ObservableCollection, _entries dictionary, dispatcher-owned _activeStrategy).
-        // The DDC I/O itself is then run on the caller's thread.
+        // Snapshot only UI-owned state on the dispatcher. Monitor enumeration includes registry and WMI work and
+        // must remain on the recovery caller's worker thread rather than blocking the Avalonia dispatcher.
         MonitorInfo? info = null;
-        DDCMonitor? ddc = null;
         bool alreadySupported = false;
+        bool canProbe = false;
+        bool wasReadDegraded = false;
+        bool shouldAttemptWriteTransportProbe = false;
+        int writeTransportProbePercent = 0;
+        uint lastKnownBrightnessMax = 100;
+        string EDIDKey = string.Empty;
+        string EDIDSerial = string.Empty;
+        MonitorIdentityStrategy identityStrategy = MonitorIdentityStrategy.DisplayNumber;
+        Dictionary<string, MonitorOverrideEntry> monitorOverridesByEDID = new(StringComparer.Ordinal);
 
         InvokeOnDispatcher(() =>
         {
@@ -1622,8 +1712,8 @@ public sealed class MonitorService : IDisposable
             info = Monitors.FirstOrDefault(m => m.ID == monitorID);
             if (info == null) return;
 
-            // IsReadDegraded monitors are technically "functional" (writes work, slider operable) but
-            // still need read-probing so we can fully promote when reads come back. Only short-circuit
+            // IsReadDegraded monitors are technically "functional" (best-effort slider operable) but still need
+            // read-probing so we can fully promote when reads come back. Only short-circuit
             // for monitors that are both functional AND not read-degraded.
             if (info is { IsHardwareFunctional: true, IsReadDegraded: false })
             {
@@ -1638,33 +1728,47 @@ public sealed class MonitorService : IDisposable
             // Defer if a user-initiated brightness write is in flight on this monitor
             // (only happens when an entry already exists, e.g. a previously-supported monitor is mid-recovery).
             // Avoids racing with the throttler-driven write payload.
-            if (_entries.TryGetValue(monitorID, out MonitorEntry? _) && _writeThrottler.IsBusy(monitorID))
+            if (_entries.TryGetValue(monitorID, out MonitorEntry? _) && IsBrightnessWriteBusy(monitorID))
                 return;
 
-            if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> live, out string? enumError))
-            {
-                WPFLog.Log($"MonitorService.TryRecoverMonitor: enumeration failed: {enumError}");
-                return;
-            }
-
-            Dictionary<string, MonitorOverrideEntry> monitorOverridesByEDID = BuildMonitorOverrideEntryMap();
-            foreach (DDCMonitor liveMonitor in live)
-                ApplyBrightnessVcpOverride(liveMonitor, ComputeEDIDKey(liveMonitor), monitorOverridesByEDID);
-
-            ddc = FindRecoveryTarget(live, info, monitorID);
+            EDIDKey = info.EDIDKey;
+            EDIDSerial = info.EDIDSerial;
+            wasReadDegraded = info.IsReadDegraded;
+            KnownDisplayEntry? knownDisplay = string.IsNullOrEmpty(info.EDIDKey)
+                ? null
+                : _knownDisplays.Find(info.EDIDKey);
+            // A transport-only probe must be minimally invasive. Require the last read-back-confirmed bus value,
+            // which already includes norm/bounds projection; never fall back to an unprojected slider percentage.
+            int? lastConfirmedBusBrightness = knownDisplay?.LastBusBrightness;
+            writeTransportProbePercent = lastConfirmedBusBrightness ?? 0;
+            lastKnownBrightnessMax = info.LastKnownBrightnessMax;
+            shouldAttemptWriteTransportProbe = lastConfirmedBusBrightness.HasValue
+                                               && ShouldAttemptReadDegradedWriteTransportProbe(info);
+            identityStrategy = _activeStrategy;
+            monitorOverridesByEDID = BuildMonitorOverrideEntryMap();
+            canProbe = true;
         });
 
         if (alreadySupported) return true;
 
-        if (info == null || ddc == null) return false;
+        if (info == null || !canProbe) return false;
 
-        // DDC I/O - caller's thread (must not be UI thread).
-        switch (action)
+        if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> live, out string? enumError))
         {
-            case DDCRecoveryAction.RefreshHandle:
-                _display.RefreshHandle(ddc);
-                break;
+            WPFLog.Log($"MonitorService.TryRecoverMonitor: enumeration failed: {enumError}");
+            return false;
         }
+
+        foreach (DDCMonitor liveMonitor in live)
+            ApplyBrightnessVcpOverride(liveMonitor, ComputeEDIDKey(liveMonitor), monitorOverridesByEDID);
+
+        DDCMonitor? ddc = FindRecoveryTarget(
+            live,
+            monitorID,
+            EDIDKey,
+            EDIDSerial,
+            identityStrategy);
+        if (ddc == null) return false;
 
         // Full retry mechanism here: a single failed read isn't strong evidence the read half is broken,
         // it's almost always a transient blip (INVALID_DEVICE / INVALID_MESSAGE_CHECKSUM under bus
@@ -1673,19 +1777,57 @@ public sealed class MonitorService : IDisposable
         // to ReadDegraded.
         if (!TryReadBrightnessWithRetry(ddc, out uint current, out uint max, out string? readError) || max == 0)
         {
-            // Read failed - probe the write half before declaring full failure. DDC/CI reads and writes
+            string capturedReadError = readError ?? "Monitor did not respond to DDC/CI.";
+            if (wasReadDegraded)
+            {
+                MonitorInfo degradedInfo = info;
+                _dispatcher.Post(() =>
+                {
+                    if (!_disposed && Monitors.Contains(degradedInfo) && degradedInfo.IsReadDegraded)
+                        degradedInfo.LastDDCError = capturedReadError;
+                });
+                return false;
+            }
+
+            // Read failed - probe write transport before declaring full failure. DDC/CI reads and writes
             // are physically different I2C transactions and fail independently: monitors with wedged reply
             // pipelines, marginal cables, or driver bugs in the read ioctl frequently still accept writes.
-            // If the write probe lands, the slider is still usable and we surface that asymmetric state
-            // via IsReadDegraded rather than locking the row behind the warning glyph.
-            string capturedReadError = readError ?? "Monitor did not respond to DDC/CI.";
-            bool writeProbeOk = ShouldAttemptReadDegradedWriteProbe(info)
-                                && TryDDCWriteProbe(info, ddc, out _);
-            if (writeProbeOk)
+            // If the write transport is accepted, retain the explicit best-effort compatibility state rather than
+            // claiming application; the immediate post-write read below is the only route to confirmation.
+            bool writeTransportAccepted = shouldAttemptWriteTransportProbe
+                                          && TryDDCWriteTransportProbe(
+                                              writeTransportProbePercent,
+                                              lastKnownBrightnessMax,
+                                              ddc,
+                                              out _);
+            if (writeTransportAccepted)
             {
+                // Transport acceptance is not proof that the brightness changed. Make one post-write read attempt
+                // even though the preceding acquisition reads failed. If replies resumed, publish full recovery and
+                // send the manual target through the normal verified pipeline; otherwise enter the explicit
+                // best-effort compatibility state without claiming the probe landed.
+                if (TryReadBrightness(
+                        ddc,
+                        out uint postWriteCurrent,
+                        out uint postWriteMax,
+                        out string? postWriteReadError)
+                    && postWriteMax > 0)
+                {
+                    DDCMonitor readableDDC = ddc;
+                    MonitorInfo readableInfo = info;
+                    InvokeOnDispatcher(() =>
+                    {
+                        PromoteRecovered(readableInfo, readableDDC, postWriteCurrent, postWriteMax);
+                        if (readableInfo is { IsHardwareFunctional: true, HasUserBrightness: true }
+                            && !ShouldSuppressSliderBrightnessWrite(readableInfo))
+                            EnqueueDirectBrightness(readableInfo, readableInfo.RoundedBrightness);
+                    });
+                    return true;
+                }
+
                 DDCMonitor capturedDDCForDegraded = ddc;
                 MonitorInfo capturedInfoForDegraded = info;
-                string degradedError = capturedReadError;
+                string degradedError = postWriteReadError ?? capturedReadError;
                 InvokeOnDispatcher(() =>
                     PromoteReadDegraded(capturedInfoForDegraded, capturedDDCForDegraded, degradedError));
                 return false;
@@ -1699,18 +1841,25 @@ public sealed class MonitorService : IDisposable
             _dispatcher.Post(() =>
             {
                 if (_disposed) return;
+                if (!Monitors.Contains(failedInfo)) return;
+                // A concurrent Refresh or recovery tick may already have promoted this row while our native probe
+                // was running. Never publish an obsolete failure over that newer healthy state.
+                if (failedInfo is { IsHardwareFunctional: true, IsReadDegraded: false }) return;
                 // Demote to Failed if we were previously in the asymmetric read-degraded state -
-                // the write half just died too, so the slider is no longer trustworthy and the
+                // write transport just failed too, so the slider is no longer trustworthy and the
                 // warning glyph should appear with the normal locked-row treatment.
                 if (failedInfo.IsReadDegraded)
                 {
                     if (_entries.TryRemove(failedInfo.ID, out MonitorEntry? droppedEntry))
+                    {
+                        InvalidateBrightnessTarget(droppedEntry);
                         failedInfo.LastKnownBrightnessMax = NormalizeBrightnessMax(droppedEntry.Max);
-                    _writeThrottler.Drop(failedInfo.ID);
+                    }
+                    DropQueuedBrightnessWrites(failedInfo.ID);
                     failedInfo.SliderState = SliderStateMachine.OnHardwareFailed();
                     WPFLog.Log(
                         $"MonitorService: '{failedInfo.Name}' demoted from read-degraded to Failed "
-                        + "(write probe now also failing)");
+                        + "(write transport probe now also failing)");
                 }
 
                 failedInfo.IsReadDegraded = false;
@@ -1727,36 +1876,41 @@ public sealed class MonitorService : IDisposable
         return true;
     }
 
-    private DDCMonitor? FindRecoveryTarget(IReadOnlyList<DDCMonitor> live, MonitorInfo info, string requestedID)
+    private static DDCMonitor? FindRecoveryTarget(
+        IReadOnlyList<DDCMonitor> live,
+        string requestedID,
+        string EDIDKey,
+        string EDIDSerial,
+        MonitorIdentityStrategy identityStrategy)
     {
         if (live.Count == 0) return null;
 
-        DDCMonitor? match = live.FirstOrDefault(d => ComputeMonitorID(d, _activeStrategy) == requestedID);
+        DDCMonitor? match = live.FirstOrDefault(d => ComputeMonitorID(d, identityStrategy) == requestedID);
         if (match != null) return match;
 
         // Same stable-identity rescue order as RefreshProbePhaseAsync:
         // EDIDKey, then port-form fallback, then EDID serial. Targeted recovery used to only try
         // requestedID + EDID serial, leaving port-keyed rows permanently failed after EDID/display-number drift.
-        if (!string.IsNullOrEmpty(info.EDIDKey))
+        if (!string.IsNullOrEmpty(EDIDKey))
         {
             match = live.FirstOrDefault(d =>
-                string.Equals(ComputeEDIDKey(d), info.EDIDKey, StringComparison.Ordinal)
-                || string.Equals(ComputePortFormKey(d), info.EDIDKey, StringComparison.Ordinal));
+                string.Equals(ComputeEDIDKey(d), EDIDKey, StringComparison.Ordinal)
+                || string.Equals(ComputePortFormKey(d), EDIDKey, StringComparison.Ordinal));
             if (match != null) return match;
         }
 
-        if (!string.IsNullOrEmpty(info.EDIDSerial))
+        if (!string.IsNullOrEmpty(EDIDSerial))
         {
             match = live.FirstOrDefault(d =>
                 !string.IsNullOrEmpty(d.EDIDSerial)
-                && string.Equals(d.EDIDSerial, info.EDIDSerial, StringComparison.Ordinal));
+                && string.Equals(d.EDIDSerial, EDIDSerial, StringComparison.Ordinal));
             if (match != null) return match;
         }
 
-        if (!string.IsNullOrEmpty(info.ID) && info.ID.StartsWith("port:", StringComparison.Ordinal))
+        if (requestedID.StartsWith("port:", StringComparison.Ordinal))
         {
             match = live.FirstOrDefault(d =>
-                string.Equals(ComputePortFormKey(d), info.ID, StringComparison.Ordinal));
+                string.Equals(ComputePortFormKey(d), requestedID, StringComparison.Ordinal));
             if (match != null) return match;
         }
 
@@ -1764,19 +1918,23 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
-    /// Sends the row's current manual brightness to verify the monitor's write half is alive when reads fail.
-    /// Used to distinguish full DDC failure (both halves dead) from asymmetric read-degraded state
-    /// (writes still land - slider remains usable, no warning glyph required).
-    /// The probe doubles as the write that restores the row's current manual/profile target.
+    /// Sends the row's last confirmed bus brightness as a transport probe after read retries fail.
+    /// Transport success distinguishes a completely unavailable DDC path from the explicit read-degraded
+    /// compatibility state, but does not prove that the monitor applied the value. The caller immediately attempts
+    /// post-write read-back, and normal writes continue to verify without persisting unconfirmed values.
     /// This is only attempted for manual rows that already have an explicit user/profile value; acquisition
     /// never sends an arbitrary probe brightness and never probes write-side DDC for curve or disabled rows.
     /// Uses <see cref="MonitorInfo.LastKnownBrightnessMax"/> because the Failed -> ReadDegraded transition
     /// removes the MonitorEntry before this runs, and we can't read capabilities while reads are failing.
     /// Goes through WithDDCLock to coordinate with any in-flight user write on the same panel.
     /// </summary>
-    private bool TryDDCWriteProbe(MonitorInfo info, DDCMonitor ddc, out string? error)
+    private bool TryDDCWriteTransportProbe(
+        int probePercent,
+        uint lastKnownBrightnessMax,
+        DDCMonitor ddc,
+        out string? error)
     {
-        uint probeRaw = ScaleBrightnessPercentToRaw(info.RoundedBrightness, info.LastKnownBrightnessMax);
+        uint probeRaw = ScaleBrightnessPercentToRaw(probePercent, lastKnownBrightnessMax);
 
         (bool ok, string? writeErr) = WithDDCLock(ddc, () =>
         {
@@ -1787,7 +1945,7 @@ public sealed class MonitorService : IDisposable
         return ok;
     }
 
-    private bool ShouldAttemptReadDegradedWriteProbe(MonitorInfo info)
+    private bool ShouldAttemptReadDegradedWriteTransportProbe(MonitorInfo info)
     {
         if (!info.HasUserBrightness) return false;
         if (info.WasDisabledBeforeFailure) return false;
@@ -1796,8 +1954,8 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
-    /// UI-thread half of asymmetric recovery: the monitor's write probe landed even though its read
-    /// failed, so flip it out of Failed back into the operable state machine and stamp IsReadDegraded
+    /// UI-thread half of asymmetric recovery: the monitor accepted write transport but its post-write read failed,
+    /// so flip it out of Failed back into the best-effort state machine and stamp IsReadDegraded
     /// so the flyout shows the informational glyph without locking the slider. Keeps LastDDCError set
     /// because reads are still broken - the DDC fallback worker will keep retrying so that a future read
     /// success can fully promote via <c>PromoteRecovered</c>.
@@ -1807,6 +1965,7 @@ public sealed class MonitorService : IDisposable
     private void PromoteReadDegraded(MonitorInfo info, DDCMonitor ddc, string readError)
     {
         if (_disposed) return;
+        if (!Monitors.Contains(info)) return;
 
         // Don't trample a fully-recovered or fully-functional monitor.
         if (info is { IsHardwareFunctional: true, IsReadDegraded: false }) return;
@@ -1824,6 +1983,7 @@ public sealed class MonitorService : IDisposable
                 ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax
             };
         }
+        ApplyRecoveredBrightnessProjections(info);
 
         // Plumb the live curve flags so a read-degraded promotion under an engaged curve lands directly
         // in CurveActive / CurveSleeping rather than Enabled (same H-03 fan-out rationale as PromoteRecovered).
@@ -1835,7 +1995,9 @@ public sealed class MonitorService : IDisposable
         SetRecoveredSliderState(info, recoveredState);
         info.IsReadDegraded = true;
         info.LastDDCError = readError;
-        WPFLog.Log($"MonitorService: '{ddc.Name}' is read-degraded (write probe landed, reads failing)");
+        WPFLog.Log(
+            $"MonitorService: '{ddc.Name}' is read-degraded "
+            + "(write transport accepted, application unconfirmed, reads failing)");
         MonitorsAcquired?.Invoke([info]);
         MonitorsRefreshed?.Invoke();
     }
@@ -1897,6 +2059,17 @@ public sealed class MonitorService : IDisposable
         // VESA default to those would not turn them off (in fact 0xE1=0 turns them on).
         // Goes through the per-monitor mutex
         // so it can't interleave with a brightness write or recovery probe in flight at the same instant.
+        MonitorEntry? activeEntry = _entries.Values.FirstOrDefault(entry =>
+            string.Equals(
+                Volatile.Read(ref entry.DDC).EDIDSerial,
+                EDIDSerial,
+                StringComparison.Ordinal));
+        if (activeEntry != null)
+        {
+            InvalidateBrightnessTarget(activeEntry);
+            DropQueuedBrightnessWrites(activeEntry.ID);
+        }
+
         _ = TryResolvePowerOffOverride(target, PowerOffLevel.Hard, out byte powerCode, out byte powerValue);
         (bool ok, string? writeErr) = WithDDCLock(target, () =>
         {
@@ -1906,6 +2079,11 @@ public sealed class MonitorService : IDisposable
         if (!ok)
         {
             error = writeErr ?? "TrySetVCPFeature failed";
+            if (activeEntry != null)
+            {
+                RequestBrightnessReplayAfterRefresh();
+                Refresh();
+            }
             return false;
         }
 
@@ -1923,6 +2101,7 @@ public sealed class MonitorService : IDisposable
     private void PromoteRecovered(MonitorInfo info, DDCMonitor ddc, uint current, uint max)
     {
         if (_disposed) return;
+        if (!Monitors.Contains(info)) return;
 
         // Another thread (Refresh, an interleaved recovery tick) may have already promoted this monitor -
         // check before clobbering.
@@ -1934,10 +2113,17 @@ public sealed class MonitorService : IDisposable
         uint brightnessMax = NormalizeBrightnessMax(max);
         info.LastKnownBrightnessMax = brightnessMax;
         LogProfileIfMatched(ddc);
+        if (_entries.TryGetValue(info.ID, out MonitorEntry? replacedEntry))
+        {
+            InvalidateBrightnessTarget(replacedEntry);
+            DropQueuedBrightnessWrites(info.ID);
+        }
+
         _entries[info.ID] = new MonitorEntry
         {
             ID = info.ID, EDIDKey = info.EDIDKey, DDC = ddc, Max = brightnessMax
         };
+        ApplyRecoveredBrightnessProjections(info);
         // Acquisition is read-only for slider intent: a hardware read may initialize rows that have
         // no explicit manual/profile value yet, but it must not overwrite a user-owned slider baseline
         // or enqueue a write through the public Brightness setter.
@@ -1964,6 +2150,15 @@ public sealed class MonitorService : IDisposable
         MonitorsRefreshed?.Invoke();
     }
 
+    private void ApplyRecoveredBrightnessProjections(MonitorInfo info)
+    {
+        // Targeted recovery bypasses RefreshProbePhaseAsync's final projection pass. Install the same bus-boundary
+        // transforms before publishing MonitorsAcquired so the first restored manual or curve target cannot use
+        // default bounds or a missing norm curve.
+        ApplyBrightnessBoundsTo(info, BuildBrightnessBoundOverrideMap(), replayHardware: false);
+        ApplyNormCurveTo(info, BuildNormCurveOverrideMap(), replayHardware: false);
+    }
+
     private void RefreshRecoveredMonitorMetadata(MonitorInfo info, DDCMonitor ddc)
     {
         string oldID = info.ID;
@@ -1985,7 +2180,7 @@ public sealed class MonitorService : IDisposable
                 _entries[newID] = movingEntry;
             }
 
-            _writeThrottler.Drop(oldID);
+            DropQueuedBrightnessWrites(oldID);
             info.ID = newID;
             WPFLog.Log(
                 $"MonitorService: re-keyed recovered '{info.Name}' from "
@@ -2011,7 +2206,7 @@ public sealed class MonitorService : IDisposable
     /// {2=Sleep, 4=Soft, 5=Hard}; Dell P/U-series monitors with inverted 0xE1 override to 0xE1
     /// with {0=On, 1=Off} - so e.g. asking for "Hard" on those still resolves to a single
     /// monitor-correct write.
-    /// Updates <see cref="MonitorInfo.IsPoweredOn"/> on success.
+    /// Updates <see cref="MonitorInfo.IsPoweredOn"/> after transport acceptance.
     /// </summary>
     public async Task SetPowerStateAsync(MonitorInfo monitor, bool on)
     {
@@ -2019,7 +2214,16 @@ public sealed class MonitorService : IDisposable
         if (!monitor.SupportsPowerControl) return;
 
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? entry)) return;
-        if (!entry.DDC.SupportsVcpPower) return;
+        DDCMonitor ddc = Volatile.Read(ref entry.DDC);
+        if (!ddc.SupportsVcpPower) return;
+
+        // A queued brightness re-apply after an off command can wake some monitors or immediately fail and demote
+        // the row. Make every older brightness generation stale before sending power-down traffic.
+        if (!on)
+        {
+            InvalidateBrightnessTarget(entry);
+            DropQueuedBrightnessWrites(entry.ID);
+        }
 
         PowerOffLevel offLevel = _settings.PowerOffMode switch
         {
@@ -2028,28 +2232,49 @@ public sealed class MonitorService : IDisposable
             _ => PowerOffLevel.Sleep
         };
         (byte code, byte value) = on
-            ? entry.DDC.ResolvePowerOn()
-            : TryResolvePowerOffOverride(entry.DDC, offLevel, out byte overrideCode, out byte overrideValue)
+            ? ddc.ResolvePowerOn()
+            : TryResolvePowerOffOverride(ddc, offLevel, out byte overrideCode, out byte overrideValue)
                 ? (overrideCode, overrideValue)
-                : entry.DDC.ResolvePowerOff(offLevel);
+                : ddc.ResolvePowerOff(offLevel);
         WPFLog.Log(
-            $"MonitorService: SetPowerState '{entry.DDC.Name}' on={on}; code=0x{code:X2}; value=0x{value:X2}; "
+            $"MonitorService: SetPowerState '{ddc.Name}' on={on}; code=0x{code:X2}; value=0x{value:X2}; "
             + $"mode={_settings.PowerOffMode}");
-        (bool ok, string? errorMessage) = await WithDDCLockAsync(entry.DDC, () =>
+        (bool ok, string? errorMessage) = await WithDDCLockAsync(ddc, () =>
         {
-            bool wrote = _display.TrySetVCPFeature(entry.DDC, code, value, out string? e);
+            bool wrote = _display.TrySetVCPFeature(ddc, code, value, out string? e);
             return (wrote, e);
         }).ConfigureAwait(false);
         if (!ok)
         {
-            WPFLog.Log($"MonitorService: SetPowerState failed for '{entry.DDC.Name}': {errorMessage}");
+            WPFLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {errorMessage}");
+            if (!on)
+            {
+                // The failed command left the panel on, but its queued brightness target was invalidated before the
+                // power attempt to guarantee ordering. Re-acquire and replay that intent instead of silently losing it.
+                RequestBrightnessReplayAfterRefresh();
+                Refresh();
+            }
             return;
         }
 
         if (_dispatcher.CheckAccess())
-            monitor.IsPoweredOn = on;
+            PublishPowerState();
         else
-            _dispatcher.Post(() => monitor.IsPoweredOn = on);
+            _dispatcher.Post(PublishPowerState);
+
+        void PublishPowerState()
+        {
+            if (_disposed || !Monitors.Contains(monitor)) return;
+
+            monitor.IsPoweredOn = on;
+            if (!on) return;
+
+            // A successful wake can reset brightness without emitting a reliable Windows topology event.
+            // Route it through the same settled refresh/replay boundary as an external wake so fresh handles and
+            // maxima are installed before the current manual or curve target is verified again.
+            NotifyTopologyEvent();
+            Refresh();
+        }
     }
 
     private void OnMonitorPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -2079,7 +2304,7 @@ public sealed class MonitorService : IDisposable
         // Bus-value persistence stamp lives in DoBrightnessWriteAsync, not here - LastUserBrightness
         // captures user intent and can diverge from the bus under curve mode (curve writes bypass the
         // setter), so persisting it would record a value the user no longer sees. The bus stamp
-        // captures every successful write regardless of source.
+        // captures every read-back-verified target regardless of source.
         EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
     }
 
@@ -2131,7 +2356,12 @@ public sealed class MonitorService : IDisposable
     /// </summary>
     public void EnqueueDirectBrightness(MonitorInfo? monitor, int percent)
     {
-        if (!TryPrepareDirectBrightnessWrite(monitor, percent, force: false, out MonitorEntry entry, out int pct))
+        if (!TryPrepareDirectBrightnessWrite(
+                monitor,
+                percent,
+                force: false,
+                out MonitorEntry entry,
+                out BrightnessWriteTarget target))
             return;
 
         // Schedule a payload that closes over (entry, pct). The throttler does latest-pending-wins:
@@ -2140,32 +2370,40 @@ public sealed class MonitorService : IDisposable
         // After the payload completes the throttler observes _writeCooldownMs
         // before letting the next queued payload run,
         // mirroring the pre-throttler hand-rolled write loop's "write -> wait -> verify -> loop" pacing.
-        _ = _writeThrottler.RunAsync(entry.ID, ctx => DoBrightnessWriteAsync(entry, pct, ctx));
+        _ = _writeThrottler.RunAsync(entry.ID, context =>
+            DoBrightnessWriteAsync(entry, target, context));
     }
 
     /// <summary>
     /// Writes a direct brightness target without waiting for the per-monitor cooldown window.
     /// Used only for mode handoff boundaries where stale manual hardware state must be superseded now
     /// (for example, returning a released row to curve ownership).
-    /// The DDC lock and write verification still run, so this bypasses pacing but not bus safety.
+    /// The zero-cooldown immediate driver remains drainable and uses the same target generation,
+    /// DDC lock, retries, and read-back verification as normal writes.
     /// </summary>
     public void EnqueueDirectBrightnessImmediate(
         MonitorInfo? monitor,
         int percent,
         Func<bool>? shouldWrite = null)
     {
-        if (!TryPrepareDirectBrightnessWrite(monitor, percent, force: true, out MonitorEntry entry, out int pct))
+        // Reject an already-stale handoff before it can occupy the dedupe slot. The predicate is checked again
+        // under the DDC lock because ownership can still change after this synchronous gate.
+        if (shouldWrite?.Invoke() == false) return;
+
+        if (!TryPrepareDirectBrightnessWrite(
+                monitor,
+                percent,
+                force: true,
+                out MonitorEntry entry,
+                out BrightnessWriteTarget target))
             return;
 
-        if (_writeThrottler.IsBusy(entry.ID))
-        {
-            // Mark any in-flight throttled payload stale so its verification path cannot re-apply
-            // the manual value after this handoff write lands.
-            _ = _writeThrottler.RunAsync(entry.ID, _ => Task.CompletedTask);
-            _writeThrottler.Drop(entry.ID);
-        }
-
-        _ = Task.Run(() => DoBrightnessWriteAsync(entry, pct, default, shouldWrite, verify: false));
+        // The new generation makes any running normal payload stale. Drop its queued replacement so it cannot
+        // consume a cooldown after this handoff; a native call already in progress is allowed to finish, and the
+        // immediate target then wins under the per-monitor DDC lock.
+        _writeThrottler.Drop(entry.ID);
+        _ = _immediateWriteThrottler.RunAsync(entry.ID, context =>
+            DoBrightnessWriteAsync(entry, target, context, shouldWrite));
     }
 
     private bool TryPrepareDirectBrightnessWrite(
@@ -2173,10 +2411,10 @@ public sealed class MonitorService : IDisposable
         int percent,
         bool force,
         out MonitorEntry entry,
-        out int pct)
+        out BrightnessWriteTarget target)
     {
         entry = null!;
-        pct = 0;
+        target = default;
         if (_disposed || _draining) return false;
         if (monitor == null) return false;
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? resolvedEntry)) return false;
@@ -2197,20 +2435,24 @@ public sealed class MonitorService : IDisposable
         if (floor > ceiling) floor = ceiling;
         int clampedPercent = Math.Clamp(Math.Clamp(shaped, 0, 100), floor, ceiling);
 
-        // Skip duplicate enqueues.
-        // The throttler already collapses bursts queued during a write,
-        // but doesn't dedupe across completed writes
-        // - so a curve sample that holds the same integer pct across many ticks would re-write the bus every tick.
-        // Skipping here drops those redundant payloads at the source,
-        // which is also where closure allocations happen.
-        // Topology paths that need to force a fresh write reset entry.LastEnqueuedPercentage first.
-        if (!force && Interlocked.Exchange(ref resolvedEntry.LastEnqueuedPercentage, clampedPercent) == clampedPercent)
-            return false;
+        lock (resolvedEntry.BrightnessTargetGate)
+        {
+            // A value is deduplicable only while the same target is still guaranteed to run, or after a matching
+            // read-back completed. Enqueue-time state alone is not proof: a canceled handoff must remain retryable.
+            if (!force
+                && ((resolvedEntry.HasPendingBrightnessTarget
+                     && resolvedEntry.PendingBrightnessPercentage == clampedPercent)
+                    || (!resolvedEntry.HasPendingBrightnessTarget
+                        && resolvedEntry.LastVerifiedBrightnessPercentage == clampedPercent)))
+                return false;
 
-        if (force) Volatile.Write(ref resolvedEntry.LastEnqueuedPercentage, clampedPercent);
+            long generation = ++resolvedEntry.BrightnessTargetGeneration;
+            resolvedEntry.PendingBrightnessPercentage = clampedPercent;
+            resolvedEntry.HasPendingBrightnessTarget = true;
+            target = new BrightnessWriteTarget(generation, clampedPercent);
+        }
 
         entry = resolvedEntry;
-        pct = clampedPercent;
         return true;
     }
 
@@ -2222,50 +2464,89 @@ public sealed class MonitorService : IDisposable
     /// Goes through the same per-monitor throttler the slider drag uses,
     /// so it composes naturally with any user input that arrives during or shortly after.
     /// </summary>
-    public void ReapplySliderState()
+    private void ReplayBrightnessTargetsAfterRefresh(long replayGeneration)
     {
         if (_disposed || _draining) return;
+        if (replayGeneration <= 0) return;
+        if (replayGeneration <= Volatile.Read(ref _lastCompletedBrightnessReplayGeneration)) return;
+        if (replayGeneration != Volatile.Read(ref _brightnessReplayGeneration)) return;
+
+        Volatile.Write(ref _lastCompletedBrightnessReplayGeneration, replayGeneration);
+
+        foreach (MonitorEntry entry in _entries.Values)
+        {
+            InvalidateBrightnessTarget(entry);
+            DropQueuedBrightnessWrites(entry.ID);
+        }
 
         int count = 0;
         foreach (MonitorInfo m in Monitors)
         {
             if (!m.IsHardwareFunctional) continue;
+            if (m.SliderState == SliderState.Disabled) continue;
+            if (!m.HasUserBrightness) continue;
             // Curve-owned rows must not get the slider value replayed here. This guard also covers
             // startup before the flyout-owned curve service has harmonized freshly-added rows into
             // CurveActive; the persisted brightness-curve setting is enough to keep manual replay off
             // until the curve evaluator applies its direct-write target.
             if (ShouldSuppressSliderBrightnessWrite(m)) continue;
-            // Topology change just landed - the bus value is unknown / wrong,
-            // regardless of what EnqueueDirectBrightness last sent.
-            // Clear the dedupe sentinel so the upcoming write isn't skipped on a same-pct match.
-            if (_entries.TryGetValue(m.ID, out MonitorEntry? entry))
-                Volatile.Write(ref entry.LastEnqueuedPercentage, -1);
-            EnqueueDirectBrightness(m, m.RoundedBrightness);
+
+            if (!TryPrepareDirectBrightnessWrite(
+                    m,
+                    m.RoundedBrightness,
+                    force: true,
+                    out MonitorEntry entry,
+                    out BrightnessWriteTarget target))
+                continue;
+
+            _ = _writeThrottler.RunAsync(entry.ID, context =>
+                DoBrightnessWriteAsync(entry, target, context));
             count++;
         }
 
-        WPFLog.Log($"MonitorService.ReapplySliderState: re-pushed {count} entries");
+        WPFLog.Log(
+            $"MonitorService: brightness replay generation {replayGeneration}; "
+            + $"queued {count} manual target(s), curve targets await MonitorsRefreshed evaluation");
     }
 
     /// <summary>
     /// Throttler payload for one brightness target.
-    /// Performs write+retry, then a verify read-back when the drag has settled
-    /// (i.e. when the throttler hasn't queued a replacement during the write).
-    /// Uses <see cref="ThrottlerContext.HasReplacement"/> to bail early during dwell waits
-    /// - preserves the pre-throttler write loop's "don't keep verifying a now-stale value" behaviour
-    /// even though the underlying mechanism (queued payload vs <c>entry.Pending</c> flag) is different.
+    /// Performs write+retry and always enters read-back verification for the newest target.
+    /// Explicit target generations, rather than the throttler's transient replacement flag, arbitrate
+    /// normal writes, cooldown-bypassing handoffs, topology invalidation, and cancellation.
     /// </summary>
     private async Task DoBrightnessWriteAsync(
         MonitorEntry entry,
-        int pct,
-        ThrottlerContext ctx,
-        Func<bool>? shouldWrite = null,
-        bool verify = true)
+        BrightnessWriteTarget target,
+        ThrottlerContext context,
+        Func<bool>? shouldWrite = null)
+    {
+        try
+        {
+            await DoBrightnessWriteCoreAsync(entry, target, context, shouldWrite).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            AbandonBrightnessTargetIfCurrent(entry, target);
+        }
+        catch (Exception ex)
+        {
+            // AsyncThrottler deliberately contains payload exceptions. Release target ownership here first so
+            // the same percentage remains retryable instead of becoming a permanently deduplicated phantom write.
+            AbandonBrightnessTargetIfCurrent(entry, target);
+            WPFLog.Log(
+                $"MonitorService.DoBrightnessWriteAsync: unexpected target failure for '{entry.ID}': {ex.Message}");
+        }
+    }
+
+    private async Task DoBrightnessWriteCoreAsync(
+        MonitorEntry entry,
+        BrightnessWriteTarget target,
+        ThrottlerContext context,
+        Func<bool>? shouldWrite = null)
     {
         if (_disposed || _draining) return;
-        if (shouldWrite?.Invoke() == false) return;
-
-        uint raw = ScaleBrightnessPercentToRaw(pct, entry.Max);
+        if (!IsBrightnessTargetCurrent(entry, target)) return;
 
         // Retry transient write failures (most commonly the I2C-transmit-error class of Win32Exception,
         // which the bus throws at us when a packet collides or the monitor is mid-OSD / mid-DPMS-wake).
@@ -2273,8 +2554,8 @@ public sealed class MonitorService : IDisposable
         // short for the first few retries (covers fast transients without slider sluggishness)
         // and the full ValidationDwellMs on the final attempt
         // (gives a slow monitor real settle time before we give up).
-        // Bails out early if a newer payload was queued during this attempt:
-        // retrying a now-stale value just hammers the bus.
+        // Supersession-aware waits poll the explicit generation, so a fresh slider target waits at most
+        // one short polling slice rather than the full final dwell before it can take over.
         int writeAttempts = Math.Max(1, _settings.ValidationAttempts);
         int writeFinalDwellMs = Math.Max(0, _validationDwellMs);
         string? lastWriteError = null;
@@ -2282,76 +2563,61 @@ public sealed class MonitorService : IDisposable
         for (int attempt = 0; attempt < writeAttempts; attempt++)
         {
             int waitMs = ScaledRetryDwellMs(attempt, writeAttempts, writeFinalDwellMs);
-            if (waitMs > 0)
-            {
-                if (_disposed || _draining || ctx.HasReplacement || shouldWrite?.Invoke() == false)
-                {
-                    lastWriteError = null;
-                    break;
-                }
+            if (!await DelayWhileBrightnessTargetCurrentAsync(
+                    entry,
+                    target,
+                    waitMs,
+                    context.CancellationToken).ConfigureAwait(false))
+                return;
 
-                try { await Task.Delay(waitMs, ctx.CancellationToken).ConfigureAwait(false); }
-                catch (OperationCanceledException) { return; }
+            BrightnessWriteAttempt write = await TryWriteBrightnessTargetAsync(
+                    entry,
+                    target,
+                    shouldWrite,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
+            if (!write.WasAttempted)
+            {
+                AbandonBrightnessTargetIfCurrent(entry, target);
+                return;
             }
 
-            if (shouldWrite?.Invoke() == false) return;
-
-            (bool ok, string? writeErr) = await WithDDCLockAsync(entry.DDC, () =>
-            {
-                bool w = _display.TrySetVCPFeature(entry.DDC, entry.DDC.BrightnessCode, raw, out string? e);
-                return (w, e);
-            }).ConfigureAwait(false);
-
-            if (ok)
+            if (write.Success)
             {
                 wrote = true;
                 lastWriteError = null;
-                // Persist the value that just landed on the bus so a future destroy/recreate of the
-                // MonitorInfo (full enumeration drop on power-cycle, cable disconnect) restores the
-                // user's visible state rather than whatever the panel happens to report at re-enum.
-                // Captures every successful write regardless of who drove it - slider drag, master
-                // propagation, profile load, curve service. Debounced inside the store.
-                if (!string.IsNullOrEmpty(entry.EDIDKey))
-                    _knownDisplays.StampLastBusBrightness(entry.EDIDKey, pct);
                 break;
             }
 
-            lastWriteError = writeErr;
+            if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return;
+
+            lastWriteError = write.Error;
             WPFLog.Log(
                 $"MonitorService: SetVCPFeature attempt {attempt + 1}/{writeAttempts} failed for "
-                + $"'{entry.DDC.Name}': {writeErr}");
+                + $"'{write.MonitorName}': {write.Error}");
         }
 
         if (lastWriteError != null)
         {
-            // Cascade guard: if a replacement payload is already queued, defer the demote.
-            // A fast-input pile-up that exhausts retries isn't reliable signal that the DDC link is broken -
-            // it usually just means the bus needs a beat to clear.
-            // The next throttler iteration will write the freshest value, which almost always succeeds.
-            // Only demote when retries are exhausted AND no fresher payload is queued.
-            if (ctx.HasReplacement)
-            {
-                WPFLog.Log(
-                    $"MonitorService: write retries exhausted for '{entry.DDC.Name}' "
-                    + "but a fresher payload is queued; deferring demote");
-                return;
-            }
+            if (!IsBrightnessTargetCurrent(entry, target)) return;
 
             DemoteOnDDCFailure(entry, lastWriteError);
             return;
         }
 
-        // wrote==false here means we bailed for a queued replacement; let the throttler run that next.
         if (!wrote) return;
 
-        // Only verify once the drag has settled.
-        // If the throttler has a replacement queued, the next payload will overwrite this value
-        // and any verification result would be stale - skip it.
-        if (_disposed || ctx.HasReplacement) return;
-        if (!verify) return;
-        if (shouldWrite?.Invoke() == false) return;
+        int initialVerificationDwellMs = Math.Min(
+            writeFinalDwellMs,
+            TimeConstants.MonitorInitialVerificationDwellMaxMs);
+        if (!await DelayWhileBrightnessTargetCurrentAsync(
+                entry,
+                target,
+                initialVerificationDwellMs,
+                context.CancellationToken).ConfigureAwait(false))
+            return;
 
-        await VerifyAppliedAsync(entry, raw, ctx).ConfigureAwait(false);
+        await VerifyAppliedAsync(entry, target, context, shouldWrite).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -2364,39 +2630,50 @@ public sealed class MonitorService : IDisposable
     /// up to <see cref="AppSettings.ValidationDwellMs"/> on the final attempt
     /// (gives a slow monitor real settle time before we declare the link unresponsive).
     /// HMONITOR is refreshed once on the first mismatch as a defence against stale handles.
-    /// Bails immediately when the throttler has queued a replacement -
-    /// whatever we'd verify is about to be superseded by the next payload.
+    /// A stale generation exits without re-applying, while the newest generation owns completion and persistence.
     /// </summary>
-    private async Task VerifyAppliedAsync(MonitorEntry entry, uint expectedRaw, ThrottlerContext ctx)
+    private async Task VerifyAppliedAsync(
+        MonitorEntry entry,
+        BrightnessWriteTarget target,
+        ThrottlerContext context,
+        Func<bool>? shouldWrite)
     {
         const long Tolerance = 1;
         int attempts = Math.Max(1, _settings.ValidationAttempts);
         int finalDwellMs = Math.Max(0, _validationDwellMs);
 
-        if (IsReadDegraded(entry.ID))
-        {
-            WPFLog.Log(
-                $"MonitorService: skipping read-back verification for read-degraded '{entry.DDC.Name}'");
-            return;
-        }
-
         for (int attempt = 0; attempt < attempts; attempt++)
         {
-            if (_disposed || _draining || ctx.HasReplacement) return;
+            if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return;
 
-            (bool read, uint actual, string? readErr) = await WithDDCLockAsync(entry.DDC, () =>
-            {
-                bool ok = _display.TryGetVCPFeature(
-                    entry.DDC, entry.DDC.BrightnessCode, out uint a, out _, out string? e);
-                return (ok, a, e);
-            }).ConfigureAwait(false);
+            BrightnessReadBack readBack = await TryReadBrightnessTargetAsync(
+                    entry,
+                    target,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
+            if (!readBack.WasAttempted) return;
 
-            switch (read)
+            if (readBack.Success && readBack.Maximum > 0)
+                Volatile.Write(ref entry.Max, readBack.Maximum);
+
+            uint expectedRaw = ScaleBrightnessPercentToRaw(
+                target.Percentage,
+                readBack.Maximum > 0 ? readBack.Maximum : Volatile.Read(ref entry.Max));
+
+            switch (readBack.Success && readBack.Maximum > 0)
             {
                 case false:
-                    WPFLog.Log($"MonitorService: verify read failed for '{entry.DDC.Name}': {readErr}");
+                    WPFLog.Log(
+                        $"MonitorService: verify read failed for '{readBack.MonitorName}': {readBack.Error}");
                     break;
-                case true when Math.Abs((long)actual - expectedRaw) <= Tolerance:
+                case true when Math.Abs((long)readBack.Actual - expectedRaw) <= Tolerance:
+                    if (CompleteBrightnessTargetIfCurrent(entry, target)
+                        && !string.IsNullOrEmpty(entry.EDIDKey))
+                    {
+                        // Persistence represents acknowledged hardware state, never mere SetVCPFeature acceptance.
+                        _knownDisplays.StampLastBusBrightness(entry.EDIDKey, target.Percentage);
+                    }
+
                     return;
             }
 
@@ -2406,53 +2683,208 @@ public sealed class MonitorService : IDisposable
             // First failure only: refresh the cached HMONITOR before re-applying.
             // Catches stale handles that survived a topology change the primary pipeline missed;
             // cheap and only worth doing once since the second cause of mismatches (slow monitor) doesn't need it.
-            if (attempt == 0 && _display.RefreshHandle(entry.DDC))
-                WPFLog.Log($"MonitorService: refreshed HMONITOR for '{entry.DDC.Name}' mid-verify");
+            if (attempt == 0)
+            {
+                string? refreshedMonitorName = await TryRefreshBrightnessHandleAsync(entry, target)
+                    .ConfigureAwait(false);
+                if (refreshedMonitorName != null)
+                    WPFLog.Log($"MonitorService: refreshed HMONITOR for '{refreshedMonitorName}' mid-verify");
+            }
 
             // Re-apply, then wait the scaled dwell before the next read attempt.
-            (bool reApplied, string? reApplyErr) = await WithDDCLockAsync(entry.DDC, () =>
+            BrightnessWriteAttempt reapply = await TryWriteBrightnessTargetAsync(
+                    entry,
+                    target,
+                    shouldWrite,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
+            if (!reapply.WasAttempted)
             {
-                bool w = _display.TrySetVCPFeature(
-                    entry.DDC, entry.DDC.BrightnessCode, expectedRaw, out string? e);
-                return (w, e);
-            }).ConfigureAwait(false);
-            if (!reApplied) WPFLog.Log($"MonitorService: re-apply failed for '{entry.DDC.Name}': {reApplyErr}");
+                AbandonBrightnessTargetIfCurrent(entry, target);
+                return;
+            }
+
+            if (!reapply.Success)
+                WPFLog.Log($"MonitorService: re-apply failed for '{reapply.MonitorName}': {reapply.Error}");
 
             // Wait for the NEXT attempt (attempt+1).
             // +1 because the helper's "wait before this attempt" semantic gives 0 for index 0;
             // we're computing the wait between this mismatched attempt and the next one.
             int waitMs = ScaledRetryDwellMs(attempt + 1, attempts, finalDwellMs);
-            if (waitMs > 0)
-            {
-                try { await Task.Delay(waitMs, ctx.CancellationToken).ConfigureAwait(false); }
-                catch (OperationCanceledException) { return; }
-            }
+            if (!await DelayWhileBrightnessTargetCurrentAsync(
+                    entry,
+                    target,
+                    waitMs,
+                    context.CancellationToken).ConfigureAwait(false))
+                return;
         }
 
-        // Cascade guard: same logic as the write-retry exhaustion path.
-        // If the throttler has a replacement queued, the verify mismatch is likely just bus lag from rapid input
-        // rather than a real link failure.
-        // Defer the demote and let the next payload supersede this one -
-        // verify will get another shot when the user pauses.
-        if (ctx.HasReplacement)
-        {
-            WPFLog.Log(
-                $"MonitorService: verify exhausted for '{entry.DDC.Name}' "
-                + "but a fresher payload is queued; deferring demote");
-            return;
-        }
+        if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return;
 
         if (IsReadDegraded(entry.ID))
         {
+            AbandonBrightnessTargetIfCurrent(entry, target);
+            DDCMonitor degradedDDC = Volatile.Read(ref entry.DDC);
             WPFLog.Log(
-                $"MonitorService: verify exhausted for read-degraded '{entry.DDC.Name}', "
-                + "keeping write-capable state");
+                $"MonitorService: verification exhausted for read-degraded '{degradedDDC.Name}', "
+                + "keeping best-effort state and leaving the target retryable");
             return;
         }
 
+        uint finalExpectedRaw = ScaleBrightnessPercentToRaw(target.Percentage, Volatile.Read(ref entry.Max));
+        DDCMonitor currentDDC = Volatile.Read(ref entry.DDC);
         WPFLog.Log(
-            $"MonitorService: verification exhausted for '{entry.DDC.Name}' - target raw={expectedRaw}");
+            $"MonitorService: verification exhausted for '{currentDDC.Name}' - target raw={finalExpectedRaw}");
         DemoteOnDDCFailure(entry, "Brightness write was not acknowledged after retry - DDC/CI link is unresponsive.");
+    }
+
+    private async Task<BrightnessWriteAttempt> TryWriteBrightnessTargetAsync(
+        MonitorEntry entry,
+        BrightnessWriteTarget target,
+        Func<bool>? shouldWrite,
+        CancellationToken cancellationToken)
+    {
+        DDCMonitor ddc = Volatile.Read(ref entry.DDC);
+        return await WithDDCLockAsync(ddc, () =>
+        {
+            if (!IsBrightnessTargetCurrent(entry, target) || shouldWrite?.Invoke() == false)
+                return BrightnessWriteAttempt.Superseded(ddc.Name);
+
+            uint raw = ScaleBrightnessPercentToRaw(target.Percentage, Volatile.Read(ref entry.Max));
+            bool success = _display.TrySetVCPFeature(
+                ddc,
+                ddc.BrightnessCode,
+                raw,
+                out string? error,
+                cancellationToken);
+            return new BrightnessWriteAttempt(true, success, ddc.Name, error);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task<BrightnessReadBack> TryReadBrightnessTargetAsync(
+        MonitorEntry entry,
+        BrightnessWriteTarget target,
+        CancellationToken cancellationToken)
+    {
+        DDCMonitor ddc = Volatile.Read(ref entry.DDC);
+        return await WithDDCLockAsync(ddc, () =>
+        {
+            if (!IsBrightnessTargetCurrent(entry, target))
+                return BrightnessReadBack.Superseded(ddc.Name);
+
+            bool success = _display.TryGetVCPFeature(
+                ddc,
+                ddc.BrightnessCode,
+                out uint actual,
+                out uint maximum,
+                out string? error,
+                cancellationToken);
+            return new BrightnessReadBack(true, success, actual, maximum, ddc.Name, error);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task<string?> TryRefreshBrightnessHandleAsync(
+        MonitorEntry entry,
+        BrightnessWriteTarget target)
+    {
+        DDCMonitor ddc = Volatile.Read(ref entry.DDC);
+        return await WithDDCLockAsync(ddc, () =>
+        {
+            if (!IsBrightnessTargetCurrent(entry, target)) return null;
+
+            bool refreshed = RefreshHandlePreservingBrightnessCode(ddc);
+            return refreshed ? ddc.Name : null;
+        }).ConfigureAwait(false);
+    }
+
+    private bool RefreshHandlePreservingBrightnessCode(DDCMonitor ddc)
+    {
+        // RefreshHandle reapplies the database profile. Preserve a user-selected brightness VCP override across
+        // both acquisition-read and write-verification recovery.
+        byte brightnessCode = ddc.BrightnessCode;
+        bool refreshed = _display.RefreshHandle(ddc);
+        ddc.BrightnessCode = brightnessCode;
+        return refreshed;
+    }
+
+    private async Task<bool> DelayWhileBrightnessTargetCurrentAsync(
+        MonitorEntry entry,
+        BrightnessWriteTarget target,
+        int delayMs,
+        CancellationToken cancellationToken)
+    {
+        int remainingMs = Math.Max(0, delayMs);
+        while (remainingMs > 0)
+        {
+            if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return false;
+
+            int sliceMs = Math.Min(TimeConstants.BrightnessTargetSupersessionPollIntervalMs, remainingMs);
+            try { await Task.Delay(sliceMs, cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return false; }
+            remainingMs -= sliceMs;
+        }
+
+        return !_disposed && !_draining && IsBrightnessTargetCurrent(entry, target);
+    }
+
+    private static bool IsBrightnessTargetCurrent(MonitorEntry entry, BrightnessWriteTarget target)
+    {
+        lock (entry.BrightnessTargetGate)
+        {
+            return entry.HasPendingBrightnessTarget
+                   && entry.BrightnessTargetGeneration == target.Generation
+                   && entry.PendingBrightnessPercentage == target.Percentage;
+        }
+    }
+
+    private static bool CompleteBrightnessTargetIfCurrent(MonitorEntry entry, BrightnessWriteTarget target)
+    {
+        lock (entry.BrightnessTargetGate)
+        {
+            if (!entry.HasPendingBrightnessTarget
+                || entry.BrightnessTargetGeneration != target.Generation
+                || entry.PendingBrightnessPercentage != target.Percentage)
+                return false;
+
+            entry.HasPendingBrightnessTarget = false;
+            entry.PendingBrightnessPercentage = -1;
+            entry.LastVerifiedBrightnessPercentage = target.Percentage;
+            return true;
+        }
+    }
+
+    private static void AbandonBrightnessTargetIfCurrent(MonitorEntry entry, BrightnessWriteTarget target)
+    {
+        lock (entry.BrightnessTargetGate)
+        {
+            if (!entry.HasPendingBrightnessTarget
+                || entry.BrightnessTargetGeneration != target.Generation
+                || entry.PendingBrightnessPercentage != target.Percentage)
+                return;
+
+            entry.HasPendingBrightnessTarget = false;
+            entry.PendingBrightnessPercentage = -1;
+        }
+    }
+
+    private static void InvalidateBrightnessTarget(MonitorEntry entry)
+    {
+        lock (entry.BrightnessTargetGate)
+        {
+            entry.BrightnessTargetGeneration++;
+            entry.HasPendingBrightnessTarget = false;
+            entry.PendingBrightnessPercentage = -1;
+            entry.LastVerifiedBrightnessPercentage = -1;
+        }
+    }
+
+    private bool IsBrightnessWriteBusy(string monitorID) =>
+        _writeThrottler.IsBusy(monitorID) || _immediateWriteThrottler.IsBusy(monitorID);
+
+    private void DropQueuedBrightnessWrites(string monitorID)
+    {
+        _writeThrottler.Drop(monitorID);
+        _immediateWriteThrottler.Drop(monitorID);
     }
 
     private bool IsReadDegraded(string monitorID)
@@ -2485,21 +2917,23 @@ public sealed class MonitorService : IDisposable
         string id = entry.ID;
         if (string.IsNullOrEmpty(id)) return;
 
-        // Drop any queued writes for this monitor; the in-flight payload that's calling us
-        // will return naturally after we record the demote.
-        _writeThrottler.Drop(id);
+        InvalidateBrightnessTarget(entry);
 
         void Apply()
         {
             if (_disposed) return;
 
             // The entry might have been replaced (recovery promote) since we queued -
-            // only remove if it's still the same instance.
-            if (_entries.TryGetValue(id, out MonitorEntry? current) && ReferenceEquals(current, entry))
-                ((ICollection<KeyValuePair<string, MonitorEntry>>)_entries).Remove(KeyValuePair.Create(id, current));
+            // never let an obsolete payload demote the replacement row.
+            if (!_entries.TryGetValue(id, out MonitorEntry? current) || !ReferenceEquals(current, entry)) return;
+            // Drop queued writes only after proving this entry still owns the row. A recovered replacement may
+            // already have queued its replay under the same ID and must not lose that work.
+            DropQueuedBrightnessWrites(id);
+            ((ICollection<KeyValuePair<string, MonitorEntry>>)_entries).Remove(KeyValuePair.Create(id, current));
 
             MonitorInfo? info = Monitors.FirstOrDefault(m => m.ID == id);
             if (info == null) return;
+            info.LastKnownBrightnessMax = NormalizeBrightnessMax(Volatile.Read(ref entry.Max));
 
             // Already demoted by another path (e.g. concurrent verify exhaustion racing with a write throw) -
             // don't clobber a fresher error message.
@@ -2558,9 +2992,21 @@ public sealed class MonitorService : IDisposable
             /* best-effort during shutdown */
         }
 
-        // Tear down the throttler - cancels any in-flight payload at its next dwell-await
-        // and rejects further enqueues. In-flight DDC ops are bounded by the helper process timeout.
+        // Tear down the throttlers - cancels any in-flight payload at its next dwell-await
+        // and rejects further enqueues. In-flight DDC ops are bounded by per-monitor helper process timeouts.
         try { _writeThrottler.Dispose(); }
+        catch
+        {
+            /* best-effort during shutdown */
+        }
+
+        try { _immediateWriteThrottler.Dispose(); }
+        catch
+        {
+            /* best-effort during shutdown */
+        }
+
+        try { _refreshThrottler.Dispose(); }
         catch
         {
             /* best-effort during shutdown */
@@ -2577,7 +3023,7 @@ public sealed class MonitorService : IDisposable
 
         // Release the per-monitor mutexes. Anything still holding one is in-flight;
         // SemaphoreSlim doesn't track owner so we can't preempt,
-        // but the helper process timeout caps how long app-level callers wait.
+        // but the monitor's helper process timeout caps how long app-level callers wait.
         lock (_ddcLocksGate)
         {
             foreach (SemaphoreSlim sem in _ddcLocks.Values)
@@ -2595,10 +3041,11 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Draining handshake the rest of the app uses on shutdown.
-    /// Sets the <c>_draining</c> flag so every public entry-point bails on new work,
-    /// then polls <see cref="_activeDDCOps"/> until it hits zero or <paramref name="timeout"/> elapses.
+    /// Sets the <c>_draining</c> flag so every public entry-point bails on new work, drains brightness and refresh
+    /// schedulers, then polls <see cref="_activeDDCOps"/> until it hits zero or <paramref name="timeout"/> elapses.
     /// Returns true on clean drain, false on timeout.
-    /// Caller should still proceed with shutdown; DisplayService kills the helper process for stuck dxva2 calls.
+    /// Caller should still proceed with shutdown; DisplayService kills the affected helper process for a stuck dxva2
+    /// call.
     ///
     /// Idempotent: calling this multiple times is safe.
     /// Doesn't dispose anything; <see cref="Dispose"/> is the actual teardown step
@@ -2609,16 +3056,26 @@ public sealed class MonitorService : IDisposable
         _draining = true;
         DateTime deadline = DateTime.UtcNow + timeout;
 
-        // Drain the throttler first so its driver loops stop scheduling new work,
-        // then wait for any DDC ops they kicked off to finish or time out through the helper process.
-        TimeSpan throttlerBudget = deadline - DateTime.UtcNow;
-        if (throttlerBudget > TimeSpan.Zero)
+        // Drain the schedulers first so their driver loops stop scheduling new work,
+        // then wait for any DDC ops they kicked off to finish or time out through their helper processes.
+        TimeSpan remainingThrottlerBudget = deadline - DateTime.UtcNow;
+        TimeSpan throttlerBudget = remainingThrottlerBudget > TimeSpan.Zero
+            ? remainingThrottlerBudget
+            : TimeSpan.Zero;
+        using (CancellationTokenSource cts = new(throttlerBudget))
         {
-            using CancellationTokenSource cts = new(throttlerBudget);
-            try { await _writeThrottler.DrainAsync(cts.Token).ConfigureAwait(false); }
+            try
+            {
+                await Task.WhenAll(
+                        _writeThrottler.DrainAsync(cts.Token),
+                        _immediateWriteThrottler.DrainAsync(cts.Token),
+                        _refreshThrottler.DrainAsync(cts.Token))
+                    .ConfigureAwait(false);
+            }
             catch (OperationCanceledException)
             {
-                /* fall through to op-count drain below */
+                WPFLog.Log("MonitorService.BeginDrainAsync: brightness scheduler drain timed out");
+                return false;
             }
         }
 
@@ -2731,20 +3188,21 @@ public sealed class MonitorService : IDisposable
         public string ID = string.Empty;
 
         // EDID-first stable identifier (mirrors MonitorInfo.EDIDKey). Cached on the entry so
-        // DoBrightnessWriteAsync can stamp KnownDisplaysStore.LastBusBrightness after a successful
-        // write without a Monitors collection scan. Empty when the monitor has no EDID serial.
+        // DoBrightnessWriteAsync can stamp KnownDisplaysStore.LastBusBrightness after matching read-back
+        // without a Monitors collection scan. Uses the port-form fallback when EDID identity is unavailable.
         public string EDIDKey = string.Empty;
         public DDCMonitor DDC = null!;
 
         public uint Max;
 
-        // Last pct value EnqueueDirectBrightness queued for this entry. -1 means "never enqueued."
-        // Used to short-circuit duplicate writes when a flat-ish curve sample lands on the same
-        // integer pct as the previous tick - the throttler collapses bursts but doesn't dedupe
-        // across completed writes, so without this the env curve sweep can re-write the same
-        // value 200 times in 10 seconds. Reset by paths that need to force a fresh write
-        // (e.g. ReapplySliderState after a topology change where the bus value is unknown).
-        public int LastEnqueuedPercentage = -1;
+        // Brightness target lifecycle. Pending state suppresses duplicate queue entries while the target is
+        // guaranteed to run; LastVerified suppresses steady curve samples only after matching read-back.
+        // The generation makes stale normal/immediate/topology payloads unable to complete or re-apply.
+        public readonly Lock BrightnessTargetGate = new();
+        public long BrightnessTargetGeneration;
+        public int PendingBrightnessPercentage = -1;
+        public int LastVerifiedBrightnessPercentage = -1;
+        public bool HasPendingBrightnessTarget;
 
         // Per-monitor brightness floor/ceiling, projected from AppSettings.MonitorOverrides
         // (MinBrightness / MaxBrightness, keyed by EDIDKey).
@@ -2762,6 +3220,30 @@ public sealed class MonitorService : IDisposable
         // Stored as one atomically swapped reference so background hardware enqueue reads never see
         // mismatched X/Y arrays while settings are applying a new projection on the dispatcher.
         public NormCurveProjection? NormCurve;
+    }
+
+    private readonly record struct BrightnessWriteTarget(long Generation, int Percentage);
+
+    private readonly record struct BrightnessWriteAttempt(
+        bool WasAttempted,
+        bool Success,
+        string MonitorName,
+        string? Error)
+    {
+        public static BrightnessWriteAttempt Superseded(string monitorName) =>
+            new(false, false, monitorName, null);
+    }
+
+    private readonly record struct BrightnessReadBack(
+        bool WasAttempted,
+        bool Success,
+        uint Actual,
+        uint Maximum,
+        string MonitorName,
+        string? Error)
+    {
+        public static BrightnessReadBack Superseded(string monitorName) =>
+            new(false, false, 0, 0, monitorName, null);
     }
 
     private sealed class NormCurveProjection(double[] xs, double[] ys)

@@ -113,6 +113,8 @@ internal sealed class DDCHelperClient : IDisposable
         if (cancellationToken.IsCancellationRequested)
             return DDCCallOutcome<string[]>.WithError($"DDC op '{opLabel}' cancelled by sequence deadline.");
 
+        long startTimestamp = Stopwatch.GetTimestamp();
+
         lock (_gate)
         {
             if (_disposed) return DDCCallOutcome<string[]>.Fail("DDC helper client is disposed.");
@@ -121,7 +123,14 @@ internal sealed class DDCHelperClient : IDisposable
             {
                 if (_disposed) return DDCCallOutcome<string[]>.Fail("DDC helper client is disposed.");
 
-                if (!EnsureStarted(out string? startError))
+                int remainingTimeoutMs = GetRemainingTimeoutMs(timeoutMs, startTimestamp);
+                if (remainingTimeoutMs == 0)
+                {
+                    return DDCCallOutcome<string[]>.WithError(
+                        $"DDC op '{opLabel}' exceeded {timeoutMs}ms end-to-end timeout waiting for its helper slot.");
+                }
+
+                if (!EnsureStarted(remainingTimeoutMs, cancellationToken, out string? startError))
                     return DDCCallOutcome<string[]>.Fail(startError ?? "DDC helper could not start.");
 
                 StreamWriter writer = _writer!;
@@ -152,7 +161,14 @@ internal sealed class DDCHelperClient : IDisposable
                     return DDCCallOutcome<string[]>.Fail($"DDC helper reply read failed: {ex.Message}");
                 }
 
-                int effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : Timeout.Infinite;
+                int effectiveTimeoutMs = GetRemainingTimeoutMs(timeoutMs, startTimestamp);
+                if (effectiveTimeoutMs == 0)
+                {
+                    StopHelperProcess(kill: true, sendExit: false);
+                    return DDCCallOutcome<string[]>.WithError(
+                        $"DDC op '{opLabel}' exceeded {timeoutMs}ms end-to-end timeout; helper process killed.");
+                }
+
                 try
                 {
                     if (!readTask.Wait(effectiveTimeoutMs, cancellationToken))
@@ -204,7 +220,10 @@ internal sealed class DDCHelperClient : IDisposable
         return DDCCallOutcome<string[]>.Fail("DDC helper failed after retry.");
     }
 
-    private bool EnsureStarted(out string? error)
+    private bool EnsureStarted(
+        int timeoutMs,
+        CancellationToken cancellationToken,
+        out string? error)
     {
         error = null;
         if (_disposed)
@@ -262,8 +281,11 @@ internal sealed class DDCHelperClient : IDisposable
             _process = process;
             _pipe = pipe;
 
-            Task connectTask = pipe.WaitForConnectionAsync();
-            if (!connectTask.Wait(HelperConnectTimeoutMs))
+            Task connectTask = pipe.WaitForConnectionAsync(cancellationToken);
+            int connectTimeoutMs = timeoutMs > 0
+                ? Math.Min(HelperConnectTimeoutMs, timeoutMs)
+                : HelperConnectTimeoutMs;
+            if (!connectTask.Wait(connectTimeoutMs, cancellationToken))
             {
                 error = "DDC helper did not connect to its command pipe.";
                 StopHelperProcess(kill: true, sendExit: false);
@@ -289,6 +311,14 @@ internal sealed class DDCHelperClient : IDisposable
 
             return false;
         }
+    }
+
+    private static int GetRemainingTimeoutMs(int timeoutMs, long startTimestamp)
+    {
+        if (timeoutMs <= 0) return Timeout.Infinite;
+
+        long elapsedMs = (long)Math.Ceiling(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+        return (int)Math.Max(0, timeoutMs - elapsedMs);
     }
 
     private void StopHelperProcess(bool kill, bool sendExit)

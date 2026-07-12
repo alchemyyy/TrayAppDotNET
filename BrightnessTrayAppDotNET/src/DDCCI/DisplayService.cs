@@ -24,8 +24,11 @@ namespace BrightnessTrayAppDotNET.DDCCI;
 public class DisplayService : IDisplayService, IDisposable
 {
     private readonly bool _useHelperProcess;
-    private readonly DDCHelperClient? _helperClient;
-    private bool _disposed;
+    // One helper process per stable monitor identity. A blocked driver call can therefore time out and kill only
+    // that monitor's helper instead of holding the single pipe lock in front of every other panel.
+    private readonly Dictionary<string, DDCHelperClient>? _helperClients;
+    private readonly Lock _helperClientsGate = new();
+    private volatile bool _disposed;
 
     public DisplayService() : this(useHelperProcess: true) { }
 
@@ -33,7 +36,7 @@ public class DisplayService : IDisplayService, IDisposable
     {
         _useHelperProcess = useHelperProcess;
         if (useHelperProcess)
-            _helperClient = new DDCHelperClient();
+            _helperClients = new Dictionary<string, DDCHelperClient>(StringComparer.OrdinalIgnoreCase);
     }
 
     /// <inheritdoc />
@@ -41,10 +44,20 @@ public class DisplayService : IDisplayService, IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
+        List<DDCHelperClient> helperClients = [];
+        lock (_helperClientsGate)
+        {
+            if (_disposed) return;
 
-        _disposed = true;
-        _helperClient?.Dispose();
+            _disposed = true;
+            if (_helperClients == null) return;
+
+            helperClients.AddRange(_helperClients.Values);
+            _helperClients.Clear();
+        }
+
+        foreach (DDCHelperClient helperClient in helperClients)
+            helperClient.Dispose();
     }
 
     public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
@@ -75,7 +88,7 @@ public class DisplayService : IDisplayService, IDisposable
                 monitor.DeviceID = ResolveDeviceID(monitor.Name);
                 monitor.DisplayInstancePath = ResolveDisplayInstancePath(monitor.Name);
 
-                byte[]? edid = ReadEDID(monitor.Name);
+                byte[]? edid = ReadEDID(monitor.DisplayInstancePath);
                 if (edid != null)
                 {
                     monitor.EDIDSerial = EDIDParser.ExtractSerial(edid);
@@ -107,18 +120,16 @@ public class DisplayService : IDisplayService, IDisposable
     }
 
     /// <summary>
-    /// Reads the EDID block for the monitor attached to the given adapter
+    /// Reads the EDID block for the given display instance path
     /// from <c>HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY\...\Device Parameters</c>.
-    /// Uses <c>EnumDisplayDevices</c> with <c>EDD_GET_DEVICE_INTERFACE_NAME</c> so the returned DeviceID
-    /// is the device-interface path: the same instance path Windows uses for the Enum subtree,
-    /// just with <c>#</c> separators instead of <c>\</c>.
+    /// The caller reuses the path already resolved for monitor identity so EDID lookup does not repeat
+    /// <c>EnumDisplayDevices</c>.
     /// Returns null when path or key is missing; EDID is optional, not load-bearing.
     /// </summary>
-    private static byte[]? ReadEDID(string adapterName)
+    private static byte[]? ReadEDID(string displayInstancePath)
     {
-        string regPath = ResolveDisplayInstancePath(adapterName);
-        if (string.IsNullOrEmpty(regPath)) return null;
-        string keyPath = $@"SYSTEM\CurrentControlSet\Enum\{regPath}\Device Parameters";
+        if (string.IsNullOrEmpty(displayInstancePath)) return null;
+        string keyPath = $@"SYSTEM\CurrentControlSet\Enum\{displayInstancePath}\Device Parameters";
 
         try
         {
@@ -127,7 +138,7 @@ public class DisplayService : IDisplayService, IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayService.ReadEDID: failed for '{adapterName}': {ex.Message}");
+            WPFLog.Log($"DisplayService.ReadEDID: failed for '{displayInstancePath}': {ex.Message}");
             return null;
         }
     }
@@ -502,7 +513,7 @@ public class DisplayService : IDisplayService, IDisposable
             string adapterName = new string(info.szDevice).TrimEnd('\0');
             string deviceID = ResolveDeviceID(adapterName);
             string displayInstancePath = ResolveDisplayInstancePath(adapterName);
-            byte[]? edid = ReadEDID(adapterName);
+            byte[]? edid = ReadEDID(displayInstancePath);
             string serial = edid == null ? string.Empty : EDIDParser.ExtractSerial(edid);
             string manufacturer = edid == null ? string.Empty : EDIDParser.ExtractManufacturerID(edid);
             string product = string.Empty;
@@ -576,8 +587,8 @@ public class DisplayService : IDisplayService, IDisposable
     }
 
     /// <summary>
-    /// Runs <paramref name="op"/> through the DDC helper process when hard timeouts are enabled.
-    /// If a dxva2 call hangs, the helper process is killed and Windows releases that process's
+    /// Runs <paramref name="op"/> through the monitor's DDC helper process when hard timeouts are enabled.
+    /// If a dxva2 call hangs, only that per-monitor helper is killed and Windows releases that process's
     /// <c>PHYSICAL_MONITOR</c> handles. The tray process no longer abandons a blocked thread that
     /// owns native monitor handles.
     ///
@@ -598,9 +609,21 @@ public class DisplayService : IDisplayService, IDisposable
             return DDCCallOutcome<T>.WithError($"DDC op '{opLabel}' cancelled by sequence deadline.");
 
         int timeoutMs = OperationTimeoutMs;
-        if (_useHelperProcess && timeoutMs > 0 && _helperClient != null && helperOp != null)
+        if (_useHelperProcess && timeoutMs > 0 && _helperClients != null && helperOp != null)
         {
-            try { return helperOp(_helperClient, timeoutMs, ct); }
+            DDCHelperClient helperClient;
+            lock (_helperClientsGate)
+            {
+                if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
+                string helperClientKey = BuildHelperClientKey(monitor);
+                if (!_helperClients.TryGetValue(helperClientKey, out helperClient!))
+                {
+                    helperClient = new DDCHelperClient();
+                    _helperClients.Add(helperClientKey, helperClient);
+                }
+            }
+
+            try { return helperOp(helperClient, timeoutMs, ct); }
             catch (Exception ex)
             {
                 WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
@@ -617,6 +640,14 @@ public class DisplayService : IDisplayService, IDisposable
             WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
             return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
         }
+    }
+
+    private static string BuildHelperClientKey(DDCMonitor monitor)
+    {
+        if (!string.IsNullOrEmpty(monitor.DeviceID)) return "device:" + monitor.DeviceID;
+        if (!string.IsNullOrEmpty(monitor.DisplayInstancePath)) return "instance:" + monitor.DisplayInstancePath;
+        if (!string.IsNullOrEmpty(monitor.EDIDSerial)) return "edid:" + monitor.EDIDSerial;
+        return "name:" + monitor.Name;
     }
 
     /// <summary>

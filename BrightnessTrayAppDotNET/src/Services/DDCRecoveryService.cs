@@ -4,8 +4,8 @@ namespace BrightnessTrayAppDotNET.Services;
 /// Event-triggered final fallback for DDC acquisition failures.
 /// Healthy state is fully event-driven and no worker runs. When MonitorService reports a failed or
 /// read-degraded known-DDC row, this service sets one global DDC recovery flag and starts a single
-/// background loop. The loop performs targeted handle refresh/re-probe attempts every two seconds
-/// and follows with the normal read-only Refresh acquisition path while candidates remain.
+/// background loop. The loop performs targeted fresh-enumeration/re-probe attempts every two seconds
+/// while candidates remain. Healthy rows are never swept as collateral recovery traffic.
 /// </summary>
 public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposable
 {
@@ -91,7 +91,7 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
                     $"DDCRecoveryService: acquisition retry for {candidates.Count} candidate(s): "
                     + string.Join(", ", candidates));
 
-                await RunDDCAcquisitionPassAsync(candidates, token).ConfigureAwait(false);
+                await RunTargetedRecoveryPassAsync(candidates, token).ConfigureAwait(false);
 
                 if (GetDDCRecoveryCandidateIDs().Count == 0)
                 {
@@ -124,7 +124,7 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
         }
     }
 
-    private async Task RunDDCAcquisitionPassAsync(List<string> candidates, CancellationToken token)
+    private async Task RunTargetedRecoveryPassAsync(List<string> candidates, CancellationToken token)
     {
         foreach (string id in candidates)
         {
@@ -133,7 +133,7 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
             try
             {
                 bool recovered = await Task.Run(
-                        () => monitorService.TryRecoverMonitor(id, DDCRecoveryAction.RefreshHandle),
+                        () => monitorService.TryRecoverMonitor(id),
                         token)
                     .ConfigureAwait(false);
                 WPFLog.Log($"DDCRecoveryService: targeted retry '{id}' result={recovered}");
@@ -143,13 +143,6 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
                 WPFLog.Log($"DDCRecoveryService: targeted retry '{id}' failed: {ex.Message}");
             }
         }
-
-        token.ThrowIfCancellationRequested();
-
-        if (GetDDCRecoveryCandidateIDs().Count == 0) return;
-
-        WPFLog.Log("DDCRecoveryService: targeted retries left candidates; requesting full Refresh acquisition");
-        monitorService.Refresh();
     }
 
     private List<string> GetDDCRecoveryCandidateIDs()

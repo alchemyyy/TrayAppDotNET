@@ -207,9 +207,9 @@ public class KnownDisplayEntry
     public bool WasEverDDCCapable { get; set; }
 
     /// <summary>
-    /// Last value successfully written to this display's DDC brightness VCP (0-100, null = never written).
-    /// Stamped from <see cref="Services.MonitorService.DoBrightnessWriteAsync"/> after a successful bus write,
-    /// so it captures whatever the user actually sees on screen regardless of who drove it
+    /// Last value acknowledged by a read-back from this display's DDC brightness VCP (0-100, null = never verified).
+    /// Stamped from <c>MonitorService</c> only after the current target reads back within tolerance,
+    /// so it captures confirmed hardware state regardless of who drove it
     /// (slider drag, master propagation, profile load, environmental curve, etc.).
     /// Kept for diagnostics/history. Acquisition no longer hydrates <see cref="MonitorInfo.Brightness"/>
     /// from this value; startup, topology, and fallback recovery read current DDC first, then UI/profile
@@ -281,10 +281,9 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public int ValidationDwellMs { get; set; } = TimeConstants.ValidationDwellDefaultMs;
 
     /// <summary>
-    /// Number of read attempts <c>MonitorService.TryReadBrightnessWithRetry</c> makes before giving up on
-    /// a monitor's DDC/CI link.
-    /// Each subsequent attempt waits one <see cref="ValidationDwellMs"/> before re-reading;
-    /// the final attempt also refreshes the cached HMONITOR as a last-ditch escalation against stale handles.
+    /// Number of attempts the acquisition-read, brightness-write, and write-verification loops make before giving up.
+    /// Acquisition reads use the fixed responsive backoff sequence in <c>TimeConstants</c>. Write and verification
+    /// retries ramp to <see cref="ValidationDwellMs"/>; the final acquisition attempt also refreshes HMONITOR.
     /// Higher = more tolerant of transient I2C noise / DPMS-wake races;
     /// lower = faster failure for genuinely stuck monitors.
     /// </summary>
@@ -292,10 +291,9 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
 
     /// <summary>
     /// Maximum wall-clock time any single dxva2-backed call (capability fetch, VCP read, VCP write) is allowed to
-    /// block before the wrapper returns failure to the caller and abandons the wait.
-    /// The abandoned dxva2 call still finishes naturally on a threadpool thread so its physical monitor handles
-    /// are released - only the synchronous wait is cut short.
-    /// Defends against driver-layer hangs that would otherwise pile up threads forever and block app shutdown.
+    /// block end to end, including helper startup and pipe wait, before the per-monitor helper process is killed.
+    /// Killing the helper releases its physical monitor handles without abandoning a blocked native thread in the
+    /// tray process. Other monitors use independent helpers and remain responsive.
     /// Zero or negative disables the wrapper (calls block forever, matching the unwrapped contract).
     /// </summary>
     public int DDCOperationTimeoutMs { get; set; } = TimeConstants.DDCOperationTimeoutDefaultMs;

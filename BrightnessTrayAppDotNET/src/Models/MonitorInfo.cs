@@ -385,8 +385,8 @@ public class MonitorInfo : INotifyPropertyChanged
 
     /// <summary>
     /// Whether the monitor is powered on.
-    /// Managed by <see cref="Services.MonitorService.SetPowerStateAsync"/> after a successful VCP 0xD6 write,
-    /// so it reflects the hardware's last-known state.
+    /// Managed by <see cref="Services.MonitorService.SetPowerStateAsync"/> after a transport-accepted power VCP write.
+    /// This is optimistic state because hard-off leaves the DDC bus and power replies are not verified.
     /// </summary>
     public bool IsPoweredOn
     {
@@ -712,13 +712,11 @@ public class MonitorInfo : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Asymmetric DDC health: most recent read failed but a confirmatory write probe succeeded,
-    /// so the monitor's write half is still alive even though its reply pipeline is wedged.
-    /// Independent of <see cref="IsFailed"/> - the slider stays operable in this state because
-    /// brightness writes will still land; the UI just shows an informational glyph and routes
-    /// power-off to Ctrl+click instead of plain click. Cleared by <c>MonitorService.PromoteRecovered</c>
-    /// when reads come back, and only set when targeted recovery's write probe positively
-    /// confirms the write half.
+    /// Asymmetric DDC compatibility state: reads failed but the monitor accepted a write transport request.
+    /// Transport acceptance cannot prove application without a reply, so the slider remains available only as
+    /// explicit best-effort behavior. Every normal write still attempts read-back and unconfirmed values are not
+    /// persisted. The UI shows an informational glyph and routes power-off to Ctrl+click instead of plain click.
+    /// Cleared by <c>MonitorService.PromoteRecovered</c> when reads return.
     /// </summary>
     public bool IsReadDegraded
     {

@@ -109,8 +109,7 @@ public sealed class AsyncThrottler<TKey>(
             }
 
             if (active == 0) return;
-            try { await Task.Delay(_drainPollIntervalMs, cancellationToken).ConfigureAwait(false); }
-            catch (OperationCanceledException) { return; }
+            await Task.Delay(_drainPollIntervalMs, cancellationToken).ConfigureAwait(false);
         }
     }
 

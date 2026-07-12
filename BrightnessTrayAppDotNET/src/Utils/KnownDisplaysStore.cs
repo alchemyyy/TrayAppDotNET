@@ -329,9 +329,9 @@ public sealed class KnownDisplaysStore : IDisposable
     };
 
     /// <summary>
-    /// Records the last value successfully written to <paramref name="edidKey"/>'s DDC brightness
-    /// VCP and schedules a debounced save. Captures the *bus* value (what the user sees on screen),
-    /// regardless of which writer drove it - slider drag, master propagation, profile load, curve.
+    /// Records the last value confirmed by matching read-back from <paramref name="edidKey"/>'s brightness
+    /// VCP and schedules a debounced save. Captures acknowledged bus state regardless of which writer drove it
+    /// - slider drag, master propagation, profile load, or curve.
     /// No-op when the key is unknown - we only stamp displays we've already Register()-ed.
     /// </summary>
     public void StampLastBusBrightness(string edidKey, double value)

@@ -103,4 +103,6 @@ public abstract class TimeConstants : CommonTimeConstants
 
     // DDC write retry
     public const int MonitorWriteRetryBaseMs = 25;
+    public const int MonitorInitialVerificationDwellMaxMs = 50;
+    public const int BrightnessTargetSupersessionPollIntervalMs = 10;
 }
