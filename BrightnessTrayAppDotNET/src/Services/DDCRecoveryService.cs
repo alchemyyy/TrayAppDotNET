@@ -4,10 +4,13 @@ namespace BrightnessTrayAppDotNET.Services;
 /// Event-triggered final fallback for DDC acquisition failures.
 /// Healthy state is fully event-driven and no worker runs. When MonitorService reports a failed or
 /// read-degraded known-DDC row, this service sets one global DDC recovery flag and starts a single
-/// background loop. The loop performs targeted fresh-enumeration/re-probe attempts every two seconds
-/// while candidates remain. Healthy rows are never swept as collateral recovery traffic.
+/// background loop. The loop performs one immediate targeted pass, then fresh-enumeration/re-probe attempts every
+/// two seconds while candidates remain. Independent monitor candidates run concurrently; healthy rows are never
+/// swept as collateral recovery traffic.
 /// </summary>
-public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposable
+public sealed class DDCRecoveryService(
+    MonitorService monitorService,
+    int retryIntervalMs = TimeConstants.DDCRecoveryRetryIntervalMs) : IDisposable
 {
     private readonly Lock _gate = new();
     private readonly Lock _candidateLogLock = new();
@@ -29,21 +32,32 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
 
         _started = true;
         monitorService.MonitorsRefreshed += OnMonitorsRefreshed;
+        monitorService.DDCRecoveryRequested += OnDDCRecoveryRequested;
+        WPFLog.Log("DDCRecoveryService: started");
 
-        if (GetDDCRecoveryCandidateIDs().Count > 0) SignalDDCRecoveryNeeded();
+        if (TryGetDDCRecoveryCandidateIDs(out List<string> candidates) && candidates.Count > 0)
+            SignalDDCRecoveryNeeded();
     }
 
     private void OnMonitorsRefreshed()
     {
         if (_disposed) return;
 
-        List<string> candidates = GetDDCRecoveryCandidateIDs();
+        if (!TryGetDDCRecoveryCandidateIDs(out List<string> candidates)) return;
         LogCandidateTransitions(candidates);
 
         if (candidates.Count > 0)
             SignalDDCRecoveryNeeded();
         else
             ClearDDCRecoveryNeeded();
+    }
+
+    private void OnDDCRecoveryRequested(string monitorID)
+    {
+        if (_disposed) return;
+
+        WPFLog.Log($"DDCRecoveryService: direct recovery request '{monitorID}'");
+        SignalDDCRecoveryNeeded();
     }
 
     /// <summary>
@@ -75,12 +89,18 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
 
         try
         {
+            bool firstPass = true;
             while (!token.IsCancellationRequested && Volatile.Read(ref _DDCRecoveryNeeded) == 1)
             {
-                await Task.Delay(TimeConstants.DDCRecoveryRetryIntervalMs, token).ConfigureAwait(false);
-                if (token.IsCancellationRequested) break;
+                if (!firstPass)
+                {
+                    await Task.Delay(Math.Max(1, retryIntervalMs), token).ConfigureAwait(false);
+                    if (token.IsCancellationRequested) break;
+                }
 
-                List<string> candidates = GetDDCRecoveryCandidateIDs();
+                firstPass = false;
+
+                if (!TryGetDDCRecoveryCandidateIDs(out List<string> candidates)) continue;
                 if (candidates.Count == 0)
                 {
                     ClearDDCRecoveryNeeded();
@@ -93,7 +113,8 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
 
                 await RunTargetedRecoveryPassAsync(candidates, token).ConfigureAwait(false);
 
-                if (GetDDCRecoveryCandidateIDs().Count == 0)
+                if (!TryGetDDCRecoveryCandidateIDs(out List<string> remainingCandidates)) continue;
+                if (remainingCandidates.Count == 0)
                 {
                     ClearDDCRecoveryNeeded();
                     break;
@@ -107,8 +128,6 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
         catch (Exception ex)
         {
             WPFLog.Log($"DDCRecoveryService.RunDDCRecoveryWorkerAsync: {ex.Message}");
-            if (!_disposed && GetDDCRecoveryCandidateIDs().Count > 0)
-                SignalDDCRecoveryNeeded();
         }
         finally
         {
@@ -118,24 +137,29 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
             WPFLog.Log("DDCRecoveryService: fallback worker stopped");
 
             if (!_disposed
-                && Volatile.Read(ref _DDCRecoveryNeeded) == 1
-                && GetDDCRecoveryCandidateIDs().Count > 0)
+                && Volatile.Read(ref _DDCRecoveryNeeded) == 1)
                 SignalDDCRecoveryNeeded();
         }
     }
 
     private async Task RunTargetedRecoveryPassAsync(List<string> candidates, CancellationToken token)
     {
-        foreach (string id in candidates)
+        List<Task> recoveryTasks = [];
+        foreach (string id in candidates.Distinct(StringComparer.Ordinal))
         {
             token.ThrowIfCancellationRequested();
+            recoveryTasks.Add(Task.Run(() => RecoverCandidate(id), token));
+        }
 
+        await Task.WhenAll(recoveryTasks).ConfigureAwait(false);
+
+        return;
+
+        void RecoverCandidate(string id)
+        {
             try
             {
-                bool recovered = await Task.Run(
-                        () => monitorService.TryRecoverMonitor(id),
-                        token)
-                    .ConfigureAwait(false);
+                bool recovered = monitorService.TryRecoverMonitor(id);
                 WPFLog.Log($"DDCRecoveryService: targeted retry '{id}' result={recovered}");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -145,13 +169,18 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
         }
     }
 
-    private List<string> GetDDCRecoveryCandidateIDs()
+    private bool TryGetDDCRecoveryCandidateIDs(out List<string> candidates)
     {
-        try { return monitorService.GetStuckRecoveryCandidateIDs(); }
+        try
+        {
+            candidates = monitorService.GetStuckRecoveryCandidateIDs();
+            return true;
+        }
         catch (Exception ex)
         {
             WPFLog.Log($"DDCRecoveryService: candidate snapshot failed: {ex.Message}");
-            return [];
+            candidates = [];
+            return false;
         }
     }
 
@@ -185,7 +214,11 @@ public sealed class DDCRecoveryService(MonitorService monitorService) : IDisposa
         _disposed = true;
         ClearDDCRecoveryNeeded();
 
-        if (_started) monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
+        if (_started)
+        {
+            monitorService.MonitorsRefreshed -= OnMonitorsRefreshed;
+            monitorService.DDCRecoveryRequested -= OnDDCRecoveryRequested;
+        }
 
         CancellationTokenSource? workerCts;
         Task? worker;

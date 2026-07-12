@@ -647,6 +647,323 @@ public sealed class MonitorRecoveryTests
             $"New target waited {stopwatch.ElapsedMilliseconds} ms behind obsolete validation dwell.");
     }
 
+    [Fact]
+    public async Task RecoveryWorkerRotatesPoisonedTransportUntilMonitorRecovers()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-RECOVERY";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 21, serial: "HDMI-RECOVERY"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        using DDCRecoveryService recoveryService = new(service, retryIntervalMs: 20);
+        recoveryService.Start();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        display.ConfigureRecoveryAfterTransportResets(DeviceID, resetCount: 3, current: 55, max: 100);
+        service.Refresh();
+
+        await WaitUntil(
+            () => service.Monitors[0] is { IsHardwareFunctional: true, RoundedBrightness: 55 }
+                  && display.GetTransportResetCount(DeviceID) >= 3,
+            timeoutMs: 3000);
+
+        Assert.False(service.Monitors[0].IsReadDegraded);
+        Assert.Null(service.Monitors[0].LastDDCError);
+    }
+
+    [Fact]
+    public async Task RecoveryWorkerReplaysLatestManualTargetWithoutFlyoutSubscriber()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-REPLAY";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 22, serial: "HDMI-REPLAY"));
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        using DDCRecoveryService recoveryService = new(service, retryIntervalMs: 20);
+        recoveryService.Start();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 42);
+
+        display.ConfigureWriteFailures(1);
+        monitor.Brightness = 70;
+
+        await WaitUntil(
+            () => monitor.IsHardwareFunctional && display.GetCurrentValue(DeviceID) == 70,
+            timeoutMs: 3000);
+
+        Assert.True(display.GetTransportResetCount(DeviceID) >= 1);
+        Assert.Null(monitor.LastDDCError);
+    }
+
+    [Fact]
+    public async Task RefreshPromotionReplaysLatestManualTargetWithoutAcquisitionEvent()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-REFRESH-REPLAY";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(
+            deviceID: DeviceID,
+            displayNumber: 30,
+            serial: "HDMI-REFRESH-REPLAY"));
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 42);
+
+        display.SetRead(DeviceID, ok: false, error: "temporary refresh failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        display.SetRead(DeviceID, ok: true, current: 20, max: 100);
+        service.Refresh();
+
+        await WaitUntil(
+            () => monitor.IsHardwareFunctional && display.GetCurrentValue(DeviceID) == 42,
+            timeoutMs: 3000);
+    }
+
+    [Fact]
+    public async Task CandidateSnapshotFailureDoesNotStopRequestedRecovery()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-SNAPSHOT";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 29, serial: "HDMI-SNAPSHOT"));
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        InlineMonitorServiceDispatcher dispatcher = new();
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            dispatcher: dispatcher);
+        using DDCRecoveryService recoveryService = new(service, retryIntervalMs: 20);
+        recoveryService.Start();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        display.ConfigureWriteFailures(1);
+        dispatcher.FailNextGenericInvoke();
+        service.Monitors[0].Brightness = 68;
+
+        await WaitUntil(
+            () => service.Monitors[0].IsHardwareFunctional && display.GetCurrentValue(DeviceID) == 68,
+            timeoutMs: 3000);
+
+        Assert.Null(service.Monitors[0].LastDDCError);
+    }
+
+    [Fact]
+    public async Task VerificationReadFailuresDoNotFloodHDMIWithReapplyWrites()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-QUIET";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 23, serial: "HDMI-QUIET"));
+        display.SetRead(DeviceID, ok: true, current: 45, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 3,
+            validationDwellMs: 30);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        display.SetRead(DeviceID, ok: false, error: "simulated HDMI checksum failure");
+        service.Monitors[0].Brightness = 70;
+
+        await WaitUntil(() => service.Monitors[0].IsFailed);
+
+        Assert.Equal(1, display.SetVcpCalls);
+        Assert.Equal(3, display.GetTransportResetCount(DeviceID));
+    }
+
+    [Fact]
+    public async Task HDMITransportResetDoesNotRecycleHealthyDisplayPortTransport()
+    {
+        const string HDMIID = "DISPLAY\\HDMI-FAULT";
+        const string DisplayPortID = "DISPLAY\\DP-HEALTHY";
+        FakeDisplayService display = new();
+        display.SetMonitors(
+            CreateMonitor(deviceID: HDMIID, displayNumber: 27, serial: "HDMI-FAULT"),
+            CreateMonitor(deviceID: DisplayPortID, displayNumber: 28, serial: "DP-HEALTHY"));
+        display.SetRead(HDMIID, ok: true, current: 50, max: 100);
+        display.SetRead(DisplayPortID, ok: true, current: 50, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        await WaitUntil(() => service.Monitors.Count == 2 && service.Monitors.All(m => m.IsHardwareFunctional));
+
+        display.SetRead(HDMIID, ok: false, error: "simulated HDMI transport failure");
+        service.Refresh();
+        await WaitUntil(() => service.Monitors.Single(m => m.EDIDSerial == "HDMI-FAULT").IsFailed);
+
+        Assert.True(service.Monitors.Single(m => m.EDIDSerial == "DP-HEALTHY").IsHardwareFunctional);
+        Assert.Equal(1, display.GetTransportResetCount(HDMIID));
+        Assert.Equal(0, display.GetTransportResetCount(DisplayPortID));
+    }
+
+    [Fact]
+    public async Task TargetedRecoveryUsesRetainedDisplayInstancePathAfterHDMIIdentityDrift()
+    {
+        const string DisplayInstancePath = @"DISPLAY\TST0001\HDMI_INSTANCE";
+        FakeDisplayService display = new();
+        DDCMonitor initial = CreateMonitor(
+            deviceID: "DISPLAY\\HDMI-OLD",
+            displayNumber: 1,
+            serial: string.Empty);
+        initial.DisplayInstancePath = DisplayInstancePath;
+        display.SetMonitors(initial);
+        display.SetRead("DISPLAY\\HDMI-OLD", ok: true, current: 40, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.DisplayNumber,
+            validationAttempts: 1);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        display.SetRead("DISPLAY\\HDMI-OLD", ok: false, error: "link retraining");
+        service.Refresh();
+        await WaitUntil(() => service.Monitors[0].IsFailed);
+
+        DDCMonitor retrained = CreateMonitor(
+            deviceID: "DISPLAY\\HDMI-NEW",
+            displayNumber: 7,
+            serial: string.Empty,
+            name: @"\\.\DISPLAY7");
+        retrained.DisplayInstancePath = DisplayInstancePath;
+        display.SetMonitors(retrained);
+        display.SetRead("DISPLAY\\HDMI-NEW", ok: true, current: 65, max: 100);
+
+        bool recovered = service.TryRecoverMonitor("num:1");
+
+        Assert.True(recovered);
+        Assert.True(service.Monitors[0].IsHardwareFunctional);
+        Assert.Equal(7, service.Monitors[0].DisplayNumber);
+        Assert.Equal("num:1", service.Monitors[0].ID);
+    }
+
+    [Fact]
+    public async Task PerMonitorBrightnessDwellDoesNotDelayOtherDisplays()
+    {
+        const string HDMIID = "DISPLAY\\HDMI-SLOW";
+        const string DisplayPortID = "DISPLAY\\DP-FAST";
+        FakeDisplayService display = new();
+        display.SetMonitors(
+            CreateMonitor(deviceID: HDMIID, displayNumber: 24, serial: "HDMI-SLOW"),
+            CreateMonitor(deviceID: DisplayPortID, displayNumber: 25, serial: "DP-FAST"));
+        display.SetRead(HDMIID, ok: true, current: 50, max: 100);
+        display.SetRead(DisplayPortID, ok: true, current: 50, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            configureSettings: settings =>
+            {
+                settings.MonitorOverrides.Add(new MonitorOverrideEntry
+                {
+                    ID = "edid:HDMI-SLOW",
+                    BrightnessDwellMs = 1_000
+                });
+                settings.MonitorOverrides.Add(new MonitorOverrideEntry
+                {
+                    ID = "edid:DP-FAST",
+                    BrightnessDwellMs = 0
+                });
+            });
+        await WaitUntil(() => service.Monitors.Count == 2 && service.Monitors.All(m => m.IsHardwareFunctional));
+
+        MonitorInfo HDMI = service.Monitors.Single(m => m.EDIDSerial == "HDMI-SLOW");
+        MonitorInfo displayPort = service.Monitors.Single(m => m.EDIDSerial == "DP-FAST");
+        HDMI.Brightness = 10;
+        await WaitUntil(() => display.GetCurrentValue(HDMIID) == 10);
+
+        HDMI.Brightness = 20;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        displayPort.Brightness = 30;
+        await WaitUntil(() => display.GetCurrentValue(DisplayPortID) == 30, timeoutMs: 750);
+
+        Assert.True(stopwatch.ElapsedMilliseconds < 750);
+        Assert.NotEqual((uint)20, display.GetCurrentValue(HDMIID));
+        await WaitUntil(() => display.GetCurrentValue(HDMIID) == 20, timeoutMs: 2500);
+    }
+
+    [Fact]
+    public async Task RecoveryPreservesDisabledUserIntent()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-DISABLED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 26, serial: "HDMI-DISABLED"));
+        display.SetRead(DeviceID, ok: true, current: 50, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.SliderState = SliderState.Disabled;
+        display.SetRead(DeviceID, ok: false, error: "temporary failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        display.SetRead(DeviceID, ok: true, current: 55, max: 100);
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+
+        Assert.Equal(SliderState.Disabled, monitor.SliderState);
+        Assert.False(monitor.IsParticipatingInMaster);
+    }
+
+    [Fact]
+    public async Task RecoveryPreservesReleasedCurveIntent()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-RELEASED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 31, serial: "HDMI-RELEASED"));
+        display.SetRead(DeviceID, ok: true, current: 50, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.SliderState = SliderState.CurveReleased;
+        display.SetRead(DeviceID, ok: false, error: "temporary failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        display.SetRead(DeviceID, ok: true, current: 55, max: 100);
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+
+        Assert.Equal(SliderState.CurveReleased, monitor.SliderState);
+        Assert.True(monitor.IsParticipatingInMaster);
+    }
+
     private static MonitorService CreateService(
         FakeDisplayService display,
         MonitorIdentityStrategy strategy,
@@ -654,7 +971,8 @@ public sealed class MonitorRecoveryTests
         bool brightnessCurveEnabled = false,
         int validationDwellMs = 0,
         KnownDisplaysStore? knownDisplays = null,
-        Action<AppSettings>? configureSettings = null)
+        Action<AppSettings>? configureSettings = null,
+        InlineMonitorServiceDispatcher? dispatcher = null)
     {
         AppSettings settings = new()
         {
@@ -671,7 +989,7 @@ public sealed class MonitorRecoveryTests
             Path.GetTempPath(),
             "BrightnessTrayAppDotNET.Tests",
             $"{Guid.NewGuid():N}.displays.json"));
-        return new MonitorService(display, settings, store, new InlineMonitorServiceDispatcher());
+        return new MonitorService(display, settings, store, dispatcher ?? new InlineMonitorServiceDispatcher());
     }
 
     private static DDCMonitor CreateMonitor(
@@ -710,10 +1028,20 @@ public sealed class MonitorRecoveryTests
 
     private sealed class InlineMonitorServiceDispatcher : IMonitorServiceDispatcher
     {
+        private int _failNextGenericInvoke;
+
+        public void FailNextGenericInvoke() => Interlocked.Exchange(ref _failNextGenericInvoke, 1);
+
         public bool CheckAccess() => true;
         public void Post(Action action) => action();
         public void Invoke(Action action) => action();
-        public T Invoke<T>(Func<T> action) => action();
+        public T Invoke<T>(Func<T> action)
+        {
+            if (Interlocked.Exchange(ref _failNextGenericInvoke, 0) == 1)
+                throw new InvalidOperationException("simulated dispatcher snapshot failure");
+
+            return action();
+        }
     }
 
     private sealed class FakeDisplayService : IDisplayService
@@ -722,6 +1050,9 @@ public sealed class MonitorRecoveryTests
         private readonly Dictionary<string, VcpRead> _reads = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _readFailuresRemaining = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string?> _readFailureErrors = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _transportResetCounts = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _transportResetsUntilRecovery = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, VcpRead> _readsAfterTransportRecovery = new(StringComparer.Ordinal);
         private readonly List<uint> _readValues = [];
         private readonly List<byte> _getVCPFeatureCodes = [];
         private readonly List<(byte Code, uint Value)> _setVCPFeatureCalls = [];
@@ -758,6 +1089,26 @@ public sealed class MonitorRecoveryTests
         {
             lock (_gate)
                 _writesToFail = Math.Max(0, writesToFail);
+        }
+
+        public void ConfigureRecoveryAfterTransportResets(
+            string key,
+            int resetCount,
+            uint current,
+            uint max)
+        {
+            lock (_gate)
+            {
+                _reads[key] = new VcpRead(false, 0, 0, "simulated poisoned transport");
+                _transportResetsUntilRecovery[key] = Math.Max(1, resetCount);
+                _readsAfterTransportRecovery[key] = new VcpRead(true, current, max, null);
+            }
+        }
+
+        public int GetTransportResetCount(string key)
+        {
+            lock (_gate)
+                return _transportResetCounts.TryGetValue(key, out int count) ? count : 0;
         }
 
         public bool HasReadValue(uint value)
@@ -930,6 +1281,27 @@ public sealed class MonitorRecoveryTests
             }
         }
 
+        public void ResetDDCTransport(DDCMonitor monitor)
+        {
+            lock (_gate)
+            {
+                string key = KeyFor(monitor);
+                _transportResetCounts[key] = GetTransportResetCountUnderLock(key) + 1;
+                if (!_transportResetsUntilRecovery.TryGetValue(key, out int remaining)) return;
+
+                remaining--;
+                if (remaining > 0)
+                {
+                    _transportResetsUntilRecovery[key] = remaining;
+                    return;
+                }
+
+                _transportResetsUntilRecovery.Remove(key);
+                if (_readsAfterTransportRecovery.Remove(key, out VcpRead recoveredRead))
+                    _reads[key] = recoveredRead;
+            }
+        }
+
         public bool RefreshHandle(DDCMonitor monitor)
         {
             lock (_gate)
@@ -957,6 +1329,9 @@ public sealed class MonitorRecoveryTests
             if (!string.IsNullOrEmpty(monitor.EDIDSerial)) return monitor.EDIDSerial;
             return monitor.Name;
         }
+
+        private int GetTransportResetCountUnderLock(string key) =>
+            _transportResetCounts.TryGetValue(key, out int count) ? count : 0;
 
         private static DDCMonitor Clone(DDCMonitor source)
         {

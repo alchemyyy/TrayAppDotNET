@@ -377,8 +377,14 @@ internal sealed class DDCHelperClient : IDisposable
 
         try
         {
-            if (!kill && !process.HasExited)
-                _ = process.WaitForExit(TimeConstants.ProcessExitDrainTimeoutMs);
+            if (!process.HasExited)
+            {
+                bool exited = process.WaitForExit(TimeConstants.ProcessExitDrainTimeoutMs);
+                if (!exited)
+                    WPFLog.Log(
+                        $"DDCHelperClient.StopHelperProcess: PID {process.Id} did not exit within "
+                        + $"{TimeConstants.ProcessExitDrainTimeoutMs}ms after {(kill ? "kill" : "disconnect")}");
+            }
         }
         catch (Exception ex)
         {
@@ -547,7 +553,7 @@ internal static class DDCHelperServer
             return Fail($"Malformed DDC helper identity: {ex.Message}");
         }
 
-        if (!TryResolveMonitor(displayService, identity, out DDCMonitor monitor, out string? resolveError))
+        if (!TryResolveMonitor(identity, out DDCMonitor monitor, out string? resolveError))
             return Fail(resolveError ?? "Monitor not found.");
 
         return fields[0] switch
@@ -603,7 +609,6 @@ internal static class DDCHelperServer
     }
 
     private static bool TryResolveMonitor(
-        DisplayService displayService,
         DDCHelperMonitorIdentity identity,
         out DDCMonitor monitor,
         out string? error)
@@ -611,7 +616,7 @@ internal static class DDCHelperServer
         monitor = null!;
         error = null;
 
-        if (!displayService.TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? enumError))
+        if (!DisplayService.TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? enumError))
         {
             error = "Monitor enumeration failed: " + enumError;
             return false;

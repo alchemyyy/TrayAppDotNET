@@ -14,7 +14,8 @@ public interface IDisplayService
 {
     /// <summary>
     /// Maximum wall-clock time any single dxva2-backed op (capability fetch, VCP read, VCP write) is allowed to block.
-    /// Zero or negative disables the wrapper (calls block forever, matching the unwrapped dxva2 contract).
+    /// Production clamps zero or negative values to a safe positive timeout. Unbounded inline execution is limited
+    /// to the killable helper process.
     /// The production implementation runs timed DDC calls in killable per-monitor helper processes so a timeout
     /// can release that helper's <c>PHYSICAL_MONITOR</c> handles without blocking unrelated monitors.
     /// Settable so <c>MonitorService</c> can flow user settings changes through.
@@ -59,6 +60,13 @@ public interface IDisplayService
     /// <paramref name="ct"/> is the optional sequence-level deadline (see <see cref="TryGetVCPCapabilities"/>).
     /// </summary>
     bool TrySetVCPFeature(DDCMonitor monitor, byte code, uint value, out string? error, CancellationToken ct = default);
+
+    /// <summary>
+    /// Discards process-local DDC transport state for one monitor.
+    /// Production kills and removes the monitor's helper process so the next operation starts with a fresh dxva2
+    /// process context. Implementations without persistent transport state may treat this as a no-op.
+    /// </summary>
+    void ResetDDCTransport(DDCMonitor monitor);
 
     /// <summary>
     /// Re-acquires the HMONITOR / HDC for an existing <see cref="DDCMonitor"/> by re-enumerating

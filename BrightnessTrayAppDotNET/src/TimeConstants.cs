@@ -42,6 +42,7 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int DisplayEventBurstIntervalMs = 1_000;
     public const int DisplayEventDebounceIntervalMs = 250;
     public const int DisplayServiceOperationTimeoutMs = 3_000;
+    public const int DDCOperationTimeoutSafetyFloorMs = 500;
 
     // Display identifier overlay
     public const int DisplayIdentifierDefaultDurationMs = 2_500;
@@ -91,7 +92,7 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int ValidationDwellMinMs = 0;
     public const int ValidationDwellMaxMs = 10_000;
     public const int DDCOperationTimeoutDefaultMs = 3_000;
-    public const int DDCOperationTimeoutMinMs = 0;
+    public const int DDCOperationTimeoutMinMs = DDCOperationTimeoutSafetyFloorMs;
     public const int DDCOperationTimeoutMaxMs = 60_000;
     public const int EnvironmentalCurveTickIntervalDefaultMs = 5_000;
     public const int AutoEngageEnvironmentalCurveDelayDefaultSeconds = 60;

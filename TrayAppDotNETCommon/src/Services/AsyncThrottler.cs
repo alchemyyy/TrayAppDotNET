@@ -22,7 +22,11 @@ public sealed class AsyncThrottler<TKey>(
         set => _cooldownMs = Math.Max(0, value);
     }
 
-    public Task RunAsync(TKey key, Func<ThrottlerContext, Task> payload, CancellationToken cancellationToken = default)
+    public Task RunAsync(
+        TKey key,
+        Func<ThrottlerContext, Task> payload,
+        CancellationToken cancellationToken = default,
+        int? cooldownOverrideMs = null)
     {
         ArgumentNullException.ThrowIfNull(payload);
 
@@ -51,6 +55,7 @@ public sealed class AsyncThrottler<TKey>(
 
             slot.NextPayload = payload;
             slot.NextCancellationToken = cancellationToken;
+            slot.NextCooldownOverrideMs = cooldownOverrideMs;
             slot.NextCompletionSource = completionSource;
             slot.ReplacementSignal.HasReplacement = true;
 
@@ -77,6 +82,7 @@ public sealed class AsyncThrottler<TKey>(
             droppedCompletionSource = slot.NextCompletionSource;
             slot.NextPayload = null;
             slot.NextCancellationToken = CancellationToken.None;
+            slot.NextCooldownOverrideMs = null;
             slot.NextCompletionSource = null;
             RemoveIdleSlotIfCurrent(key, slot);
         }
@@ -130,6 +136,7 @@ public sealed class AsyncThrottler<TKey>(
             {
                 throttleSlot.NextCompletionSource?.TrySetResult();
                 throttleSlot.NextPayload = null;
+                throttleSlot.NextCooldownOverrideMs = null;
                 throttleSlot.NextCompletionSource = null;
             }
 
@@ -149,6 +156,7 @@ public sealed class AsyncThrottler<TKey>(
         {
             Func<ThrottlerContext, Task>? payload;
             CancellationToken externalCancellationToken;
+            int? payloadCooldownOverrideMs;
             TaskCompletionSource? completionSource;
 
             lock (_gate)
@@ -162,9 +170,11 @@ public sealed class AsyncThrottler<TKey>(
 
                 payload = slot.NextPayload;
                 externalCancellationToken = slot.NextCancellationToken;
+                payloadCooldownOverrideMs = slot.NextCooldownOverrideMs;
                 completionSource = slot.NextCompletionSource;
                 slot.NextPayload = null;
                 slot.NextCancellationToken = CancellationToken.None;
+                slot.NextCooldownOverrideMs = null;
                 slot.NextCompletionSource = null;
                 slot.ReplacementSignal.HasReplacement = false;
             }
@@ -209,7 +219,9 @@ public sealed class AsyncThrottler<TKey>(
                 return;
             }
 
-            int cooldown = _cooldownMs;
+            int cooldown = payloadCooldownOverrideMs.HasValue
+                ? Math.Max(0, payloadCooldownOverrideMs.Value)
+                : _cooldownMs;
             if (cooldown > 0)
             {
                 try
@@ -242,6 +254,7 @@ public sealed class AsyncThrottler<TKey>(
     {
         public Func<ThrottlerContext, Task>? NextPayload;
         public CancellationToken NextCancellationToken;
+        public int? NextCooldownOverrideMs;
         public TaskCompletionSource? NextCompletionSource;
         public bool DriverRunning;
         public readonly ReplacementSignal ReplacementSignal = new();

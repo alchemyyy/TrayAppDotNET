@@ -294,7 +294,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// block end to end, including helper startup and pipe wait, before the per-monitor helper process is killed.
     /// Killing the helper releases its physical monitor handles without abandoning a blocked native thread in the
     /// tray process. Other monitors use independent helpers and remain responsive.
-    /// Zero or negative disables the wrapper (calls block forever, matching the unwrapped contract).
+    /// Production clamps this to a positive safety floor. Unbounded inline calls are reserved for the killable
+    /// helper process itself; allowing them in the tray process would make a native hang unrecoverable.
     /// </summary>
     public int DDCOperationTimeoutMs { get; set; } = TimeConstants.DDCOperationTimeoutDefaultMs;
 

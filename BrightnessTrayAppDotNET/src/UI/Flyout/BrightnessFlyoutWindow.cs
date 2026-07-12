@@ -168,8 +168,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             _externalResources.Add(() => NightLightMonitor.PropertyChanged -= OnNightLightPropertyChanged);
             Monitors.CollectionChanged += OnMonitorsCollectionChanged;
             _externalResources.Add(() => Monitors.CollectionChanged -= OnMonitorsCollectionChanged);
-            _monitorService.MonitorsAcquired += OnMonitorsAcquired;
-            _externalResources.Add(() => _monitorService.MonitorsAcquired -= OnMonitorsAcquired);
             _monitorService.MonitorsRefreshed += OnInitialMonitorEnrollmentRefreshed;
             _externalResources.Add(() => _monitorService.MonitorsRefreshed -= OnInitialMonitorEnrollmentRefreshed);
             _profileManager.SelectedProfileChanged += OnSelectedProfileChanged;
@@ -1877,20 +1875,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         finally
         {
             _suppressPropagation = false;
-        }
-    }
-
-    private void OnMonitorsAcquired(IReadOnlyList<MonitorInfo> acquired)
-    {
-        if (!IsWindowAlive) return;
-        if (acquired.Count == 0 || IsBrightnessCurveEnabled) return;
-
-        foreach (MonitorInfo monitor in acquired)
-        {
-            if (!monitor.IsHardwareFunctional) continue;
-            if (monitor.SliderState == SliderState.Disabled) continue;
-            if (!monitor.HasUserBrightness) continue;
-            _monitorService.EnqueueDirectBrightness(monitor, monitor.RoundedBrightness);
         }
     }
 

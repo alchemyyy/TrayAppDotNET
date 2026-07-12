@@ -54,17 +54,6 @@ public static class SliderStateMachine
     public static SliderState OnHardwareFailed() => SliderState.Failed;
 
     /// <summary>
-    /// Hardware came back. If we weren't failed, leave whatever state was running undisturbed.
-    /// If we were failed, snap to whatever the curve flags currently demand.
-    /// </summary>
-    public static SliderState OnHardwareRecovered(SliderState current, bool curveEngaged, bool inDisabledPeriod) =>
-        current != SliderState.Failed
-            ? current
-            : curveEngaged
-                ? inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive
-                : SliderState.Enabled;
-
-    /// <summary>
     /// User toggled the slider's group-membership icon off.
     /// Failed wins; everything else goes Disabled.
     /// </summary>
@@ -510,6 +499,19 @@ public class MonitorInfo : INotifyPropertyChanged
 
     /// <summary>True when the row was user-disabled from master writes before it failed.</summary>
     public bool WasDisabledBeforeFailure => _preFailureSliderState == SliderState.Disabled;
+
+    /// <summary>
+    /// Resolves a Failed row back to its prior user-owned state. Disabled rows stay disabled and a released curve
+    /// stays released while the curve remains engaged; hardware recovery must not silently opt the user back in.
+    /// </summary>
+    public SliderState ResolveHardwareRecoveredSliderState(bool curveEngaged, bool inDisabledPeriod)
+    {
+        if (_sliderState != SliderState.Failed) return _sliderState;
+        if (_preFailureSliderState == SliderState.Disabled) return SliderState.Disabled;
+        if (_preFailureSliderState == SliderState.CurveReleased && curveEngaged) return SliderState.CurveReleased;
+        if (!curveEngaged) return SliderState.Enabled;
+        return inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
+    }
 
     /// <summary>True when this row participates in master-driven changes (not Disabled, not Failed).</summary>
     public bool IsParticipatingInMaster => _sliderState is not (SliderState.Disabled or SliderState.Failed);

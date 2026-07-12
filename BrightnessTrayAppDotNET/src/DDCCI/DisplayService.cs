@@ -39,8 +39,18 @@ public class DisplayService : IDisplayService, IDisposable
             _helperClients = new Dictionary<string, DDCHelperClient>(StringComparer.OrdinalIgnoreCase);
     }
 
+    private int _operationTimeoutMs = TimeConstants.DisplayServiceOperationTimeoutMs;
+
     /// <inheritdoc />
-    public int OperationTimeoutMs { get; set; } = TimeConstants.DisplayServiceOperationTimeoutMs;
+    public int OperationTimeoutMs
+    {
+        get => _operationTimeoutMs;
+        set => _operationTimeoutMs = _useHelperProcess
+            ? value <= 0
+                ? TimeConstants.DisplayServiceOperationTimeoutMs
+                : Math.Max(TimeConstants.DDCOperationTimeoutSafetyFloorMs, value)
+            : value;
+    }
 
     public void Dispose()
     {
@@ -62,6 +72,22 @@ public class DisplayService : IDisplayService, IDisposable
 
     public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
     {
+        return TryGetMonitorsCore(helperResolutionOnly: false, out monitors, out error);
+    }
+
+    /// <summary>
+    /// Enumerates the Win32 identity needed by the DDC helper without parent-only WMI, CCD, and profile work.
+    /// </summary>
+    internal static bool TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
+    {
+        return TryGetMonitorsCore(helperResolutionOnly: true, out monitors, out error);
+    }
+
+    private static bool TryGetMonitorsCore(
+        bool helperResolutionOnly,
+        out IReadOnlyList<DDCMonitor> monitors,
+        out string? error)
+    {
         error = null;
         List<DDCMonitor> list = [];
 
@@ -76,7 +102,9 @@ public class DisplayService : IDisplayService, IDisposable
         // The trailing-digit parse on \\.\DISPLAY{n} only matches Settings on a freshly-booted machine
         // - Windows bumps that index on every topology event, so after enough hot-plug churn it climbs into high 20s.
         // sourceInfo.id is bound to the GPU output port and stays stable across power-cycles.
-        Dictionary<string, int> friendlyByAdapter = CCD.BuildFriendlyDisplayNumberMap();
+        Dictionary<string, int> friendlyByAdapter = helperResolutionOnly
+            ? new Dictionary<string, int>(StringComparer.Ordinal)
+            : CCD.BuildFriendlyDisplayNumberMap();
 
         foreach (DDCMonitor monitor in list)
         {
@@ -84,28 +112,33 @@ public class DisplayService : IDisplayService, IDisposable
             if (User32Monitor.GetMonitorInfo(new HandleRef(null, monitor.Handle), monitorInfo))
             {
                 monitor.Name = new string(monitorInfo.szDevice).TrimEnd('\0');
-                monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(monitor.Name, friendlyByAdapter);
                 monitor.DeviceID = ResolveDeviceID(monitor.Name);
                 monitor.DisplayInstancePath = ResolveDisplayInstancePath(monitor.Name);
+                if (!helperResolutionOnly)
+                    monitor.DisplayNumber = CCD.ResolveFriendlyDisplayNumber(monitor.Name, friendlyByAdapter);
 
                 byte[]? edid = ReadEDID(monitor.DisplayInstancePath);
                 if (edid != null)
                 {
                     monitor.EDIDSerial = EDIDParser.ExtractSerial(edid);
-                    monitor.FriendlyName = EDIDParser.ExtractMonitorName(edid);
-                    monitor.EDIDManufacturerID = EDIDParser.ExtractManufacturerID(edid);
-                    ushort productCode = EDIDParser.ExtractProductCode(edid);
-                    monitor.EDIDProductCode = productCode == 0
-                        ? string.Empty
-                        : productCode.ToString("X4", CultureInfo.InvariantCulture);
-                    // Populate per-monitor VCP profile fields (BrightnessCode, PowerOffCommands, ProfileQuirks)
-                    // by EDID identity. Misses leave the VESA-standard defaults in place.
-                    DDCMonitorDatabase.ApplyProfile(monitor);
+                    if (!helperResolutionOnly)
+                    {
+                        monitor.FriendlyName = EDIDParser.ExtractMonitorName(edid);
+                        monitor.EDIDManufacturerID = EDIDParser.ExtractManufacturerID(edid);
+                        ushort productCode = EDIDParser.ExtractProductCode(edid);
+                        monitor.EDIDProductCode = productCode == 0
+                            ? string.Empty
+                            : productCode.ToString("X4", CultureInfo.InvariantCulture);
+                        // Populate per-monitor VCP profile fields (BrightnessCode, PowerOffCommands, ProfileQuirks)
+                        // by EDID identity. Misses leave the VESA-standard defaults in place.
+                        DDCMonitorDatabase.ApplyProfile(monitor);
+                    }
                 }
             }
         }
 
-        AttachWindowsBrightnessTargets(list);
+        if (!helperResolutionOnly)
+            AttachWindowsBrightnessTargets(list);
         monitors = list;
         return true;
 
@@ -387,6 +420,26 @@ public class DisplayService : IDisplayService, IDisposable
         return outcome.Success;
     }
 
+    /// <inheritdoc />
+    public void ResetDDCTransport(DDCMonitor monitor)
+    {
+        if (!_useHelperProcess || _helperClients == null || _disposed) return;
+
+        string helperClientKey = BuildHelperClientKey(monitor);
+        DDCHelperClient? helperClient = null;
+        lock (_helperClientsGate)
+        {
+            if (_disposed) return;
+            if (_helperClients.TryGetValue(helperClientKey, out helperClient))
+                _helperClients.Remove(helperClientKey);
+        }
+
+        if (helperClient == null) return;
+
+        WPFLog.Log($"DisplayService: resetting DDC helper transport for '{monitor.Name}'");
+        helperClient.Dispose();
+    }
+
     private static bool TryGetWindowsBrightnessFeature(
         DDCMonitor monitor,
         byte code,
@@ -592,8 +645,8 @@ public class DisplayService : IDisplayService, IDisposable
     /// <c>PHYSICAL_MONITOR</c> handles. The tray process no longer abandons a blocked thread that
     /// owns native monitor handles.
     ///
-    /// With <see cref="OperationTimeoutMs"/> &lt;= 0, or in the helper process itself, runs inline.
-    /// Inline execution intentionally does not pretend cancellation can abort a blocking P/Invoke.
+    /// The parent always clamps <see cref="OperationTimeoutMs"/> to a positive value. Only the helper process
+    /// implementation runs inline, where process termination can abort a blocking P/Invoke.
     /// </summary>
     private DDCCallOutcome<T> RunWithTimeout<T>(
         DDCMonitor monitor,

@@ -26,4 +26,29 @@ public sealed class AsyncThrottlerTests
         releasePayload.TrySetResult();
         await payloadCompletion.WaitAsync(TimeSpan.FromSeconds(1));
     }
+
+    [Fact]
+    public async Task CooldownOverrideDelaysOnlyItsOwnKey()
+    {
+        using AsyncThrottler<string> throttler = new(0, StringComparer.Ordinal, drainPollIntervalMs: 1);
+        Task firstSlowPayload = throttler.RunAsync(
+            "HDMI",
+            context => Task.CompletedTask,
+            cooldownOverrideMs: 500);
+        await firstSlowPayload.WaitAsync(TimeSpan.FromSeconds(1));
+
+        bool secondSlowPayloadRan = false;
+        Task secondSlowPayload = throttler.RunAsync("HDMI", context =>
+        {
+            secondSlowPayloadRan = true;
+            return Task.CompletedTask;
+        });
+        Task fastPayload = throttler.RunAsync("DisplayPort", context => Task.CompletedTask);
+
+        await fastPayload.WaitAsync(TimeSpan.FromMilliseconds(300));
+        Assert.False(secondSlowPayloadRan);
+
+        await secondSlowPayload.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(secondSlowPayloadRan);
+    }
 }
