@@ -60,6 +60,7 @@
     <Using Include="VolumeTrayAppDotNET.Models" />
     <Using Include="VolumeTrayAppDotNET.Visuals" />
     <Using Include="VolumeTrayAppDotNET.Models.ContextMenuPosition" Alias="ContextMenuPosition" />
+    <InternalsVisibleTo Include="VolumeTrayAppDotNET.Tests" />
     <ProjectReference Include="$(TrayAppDotNETCommonProject)"
                       Targets="$(TrayAppDotNETSharedProjectReferenceTargets)"
                       GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />

@@ -41,4 +41,7 @@
   <Project Path="VolumeTrayAppDotNET/src/VolumeTrayAppDotNET.csproj">
     <Platform Project="x64" />
   </Project>
+  <Project Path="VolumeTrayAppDotNET/tests/VolumeTrayAppDotNET.Tests/VolumeTrayAppDotNET.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

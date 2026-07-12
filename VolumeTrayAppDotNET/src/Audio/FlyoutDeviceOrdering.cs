@@ -14,8 +14,8 @@ namespace VolumeTrayAppDotNET.Audio;
 ///   * <see cref="FlyoutDeviceSortOrder.WindowsEnumeration"/>: untouched MMDevice enumeration order
 ///     so top-to-bottom matches Windows.
 /// Render and capture share the same bucketing rule. <see cref="AppSettings.IntermixRecordingWithPlaybackInFlyout"/>
-/// chooses whether the two flows interleave inside each bucket or whether capture devices group together
-/// at the top of the list (after reversal, that places playback at the bottom and recording above it).
+/// chooses whether the two flows interleave inside each bucket or whether flow becomes the outer grouping.
+/// With intermixing disabled, the final reversal places all capture devices above all render devices.
 /// </summary>
 internal static class FlyoutDeviceOrdering
 {
@@ -53,53 +53,69 @@ internal static class FlyoutDeviceOrdering
     }
 
     /// <summary>
-    /// State-bucket ordering. Within a bucket, device order is determined by:
-    ///   * intermix off -> render flow first, then capture flow, each preserving enumeration order
-    ///   * intermix on  -> single mixed run preserving enumeration order
-    /// Buckets are then concatenated [default, comms, active, disabled, disconnected] and the final
-    /// list reversed so the default device sits at the bottom of the flyout.
+    /// State-bucket ordering. Intermixed devices use state as the outer grouping. Separated devices
+    /// use flow as the outer grouping and state within each flow. The final list is reversed so the
+    /// default render device sits at the bottom and every capture device remains above every render device.
     /// </summary>
     private static List<AudioDevice> SortStateGrouped(List<AudioDevice> visible, AppSettings settings)
     {
+        return OrderStateGrouped(
+            visible,
+            settings.IntermixRecordingWithPlaybackInFlyout,
+            static device => device.DataFlow,
+            static device => ClassifyBucket(device));
+    }
+
+    /// <summary>
+    /// Orders a state-classified device list without depending on the live audio endpoint wrapper.
+    /// </summary>
+    internal static List<TDevice> OrderStateGrouped<TDevice>(
+        IReadOnlyList<TDevice> visible,
+        bool intermix,
+        Func<TDevice, EDataFlow> dataFlowSelector,
+        Func<TDevice, int> bucketSelector)
+    {
         const int BucketCount = 5;
         const int BucketDefault = 0;
-        const int BucketComms = 1;
-        const int BucketActive = 2;
-        const int BucketDisabled = 3;
         const int BucketDisconnected = 4;
 
-        List<AudioDevice>[] buckets = new List<AudioDevice>[BucketCount];
-        for (int i = 0; i < BucketCount; i++) buckets[i] = [];
+        List<TDevice>[] buckets = new List<TDevice>[BucketCount];
+        for (int bucketIndex = 0; bucketIndex < BucketCount; bucketIndex++) buckets[bucketIndex] = [];
 
-        bool intermix = settings.IntermixRecordingWithPlaybackInFlyout;
-        // Render-then-capture pass when not intermixing keeps capture devices grouped after playback
-        // inside each bucket; the final reversal then puts capture above playback in the rendered flyout.
+        for (int deviceIndex = 0; deviceIndex < visible.Count; deviceIndex++)
+        {
+            TDevice device = visible[deviceIndex];
+            buckets[bucketSelector(device)].Add(device);
+        }
+
+        List<TDevice> ordered = new(visible.Count);
         if (intermix)
         {
-            for (int i = 0; i < visible.Count; i++)
-                buckets[ClassifyBucket(visible[i])].Add(visible[i]);
+            for (int bucketIndex = BucketDefault; bucketIndex <= BucketDisconnected; bucketIndex++)
+                ordered.AddRange(buckets[bucketIndex]);
         }
         else
         {
-            for (int i = 0; i < visible.Count; i++)
+            for (int bucketIndex = BucketDefault; bucketIndex <= BucketDisconnected; bucketIndex++)
             {
-                AudioDevice d = visible[i];
-                if (d.DataFlow == EDataFlow.eRender) buckets[ClassifyBucket(d)].Add(d);
+                List<TDevice> bucket = buckets[bucketIndex];
+                for (int deviceIndex = 0; deviceIndex < bucket.Count; deviceIndex++)
+                {
+                    TDevice device = bucket[deviceIndex];
+                    if (dataFlowSelector(device) == EDataFlow.eRender) ordered.Add(device);
+                }
             }
 
-            for (int i = 0; i < visible.Count; i++)
+            for (int bucketIndex = BucketDefault; bucketIndex <= BucketDisconnected; bucketIndex++)
             {
-                AudioDevice d = visible[i];
-                if (d.DataFlow == EDataFlow.eCapture) buckets[ClassifyBucket(d)].Add(d);
+                List<TDevice> bucket = buckets[bucketIndex];
+                for (int deviceIndex = 0; deviceIndex < bucket.Count; deviceIndex++)
+                {
+                    TDevice device = bucket[deviceIndex];
+                    if (dataFlowSelector(device) == EDataFlow.eCapture) ordered.Add(device);
+                }
             }
         }
-
-        List<AudioDevice> ordered = new(visible.Count);
-        ordered.AddRange(buckets[BucketDefault]);
-        ordered.AddRange(buckets[BucketComms]);
-        ordered.AddRange(buckets[BucketActive]);
-        ordered.AddRange(buckets[BucketDisabled]);
-        ordered.AddRange(buckets[BucketDisconnected]);
 
         ordered.Reverse();
         return ordered;
