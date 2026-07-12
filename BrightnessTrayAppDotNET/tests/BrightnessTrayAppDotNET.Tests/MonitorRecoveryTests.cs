@@ -229,10 +229,12 @@ public sealed class MonitorRecoveryTests
 
         await service.SetPowerStateAsync(monitor, false);
         Assert.False(monitor.IsPoweredOn);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
         display.SetRead("DISPLAY\\PORT-Q", ok: true, current: 20, max: 100);
 
         await service.SetPowerStateAsync(monitor, true);
         Assert.True(monitor.IsPoweredOn);
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
         await WaitUntil(
             () => display.GetCurrentValue("DISPLAY\\PORT-Q") == 65,
             timeoutMs: 5000);
@@ -704,6 +706,42 @@ public sealed class MonitorRecoveryTests
             timeoutMs: 3000);
 
         Assert.True(display.GetTransportResetCount(DeviceID) >= 1);
+        Assert.Null(monitor.LastDDCError);
+    }
+
+    [Fact]
+    public async Task ProfileRestoredPoweredOffStateDoesNotCancelDirectRecovery()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-STALE-POWER";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 31, serial: "HDMI-STALE-POWER"));
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        using DDCRecoveryService recoveryService = new(service, retryIntervalMs: 20);
+        recoveryService.Start();
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        // ProfileManager restores this optimistic UI value without issuing a power command. It must not be treated
+        // as authoritative runtime power-off intent when a later brightness operation demotes the row.
+        monitor.IsPoweredOn = false;
+        display.ConfigureWriteFailures(1);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        monitor.Brightness = 68;
+
+        await WaitUntil(
+            () => monitor.IsHardwareFunctional && display.GetCurrentValue(DeviceID) == 68,
+            timeoutMs: 1500);
+
+        Assert.True(
+            stopwatch.ElapsedMilliseconds < 1000,
+            $"Direct recovery was delayed {stopwatch.ElapsedMilliseconds} ms behind stale power state.");
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
         Assert.Null(monitor.LastDDCError);
     }
 

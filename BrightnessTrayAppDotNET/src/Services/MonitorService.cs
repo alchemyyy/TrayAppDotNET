@@ -1701,7 +1701,7 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Returns the <see cref="MonitorInfo.ID"/> of every monitor that's a candidate for the DDC fallback worker:
-    /// currently DDC-unavailable, last-known powered on,
+    /// currently DDC-unavailable, not explicitly powered off during this application lifetime,
     /// and whose hardware was previously observed to support DDC/CI
     /// (per <see cref="KnownDisplayEntry.WasEverDDCCapable"/>).
     /// Self-marshals to the UI thread because <see cref="Monitors"/> is mutated there
@@ -1734,7 +1734,10 @@ public sealed class MonitorService : IDisposable
                 // be confirmed, so we can detect when reads come back and full-promote via PromoteRecovered.
                 if (m is { IsHardwareFunctional: true, IsReadDegraded: false }) continue;
 
-                if (!m.IsPoweredOn) continue;
+                // IsPoweredOn is optimistic and profile-restored, so it can remain false after an external wake.
+                // Only a power-off command accepted during this application lifetime is authoritative enough to
+                // suppress recovery traffic.
+                if (m.SuppressDDCRecoveryForPowerIntent) continue;
 
                 bool knownCapable = m.WasEverDDCCapable
                                     || (!string.IsNullOrEmpty(m.EDIDKey)
@@ -1815,9 +1818,9 @@ public sealed class MonitorService : IDisposable
                 return;
             }
 
-            // Don't poke a monitor we explicitly commanded to sleep -
-            // DDC traffic can wake some panels, which would override the user's intent.
-            if (!info.IsPoweredOn) return;
+            // Don't poke a monitor we explicitly commanded to sleep during this application lifetime. Persisted
+            // IsPoweredOn state is not used here because it can be stale after an external wake.
+            if (info.SuppressDDCRecoveryForPowerIntent) return;
 
             // Defer if a user-initiated brightness write is in flight on this monitor
             // (only happens when an entry already exists, e.g. a previously-supported monitor is mid-recovery).
@@ -2395,6 +2398,11 @@ public sealed class MonitorService : IDisposable
             }
             return;
         }
+
+        // Publish the recovery gate immediately after transport acceptance. A hard-off can remove the row from
+        // enumeration before the dispatcher processes IsPoweredOn; recovery must not race that UI publication and
+        // send traffic that wakes the panel again.
+        monitor.SuppressDDCRecoveryForPowerIntent = !on;
 
         if (_dispatcher.CheckAccess())
             PublishPowerState();

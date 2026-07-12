@@ -391,6 +391,19 @@ public class MonitorInfo : INotifyPropertyChanged
     } = true;
 
     /// <summary>
+    /// True only after this application lifetime successfully sent an explicit power-off command.
+    /// Recovery uses this runtime intent instead of <see cref="IsPoweredOn"/>, whose profile-restored value can be
+    /// stale when the panel was powered externally while the application was not observing it.
+    /// </summary>
+    internal bool SuppressDDCRecoveryForPowerIntent
+    {
+        get => Volatile.Read(ref _suppressDDCRecoveryForPowerIntent) != 0;
+        set => Volatile.Write(ref _suppressDDCRecoveryForPowerIntent, value ? 1 : 0);
+    }
+
+    private int _suppressDDCRecoveryForPowerIntent;
+
+    /// <summary>
     /// Segoe Fluent Icons glyph code for the monitor icon.
     /// Default: <see cref="GlyphCatalog.MONITOR"/>.
     /// </summary>

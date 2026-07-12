@@ -48,8 +48,8 @@ public sealed class DDCRecoveryService(
 
         if (candidates.Count > 0)
             SignalDDCRecoveryNeeded();
-        else
-            ClearDDCRecoveryNeeded();
+        else if (ClearDDCRecoveryNeeded())
+            WPFLog.Log("DDCRecoveryService: refresh found no eligible candidates; clearing recovery request");
     }
 
     private void OnDDCRecoveryRequested(string monitorID)
@@ -81,7 +81,7 @@ public sealed class DDCRecoveryService(
         }
     }
 
-    private void ClearDDCRecoveryNeeded() => Interlocked.Exchange(ref _DDCRecoveryNeeded, 0);
+    private bool ClearDDCRecoveryNeeded() => Interlocked.Exchange(ref _DDCRecoveryNeeded, 0) == 1;
 
     private async Task RunDDCRecoveryWorkerAsync(CancellationToken token)
     {
@@ -103,6 +103,7 @@ public sealed class DDCRecoveryService(
                 if (!TryGetDDCRecoveryCandidateIDs(out List<string> candidates)) continue;
                 if (candidates.Count == 0)
                 {
+                    WPFLog.Log("DDCRecoveryService: no eligible candidates; clearing recovery request");
                     ClearDDCRecoveryNeeded();
                     break;
                 }
@@ -116,6 +117,7 @@ public sealed class DDCRecoveryService(
                 if (!TryGetDDCRecoveryCandidateIDs(out List<string> remainingCandidates)) continue;
                 if (remainingCandidates.Count == 0)
                 {
+                    WPFLog.Log("DDCRecoveryService: all candidates recovered; clearing recovery request");
                     ClearDDCRecoveryNeeded();
                     break;
                 }
