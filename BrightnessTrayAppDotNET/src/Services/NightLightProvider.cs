@@ -30,6 +30,11 @@ internal static class NightLightProvider
     private static long _lastStrengthUpdateTick;
 
     /// <summary>
+    /// Raised after a requested enabled-state transition is confirmed by the active backend.
+    /// </summary>
+    public static event Action? EnabledStateChanged;
+
+    /// <summary>
     /// Wires the provider to the live <see cref="AppSettings"/>.
     /// Safe to call multiple times - it short-circuits on the same instance.
     /// Subscribes to <see cref="AppSettings.Changed"/>
@@ -219,6 +224,10 @@ internal static class NightLightProvider
                 $"NightLightProvider.SetEnabled({enabled}) returned false on backend {backend} "
                 + "(write rejected or readback diverged from request).");
         }
+        else
+        {
+            EnabledStateChanged?.Invoke();
+        }
 
         return ok;
     }
@@ -267,6 +276,10 @@ internal static class NightLightProvider
             WPFLog.Log(
                 $"NightLightProvider.Toggle returned false on backend {backend} "
                 + "(write rejected or readback didn't show the flip).");
+        }
+        else
+        {
+            EnabledStateChanged?.Invoke();
         }
 
         return ok;

@@ -152,7 +152,11 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         _settings = loaded.Settings;
 
-        try { NightLightProvider.Initialize(_settings); }
+        try
+        {
+            NightLightProvider.Initialize(_settings);
+            NightLightProvider.EnabledStateChanged += OnNightLightEnabledStateChanged;
+        }
         catch (Exception ex) { WPFLog.Log($"BrightnessAvaloniaApp night-light init failed: {ex.Message}"); }
 
         ApplyPDBDownloadTimeout(_settings);
@@ -547,9 +551,6 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         flyout?.AdjustNightLightBrightness(delta);
     }
-
-    private int ResolveNightLightStrength(int sliderValue) =>
-        _settings?.InvertNightLightSlider == true ? 100 - sliderValue : sliderValue;
 
     private MonitorInfo? ResolveMonitorTarget(string parameter)
     {
@@ -984,10 +985,30 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     private int GetCurrentNightLightTooltipStrength()
     {
-        if (_brightnessFlyout?.NightLightMonitor is { } nightLight)
-            return ResolveNightLightStrength(nightLight.RoundedBrightness);
+        if (_brightnessFlyout?.NightLightMonitor is { } nightLightMonitor)
+        {
+            return ResolveNightLightTooltipStrength(
+                nightLightMonitor,
+                providerStrength: 0,
+                invertNightLightSlider: _settings?.InvertNightLightSlider == true);
+        }
 
         return NightLightProvider.GetStrength();
+    }
+
+    /// <summary>
+    /// Resolves the live night-light strength for the tray tooltip.
+    /// Curve-active rows use their effective target while other states use the manual slider value.
+    /// </summary>
+    internal static int ResolveNightLightTooltipStrength(
+        MonitorInfo? nightLightMonitor,
+        int providerStrength,
+        bool invertNightLightSlider)
+    {
+        if (nightLightMonitor == null) return Math.Clamp(providerStrength, 0, 100);
+
+        int sliderStrength = nightLightMonitor.EffectiveRoundedBrightness;
+        return invertNightLightSlider ? 100 - sliderStrength : sliderStrength;
     }
 
     private void LogTrayValueDiagnostic(int brightness, string tooltip, List<MonitorInfo> monitors)
@@ -1057,6 +1078,16 @@ internal sealed class BrightnessAvaloniaApp : Application
         _trayIcon?.ShowBalloon(
             L("UpdateNotification_Title", "Update available"),
             string.Format(L("UpdateNotification_BodyFormat", "{0} is available."), info.ReleaseName));
+    }
+
+    private void OnNightLightEnabledStateChanged()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_shuttingDown) return;
+            _brightnessFlyout?.NotifyNightLightEnabledStateChanged();
+            RequestTrayRefresh();
+        });
     }
 
     private void OnUpdateBalloonClicked()
@@ -1253,6 +1284,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
             TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.NormalShutdownDrainTimeoutMs));
 
+            NightLightProvider.EnabledStateChanged -= OnNightLightEnabledStateChanged;
             try { NightLightProvider.Shutdown(); }
             catch (Exception ex)
             {

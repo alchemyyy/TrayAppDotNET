@@ -102,6 +102,50 @@ public sealed class TrayWheelBrightnessAdjustmentTests
         Assert.Equal(expected, shouldApply);
     }
 
+    [Fact]
+    public void ResolveNightLightTooltipStrengthUsesLiveCurveTarget()
+    {
+        MonitorInfo nightLightMonitor = CreateCurveActiveMonitor(curveTarget: 0, brightness: 73);
+
+        int zeroStrength = BrightnessAvaloniaApp.ResolveNightLightTooltipStrength(
+            nightLightMonitor,
+            providerStrength: 73,
+            invertNightLightSlider: false);
+
+        nightLightMonitor.CurveTargetBrightness = 1;
+        int onePercentStrength = BrightnessAvaloniaApp.ResolveNightLightTooltipStrength(
+            nightLightMonitor,
+            providerStrength: 0,
+            invertNightLightSlider: false);
+
+        Assert.Equal(0, zeroStrength);
+        Assert.Equal(1, onePercentStrength);
+    }
+
+    [Fact]
+    public void ResolveNightLightTooltipStrengthMapsInvertedCurveTargetToBackendStrength()
+    {
+        MonitorInfo nightLightMonitor = CreateCurveActiveMonitor(curveTarget: 99, brightness: 25);
+
+        int strength = BrightnessAvaloniaApp.ResolveNightLightTooltipStrength(
+            nightLightMonitor,
+            providerStrength: 75,
+            invertNightLightSlider: true);
+
+        Assert.Equal(1, strength);
+    }
+
+    [Fact]
+    public void ResolveNightLightTooltipStrengthUsesProviderWithoutFlyout()
+    {
+        int strength = BrightnessAvaloniaApp.ResolveNightLightTooltipStrength(
+            nightLightMonitor: null,
+            providerStrength: 42,
+            invertNightLightSlider: true);
+
+        Assert.Equal(42, strength);
+    }
+
     /// <summary>
     /// Creates a monitor whose effective value is driven by a curve target.
     /// </summary>

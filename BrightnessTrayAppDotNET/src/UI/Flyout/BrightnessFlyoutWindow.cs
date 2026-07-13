@@ -462,6 +462,21 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void ToggleNightLight() => ToggleNightLightState();
 
+    /// <summary>
+    /// Synchronizes flyout state after the provider confirms a night-light enabled-state transition.
+    /// </summary>
+    internal void NotifyNightLightEnabledStateChanged()
+    {
+        if (!IsWindowAlive) return;
+
+        bool isNightLightActive = NightLightProvider.IsSupported() && NightLightProvider.IsEnabled();
+        if (_isNightLightActive == isNightLightActive) return;
+
+        _isNightLightActive = isNightLightActive;
+        OnPropertyChanged(nameof(IsNightLightActive));
+        RebuildVisual();
+    }
+
     internal void SyncAllIndividualsToMaster()
     {
         double target = Math.Round(MasterMonitor.Brightness);
@@ -1781,6 +1796,20 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void OnNightLightPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!IsWindowAlive) return;
+        if (e.PropertyName == nameof(MonitorInfo.EffectiveRoundedBrightness))
+        {
+            BrightnessUpdated?.Invoke();
+            RefreshSliderRowVisuals();
+            return;
+        }
+
+        if (e.PropertyName is nameof(MonitorInfo.CurveTargetBrightness)
+            or nameof(MonitorInfo.HasCurveTargetBrightness))
+        {
+            RefreshSliderRowVisuals();
+            return;
+        }
+
         if (e.PropertyName == nameof(MonitorInfo.SliderState))
         {
             UpdateCurveStopwatchVisibility(NightLightMonitor);
