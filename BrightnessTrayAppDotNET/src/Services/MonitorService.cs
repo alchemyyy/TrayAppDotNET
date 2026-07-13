@@ -1000,7 +1000,11 @@ public sealed class MonitorService : IDisposable
                         RecordDDCCapableObservation(existingInfo);
                         existingInfo.IsReadDegraded = false;
                         existingInfo.LastDDCError = null;
-                        if (recoveredReadDegraded) acquired.Add(existingInfo);
+                        if (recoveredReadDegraded)
+                        {
+                            PublishRecoveredPowerAvailability(existingInfo, ddc.Name);
+                            acquired.Add(existingInfo);
+                        }
                     }
                     else
                     {
@@ -1075,6 +1079,7 @@ public sealed class MonitorService : IDisposable
                         // its sticky capability bit.
                         RecordDDCCapableObservation(existingInfo);
                         SetRecoveredSliderState(existingInfo, recoveredState);
+                        PublishRecoveredPowerAvailability(existingInfo, ddc.Name);
                         existingInfo.LastDDCError = null;
                         acquired.Add(existingInfo);
                         WPFLog.Log($"MonitorService: promoted '{ddc.Name}' to DDC/CI-supported");
@@ -1189,9 +1194,11 @@ public sealed class MonitorService : IDisposable
         // reflects reality without each row having to look the entry up itself.
         ProjectWasEverDDCCapableToMonitors();
 
-        foreach (MonitorInfo acquiredMonitor in acquired)
-            QueueRecoveredBrightnessIntent(acquiredMonitor);
         MonitorsRefreshed?.Invoke();
+        // Curve reconciliation is synchronous. Resolve and force the final ownership target only after subscribers
+        // have moved a recovered row into CurveActive, CurveSleeping, or CurveReleased.
+        foreach (MonitorInfo acquiredMonitor in acquired)
+            ReplayRecoveredBrightnessIntent(acquiredMonitor);
     }
 
     private bool IsRefreshProbePhaseCurrent(int phaseGen) =>
@@ -2270,12 +2277,13 @@ public sealed class MonitorService : IDisposable
         RecordDDCCapableObservation(info);
         SetRecoveredSliderState(info, recoveredState);
         info.IsReadDegraded = false;
+        PublishRecoveredPowerAvailability(info, ddc.Name);
         info.LastDDCError = null;
         _recoveryIdentities.TryRemove(info.ID, out DDCRecoveryIdentity _);
         WPFLog.Log($"MonitorService: recovered '{ddc.Name}' to DDC/CI-supported");
 
-        QueueRecoveredBrightnessIntent(info);
         MonitorsRefreshed?.Invoke();
+        ReplayRecoveredBrightnessIntent(info);
     }
 
     private void ApplyRecoveredBrightnessProjections(MonitorInfo info)
@@ -2296,6 +2304,74 @@ public sealed class MonitorService : IDisposable
         if (ShouldSuppressSliderBrightnessWrite(info)) return;
 
         EnqueueDirectBrightness(info, info.RoundedBrightness);
+    }
+
+    /// <summary>
+    /// Reasserts the target that owns hardware after recovery publication. Recovery GET is evidence that the transport
+    /// is readable, not proof that the panel's visible brightness matches its reply, so this deliberately forces one
+    /// verified SET even when the returned value or scheduler dedupe claims the target already matches.
+    /// </summary>
+    private void ReplayRecoveredBrightnessIntent(MonitorInfo info)
+    {
+        if (!TryResolveRecoveredBrightnessIntent(info, out int percentage, out SliderState expectedState)) return;
+
+        WPFLog.Log(
+            $"MonitorService: recovery replay '{info.Name}' state={expectedState} target={percentage}");
+        EnqueueDirectBrightnessImmediate(info, percentage, IsStillCurrent);
+        return;
+
+        bool IsStillCurrent()
+        {
+            return TryResolveRecoveredBrightnessIntent(
+                       info,
+                       out int currentPercentage,
+                       out SliderState currentState)
+                   && currentState == expectedState
+                   && currentPercentage == percentage;
+        }
+    }
+
+    private static bool TryResolveRecoveredBrightnessIntent(
+        MonitorInfo info,
+        out int percentage,
+        out SliderState state)
+    {
+        percentage = 0;
+        state = info.SliderState;
+        if (!info.IsHardwareFunctional) return false;
+        if (info.SuppressDDCRecoveryForPowerIntent) return false;
+
+        switch (state)
+        {
+            case SliderState.CurveActive:
+                if (!info.HasCurveTargetBrightness && !info.HasUserBrightness) return false;
+                percentage = info.EffectiveRoundedBrightness;
+                return true;
+
+            case SliderState.Enabled:
+            case SliderState.CurveSleeping:
+            case SliderState.CurveReleased:
+                if (!info.HasUserBrightness) return false;
+                percentage = info.RoundedBrightness;
+                return true;
+
+            case SliderState.Disabled:
+            case SliderState.Failed:
+            default:
+                return false;
+        }
+    }
+
+    private static void PublishRecoveredPowerAvailability(MonitorInfo info, string monitorName)
+    {
+        if (info.SuppressDDCRecoveryForPowerIntent)
+        {
+            WPFLog.Log(
+                $"MonitorService: clearing stale power-off recovery suppression for '{monitorName}' after recovery");
+        }
+
+        info.SuppressDDCRecoveryForPowerIntent = false;
+        info.IsPoweredOn = true;
     }
 
     private void RefreshRecoveredMonitorMetadata(MonitorInfo info, DDCMonitor ddc)
@@ -2436,6 +2512,13 @@ public sealed class MonitorService : IDisposable
         if (Volatile.Read(ref _hardwareWritesSuspendCount) > 0) return;
 
         if (sender is not MonitorInfo monitor) return;
+        if (monitor.SuppressDDCRecoveryForPowerIntent)
+        {
+            // A direct user/profile brightness change is newer intent than an earlier power-off command. Curve writes
+            // bypass the Brightness setter and therefore cannot clear this gate in the background.
+            monitor.SuppressDDCRecoveryForPowerIntent = false;
+            monitor.IsPoweredOn = true;
+        }
         if (ShouldSuppressSliderBrightnessWrite(monitor)) return;
 
         // Auto-release a CurveActive (or CurveSleeping) row whenever an external write reaches us:
@@ -2565,6 +2648,7 @@ public sealed class MonitorService : IDisposable
         target = default;
         if (_disposed || _draining) return false;
         if (monitor == null) return false;
+        if (monitor.SuppressDDCRecoveryForPowerIntent) return false;
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? resolvedEntry)) return false;
 
         // Apply the per-monitor norm curve first: the slider stays on the linear 0..100 range

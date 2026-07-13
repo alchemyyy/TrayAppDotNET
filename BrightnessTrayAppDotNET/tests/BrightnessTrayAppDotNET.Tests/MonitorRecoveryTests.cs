@@ -780,6 +780,137 @@ public sealed class MonitorRecoveryTests
     }
 
     [Fact]
+    public async Task RefreshRecoveryReplaysFinalSleepingTargetAfterCurveReconciliation()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-SLEEPING-REPLAY";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(
+            deviceID: DeviceID,
+            displayNumber: 32,
+            serial: "HDMI-SLEEPING-REPLAY"));
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 42);
+
+        bool curveEngaged = false;
+        service.IsBrightnessCurveEnabledQuery = () => curveEngaged;
+        service.IsInDisabledPeriodQuery = () => false;
+        Action reconcileRecoveredCurveState = () =>
+        {
+            if (!curveEngaged || !monitor.IsHardwareFunctional) return;
+            monitor.SliderState = SliderState.CurveSleeping;
+        };
+        service.MonitorsRefreshed += reconcileRecoveredCurveState;
+
+        display.SetRead(DeviceID, ok: false, error: "temporary refresh failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        // Model an external wake after an earlier app-issued off command. A readable recovery is newer evidence than
+        // the stale runtime gate, and the subscriber's final sleeping state owns the manual brightness target.
+        monitor.SuppressDDCRecoveryForPowerIntent = true;
+        monitor.IsPoweredOn = false;
+        curveEngaged = true;
+        display.SetRead(DeviceID, ok: true, current: 73, max: 100);
+        service.Refresh();
+
+        await WaitUntil(
+            () => monitor.SliderState == SliderState.CurveSleeping
+                  && display.GetCurrentValue(DeviceID) == 42,
+            timeoutMs: 3000);
+        service.MonitorsRefreshed -= reconcileRecoveredCurveState;
+
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.True(monitor.IsPoweredOn);
+        Assert.Equal((uint)42, display.GetLastSetValueForCode(VCPConstants.Brightness));
+    }
+
+    [Fact]
+    public async Task TargetedRecoveryForcesVerifiedCurveTargetWhenRecoveryReadAlreadyMatches()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-LYING-READ";
+        const int CurveTarget = 73;
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(
+            deviceID: DeviceID,
+            displayNumber: 33,
+            serial: "HDMI-LYING-READ"));
+        display.SetRead(DeviceID, ok: true, current: 35, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.CurveTargetBrightness = CurveTarget;
+        service.EnqueueDirectBrightness(monitor, CurveTarget);
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == CurveTarget);
+
+        display.SetRead(DeviceID, ok: false, error: "temporary targeted failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+
+        // Some firmware can return the requested VCP value while the visible panel state is stale. Recovery therefore
+        // must perform a fresh SET plus read-back instead of accepting this matching GET as application evidence.
+        display.SetRead(DeviceID, ok: true, current: CurveTarget, max: 100);
+        int writesBeforeRecovery = display.SetVcpCalls;
+        int readsBeforeRecovery = display.GetVcpCalls;
+        Assert.True(service.TryRecoverMonitor(monitor.ID));
+
+        await WaitUntil(
+            () => display.SetVcpCalls > writesBeforeRecovery
+                  && display.GetVcpCalls >= readsBeforeRecovery + 2,
+            timeoutMs: 3000);
+        Assert.Equal(SliderState.CurveActive, monitor.SliderState);
+        Assert.Equal((uint)CurveTarget, display.GetLastSetValueForCode(VCPConstants.Brightness));
+    }
+
+    [Fact]
+    public async Task DirectBrightnessIntentSupersedesRuntimePowerOffSuppression()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-USER-WAKE";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 34, serial: "HDMI-USER-WAKE"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, false);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        int writesAfterPowerOff = display.SetVcpCalls;
+
+        // Background curve traffic cannot contradict an explicit power-off command.
+        service.EnqueueDirectBrightness(monitor, 71);
+        Assert.Equal(writesAfterPowerOff, display.SetVcpCalls);
+
+        // A slider/profile brightness assignment is explicit newer intent and must be allowed to recover the panel.
+        monitor.Brightness = 65;
+        await WaitUntil(() => display.GetCurrentValue(DeviceID) == 65, timeoutMs: 3000);
+
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.True(monitor.IsPoweredOn);
+    }
+
+    [Fact]
     public async Task CandidateSnapshotFailureDoesNotStopRequestedRecovery()
     {
         const string DeviceID = "DISPLAY\\HDMI-SNAPSHOT";
