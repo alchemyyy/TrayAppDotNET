@@ -12,6 +12,8 @@
     <sys:Double x:Key="ColorPicker.ChannelBandHeight">120</sys:Double>
     <sys:Double x:Key="ColorPicker.TitleBarHeight">32</sys:Double>
     <Thickness x:Key="ColorPicker.RootBorderThickness">1</Thickness>
+    <CornerRadius x:Key="ColorPicker.RootCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="ColorPicker.ZeroCornerRadius">0</CornerRadius>
     <Thickness x:Key="ColorPicker.TitleMargin">16,0,0,0</Thickness>
     <Thickness x:Key="ColorPicker.BodyMargin">20,12,20,16</Thickness>
     <sys:Double x:Key="ColorPicker.BodyGapHeight">16</sys:Double>

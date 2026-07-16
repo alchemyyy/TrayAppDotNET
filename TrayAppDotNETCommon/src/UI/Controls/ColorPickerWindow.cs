@@ -24,6 +24,8 @@ internal static class ColorPickerLayout
     public static double ChannelBandHeight => AXAMLResources.AxamlColorPicker.ChannelBandHeight;
     public static double TitleBarHeight => AXAMLResources.AxamlColorPicker.TitleBarHeight;
     public static Thickness RootBorderThickness => AXAMLResources.AxamlColorPicker.RootBorderThickness;
+    public static CornerRadius RootCornerRadius => AXAMLResources.AxamlColorPicker.RootCornerRadius;
+    public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlColorPicker.ZeroCornerRadius;
     public static Thickness TitleMargin => AXAMLResources.AxamlColorPicker.TitleMargin;
     public static Thickness BodyMargin => AXAMLResources.AxamlColorPicker.BodyMargin;
     public static double BodyGapHeight => AXAMLResources.AxamlColorPicker.BodyGapHeight;
@@ -63,6 +65,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
     private readonly SettingsPalette _palette;
     private readonly TrayAppDotNETColorPickerStrings _strings;
     private readonly bool _hasAlpha;
+    private readonly bool _enableRoundedCorners;
     private readonly Color _baselineColor;
     private readonly Color _defaultColor;
     private readonly TrayAppDotNETSaturationValuePicker _svPicker;
@@ -94,11 +97,13 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         Color? startingColor,
         Color? defaultColor,
         SettingsPalette palette,
-        TrayAppDotNETColorPickerStrings strings)
+        TrayAppDotNETColorPickerStrings strings,
+        bool enableRoundedCorners = true)
     {
         _palette = palette;
         _strings = strings;
         _hasAlpha = hasAlpha;
+        _enableRoundedCorners = enableRoundedCorners;
 
         Color seed = startingColor ?? AppTheme.ColorPickerDefaultColor;
         if (!hasAlpha) seed = Color.FromArgb(0xFF, seed.R, seed.G, seed.B);
@@ -117,9 +122,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         WindowDecorations = WindowDecorations.None;
-        Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
+        Background = Brushes.Transparent;
         Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         FontFamily = TrayAppDotNETSettingsUI.UIFont;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
         _svPicker = new TrayAppDotNETSaturationValuePicker(palette)
         {
@@ -225,6 +231,10 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
             Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = ColorPickerLayout.RootBorderThickness,
+            CornerRadius = _enableRoundedCorners
+                ? ColorPickerLayout.RootCornerRadius
+                : ColorPickerLayout.ZeroCornerRadius,
+            ClipToBounds = _enableRoundedCorners,
             Child = root
         };
     }

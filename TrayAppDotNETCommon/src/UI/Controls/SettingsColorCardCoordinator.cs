@@ -21,6 +21,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         Color lightFallback,
         Color darkFallback,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         CornerRadius buttonRadius,
         CornerRadius cardRadius,
         string resetText,
@@ -55,6 +56,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 isLight: true,
                 lightFallback,
                 palette,
+                enableRoundedCorners,
                 colorPickerStrings,
                 save,
                 rebuild,
@@ -69,6 +71,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 isLight: false,
                 darkFallback,
                 palette,
+                enableRoundedCorners,
                 colorPickerStrings,
                 save,
                 rebuild,
@@ -112,6 +115,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         bool isLight,
         Color fallback,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         TrayAppDotNETColorPickerStrings colorPickerStrings,
         Action save,
         Action rebuild,
@@ -132,7 +136,8 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             initial,
             fallback,
             palette,
-            colorPickerStrings) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            colorPickerStrings,
+            enableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
         picker.ColorChanged += (_, editedColor) =>
         {

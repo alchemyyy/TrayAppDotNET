@@ -133,6 +133,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
             lightFallback,
             darkFallback,
             palette,
+            EnableRoundedCorners,
             RadiusMedium,
             RadiusLarge,
             Loc("Settings_Theme_Reset"),
