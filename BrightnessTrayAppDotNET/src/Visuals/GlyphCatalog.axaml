@@ -33,6 +33,8 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Calendar" Text="&#xE787;" Font="SegoeFluentIconsThenMDL2Assets" />
 
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Stopwatch" Text="&#xE916;" Font="SegoeMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Lock" Text="&#xE72E;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Unlock" Text="&#xE785;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CheckMark" Text="&#xE73E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Monitor" Text="&#xE7F4;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SyncBadge" Text="&#xEDAB;" Font="SegoeFluentIcons" />

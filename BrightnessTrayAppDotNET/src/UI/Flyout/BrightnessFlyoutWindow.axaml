@@ -20,6 +20,11 @@
         <sys:Double x:Key="Flyout.SnapTolerancePercent">0.02</sys:Double>
         <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">10</sys:Double>
         <sys:Double x:Key="Flyout.SliderRowHeight">24</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonWidth">32</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonHeight">24</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonFontSize">16</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonCurveOpacity">0.42</sys:Double>
+        <Thickness x:Key="Flyout.ModeButtonMargin">0,0,8,0</Thickness>
         <sys:Double x:Key="Flyout.RowIconSize">32</sys:Double>
         <sys:Double x:Key="Flyout.HeaderButtonSize">32</sys:Double>
         <sys:Double x:Key="Flyout.HeaderButtonFontSize">20</sys:Double>

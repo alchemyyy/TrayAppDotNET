@@ -109,6 +109,12 @@
   <data name="Flyout_CurveToggle_NightLightTooltip" xml:space="preserve">
     <value>Toggle night light curve</value>
   </data>
+  <data name="Flyout_CurveMode_CurveTooltip" xml:space="preserve">
+    <value>Curve control</value>
+  </data>
+  <data name="Flyout_CurveMode_ManualTooltip" xml:space="preserve">
+    <value>Manual override</value>
+  </data>
   <data name="Flyout_DisplaySettings_Tooltip" xml:space="preserve">
     <value>Display settings</value>
   </data>

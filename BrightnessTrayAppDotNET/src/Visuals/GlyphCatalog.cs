@@ -42,6 +42,8 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new static Glyph CALENDAR => Glyph("Calendar");
 
     public static Glyph STOPWATCH => Glyph("Stopwatch");
+    public static Glyph LOCK => Glyph("Lock");
+    public static Glyph UNLOCK => Glyph("Unlock");
     public static Glyph CHECK_MARK => Glyph("CheckMark");
     public static Glyph MONITOR => Glyph("Monitor");
     public static Glyph SYNC_BADGE => Glyph("SyncBadge");

@@ -22,6 +22,8 @@ using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using BrightnessAppTheme = BrightnessTrayAppDotNET.Visuals.AppTheme;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace BrightnessTrayAppDotNET.UI.Flyout;
 
@@ -1023,12 +1025,25 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         Grid sliderRow = new()
         {
             Height = Layout.SliderRowHeight,
-            VerticalAlignment = VerticalAlignment.Center,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
+            VerticalAlignment = VerticalAlignment.Center
         };
 
+        Border? curveModeButton = null;
+        int sliderColumn = 0;
+        if (ShouldShowCurveModeButton(RowCurveEnabled(monitor), monitor.SliderState))
+        {
+            sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            curveModeButton = BuildCurveModeButton(monitor, palette);
+            Grid.SetColumn(curveModeButton, 0);
+            sliderRow.Children.Add(curveModeButton);
+            sliderColumn = 1;
+        }
+
+        sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
         FlyoutSlider slider = CreateSlider(monitor, palette, resources);
-        Grid.SetColumn(slider, 0);
+        Grid.SetColumn(slider, sliderColumn);
         sliderRow.Children.Add(slider);
 
         TextBlock value = TrayAppDotNETFlyoutUI.Text(ValueText(monitor), palette, Layout.SliderValueFontSize);
@@ -1037,7 +1052,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         value.HorizontalAlignment = HorizontalAlignment.Right;
         value.VerticalAlignment = VerticalAlignment.Center;
         value.TextAlignment = TextAlignment.Right;
-        Grid.SetColumn(value, 1);
+        Grid.SetColumn(value, sliderColumn + 1);
         sliderRow.Children.Add(value);
 
         Grid.SetRow(sliderRow, 1);
@@ -1049,7 +1064,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Background = Brushes.Transparent, Margin = Layout.RowMargin, Child = grid, Opacity = RowOpacity(monitor)
         };
-        candidate.ProfilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value);
+        candidate.ProfilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value, curveModeButton);
         return row;
     }
 
@@ -1262,6 +1277,24 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             tooltip: monitor.CurveStopwatchToolTip,
             fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(GlyphCatalog.STOPWATCH.Font));
         button.Opacity = monitor.IsCurveStopwatchEnabled ? 1.0 : 0.4;
+        return button;
+    }
+
+    private Border BuildCurveModeButton(MonitorInfo monitor, FlyoutControlPalette palette)
+    {
+        Glyph glyph = CurveModeGlyph(monitor);
+        Border button = TrayAppDotNETFlyoutUI.IconButton(
+            glyph.Text,
+            palette,
+            _ => ToggleCurveModeForRow(monitor),
+            Layout.ModeButtonWidth,
+            Layout.ModeButtonHeight,
+            Layout.ModeButtonFontSize,
+            enabled: CanEditSlider(monitor),
+            margin: Layout.ModeButtonMargin,
+            tooltip: CurveModeTooltip(monitor),
+            fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(glyph.Font));
+        ApplyCurveModeButtonVisual(monitor, button);
         return button;
     }
 
@@ -2200,6 +2233,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             visuals.Slider.IsEnabled = CanEditSlider(monitor);
             visuals.Value.Text = ValueText(monitor);
             visuals.Row.Opacity = RowOpacity(monitor);
+            ApplyCurveModeButtonVisual(monitor, visuals.CurveModeButton);
         }
     }
 
@@ -2462,6 +2496,26 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         else if (monitor.IsNightLight) IsNightLightCurveEnabled = !IsNightLightCurveEnabled;
     }
 
+    private void ToggleCurveModeForRow(MonitorInfo monitor)
+    {
+        if (!ShouldShowCurveModeButton(RowCurveEnabled(monitor), monitor.SliderState)) return;
+
+        switch (monitor.SliderState)
+        {
+            case SliderState.CurveReleased:
+                ReengageCurveReleasedMonitor(monitor);
+                if (monitor.IsMaster) ReengageIndividualBrightnessCurveOverridesFromMaster();
+                UpdateCurveStopwatchVisibility(monitor);
+                _curveService.Evaluate(immediateHardware: true);
+                RebuildVisual();
+                break;
+            case SliderState.CurveActive:
+            case SliderState.CurveSleeping:
+                ReleaseCurveControlForManualOverride(monitor, replayCurrentSliderValue: true);
+                break;
+        }
+    }
+
     private void ToggleEnvironmentalCurves()
     {
         bool target = !(IsBrightnessCurveEnabled || IsNightLightCurveEnabled);
@@ -2501,6 +2555,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (_isInCurveDisabledPeriod) return;
         if (!IsCurveAbsoluteMode) return;
 
+        ReleaseCurveControlForManualOverride(monitor, replayCurrentSliderValue);
+    }
+
+    private void ReleaseCurveControlForManualOverride(MonitorInfo monitor, bool replayCurrentSliderValue)
+    {
         if (monitor.IsMaster && IsBrightnessCurveEnabled || monitor.IsNightLight && IsNightLightCurveEnabled)
         {
             SliderState previous = monitor.SliderState;
@@ -3426,6 +3485,28 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private bool RowCurveEnabled(MonitorInfo monitor) =>
         monitor.IsNightLight ? IsNightLightCurveEnabled : IsBrightnessCurveEnabled;
 
+    internal static bool ShouldShowCurveModeButton(bool isCurveEnabled, SliderState sliderState) =>
+        isCurveEnabled
+        && sliderState is SliderState.CurveActive or SliderState.CurveSleeping or SliderState.CurveReleased;
+
+    private static Glyph CurveModeGlyph(MonitorInfo monitor) =>
+        monitor.IsCurveReleased ? GlyphCatalog.LOCK : GlyphCatalog.UNLOCK;
+
+    private static string CurveModeTooltip(MonitorInfo monitor) =>
+        monitor.IsCurveReleased
+            ? L("Flyout_CurveMode_ManualTooltip", "Manual override")
+            : L("Flyout_CurveMode_CurveTooltip", "Curve control");
+
+    private void ApplyCurveModeButtonVisual(MonitorInfo monitor, Border? button)
+    {
+        if (button?.Child is not TextBlock glyphText) return;
+
+        Glyph glyph = CurveModeGlyph(monitor);
+        GlyphApplicator.ApplyTo(glyphText, glyph);
+        glyphText.Opacity = monitor.IsCurveReleased ? 1.0 : Layout.ModeButtonCurveOpacity;
+        TrayAppDotNETToolTip.SetTip(button, CurveModeTooltip(monitor));
+    }
+
     private static bool CanEditSlider(MonitorInfo monitor)
     {
         if (monitor.IsNightLight) return NightLightProvider.IsSupported();
@@ -3530,7 +3611,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-internal sealed record ProfilePreviewRowVisuals(FlyoutSlider Slider, Border Row, TextBlock Value);
+internal sealed record ProfilePreviewRowVisuals(
+    FlyoutSlider Slider,
+    Border Row,
+    TextBlock Value,
+    Border? CurveModeButton);
 
 internal sealed class FlyoutVisualState
 {
