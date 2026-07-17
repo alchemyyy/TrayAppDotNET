@@ -34,7 +34,7 @@
         <Thickness x:Key="Flyout.RootBorderThickness">1</Thickness>
         <CornerRadius x:Key="Flyout.RootCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="Flyout.RootInnerCornerRadius">7</CornerRadius>
-        <Thickness x:Key="Flyout.RootInnerMargin">1</Thickness>
+        <Thickness x:Key="Flyout.RootInnerPadding">1</Thickness>
         <sys:Double x:Key="Flyout.RootShadowOffsetY">4</sys:Double>
         <sys:Double x:Key="Flyout.RootShadowBlur">30</sys:Double>
 

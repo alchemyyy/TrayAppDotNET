@@ -25,7 +25,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private const string NewGroupBaseName = "New_Fan_Group";
     private const string NewProbeCardBaseName = "New_Probe_Card";
-    private static readonly bool EnableFanDragDebugOverlay = false;
+    private static readonly bool EnableFanDragDebugOverlay = true;
     private static readonly bool EnableFanDragInstrumentation = false;
 
     private readonly LHMService? _lhmService;
@@ -368,6 +368,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
                 BorderBrush = TrayAppDotNETFlyoutUI.Brush(theme.Border.For(isLight)),
                 BorderThickness = Layout.RootBorderThickness,
+                Padding = Layout.RootInnerPadding,
                 CornerRadius = Rounded(Layout.RootCornerRadius),
                 ClipToBounds = false,
                 BoxShadow = new BoxShadows(new BoxShadow
@@ -381,7 +382,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
                     CornerRadius = Rounded(Layout.RootInnerCornerRadius),
                     ClipToBounds = true,
-                    Margin = Layout.RootInnerMargin,
                     Child = rootGrid
                 }
             };
