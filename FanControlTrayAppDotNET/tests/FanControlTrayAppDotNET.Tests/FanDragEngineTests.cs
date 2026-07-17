@@ -218,6 +218,54 @@ public sealed class FanDragEngineTests
     }
 
     [Fact]
+    public void SameGroupPreviewReusesTheExistingSourceSlot()
+    {
+        DragRig rig = DragRig.Create();
+        FanDragSnapshot snapshot = rig.Snapshot(
+            rig.GroupFan1,
+            rig.GroupCell,
+            sourceTopLevelIndex: -1,
+            sourceTopLevelControl: null,
+            sourceFanSlotHeight: 36);
+        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, 1);
+
+        FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
+
+        Assert.Empty(preview.GroupFanOffsets);
+        Assert.Null(preview.GroupDropPreviewCell);
+    }
+
+    [Fact]
+    public void SameGroupPreviewShiftsOnlyRowsBetweenSourceAndDestination()
+    {
+        DragRig rig = DragRig.Create();
+        FanDragSnapshot movingEarlier = rig.Snapshot(
+            rig.GroupFan1,
+            rig.GroupCell,
+            sourceTopLevelIndex: -1,
+            sourceTopLevelControl: null,
+            sourceFanSlotHeight: 36);
+        FanDragSnapshot movingLater = rig.Snapshot(
+            rig.GroupFan0,
+            rig.GroupCell,
+            sourceTopLevelIndex: -1,
+            sourceTopLevelControl: null,
+            sourceFanSlotHeight: 36);
+
+        FanDragPreviewPlan earlierPreview = FanDragEngine.CalculatePreviewPlan(
+            movingEarlier,
+            FanDragPlacement.IntoGroup(rig.GroupCell, 0));
+        FanDragPreviewPlan laterPreview = FanDragEngine.CalculatePreviewPlan(
+            movingLater,
+            FanDragPlacement.IntoGroup(rig.GroupCell, 1));
+
+        AssertFanOffsets(earlierPreview.GroupFanOffsets, (rig.GroupFan0, 36));
+        AssertFanOffsets(laterPreview.GroupFanOffsets, (rig.GroupFan1, -36));
+        Assert.Null(earlierPreview.GroupDropPreviewCell);
+        Assert.Null(laterPreview.GroupDropPreviewCell);
+    }
+
+    [Fact]
     public void DraggingGroupedFanOutToTopLevelCreatesFullSizeFanCardSpace()
     {
         DragRig rig = DragRig.Create();
@@ -379,6 +427,18 @@ public sealed class FanDragEngineTests
         for (int i = 0; i < expected.Length; i++)
         {
             Assert.Equal(expected[i].Index, actual[i].Index);
+            Assert.Equal(expected[i].Offset, actual[i].Offset, precision: 3);
+        }
+    }
+
+    private static void AssertFanOffsets(
+        IReadOnlyList<FanDragFanSlotOffset> actual,
+        params (Fan Fan, double Offset)[] expected)
+    {
+        Assert.Equal(expected.Length, actual.Count);
+        for (int i = 0; i < expected.Length; i++)
+        {
+            Assert.Same(expected[i].Fan, actual[i].Fan);
             Assert.Equal(expected[i].Offset, actual[i].Offset, precision: 3);
         }
     }

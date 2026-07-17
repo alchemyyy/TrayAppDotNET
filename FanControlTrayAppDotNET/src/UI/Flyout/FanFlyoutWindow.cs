@@ -3608,6 +3608,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(CreateDragSnapshot(), placement);
         foreach (FanDragSlotOffset offset in preview.TopLevelOffsets)
             SetDragSlotOffset(offset.Index, offset.Offset);
+        foreach (FanDragFanSlotOffset offset in preview.GroupFanOffsets)
+            SetDragFanSlotOffset(offset.Fan, offset.Offset);
 
         layoutChanged |= preview.GroupDropPreviewCell != null
             ? InsertGroupDropPreview(preview.GroupDropPreviewCell, preview.GroupDropPreviewFanIndex)
@@ -3622,6 +3624,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragSlots[index].Visual.RenderTransform = offset == 0
             ? null
             : new TranslateTransform(0, offset);
+    }
+
+    private void SetDragFanSlotOffset(Fan fan, double offset)
+    {
+        foreach (FanDragFanSlot slot in _dragFanSlots)
+        {
+            if (!ReferenceEquals(slot.Fan, fan)) continue;
+
+            slot.Visual.RenderTransform = offset == 0
+                ? null
+                : new TranslateTransform(0, offset);
+            return;
+        }
     }
 
     private bool ResetDragPreviewTransforms()
