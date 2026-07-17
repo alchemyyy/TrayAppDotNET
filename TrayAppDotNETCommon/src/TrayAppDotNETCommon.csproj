@@ -51,6 +51,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TrayAppDotNETCommon.XmlSourceGenerator.Tests" />
+    <InternalsVisibleTo Include="VolumeTrayAppDotNET.Tests" />
   </ItemGroup>
 
 </Project>

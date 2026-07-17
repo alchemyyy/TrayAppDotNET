@@ -406,7 +406,7 @@ public sealed class FlyoutSlider : Control, IDisposable
         double peakRadius = FlyoutSliderLayout.TrackHeight / 2.0;
         if (PeakValues.Max > 0)
         {
-            double stereoWidth = PeakWidth(peakExtent, PeakValues.Max, peakRadius);
+            double stereoWidth = CalculatePeakWidth(peakExtent, PeakValues.Max, peakRadius);
             DrawRoundedRect(
                 context,
                 new Rect(0, trackY, stereoWidth, FlyoutSliderLayout.TrackHeight),
@@ -415,7 +415,7 @@ public sealed class FlyoutSlider : Control, IDisposable
 
         if (PeakValues.Min > 0)
         {
-            double baseWidth = PeakWidth(peakExtent, PeakValues.Min, peakRadius);
+            double baseWidth = CalculatePeakWidth(peakExtent, PeakValues.Min, peakRadius);
             DrawRoundedRect(
                 context,
                 new Rect(0, trackY, baseWidth, FlyoutSliderLayout.TrackHeight),
@@ -672,10 +672,11 @@ public sealed class FlyoutSlider : Control, IDisposable
             thumbWidth,
             thumbHeight);
 
-    private static double PeakWidth(double peakExtent, float peak, double radius)
+    /// <summary>Compensates for the rounded cap without drawing beyond the volume extent.</summary>
+    internal static double CalculatePeakWidth(double peakExtent, float peak, double radius)
     {
-        double clamped = Math.Clamp(peak, 0f, 1f);
-        return peakExtent * clamped + radius * clamped;
+        double clampedPeak = Math.Clamp(peak, 0f, 1f);
+        return Math.Min(peakExtent, (peakExtent + radius) * clampedPeak);
     }
 
     private void DrawThumbAtValue(
