@@ -95,21 +95,32 @@ internal static class FanDragEngine
                     CalculateIntoGroupPreviewOffsets(snapshot),
                     CalculateSameGroupFanOffsets(snapshot, placement.GroupCell, placement.GroupFanIndex),
                     null,
-                    0);
+                    0,
+                    false);
             }
 
             return new FanDragPreviewPlan(
                 CalculateIntoGroupPreviewOffsets(snapshot),
                 [],
                 placement.GroupCell,
-                placement.GroupFanIndex);
+                placement.GroupFanIndex,
+                ShouldExpandGroupDropPreviewUpward(snapshot, placement.GroupCell));
         }
 
         return new FanDragPreviewPlan(
             CalculateTopLevelPreviewOffsets(snapshot, placement.TopLevelIndex),
             [],
             null,
-            0);
+            0,
+            false);
+    }
+
+    private static bool ShouldExpandGroupDropPreviewUpward(
+        FanDragSnapshot snapshot,
+        FanFlyoutCell groupCell)
+    {
+        int groupIndex = IndexOfDragSlot(snapshot, groupCell);
+        return groupIndex >= 0 && snapshot.DragSourceTopLevelIndex > groupIndex;
     }
 
     private static bool CanReuseSameGroupSourceSlot(FanDragSnapshot snapshot, FanFlyoutCell groupCell) =>
@@ -682,7 +693,8 @@ internal sealed record FanDragPreviewPlan(
     IReadOnlyList<FanDragSlotOffset> TopLevelOffsets,
     IReadOnlyList<FanDragFanSlotOffset> GroupFanOffsets,
     FanFlyoutCell? GroupDropPreviewCell,
-    int GroupDropPreviewFanIndex)
+    int GroupDropPreviewFanIndex,
+    bool GroupDropPreviewExpandsUpward)
 {
     public string ToCompactString()
     {
@@ -695,7 +707,8 @@ internal sealed record FanDragPreviewPlan(
             : string.Join(",", GroupFanOffsets.Select(offset =>
                 string.Create(CultureInfo.InvariantCulture, $"{offset.Fan.DisplayName}:{offset.Offset:0.##}")));
         string group = GroupDropPreviewCell?.GroupName ?? "<none>";
-        return $"offsets={offsets};fanOffsets={fanOffsets};groupPreview={group}@{GroupDropPreviewFanIndex}";
+        string expansion = GroupDropPreviewExpandsUpward ? "up" : "down";
+        return $"offsets={offsets};fanOffsets={fanOffsets};groupPreview={group}@{GroupDropPreviewFanIndex}:{expansion}";
     }
 }
 

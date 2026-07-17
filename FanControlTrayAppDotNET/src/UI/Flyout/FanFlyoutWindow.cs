@@ -53,6 +53,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private UIResourceScope? _dragGhostResources;
     private Control? _groupDropPreview;
     private StackPanel? _groupDropPreviewHost;
+    private bool _groupDropPreviewExpandsUpward;
     private readonly List<FanDragSlot> _dragSlots = [];
     private readonly List<FanDragFanSlot> _dragFanSlots = [];
     private Control? _dragSourceControl;
@@ -3306,7 +3307,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             || content.Children.IndexOf(_groupDropPreview) < 0)
             return currentBottom;
 
-        return Math.Max(cardTop, currentBottom - ResolveGroupDropPreviewExtent());
+        return _groupDropPreviewExpandsUpward
+            ? currentBottom
+            : Math.Max(cardTop, currentBottom - ResolveGroupDropPreviewExtent());
     }
 
     private void SnapshotFanRows(FanFlyoutCell cell, Control card, double cardRenderOffsetY)
@@ -3352,7 +3355,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_groupDropPreview == null) return Math.Max(1, _dragSourceFanSlotHeight);
 
-        double previewExtent = _groupDropPreview.Bounds.Height
+        double previewHeight = _groupDropPreview.Bounds.Height;
+        if (previewHeight <= 0 && double.IsFinite(_groupDropPreview.Height))
+            previewHeight = Math.Max(0, _groupDropPreview.Height);
+        if (previewHeight <= 0)
+            previewHeight = Math.Max(0, _groupDropPreview.DesiredSize.Height);
+
+        double previewExtent = previewHeight
                                + Math.Max(0, _groupDropPreview.Margin.Top)
                                + Math.Max(0, _groupDropPreview.Margin.Bottom);
         return previewExtent > 0 ? previewExtent : Math.Max(1, _dragSourceFanSlotHeight);
@@ -3632,6 +3641,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ? InsertGroupDropPreview(preview.GroupDropPreviewCell, preview.GroupDropPreviewFanIndex)
             : RemoveGroupDropPreview();
 
+        _groupDropPreviewExpandsUpward = preview.GroupDropPreviewExpandsUpward
+                                         && _groupDropPreviewHost != null;
+        if (_groupDropPreviewExpandsUpward)
+        {
+            // Counter downward layout growth to keep the group bottom anchored
+            OffsetAllTopLevelVisuals(-ResolveGroupDropPreviewExtent());
+        }
+
         return layoutChanged;
     }
 
@@ -3641,6 +3658,20 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragSlots[index].Visual.RenderTransform = offset == 0
             ? null
             : new TranslateTransform(0, offset);
+    }
+
+    private void OffsetAllTopLevelVisuals(double offset)
+    {
+        StackPanel? cellStack = CellStack;
+        if (cellStack == null || offset == 0) return;
+
+        foreach (Control visual in cellStack.Children)
+        {
+            double combinedOffset = RenderTransformOffsetY(visual) + offset;
+            visual.RenderTransform = combinedOffset == 0
+                ? null
+                : new TranslateTransform(0, combinedOffset);
+        }
     }
 
     private void SetDragFanSlotOffset(Fan fan, double offset)
@@ -3659,8 +3690,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool ResetDragPreviewTransforms()
     {
         bool layoutChanged = RemoveGroupDropPreview();
-        foreach (FanDragSlot slot in _dragSlots)
-            slot.Visual.RenderTransform = null;
+        StackPanel? cellStack = CellStack;
+        if (cellStack != null)
+        {
+            foreach (Control visual in cellStack.Children)
+                visual.RenderTransform = null;
+        }
         foreach (FanDragFanSlot slot in _dragFanSlots)
             slot.Visual.RenderTransform = null;
         return layoutChanged;
@@ -3714,6 +3749,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private bool RemoveGroupDropPreview()
     {
+        _groupDropPreviewExpandsUpward = false;
         if (_groupDropPreviewHost != null && _groupDropPreview != null)
         {
             _groupDropPreviewHost.Children.Remove(_groupDropPreview);
@@ -4044,6 +4080,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _dragGhost = null;
             _groupDropPreview = null;
             _groupDropPreviewHost = null;
+            _groupDropPreviewExpandsUpward = false;
             _dragDebugVisuals.Clear();
             _dragSlots.Clear();
             _dragFanSlots.Clear();
@@ -4127,6 +4164,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragGhost = null;
         _groupDropPreview = null;
         _groupDropPreviewHost = null;
+        _groupDropPreviewExpandsUpward = false;
         _dragDebugVisuals.Clear();
         _dragSlots.Clear();
         _dragFanSlots.Clear();

@@ -165,6 +165,22 @@ public sealed class FanDragEngineTests
         AssertOffsets(preview.TopLevelOffsets, (1, -88), (2, -88), (3, -88));
         Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
         Assert.Equal(1, preview.GroupDropPreviewFanIndex);
+        Assert.False(preview.GroupDropPreviewExpandsUpward);
+    }
+
+    [Fact]
+    public void IntoGroupPreviewFromSourceBelowExpandsTheGroupUpward()
+    {
+        DragRig rig = DragRig.Create(includeFanBetweenSourceAndGroup: true);
+        FanDragSnapshot snapshot = rig.Snapshot(rig.FanC, rig.CellC, sourceTopLevelIndex: 3);
+        FanDragPlacement placement = FanDragPlacement.IntoGroup(rig.GroupCell, 1);
+
+        FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
+
+        Assert.Empty(preview.TopLevelOffsets);
+        Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
+        Assert.Equal(1, preview.GroupDropPreviewFanIndex);
+        Assert.True(preview.GroupDropPreviewExpandsUpward);
     }
 
     [Fact]

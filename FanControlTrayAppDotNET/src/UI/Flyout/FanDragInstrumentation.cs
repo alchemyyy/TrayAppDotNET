@@ -312,6 +312,8 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         AppendString(builder, CellLabel(preview.GroupDropPreviewCell));
         builder.Append(",\"groupDropPreviewFanIndex\":");
         builder.Append(preview.GroupDropPreviewFanIndex.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"groupDropPreviewExpandsUpward\":");
+        builder.Append(preview.GroupDropPreviewExpandsUpward ? "true" : "false");
         builder.Append('}');
     }
 
