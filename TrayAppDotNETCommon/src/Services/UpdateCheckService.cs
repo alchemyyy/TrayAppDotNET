@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
 using TrayAppDotNETCommon.Utils;
@@ -88,6 +89,8 @@ public sealed class UpdateCheckOptions
     public required Func<string> StagingDirectory { get; init; }
     public required Func<bool> IsEnabled { get; init; }
     public required Func<TimeSpan> PollInterval { get; init; }
+    public required Func<int> GetSkippedUpdateVersion { get; init; }
+    public required Action<int> PersistSkippedUpdateVersion { get; init; }
     public required Func<Action, Task> InvokeOnUIThread { get; init; }
 
     public string? StagingFilePrefix { get; init; }
@@ -128,6 +131,10 @@ public sealed class UpdateCheckService : IDisposable
     private const int UpdateScriptTerminateAttempts = 20;
     private const int UpdateScriptStepDelaySeconds = 1;
     private const int UpdateScriptTerminateDelaySeconds = 1;
+    private const int GitHubFallbackReleasesPerPage = 10;
+    private const int GitHubFallbackReleaseMaxPages = 10;
+    private const string GitHubApiVersion = "2026-03-10";
+    private const string Sha256DigestPrefix = "sha256:";
 
     private static readonly string[] SharedNativeDLLFileNames =
     [
@@ -142,6 +149,7 @@ public sealed class UpdateCheckService : IDisposable
 
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
+    private readonly SemaphoreSlim _previousReleaseSemaphore = new(1, 1);
 
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
@@ -152,13 +160,22 @@ public sealed class UpdateCheckService : IDisposable
     private DateTime? _lastCheckTimeUtc;
     private bool _isChecking;
     private UpdateCheckResult? _lastResult;
+    private UpdateInfo? _latestRelease;
+    private UpdateInfo? _previousRelease;
+    private bool _isPreviousReleaseResolved;
     private bool _disposed;
 
     public UpdateCheckService(UpdateCheckOptions options)
+        : this(options, new HttpClientHandler())
+    {
+    }
+
+    internal UpdateCheckService(UpdateCheckOptions options, HttpMessageHandler httpMessageHandler)
     {
         _options = ValidateOptions(options);
+        ArgumentNullException.ThrowIfNull(httpMessageHandler);
 
-        _http = new HttpClient { Timeout = _options.NetworkTimeout };
+        _http = new HttpClient(httpMessageHandler, disposeHandler: true) { Timeout = _options.NetworkTimeout };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(_options.UserAgent);
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
@@ -174,6 +191,17 @@ public sealed class UpdateCheckService : IDisposable
     public bool IsChecking => _isChecking;
 
     public UpdateCheckResult? LastResult => _lastResult;
+
+    public int CurrentBuild => _options.CurrentBuild;
+
+    public int SkippedUpdateVersion
+    {
+        get
+        {
+            int skippedUpdateVersion = _options.GetSkippedUpdateVersion();
+            return skippedUpdateVersion > _options.CurrentBuild ? skippedUpdateVersion : 0;
+        }
+    }
 
     public void Start()
     {
@@ -241,6 +269,61 @@ public sealed class UpdateCheckService : IDisposable
         }
 
         return _available;
+    }
+
+    /// <summary>Persists an ignored release and removes it from the available update state.</summary>
+    public async Task SkipReleaseAsync(UpdateInfo info)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(info);
+        if (info.Version <= _options.CurrentBuild)
+            throw new ArgumentOutOfRangeException(nameof(info), "Only newer releases can be skipped.");
+
+        await InvokeIfRunningAsync(() =>
+        {
+            _options.PersistSkippedUpdateVersion(info.Version);
+            if (_available?.Version == info.Version)
+                _available = null;
+            StateChanged?.Invoke();
+        }).ConfigureAwait(false);
+    }
+
+    /// <summary>Persists whether the running build should be offered after a backdate.</summary>
+    public async Task SetCurrentVersionSkippedAsync(bool isSkipped)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await InvokeIfRunningAsync(() =>
+        {
+            int persistedVersion = _options.GetSkippedUpdateVersion();
+            if (isSkipped)
+                _options.PersistSkippedUpdateVersion(_options.CurrentBuild);
+            else if (persistedVersion == _options.CurrentBuild)
+                _options.PersistSkippedUpdateVersion(0);
+            StateChanged?.Invoke();
+        }).ConfigureAwait(false);
+    }
+
+    /// <summary>Returns the newest published app package older than the running build.</summary>
+    public async Task<UpdateInfo?> GetPreviousReleaseAsync()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _previousReleaseSemaphore.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (_isPreviousReleaseResolved) return _previousRelease;
+
+            using CancellationTokenSource timeoutCts = new(_options.ManualCheckTimeout);
+            UpdateInfo? previousRelease = await FetchPreviousReleaseAsync(timeoutCts.Token).ConfigureAwait(false);
+            _previousRelease = previousRelease;
+            _isPreviousReleaseResolved = true;
+            return previousRelease;
+        }
+        finally
+        {
+            _previousReleaseSemaphore.Release();
+        }
     }
 
     public async Task<bool> DownloadAndStageAsync(UpdateInfo info, CancellationToken token = default)
@@ -465,7 +548,9 @@ public sealed class UpdateCheckService : IDisposable
             UpdateInfo? newer = info != null && info.Version > _options.CurrentBuild ? info : null;
             await InvokeIfRunningAsync(() =>
             {
-                _available = newer;
+                int skippedUpdateVersion = _options.GetSkippedUpdateVersion();
+                _latestRelease = info;
+                _available = newer?.Version == skippedUpdateVersion ? null : newer;
                 _lastCheckTimeUtc = DateTime.UtcNow;
                 _lastResult = UpdateCheckResult.Success;
             }).ConfigureAwait(false);
@@ -524,26 +609,121 @@ public sealed class UpdateCheckService : IDisposable
         catch (OperationCanceledException) { }
     }
 
-    private async Task<UpdateInfo?> FetchLatestAsync(CancellationToken token)
+    private Task<UpdateInfo?> FetchLatestAsync(CancellationToken token) =>
+        FetchReleaseManifestAsync(
+            _options.VersionsManifestUrl,
+            pinnedTagName: null,
+            returnNullWhenMissing: false,
+            token);
+
+    private async Task<UpdateInfo?> FetchPreviousReleaseAsync(CancellationToken token)
     {
-        using HttpRequestMessage req = new(HttpMethod.Get, _options.VersionsManifestUrl);
-        using HttpResponseMessage resp = await _http
-            .SendAsync(req, HttpCompletionOption.ResponseContentRead, token)
-            .ConfigureAwait(false);
-        if (!resp.IsSuccessStatusCode)
+        if (_options.CurrentBuild <= 1) return null;
+
+        int expectedPreviousVersion = _options.CurrentBuild - 1;
+        UpdateInfo? latestRelease = _latestRelease;
+        if (latestRelease == null)
         {
-            throw new HttpRequestException(
-                $"Manifest request to {_options.VersionsManifestUrl} failed with HTTP "
-                + $"{(int)resp.StatusCode} ({resp.ReasonPhrase}).",
-                null,
-                resp.StatusCode);
+            try
+            {
+                latestRelease = await FetchLatestAsync(token).ConfigureAwait(false);
+                _latestRelease = latestRelease;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log(
+                    $"UpdateCheckService.FetchPreviousReleaseAsync: latest release lookup failed: "
+                    + $"{exception.Message}; using release-list fallback.");
+            }
         }
 
-        await using Stream stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        VersionsManifest manifest = TrayXmlSerializer.Read<VersionsManifest>(stream);
+        if (latestRelease?.Version == expectedPreviousVersion)
+            return latestRelease;
 
-        string tag = manifest.Release.Tag;
-        string releaseName = string.IsNullOrWhiteSpace(manifest.Release.Name) ? tag : manifest.Release.Name;
+        int releaseIndexDistance = latestRelease?.Version - expectedPreviousVersion ?? 0;
+        if (latestRelease != null
+            && releaseIndexDistance > 0
+            && TryGetPriorIndexedTag(latestRelease.TagName, releaseIndexDistance, out string previousTagName))
+        {
+            UpdateInfo? directPreviousRelease = await TryFetchTaggedReleaseAsync(previousTagName, token)
+                .ConfigureAwait(false);
+            if (directPreviousRelease?.Version == expectedPreviousVersion)
+                return directPreviousRelease;
+
+            string directVersion = directPreviousRelease?.Version.ToString(CultureInfo.InvariantCulture) ?? "none";
+            TADNLog.Log(
+                $"UpdateCheckService.FetchPreviousReleaseAsync: direct tag {previousTagName} returned app version "
+                + $"{directVersion}, expected {expectedPreviousVersion}; using release-list fallback.");
+        }
+
+        return await FetchPreviousReleaseFallbackAsync(expectedPreviousVersion, token).ConfigureAwait(false);
+    }
+
+    private async Task<UpdateInfo?> TryFetchTaggedReleaseAsync(string tagName, CancellationToken token)
+    {
+        try
+        {
+            Uri manifestUrl = GitHubReleaseUrls.ReleaseAssetUrl(
+                _options.RepositoryOwner,
+                _options.RepositoryName,
+                tagName,
+                GitHubReleaseUrls.VersionsManifestFileName);
+            return await FetchReleaseManifestAsync(
+                    manifestUrl,
+                    tagName,
+                    returnNullWhenMissing: true,
+                    token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.TryFetchTaggedReleaseAsync: {tagName} lookup failed: {exception.Message}");
+            return null;
+        }
+    }
+
+    private async Task<UpdateInfo?> FetchReleaseManifestAsync(
+        Uri manifestUrl,
+        string? pinnedTagName,
+        bool returnNullWhenMissing,
+        CancellationToken token)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Get, manifestUrl);
+        using HttpResponseMessage response = await _http
+            .SendAsync(request, HttpCompletionOption.ResponseContentRead, token)
+            .ConfigureAwait(false);
+        if (returnNullWhenMissing && response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Manifest request to {manifestUrl} failed with HTTP "
+                + $"{(int)response.StatusCode} ({response.ReasonPhrase}).",
+                null,
+                response.StatusCode);
+        }
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        VersionsManifest manifest = TrayXmlSerializer.Read<VersionsManifest>(stream);
+        string tagName = string.IsNullOrWhiteSpace(pinnedTagName) ? manifest.Release.Tag : pinnedTagName;
+        if (string.IsNullOrWhiteSpace(tagName)) return null;
+        if (!string.IsNullOrWhiteSpace(pinnedTagName)
+            && !string.IsNullOrWhiteSpace(manifest.Release.Tag)
+            && !string.Equals(pinnedTagName, manifest.Release.Tag, StringComparison.OrdinalIgnoreCase))
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.FetchReleaseManifestAsync: manifest tag {manifest.Release.Tag} did not match "
+                + $"requested tag {pinnedTagName}.");
+            return null;
+        }
 
         VersionsArtifact? appArtifact = manifest.Artifacts.Artifacts.FirstOrDefault(IsReleaseAppArtifact);
         if (appArtifact == null) return null;
@@ -558,32 +738,198 @@ public sealed class UpdateCheckService : IDisposable
         if (!string.Equals(manifestAssetName, expectedAssetName, StringComparison.OrdinalIgnoreCase))
         {
             TADNLog.Log(
-                $"UpdateCheckService.FetchLatestAsync: manifest asset {manifestAssetName} did not match "
+                $"UpdateCheckService.FetchReleaseManifestAsync: manifest asset {manifestAssetName} did not match "
                 + $"expected asset {expectedAssetName}.");
             return null;
         }
 
-        string displayName = $"{_options.ApplicationName} {version}";
-        if (string.IsNullOrWhiteSpace(displayName))
-            displayName = string.IsNullOrWhiteSpace(releaseName) ? tag : releaseName;
-
-        Uri assetUrl = GitHubReleaseUrls.LatestAppReleaseAssetUrl(
-            _options.RepositoryOwner,
-            _options.RepositoryName,
-            _options.ApplicationName,
-            version);
-        string sha256 = appArtifact.Sha256;
-        long size = ParsePositiveLong(appArtifact.Size);
-
+        Uri assetUrl = string.IsNullOrWhiteSpace(pinnedTagName)
+            ? GitHubReleaseUrls.LatestAppReleaseAssetUrl(
+                _options.RepositoryOwner,
+                _options.RepositoryName,
+                _options.ApplicationName,
+                version)
+            : GitHubReleaseUrls.ReleaseAssetUrl(
+                _options.RepositoryOwner,
+                _options.RepositoryName,
+                tagName,
+                expectedAssetName);
+        string releaseName = string.IsNullOrWhiteSpace(manifest.Release.Name)
+            ? $"{_options.ApplicationName} {version}"
+            : manifest.Release.Name;
         return new UpdateInfo(
             version,
-            tag,
-            displayName,
+            tagName,
+            releaseName,
             "",
             assetUrl.ToString(),
             expectedAssetName,
-            sha256,
-            size);
+            appArtifact.Sha256,
+            ParsePositiveLong(appArtifact.Size));
+    }
+
+    private async Task<UpdateInfo?> FetchPreviousReleaseFallbackAsync(
+        int expectedPreviousVersion,
+        CancellationToken token)
+    {
+        for (int page = 1; page <= GitHubFallbackReleaseMaxPages; page++)
+        {
+            (UpdateInfo? previousRelease, int releaseCount) = await FetchPreviousReleasePageAsync(
+                    page,
+                    expectedPreviousVersion,
+                    token)
+                .ConfigureAwait(false);
+            if (previousRelease != null) return previousRelease;
+            if (releaseCount < GitHubFallbackReleasesPerPage) return null;
+        }
+
+        return null;
+    }
+
+    private async Task<(UpdateInfo? PreviousRelease, int ReleaseCount)> FetchPreviousReleasePageAsync(
+        int page,
+        int expectedPreviousVersion,
+        CancellationToken token)
+    {
+        Uri requestUrl = GitHubReleaseUrls.ReleasesApiUrl(
+            _options.RepositoryOwner,
+            _options.RepositoryName,
+            page,
+            GitHubFallbackReleasesPerPage);
+        using HttpRequestMessage request = new(HttpMethod.Get, requestUrl);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        request.Headers.TryAddWithoutValidation("X-GitHub-Api-Version", GitHubApiVersion);
+        using HttpResponseMessage response = await _http
+            .SendAsync(request, HttpCompletionOption.ResponseContentRead, token)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"GitHub releases request to {requestUrl} failed with HTTP "
+                + $"{(int)response.StatusCode} ({response.ReasonPhrase}).",
+                null,
+                response.StatusCode);
+        }
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+        using JsonDocument document = await JsonDocument.ParseAsync(stream, cancellationToken: token)
+            .ConfigureAwait(false);
+        JsonElement releases = document.RootElement;
+        if (releases.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("GitHub releases response was not a JSON array.");
+
+        UpdateInfo? bestPreviousRelease = null;
+        foreach (JsonElement release in releases.EnumerateArray())
+        {
+            if (GetJSONBoolean(release, "draft") || GetJSONBoolean(release, "prerelease")) continue;
+
+            string tagName = GetJSONString(release, "tag_name");
+            if (string.IsNullOrWhiteSpace(tagName)) continue;
+            if (!release.TryGetProperty("assets", out JsonElement assets)
+                || assets.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (JsonElement asset in assets.EnumerateArray())
+            {
+                string assetName = GetJSONString(asset, "name");
+                int version = ParseAppReleaseAssetVersion(assetName);
+                if (version <= 0 || version >= _options.CurrentBuild) continue;
+                if (bestPreviousRelease != null && version <= bestPreviousRelease.Version) continue;
+
+                Uri assetUrl = GitHubReleaseUrls.ReleaseAssetUrl(
+                    _options.RepositoryOwner,
+                    _options.RepositoryName,
+                    tagName,
+                    assetName);
+                bestPreviousRelease = new UpdateInfo(
+                    version,
+                    tagName,
+                    $"{_options.ApplicationName} {version}",
+                    GetJSONString(release, "body"),
+                    assetUrl.ToString(),
+                    assetName,
+                    ParseSHA256Digest(GetJSONString(asset, "digest")),
+                    GetJSONPositiveInt64(asset, "size"));
+                if (version == expectedPreviousVersion)
+                    return (bestPreviousRelease, releases.GetArrayLength());
+            }
+        }
+
+        return (bestPreviousRelease, releases.GetArrayLength());
+    }
+
+    private int ParseAppReleaseAssetVersion(string assetName)
+    {
+        string prefix = _options.ApplicationName + "_";
+        const string suffix = ".zip";
+        if (!assetName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            || !assetName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        int versionLength = assetName.Length - prefix.Length - suffix.Length;
+        if (versionLength <= 0) return 0;
+        return int.TryParse(
+            assetName.AsSpan(prefix.Length, versionLength),
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out int version)
+            ? version
+            : 0;
+    }
+
+    private static bool TryGetPriorIndexedTag(string tagName, int releaseIndexDistance, out string previousTagName)
+    {
+        previousTagName = string.Empty;
+        if (releaseIndexDistance <= 0) return false;
+
+        ReadOnlySpan<char> tag = tagName.AsSpan().Trim();
+        int versionStart = tag.Length;
+        while (versionStart > 0 && char.IsDigit(tag[versionStart - 1])) versionStart--;
+        if (versionStart == tag.Length) return false;
+        if (!int.TryParse(
+                tag[versionStart..],
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out int releaseIndex)
+            || releaseIndex <= releaseIndexDistance)
+            return false;
+
+        previousTagName = string.Concat(
+            tag[..versionStart],
+            (releaseIndex - releaseIndexDistance).ToString(CultureInfo.InvariantCulture));
+        return true;
+    }
+
+    private static string GetJSONString(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out JsonElement property)
+        && property.ValueKind == JsonValueKind.String
+            ? property.GetString() ?? string.Empty
+            : string.Empty;
+
+    private static bool GetJSONBoolean(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out JsonElement property)
+        && property.ValueKind is JsonValueKind.True or JsonValueKind.False
+        && property.GetBoolean();
+
+    private static long GetJSONPositiveInt64(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out JsonElement property)
+        && property.TryGetInt64(out long value)
+        && value > 0
+            ? value
+            : 0;
+
+    private static string ParseSHA256Digest(string digest)
+    {
+        if (!digest.StartsWith(Sha256DigestPrefix, StringComparison.OrdinalIgnoreCase)) return string.Empty;
+
+        string sha256 = digest[Sha256DigestPrefix.Length..];
+        if (sha256.Length != 64) return string.Empty;
+        foreach (char character in sha256)
+        {
+            if (!Uri.IsHexDigit(character)) return string.Empty;
+        }
+
+        return sha256;
     }
 
     private bool IsReleaseAppArtifact(VersionsArtifact artifact) =>
@@ -1055,6 +1401,8 @@ public sealed class UpdateCheckService : IDisposable
         ArgumentNullException.ThrowIfNull(options.StagingDirectory);
         ArgumentNullException.ThrowIfNull(options.IsEnabled);
         ArgumentNullException.ThrowIfNull(options.PollInterval);
+        ArgumentNullException.ThrowIfNull(options.GetSkippedUpdateVersion);
+        ArgumentNullException.ThrowIfNull(options.PersistSkippedUpdateVersion);
         ArgumentNullException.ThrowIfNull(options.InvokeOnUIThread);
 
         if (options.CurrentBuild < 0)

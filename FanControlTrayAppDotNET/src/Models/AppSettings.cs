@@ -188,6 +188,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool ShowUpdateNotificationsEnabled { get; set; }
     public bool ShowUpdateButtonInFlyout { get; set; } = true;
     public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
+    public int SkippedUpdateVersion { get; set; }
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
     public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;

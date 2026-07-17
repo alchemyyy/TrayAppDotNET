@@ -244,6 +244,7 @@ public static class TrayAppDotNETAvalonia
         string repositoryName,
         string applicationName,
         int currentBuild,
+        Action saveSettings,
         string owner = "alchemyyy",
         Func<Action, Task>? invokeOnUIThread = null) =>
         new(CreateGitHubUpdateOptions(
@@ -251,6 +252,7 @@ public static class TrayAppDotNETAvalonia
             repositoryName,
             applicationName,
             currentBuild,
+            saveSettings,
             owner,
             invokeOnUIThread));
 
@@ -301,12 +303,14 @@ public static class TrayAppDotNETAvalonia
         string repositoryName,
         string applicationName,
         int currentBuild,
+        Action saveSettings,
         string owner = "alchemyyy",
         Func<Action, Task>? invokeOnUIThread = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryName);
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
+        ArgumentNullException.ThrowIfNull(saveSettings);
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
 
         return new UpdateCheckOptions
@@ -322,6 +326,13 @@ public static class TrayAppDotNETAvalonia
                 "Temp"),
             IsEnabled = () => settings.CheckForUpdatesEnabled,
             PollInterval = () => TimeSpan.FromMilliseconds(settings.UpdateCheckIntervalMs),
+            GetSkippedUpdateVersion = () => settings.SkippedUpdateVersion,
+            PersistSkippedUpdateVersion = version =>
+            {
+                if (settings.SkippedUpdateVersion == version) return;
+                settings.SkippedUpdateVersion = version;
+                saveSettings();
+            },
             InvokeOnUIThread = invokeOnUIThread ?? InvokeOnUIThreadAsync,
             StagingFilePrefix = applicationName
         };

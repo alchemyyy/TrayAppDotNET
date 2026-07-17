@@ -407,6 +407,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool ShowUpdateNotificationsEnabled { get; set; }
     public bool ShowUpdateButtonInFlyout { get; set; } = true;
     public int UpdateCheckIntervalMs { get; set; } = TimeConstants.UpdateCheckIntervalDefaultMs;
+    public int SkippedUpdateVersion { get; set; }
 
     public DisplaySortMode DefaultDisplaySortMode { get; set; } = DisplaySortMode.Arrangement;
     public DisplaySortDirection DefaultDisplaySortDirection { get; set; } = DisplaySortDirection.Standard;

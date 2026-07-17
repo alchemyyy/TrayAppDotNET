@@ -33,6 +33,7 @@ public interface ITrayAppDotNETUpdateSettings
     bool ShowUpdateNotificationsEnabled { get; set; }
     bool ShowUpdateButtonInFlyout { get; set; }
     int UpdateCheckIntervalMs { get; set; }
+    int SkippedUpdateVersion { get; set; }
 }
 
 public interface ITrayAppDotNETRenderingSettings
@@ -145,6 +146,8 @@ public abstract class AppSettingsCommon(
         get;
         set => SetField(ref field, value);
     } = updateCheckIntervalDefaultMs;
+
+    public int SkippedUpdateVersion { get; set; }
 
     public bool KeepFlyoutWarm
     {

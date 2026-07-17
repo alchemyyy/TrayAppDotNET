@@ -207,7 +207,8 @@ internal sealed class VolumeAvaloniaApp : Application
                     _settings,
                     repositoryName: "TrayAppDotNET",
                     applicationName: Program.ApplicationName,
-                    currentBuild: BuildInfo.BuildNumber);
+                    currentBuild: BuildInfo.BuildNumber,
+                    saveSettings: _settings.Save);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
                 _updateCheckService.Start();
                 AppServices.UpdateCheckService = _updateCheckService;

@@ -38,6 +38,13 @@ internal static class UpdateConfirmationLayout
     public static Thickness TitleMargin => AXAMLResources.AxamlUpdateConfirmation.TitleMargin;
 }
 
+public enum TrayAppDotNETUpdatePromptResult
+{
+    Cancelled,
+    Confirmed,
+    Alternate
+}
+
 public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 {
     private readonly UIResourceScope _windowResources;
@@ -56,7 +63,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             L("UpdateDialog_Install", "Install"),
             L("UpdateDialog_Cancel", "Cancel"),
             palette,
-            rounded)
+            rounded,
+            L("UpdateDialog_SkipRelease", "Skip this release"))
     {
     }
 
@@ -67,7 +75,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         string confirmText,
         string? cancelText,
         SettingsPalette palette,
-        bool rounded)
+        bool rounded,
+        string? alternateText = null)
     {
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETUpdateConfirmationWindow));
         Title = title;
@@ -103,6 +112,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
                     changelog,
                     confirmText,
                     cancelText,
+                    alternateText,
                     palette,
                     rounded,
                     contentResources)
@@ -129,6 +139,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         string? changelog,
         string confirmText,
         string? cancelText,
+        string? alternateText,
         SettingsPalette palette,
         bool rounded,
         UIResourceScope resources)
@@ -196,6 +207,16 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right
         };
+        if (!string.IsNullOrWhiteSpace(alternateText))
+        {
+            SettingsButton alternate = TrayAppDotNETSettingsUI.Button(alternateText, palette);
+            alternate.Padding = UpdateConfirmationLayout.ButtonPadding;
+            alternate.Margin = UpdateConfirmationLayout.CancelButtonMargin;
+            alternate.Click += OnAlternateClick;
+            resources.Add(() => alternate.Click -= OnAlternateClick);
+            buttons.Children.Add(alternate);
+        }
+
         if (!string.IsNullOrWhiteSpace(cancelText))
         {
             SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
@@ -247,7 +268,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
     {
         if (_closed || e.Key != Key.Escape) return;
 
-        Complete(false);
+        Complete(TrayAppDotNETUpdatePromptResult.Cancelled);
         e.Handled = true;
     }
 
@@ -260,11 +281,13 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         e.Handled = true;
     }
 
-    private void OnConfirmClick(object? sender, EventArgs e) => Complete(true);
+    private void OnConfirmClick(object? sender, EventArgs e) => Complete(TrayAppDotNETUpdatePromptResult.Confirmed);
 
-    private void OnCancelClick(object? sender, EventArgs e) => Complete(false);
+    private void OnCancelClick(object? sender, EventArgs e) => Complete(TrayAppDotNETUpdatePromptResult.Cancelled);
 
-    private void Complete(bool result)
+    private void OnAlternateClick(object? sender, EventArgs e) => Complete(TrayAppDotNETUpdatePromptResult.Alternate);
+
+    private void Complete(TrayAppDotNETUpdatePromptResult result)
     {
         if (_closed) return;
         Close(result);
@@ -279,7 +302,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         {
             try
             {
-                Close(false);
+                Close(TrayAppDotNETUpdatePromptResult.Cancelled);
             }
             finally
             {

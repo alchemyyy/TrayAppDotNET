@@ -33,9 +33,86 @@ public static class TrayAppDotNETUpdatePromptPresenter
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        bool confirmed = await ShowConfirmationAsync(options);
-        if (!confirmed) return false;
+        TrayAppDotNETUpdatePromptResult promptResult = await ShowConfirmationAsync(options);
+        switch (promptResult)
+        {
+            case TrayAppDotNETUpdatePromptResult.Cancelled:
+                return false;
+            case TrayAppDotNETUpdatePromptResult.Alternate:
+                try
+                {
+                    await options.Service.SkipReleaseAsync(options.UpdateInfo);
+                }
+                catch (Exception ex)
+                {
+                    options.Log($"TrayAppDotNETUpdatePromptPresenter.SkipReleaseAsync: {ex.Message}");
+                }
+                return false;
+            case TrayAppDotNETUpdatePromptResult.Confirmed:
+                break;
+            default:
+                return false;
+        }
 
+        return await StageAndShutdownAsync(
+            options,
+            "TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync",
+            Localize(options, "Settings_About_InstallUpdate_CheckFailed", "Update failed"),
+            Localize(
+                options,
+                "UpdateDialog_DownloadFailed",
+                "The update could not be downloaded. Check the log for details."));
+    }
+
+    /// <summary>Confirms and installs an older release, including the current-version skip choice.</summary>
+    public static async Task<bool> ShowBackdateAsync(TrayAppDotNETUpdatePromptOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        TrayAppDotNETUpdatePromptResult confirmationResult = await ShowBackdateConfirmationAsync(options);
+        if (confirmationResult != TrayAppDotNETUpdatePromptResult.Confirmed) return false;
+
+        TrayAppDotNETUpdatePromptResult skipResult = await ShowBackdateSkipPromptAsync(options);
+        bool isCurrentVersionSkipped;
+        switch (skipResult)
+        {
+            case TrayAppDotNETUpdatePromptResult.Confirmed:
+                isCurrentVersionSkipped = true;
+                break;
+            case TrayAppDotNETUpdatePromptResult.Alternate:
+                isCurrentVersionSkipped = false;
+                break;
+            case TrayAppDotNETUpdatePromptResult.Cancelled:
+            default:
+                return false;
+        }
+
+        try
+        {
+            await options.Service.SetCurrentVersionSkippedAsync(isCurrentVersionSkipped);
+        }
+        catch (Exception exception)
+        {
+            options.Log($"TrayAppDotNETUpdatePromptPresenter.SetCurrentVersionSkippedAsync: {exception.Message}");
+            return false;
+        }
+
+        return await StageAndShutdownAsync(
+            options,
+            "TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync",
+            Localize(options, "BackdateDialog_FailedTitle", "Backdate failed"),
+            Localize(
+                options,
+                "BackdateDialog_DownloadFailed",
+                "The previous version could not be downloaded. Check the log for details."));
+    }
+
+    private static async Task<bool> StageAndShutdownAsync(
+        TrayAppDotNETUpdatePromptOptions options,
+        string operationName,
+        string failureTitle,
+        string failureMessage)
+    {
         options.SetDownloadInFlight?.Invoke(true);
         bool staged = false;
         try
@@ -44,7 +121,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         }
         catch (Exception ex)
         {
-            options.Log($"TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync: {ex.Message}");
+            options.Log($"{operationName}: {ex.Message}");
         }
 
         if (staged)
@@ -56,11 +133,12 @@ public static class TrayAppDotNETUpdatePromptPresenter
 
         options.SetDownloadInFlight?.Invoke(false);
         if (options.ShowFailurePrompt)
-            await ShowFailureAsync(options);
+            await ShowFailureAsync(options, failureTitle, failureMessage);
         return false;
     }
 
-    private static async Task<bool> ShowConfirmationAsync(TrayAppDotNETUpdatePromptOptions options)
+    private static async Task<TrayAppDotNETUpdatePromptResult> ShowConfirmationAsync(
+        TrayAppDotNETUpdatePromptOptions options)
     {
         string title = string.Format(
             CultureInfo.CurrentCulture,
@@ -72,6 +150,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             : options.UpdateInfo.Changelog;
         string confirmText = Localize(options, "UpdateDialog_Install", "Install");
         string cancelText = Localize(options, "UpdateDialog_Cancel", "Cancel");
+        string skipText = Localize(options, "UpdateDialog_SkipRelease", "Skip this release");
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
@@ -80,6 +159,38 @@ public static class TrayAppDotNETUpdatePromptPresenter
             confirmText,
             cancelText,
             options.Palette,
+            options.EnableRoundedCorners,
+            skipText)
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        return await ShowPromptAsync(options, dialog);
+    }
+
+    private static async Task<TrayAppDotNETUpdatePromptResult> ShowBackdateConfirmationAsync(
+        TrayAppDotNETUpdatePromptOptions options)
+    {
+        string title = string.Format(
+            CultureInfo.CurrentCulture,
+            Localize(options, "BackdateDialog_TitleFormat", "Backdate to {0}?"),
+            options.UpdateInfo.Version);
+        string description = string.Format(
+            CultureInfo.CurrentCulture,
+            Localize(
+                options,
+                "BackdateDialog_DescriptionFormat",
+                "This will replace the current version with {0} and restart the app."),
+            options.UpdateInfo.Version);
+        string changelog = string.IsNullOrWhiteSpace(options.UpdateInfo.Changelog)
+            ? Localize(options, "UpdateDialog_NoChangelog", "No changelog provided.")
+            : options.UpdateInfo.Changelog;
+        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+            title,
+            description,
+            changelog,
+            Localize(options, "BackdateDialog_Confirm", "Backdate"),
+            Localize(options, "UpdateDialog_Cancel", "Cancel"),
+            options.Palette,
             options.EnableRoundedCorners)
         {
             WindowStartupLocation = WindowStartupLocation.CenterOwner
@@ -87,14 +198,40 @@ public static class TrayAppDotNETUpdatePromptPresenter
         return await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task ShowFailureAsync(TrayAppDotNETUpdatePromptOptions options)
+    private static async Task<TrayAppDotNETUpdatePromptResult> ShowBackdateSkipPromptAsync(
+        TrayAppDotNETUpdatePromptOptions options)
     {
-        string title = Localize(options, "Settings_About_InstallUpdate_CheckFailed", "Update failed");
-        string message = Localize(
+        string description = string.Format(
+            CultureInfo.CurrentCulture,
+            Localize(
+                options,
+                "BackdateDialog_SkipCurrentDescriptionFormat",
+                "After backdating, version {0} will be offered as an update. Do you want to skip it?"),
+            options.Service.CurrentBuild);
+        TrayAppDotNETUpdateConfirmationWindow dialog = new(
+            Localize(options, "BackdateDialog_SkipCurrentTitle", "Skip the current version?"),
+            description,
+            null,
+            Localize(options, "BackdateDialog_Yes", "Yes"),
+            null,
+            options.Palette,
+            options.EnableRoundedCorners,
+            Localize(options, "BackdateDialog_No", "No"))
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        return await ShowPromptAsync(options, dialog);
+    }
+
+    private static async Task ShowFailureAsync(
+        TrayAppDotNETUpdatePromptOptions options,
+        string title,
+        string message)
+    {
+        string okText = Localize(
             options,
-            "UpdateDialog_DownloadFailed",
-            "The update could not be downloaded. Check the log for details.");
-        string okText = Localize(options, "SettingsWindow_ConfirmOverlay_OK", "OK");
+            "SettingsWindow_ConfirmOverlay_OK",
+            "OK");
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
@@ -110,14 +247,14 @@ public static class TrayAppDotNETUpdatePromptPresenter
         _ = await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task<bool> ShowPromptAsync(
+    private static async Task<TrayAppDotNETUpdatePromptResult> ShowPromptAsync(
         TrayAppDotNETUpdatePromptOptions options,
         TrayAppDotNETUpdateConfirmationWindow dialog)
     {
         options.SetPromptOpen?.Invoke(true);
         try
         {
-            return await dialog.ShowDialog<bool>(options.Owner);
+            return await dialog.ShowDialog<TrayAppDotNETUpdatePromptResult>(options.Owner);
         }
         finally
         {

@@ -49,4 +49,8 @@
     <AdditionalFiles Include="**\*.axaml" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TrayAppDotNETCommon.XmlSourceGenerator.Tests" />
+  </ItemGroup>
+
 </Project>

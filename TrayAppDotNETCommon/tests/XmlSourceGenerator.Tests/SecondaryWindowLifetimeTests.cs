@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
@@ -37,9 +38,13 @@ public sealed class SecondaryWindowLifetimeTests
             "Confirm",
             "Cancel",
             Palette(),
-            rounded: true);
+            rounded: true,
+            alternateText: "Skip this release");
 
         prompt.Show();
+        Assert.Contains(
+            prompt.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "Skip this release");
         prompt.Close();
         prompt.Dispose();
         prompt.Dispose();

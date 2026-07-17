@@ -66,10 +66,18 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private DispatcherTimer? _staleTimer;
     private TextBlock? _updateStatusText;
     private SettingsButton? _checkForUpdatesButton;
+    private SettingsButton? _skipUpdateButton;
     private SettingsButton? _installUpdateButton;
+    private TextBlock? _backdateDescriptionText;
+    private SettingsButton? _backdateButton;
+    private UpdateInfo? _previousRelease;
     private StackPanel? _root;
     private bool _manualCheckInProgress;
+    private bool _skipInProgress;
     private bool _installInProgress;
+    private bool _previousReleaseLookupInProgress;
+    private bool _previousReleaseLookupFailed;
+    private bool _backdateInProgress;
     private bool _disposed;
     private long _refreshGeneration;
 
@@ -158,9 +166,17 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         _updateStatusText = null;
         _checkForUpdatesButton = null;
+        _skipUpdateButton = null;
         _installUpdateButton = null;
+        _backdateDescriptionText = null;
+        _backdateButton = null;
+        _previousRelease = null;
         _manualCheckInProgress = false;
+        _skipInProgress = false;
         _installInProgress = false;
+        _previousReleaseLookupInProgress = false;
+        _previousReleaseLookupFailed = false;
+        _backdateInProgress = false;
     }
 
     private void AddUpdatesSection(StackPanel stack, SettingsPalette p)
@@ -199,6 +215,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
             L("Settings_About_UpdateInterval_MinutesSuffix", " min")));
         stack.Children.Add(BuildUpdateActionCard(p));
+        stack.Children.Add(BuildBackdateCard(p));
     }
 
     private Border BuildUpdateActionCard(SettingsPalette p)
@@ -207,10 +224,13 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(UpdateStatusText(CurrentService), p);
 
         SettingsButton check = Button(L("Settings_About_CheckForUpdates_Button", "Check for updates"), p);
+        SettingsButton skip = Button(L("Settings_About_SkipUpdate_Button", "Skip this release"), p);
         SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p);
         check.Margin = layout.UpdateCheckButtonMargin;
+        skip.Margin = layout.UpdateCheckButtonMargin;
 
         check.Click += async (_, _) => await CheckForUpdatesAsync();
+        skip.Click += async (_, _) => await SkipUpdateAsync();
         install.Click += async (_, _) => await InstallUpdateAsync();
 
         Grid grid = new();
@@ -223,12 +243,75 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         text.Children.Add(description);
         grid.Children.Add(text);
 
-        StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(check, install);
+        StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(check, skip, install);
         Grid.SetColumn(buttons, 1);
         grid.Children.Add(buttons);
 
-        StartUpdateRefresh(description, check, install);
+        StartUpdateRefresh(description, check, skip, install);
         return TrayAppDotNETSettingsCards.RawCard(grid, p, _options.CardRadius);
+    }
+
+    private Border BuildBackdateCard(SettingsPalette p)
+    {
+        TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
+            L("Settings_About_Backdate_Checking", "Checking GitHub for the previous version..."),
+            p);
+        SettingsButton backdate = Button(L("Settings_About_Backdate_Button", "Backdate"), p);
+        backdate.Click += async (_, _) => await BackdateAsync();
+
+        Grid grid = new();
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        StackPanel text = new();
+        text.Children.Add(TrayAppDotNETSettingsUI.TitleText(
+            L("Settings_About_Backdate_Title", "Backdate app"),
+            p));
+        text.Children.Add(description);
+        grid.Children.Add(text);
+
+        Grid.SetColumn(backdate, 1);
+        grid.Children.Add(backdate);
+
+        _backdateDescriptionText = description;
+        _backdateButton = backdate;
+        _previousRelease = null;
+        _previousReleaseLookupFailed = false;
+        _previousReleaseLookupInProgress = true;
+        RefreshBackdateUI();
+        _ = LoadPreviousReleaseAsync(Volatile.Read(ref _refreshGeneration));
+
+        return TrayAppDotNETSettingsCards.RawCard(grid, p, _options.CardRadius);
+    }
+
+    private async Task LoadPreviousReleaseAsync(long generation)
+    {
+        UpdateInfo? previousRelease = null;
+        bool lookupFailed = false;
+        UpdateCheckService? service = CurrentService;
+        if (service == null)
+        {
+            lookupFailed = true;
+        }
+        else
+        {
+            try
+            {
+                previousRelease = await service.GetPreviousReleaseAsync();
+            }
+            catch (Exception exception)
+            {
+                lookupFailed = true;
+                _options.Log($"SettingsAboutPage.LoadPreviousRelease: {exception.Message}");
+            }
+        }
+
+        if (_disposed || generation != Volatile.Read(ref _refreshGeneration)) return;
+
+        _previousRelease = previousRelease;
+        _previousReleaseLookupFailed = lookupFailed;
+        _previousReleaseLookupInProgress = false;
+        RefreshBackdateUI();
     }
 
     private async Task CheckForUpdatesAsync()
@@ -238,6 +321,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         _manualCheckInProgress = true;
         RefreshUpdateUI();
+        RefreshBackdateUI();
         try
         {
             await service.CheckNowAsync();
@@ -250,6 +334,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         {
             _manualCheckInProgress = false;
             RefreshUpdateUI();
+            RefreshBackdateUI();
         }
     }
 
@@ -266,32 +351,130 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             return;
         }
 
-        _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(new TrayAppDotNETUpdatePromptOptions
+        _installInProgress = true;
+        RefreshUpdateUI();
+        RefreshBackdateUI();
+        try
         {
-            Owner = owner,
-            Service = service,
-            UpdateInfo = info,
-            Palette = _options.Palette,
-            EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
-            Localize = L,
-            Shutdown = _options.Shutdown,
-            FlushLog = _options.FlushLog,
-            Log = _options.Log,
-            SetDownloadInFlight = inFlight =>
-            {
-                _installInProgress = inFlight;
-                RefreshUpdateUI();
-            }
-        });
+            _ = await TrayAppDotNETUpdatePromptPresenter.ShowInstallUpdateAsync(
+                new TrayAppDotNETUpdatePromptOptions
+                {
+                    Owner = owner,
+                    Service = service,
+                    UpdateInfo = info,
+                    Palette = _options.Palette,
+                    EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
+                    Localize = L,
+                    Shutdown = _options.Shutdown,
+                    FlushLog = _options.FlushLog,
+                    Log = _options.Log,
+                    SetDownloadInFlight = inFlight =>
+                    {
+                        _installInProgress = inFlight;
+                        RefreshUpdateUI();
+                        RefreshBackdateUI();
+                    }
+                });
+        }
+        catch (Exception exception)
+        {
+            _options.Log($"SettingsAboutPage.InstallUpdate: {exception.Message}");
+        }
+        finally
+        {
+            _installInProgress = false;
+            RefreshUpdateUI();
+            RefreshBackdateUI();
+        }
     }
 
-    private void StartUpdateRefresh(TextBlock statusText, SettingsButton checkButton, SettingsButton installButton)
+    private async Task BackdateAsync()
+    {
+        UpdateCheckService? service = CurrentService;
+        UpdateInfo? previousRelease = _previousRelease;
+        if (service == null || previousRelease == null || _backdateInProgress) return;
+
+        Window? owner = _options.PromptOwner();
+        if (owner == null)
+        {
+            _options.Log("SettingsAboutPage.Backdate: update prompt owner unavailable.");
+            return;
+        }
+
+        _backdateInProgress = true;
+        RefreshUpdateUI();
+        RefreshBackdateUI();
+        try
+        {
+            _ = await TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync(
+                new TrayAppDotNETUpdatePromptOptions
+                {
+                    Owner = owner,
+                    Service = service,
+                    UpdateInfo = previousRelease,
+                    Palette = _options.Palette,
+                    EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
+                    Localize = L,
+                    Shutdown = _options.Shutdown,
+                    FlushLog = _options.FlushLog,
+                    Log = _options.Log,
+                    SetDownloadInFlight = inFlight =>
+                    {
+                        _backdateInProgress = inFlight;
+                        RefreshUpdateUI();
+                        RefreshBackdateUI();
+                    }
+                });
+        }
+        catch (Exception exception)
+        {
+            _options.Log($"SettingsAboutPage.Backdate: {exception.Message}");
+        }
+        finally
+        {
+            _backdateInProgress = false;
+            RefreshUpdateUI();
+            RefreshBackdateUI();
+        }
+    }
+
+    private async Task SkipUpdateAsync()
+    {
+        UpdateCheckService? service = CurrentService;
+        UpdateInfo? info = service?.AvailableUpdate;
+        if (service == null || info == null || _skipInProgress) return;
+
+        _skipInProgress = true;
+        RefreshUpdateUI();
+        RefreshBackdateUI();
+        try
+        {
+            await service.SkipReleaseAsync(info);
+        }
+        catch (Exception ex)
+        {
+            _options.Log($"SettingsAboutPage.SkipUpdate: {ex.Message}");
+        }
+        finally
+        {
+            _skipInProgress = false;
+            RefreshUpdateUI();
+            RefreshBackdateUI();
+        }
+    }
+
+    private void StartUpdateRefresh(
+        TextBlock statusText,
+        SettingsButton checkButton,
+        SettingsButton skipButton,
+        SettingsButton installButton)
     {
         StopUpdateRefresh();
         Interlocked.Increment(ref _refreshGeneration);
 
         _updateStatusText = statusText;
         _checkForUpdatesButton = checkButton;
+        _skipUpdateButton = skipButton;
         _installUpdateButton = installButton;
         _updateService = _options.UpdateService();
         if (_updateService != null)
@@ -334,6 +517,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         {
             if (_disposed || generation != Volatile.Read(ref _refreshGeneration)) return;
             RefreshUpdateUI();
+            RefreshBackdateUI();
         });
     }
 
@@ -347,14 +531,61 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private void RefreshUpdateUI()
     {
         if (_disposed) return;
-        if (_updateStatusText == null || _checkForUpdatesButton == null || _installUpdateButton == null)
+        if (_updateStatusText == null || _checkForUpdatesButton == null || _skipUpdateButton == null
+            || _installUpdateButton == null)
             return;
 
         UpdateCheckService? service = CurrentService;
+        bool isUpdateAvailable = service?.AvailableUpdate != null;
         _updateStatusText.Text = UpdateStatusText(service);
-        _checkForUpdatesButton.IsEnabled = service != null && !_manualCheckInProgress && !_installInProgress;
+        _checkForUpdatesButton.IsEnabled = service != null && !_manualCheckInProgress && !_skipInProgress
+            && !_installInProgress && !_backdateInProgress;
+        _skipUpdateButton.IsVisible = isUpdateAvailable;
+        _skipUpdateButton.IsEnabled = isUpdateAvailable && !_manualCheckInProgress && !_skipInProgress
+            && !_installInProgress && !_backdateInProgress;
         _installUpdateButton.Text = UpdateInstallButtonText(service);
-        _installUpdateButton.IsEnabled = service?.AvailableUpdate != null && !_installInProgress;
+        _installUpdateButton.IsEnabled = isUpdateAvailable && !_skipInProgress && !_installInProgress
+            && !_backdateInProgress;
+    }
+
+    private void RefreshBackdateUI()
+    {
+        if (_disposed || _backdateDescriptionText == null || _backdateButton == null) return;
+
+        if (_previousReleaseLookupInProgress)
+        {
+            _backdateDescriptionText.Text = L(
+                "Settings_About_Backdate_Checking",
+                "Checking GitHub for the previous version...");
+        }
+        else if (_previousReleaseLookupFailed)
+        {
+            _backdateDescriptionText.Text = L(
+                "Settings_About_Backdate_Failed",
+                "The previous release could not be checked.");
+        }
+        else if (_previousRelease is { } previousRelease)
+        {
+            _backdateDescriptionText.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                L(
+                    "Settings_About_Backdate_AvailableFormat",
+                    "Previous available version: {0}. Installing it will restart the app."),
+                previousRelease.Version);
+        }
+        else
+        {
+            _backdateDescriptionText.Text = L(
+                "Settings_About_Backdate_None",
+                "No previous release is available for this app.");
+        }
+
+        _backdateButton.IsEnabled = _previousRelease != null
+            && !_previousReleaseLookupInProgress
+            && !_manualCheckInProgress
+            && !_skipInProgress
+            && !_installInProgress
+            && !_backdateInProgress;
     }
 
     private UpdateCheckService? CurrentService => _updateService ?? _options.UpdateService();
@@ -377,6 +608,15 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 CultureInfo.CurrentCulture,
                 L("Settings_About_UpdateStatus_FailedFormat", "Update check failed. Last tried {0}."),
                 FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
+        }
+
+        if (service.SkippedUpdateVersion > 0)
+        {
+            return string.Format(
+                CultureInfo.CurrentCulture,
+                L("Settings_About_UpdateStatus_SkippedFormat",
+                    "Release {0} skipped. You'll be notified when a newer release is available."),
+                service.SkippedUpdateVersion);
         }
 
         return string.Format(CultureInfo.CurrentCulture, service.LastResult == UpdateCheckResult.Cancelled
