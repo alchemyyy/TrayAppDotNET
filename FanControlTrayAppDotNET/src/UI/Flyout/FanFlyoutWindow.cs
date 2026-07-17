@@ -46,6 +46,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly List<Control> _dragDebugVisuals = [];
 
     private FanFlyoutVisualGeneration? _activeVisualGeneration;
+    private TrayMenuWindow? _addItemMenu;
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private FlyoutAxamlProperties? _layout;
     private Border? _dragGhost;
@@ -76,6 +77,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private int _dragSourceTopLevelIndex = -1;
     private bool _isUndocked;
     private bool _showNonFunctioningFans;
+    private bool _showFanDragDebugVisuals = EnableFanDragDebugOverlay;
     private bool _suppressFanRebuild;
     private bool _isUpdateDownloadInFlight;
     private bool _isUpdateDialogOpen;
@@ -199,6 +201,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private TextBlock? NonFunctioningFansButtonGlyph =>
         _activeVisualGeneration?.NonFunctioningFansButtonGlyph;
 
+    private TextBlock? FanDragDebugVisualsButtonGlyph =>
+        _activeVisualGeneration?.FanDragDebugVisualsButtonGlyph;
+
     private Border? ConfirmOverlay => _activeVisualGeneration?.ConfirmOverlay;
 
     private Dictionary<Fan, List<FanRowVisualRefs>>? FanRowRefs =>
@@ -220,8 +225,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private Glyph NonFunctioningFansGlyph => _showNonFunctioningFans ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
 
+    private Glyph FanDragDebugVisualsGlyph =>
+        _showFanDragDebugVisuals ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
+
+    private bool FanDragDebugVisualsEnabled =>
+        EnableFanDragDebugOverlay && _showFanDragDebugVisuals;
+
     protected override bool HasOpenChildWindow =>
-        _fanPropertiesWindows.Values.Any(window => window.IsVisible)
+        _addItemMenu?.IsVisible == true
+        || _fanPropertiesWindows.Values.Any(window => window.IsVisible)
         || _fanCurveEditorWindows.Any(window => window.IsVisible)
         || _probeSelectorWindows.Values.Any(window => window.IsVisible)
         || _isUpdateDialogOpen;
@@ -275,6 +287,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     public new void Hide()
     {
+        CloseAddItemMenu();
         ResetPointerGestureState();
         CancelConfirmOverlay();
         ForceCloseAllFanCurveEditorWindows();
@@ -504,21 +517,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         Grid grid = new()
         {
-            Margin = Layout.HeaderMargin,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)),
-                new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth))
-            }
+            Margin = Layout.HeaderMargin
         };
+
+        const int primaryButtonColumnCount = 4;
+        const int profileButtonCount = 3;
+        for (int columnIndex = 0; columnIndex < primaryButtonColumnCount; columnIndex++)
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
+
+        int dragDebugVisualsColumn = grid.ColumnDefinitions.Count;
+        if (EnableFanDragDebugOverlay)
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
+
+        grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        int firstProfileColumn = grid.ColumnDefinitions.Count;
+        for (int profileIndex = 0; profileIndex < profileButtonCount; profileIndex++)
+            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderNarrowColumnWidth)));
+
+        int undockColumn = grid.ColumnDefinitions.Count;
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
 
         AddHeaderButton(
             grid,
@@ -538,15 +555,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             flyoutControlPalette,
             ToggleNonFunctioningFans,
             "Show/hide non-functioning fans");
-        AddGroupButton(grid, 3, flyoutControlPalette);
-        AddProbeButton(grid, 4, flyoutControlPalette);
-        AddProfileButton(grid, 6, 1, flyoutControlPalette);
-        AddProfileButton(grid, 7, 2, flyoutControlPalette);
-        AddProfileButton(grid, 8, 3, flyoutControlPalette);
+        AddItemButton(grid, 3, flyoutControlPalette);
+        if (EnableFanDragDebugOverlay)
+        {
+            generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
+                grid,
+                dragDebugVisualsColumn,
+                FanDragDebugVisualsGlyph,
+                flyoutControlPalette,
+                ToggleFanDragDebugVisuals,
+                "Toggle fan drag debug visuals");
+        }
+
+        AddProfileButton(grid, firstProfileColumn, 1, flyoutControlPalette);
+        AddProfileButton(grid, firstProfileColumn + 1, 2, flyoutControlPalette);
+        AddProfileButton(grid, firstProfileColumn + 2, 3, flyoutControlPalette);
 
         generation.UndockButton = BuildUndockButton(flyoutControlPalette, generation);
         generation.UndockButton.IsVisible = _settings.AllowFlyoutUndock;
-        Grid.SetColumn(generation.UndockButton, 9);
+        Grid.SetColumn(generation.UndockButton, undockColumn);
         grid.Children.Add(generation.UndockButton);
         return new Border
         {
@@ -2150,48 +2177,99 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return text;
     }
 
-    private void AddGroupButton(Grid grid, int column, FlyoutControlPalette p)
+    private void AddItemButton(Grid grid, int column, FlyoutControlPalette p)
     {
-        Grid icon = new()
-        {
-            Width = Layout.HeaderAddGroupIconSize, Height = Layout.HeaderAddGroupIconSize, IsHitTestVisible = false
-        };
-        TextBlock groupGlyph = IconText(GlyphCatalog.GROUP, p, Layout.HeaderAddGroupFontSize);
-        TextBlock plusGlyph = IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
-        plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
-        plusGlyph.VerticalAlignment = VerticalAlignment.Top;
-        plusGlyph.RenderTransform = Layout.HeaderAddGlyphTransform;
-        icon.Children.Add(groupGlyph);
-        icon.Children.Add(plusGlyph);
-
-        Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, p, _ => AddGroup(), Layout.HeaderButtonWidth,
-            Layout.HeaderButtonHeight, 0, tooltip: "Add group");
-        button.Child = icon;
+        Border button = IconButton(
+            GlyphCatalog.ADD,
+            p,
+            ShowAddItemMenu,
+            Layout.HeaderButtonWidth,
+            Layout.HeaderButtonHeight,
+            Layout.HeaderButtonFontSize,
+            tooltip: "Add item");
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
 
-    private void AddProbeButton(Grid grid, int column, FlyoutControlPalette p)
+    private void ShowAddItemMenu(PointerReleasedEventArgs e)
     {
-        Grid icon = new()
-        {
-            Width = Layout.HeaderAddGroupIconSize,
-            Height = Layout.HeaderAddGroupIconSize,
-            IsHitTestVisible = false
-        };
-        TextBlock probeGlyph = IconText(GlyphCatalog.PROBE, p, Layout.HeaderAddProbeFontSize);
-        TextBlock plusGlyph = IconText(GlyphCatalog.ADD, p, Layout.HeaderAddGlyphFontSize);
-        plusGlyph.HorizontalAlignment = HorizontalAlignment.Right;
-        plusGlyph.VerticalAlignment = VerticalAlignment.Top;
-        plusGlyph.RenderTransform = Layout.HeaderAddGlyphTransform;
-        icon.Children.Add(probeGlyph);
-        icon.Children.Add(plusGlyph);
+        if (e.Source is not Visual source) return;
+        Border? anchor = FindVisualAncestor<Border>(source);
+        if (anchor == null) return;
+        Visual? anchorParent = anchor.GetVisualParent();
+        Control edgeAnchor = anchorParent?.GetVisualParent() as Control ?? anchor;
 
-        Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, p, _ => AddProbeCard(), Layout.HeaderButtonWidth,
-            Layout.HeaderButtonHeight, 0, tooltip: "Add probe card");
-        button.Child = icon;
-        Grid.SetColumn(button, column);
-        grid.Children.Add(button);
+        CloseAddItemMenu();
+        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+        AppTheme theme = AppServices.Theme ?? AppTheme.Default;
+        List<TrayMenuEntry> entries =
+        [
+            new TrayMenuEntry("Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
+            new TrayMenuEntry("Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
+        ];
+        TrayMenuWindow menu = new(
+            entries,
+            new TrayMenuWindowOptions
+            {
+                Palette = FanSettingsWindow.CreatePalette(theme, _settings, isLight),
+                Rounded = _settings.EnableRoundedCorners,
+                FontSize = _settings.ContextMenuFontSize,
+                ShadowColor = theme.MenuShadow.For(isLight),
+                InvokeOnPointerReleased = true,
+                InvokeBeforeClose = true
+            });
+        _addItemMenu = menu;
+        menu.Closed += OnAddItemMenuClosed;
+        try
+        {
+            menu.ShowOver(anchor, edgeAnchor, this);
+        }
+        catch
+        {
+            CloseAddItemMenu();
+            throw;
+        }
+    }
+
+    private void OnAddItemMenuClosed(object? sender, EventArgs e)
+    {
+        if (sender is not TrayMenuWindow menu) return;
+
+        menu.Closed -= OnAddItemMenuClosed;
+        if (!ReferenceEquals(_addItemMenu, menu)) return;
+
+        _addItemMenu = null;
+        if (menu.ClosedFromSelection)
+        {
+            if (IsVisible)
+                Activate();
+            return;
+        }
+
+        if (menu.ClosedFromDeactivation)
+        {
+            NotifyChildWindowClosedFromDeactivation();
+            return;
+        }
+
+        if (IsVisible)
+            Activate();
+    }
+
+    private void CloseAddItemMenu()
+    {
+        TrayMenuWindow? menu = Interlocked.Exchange(ref _addItemMenu, null);
+        if (menu == null) return;
+
+        menu.Closed -= OnAddItemMenuClosed;
+        try
+        {
+            menu.Close();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"FanFlyoutWindow failed add-item menu cleanup: {exception.Message}");
+        }
     }
 
     private void AddProfileButton(Grid grid, int column, int profileNumber, FlyoutControlPalette p)
@@ -2478,6 +2556,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         TextBlock? glyph = NonFunctioningFansButtonGlyph;
         if (glyph == null) return;
         GlyphApplicator.ApplyTo(glyph, NonFunctioningFansGlyph);
+    }
+
+    private void ToggleFanDragDebugVisuals()
+    {
+        if (!EnableFanDragDebugOverlay) return;
+
+        _showFanDragDebugVisuals = !_showFanDragDebugVisuals;
+        TextBlock? glyph = FanDragDebugVisualsButtonGlyph;
+        if (glyph != null)
+            GlyphApplicator.ApplyTo(glyph, FanDragDebugVisualsGlyph);
+
+        if (!FanDragDebugVisualsEnabled)
+            ClearDragDebugOverlay();
     }
 
     private void SortFansByLHMName()
@@ -3402,7 +3493,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 RefreshDragGeometryAfterPreview(current);
         }
 
-        if (EnableFanDragDebugOverlay)
+        if (FanDragDebugVisualsEnabled)
             UpdateDragDebugOverlay(current);
         if (EnableFanDragInstrumentation)
             RecordDragInstrumentationMovement(current);
@@ -3429,7 +3520,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             UpdateDragGhostForPlacement(_dragPlacement, current);
         }
 
-        if (EnableFanDragDebugOverlay)
+        if (FanDragDebugVisualsEnabled)
             UpdateDragDebugOverlay(current);
     }
 
@@ -3598,7 +3689,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void UpdateDragDebugOverlay(Point current)
     {
-        if (!EnableFanDragDebugOverlay) return;
+        if (!FanDragDebugVisualsEnabled) return;
         ClearDragDebugOverlay();
         Canvas? dragOverlay = DragOverlay;
         StackPanel? cellStack = CellStack;
@@ -5768,6 +5859,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         public Border UndockButton { get; set; } = null!;
         public TextBlock UndockButtonGlyph { get; set; } = null!;
         public TextBlock? NonFunctioningFansButtonGlyph { get; set; }
+        public TextBlock? FanDragDebugVisualsButtonGlyph { get; set; }
         public Border ConfirmOverlay { get; set; } = null!;
         public TextBlock ConfirmTitle { get; set; } = null!;
         public TextBlock ConfirmMessage { get; set; } = null!;
@@ -5812,6 +5904,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         RunCloseCleanup(ResetPointerGestureState, "pointer gesture reset");
         RunCloseCleanup(CancelConfirmOverlay, "confirmation reset");
+        RunCloseCleanup(CloseAddItemMenu, "add-item menu close");
         RunCloseCleanup(ForceCloseAllFanPropertiesWindows, "fan properties close");
         RunCloseCleanup(ForceCloseAllFanCurveEditorWindows, "curve editor close");
         RunCloseCleanup(ForceCloseAllProbeSelectorWindows, "probe selector close");

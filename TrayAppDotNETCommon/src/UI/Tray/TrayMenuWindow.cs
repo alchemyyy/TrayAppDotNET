@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.WarmWindows;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Tray;
 
@@ -18,6 +19,7 @@ public enum TrayMenuWindowPlacement
 
 public sealed record TrayMenuEntry(string Text, Action Click)
 {
+    public Glyph? LeadingGlyph { get; init; }
     public string? TrailingGlyph { get; init; }
     public bool HasTopRule { get; init; }
     public bool HasBottomRule { get; init; }
@@ -58,6 +60,15 @@ public sealed class TrayMenuWindowOptions
     public Color? SeparatorColor { get; init; }
     public Color? ShadowColor { get; init; }
     public bool ScrollToBottom { get; init; }
+
+    /// <summary>Invokes pointer selections after the left button is released over the item.</summary>
+    public bool InvokeOnPointerReleased { get; init; }
+
+    /// <summary>Invokes the selected action before dismissing the menu.</summary>
+    public bool InvokeBeforeClose { get; init; }
+
+    public double LeadingGlyphFontSize { get; init; } = 16;
+    public double LeadingGlyphColumnWidth { get; init; } = 24;
     public double TrailingGlyphFontSize { get; init; } = 12;
 
     public int EdgePadding { get; init; } = 8;
@@ -73,6 +84,7 @@ public sealed class TrayMenuWindowOptions
     public Thickness ItemPadding { get; init; } = new(6);
     public Thickness ItemMargin { get; init; } = new(2, 0);
     public Thickness RuleMargin { get; init; } = new(-2, 0);
+    public Thickness LeadingGlyphMargin { get; init; } = new(0, 0, 8, 0);
     public Thickness TrailingGlyphMargin { get; init; } = new(24, 0, 0, 0);
     public double ItemMinWidth { get; init; } = 150;
     public double RuleHeight { get; init; } = 1;
@@ -89,8 +101,12 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     private UIContentGeneration? _contentGeneration;
     private ScrollViewer? _scrollViewer;
     private bool _closed;
+    private bool _closedFromDeactivation;
+    private bool _closedFromSelection;
     public bool IsWarmPriming { get; set; }
     public bool IsManagedByWarmSlot { get; set; }
+    public bool ClosedFromDeactivation => _closedFromDeactivation;
+    public bool ClosedFromSelection => _closedFromSelection;
     public event EventHandler? WarmDismissed;
 
     public TrayMenuWindow(IReadOnlyList<TrayMenuEntry> entries, TrayMenuWindowOptions options)
@@ -164,6 +180,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     {
         if (_closed) return;
 
+        _closedFromDeactivation = false;
+        _closedFromSelection = false;
         Opacity = 0;
         Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
         Show();
@@ -181,6 +199,63 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
             UpdateLayout();
             Position = ResolvePosition(trayIcon, cursorPoint, placement, workArea);
+            if (_options.ScrollToBottom) ScrollToBottom();
+            Opacity = 1;
+            Activate();
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// Shows the menu inside a containing window, horizontally aligned to one anchor and vertically outside another.
+    /// </summary>
+    public void ShowOver(Control alignmentAnchor, Control edgeAnchor, Window containingWindow)
+    {
+        ArgumentNullException.ThrowIfNull(alignmentAnchor);
+        ArgumentNullException.ThrowIfNull(edgeAnchor);
+        ArgumentNullException.ThrowIfNull(containingWindow);
+        if (_closed) return;
+
+        PixelRect alignmentBounds = ScreenBounds(alignmentAnchor);
+        PixelRect edgeBounds = ScreenBounds(edgeAnchor);
+        PixelRect anchorBounds = new(
+            alignmentBounds.X,
+            edgeBounds.Y,
+            alignmentBounds.Width,
+            edgeBounds.Height);
+        PixelRect containingBounds = ScreenBounds(containingWindow);
+        int availableHeight = ResolveOverlayAvailableHeight(containingBounds, anchorBounds);
+
+        _closedFromDeactivation = false;
+        _closedFromSelection = false;
+        Opacity = 0;
+        Position = containingBounds.Position;
+        Show(containingWindow);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_windowResources.IsDisposed || !IsVisible) return;
+            ScrollViewer? scrollViewer = _scrollViewer;
+            if (scrollViewer == null) return;
+
+            double chromeHeight = _options.RootBorderThickness.Top
+                                  + _options.RootBorderThickness.Bottom
+                                  + _options.RootPadding.Top
+                                  + _options.RootPadding.Bottom;
+            scrollViewer.MaxHeight = Math.Max(
+                _options.PixelMinSize,
+                availableHeight / RenderScaling - chromeHeight);
+
+            UpdateLayout();
+            int menuWidth = Math.Max(
+                _options.PixelMinSize,
+                (int)Math.Ceiling(Bounds.Width * RenderScaling));
+            int menuHeight = Math.Max(
+                _options.PixelMinSize,
+                (int)Math.Ceiling(Bounds.Height * RenderScaling));
+            Position = ResolveOverlayPosition(
+                containingBounds,
+                anchorBounds,
+                new PixelSize(menuWidth, menuHeight));
             if (_options.ScrollToBottom) ScrollToBottom();
             Opacity = 1;
             Activate();
@@ -228,6 +303,43 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         (Screens.ScreenFromPoint(cursorPoint) ?? Screens.Primary)?.WorkingArea
         ?? new PixelRect(0, 0, _options.FallbackWorkAreaWidth, _options.FallbackWorkAreaHeight);
 
+    internal static PixelPoint ResolveOverlayPosition(
+        PixelRect containingBounds,
+        PixelRect anchorBounds,
+        PixelSize menuSize)
+    {
+        int minLeft = containingBounds.X;
+        int maxLeft = Math.Max(minLeft, containingBounds.Right - menuSize.Width);
+        int minTop = containingBounds.Y;
+        int maxTop = Math.Max(minTop, containingBounds.Bottom - menuSize.Height);
+        bool showAbove = anchorBounds.Center.Y >= containingBounds.Center.Y;
+        int requestedTop = showAbove
+            ? anchorBounds.Y - menuSize.Height
+            : anchorBounds.Bottom;
+
+        return new PixelPoint(
+            Math.Clamp(anchorBounds.X, minLeft, maxLeft),
+            Math.Clamp(requestedTop, minTop, maxTop));
+    }
+
+    internal static int ResolveOverlayAvailableHeight(PixelRect containingBounds, PixelRect anchorBounds) =>
+        Math.Max(
+            1,
+            anchorBounds.Center.Y >= containingBounds.Center.Y
+                ? anchorBounds.Y - containingBounds.Y
+                : containingBounds.Bottom - anchorBounds.Bottom);
+
+    private static PixelRect ScreenBounds(Control control)
+    {
+        PixelPoint topLeft = control.PointToScreen(new Point(0, 0));
+        PixelPoint bottomRight = control.PointToScreen(new Point(control.Bounds.Width, control.Bounds.Height));
+        return new PixelRect(
+            topLeft.X,
+            topLeft.Y,
+            Math.Max(1, bottomRight.X - topLeft.X),
+            Math.Max(1, bottomRight.Y - topLeft.Y));
+    }
+
     private void ScrollToBottom()
     {
         ScrollViewer? scrollViewer = _scrollViewer;
@@ -239,6 +351,22 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
     private void InvokeAndClose(Action action)
     {
+        _closedFromSelection = true;
+        _closedFromDeactivation = false;
+        if (_options.InvokeBeforeClose)
+        {
+            try
+            {
+                action();
+            }
+            finally
+            {
+                DismissForWarmCache();
+            }
+
+            return;
+        }
+
         DismissForWarmCache();
         action();
     }
@@ -287,7 +415,13 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         }
     }
 
-    private void OnDeactivated(object? sender, EventArgs e) => DismissForWarmCache();
+    private void OnDeactivated(object? sender, EventArgs e)
+    {
+        if (_closedFromSelection) return;
+
+        _closedFromDeactivation = true;
+        DismissForWarmCache();
+    }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
@@ -355,6 +489,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             PointerEntered += OnPointerEntered;
             PointerExited += OnPointerExited;
             PointerPressed += OnPointerPressed;
+            PointerReleased += OnPointerReleased;
             KeyDown += OnKeyDown;
         }
 
@@ -364,27 +499,48 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             label.VerticalAlignment = VerticalAlignment.Center;
             label.TextTrimming = TextTrimming.CharacterEllipsis;
 
-            if (string.IsNullOrEmpty(entry.TrailingGlyph))
+            if (entry.LeadingGlyph == null && string.IsNullOrEmpty(entry.TrailingGlyph))
                 return label;
 
             Grid content = new()
             {
                 ColumnDefinitions =
                 {
-                    new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)
+                    new ColumnDefinition(new GridLength(
+                        entry.LeadingGlyph == null ? 0 : options.LeadingGlyphColumnWidth)),
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(
+                        string.IsNullOrEmpty(entry.TrailingGlyph) ? new GridLength(0) : GridLength.Auto)
                 }
             };
 
-            Grid.SetColumn(label, 0);
+            if (entry.LeadingGlyph is { } leadingGlyph)
+            {
+                TextBlock leadingGlyphText = TrayAppDotNETSettingsUI.Text(
+                    string.Empty,
+                    options.Palette,
+                    options.LeadingGlyphFontSize);
+                GlyphApplicator.ApplyTo(leadingGlyphText, leadingGlyph);
+                leadingGlyphText.Margin = options.LeadingGlyphMargin;
+                leadingGlyphText.HorizontalAlignment = HorizontalAlignment.Center;
+                leadingGlyphText.VerticalAlignment = VerticalAlignment.Center;
+                Grid.SetColumn(leadingGlyphText, 0);
+                content.Children.Add(leadingGlyphText);
+            }
+
+            Grid.SetColumn(label, 1);
             content.Children.Add(label);
 
-            TextBlock glyph =
+            if (string.IsNullOrEmpty(entry.TrailingGlyph))
+                return content;
+
+            TextBlock trailingGlyph =
                 TrayAppDotNETSettingsUI.Text(entry.TrailingGlyph, options.Palette, options.TrailingGlyphFontSize);
-            glyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-            glyph.Margin = options.TrailingGlyphMargin;
-            glyph.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(glyph, 1);
-            content.Children.Add(glyph);
+            trailingGlyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+            trailingGlyph.Margin = options.TrailingGlyphMargin;
+            trailingGlyph.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(trailingGlyph, 2);
+            content.Children.Add(trailingGlyph);
 
             return content;
         }
@@ -413,7 +569,20 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             if (_disposed || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
-            _click();
+            if (!_options.InvokeOnPointerReleased)
+                _click();
+
+            e.Handled = true;
+        }
+
+        private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+        {
+            if (_disposed || !_options.InvokeOnPointerReleased || e.InitialPressMouseButton != MouseButton.Left)
+                return;
+
+            if (_isPointerOver)
+                _click();
+
             e.Handled = true;
         }
 
@@ -432,6 +601,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             PointerEntered -= OnPointerEntered;
             PointerExited -= OnPointerExited;
             PointerPressed -= OnPointerPressed;
+            PointerReleased -= OnPointerReleased;
             KeyDown -= OnKeyDown;
             Cursor = null;
             Child = null;
