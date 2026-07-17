@@ -934,7 +934,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         candidate.ScrollViewer = new ScrollViewer
         {
-            Content = rows,
+            Content = new Border
+            {
+                Padding = Layout.RowsContentPadding,
+                Child = rows
+            },
+            Margin = Layout.RowsViewportMargin,
             Focusable = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
@@ -993,8 +998,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Border curve = BuildCurveIconButton(
                 palette,
                 () => ToggleCurveForRow(monitor),
-                Layout.RowIconSize,
-                Layout.RowIconSize,
+                Layout.RowActionButtonSize,
+                Layout.RowActionButtonSize,
                 Layout.RowCurveIconSize,
                 margin: Layout.RowCurveButtonMargin,
                 tooltip: monitor.IsNightLight
@@ -1012,8 +1017,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 GlyphCatalog.POWER.Text,
                 palette,
                 e => { _ = _monitorService.SetPowerStateAsync(monitor, !monitor.IsPoweredOn); },
-                Layout.RowIconSize,
-                Layout.RowIconSize,
+                Layout.RowActionButtonSize,
+                Layout.RowActionButtonSize,
                 Layout.HeaderButtonFontSize,
                 enabled: monitor.IsHardwareFunctional,
                 margin: Layout.RowPowerButtonMargin,
@@ -1226,8 +1231,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             string.Empty,
             palette,
             _ => OnMonitorIconClick(monitor),
-            Layout.RowIconSize,
-            Layout.RowIconSize,
+            Layout.RowIconButtonWidth,
+            Layout.RowIconButtonHeight,
             0,
             enabled: !monitor.IsNightLight || NightLightProvider.IsSupported(),
             margin: Layout.RowIconMargin,
@@ -1303,6 +1308,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.ModeButtonHeight,
             Layout.ModeButtonFontSize,
             enabled: CanEditSlider(monitor),
+            margin: Layout.ModeButtonMargin,
             tooltip: CurveModeTooltip(monitor),
             fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(glyph.Font));
         ApplyCurveModeButtonVisual(monitor, button);
@@ -1345,7 +1351,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, palette, _ => click(), width, height, 0,
             margin: margin, tooltip: tooltip);
         button.Child = BuildCurveIconContent(palette, iconSize,
-            disabledPeriod: IsInCurveDisabledPeriod && width <= Layout.RowIconSize);
+            disabledPeriod: IsInCurveDisabledPeriod && width <= Layout.RowActionButtonSize);
         button.Opacity = opacity;
         return button;
     }

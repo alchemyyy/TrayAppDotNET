@@ -14,7 +14,7 @@
     <sys:Double x:Key="FlyoutSlider.ThumbOpacity">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.PreviewOpacity">0.33</sys:Double>
     <sys:Double x:Key="FlyoutSlider.IndicatorOpacity">1</sys:Double>
-    <sys:Double x:Key="FlyoutSlider.IndicatorWidth">18</sys:Double>
+    <sys:Double x:Key="FlyoutSlider.IndicatorWidth">12</sys:Double>
     <sys:Double x:Key="FlyoutSlider.IndicatorFontSize">12</sys:Double>
     <sys:Double x:Key="FlyoutSlider.DefaultThumbWidth">10</sys:Double>
     <sys:Double x:Key="FlyoutSlider.DefaultThumbHeight">22</sys:Double>

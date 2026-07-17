@@ -771,25 +771,20 @@ public sealed class FlyoutSlider : Control, IDisposable
 
     private void DrawIndicator(DrawingContext context, double width, double height, double value)
     {
-        double centerX = ValuePosition(width, value);
-        Rect bounds = new(
-            centerX - IndicatorWidth / 2.0,
-            0,
-            IndicatorWidth,
-            height);
-        FormattedText text = new(
-            IndicatorGlyph,
-            CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
-            new Typeface(IndicatorFontFamily),
-            IndicatorFontSize,
-            new SolidColorBrush(WithOpacity(IndicatorColor, IndicatorOpacity)));
-
-        context.DrawText(
-            text,
-            new Point(
-                bounds.Center.X - text.Width / 2.0,
-                bounds.Center.Y - text.Height / 2.0));
+        double indicatorSize = Math.Max(1, IndicatorWidth);
+        SliderThumbGlyphOption indicatorThumb = new()
+        {
+            Name = "CurveIndicator",
+            Shape = SliderThumbShape.Capsule,
+            Width = indicatorSize,
+            Height = indicatorSize
+        };
+        Rect indicatorBounds = ThumbRect(width, height, indicatorSize, indicatorSize, value);
+        DrawThumbShape(
+            context,
+            indicatorBounds,
+            indicatorThumb,
+            WithOpacity(IndicatorColor, IndicatorOpacity));
     }
 
     private static void DrawRoundedRect(DrawingContext context, Rect rect, Color color, double radius = double.NaN) =>
