@@ -107,8 +107,11 @@ internal static class FanDragEngine
     {
         if (snapshot.Slots.Count == 0) return [];
 
-        double sourceExtent = SourceRootExtent(snapshot);
-        if (!HasRootSource(snapshot))
+        bool hasRootSource = HasRootSource(snapshot);
+        double sourceExtent = hasRootSource
+            ? SourceRootExtent(snapshot)
+            : TopLevelPreviewExtent(snapshot);
+        if (!hasRootSource)
         {
             return OffsetRange(snapshot, Math.Clamp(targetIndex, 0, snapshot.Slots.Count), snapshot.Slots.Count,
                 sourceExtent);
@@ -413,6 +416,13 @@ internal static class FanDragEngine
     private static double SourceRootExtent(FanDragSnapshot snapshot) =>
         Math.Max(1, snapshot.DragSourceSlotHeight);
 
+    private static double TopLevelPreviewExtent(FanDragSnapshot snapshot) =>
+        Math.Max(
+            1,
+            snapshot.TopLevelPreviewSlotHeight > 0
+                ? snapshot.TopLevelPreviewSlotHeight
+                : snapshot.DragSourceSlotHeight);
+
     private static List<FanDragSlotOffset> OffsetRange(
         FanDragSnapshot snapshot,
         int start,
@@ -579,11 +589,13 @@ internal sealed record FanDragSnapshot(
     double DragPlacementSourceHeight,
     double DragPointerOffsetRatio)
 {
+    public double TopLevelPreviewSlotHeight { get; init; }
+
     public string ToCompactString()
     {
         string dragged = DraggedFan?.DisplayName ?? "<none>";
         return string.Create(CultureInfo.InvariantCulture,
-            $"slots={Slots.Count};fanSlots={FanSlots.Count};dragged={dragged};sourceTop={DragSourceTopLevelIndex};sourceSlot={DragSourceSlotHeight:0.##};sourceFanSlot={DragSourceFanSlotHeight:0.##};ratio={DragPointerOffsetRatio:0.###}");
+            $"slots={Slots.Count};fanSlots={FanSlots.Count};dragged={dragged};sourceTop={DragSourceTopLevelIndex};sourceSlot={DragSourceSlotHeight:0.##};sourceFanSlot={DragSourceFanSlotHeight:0.##};topLevelPreviewSlot={TopLevelPreviewSlotHeight:0.##};ratio={DragPointerOffsetRatio:0.###}");
     }
 }
 

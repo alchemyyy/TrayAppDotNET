@@ -3534,17 +3534,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return evaluation;
     }
 
-    private FanDragSnapshot CreateDragSnapshot() => new(
-        CreateEffectiveDragSlots(),
-        CreateEffectiveDragFanSlots(),
-        _draggedFan,
-        _dragSourceCell,
-        _dragSourceTopLevelControl,
-        _dragSourceTopLevelIndex,
-        _dragSourceSlotHeight,
-        _dragSourceFanSlotHeight,
-        _dragPlacementSourceHeight,
-        _dragPointerOffsetRatio);
+    private FanDragSnapshot CreateDragSnapshot() =>
+        new(
+            CreateEffectiveDragSlots(),
+            CreateEffectiveDragFanSlots(),
+            _draggedFan,
+            _dragSourceCell,
+            _dragSourceTopLevelControl,
+            _dragSourceTopLevelIndex,
+            _dragSourceSlotHeight,
+            _dragSourceFanSlotHeight,
+            _dragPlacementSourceHeight,
+            _dragPointerOffsetRatio)
+        {
+            TopLevelPreviewSlotHeight = _draggedFan != null && _dragGhostStyle == FanDragGhostStyle.TopLevelFan
+                ? Math.Max(1, _dragGhostHeight)
+                : 0
+        };
 
     private List<FanDragSlot> CreateEffectiveDragSlots()
     {

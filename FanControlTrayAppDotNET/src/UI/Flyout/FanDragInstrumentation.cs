@@ -253,6 +253,8 @@ internal sealed class FanDragInstrumentation(Func<string>? directoryProvider = n
         AppendNumber(builder, snapshot.DragSourceSlotHeight);
         builder.Append(",\"dragSourceFanSlotHeight\":");
         AppendNumber(builder, snapshot.DragSourceFanSlotHeight);
+        builder.Append(",\"topLevelPreviewSlotHeight\":");
+        AppendNumber(builder, snapshot.TopLevelPreviewSlotHeight);
         builder.Append(",\"dragPlacementSourceHeight\":");
         AppendNumber(builder, snapshot.DragPlacementSourceHeight);
         builder.Append(",\"dragPointerOffsetRatio\":");

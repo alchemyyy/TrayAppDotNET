@@ -218,7 +218,7 @@ public sealed class FanDragEngineTests
     }
 
     [Fact]
-    public void DraggingGroupedFanOutToTopLevelCreatesSpaceFromTheInsertionIndexDownward()
+    public void DraggingGroupedFanOutToTopLevelCreatesFullSizeFanCardSpace()
     {
         DragRig rig = DragRig.Create();
         FanDragSnapshot snapshot = rig.Snapshot(
@@ -229,12 +229,13 @@ public sealed class FanDragEngineTests
             hasSourceTopLevelControl: false,
             sourceSlotHeight: 36,
             sourceFanSlotHeight: 36,
-            dragPlacementSourceHeight: 36);
+            dragPlacementSourceHeight: 36,
+            topLevelPreviewSlotHeight: 88);
         FanDragPlacement placement = FanDragPlacement.TopLevel(2);
 
         FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(snapshot, placement);
 
-        AssertOffsets(preview.TopLevelOffsets, (2, 36));
+        AssertOffsets(preview.TopLevelOffsets, (2, 88));
     }
 
     [Fact]
@@ -525,6 +526,7 @@ public sealed class FanDragEngineTests
             double sourceSlotHeight = 88,
             double sourceFanSlotHeight = 36,
             double dragPlacementSourceHeight = 80,
+            double topLevelPreviewSlotHeight = 0,
             double pointerOffsetRatio = 0.5)
         {
             Control? sourceControl = hasSourceTopLevelControl
@@ -540,7 +542,10 @@ public sealed class FanDragEngineTests
                 sourceSlotHeight,
                 sourceFanSlotHeight,
                 dragPlacementSourceHeight,
-                pointerOffsetRatio);
+                pointerOffsetRatio)
+            {
+                TopLevelPreviewSlotHeight = topLevelPreviewSlotHeight
+            };
         }
 
         private static Fan Fan(string name, string? group = null) => new()
