@@ -956,6 +956,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         bool isIndividualMonitor = !monitor.IsMaster && !monitor.IsNightLight;
         bool monitorPowerButtonsEnabled = _settings?.ShowFlyoutMonitorPowerButtons ?? false;
+        bool showMonitorPowerButton =
+            isIndividualMonitor
+            && monitor.SupportsPowerControl
+            && monitorPowerButtonsEnabled;
         bool placeStopwatchInPowerButtonArea = isIndividualMonitor && !monitorPowerButtonsEnabled;
         // Preserve the power-button slot while its setting is enabled, including for unsupported monitors
         double actionColumnMinimumWidth = monitor.IsCurveStopwatchVisible
@@ -989,14 +993,23 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         if (monitor.IsCurveStopwatchVisible)
         {
+            Thickness stopwatchMargin = Layout.RowStopwatchMargin;
+            if (isIndividualMonitor)
+            {
+                stopwatchMargin = (placeStopwatchInPowerButtonArea, showMonitorPowerButton) switch
+                {
+                    (true, _) => Layout.RowStopwatchPowerAreaMargin,
+                    (_, true) => Layout.RowMonitorStopwatchMargin,
+                    _ => Layout.RowMonitorStopwatchWithoutPowerMargin
+                };
+            }
+
             StackPanel stopwatch = new()
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = placeStopwatchInPowerButtonArea
-                    ? Layout.RowStopwatchPowerAreaMargin
-                    : Layout.RowStopwatchMargin
+                Margin = stopwatchMargin
             };
             if (monitor.IsCurveStopwatchEnabled)
                 stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor, resources));
@@ -1023,7 +1036,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             grid.Children.Add(curve);
         }
 
-        if (isIndividualMonitor && monitor.SupportsPowerControl && monitorPowerButtonsEnabled)
+        if (showMonitorPowerButton)
         {
             Border power = TrayAppDotNETFlyoutUI.IconButton(
                 GlyphCatalog.POWER.Text,

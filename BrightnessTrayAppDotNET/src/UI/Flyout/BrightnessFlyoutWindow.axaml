@@ -22,7 +22,7 @@
         <sys:Double x:Key="Flyout.SliderRowHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.ModeButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.ModeButtonHeight">28</sys:Double>
-        <sys:Double x:Key="Flyout.ModeButtonFontSize">16</sys:Double>
+        <sys:Double x:Key="Flyout.ModeButtonFontSize">18</sys:Double>
         <Thickness x:Key="Flyout.ModeButtonMargin">0,0,0,2</Thickness>
         <sys:Double x:Key="Flyout.ModeButtonCurveOpacity">0.42</sys:Double>
         <Thickness x:Key="Flyout.CurveModeRowMargin">-13,0,0,4</Thickness>
@@ -62,7 +62,9 @@
 
         <sys:Double x:Key="Flyout.RowTitleFontSize">15</sys:Double>
         <Thickness x:Key="Flyout.RowStopwatchMargin">0,-4,4,0</Thickness>
-        <Thickness x:Key="Flyout.RowStopwatchPowerAreaMargin">0,-4,50,0</Thickness>
+        <Thickness x:Key="Flyout.RowMonitorStopwatchMargin">0,0,4,0</Thickness>
+        <Thickness x:Key="Flyout.RowMonitorStopwatchWithoutPowerMargin">0,0,4,-2</Thickness>
+        <Thickness x:Key="Flyout.RowStopwatchPowerAreaMargin">0,0,50,-2</Thickness>
         <Thickness x:Key="Flyout.RowCurveButtonMargin">0,-4,50,-2</Thickness>
         <sys:Double x:Key="Flyout.RowCurveIconSize">26</sys:Double>
         <Thickness x:Key="Flyout.RowPowerButtonMargin">0,0,50,0</Thickness>
