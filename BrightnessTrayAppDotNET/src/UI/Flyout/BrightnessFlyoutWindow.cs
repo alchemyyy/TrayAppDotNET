@@ -1022,28 +1022,22 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             grid.Children.Add(power);
         }
 
+        bool showCurveModeButton =
+            ShouldShowCurveModeButton(RowCurveEnabled(monitor), monitor.SliderState);
+        Border? curveModeButton = showCurveModeButton
+            ? BuildCurveModeButton(monitor, palette)
+            : null;
+
         Grid sliderRow = new()
         {
             Height = Layout.SliderRowHeight,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = showCurveModeButton ? Layout.CurveModeSliderMargin : Layout.ZeroThickness,
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
 
-        Border? curveModeButton = null;
-        int sliderColumn = 0;
-        if (ShouldShowCurveModeButton(RowCurveEnabled(monitor), monitor.SliderState))
-        {
-            sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-            curveModeButton = BuildCurveModeButton(monitor, palette);
-            Grid.SetColumn(curveModeButton, 0);
-            sliderRow.Children.Add(curveModeButton);
-            sliderColumn = 1;
-        }
-
-        sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        sliderRow.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-
         FlyoutSlider slider = CreateSlider(monitor, palette, resources);
-        Grid.SetColumn(slider, sliderColumn);
+        Grid.SetColumn(slider, 0);
         sliderRow.Children.Add(slider);
 
         TextBlock value = TrayAppDotNETFlyoutUI.Text(ValueText(monitor), palette, Layout.SliderValueFontSize);
@@ -1052,7 +1046,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         value.HorizontalAlignment = HorizontalAlignment.Right;
         value.VerticalAlignment = VerticalAlignment.Center;
         value.TextAlignment = TextAlignment.Right;
-        Grid.SetColumn(value, sliderColumn + 1);
+        Grid.SetColumn(value, 1);
         sliderRow.Children.Add(value);
 
         Grid.SetRow(sliderRow, 1);
@@ -1060,9 +1054,27 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         Grid.SetColumnSpan(sliderRow, 4);
         grid.Children.Add(sliderRow);
 
+        Control rowContent = grid;
+        Thickness rowMargin = Layout.RowMargin;
+        if (curveModeButton != null)
+        {
+            // Extend the row into the root padding so the complete button surface starts 4 px from the flyout edge
+            Grid curveModeRow = new();
+            grid.Margin = Layout.CurveModeContentMargin;
+            curveModeButton.HorizontalAlignment = HorizontalAlignment.Left;
+            curveModeButton.VerticalAlignment = VerticalAlignment.Bottom;
+            curveModeRow.Children.Add(grid);
+            curveModeRow.Children.Add(curveModeButton);
+            rowContent = curveModeRow;
+            rowMargin = Layout.CurveModeRowMargin;
+        }
+
         Border row = new()
         {
-            Background = Brushes.Transparent, Margin = Layout.RowMargin, Child = grid, Opacity = RowOpacity(monitor)
+            Background = Brushes.Transparent,
+            Margin = rowMargin,
+            Child = rowContent,
+            Opacity = RowOpacity(monitor)
         };
         candidate.ProfilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value, curveModeButton);
         return row;
@@ -1291,7 +1303,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Layout.ModeButtonHeight,
             Layout.ModeButtonFontSize,
             enabled: CanEditSlider(monitor),
-            margin: Layout.ModeButtonMargin,
             tooltip: CurveModeTooltip(monitor),
             fontFamily: TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamilyName(glyph.Font));
         ApplyCurveModeButtonVisual(monitor, button);
