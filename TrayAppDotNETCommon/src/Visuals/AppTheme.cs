@@ -121,7 +121,7 @@ public class AppTheme : IDisposable
     public ThemeColor Foreground { get; set; } = new("000000", "FFFFFF");
     public ThemeColor Border { get; set; } = new("E0E0E0", "454545");
     public ThemeColor Separator { get; set; } = new("E5E5E5", "3A3A3A");
-    public ThemeColor Hover { get; set; } = new("E9E9E9", "333333");
+    public ThemeColor Hover { get; set; } = new("E9E9E9", "292929");
     public ThemeColor Pressed { get; set; } = new("DFDFDF", "2A2A2A");
     public ThemeColor ControlBackground { get; set; } = new("FFFFFF", "3C3C3C");
     public ThemeColor ControlBorder { get; set; } = new("808080", "444444");

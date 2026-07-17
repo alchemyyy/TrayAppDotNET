@@ -954,6 +954,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         FlyoutVisualState candidate,
         UIResourceScope resources)
     {
+        bool isIndividualMonitor = !monitor.IsMaster && !monitor.IsNightLight;
+        bool monitorPowerButtonsEnabled = _settings?.ShowFlyoutMonitorPowerButtons ?? false;
+        bool placeStopwatchInPowerButtonArea = isIndividualMonitor && !monitorPowerButtonsEnabled;
+        // Preserve the power-button slot while its setting is enabled, including for unsupported monitors
+        double actionColumnMinimumWidth = monitor.IsCurveStopwatchVisible
+                                          && isIndividualMonitor
+                                          && monitorPowerButtonsEnabled
+            ? Layout.RowActionButtonSize
+              + Layout.RowPowerButtonMargin.Left
+              + Layout.RowPowerButtonMargin.Right
+            : 0.0;
         Grid grid = new()
         {
             ColumnDefinitions =
@@ -961,7 +972,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto)
+                new ColumnDefinition(GridLength.Auto) { MinWidth = actionColumnMinimumWidth }
             },
             RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
         };
@@ -983,13 +994,15 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = Layout.RowStopwatchMargin
+                Margin = placeStopwatchInPowerButtonArea
+                    ? Layout.RowStopwatchPowerAreaMargin
+                    : Layout.RowStopwatchMargin
             };
             if (monitor.IsCurveStopwatchEnabled)
                 stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor, resources));
             stopwatch.Children.Add(BuildCurveStopwatchButton(monitor, palette));
             TrayAppDotNETToolTip.SetTip(stopwatch, monitor.CurveStopwatchToolTip);
-            Grid.SetColumn(stopwatch, 2);
+            Grid.SetColumn(stopwatch, placeStopwatchInPowerButtonArea ? 3 : 2);
             grid.Children.Add(stopwatch);
         }
 
@@ -1010,8 +1023,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             grid.Children.Add(curve);
         }
 
-        if (monitor is { IsMaster: false, IsNightLight: false, SupportsPowerControl: true }
-            && (_settings?.ShowFlyoutMonitorPowerButtons ?? false))
+        if (isIndividualMonitor && monitor.SupportsPowerControl && monitorPowerButtonsEnabled)
         {
             Border power = TrayAppDotNETFlyoutUI.IconButton(
                 GlyphCatalog.POWER.Text,
@@ -1019,7 +1031,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 e => { _ = _monitorService.SetPowerStateAsync(monitor, !monitor.IsPoweredOn); },
                 Layout.RowActionButtonSize,
                 Layout.RowActionButtonSize,
-                Layout.HeaderButtonFontSize,
+                Layout.RowPowerButtonFontSize,
                 enabled: monitor.IsHardwareFunctional,
                 margin: Layout.RowPowerButtonMargin,
                 tooltip: L("Flyout_TurnOffDisplay", "Turn off display"));
