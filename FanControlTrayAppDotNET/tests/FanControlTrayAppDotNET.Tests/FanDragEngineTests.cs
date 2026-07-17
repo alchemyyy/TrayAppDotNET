@@ -66,12 +66,12 @@ public sealed class FanDragEngineTests
     }
 
     [Fact]
-    public void GroupHeaderSlotPreviewsTopLevelPlacementBeforeTheGroup()
+    public void GroupHeaderLeadingEdgePreviewsTopLevelPlacementBeforeTheGroup()
     {
         DragRig rig = DragRig.Create();
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0);
 
-        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(50));
+        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(29));
 
         AssertTopLevel(evaluation, 0);
         Assert.Null(evaluation.Preview.GroupDropPreviewCell);
@@ -91,21 +91,54 @@ public sealed class FanDragEngineTests
     }
 
     [Fact]
-    public void DragIntoGroupStartsAtTheGroupFanInsertionBoundary()
+    public void DragIntoGroupStartsAtTheGroupHeaderPassBoundary()
     {
         DragRig rig = DragRig.Create();
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0);
 
-        FanDragEvaluation beforeInsertionBoundary = FanDragEngine.Evaluate(snapshot, BoundsFromTop(65));
-        FanDragEvaluation afterInsertionBoundary = FanDragEngine.Evaluate(snapshot, BoundsFromTop(67));
+        FanDragEvaluation beforeHeaderPassBoundary = FanDragEngine.Evaluate(snapshot, BoundsFromTop(30));
+        FanDragEvaluation afterHeaderPassBoundary = FanDragEngine.Evaluate(snapshot, BoundsFromTop(31));
         IReadOnlyList<FanDragDebugMarker> markers =
-            FanDragEngine.CalculateDebugMarkers(snapshot, BoundsFromTop(67));
+            FanDragEngine.CalculateDebugMarkers(snapshot, BoundsFromTop(31));
 
-        AssertTopLevel(beforeInsertionBoundary, 0);
-        AssertIntoGroup(afterInsertionBoundary, rig.GroupCell, 0);
+        AssertTopLevel(beforeHeaderPassBoundary, 0);
+        AssertIntoGroup(afterHeaderPassBoundary, rig.GroupCell, 0);
         Assert.Contains(markers, marker =>
             marker.Placement is { Kind: FanDragPlacementKind.IntoGroup, GroupFanIndex: 0 }
-            && Math.Abs(marker.Y - 106) < 0.001);
+            && Math.Abs(marker.Y - 70.32) < 0.001);
+    }
+
+    [Fact]
+    public void DownwardGroupTraversalTracksFanRowsShiftedByThePreviewSlot()
+    {
+        DragRig rig = DragRig.Create();
+        double sourceGapOffset = -rig.Slots[0].SlotHeight;
+        const double previewExtent = 36;
+        FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0) with
+        {
+            Slots =
+            [
+                rig.Slots[0],
+                rig.Slots[1] with
+                {
+                    Top = rig.Slots[1].Top + sourceGapOffset,
+                    GroupInsertionTop = rig.Slots[1].GroupInsertionTop + sourceGapOffset,
+                    GroupDropBottom = rig.Slots[1].GroupDropBottom + sourceGapOffset
+                },
+                rig.Slots[2] with { Top = rig.Slots[2].Top + sourceGapOffset }
+            ],
+            FanSlots =
+            [
+                rig.FanSlots[0] with { Top = rig.FanSlots[0].Top + sourceGapOffset + previewExtent },
+                rig.FanSlots[1] with { Top = rig.FanSlots[1].Top + sourceGapOffset + previewExtent }
+            ]
+        };
+
+        FanDragEvaluation beforeFirstFanPass = FanDragEngine.Evaluate(snapshot, BoundsFromTop(31));
+        FanDragEvaluation afterFirstFanPass = FanDragEngine.Evaluate(snapshot, BoundsFromTop(40));
+
+        AssertIntoGroup(beforeFirstFanPass, rig.GroupCell, 0);
+        AssertIntoGroup(afterFirstFanPass, rig.GroupCell, 1);
     }
 
     [Fact]
@@ -327,7 +360,7 @@ public sealed class FanDragEngineTests
 
         Assert.True(trace.ToCompactString().Contains("group[Group A:2]", StringComparison.Ordinal),
             trace.ToCompactString());
-        Assert.Equal(["top:0:<none>", "group:Group A:0", "group:Group A:1", "group:Group A:1", "group:Group A:2"],
+        Assert.Equal(["group:Group A:0", "group:Group A:0", "group:Group A:1", "group:Group A:1", "group:Group A:2"],
             placements);
     }
 
@@ -346,9 +379,8 @@ public sealed class FanDragEngineTests
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 
-        Assert.Equal(["top:1:<none>", "group:Group A:0", "group:Group A:0", "group:Group A:1"], placements);
-        AssertOffsets(trace.Frames[0].Evaluation.Preview.TopLevelOffsets, (1, -88));
-        Assert.All(trace.Frames.Skip(1).Take(2), frame =>
+        Assert.Equal(["group:Group A:0", "group:Group A:0", "group:Group A:0", "group:Group A:1"], placements);
+        Assert.All(trace.Frames.Take(3), frame =>
             AssertOffsets(frame.Evaluation.Preview.TopLevelOffsets, (1, -88), (2, -88), (3, -88)));
     }
 

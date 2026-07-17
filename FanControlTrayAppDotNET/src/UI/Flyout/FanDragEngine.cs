@@ -394,19 +394,20 @@ internal static class FanDragEngine
         bool rootIsSource)
     {
         FanDragPlacement rootPlacement = TopLevelPlacementForRootInsertion(snapshot, rootIndex);
+        FanDragPlacement firstGroupPlacement = FanDragPlacement.IntoGroup(
+            rootCell,
+            AdjustGroupFanInsertionIndex(snapshot, rootCell, 0));
         targets.Add(new FanDragTarget(
             FanDragTargetKind.GroupHeader,
             FanDragRange.FromBounds(root.Top, root.GroupInsertionTop),
             rootPlacement,
-            rootPlacement,
+            firstGroupPlacement,
             rootIsSource));
 
         List<FanDragFanSlot> fanSlots = GroupFanSlots(snapshot, rootCell, excludeDraggedFan: true);
-        for (int i = 0; i < fanSlots.Count; i++)
+        foreach (FanDragFanSlot fanSlot in fanSlots)
         {
-            FanDragFanSlot fanSlot = fanSlots[i];
-            double top = i == 0 ? Math.Min(root.GroupInsertionTop, fanSlot.Top) : fanSlot.Top;
-            targets.Add(GroupFanTarget(snapshot, rootCell, fanSlot, top));
+            targets.Add(GroupFanTarget(snapshot, rootCell, fanSlot));
         }
 
         FanDragRange appendRange = GroupAppendRange(root, fanSlots);
@@ -436,11 +437,10 @@ internal static class FanDragEngine
     private static FanDragTarget GroupFanTarget(
         FanDragSnapshot snapshot,
         FanFlyoutCell groupCell,
-        FanDragFanSlot fanSlot,
-        double top) =>
+        FanDragFanSlot fanSlot) =>
         new(
             FanDragTargetKind.GroupFan,
-            FanDragRange.FromBounds(top, fanSlot.Top + fanSlot.Height),
+            FanDragRange.FromBounds(fanSlot.Top, fanSlot.Top + fanSlot.Height),
             FanDragPlacement.IntoGroup(groupCell, AdjustGroupFanInsertionIndex(snapshot, groupCell, fanSlot.FanIndex)),
             FanDragPlacement.IntoGroup(groupCell, AdjustGroupFanInsertionIndex(snapshot, groupCell, fanSlot.FanIndex + 1)),
             ReferenceEquals(fanSlot.Fan, snapshot.DraggedFan));

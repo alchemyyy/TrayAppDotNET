@@ -3240,7 +3240,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             FanFlyoutCell? cell = visual.Tag as FanFlyoutCell;
             ProbeCard? probeCard = visual.Tag as ProbeCard;
-            if (cell == null && (probeCard == null || _draggedProbeCard == null)) continue;
+            bool includeProbeCard = probeCard != null
+                                    && (_draggedGroupCell != null || _draggedProbeCard != null);
+            if (cell == null && !includeProbeCard) continue;
             Point? top = visual.TranslatePoint(new Point(0, 0), cellStack);
             if (top == null) continue;
             double renderOffsetY = RenderTransformOffsetY(visual);
@@ -3332,7 +3334,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Point? top = child.TranslatePoint(new Point(0, 0), cellStack);
             if (top == null) continue;
             double naturalTop = top.Value.Y - cardRenderOffsetY - RenderTransformOffsetY(child);
-            naturalTop = NormalizePreviewShiftedTop(naturalTop, childIndex, previewIndex, previewExtent);
+            naturalTop -= ResolvePreviewLayoutOffset(childIndex, previewIndex, previewExtent);
             snapshot.Add((fan, child, naturalTop, Math.Max(1, child.Bounds.Height), fanIndex));
         }
 
@@ -3356,14 +3358,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         return previewExtent > 0 ? previewExtent : Math.Max(1, _dragSourceFanSlotHeight);
     }
 
-    private static double NormalizePreviewShiftedTop(
-        double measuredTop,
+    private static double ResolvePreviewLayoutOffset(
         int childIndex,
         int previewChildIndex,
         double previewExtent) =>
         previewChildIndex >= 0 && childIndex > previewChildIndex
-            ? measuredTop - Math.Max(0, previewExtent)
-            : measuredTop;
+            ? Math.Max(0, previewExtent)
+            : 0;
 
     private void ResolveDragSourceLayout(Control source)
     {
@@ -3576,7 +3577,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         List<FanDragFanSlot> slots = [];
         foreach (FanDragFanSlot slot in _dragFanSlots)
         {
-            double offset = ResolveCellRenderOffset(slot.Cell) + RenderTransformOffsetY(slot.Visual);
+            double offset = ResolveCellRenderOffset(slot.Cell)
+                            + RenderTransformOffsetY(slot.Visual)
+                            + ResolveGroupDropPreviewOffset(slot.Visual);
             slots.Add(offset == 0 ? slot : slot with { Top = slot.Top + offset });
         }
 
@@ -3600,6 +3603,20 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         return 0;
+    }
+
+    private double ResolveGroupDropPreviewOffset(Control fanVisual)
+    {
+        StackPanel? previewHost = _groupDropPreviewHost;
+        Control? preview = _groupDropPreview;
+        if (previewHost == null || preview == null) return 0;
+
+        int previewChildIndex = previewHost.Children.IndexOf(preview);
+        int fanChildIndex = previewHost.Children.IndexOf(fanVisual);
+        return ResolvePreviewLayoutOffset(
+            fanChildIndex,
+            previewChildIndex,
+            ResolveGroupDropPreviewExtent());
     }
 
     private bool ApplyDragPreview(FanDragPlacement placement)
@@ -3865,7 +3882,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         List<FanDragInstrumentationFanSlot> slots = [];
         foreach (FanDragFanSlot slot in dragFanSlots)
         {
-            double renderOffsetY = ResolveCellRenderOffset(slot.Cell) + RenderTransformOffsetY(slot.Visual);
+            double renderOffsetY = ResolveCellRenderOffset(slot.Cell)
+                                   + RenderTransformOffsetY(slot.Visual)
+                                   + ResolveGroupDropPreviewOffset(slot.Visual);
             slots.Add(new FanDragInstrumentationFanSlot(
                 slot.Cell.GroupName,
                 slot.Fan.DisplayName,
@@ -4251,13 +4270,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void ApplyGroupDrop(FanFlyoutCell cell, int targetIndex)
     {
-        List<FanFlyoutCell> ordered =
-        [
-            .. Cells.Where(candidate => !ReferenceEquals(candidate.GroupSettings, cell.GroupSettings))
-        ];
-        ordered.Insert(Math.Clamp(targetIndex, 0, ordered.Count), cell);
-        ApplyTopLevelDisplayOrder(ordered.Select(FanDragCellArrangement.FromCell));
+        List<FlyoutTopLevelItem> ordered = MoveGroupTopLevelItem(BuildTopLevelOrder(), cell, targetIndex);
+        ApplyTopLevelDisplayOrder(ordered);
         SaveGroupChanges();
+        SaveProbeCardChanges();
+    }
+
+    /// <summary>Moves a group within the combined fan, group, and probe-card order.</summary>
+    internal static List<FlyoutTopLevelItem> MoveGroupTopLevelItem(
+        IEnumerable<FlyoutTopLevelItem> currentOrder,
+        FanFlyoutCell groupCell,
+        int targetIndex)
+    {
+        List<FlyoutTopLevelItem> ordered =
+        [
+            .. currentOrder.Where(item =>
+                !ReferenceEquals(item.Cell?.GroupSettings, groupCell.GroupSettings))
+        ];
+        ordered.Insert(Math.Clamp(targetIndex, 0, ordered.Count), FlyoutTopLevelItem.FanCell(groupCell));
+        return ordered;
     }
 
     /// <summary>
@@ -5842,7 +5873,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         string Tie,
         Control Control);
 
-    private sealed record FlyoutTopLevelItem(
+    internal sealed record FlyoutTopLevelItem(
         FanFlyoutCell? Cell,
         ProbeCard? ProbeCard)
     {
