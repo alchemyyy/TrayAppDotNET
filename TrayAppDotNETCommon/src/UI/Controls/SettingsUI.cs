@@ -109,35 +109,194 @@ internal static class SettingsUILayout
     public static double CaptionGlyphFontSize => AXAMLResources.AxamlSettingsUI.CaptionGlyphFontSize;
 }
 
-public readonly record struct SettingsPalette(
-    Color Background,
-    Color Foreground,
-    Color Border,
-    Color Hover,
-    Color Pressed,
-    Color CardBackground,
-    Color ControlBackground,
-    Color SecondaryForeground,
-    Color DisabledForeground,
-    Color Accent,
-    Color ToggleOnTrack,
-    Color ToggleOnThumb,
-    Color TextBoxFocused,
-    Color SearchListItemSelected,
-    Color SearchListItemHover,
-    Color SliderProgress,
-    Color SliderTrack,
-    Color SliderThumb,
-    Color CloseButtonHover,
-    Color CloseButtonPressed,
-    Color CloseButtonGlyphActive)
+/// <summary>
+/// A mutable palette color backed by one shared brush.
+/// Updating the color invalidates only controls that use that brush.
+/// </summary>
+public readonly struct SettingsPaletteColor
 {
-    public Color Separator => Border;
-    public Color ControlBorder => Border;
-    public Color ButtonHover => Hover;
-    public Color ButtonPressed => Pressed;
-    public Color IconForeground => Foreground;
-    public Color FooterBackground => Background;
+    private readonly SettingsPalette _owner;
+    private readonly int _index;
+
+    internal SettingsPaletteColor(SettingsPalette owner, int index)
+    {
+        _owner = owner;
+        _index = index;
+    }
+
+    public Color Value => _owner.GetColor(_index);
+    public byte A => Value.A;
+    public byte R => Value.R;
+    public byte G => Value.G;
+    public byte B => Value.B;
+    internal SolidColorBrush Brush => _owner.GetBrush(_index);
+
+    public static implicit operator Color(SettingsPaletteColor color) => color.Value;
+}
+
+/// <summary>
+/// Settings colors shared by every control in one visual surface.
+/// </summary>
+public sealed class SettingsPalette
+{
+    private const int BackgroundIndex = 0;
+    private const int ForegroundIndex = 1;
+    private const int BorderIndex = 2;
+    private const int HoverIndex = 3;
+    private const int PressedIndex = 4;
+    private const int CardBackgroundIndex = 5;
+    private const int ControlBackgroundIndex = 6;
+    private const int SecondaryForegroundIndex = 7;
+    private const int DisabledForegroundIndex = 8;
+    private const int AccentIndex = 9;
+    private const int ToggleOnTrackIndex = 10;
+    private const int ToggleOnThumbIndex = 11;
+    private const int TextBoxFocusedIndex = 12;
+    private const int SearchListItemSelectedIndex = 13;
+    private const int SearchListItemHoverIndex = 14;
+    private const int SliderProgressIndex = 15;
+    private const int SliderTrackIndex = 16;
+    private const int SliderThumbIndex = 17;
+    private const int CloseButtonHoverIndex = 18;
+    private const int CloseButtonPressedIndex = 19;
+    private const int CloseButtonGlyphActiveIndex = 20;
+    private const int ColorCount = 21;
+
+    private readonly Color[] _colors;
+    private SolidColorBrush?[]? _brushes;
+
+    public SettingsPalette(
+        Color background,
+        Color foreground,
+        Color border,
+        Color hover,
+        Color pressed,
+        Color cardBackground,
+        Color controlBackground,
+        Color secondaryForeground,
+        Color disabledForeground,
+        Color accent,
+        Color toggleOnTrack,
+        Color toggleOnThumb,
+        Color textBoxFocused,
+        Color searchListItemSelected,
+        Color searchListItemHover,
+        Color sliderProgress,
+        Color sliderTrack,
+        Color sliderThumb,
+        Color closeButtonHover,
+        Color closeButtonPressed,
+        Color closeButtonGlyphActive)
+    {
+        _colors = new Color[ColorCount];
+        _colors[BackgroundIndex] = background;
+        _colors[ForegroundIndex] = foreground;
+        _colors[BorderIndex] = border;
+        _colors[HoverIndex] = hover;
+        _colors[PressedIndex] = pressed;
+        _colors[CardBackgroundIndex] = cardBackground;
+        _colors[ControlBackgroundIndex] = controlBackground;
+        _colors[SecondaryForegroundIndex] = secondaryForeground;
+        _colors[DisabledForegroundIndex] = disabledForeground;
+        _colors[AccentIndex] = accent;
+        _colors[ToggleOnTrackIndex] = toggleOnTrack;
+        _colors[ToggleOnThumbIndex] = toggleOnThumb;
+        _colors[TextBoxFocusedIndex] = textBoxFocused;
+        _colors[SearchListItemSelectedIndex] = searchListItemSelected;
+        _colors[SearchListItemHoverIndex] = searchListItemHover;
+        _colors[SliderProgressIndex] = sliderProgress;
+        _colors[SliderTrackIndex] = sliderTrack;
+        _colors[SliderThumbIndex] = sliderThumb;
+        _colors[CloseButtonHoverIndex] = closeButtonHover;
+        _colors[CloseButtonPressedIndex] = closeButtonPressed;
+        _colors[CloseButtonGlyphActiveIndex] = closeButtonGlyphActive;
+    }
+
+    public SettingsPaletteColor Background => new(this, BackgroundIndex);
+    public SettingsPaletteColor Foreground => new(this, ForegroundIndex);
+    public SettingsPaletteColor Border => new(this, BorderIndex);
+    public SettingsPaletteColor Hover => new(this, HoverIndex);
+    public SettingsPaletteColor Pressed => new(this, PressedIndex);
+    public SettingsPaletteColor CardBackground => new(this, CardBackgroundIndex);
+    public SettingsPaletteColor ControlBackground => new(this, ControlBackgroundIndex);
+    public SettingsPaletteColor SecondaryForeground => new(this, SecondaryForegroundIndex);
+    public SettingsPaletteColor DisabledForeground => new(this, DisabledForegroundIndex);
+    public SettingsPaletteColor Accent => new(this, AccentIndex);
+    public SettingsPaletteColor ToggleOnTrack => new(this, ToggleOnTrackIndex);
+    public SettingsPaletteColor ToggleOnThumb => new(this, ToggleOnThumbIndex);
+    public SettingsPaletteColor TextBoxFocused => new(this, TextBoxFocusedIndex);
+    public SettingsPaletteColor SearchListItemSelected => new(this, SearchListItemSelectedIndex);
+    public SettingsPaletteColor SearchListItemHover => new(this, SearchListItemHoverIndex);
+    public SettingsPaletteColor SliderProgress => new(this, SliderProgressIndex);
+    public SettingsPaletteColor SliderTrack => new(this, SliderTrackIndex);
+    public SettingsPaletteColor SliderThumb => new(this, SliderThumbIndex);
+    public SettingsPaletteColor CloseButtonHover => new(this, CloseButtonHoverIndex);
+    public SettingsPaletteColor CloseButtonPressed => new(this, CloseButtonPressedIndex);
+    public SettingsPaletteColor CloseButtonGlyphActive => new(this, CloseButtonGlyphActiveIndex);
+    public SettingsPaletteColor Separator => Border;
+    public SettingsPaletteColor ControlBorder => Border;
+    public SettingsPaletteColor ButtonHover => Hover;
+    public SettingsPaletteColor ButtonPressed => Pressed;
+    public SettingsPaletteColor IconForeground => Foreground;
+    public SettingsPaletteColor FooterBackground => Background;
+
+    /// <summary>
+    /// Updates the shared brushes without replacing the controls that reference them.
+    /// </summary>
+    public void UpdateFrom(SettingsPalette source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        for (int colorIndex = 0; colorIndex < ColorCount; colorIndex++)
+        {
+            Color color = source._colors[colorIndex];
+            if (_colors[colorIndex] == color) continue;
+
+            _colors[colorIndex] = color;
+            if (_brushes?[colorIndex] is { } brush)
+                brush.Color = color;
+        }
+    }
+
+    /// <summary>
+    /// Creates an independent palette for secondary windows that must not follow live previews.
+    /// </summary>
+    public SettingsPalette Snapshot() =>
+        new(
+            Background,
+            Foreground,
+            Border,
+            Hover,
+            Pressed,
+            CardBackground,
+            ControlBackground,
+            SecondaryForeground,
+            DisabledForeground,
+            Accent,
+            ToggleOnTrack,
+            ToggleOnThumb,
+            TextBoxFocused,
+            SearchListItemSelected,
+            SearchListItemHover,
+            SliderProgress,
+            SliderTrack,
+            SliderThumb,
+            CloseButtonHover,
+            CloseButtonPressed,
+            CloseButtonGlyphActive);
+
+    internal Color GetColor(int index) => _colors[index];
+
+    internal SolidColorBrush GetBrush(int index)
+    {
+        _brushes ??= new SolidColorBrush?[ColorCount];
+        SolidColorBrush? brush = _brushes[index];
+        if (brush != null) return brush;
+
+        brush = new SolidColorBrush(_colors[index]);
+        _brushes[index] = brush;
+        return brush;
+    }
 }
 
 public sealed class SettingsNavItem : Border
@@ -240,7 +399,9 @@ public sealed class SettingsNavItem : Border
     {
         _outer.Background =
             TrayAppDotNETSettingsUI.Brush(_isSelected || _isPointerOver ? _palette.Hover : Colors.Transparent);
-        _indicator.Background = TrayAppDotNETSettingsUI.Brush(_isSelected ? _palette.Foreground : Colors.Transparent);
+        _indicator.Background = _isSelected
+            ? TrayAppDotNETSettingsUI.Brush(_palette.Foreground)
+            : Brushes.Transparent;
     }
 }
 
@@ -601,6 +762,7 @@ public sealed class SettingsToggle : Border
 public sealed class SettingsSwatch : Border
 {
     private readonly SettingsPalette _palette;
+    private readonly SolidColorBrush _colorBrush = new(Colors.Transparent);
     private bool _isPointerOver;
 
     public SettingsSwatch(SettingsPalette palette)
@@ -609,6 +771,7 @@ public sealed class SettingsSwatch : Border
         Width = SettingsUILayout.SwatchWidth;
         Height = SettingsUILayout.SwatchHeight;
         CornerRadius = SettingsUILayout.SwatchRadius;
+        Background = _colorBrush;
         BorderThickness = SettingsUILayout.SwatchBorderThickness;
         BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
         Margin = SettingsUILayout.SwatchMargin;
@@ -649,7 +812,7 @@ public sealed class SettingsSwatch : Border
 
     public void SetColor(Color? color, Color fallback)
     {
-        Background = TrayAppDotNETSettingsUI.Brush(color ?? fallback);
+        _colorBrush.Color = color ?? fallback;
         Opacity = color.HasValue ? SettingsUILayout.EnabledOpacity : SettingsUILayout.SwatchFallbackOpacity;
     }
 
@@ -2179,6 +2342,8 @@ public static class TrayAppDotNETSettingsUI
 
     public static IBrush Brush(Color color) =>
         color == Colors.Transparent ? Brushes.Transparent : new SolidColorBrush(color);
+
+    public static IBrush Brush(SettingsPaletteColor color) => color.Brush;
 
     public static TextBlock Text(string text, SettingsPalette palette, double fontSize = 14, FontWeight? weight = null)
     {

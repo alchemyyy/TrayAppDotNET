@@ -57,7 +57,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     internal new void SelectPage(BatterySettingsPage page) => base.SelectPage(page);
 
-    protected override SettingsPalette Palette =>
+    protected override SettingsPalette ResolvePalette() =>
         BatterySettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight());
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;

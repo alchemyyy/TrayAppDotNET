@@ -29,7 +29,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         Func<string, bool, string> variantPickerTitle,
         TrayAppDotNETColorPickerStrings colorPickerStrings,
         Action save,
-        Action rebuild,
+        Action refreshPalette,
         Func<bool> isClosing)
     {
         SettingsSwatch light = new(palette) { Tag = "Light", Name = name + "LightSwatch" };
@@ -59,8 +59,9 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 enableRoundedCorners,
                 colorPickerStrings,
                 save,
-                rebuild,
-                isClosing);
+                refreshPalette,
+                isClosing,
+                light);
         };
         dark.Click += (_, _) =>
         {
@@ -74,8 +75,9 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
                 enableRoundedCorners,
                 colorPickerStrings,
                 save,
-                rebuild,
-                isClosing);
+                refreshPalette,
+                isClosing,
+                dark);
         };
         reset.Click += (_, _) =>
         {
@@ -83,7 +85,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             color.DarkHex = null;
             save();
             Update();
-            rebuild();
+            refreshPalette();
         };
 
         Update();
@@ -118,8 +120,9 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         bool enableRoundedCorners,
         TrayAppDotNETColorPickerStrings colorPickerStrings,
         Action save,
-        Action rebuild,
-        Func<bool> isClosing)
+        Action refreshPalette,
+        Func<bool> isClosing,
+        SettingsSwatch swatch)
     {
         (NullableThemeColor Target, bool IsLight) key = (target, isLight);
         if (_openColorPickers.TryGetValue(key, out TrayAppDotNETColorPickerWindow? existing))
@@ -135,7 +138,7 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             hasAlpha: true,
             initial,
             fallback,
-            palette,
+            palette.Snapshot(),
             colorPickerStrings,
             enableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
@@ -144,8 +147,9 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             if (isLight) target.TemporaryLightColor = editedColor;
             else target.TemporaryDarkColor = editedColor;
 
+            swatch.SetColor(editedColor, fallback);
             if (!isClosing())
-                rebuild();
+                refreshPalette();
         };
 
         picker.Closed += (sender, _) =>
@@ -163,8 +167,9 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             if (isLight) target.TemporaryLightColor = null;
             else target.TemporaryDarkColor = null;
 
+            swatch.SetColor(isLight ? target.LightColor : target.DarkColor, fallback);
             if (!isClosing())
-                rebuild();
+                refreshPalette();
         };
 
         _openColorPickers[key] = picker;

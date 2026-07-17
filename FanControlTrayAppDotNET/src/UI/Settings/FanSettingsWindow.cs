@@ -49,7 +49,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     internal new void SelectPage(FanSettingsPage page) => base.SelectPage(page);
 
-    protected override SettingsPalette Palette =>
+    protected override SettingsPalette ResolvePalette() =>
         CreatePalette(AppServices.Theme, _settings, ResolveEffectiveIsLight());
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;

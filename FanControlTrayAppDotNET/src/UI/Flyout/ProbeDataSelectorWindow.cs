@@ -70,7 +70,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         _probeCard = null!;
         _settings = null!;
         _changed = static _ => { };
-        _palette = default;
+        _palette = null!;
         _subscribedLHMService = null;
 
         try

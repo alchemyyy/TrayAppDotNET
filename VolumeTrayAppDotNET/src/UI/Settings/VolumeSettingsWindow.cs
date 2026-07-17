@@ -36,7 +36,7 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     internal new void SelectPage(VolumeSettingsPage page) => base.SelectPage(page);
 
-    protected override SettingsPalette Palette =>
+    protected override SettingsPalette ResolvePalette() =>
         VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight());
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;

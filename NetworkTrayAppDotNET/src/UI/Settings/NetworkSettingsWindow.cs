@@ -40,7 +40,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     internal new void SelectPage(NetworkSettingsPage page) => base.SelectPage(page);
 
-    protected override SettingsPalette Palette =>
+    protected override SettingsPalette ResolvePalette() =>
         CreatePalette(AppServices.Theme, _settings, ResolveEffectiveIsLight());
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
@@ -141,10 +141,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
             VariantPickerTitle,
             ColorPickerStrings(),
             Save,
-            RebuildCurrentPageShell,
+            RefreshPalette,
             IsSettingsWindowClosing);
-
-    private void RebuildCurrentPageShell() => RebuildShell(CurrentPageKey);
 
     private bool IsSettingsWindowClosing() => IsClosing;
 

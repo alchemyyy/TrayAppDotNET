@@ -45,6 +45,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private bool _shellInitialized;
     private bool _hasShownPage;
     private bool _wndProcHookAttached;
+    private SettingsPalette? _palette;
 
     private enum SettingsWindowSizeProfile
     {
@@ -55,12 +56,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected TPageKey CurrentPageKey { get; private set; } = default!;
     protected bool IsClosing { get; private set; }
 
-    protected abstract SettingsPalette Palette { get; }
+    protected SettingsPalette Palette => _palette ??= ResolvePalette();
     protected abstract bool EnableRoundedCorners { get; }
     protected abstract TPageKey DefaultPageKey { get; }
     protected abstract string HeaderText { get; }
     protected abstract string OpenSettingsFolderText { get; }
     protected abstract string SettingsFolderPath { get; }
+    protected abstract SettingsPalette ResolvePalette();
     protected abstract IReadOnlyList<SettingsPageDescriptor<TPageKey>> CreatePageDescriptors();
     protected abstract void Save();
 
@@ -169,7 +171,24 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (_hasShownPage && _scrollHost != null)
             _pageScrollOffsets[CurrentPageKey] = _scrollHost.VerticalOffset;
 
+        RefreshPalette();
         BuildAndCommitShell(selectedPageKey);
+    }
+
+    /// <summary>
+    /// Applies current theme colors through the existing shared brushes.
+    /// </summary>
+    protected void RefreshPalette()
+    {
+        SettingsPalette resolved = ResolvePalette();
+        if (_palette == null)
+        {
+            _palette = resolved;
+            return;
+        }
+
+        if (!ReferenceEquals(_palette, resolved))
+            _palette.UpdateFrom(resolved);
     }
 
     /// <summary>Adds cleanup owned by the settings page currently being constructed.</summary>

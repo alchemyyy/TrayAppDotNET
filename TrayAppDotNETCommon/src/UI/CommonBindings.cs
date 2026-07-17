@@ -131,8 +131,9 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         SettingsPalette palette,
         string? tooltip = null)
     {
+        Color currentValue = value;
         SettingsSwatch swatch = new(palette);
-        swatch.SetColor(value, defaultColor);
+        swatch.SetColor(currentValue, defaultColor);
         if (!string.IsNullOrWhiteSpace(tooltip))
             TrayAppDotNETToolTip.SetTip(swatch, tooltip);
         SettingsButton resetButton = Button(Loc("Settings_Theme_Reset"), palette);
@@ -142,16 +143,18 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             TrayAppDotNETColorPickerWindow picker = new(
                 title,
                 hasAlpha: true,
-                value,
+                currentValue,
                 defaultColor,
-                palette,
+                palette.Snapshot(),
                 ColorPickerStrings(),
                 EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
             picker.ColorChanged += (_, color) =>
             {
+                currentValue = color;
                 setTemporary(color);
-                RebuildShell(CurrentPageKey);
+                swatch.SetColor(color, defaultColor);
+                RefreshPalette();
             };
             picker.Closed += (sender, _) =>
             {
@@ -163,8 +166,10 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                     Save();
                 }
 
+                currentValue = closed.CurrentColor;
                 setTemporary(null);
-                if (!IsClosing) RebuildShell(CurrentPageKey);
+                swatch.SetColor(currentValue, defaultColor);
+                if (!IsClosing) RefreshPalette();
             };
             _openColorPickers.Add(picker);
             try
@@ -181,7 +186,9 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         {
             reset();
             Save();
-            RebuildShell(CurrentPageKey);
+            currentValue = defaultColor;
+            swatch.SetColor(currentValue, defaultColor);
+            RefreshPalette();
         };
 
         return Card(title, description, TrayAppDotNETSettingsUI.Horizontal(swatch, resetButton), palette);
@@ -210,14 +217,18 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         light.SetColor(color.LightColor, lightFallback);
         dark.SetColor(color.DarkColor, darkFallback);
 
-        light.Click += (_, _) => OpenVariantColorPicker(title, color, isLight: true, lightFallback, palette);
-        dark.Click += (_, _) => OpenVariantColorPicker(title, color, isLight: false, darkFallback, palette);
+        light.Click += (_, _) =>
+            OpenVariantColorPicker(title, color, isLight: true, lightFallback, palette, light);
+        dark.Click += (_, _) =>
+            OpenVariantColorPicker(title, color, isLight: false, darkFallback, palette, dark);
         reset.Click += (_, _) =>
         {
             color.LightHex = null;
             color.DarkHex = null;
             Save();
-            RebuildShell(CurrentPageKey);
+            light.SetColor(null, lightFallback);
+            dark.SetColor(null, darkFallback);
+            RefreshPalette();
         };
 
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(light, dark, reset);
@@ -232,7 +243,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         NullableThemeColor target,
         bool isLight,
         Color fallback,
-        SettingsPalette palette)
+        SettingsPalette palette,
+        SettingsSwatch swatch)
     {
         Color initial = (isLight ? target.LightColor : target.DarkColor) ?? fallback;
         TrayAppDotNETColorPickerWindow picker = new(
@@ -240,7 +252,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             hasAlpha: true,
             initial,
             fallback,
-            palette,
+            palette.Snapshot(),
             ColorPickerStrings(),
             EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
@@ -249,7 +261,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             if (isLight) target.TemporaryLightColor = editedColor;
             else target.TemporaryDarkColor = editedColor;
 
-            if (!IsClosing) RebuildShell(CurrentPageKey);
+            swatch.SetColor(editedColor, fallback);
+            if (!IsClosing) RefreshPalette();
         };
 
         picker.Closed += (sender, _) =>
@@ -267,7 +280,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             if (isLight) target.TemporaryLightColor = null;
             else target.TemporaryDarkColor = null;
 
-            if (!IsClosing) RebuildShell(CurrentPageKey);
+            swatch.SetColor(isLight ? target.LightColor : target.DarkColor, fallback);
+            if (!IsClosing) RefreshPalette();
         };
 
         _openColorPickers.Add(picker);

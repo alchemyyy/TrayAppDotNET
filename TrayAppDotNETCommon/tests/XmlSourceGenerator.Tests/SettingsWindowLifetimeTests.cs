@@ -22,6 +22,38 @@ public sealed class SettingsWindowLifetimeTests
         Assert.Equal(1, window.FailedPageCleanupCount);
     });
 
+    [Fact]
+    public void PaletteRefreshUpdatesBrushWithoutReplacingVisualTree() => AvaloniaTestHost.Run(() =>
+    {
+        PaletteRefreshSettingsWindow window = new();
+        Border root = Assert.IsType<Border>(window.Content);
+        TextBlock page = window.StablePage;
+        SolidColorBrush background = Assert.IsType<SolidColorBrush>(root.Background);
+        SolidColorBrush foreground = Assert.IsType<SolidColorBrush>(page.Foreground);
+
+        window.SetColors(Colors.DarkRed, Colors.Yellow);
+
+        Assert.Same(root, window.Content);
+        Assert.Same(page, window.StablePage);
+        Assert.Same(background, root.Background);
+        Assert.Same(foreground, page.Foreground);
+        Assert.Equal(Colors.DarkRed, background.Color);
+        Assert.Equal(Colors.Yellow, foreground.Color);
+    });
+
+    [Fact]
+    public void SwatchColorUpdateReusesBrush() => AvaloniaTestHost.Run(() =>
+    {
+        SettingsSwatch swatch = new(CreatePalette(Colors.Black, Colors.White));
+        swatch.SetColor(Colors.Blue, Colors.Black);
+        SolidColorBrush brush = Assert.IsType<SolidColorBrush>(swatch.Background);
+
+        swatch.SetColor(Colors.Red, Colors.Black);
+
+        Assert.Same(brush, swatch.Background);
+        Assert.Equal(Colors.Red, brush.Color);
+    });
+
     private enum TestPage
     {
         Stable,
@@ -30,28 +62,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class TestSettingsWindow : SettingsWindowCommon<TestPage>
     {
-        private static readonly SettingsPalette TestPalette = new(
-            Colors.Black,
-            Colors.White,
-            Colors.Gray,
-            Colors.DarkGray,
-            Colors.DimGray,
-            Colors.Black,
-            Colors.DarkGray,
-            Colors.LightGray,
-            Colors.Gray,
-            Colors.Blue,
-            Colors.Blue,
-            Colors.White,
-            Colors.DarkBlue,
-            Colors.Blue,
-            Colors.DarkBlue,
-            Colors.Blue,
-            Colors.Gray,
-            Colors.White,
-            Colors.Red,
-            Colors.DarkRed,
-            Colors.White);
+        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
 
         public TestSettingsWindow()
         {
@@ -65,7 +76,7 @@ public sealed class SettingsWindowLifetimeTests
 
         public int FailedPageCleanupCount { get; private set; }
 
-        protected override SettingsPalette Palette => TestPalette;
+        protected override SettingsPalette ResolvePalette() => TestPalette;
         protected override bool EnableRoundedCorners => false;
         protected override TestPage DefaultPageKey => TestPage.Stable;
         protected override string HeaderText => "Test";
@@ -90,4 +101,66 @@ public sealed class SettingsWindowLifetimeTests
             throw new InvalidOperationException("expected page failure");
         }
     }
+
+    private sealed class PaletteRefreshSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private Color _background = Colors.Black;
+        private Color _foreground = Colors.White;
+
+        public PaletteRefreshSettingsWindow()
+        {
+            StablePage = TrayAppDotNETSettingsUI.Text("stable", Palette);
+            InitializeSettingsShell();
+        }
+
+        public TextBlock StablePage { get; }
+
+        protected override bool EnableRoundedCorners => false;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+
+        public void SetColors(Color background, Color foreground)
+        {
+            _background = background;
+            _foreground = foreground;
+            RefreshPalette();
+        }
+
+        protected override SettingsPalette ResolvePalette() => CreatePalette(_background, _foreground);
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", () => StablePage)
+        ];
+
+        protected override void Save()
+        {
+        }
+    }
+
+    private static SettingsPalette CreatePalette(Color background, Color foreground) =>
+        new(
+            background,
+            foreground,
+            Colors.Gray,
+            Colors.DarkGray,
+            Colors.DimGray,
+            Colors.Black,
+            Colors.DarkGray,
+            Colors.LightGray,
+            Colors.Gray,
+            Colors.Blue,
+            Colors.Blue,
+            Colors.White,
+            Colors.DarkBlue,
+            Colors.Blue,
+            Colors.DarkBlue,
+            Colors.Blue,
+            Colors.Gray,
+            Colors.White,
+            Colors.Red,
+            Colors.DarkRed,
+            Colors.White);
 }

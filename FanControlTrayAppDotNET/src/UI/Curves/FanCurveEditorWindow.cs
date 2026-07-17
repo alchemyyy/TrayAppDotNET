@@ -43,7 +43,7 @@ public sealed partial class FanCurveEditorWindow : Window
         _fan = null!;
         _curve = null!;
         _settings = null!;
-        _palette = default;
+        _palette = null!;
         _editor = null!;
         _dataSourceSelectionBox = null!;
         _dataSourceSelectionText = null!;
