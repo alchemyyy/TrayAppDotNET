@@ -180,6 +180,9 @@
   <data name="Flyout_SoundSettings_Tooltip" xml:space="preserve">
     <value>Open Windows sound settings</value>
   </data>
+  <data name="Flyout_DisabledDevices_Tooltip" xml:space="preserve">
+    <value>Show/hide disabled devices</value>
+  </data>
   <data name="Flyout_Undock_Tooltip" xml:space="preserve">
     <value>Undock</value>
   </data>

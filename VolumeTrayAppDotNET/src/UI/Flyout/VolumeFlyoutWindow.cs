@@ -621,6 +621,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         left.Children.Add(HeaderIconButton(GlyphCatalog.SOUND_SETTINGS, p,
             () => DeviceShellLinks.OpenSoundSettings(_settings.SoundSettingsTarget),
             L("Flyout_SoundSettings_Tooltip", "Sound settings")));
+        left.Children.Add(HeaderIconButton(
+            DisabledDevicesGlyph,
+            p,
+            ToggleDisabledDevices,
+            L("Flyout_DisabledDevices_Tooltip", "Show/hide disabled devices")));
 
         if (ShowCommunicationsButton)
         {
@@ -2123,6 +2128,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             TrayAppDotNETToolTip.SetTip(content.UndockButton, UndockButtonTooltip());
     }
 
+    /// <summary>Shows or hides disabled playback and recording devices as one flyout action.</summary>
+    private void ToggleDisabledDevices()
+    {
+        bool showDisabledDevices = !ShowsDisabledDevices;
+        _settings.ShowDisabledPlaybackDevices = showDisabledDevices;
+        _settings.ShowDisabledRecordingDevices = showDisabledDevices;
+    }
+
     private static void ToggleCommunicationsDucking(KeyModifiers modifiers)
     {
         CommunicationsDuckingMode mode;
@@ -2558,6 +2571,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         CommunicationsButtonVisibility.WhenDuckingOn => CommunicationsDucking.IsActive(),
         _ => true
     };
+
+    private bool ShowsDisabledDevices =>
+        _settings.ShowDisabledPlaybackDevices
+        && (!_settings.ShowRecordingDevices
+            || !_settings.ShowRecordingDevicesInFlyout
+            || _settings.ShowDisabledRecordingDevices);
+
+    private Glyph DisabledDevicesGlyph => ShowsDisabledDevices ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
 
     private bool ShowCommunicationsButton => ShouldShowCommunicationsButton;
 

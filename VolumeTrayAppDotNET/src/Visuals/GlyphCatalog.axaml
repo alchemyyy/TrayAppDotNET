@@ -22,6 +22,8 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeMid" Text="&#xE994;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackVolumeHigh" Text="&#xE995;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SoundSettings" Text="&#xE995;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.View" Text="&#xE890;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Hide" Text="&#xED1A;" Font="SegoeFluentIconsThenMDL2Assets" />
 
     <visuals:GlyphDefinition
         x:Key="GlyphCatalog.Microphone"

@@ -31,6 +31,8 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph PLAYBACK_VOLUME_MID => Glyph("PlaybackVolumeMid");
     public static Glyph PLAYBACK_VOLUME_HIGH => Glyph("PlaybackVolumeHigh");
     public static Glyph SOUND_SETTINGS => Glyph("SoundSettings");
+    public static Glyph VIEW => Glyph("View");
+    public static Glyph HIDE => Glyph("Hide");
 
     public static Glyph MICROPHONE => Glyph("Microphone");
     public static Glyph MICROPHONE_OFF => Glyph("MicrophoneOff");
