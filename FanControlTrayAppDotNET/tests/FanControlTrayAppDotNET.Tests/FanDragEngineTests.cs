@@ -142,15 +142,32 @@ public sealed class FanDragEngineTests
     }
 
     [Fact]
-    public void GroupDropBottomStopsTheHitBoxAtTheOriginalGroupBottomWhenPlaceholderExpanded()
+    public void LastGroupFanSlotRemainsValidForHalfItsHeightAndExitsFourPixelsBeyond()
     {
-        DragRig rig = DragRig.Create(groupHeight: 236, groupDropBottom: 288);
+        const double groupDropBottom = 288;
+        const double dragHeight = 80;
+        const double groupExitOffset = 4;
+        DragRig rig = DragRig.Create(groupHeight: 236, groupDropBottom: groupDropBottom);
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0);
+        double bottomExtension = rig.FanSlots[^1].Height * 0.5;
+        double topAtExtendedBottom = groupDropBottom + bottomExtension - dragHeight * 0.5;
 
-        FanDragEvaluation evaluation = FanDragEngine.Evaluate(snapshot, BoundsFromTop(250));
+        FanDragEvaluation atExtendedBottom = FanDragEngine.Evaluate(
+            snapshot,
+            BoundsFromTop(topAtExtendedBottom, height: dragHeight));
+        FanDragEvaluation fourPixelsBeyond = FanDragEngine.Evaluate(
+            snapshot,
+            BoundsFromTop(topAtExtendedBottom + groupExitOffset, height: dragHeight));
+        IReadOnlyList<FanDragDebugMarker> markers = FanDragEngine.CalculateDebugMarkers(
+            snapshot,
+            BoundsFromTop(topAtExtendedBottom, height: dragHeight));
 
-        AssertTopLevel(evaluation, 1);
-        Assert.Null(evaluation.Preview.GroupDropPreviewCell);
+        AssertIntoGroup(atExtendedBottom, rig.GroupCell, 2);
+        AssertTopLevel(fourPixelsBeyond, 1);
+        Assert.Null(fourPixelsBeyond.Preview.GroupDropPreviewCell);
+        Assert.Contains(markers, marker =>
+            marker.Placement is { Kind: FanDragPlacementKind.TopLevel, TopLevelIndex: 1 }
+            && Math.Abs(marker.Y - (groupDropBottom + bottomExtension)) < 0.001);
     }
 
     [Fact]
@@ -451,7 +468,7 @@ public sealed class FanDragEngineTests
     }
 
     [Fact]
-    public void PointerTraceLeavesGroupAfterTheOriginalGroupBottomInsteadOfStayingTrappedInExpandedSpace()
+    public void PointerTraceLeavesGroupAfterTheLastFanExtensionInsteadOfStayingTrappedInExpandedSpace()
     {
         DragRig rig = DragRig.Create(groupHeight: 236, groupDropBottom: 288);
         FanDragSnapshot snapshot = rig.Snapshot(rig.FanA, rig.CellA, sourceTopLevelIndex: 0);
@@ -460,7 +477,7 @@ public sealed class FanDragEngineTests
         [
             BoundsFromTop(92),
             BoundsFromTop(170),
-            BoundsFromTop(250)
+            BoundsFromTop(265)
         ]);
         string[] placements = [.. trace.Frames.Select(frame => PlacementLabel(frame.Evaluation))];
 

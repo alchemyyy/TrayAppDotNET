@@ -21,6 +21,7 @@ internal sealed record FanDragCellArrangement(FanGroup? GroupSettings, IReadOnly
 internal static class FanDragEngine
 {
     private const double SlotPassRatio = 0.62;
+    private const double LastGroupFanDropExtensionRatio = 0.5;
 
     public static FanDragEvaluation Evaluate(FanDragSnapshot snapshot, FanDragBounds drag)
     {
@@ -462,7 +463,10 @@ internal static class FanDragEngine
         double top = fanSlots.Count == 0
             ? root.GroupInsertionTop
             : Math.Max(root.GroupInsertionTop, fanSlots[^1].Top + fanSlots[^1].Height);
-        return FanDragRange.FromBounds(top, root.GroupDropBottom);
+        double bottomExtension = fanSlots.Count == 0
+            ? 0
+            : Math.Max(1, fanSlots[^1].Height) * LastGroupFanDropExtensionRatio;
+        return FanDragRange.FromBounds(top, root.GroupDropBottom + bottomExtension);
     }
 
     private static bool HasRootSource(FanDragSnapshot snapshot) =>
