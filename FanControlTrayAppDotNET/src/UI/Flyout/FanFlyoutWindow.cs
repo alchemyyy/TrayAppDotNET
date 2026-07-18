@@ -3241,9 +3241,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             FanFlyoutCell? cell = visual.Tag as FanFlyoutCell;
             ProbeCard? probeCard = visual.Tag as ProbeCard;
-            bool includeProbeCard = probeCard != null
-                                    && (_draggedGroupCell != null || _draggedProbeCard != null);
-            if (cell == null && !includeProbeCard) continue;
+            if (cell == null && probeCard == null) continue;
             Point? top = visual.TranslatePoint(new Point(0, 0), cellStack);
             if (top == null) continue;
             double renderOffsetY = RenderTransformOffsetY(visual);
@@ -4278,33 +4276,99 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             }
         }
 
-        List<FanDragCellArrangement> arranged = MoveFanIntoGroup(Cells, fan, groupCell, groupFanIndex);
-        ApplyTopLevelDisplayOrder(arranged);
-        ApplyGroupedFanDisplayOrders(arranged);
+        List<FlyoutTopLevelItem> ordered = MoveFanIntoGroupTopLevelItem(
+            BuildTopLevelOrder(),
+            fan,
+            groupCell,
+            groupFanIndex);
+        ApplyTopLevelDisplayOrder(ordered);
+        ApplyGroupedFanDisplayOrders(ordered);
         SaveGroupChanges();
+        SaveProbeCardChanges();
     }
 
     private void ApplyFanDropTopLevel(Fan fan, int targetIndex)
     {
         fan.Group = null;
-        List<FanDragCellArrangement> arranged = MoveFanToTopLevel(Cells, fan, targetIndex);
-        ApplyTopLevelDisplayOrder(arranged);
-        ApplyGroupedFanDisplayOrders(arranged);
+        List<FlyoutTopLevelItem> ordered = MoveFanTopLevelItem(BuildTopLevelOrder(), fan, targetIndex);
+        ApplyTopLevelDisplayOrder(ordered);
+        ApplyGroupedFanDisplayOrders(ordered);
         SaveGroupChanges();
+        SaveProbeCardChanges();
     }
 
-    private static List<FanDragCellArrangement> MoveFanToTopLevel(
-        IEnumerable<FanFlyoutCell> cells,
+    /// <summary>Moves a fan within the combined fan, group, and probe-card order.</summary>
+    internal static List<FlyoutTopLevelItem> MoveFanTopLevelItem(
+        IEnumerable<FlyoutTopLevelItem> currentOrder,
         Fan fan,
         int targetIndex)
-        => FanDragEngine.MoveFanToTopLevel(cells, fan, targetIndex);
+    {
+        List<FlyoutTopLevelItem> ordered = RemoveFanFromTopLevelItems(currentOrder, fan);
+        ordered.Insert(
+            Math.Clamp(targetIndex, 0, ordered.Count),
+            FlyoutTopLevelItem.ArrangedFanCell(new FanDragCellArrangement(null, [fan])));
+        return ordered;
+    }
 
-    private static List<FanDragCellArrangement> MoveFanIntoGroup(
-        IEnumerable<FanFlyoutCell> cells,
+    /// <summary>Moves a fan into a group without disturbing interleaved probe cards.</summary>
+    internal static List<FlyoutTopLevelItem> MoveFanIntoGroupTopLevelItem(
+        IEnumerable<FlyoutTopLevelItem> currentOrder,
         Fan fan,
         FanFlyoutCell targetGroup,
         int targetFanIndex)
-        => FanDragEngine.MoveFanIntoGroup(cells, fan, targetGroup, targetFanIndex);
+    {
+        List<FlyoutTopLevelItem> ordered = RemoveFanFromTopLevelItems(currentOrder, fan);
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            FanDragCellArrangement? arrangement = ordered[i].CellArrangement;
+            if (arrangement == null || !RepresentsGroup(arrangement, targetGroup)) continue;
+
+            List<Fan> fans = [.. arrangement.Fans];
+            fans.Insert(Math.Clamp(targetFanIndex, 0, fans.Count), fan);
+            ordered[i] = FlyoutTopLevelItem.ArrangedFanCell(
+                new FanDragCellArrangement(arrangement.GroupSettings, fans));
+            break;
+        }
+
+        return ordered;
+    }
+
+    private static List<FlyoutTopLevelItem> RemoveFanFromTopLevelItems(
+        IEnumerable<FlyoutTopLevelItem> currentOrder,
+        Fan fan)
+    {
+        List<FlyoutTopLevelItem> ordered = [];
+        foreach (FlyoutTopLevelItem item in currentOrder)
+        {
+            FanDragCellArrangement? arrangement = item.CellArrangement;
+            if (arrangement == null
+                || !arrangement.Fans.Any(candidate => ReferenceEquals(candidate, fan)))
+            {
+                ordered.Add(item);
+                continue;
+            }
+
+            if (!arrangement.HasGroupHeader) continue;
+
+            List<Fan> remaining =
+            [
+                .. arrangement.Fans.Where(candidate => !ReferenceEquals(candidate, fan))
+            ];
+            ordered.Add(FlyoutTopLevelItem.ArrangedFanCell(
+                new FanDragCellArrangement(arrangement.GroupSettings, remaining)));
+        }
+
+        return ordered;
+    }
+
+    private static bool RepresentsGroup(
+        FanDragCellArrangement arrangement,
+        FanFlyoutCell targetGroup)
+    {
+        if (arrangement.GroupSettings == null || targetGroup.GroupSettings == null) return false;
+        return ReferenceEquals(arrangement.GroupSettings, targetGroup.GroupSettings)
+               || string.Equals(arrangement.GroupName, targetGroup.GroupName, StringComparison.OrdinalIgnoreCase);
+    }
 
     private void ApplyGroupDrop(FanFlyoutCell cell, int targetIndex)
     {
@@ -4323,7 +4387,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         List<FlyoutTopLevelItem> ordered =
         [
             .. currentOrder.Where(item =>
-                !ReferenceEquals(item.Cell?.GroupSettings, groupCell.GroupSettings))
+                !ReferenceEquals(item.CellArrangement?.GroupSettings, groupCell.GroupSettings))
         ];
         ordered.Insert(Math.Clamp(targetIndex, 0, ordered.Count), FlyoutTopLevelItem.FanCell(groupCell));
         return ordered;
@@ -4340,35 +4404,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ApplyTopLevelDisplayOrder(ordered);
         SaveGroupChanges();
         SaveProbeCardChanges();
-    }
-
-    private void ApplyTopLevelDisplayOrder(IEnumerable<FanDragCellArrangement> orderedCells)
-    {
-        _suppressFanRebuild = true;
-        try
-        {
-            _groupNames.Clear();
-            int index = 0;
-            foreach (FanDragCellArrangement cell in orderedCells)
-            {
-                if (cell.HasGroupHeader)
-                {
-                    if (cell.GroupName == null) continue;
-                    FanGroup group = GetOrCreateGroupSettings(cell.GroupName);
-                    group.DisplayOrder = index++;
-                    if (!_groupNames.Any(g => string.Equals(g, cell.GroupName, StringComparison.OrdinalIgnoreCase)))
-                        _groupNames.Add(cell.GroupName);
-                    continue;
-                }
-
-                if (cell.Fans.Count == 1)
-                    cell.Fans[0].FlyoutDisplayOrder = index++;
-            }
-        }
-        finally
-        {
-            _suppressFanRebuild = false;
-        }
     }
 
     /// <summary>
@@ -4391,20 +4426,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     continue;
                 }
 
-                FanFlyoutCell? cell = item.Cell;
-                if (cell == null) continue;
-                if (cell.HasGroupHeader)
+                FanDragCellArrangement? arrangement = item.CellArrangement;
+                if (arrangement == null) continue;
+                if (arrangement.HasGroupHeader)
                 {
-                    if (cell.GroupName == null) continue;
-                    FanGroup group = GetOrCreateGroupSettings(cell.GroupName);
+                    if (arrangement.GroupName == null) continue;
+                    FanGroup group = GetOrCreateGroupSettings(arrangement.GroupName);
                     group.DisplayOrder = index++;
-                    if (!_groupNames.Any(g => string.Equals(g, cell.GroupName, StringComparison.OrdinalIgnoreCase)))
-                        _groupNames.Add(cell.GroupName);
+                    if (!_groupNames.Any(g =>
+                            string.Equals(g, arrangement.GroupName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        _groupNames.Add(arrangement.GroupName);
+                    }
                     continue;
                 }
 
-                if (cell.Fans.Count == 1)
-                    cell.Fans[0].FlyoutDisplayOrder = index++;
+                if (arrangement.Fans.Count == 1)
+                    arrangement.Fans[0].FlyoutDisplayOrder = index++;
             }
         }
         finally
@@ -4442,13 +4480,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ];
     }
 
-    private static void ApplyGroupedFanDisplayOrders(IEnumerable<FanDragCellArrangement> orderedCells)
+    private static void ApplyGroupedFanDisplayOrders(IEnumerable<FlyoutTopLevelItem> orderedItems)
     {
-        foreach (FanDragCellArrangement cell in orderedCells)
+        foreach (FlyoutTopLevelItem item in orderedItems)
         {
-            if (!cell.HasGroupHeader) continue;
-            for (int i = 0; i < cell.Fans.Count; i++)
-                cell.Fans[i].FlyoutDisplayOrder = i;
+            FanDragCellArrangement? arrangement = item.CellArrangement;
+            if (arrangement?.HasGroupHeader != true) continue;
+            for (int i = 0; i < arrangement.Fans.Count; i++)
+                arrangement.Fans[i].FlyoutDisplayOrder = i;
         }
     }
 
@@ -5913,17 +5952,26 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     internal sealed record FlyoutTopLevelItem(
         FanFlyoutCell? Cell,
-        ProbeCard? ProbeCard)
+        ProbeCard? ProbeCard,
+        FanDragCellArrangement? Arrangement)
     {
+        /// <summary>Gets the immutable fan/group arrangement represented by this item.</summary>
+        public FanDragCellArrangement? CellArrangement =>
+            Arrangement ?? (Cell == null ? null : FanDragCellArrangement.FromCell(Cell));
+
         /// <summary>
         /// Creates a fan/group top-level item.
         /// </summary>
-        public static FlyoutTopLevelItem FanCell(FanFlyoutCell cell) => new(cell, null);
+        public static FlyoutTopLevelItem FanCell(FanFlyoutCell cell) => new(cell, null, null);
+
+        /// <summary>Creates a transformed fan/group top-level item.</summary>
+        public static FlyoutTopLevelItem ArrangedFanCell(FanDragCellArrangement arrangement) =>
+            new(null, null, arrangement);
 
         /// <summary>
         /// Creates a probe-card top-level item.
         /// </summary>
-        public static FlyoutTopLevelItem Probe(ProbeCard probeCard) => new(null, probeCard);
+        public static FlyoutTopLevelItem Probe(ProbeCard probeCard) => new(null, probeCard, null);
     }
 
     private sealed record ProbeCardRowVisualRefs(
