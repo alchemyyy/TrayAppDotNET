@@ -166,6 +166,7 @@ public sealed class FanDragEngineTests
         Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
         Assert.Equal(1, preview.GroupDropPreviewFanIndex);
         Assert.False(preview.GroupDropPreviewExpandsUpward);
+        Assert.False(preview.RetainsTopLevelPreviewSlot);
     }
 
     [Fact]
@@ -181,6 +182,55 @@ public sealed class FanDragEngineTests
         Assert.Same(rig.GroupCell, preview.GroupDropPreviewCell);
         Assert.Equal(1, preview.GroupDropPreviewFanIndex);
         Assert.True(preview.GroupDropPreviewExpandsUpward);
+        Assert.True(preview.RetainsTopLevelPreviewSlot);
+    }
+
+    [Fact]
+    public void UpwardIntoGroupPreviewKeepsTheRootSlotImmediatelyBelowTheGroup()
+    {
+        DragRig rig = DragRig.Create();
+        FanDragSlot groupSlot = rig.Slots[1];
+        double intermediateTop = rig.Slots[2].Top;
+        FanDragSlot intermediateSlot = new(
+            rig.CellB,
+            new Border(),
+            intermediateTop,
+            80,
+            88,
+            intermediateTop,
+            intermediateTop + 80);
+        double sourceTop = intermediateTop + 88;
+        FanDragSlot sourceSlot = new(
+            rig.CellC,
+            new Border(),
+            sourceTop,
+            80,
+            88,
+            sourceTop,
+            sourceTop + 80);
+        List<FanDragSlot> slots =
+        [
+            rig.Slots[0],
+            groupSlot,
+            intermediateSlot,
+            sourceSlot
+        ];
+        FanDragSnapshot snapshot = rig.Snapshot(
+            rig.FanC,
+            rig.CellC,
+            sourceTopLevelIndex: 3,
+            sourceTopLevelControl: sourceSlot.Visual) with
+        {
+            Slots = slots
+        };
+
+        FanDragPreviewPlan preview = FanDragEngine.CalculatePreviewPlan(
+            snapshot,
+            FanDragPlacement.IntoGroup(rig.GroupCell, 1));
+
+        AssertOffsets(preview.TopLevelOffsets, (2, 88));
+        Assert.True(preview.GroupDropPreviewExpandsUpward);
+        Assert.True(preview.RetainsTopLevelPreviewSlot);
     }
 
     [Fact]

@@ -53,6 +53,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private UIResourceScope? _dragGhostResources;
     private Control? _groupDropPreview;
     private StackPanel? _groupDropPreviewHost;
+    private Thickness? _dragCellStackBaseMargin;
+    private PixelPoint? _dragWindowBasePosition;
     private bool _groupDropPreviewExpandsUpward;
     private readonly List<FanDragSlot> _dragSlots = [];
     private readonly List<FanDragFanSlot> _dragFanSlots = [];
@@ -2973,6 +2975,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Canvas? dragOverlay = DragOverlay;
         StackPanel? cellStack = CellStack;
         if (dragOverlay == null || cellStack == null || _dragGhost != null) return;
+        _dragCellStackBaseMargin = cellStack.Margin;
+        _dragWindowBasePosition = Position;
         SnapshotDragSlots();
         ResolveDragSourceLayout(source);
 
@@ -3015,7 +3019,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         RootCard?.Focus();
         if (EnableFanDragInstrumentation)
             BeginDragInstrumentation();
-        UpdateDragPreview(current);
     }
 
     private Control ReplaceDragGhostContent(FanDragGhostStyle style, Control source)
@@ -3409,15 +3412,23 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_draggedFan == null) return Math.Max(1, source.Bounds.Height + Math.Max(0, source.Margin.Bottom));
 
-        FanDragFanSlot? sourceSlot = _dragFanSlots.FirstOrDefault(slot => ReferenceEquals(slot.Fan, _draggedFan));
-        if (sourceSlot != null)
-            return Math.Max(1, sourceSlot.Height + Math.Max(0, sourceSlot.Visual.Margin.Bottom));
+        if (_dragSourceCell?.HasGroupHeader == true)
+        {
+            FanDragFanSlot? sourceSlot = _dragFanSlots.FirstOrDefault(slot => ReferenceEquals(slot.Fan, _draggedFan));
+            if (sourceSlot != null)
+                return Math.Max(1, sourceSlot.Height + Math.Max(0, sourceSlot.Visual.Margin.Bottom));
+        }
 
         Control? preview = _groupDropPreview ?? CreateGroupedFanDropPlaceholder();
         if (preview == null) return Math.Max(1, source.Bounds.Height + Math.Max(0, source.Margin.Bottom));
 
         preview.Measure(new Size(Math.Max(1, source.Bounds.Width), double.PositiveInfinity));
-        return Math.Max(1, preview.DesiredSize.Height + Math.Max(0, preview.Margin.Bottom));
+        double previewHeight = double.IsFinite(preview.Height)
+            ? Math.Max(0, preview.Height)
+            : Math.Max(0, preview.DesiredSize.Height);
+        return Math.Max(
+            1,
+            previewHeight + Math.Max(0, preview.Margin.Top) + Math.Max(0, preview.Margin.Bottom));
     }
 
     private FanFlyoutCell? FindCellContainingFan(Fan fan)
@@ -3486,7 +3497,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void UpdateDragPreview(Point current)
     {
-        if (_dragGhost == null || CellStack == null) return;
+        StackPanel? cellStack = CellStack;
+        if (_dragGhost == null || cellStack == null) return;
         MoveDragGhost(current);
         UpdateDragDirection(current);
 
@@ -3494,11 +3506,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FanDragPlacement placement = evaluation.Placement;
         if (!placement.Equals(_dragPlacement))
         {
+            PixelPoint pointerScreen = cellStack.PointToScreen(current);
             _dragPlacement = placement;
             UpdateDragGhostForPlacement(placement, current);
             bool layoutChanged = ApplyDragPreview(placement);
             if (layoutChanged)
-                RefreshDragGeometryAfterPreview(current);
+                current = RefreshDragGeometryAfterPreview(current, pointerScreen);
         }
 
         if (FanDragDebugVisualsEnabled)
@@ -3507,29 +3520,72 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             RecordDragInstrumentationMovement(current);
     }
 
-    private void RefreshDragGeometryAfterPreview(Point current)
+    private Point RefreshDragGeometryAfterPreview(Point current, PixelPoint pointerScreen)
     {
-        if (CellStack == null) return;
+        if (CellStack == null) return current;
 
-        UpdateLayout();
+        current = RefreshDragPreviewLayout(current, pointerScreen);
         SnapshotDragSlots();
         UpdateDragGhostForPlacement(_dragPlacement, current);
 
         FanDragEvaluation refreshed = EvaluateDrag(current);
         FanDragPlacement refreshedPlacement = refreshed.Placement;
-        if (refreshedPlacement.Equals(_dragPlacement)) return;
+        if (refreshedPlacement.Equals(_dragPlacement)) return current;
 
         _dragPlacement = refreshedPlacement;
         UpdateDragGhostForPlacement(refreshedPlacement, current);
         if (ApplyDragPreview(refreshedPlacement))
         {
-            UpdateLayout();
+            current = RefreshDragPreviewLayout(current, pointerScreen);
             SnapshotDragSlots();
             UpdateDragGhostForPlacement(_dragPlacement, current);
         }
 
         if (FanDragDebugVisualsEnabled)
             UpdateDragDebugOverlay(current);
+        return current;
+    }
+
+    /// <summary>Refreshes measured preview geometry while retaining the physical pointer position.</summary>
+    private Point RefreshDragPreviewLayout(Point fallback, PixelPoint pointerScreen)
+    {
+        UpdateLayout();
+        PositionDragPreviewWindow();
+        UpdateLayout();
+
+        StackPanel? cellStack = CellStack;
+        if (cellStack == null) return fallback;
+
+        PixelPoint stackOrigin = cellStack.PointToScreen(new Point(0, 0));
+        double scaling = Math.Max(double.Epsilon, RenderScaling);
+        Point current = new(
+            (pointerScreen.X - stackOrigin.X) / scaling,
+            (pointerScreen.Y - stackOrigin.Y) / scaling);
+        _lastDragPointerY = current.Y;
+        return current;
+    }
+
+    /// <summary>Lets the measured flyout extend upward instead of translating children outside its bounds.</summary>
+    private void PositionDragPreviewWindow()
+    {
+        if (_dragWindowBasePosition is not { } basePosition) return;
+
+        int top = basePosition.Y;
+        if (_groupDropPreviewExpandsUpward)
+        {
+            int upwardPixels = Math.Max(
+                0,
+                (int)Math.Ceiling(ResolveGroupDropPreviewExtent() * RenderScaling));
+            PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
+            int minimumTop = workArea.Y + EdgePadding;
+            top = Math.Max(minimumTop, basePosition.Y - upwardPixels);
+        }
+
+        PixelPoint target = new(basePosition.X, top);
+        if (Position == target) return;
+
+        Position = target;
+        PositionFanPropertiesWindows();
     }
 
     private List<FanDragFanSlot> GroupFanSlots(FanFlyoutCell groupCell, bool excludeDraggedFan)
@@ -3641,13 +3697,33 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
         _groupDropPreviewExpandsUpward = preview.GroupDropPreviewExpandsUpward
                                          && _groupDropPreviewHost != null;
-        if (_groupDropPreviewExpandsUpward)
-        {
-            // Counter downward layout growth to keep the group bottom anchored
-            OffsetAllTopLevelVisuals(-ResolveGroupDropPreviewExtent());
-        }
+        ApplyDragStackExtentCompensation(
+            _groupDropPreviewHost != null,
+            preview.RetainsTopLevelPreviewSlot);
 
         return layoutChanged;
+    }
+
+    /// <summary>Removes transformed source space from the stack's measured drag-preview extent.</summary>
+    private void ApplyDragStackExtentCompensation(
+        bool hasGroupDropPreview,
+        bool retainsTopLevelPreviewSlot)
+    {
+        StackPanel? cellStack = CellStack;
+        if (cellStack == null || _dragCellStackBaseMargin is not { } baseMargin) return;
+
+        if (!hasGroupDropPreview || _dragSourceTopLevelControl == null) return;
+
+        double collapsedExtent = retainsTopLevelPreviewSlot
+            ? 0
+            : Math.Max(0, _dragSourceSlotHeight);
+        if (collapsedExtent <= 0) return;
+
+        cellStack.Margin = new Thickness(
+            baseMargin.Left,
+            baseMargin.Top,
+            baseMargin.Right,
+            baseMargin.Bottom - collapsedExtent);
     }
 
     private void SetDragSlotOffset(int index, double offset)
@@ -3656,20 +3732,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragSlots[index].Visual.RenderTransform = offset == 0
             ? null
             : new TranslateTransform(0, offset);
-    }
-
-    private void OffsetAllTopLevelVisuals(double offset)
-    {
-        StackPanel? cellStack = CellStack;
-        if (cellStack == null || offset == 0) return;
-
-        foreach (Control visual in cellStack.Children)
-        {
-            double combinedOffset = RenderTransformOffsetY(visual) + offset;
-            visual.RenderTransform = combinedOffset == 0
-                ? null
-                : new TranslateTransform(0, combinedOffset);
-        }
     }
 
     private void SetDragFanSlotOffset(Fan fan, double offset)
@@ -3691,6 +3753,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         StackPanel? cellStack = CellStack;
         if (cellStack != null)
         {
+            if (_dragCellStackBaseMargin is { } baseMargin)
+                cellStack.Margin = baseMargin;
             foreach (Control visual in cellStack.Children)
                 visual.RenderTransform = null;
         }
@@ -4069,6 +4133,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 }
 
                 RemoveGroupDropPreview();
+                UpdateLayout();
+                PositionDragPreviewWindow();
             }
             catch (Exception exception)
             {
@@ -4078,6 +4144,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _dragGhost = null;
             _groupDropPreview = null;
             _groupDropPreviewHost = null;
+            _dragCellStackBaseMargin = null;
+            _dragWindowBasePosition = null;
             _groupDropPreviewExpandsUpward = false;
             _dragDebugVisuals.Clear();
             _dragSlots.Clear();
@@ -4157,12 +4225,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         IPointer? cardPointer = _capturedCardDragPointer;
         _capturedCardDragPointer = null;
+        StackPanel? cellStack = CellStack;
+        if (cellStack != null && _dragCellStackBaseMargin is { } baseMargin)
+            cellStack.Margin = baseMargin;
+        _groupDropPreviewExpandsUpward = false;
+        PositionDragPreviewWindow();
         UIResourceScope? dragGhostResources = _dragGhostResources;
         _dragGhostResources = null;
         _dragGhost = null;
         _groupDropPreview = null;
         _groupDropPreviewHost = null;
-        _groupDropPreviewExpandsUpward = false;
+        _dragCellStackBaseMargin = null;
+        _dragWindowBasePosition = null;
         _dragDebugVisuals.Clear();
         _dragSlots.Clear();
         _dragFanSlots.Clear();

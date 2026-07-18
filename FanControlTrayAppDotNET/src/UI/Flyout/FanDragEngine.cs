@@ -96,15 +96,23 @@ internal static class FanDragEngine
                     CalculateSameGroupFanOffsets(snapshot, placement.GroupCell, placement.GroupFanIndex),
                     null,
                     0,
+                    false,
                     false);
             }
 
+            int groupIndex = IndexOfDragSlot(snapshot, placement.GroupCell);
+            bool expandsUpward = groupIndex >= 0 && snapshot.DragSourceTopLevelIndex > groupIndex;
+            bool retainsTopLevelPreviewSlot = expandsUpward && HasRootSource(snapshot);
+            IReadOnlyList<FanDragSlotOffset> topLevelOffsets = retainsTopLevelPreviewSlot
+                ? CalculateTopLevelPreviewOffsets(snapshot, groupIndex + 1)
+                : CalculateIntoGroupPreviewOffsets(snapshot);
             return new FanDragPreviewPlan(
-                CalculateIntoGroupPreviewOffsets(snapshot),
+                topLevelOffsets,
                 [],
                 placement.GroupCell,
                 placement.GroupFanIndex,
-                ShouldExpandGroupDropPreviewUpward(snapshot, placement.GroupCell));
+                expandsUpward,
+                retainsTopLevelPreviewSlot);
         }
 
         return new FanDragPreviewPlan(
@@ -112,15 +120,8 @@ internal static class FanDragEngine
             [],
             null,
             0,
+            false,
             false);
-    }
-
-    private static bool ShouldExpandGroupDropPreviewUpward(
-        FanDragSnapshot snapshot,
-        FanFlyoutCell groupCell)
-    {
-        int groupIndex = IndexOfDragSlot(snapshot, groupCell);
-        return groupIndex >= 0 && snapshot.DragSourceTopLevelIndex > groupIndex;
     }
 
     private static bool CanReuseSameGroupSourceSlot(FanDragSnapshot snapshot, FanFlyoutCell groupCell) =>
@@ -694,7 +695,8 @@ internal sealed record FanDragPreviewPlan(
     IReadOnlyList<FanDragFanSlotOffset> GroupFanOffsets,
     FanFlyoutCell? GroupDropPreviewCell,
     int GroupDropPreviewFanIndex,
-    bool GroupDropPreviewExpandsUpward)
+    bool GroupDropPreviewExpandsUpward,
+    bool RetainsTopLevelPreviewSlot)
 {
     public string ToCompactString()
     {
@@ -708,7 +710,8 @@ internal sealed record FanDragPreviewPlan(
                 string.Create(CultureInfo.InvariantCulture, $"{offset.Fan.DisplayName}:{offset.Offset:0.##}")));
         string group = GroupDropPreviewCell?.GroupName ?? "<none>";
         string expansion = GroupDropPreviewExpandsUpward ? "up" : "down";
-        return $"offsets={offsets};fanOffsets={fanOffsets};groupPreview={group}@{GroupDropPreviewFanIndex}:{expansion}";
+        string rootSlot = RetainsTopLevelPreviewSlot ? "retained" : "closed";
+        return $"offsets={offsets};fanOffsets={fanOffsets};groupPreview={group}@{GroupDropPreviewFanIndex}:{expansion};rootSlot={rootSlot}";
     }
 }
 
