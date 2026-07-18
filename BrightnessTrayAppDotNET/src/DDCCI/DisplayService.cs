@@ -254,7 +254,7 @@ public class DisplayService : IDisplayService, IDisposable
             DDCMonitor monitor = new()
             {
                 Name = $"WindowsBrightness:{target.DisplayInstancePath}",
-                DeviceID = $"WINDOWS_BRIGHTNESS\\{target.DisplayInstancePath}",
+                DeviceID = target.DisplayInstancePath,
                 DisplayInstancePath = target.DisplayInstancePath,
                 FriendlyName = "Windows display"
             };
@@ -267,11 +267,11 @@ public class DisplayService : IDisplayService, IDisposable
     private static void ApplyWindowsBrightnessTarget(DDCMonitor monitor, WindowsBrightnessTarget target)
     {
         monitor.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
+        monitor.DeviceID = target.DisplayInstancePath;
+        monitor.DisplayInstancePath = target.DisplayInstancePath;
         monitor.WindowsBrightnessInstanceName = target.InstanceName;
         monitor.WindowsBrightnessMethodPath = target.MethodPath;
         monitor.BrightnessCode = VCPConstants.Brightness;
-        if (string.IsNullOrEmpty(monitor.DisplayInstancePath))
-            monitor.DisplayInstancePath = target.DisplayInstancePath;
     }
 
     public bool TryGetCapabilities(
@@ -512,9 +512,11 @@ public class DisplayService : IDisplayService, IDisposable
 
         Dictionary<string, int> friendlyByAdapter = CCD.BuildFriendlyDisplayNumberMap();
         string targetDeviceID = monitor.DeviceID;
+        string targetDisplayInstancePath = monitor.DisplayInstancePath;
         string targetSerial = monitor.EDIDSerial;
         string targetManufacturer = monitor.EDIDManufacturerID;
         string targetProduct = monitor.EDIDProductCode;
+        MonitorBrightnessControlKind targetControlKind = monitor.BrightnessControlKind;
 
         IntPtr updatedHandle = IntPtr.Zero;
         IntPtr updatedHdc = IntPtr.Zero;
@@ -581,6 +583,13 @@ public class DisplayService : IDisplayService, IDisposable
             bool stableDeviceMatch = HasStableDeviceID(targetDeviceID)
                                      && HasStableDeviceID(deviceID)
                                      && string.Equals(deviceID, targetDeviceID, StringComparison.Ordinal);
+            bool windowsDisplayInstanceMatch = targetControlKind == MonitorBrightnessControlKind.Windows
+                                              && !string.IsNullOrEmpty(targetDisplayInstancePath)
+                                              && !string.IsNullOrEmpty(displayInstancePath)
+                                              && string.Equals(
+                                                  displayInstancePath,
+                                                  targetDisplayInstancePath,
+                                                  StringComparison.OrdinalIgnoreCase);
             bool EDIDMatch = !string.IsNullOrEmpty(targetSerial)
                              && string.Equals(serial, targetSerial, StringComparison.Ordinal)
                              && (string.IsNullOrEmpty(targetManufacturer)
@@ -589,9 +598,10 @@ public class DisplayService : IDisplayService, IDisposable
                                  || string.Equals(product, targetProduct, StringComparison.Ordinal));
             bool adapterFallbackMatch = string.Equals(adapterName, monitor.Name, StringComparison.Ordinal);
 
-            if (!stableDeviceMatch && !EDIDMatch && !adapterFallbackMatch) return true;
+            if (!stableDeviceMatch && !windowsDisplayInstanceMatch && !EDIDMatch && !adapterFallbackMatch)
+                return true;
 
-            if (adapterFallbackMatch && !stableDeviceMatch && !EDIDMatch)
+            if (adapterFallbackMatch && !stableDeviceMatch && !windowsDisplayInstanceMatch && !EDIDMatch)
             {
                 WPFLog.Log(
                     $"DisplayService.RefreshHandle: using adapter-name fallback for '{monitor.Name}' "
@@ -630,6 +640,8 @@ public class DisplayService : IDisplayService, IDisposable
             if (target == null) return;
 
             updatedControlKind = MonitorBrightnessControlKind.Windows;
+            updatedDeviceID = target.DisplayInstancePath;
+            updatedDisplayInstancePath = target.DisplayInstancePath;
             updatedWindowsBrightnessInstanceName = target.InstanceName;
             updatedWindowsBrightnessMethodPath = target.MethodPath;
         }

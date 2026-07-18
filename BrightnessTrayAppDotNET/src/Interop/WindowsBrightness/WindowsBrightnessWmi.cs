@@ -179,7 +179,7 @@ internal static class WindowsBrightnessWmi
         if (trimmed.Length == 0) return string.Empty;
 
         int slash = trimmed.LastIndexOf('\\');
-        if (slash < 0 || slash == trimmed.Length - 1) return trimmed;
+        if (slash < 0 || slash == trimmed.Length - 1) return trimmed.ToUpperInvariant();
 
         string prefix = trimmed[..(slash + 1)];
         string last = trimmed[(slash + 1)..];
@@ -197,7 +197,7 @@ internal static class WindowsBrightnessWmi
             if (suffixIsNumeric) last = last[..underscore];
         }
 
-        return prefix + last;
+        return (prefix + last).ToUpperInvariant();
     }
 
     private static bool TryConnect([NotNullWhen(true)] out IWbemServices? services, out string? error)

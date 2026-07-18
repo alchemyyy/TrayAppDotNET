@@ -4,10 +4,20 @@
     <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <TrayAppDotNETUseRootOutput>false</TrayAppDotNETUseRootOutput>
+    <EmitBuildInfo>false</EmitBuildInfo>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
-                      GlobalPropertiesToRemove="OutputPath;OutDir;PublishDir" />
+                      Condition="'$(TrayAppDotNETAggregateBuild)' == 'true'"
+                      Targets="GetTargetPath" />
+    <ProjectReference Include="..\..\src\BrightnessTrayAppDotNET.csproj"
+                      Condition="'$(TrayAppDotNETAggregateBuild)' != 'true'"
+                      AdditionalProperties="SkipPublishAfterBuild=true;TrayAppDotNETAggregateBuild=false;TrayAppDotNETUseRootOutput=false;Platform=x64" />
   </ItemGroup>
 </Project>
