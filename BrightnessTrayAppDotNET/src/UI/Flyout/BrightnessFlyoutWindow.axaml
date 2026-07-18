@@ -81,6 +81,7 @@
         <sys:Double x:Key="Flyout.FooterIconButtonWidth">40</sys:Double>
         <sys:Double x:Key="Flyout.FooterIconButtonHeight">40</sys:Double>
         <sys:Double x:Key="Flyout.FooterIconButtonFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.FooterIconGlyphLineHeightPadding">6</sys:Double>
         <sys:Double x:Key="Flyout.FooterCurveIconButtonWidth">40</sys:Double>
         <sys:Double x:Key="Flyout.FooterCurveIconButtonHeight">40</sys:Double>
         <sys:Double x:Key="Flyout.FooterCurveIconSize">22</sys:Double>

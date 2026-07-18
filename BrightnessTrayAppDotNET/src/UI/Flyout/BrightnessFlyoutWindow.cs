@@ -1155,21 +1155,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (_settings?.ShowFlyoutDisplaySettingsButton ?? true)
         {
             actions.Children.Add(BuildFooterIconButton(
-                _theme.GlyphDisplaySettings,
+                new Glyph(_theme.GlyphDisplaySettings, GlyphCatalog.DISPLAY_SETTINGS.Font),
                 palette,
                 OpenDisplaySettings,
-                L("Flyout_DisplaySettings", "Display settings"),
-                fontFamily: GlyphCatalog.SEGOE_FLUENT_ICONS,
-                fontWeight: FontWeight.Black));
+                L("Flyout_DisplaySettings", "Display settings")));
         }
 
         Border settingsButton = BuildFooterIconButton(
-            _theme.GlyphSettings,
+            new Glyph(_theme.GlyphSettings, GlyphCatalog.SETTINGS.Font),
             palette,
             () => SettingsRequested?.Invoke(),
-            L("Tray_Settings", "Settings"),
-            fontFamily: GlyphCatalog.SEGOE_FLUENT_ICONS,
-            fontWeight: FontWeight.Black);
+            L("Tray_Settings", "Settings"));
         SuppressNextAutoHideWhenPressed(settingsButton);
         actions.Children.Add(settingsButton);
         Grid.SetColumn(actions, 2);
@@ -1240,7 +1236,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             palette,
             Layout.SaveProfileGlyphFontSize,
             GlyphCatalog.SEGOE_FLUENT_ICONS,
-            FontWeight.Black);
+            FontWeight.Normal);
         glyph.Opacity = HasUnsavedChanges ? 1.0 : 0.4;
         content.Children.Add(glyph);
 
@@ -1275,7 +1271,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 palette,
                 monitor.IsMaster ? Layout.MasterIconFontSize : Layout.MonitorIconFontSize,
                 GlyphCatalog.SEGOE_FLUENT_ICONS,
-                FontWeight.Black);
+                FontWeight.Normal);
 
         return button;
     }
@@ -1359,6 +1355,42 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             tooltip: tooltip,
             fontFamily: fontFamily,
             fontWeight: fontWeight);
+        button.Opacity = opacity;
+        return button;
+    }
+
+    private Border BuildFooterIconButton(
+        Glyph glyph,
+        FlyoutControlPalette palette,
+        Action click,
+        string tooltip,
+        double opacity = 1.0)
+    {
+        Border button = TrayAppDotNETFlyoutUI.IconButton(
+            string.Empty,
+            palette,
+            _ => click(),
+            Layout.FooterIconButtonWidth,
+            Layout.FooterIconButtonHeight,
+            0,
+            tooltip: tooltip);
+        TextBlock glyphText = new()
+        {
+            Text = glyph.Text,
+            FontFamily = FlyoutFont,
+            FontSize = Layout.FooterIconButtonFontSize,
+            FontWeight = FontWeight.Normal,
+            Foreground = TrayAppDotNETFlyoutUI.Brush(palette.IconForeground),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.NoWrap,
+            ClipToBounds = false,
+            IsHitTestVisible = false,
+            LineHeight = Math.Ceiling(
+                Layout.FooterIconButtonFontSize + Layout.FooterIconGlyphLineHeightPadding)
+        };
+        GlyphApplicator.ApplyTo(glyphText, glyph);
+        button.Child = glyphText;
         button.Opacity = opacity;
         return button;
     }
@@ -1494,14 +1526,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         FlyoutVisualState candidate,
         UIResourceScope resources)
     {
-        candidate.UndockButtonController = resources.Own(
+        FlyoutUndockButtonController controller = resources.Own(
             new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
         {
             Width = Layout.HeaderButtonSize,
             Height = Layout.HeaderButtonSize,
             FontSize = Layout.HeaderButtonFontSize,
-            FontFamily = GlyphCatalog.SEGOE_FLUENT_ICONS,
-            FontWeight = FontWeight.Black,
+            FontWeight = FontWeight.Normal,
             IsVisible = _settings?.AllowFlyoutUndock ?? true,
             Owner = this,
             DragHelper = _dragHelper,
@@ -1521,7 +1552,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             DragThreshold = Layout.DragThreshold,
             CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
         }));
-        return candidate.UndockButtonController.Button;
+        TextOptions.SetTextRenderingMode(controller.Glyph, TextRenderingMode.Unspecified);
+        TextOptions.SetTextHintingMode(controller.Glyph, TextHintingMode.Unspecified);
+        TextOptions.SetBaselinePixelAlignment(controller.Glyph, BaselinePixelAlignment.Unspecified);
+        candidate.UndockButtonController = controller;
+        return controller.Button;
     }
 
     private Border BuildConfirmOverlay(SettingsPalette palette, bool rounded, FlyoutVisualState candidate)
