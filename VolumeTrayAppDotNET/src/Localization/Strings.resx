@@ -373,7 +373,7 @@
     <value>Disconnected Bluetooth audio devices</value>
   </data>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_Description" xml:space="preserve">
-    <value>Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after the normal device list. The intermixed option instead sorts each endpoint with its playback or recording devices.</value>
+    <value>Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after both the normal playback and recording devices in the configured sort direction. The intermixed option instead sorts each endpoint with its playback or recording devices.</value>
   </data>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_NeverShow" xml:space="preserve">
     <value>Never show</value>

@@ -17,7 +17,8 @@ namespace VolumeTrayAppDotNET.Audio;
 /// chooses whether the two flows interleave inside each bucket or whether flow becomes the outer grouping.
 /// With intermixing disabled, the final reversal places all capture devices above all render devices.
 /// Disconnected Bluetooth endpoints receive an additional flyout-only policy: hide, follow normal
-/// visibility, force into a trailing section, or force into the normal render/capture ordering.
+/// visibility, force into a dedicated section after both normal flows, or force into the normal
+/// render/capture ordering.
 /// </summary>
 internal static class FlyoutDeviceOrdering
 {
@@ -39,7 +40,7 @@ internal static class FlyoutDeviceOrdering
         bool applyDisconnectedBluetoothMode)
     {
         List<AudioDevice> visible = new(devices.Count);
-        List<AudioDevice> trailingDisconnectedBluetooth = [];
+        List<AudioDevice> dedicatedDisconnectedBluetooth = [];
         for (int i = 0; i < devices.Count; i++)
         {
             AudioDevice device = devices[i];
@@ -62,16 +63,15 @@ internal static class FlyoutDeviceOrdering
                 case DisconnectedBluetoothPlacement.Standard:
                     visible.Add(device);
                     break;
-                case DisconnectedBluetoothPlacement.Trailing:
-                    trailingDisconnectedBluetooth.Add(device);
+                case DisconnectedBluetoothPlacement.DedicatedSection:
+                    dedicatedDisconnectedBluetooth.Add(device);
                     break;
             }
         }
 
         List<AudioDevice> ordered = Sort(visible, settings);
-        if (trailingDisconnectedBluetooth.Count > 0)
-            ordered.AddRange(Sort(trailingDisconnectedBluetooth, settings));
-        return ordered;
+        List<AudioDevice> dedicatedSection = Sort(dedicatedDisconnectedBluetooth, settings);
+        return PlaceDedicatedSection(ordered, dedicatedSection, settings.FlyoutDeviceSort);
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ internal static class FlyoutDeviceOrdering
         FlyoutDisconnectedBluetoothDeviceVisibility.Show => normallyVisible
             ? DisconnectedBluetoothPlacement.Standard
             : DisconnectedBluetoothPlacement.Hidden,
-        FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow => DisconnectedBluetoothPlacement.Trailing,
+        FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow => DisconnectedBluetoothPlacement.DedicatedSection,
         FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed =>
             DisconnectedBluetoothPlacement.Standard,
         _ => normallyVisible ? DisconnectedBluetoothPlacement.Standard : DisconnectedBluetoothPlacement.Hidden
@@ -107,6 +107,32 @@ internal static class FlyoutDeviceOrdering
             FlyoutDeviceSortOrder.WindowsEnumeration => SortWindowsEnumeration(visible, settings),
             _ => SortStateGrouped(visible, settings)
         };
+
+    /// <summary>
+    /// Places the dedicated disconnected-Bluetooth section after the complete normal playback and
+    /// recording block in the configured sort direction. StateGrouped is visually bottom-up, so
+    /// its final section belongs above the normal block; WindowsEnumeration is top-down, so its
+    /// final section belongs below it.
+    /// </summary>
+    internal static List<TDevice> PlaceDedicatedSection<TDevice>(
+        IReadOnlyList<TDevice> normallyOrdered,
+        IReadOnlyList<TDevice> dedicatedSection,
+        FlyoutDeviceSortOrder sortOrder)
+    {
+        List<TDevice> combined = new(normallyOrdered.Count + dedicatedSection.Count);
+        if (sortOrder == FlyoutDeviceSortOrder.StateGrouped)
+        {
+            combined.AddRange(dedicatedSection);
+            combined.AddRange(normallyOrdered);
+        }
+        else
+        {
+            combined.AddRange(normallyOrdered);
+            combined.AddRange(dedicatedSection);
+        }
+
+        return combined;
+    }
 
     /// <summary>
     /// State-bucket ordering. Intermixed devices use state as the outer grouping. Separated devices
@@ -218,6 +244,6 @@ internal static class FlyoutDeviceOrdering
     {
         Hidden,
         Standard,
-        Trailing
+        DedicatedSection
     }
 }

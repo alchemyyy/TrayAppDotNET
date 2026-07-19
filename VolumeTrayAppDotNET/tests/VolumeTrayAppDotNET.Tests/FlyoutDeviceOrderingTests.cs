@@ -75,9 +75,9 @@ public sealed class FlyoutDeviceOrderingTests
     [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.Show, true,
         (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
     [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow, false,
-        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Trailing)]
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.DedicatedSection)]
     [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow, true,
-        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Trailing)]
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.DedicatedSection)]
     [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed, false,
         (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
     [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed, true,
@@ -98,6 +98,26 @@ public sealed class FlyoutDeviceOrderingTests
         Assert.Equal(
             FlyoutDisconnectedBluetoothDeviceVisibility.Show,
             new AppSettings().FlyoutDisconnectedBluetoothDeviceVisibility);
+    }
+
+    [Theory]
+    [InlineData(FlyoutDeviceSortOrder.StateGrouped,
+        "Disconnected Bluetooth playback,Disconnected Bluetooth recording,Playback,Recording")]
+    [InlineData(FlyoutDeviceSortOrder.WindowsEnumeration,
+        "Playback,Recording,Disconnected Bluetooth playback,Disconnected Bluetooth recording")]
+    public void AlwaysShowSectionFollowsSortDirectionAfterBothNormalFlows(
+        FlyoutDeviceSortOrder sortOrder,
+        string expectedOrder)
+    {
+        string[] normallyOrdered = ["Playback", "Recording"];
+        string[] dedicatedSection = ["Disconnected Bluetooth playback", "Disconnected Bluetooth recording"];
+
+        List<string> combined = FlyoutDeviceOrdering.PlaceDedicatedSection(
+            normallyOrdered,
+            dedicatedSection,
+            sortOrder);
+
+        Assert.Equal(expectedOrder.Split(','), combined);
     }
 
     private readonly record struct TestDevice(string Name, EDataFlow DataFlow, int StateBucket);

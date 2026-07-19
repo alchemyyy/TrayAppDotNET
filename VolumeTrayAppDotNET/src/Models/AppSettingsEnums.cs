@@ -110,7 +110,8 @@ public enum FlyoutDeviceSortOrder
 /// Flyout treatment for Bluetooth audio endpoints whose Core Audio state is Unplugged or NotPresent.
 /// Show follows the normal per-flow disconnected / ghost-device visibility settings. The two
 /// AlwaysShow modes override those state filters; the plain variant places the endpoints in a
-/// dedicated trailing section while Intermixed sorts them normally with their render/capture flow.
+/// dedicated section after both normal flows in the configured sort direction, while Intermixed
+/// sorts them normally with their render/capture flow.
 /// </summary>
 public enum FlyoutDisconnectedBluetoothDeviceVisibility
 {
