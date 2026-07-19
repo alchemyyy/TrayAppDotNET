@@ -1525,6 +1525,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         });
         button.Margin = Layout.BluetoothBatteryButtonMargin;
         button.Focusable = false;
+        button.Opacity = device.IsActive ? 1.0 : 0.4;
         TrayAppDotNETToolTip.SetTip(button, BluetoothButtonTooltip(device.IsDisconnected, displayedBatteryLevel));
         return button;
     }
