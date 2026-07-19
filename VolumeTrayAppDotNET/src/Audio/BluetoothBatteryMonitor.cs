@@ -77,6 +77,34 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     public bool IsBluetoothContainer(Guid containerId) => _activeBluetoothContainers.Contains(containerId);
 
     /// <summary>
+    /// Resolves a physical Bluetooth container to the remote address embedded in its present
+    /// BTHENUM/BTHLE devnode id. The address is consumed by IOCTL_BTH_DISCONNECT_DEVICE.
+    /// </summary>
+    public bool TryGetBluetoothAddress(Guid containerId, out ulong address)
+    {
+        // Classic audio endpoints are backed by BTHENUM. Prefer that address when a dual-mode
+        // headset also exposes a BTHLE devnode in the same physical container.
+        const string classicDevicePrefix = "BTHENUM\\DEV_";
+        foreach (KeyValuePair<string, Guid> entry in _idToContainer)
+        {
+            if (entry.Value == containerId
+                && entry.Key.StartsWith(classicDevicePrefix, StringComparison.OrdinalIgnoreCase)
+                && BluetoothDeviceDisconnector.TryParseAddress(entry.Key, out address))
+                return true;
+        }
+
+        foreach (KeyValuePair<string, Guid> entry in _idToContainer)
+        {
+            if (entry.Value == containerId
+                && BluetoothDeviceDisconnector.TryParseAddress(entry.Key, out address))
+                return true;
+        }
+
+        address = 0;
+        return false;
+    }
+
+    /// <summary>
     /// Starts cfgmgr32 reconciliation. Idempotent and non-throwing.
     /// </summary>
     public void Start()

@@ -314,7 +314,8 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Battery: {0}%.
+        ///   Looks up a localized string similar to Battery: {0}%
+        /// Ctrl+click to disconnect.
         /// </summary>
         public static string Flyout_BatteryButton_Tooltip_Format {
             get {

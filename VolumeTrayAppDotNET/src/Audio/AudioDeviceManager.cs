@@ -100,6 +100,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private string? _notifiedRenderCommunicationsDeviceID;
     private string? _notifiedCaptureDefaultDeviceID;
     private string? _notifiedCaptureCommunicationsDeviceID;
+    private int _bluetoothDisconnectInFlight;
     private bool _disposed;
 
     public ReadOnlyObservableCollection<AudioDevice> Devices { get; }
@@ -177,6 +178,56 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// <see cref="AudioDevice.BatteryLevel"/>.
     /// </summary>
     public BluetoothBatteryMonitor BatteryMonitor => _batteryMonitor;
+
+    /// <summary>
+    /// Best-effort, single-flight disconnect of the physical Bluetooth device behind an endpoint.
+    /// Address resolution stays on the dispatcher-owned battery cache; the native radio IOCTL runs
+    /// on the threadpool so a slow driver cannot stall the flyout.
+    /// </summary>
+    public void DisconnectBluetoothDevice(AudioDevice device)
+    {
+        if (_disposed || !device.IsBluetooth || device.ContainerId is not { } containerId) return;
+        if (!_batteryMonitor.TryGetBluetoothAddress(containerId, out ulong address))
+        {
+            TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice: no address for container {containerId}");
+            _batteryMonitor.Refresh();
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref _bluetoothDisconnectInFlight, 1, 0) != 0)
+        {
+            TADNLog.LogDebug("AudioDeviceManager.DisconnectBluetoothDevice: prior disconnect still in flight");
+            return;
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                BluetoothDeviceDisconnector.TryDisconnect(address);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice: {exception.GetType().Name}: {exception.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _bluetoothDisconnectInFlight, 0);
+                try
+                {
+                    _dispatcher.Post(() =>
+                    {
+                        if (!_disposed) _batteryMonitor.Refresh();
+                    }, DispatcherPriority.Background);
+                }
+                catch (Exception exception)
+                {
+                    if (!_disposed)
+                        TADNLog.Log($"AudioDeviceManager.DisconnectBluetoothDevice refresh failed: {exception.Message}");
+                }
+            }
+        });
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

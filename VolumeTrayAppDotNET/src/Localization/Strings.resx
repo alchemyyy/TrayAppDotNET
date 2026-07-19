@@ -1158,7 +1158,7 @@ Target: {1}</value>
     <value>Adds a button to each recording row that toggles the Windows "Listen to this device" feature. Left-click toggles, Ctrl+left-click enables with Default Playback as the target, right-click picks a specific target.</value>
   </data>
   <data name="Flyout_BatteryButton_Tooltip_Format" xml:space="preserve">
-    <value>Battery: {0}%</value>
+    <value>Battery: {0}%&#xA;Ctrl+click to disconnect</value>
   </data>
   <data name="Settings_Devices_ShowTrayRecordingLink_Title" xml:space="preserve">
     <value>Show "Recording" link in tray menu</value>

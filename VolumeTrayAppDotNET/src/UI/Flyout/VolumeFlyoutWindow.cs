@@ -1506,10 +1506,16 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                            : _settings.ShowBatteryButtonForPlayback);
         if (!visible) return null;
 
-        Border button = DeviceIconButton(BatteryGlyph(device.BatteryLevel!.Value), p, () => { });
+        Border button = DeviceIconButton(BatteryGlyph(device.BatteryLevel!.Value), p, e =>
+        {
+            if ((e.KeyModifiers & KeyModifiers.Control) != 0)
+                _audioManager.DisconnectBluetoothDevice(device);
+        });
         button.Focusable = false;
         TrayAppDotNETToolTip.SetTip(button,
-            string.Format(L("Flyout_BatteryButton_Tooltip_Format", "{0}% battery"), device.BatteryLevel.Value));
+            string.Format(
+                L("Flyout_BatteryButton_Tooltip_Format", "Battery: {0}%\nCtrl+click to disconnect"),
+                device.BatteryLevel.Value));
         return button;
     }
 
