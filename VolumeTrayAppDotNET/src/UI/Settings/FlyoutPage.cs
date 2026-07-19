@@ -50,6 +50,22 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowRecordingDevicesInFlyout = v,
             p,
             afterSave: RefreshCurrentPage));
+        stack.Children.Add(StringComboCard(
+            Loc("Settings_Flyout_DisconnectedBluetoothDevices_Title"),
+            Loc("Settings_Flyout_DisconnectedBluetoothDevices_Description"),
+            [
+                (FlyoutDisconnectedBluetoothDeviceVisibility.NeverShow,
+                    Loc("Settings_Flyout_DisconnectedBluetoothDevices_NeverShow")),
+                (FlyoutDisconnectedBluetoothDeviceVisibility.Show,
+                    Loc("Settings_Flyout_DisconnectedBluetoothDevices_Show")),
+                (FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow,
+                    Loc("Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow")),
+                (FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed,
+                    Loc("Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed"))
+            ],
+            _settings.FlyoutDisconnectedBluetoothDeviceVisibility,
+            v => _settings.FlyoutDisconnectedBluetoothDeviceVisibility = v,
+            p));
         stack.Children.Add(BoolCard(
             Loc("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title"),
             Loc("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description"),

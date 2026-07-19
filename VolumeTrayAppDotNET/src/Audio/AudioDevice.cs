@@ -71,6 +71,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     private readonly Dictionary<string, AudioSession> _sessionsBySessionInstanceID = new(StringComparer.Ordinal);
 
     private string _friendlyName;
+    private string _systemFriendlyName;
     private string _deviceDescription;
     private string _interfaceFriendlyName;
     private string? _defaultFormat;
@@ -84,6 +85,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     private DeviceState _state;
     private BluetoothCodec? _currentCodec;
     private int? _batteryLevel;
+    private int? _lastKnownBatteryLevel;
     private bool _disposed;
 
     // Single-flight gate. SetEnabled / SetAsDefault / SetAsDefaultCommunications / ForceCycleEndpoint
@@ -128,6 +130,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         {
             if (field == value) return;
             field = value;
+            FriendlyName = value ? ResolveDisplayedFriendlyName(_systemFriendlyName) : _systemFriendlyName;
             OnPropertyChanged();
         }
     }
@@ -178,10 +181,27 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         get => _batteryLevel;
         internal set
         {
+            if (value.HasValue) LastKnownBatteryLevel = value;
             if (_batteryLevel == value) return;
             _batteryLevel = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(BatteryLevelText));
+        }
+    }
+
+    /// <summary>
+    /// Most recent battery percentage reported during this app session. Unlike
+    /// <see cref="BatteryLevel"/>, this is retained when the Bluetooth container disappears so a
+    /// disconnected endpoint can keep showing the last charge Windows reported.
+    /// </summary>
+    public int? LastKnownBatteryLevel
+    {
+        get => _lastKnownBatteryLevel;
+        internal set
+        {
+            if (_lastKnownBatteryLevel == value) return;
+            _lastKnownBatteryLevel = value;
+            OnPropertyChanged();
         }
     }
 
@@ -864,7 +884,8 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         Id = id;
         _volumeWrite = new VolumeThrottle(volumeThrottler, "endpoint:" + Id);
 
-        (_friendlyName, _deviceDescription, _interfaceFriendlyName) = ResolveDeviceNames(device);
+        (_systemFriendlyName, _deviceDescription, _interfaceFriendlyName) = ResolveDeviceNames(device);
+        _friendlyName = _systemFriendlyName;
         _defaultFormat = ResolveDefaultFormat(device);
         EnumeratorName = ReadEnumeratorName(device) ?? string.Empty;
         IsBluetooth = DetectIsBluetooth(EnumeratorName, _friendlyName, _deviceDescription, _interfaceFriendlyName);
@@ -1598,12 +1619,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Writes a user-chosen override to PKEY_Device_FriendlyName on the endpoint property store,
-    /// mirroring the Sound Control Panel rename gesture. Null / empty / whitespace stores a
-    /// VT_EMPTY which removes the override - the audio service restores the OS-synthesized name.
-    /// IMMNotificationClient.OnPropertyValueChanged from the audio service arrives async and is
-    /// sometimes dropped for self-initiated writes, so we reconcile the bindable name here in
-    /// place once Commit returns - the eventual notification round-trip is idempotent.
+    /// Writes a user-chosen friendly-name override. Bluetooth endpoint property stores are often
+    /// read-only, so their names are kept as VTADN-only per-device settings. Other endpoints retain
+    /// the Windows property-store behavior. Null / empty / whitespace clears either kind of override.
     /// </summary>
     internal void SetCustomFriendlyName(string? name)
     {
@@ -1614,6 +1632,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         // No-op when the requested name already matches the rendered name - avoids the COM write,
         // the Commit, and the notification fanout for an edit that wouldn't change anything.
         if (trimmed != null && trimmed == FriendlyName) return;
+
+        if (IsBluetooth)
+        {
+            SetBluetoothCustomFriendlyName(trimmed);
+            return;
+        }
 
         IPropertyStore? store = null;
         IntPtr stringPtr = IntPtr.Zero;
@@ -1650,6 +1674,29 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         RefreshFriendlyNameFromStore();
     }
 
+    private void SetBluetoothCustomFriendlyName(string? customFriendlyName)
+    {
+        DeviceSettings? settings = AppServices.DeviceSettings;
+        if (settings != null)
+        {
+            DeviceSettingsEntry entry = settings.GetOrCreate(Id);
+            string persistedName = customFriendlyName ?? string.Empty;
+            if (!string.Equals(entry.CustomFriendlyName, persistedName, StringComparison.Ordinal))
+            {
+                entry.CustomFriendlyName = persistedName;
+                settings.Save();
+            }
+        }
+
+        FriendlyName = customFriendlyName ?? _systemFriendlyName;
+    }
+
+    private string ResolveDisplayedFriendlyName(string systemFriendlyName)
+    {
+        string? customFriendlyName = AppServices.DeviceSettings?.Find(Id)?.CustomFriendlyName;
+        return string.IsNullOrWhiteSpace(customFriendlyName) ? systemFriendlyName : customFriendlyName;
+    }
+
     /// <summary>
     /// Re-read PKEY_Device_FriendlyName from the property store and update the bindable
     /// <see cref="FriendlyName"/>. Invoked by the manager when the OS reports a friendly-name
@@ -1660,7 +1707,8 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     {
         if (_disposed) return;
         (string composite, string desc, string iface) = ResolveDeviceNames(_device);
-        FriendlyName = composite;
+        _systemFriendlyName = composite;
+        FriendlyName = IsBluetooth ? ResolveDisplayedFriendlyName(composite) : composite;
         DeviceDescription = desc;
         InterfaceFriendlyName = iface;
     }
@@ -1772,12 +1820,12 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
                 16);
 
             // Call filter->vtable[3] (the "filter parts by KSDATAFORMAT" method).
-            int fhr = KsTopologyNative.CallFilterByDataFormat(filterPtr, ksDataPtr, 64, out enumeratorPtr);
+            int fhr = KSTopologyNative.CallFilterByDataFormat(filterPtr, ksDataPtr, 64, out enumeratorPtr);
             TADNLog.Log(
                 $"AudioDevice.QueryKsAudioDataRanges({FriendlyName}): filter->vtable[3] hr=0x{fhr:X8} enum=0x{enumeratorPtr.ToInt64():X}");
             if (fhr < 0 || enumeratorPtr == IntPtr.Zero) return null;
 
-            int chr = KsTopologyNative.CallEnumeratorGetCount(enumeratorPtr, out uint count);
+            int chr = KSTopologyNative.CallEnumeratorGetCount(enumeratorPtr, out uint count);
             TADNLog.Log(
                 $"AudioDevice.QueryKsAudioDataRanges({FriendlyName}): enum->GetCount hr=0x{chr:X8} count={count}");
             if (chr < 0 || count == 0) return null;
@@ -1787,11 +1835,11 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             {
                 for (uint i = 0; i < count && formatSupportPtr == IntPtr.Zero; i++)
                 {
-                    int ihr = KsTopologyNative.CallEnumeratorGetItem(enumeratorPtr, i, out IntPtr itemPtr);
+                    int ihr = KSTopologyNative.CallEnumeratorGetItem(enumeratorPtr, i, out IntPtr itemPtr);
                     if (ihr < 0 || itemPtr == IntPtr.Zero) continue;
                     try
                     {
-                        int ahr = KsTopologyNative.CallPartActivate(
+                        int ahr = KSTopologyNative.CallPartActivate(
                             itemPtr,
                             ClsCtx.INPROC_SERVER,
                             KSConstants.IID_IKsFormatSupport,
@@ -1904,7 +1952,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             Marshal.Copy(specifier, 0, IntPtr.Add(p, 48), 16);
             Marshal.Copy(wfxBlob, 0, IntPtr.Add(p, KsDataFormatHeaderSize), WfxBlobSize);
 
-            int hr = KsTopologyNative.CallIsFormatSupported(formatSupportPtr, p, TotalSize, out bool supported);
+            int hr = KSTopologyNative.CallIsFormatSupported(formatSupportPtr, p, TotalSize, out bool supported);
             return hr >= 0 && supported;
         }
         finally

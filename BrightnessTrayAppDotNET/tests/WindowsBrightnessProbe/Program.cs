@@ -15,7 +15,9 @@ for (int i = 0; i < monitors.Count; i++)
     DDCMonitor monitor = monitors[i];
     Console.WriteLine(
         $"MONITOR {i} kind={monitor.BrightnessControlKind} name='{monitor.Name}' "
+        + $"deviceID='{monitor.DeviceID}' displayNumber={monitor.DisplayNumber} "
         + $"displayInstance='{monitor.DisplayInstancePath}' windowsInstance='{monitor.WindowsBrightnessInstanceName}' "
+        + $"edidSerial='{monitor.EDIDSerial}' friendly='{monitor.FriendlyName}' "
         + $"methodPath='{monitor.WindowsBrightnessMethodPath}' supportsPower={monitor.SupportsVcpPower}");
 
     bool read = display.TryGetVCPFeature(

@@ -9,7 +9,7 @@
          import. Setting it inside the .csproj is too late.
          FormatProbe and xUnit tests keep their own local obj\ instead of sharing the app
          project's project.assets.json, because their package graphs differ from the app. -->
-    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'BrightnessTrayAppDotNET.Tests'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'BrightnessTrayAppDotNET.Tests' and '$(MSBuildProjectName)' != 'WindowsBrightnessProbe'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
 
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Prerelease;Release</Configurations>

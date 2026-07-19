@@ -210,6 +210,60 @@ public sealed class MonitorRecoveryTests
     }
 
     [Fact]
+    public async Task WindowsBrightnessMonitorKeepsCanonicalIdentityAfterWake()
+    {
+        const string canonicalDeviceID = @"DISPLAY\AUOD298\4&13BEE726&0&UID8388688";
+
+        FakeDisplayService display = new();
+        DDCMonitor beforeSleep = CreateMonitor(
+            deviceID: canonicalDeviceID,
+            displayNumber: 1,
+            serial: string.Empty);
+        beforeSleep.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
+        beforeSleep.DisplayInstancePath = canonicalDeviceID;
+        beforeSleep.WindowsBrightnessInstanceName = canonicalDeviceID + "_0";
+        beforeSleep.WindowsBrightnessMethodPath = @"\\.\root\wmi:WmiMonitorBrightnessMethods.InstanceName=""DISPLAY\\AUOD298\\INTERNAL_0""";
+
+        display.SetMonitors(beforeSleep);
+        display.SetRead(canonicalDeviceID, ok: true, current: 40, max: 100);
+
+        using MonitorService service = CreateService(display, MonitorIdentityStrategy.HardwarePort);
+        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+
+        MonitorInfo monitor = service.Monitors[0];
+        Assert.Equal($"port:{canonicalDeviceID}", monitor.ID);
+        Assert.Equal($"port:{canonicalDeviceID}", monitor.EDIDKey);
+
+        DDCMonitor afterWake = CreateMonitor(
+            deviceID: canonicalDeviceID,
+            displayNumber: 7,
+            serial: string.Empty,
+            name: @"\\.\DISPLAY7");
+        afterWake.BrightnessControlKind = MonitorBrightnessControlKind.Windows;
+        afterWake.DisplayInstancePath = canonicalDeviceID;
+        afterWake.WindowsBrightnessInstanceName = canonicalDeviceID + "_0";
+        afterWake.WindowsBrightnessMethodPath = beforeSleep.WindowsBrightnessMethodPath;
+
+        display.SetMonitors(afterWake);
+        display.SetRead(canonicalDeviceID, ok: true, current: 65, max: 100);
+
+        service.Refresh();
+        await WaitUntil(() =>
+            service.Monitors.Count == 1
+            && ReferenceEquals(service.Monitors[0], monitor)
+            && monitor.ID == $"port:{canonicalDeviceID}"
+            && monitor.DisplayNumber == 7
+            && display.LastReadKey == canonicalDeviceID);
+
+        Assert.Same(monitor, service.Monitors[0]);
+        Assert.Equal($"port:{canonicalDeviceID}", monitor.EDIDKey);
+        Assert.Equal(7, monitor.DisplayNumber);
+        Assert.Equal(canonicalDeviceID, display.LastReadKey);
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.False(monitor.SupportsPowerControl);
+    }
+
+    [Fact]
     public async Task PowerOnRefreshReplaysPreviouslyVerifiedManualTarget()
     {
         FakeDisplayService display = new();
@@ -1243,6 +1297,7 @@ public sealed class MonitorRecoveryTests
         public int EnumerationCalls => Volatile.Read(ref _enumerationCalls);
         public int SetVcpCalls => Volatile.Read(ref _setVcpCalls);
         public int GetVcpCalls => Volatile.Read(ref _getVcpCalls);
+        public string LastReadKey { get; private set; } = string.Empty;
         public int OperationTimeoutMs { get; set; }
 
         public void ConfigureWriteReadBack(bool applySuccessfulWrites, int successfulWritesToDrop = 0)
@@ -1381,6 +1436,7 @@ public sealed class MonitorRecoveryTests
                 _getVcpCalls++;
                 _getVCPFeatureCodes.Add(code);
                 string key = KeyFor(monitor);
+                LastReadKey = key;
                 VcpRead read = _reads.TryGetValue(key, out VcpRead configured)
                     ? configured
                     : new VcpRead(true, 50, 100, null);

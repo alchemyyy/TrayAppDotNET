@@ -16,6 +16,14 @@ public class DeviceSettingsEntry
 
     [XmlAttribute]
     public bool IsAppDrawerExpanded { get; set; } = true;
+
+    /// <summary>
+    /// VTADN-only display-name override. Bluetooth endpoints use this instead of attempting to
+    /// write the often read-only Windows endpoint property store. Empty means use the name
+    /// reported by Windows.
+    /// </summary>
+    [XmlAttribute]
+    public string CustomFriendlyName { get; set; } = "";
 }
 
 /// <summary>
