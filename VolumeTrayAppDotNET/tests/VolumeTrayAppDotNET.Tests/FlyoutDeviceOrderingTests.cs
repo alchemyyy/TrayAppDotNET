@@ -1,5 +1,6 @@
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
+using VolumeTrayAppDotNET.Models;
 using Xunit;
 
 namespace VolumeTrayAppDotNET.Tests;
@@ -62,6 +63,41 @@ public sealed class FlyoutDeviceOrderingTests
                 "Default microphone"
             ],
             ordered.Select(static device => device.Name));
+    }
+
+    [Theory]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.NeverShow, false,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Hidden)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.NeverShow, true,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Hidden)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.Show, false,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Hidden)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.Show, true,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow, false,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Trailing)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow, true,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Trailing)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed, false,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed, true,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
+    public void ClassifyDisconnectedBluetoothImplementsVisibilityMode(
+        FlyoutDisconnectedBluetoothDeviceVisibility visibility,
+        bool normallyVisible,
+        int expected)
+    {
+        Assert.Equal(
+            expected,
+            (int)FlyoutDeviceOrdering.ClassifyDisconnectedBluetooth(visibility, normallyVisible));
+    }
+
+    [Fact]
+    public void DisconnectedBluetoothVisibilityDefaultsToShow()
+    {
+        Assert.Equal(
+            FlyoutDisconnectedBluetoothDeviceVisibility.Show,
+            new AppSettings().FlyoutDisconnectedBluetoothDeviceVisibility);
     }
 
     private readonly record struct TestDevice(string Name, EDataFlow DataFlow, int StateBucket);

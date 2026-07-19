@@ -766,7 +766,8 @@ public class AppSettings : AppSettingsCommon
     // gate for capture endpoints - it sits under the existing ShowRecordingDevices master so turning
     // recording off globally also hides them from the flyout. IntermixRecordingWithPlaybackInFlyout
     // controls whether render and capture devices interleave inside their state buckets or whether
-    // capture devices group together at the top of the list.
+    // capture devices group together at the top of the list. The disconnected-Bluetooth policy can
+    // override only the per-state visibility gates; it never overrides either recording master.
     public FlyoutDeviceLayoutStyle FlyoutDeviceLayout
     {
         get;
@@ -784,6 +785,12 @@ public class AppSettings : AppSettingsCommon
         get;
         set => SetField(ref field, value);
     } = FlyoutDeviceSortOrder.StateGrouped;
+
+    public FlyoutDisconnectedBluetoothDeviceVisibility FlyoutDisconnectedBluetoothDeviceVisibility
+    {
+        get;
+        set => SetField(ref field, value);
+    } = FlyoutDisconnectedBluetoothDeviceVisibility.Show;
 
     public bool ShowRecordingDevicesInFlyout
     {

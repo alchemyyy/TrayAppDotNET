@@ -26,8 +26,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private static readonly HashSet<string> DeviceRebuildProperties = new(StringComparer.Ordinal)
     {
         nameof(AudioDevice.IsActive),
+        nameof(AudioDevice.IsBluetooth),
         nameof(AudioDevice.State),
         nameof(AudioDevice.BatteryLevel),
+        nameof(AudioDevice.LastKnownBatteryLevel),
         nameof(AudioDevice.DefaultFormat),
         nameof(AudioDevice.CurrentCodecName)
     };
@@ -1500,23 +1502,56 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Border? BuildBatteryButton(AudioDevice device, FlyoutPalette p)
     {
-        bool visible = device.BatteryLevel.HasValue
+        bool visible = device.IsBluetooth
                        && (device.IsCaptureDevice
                            ? _settings.ShowBatteryButtonForRecording
                            : _settings.ShowBatteryButtonForPlayback);
         if (!visible) return null;
 
-        Border button = DeviceIconButton(BatteryGlyph(device.BatteryLevel!.Value), p, e =>
+        int? displayedBatteryLevel = ResolveBluetoothBatteryLevel(
+            device.IsDisconnected,
+            device.BatteryLevel,
+            device.LastKnownBatteryLevel);
+        Glyph glyph = displayedBatteryLevel.HasValue
+            ? BatteryGlyph(displayedBatteryLevel.Value)
+            : GlyphCatalog.BLUETOOTH;
+
+        Border button = DeviceIconButton(glyph, p, e =>
         {
-            if ((e.KeyModifiers & KeyModifiers.Control) != 0)
+            if (device.IsDisconnected)
+                _audioManager.ConnectBluetoothDevice(device);
+            else if ((e.KeyModifiers & KeyModifiers.Control) != 0)
                 _audioManager.DisconnectBluetoothDevice(device);
         });
+        button.Margin = Layout.BluetoothBatteryButtonMargin;
         button.Focusable = false;
-        TrayAppDotNETToolTip.SetTip(button,
-            string.Format(
-                L("Flyout_BatteryButton_Tooltip_Format", "Battery: {0}%\nCtrl+click to disconnect"),
-                device.BatteryLevel.Value));
+        TrayAppDotNETToolTip.SetTip(button, BluetoothButtonTooltip(device.IsDisconnected, displayedBatteryLevel));
         return button;
+    }
+
+    internal static int? ResolveBluetoothBatteryLevel(
+        bool isDisconnected,
+        int? currentBatteryLevel,
+        int? lastKnownBatteryLevel) =>
+        isDisconnected ? lastKnownBatteryLevel : currentBatteryLevel;
+
+    private static string BluetoothButtonTooltip(bool isDisconnected, int? displayedBatteryLevel)
+    {
+        if (isDisconnected)
+        {
+            return displayedBatteryLevel.HasValue
+                ? string.Format(
+                    L("Flyout_BatteryButton_Tooltip_Disconnected_Format",
+                        "Battery: {0}% (last known)\nClick to connect"),
+                    displayedBatteryLevel.Value)
+                : L("Flyout_BluetoothButton_Tooltip_Disconnected", "Bluetooth\nClick to connect");
+        }
+
+        return displayedBatteryLevel.HasValue
+            ? string.Format(
+                L("Flyout_BatteryButton_Tooltip_Format", "Battery: {0}%\nCtrl+click to disconnect"),
+                displayedBatteryLevel.Value)
+            : L("Flyout_BluetoothButton_Tooltip_Connected", "Bluetooth\nCtrl+click to disconnect");
     }
 
     private Border? BuildExclusiveButton(AudioDevice device, FlyoutPalette p)

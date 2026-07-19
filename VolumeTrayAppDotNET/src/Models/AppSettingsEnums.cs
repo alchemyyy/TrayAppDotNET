@@ -107,6 +107,20 @@ public enum FlyoutDeviceSortOrder
 }
 
 /// <summary>
+/// Flyout treatment for Bluetooth audio endpoints whose Core Audio state is Unplugged or NotPresent.
+/// Show follows the normal per-flow disconnected / ghost-device visibility settings. The two
+/// AlwaysShow modes override those state filters; the plain variant places the endpoints in a
+/// dedicated trailing section while Intermixed sorts them normally with their render/capture flow.
+/// </summary>
+public enum FlyoutDisconnectedBluetoothDeviceVisibility
+{
+    NeverShow,
+    Show,
+    AlwaysShow,
+    AlwaysShowIntermixed
+}
+
+/// <summary>
 /// Visibility rule for the titlebar communications-activity button.
 /// AlwaysShow: button always rendered in the header cluster.
 /// WhenDuckingOn (default): button only rendered when UserDuckingPreference is set to any active

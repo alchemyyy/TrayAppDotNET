@@ -65,6 +65,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph APP_MUTE_OVERLAY => Glyph("AppMuteOverlay");
     public static Glyph APP_FALLBACK => Glyph("AppFallback");
 
+    public static Glyph BLUETOOTH => Glyph("Bluetooth");
     public static Glyph BT_BATTERY_0 => Glyph("BTBattery0");
     public static Glyph BT_BATTERY_1 => Glyph("BTBattery1");
     public static Glyph BT_BATTERY_2 => Glyph("BTBattery2");

@@ -96,10 +96,15 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // container.
     private readonly BluetoothBatteryMonitor _batteryMonitor;
 
+    // Session-lifetime cache survives AudioDevice wrapper replacement and battery-monitor removal
+    // when a Bluetooth container disconnects.
+    private readonly Dictionary<Guid, int> _lastKnownBluetoothBatteryLevels = [];
+
     private string? _notifiedRenderDefaultDeviceID;
     private string? _notifiedRenderCommunicationsDeviceID;
     private string? _notifiedCaptureDefaultDeviceID;
     private string? _notifiedCaptureCommunicationsDeviceID;
+    private int _bluetoothConnectInFlight;
     private int _bluetoothDisconnectInFlight;
     private bool _disposed;
 
@@ -178,6 +183,57 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     /// <see cref="AudioDevice.BatteryLevel"/>.
     /// </summary>
     public BluetoothBatteryMonitor BatteryMonitor => _batteryMonitor;
+
+    /// <summary>
+    /// Best-effort, single-flight reconnect request for a disconnected Bluetooth audio endpoint.
+    /// The KS driver call runs on the threadpool and the normal Core Audio notifications drive the
+    /// eventual endpoint-state update. A related capture endpoint is tried first because Windows'
+    /// documented one-shot reconnect contract is implemented by the Bluetooth HFP audio filter.
+    /// </summary>
+    public void ConnectBluetoothDevice(AudioDevice device)
+    {
+        if (_disposed || !device.IsBluetooth || !device.IsDisconnected || string.IsNullOrEmpty(device.Id)) return;
+
+        Guid? containerID = device.ContainerId;
+        string[] endpointIDs = _devices
+            .Where(candidate => candidate.IsBluetooth
+                                && candidate.IsDisconnected
+                                && (containerID is null
+                                    ? ReferenceEquals(candidate, device)
+                                    : candidate.ContainerId == containerID))
+            .OrderBy(candidate => candidate.DataFlow == EDataFlow.eCapture ? 0 : 1)
+            .ThenBy(candidate => ReferenceEquals(candidate, device) ? 0 : 1)
+            .Select(candidate => candidate.Id)
+            .Where(static deviceID => !string.IsNullOrEmpty(deviceID))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (endpointIDs.Length == 0) endpointIDs = [device.Id];
+
+        if (Interlocked.CompareExchange(ref _bluetoothConnectInFlight, 1, 0) != 0)
+        {
+            TADNLog.LogDebug("AudioDeviceManager.ConnectBluetoothDevice: prior reconnect still in flight");
+            return;
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                bool requested = endpointIDs.Any(BluetoothAudioConnector.TryReconnect);
+                if (!requested)
+                    TADNLog.Log("AudioDeviceManager.ConnectBluetoothDevice: no related endpoint accepted reconnect");
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"AudioDeviceManager.ConnectBluetoothDevice: {exception.GetType().Name}: {exception.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _bluetoothConnectInFlight, 0);
+            }
+        });
+    }
 
     /// <summary>
     /// Best-effort, single-flight disconnect of the physical Bluetooth device behind an endpoint.
@@ -1469,7 +1525,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (!CanPromoteToBluetooth(device)) return;
 
         if (!device.IsBluetooth) device.IsBluetooth = true;
-        device.BatteryLevel = _batteryMonitor.TryGet(container);
+        ApplyBluetoothBattery(device, container, _batteryMonitor.TryGet(container));
     }
 
     // BatteryMonitor fires this on the dispatcher whenever a tracked container's battery
@@ -1482,10 +1538,13 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         if (_disposed) return;
 
+        if (batteryPercent.HasValue)
+            _lastKnownBluetoothBatteryLevels[containerId] = batteryPercent.Value;
+
         foreach (AudioDevice d in _devices)
         {
             if (d.ContainerId != containerId) continue;
-            d.BatteryLevel = batteryPercent;
+            ApplyBluetoothBattery(d, containerId, batteryPercent);
         }
     }
 
@@ -1505,8 +1564,18 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             if (!CanPromoteToBluetooth(d)) continue;
             if (!d.IsBluetooth) d.IsBluetooth = true;
             if (d.DataFlow == EDataFlow.eRender) d.CurrentCodec = _codecMonitor.CurrentCodec;
-            d.BatteryLevel = _batteryMonitor.TryGet(containerId);
+            ApplyBluetoothBattery(d, containerId, _batteryMonitor.TryGet(containerId));
         }
+    }
+
+    private void ApplyBluetoothBattery(AudioDevice device, Guid containerId, int? currentLevel)
+    {
+        if (currentLevel.HasValue)
+            _lastKnownBluetoothBatteryLevels[containerId] = currentLevel.Value;
+        else if (_lastKnownBluetoothBatteryLevels.TryGetValue(containerId, out int lastKnown))
+            device.LastKnownBatteryLevel = lastKnown;
+
+        device.BatteryLevel = currentLevel;
     }
 
     // Defense in depth against a non-BT endpoint getting promoted via a stray container match.

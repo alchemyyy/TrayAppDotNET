@@ -369,6 +369,24 @@
   <data name="Settings_Flyout_ShowRecordingDevices_Description" xml:space="preserve">
     <value>Include capture endpoints (microphones, line-in) in the flyout's device list. Still gated by the global recording-devices toggle on the Devices page.</value>
   </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_Title" xml:space="preserve">
+    <value>Disconnected Bluetooth audio devices</value>
+  </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_Description" xml:space="preserve">
+    <value>Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after the normal device list. The intermixed option instead sorts each endpoint with its playback or recording devices.</value>
+  </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_NeverShow" xml:space="preserve">
+    <value>Never show</value>
+  </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_Show" xml:space="preserve">
+    <value>Show</value>
+  </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow" xml:space="preserve">
+    <value>Always show</value>
+  </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed" xml:space="preserve">
+    <value>Always show (intermixed)</value>
+  </data>
   <data name="Settings_Flyout_IntermixRecording_Title" xml:space="preserve">
     <value>Intermix recording with playback</value>
   </data>
@@ -1149,7 +1167,7 @@ Target: {1}</value>
     <value>Show Bluetooth battery indicator</value>
   </data>
   <data name="Settings_Devices_ShowPlaybackBatteryButton_Description" xml:space="preserve">
-    <value>A battery glyph on Bluetooth rows showing the remaining charge. Hidden automatically on devices that don't report a battery level.</value>
+    <value>A battery glyph on Bluetooth rows showing the remaining charge, or a Bluetooth glyph when no charge is available. Disconnected devices keep their last known charge and the button reconnects them.</value>
   </data>
   <data name="Settings_Devices_ShowRecordingListenButton_Title" xml:space="preserve">
     <value>Show "Listen to this device" button</value>
@@ -1159,6 +1177,15 @@ Target: {1}</value>
   </data>
   <data name="Flyout_BatteryButton_Tooltip_Format" xml:space="preserve">
     <value>Battery: {0}%&#xA;Ctrl+click to disconnect</value>
+  </data>
+  <data name="Flyout_BatteryButton_Tooltip_Disconnected_Format" xml:space="preserve">
+    <value>Battery: {0}% (last known)&#xA;Click to connect</value>
+  </data>
+  <data name="Flyout_BluetoothButton_Tooltip_Connected" xml:space="preserve">
+    <value>Bluetooth&#xA;Ctrl+click to disconnect</value>
+  </data>
+  <data name="Flyout_BluetoothButton_Tooltip_Disconnected" xml:space="preserve">
+    <value>Bluetooth&#xA;Click to connect</value>
   </data>
   <data name="Settings_Devices_ShowTrayRecordingLink_Title" xml:space="preserve">
     <value>Show "Recording" link in tray menu</value>

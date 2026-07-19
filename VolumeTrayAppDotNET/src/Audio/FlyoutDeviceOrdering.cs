@@ -16,6 +16,8 @@ namespace VolumeTrayAppDotNET.Audio;
 /// Render and capture share the same bucketing rule. <see cref="AppSettings.IntermixRecordingWithPlaybackInFlyout"/>
 /// chooses whether the two flows interleave inside each bucket or whether flow becomes the outer grouping.
 /// With intermixing disabled, the final reversal places all capture devices above all render devices.
+/// Disconnected Bluetooth endpoints receive an additional flyout-only policy: hide, follow normal
+/// visibility, force into a trailing section, or force into the normal render/capture ordering.
 /// </summary>
 internal static class FlyoutDeviceOrdering
 {
@@ -24,33 +26,87 @@ internal static class FlyoutDeviceOrdering
     /// layout (StateGrouped vs WindowsEnumeration) and the intermix toggle, and excludes endpoints
     /// the visibility gates have hidden.
     /// </summary>
-    public static List<AudioDevice> Build(IReadOnlyList<AudioDevice> devices, AppSettings settings)
+    public static List<AudioDevice> Build(IReadOnlyList<AudioDevice> devices, AppSettings settings) =>
+        Build(devices, settings, applyDisconnectedBluetoothMode: true);
+
+    /// <summary>
+    /// Internal surface switch keeps the disconnected-Bluetooth flyout preference from changing
+    /// tray-menu device links, which otherwise reuse this ordering helper.
+    /// </summary>
+    internal static List<AudioDevice> Build(
+        IReadOnlyList<AudioDevice> devices,
+        AppSettings settings,
+        bool applyDisconnectedBluetoothMode)
     {
         List<AudioDevice> visible = new(devices.Count);
+        List<AudioDevice> trailingDisconnectedBluetooth = [];
         for (int i = 0; i < devices.Count; i++)
         {
             AudioDevice device = devices[i];
-            if (!IsAllowedInFlyout(device, settings)) continue;
-            visible.Add(device);
+            if (!PassesFlyoutParentGates(device, settings)) continue;
+
+            bool normallyVisible = DeviceVisibility.IsVisible(device, settings);
+            DisconnectedBluetoothPlacement placement = normallyVisible
+                ? DisconnectedBluetoothPlacement.Standard
+                : DisconnectedBluetoothPlacement.Hidden;
+
+            if (applyDisconnectedBluetoothMode && device is { IsBluetooth: true, IsDisconnected: true })
+            {
+                placement = ClassifyDisconnectedBluetooth(
+                    settings.FlyoutDisconnectedBluetoothDeviceVisibility,
+                    normallyVisible);
+            }
+
+            switch (placement)
+            {
+                case DisconnectedBluetoothPlacement.Standard:
+                    visible.Add(device);
+                    break;
+                case DisconnectedBluetoothPlacement.Trailing:
+                    trailingDisconnectedBluetooth.Add(device);
+                    break;
+            }
         }
 
-        return settings.FlyoutDeviceSort switch
+        List<AudioDevice> ordered = Sort(visible, settings);
+        if (trailingDisconnectedBluetooth.Count > 0)
+            ordered.AddRange(Sort(trailingDisconnectedBluetooth, settings));
+        return ordered;
+    }
+
+    /// <summary>
+    /// Parent visibility gates that forced disconnected-Bluetooth modes must not bypass. Recording
+    /// endpoints remain hidden when either the global recording master or the flyout recording
+    /// switch is off; only state-specific disconnected / NotPresent filters are overridden.
+    /// </summary>
+    private static bool PassesFlyoutParentGates(AudioDevice device, AppSettings settings)
+    {
+        if (device.DataFlow == EDataFlow.eRender) return true;
+        return device.DataFlow == EDataFlow.eCapture
+               && settings.ShowRecordingDevices
+               && settings.ShowRecordingDevicesInFlyout;
+    }
+
+    internal static DisconnectedBluetoothPlacement ClassifyDisconnectedBluetooth(
+        FlyoutDisconnectedBluetoothDeviceVisibility visibility,
+        bool normallyVisible) => visibility switch
+    {
+        FlyoutDisconnectedBluetoothDeviceVisibility.NeverShow => DisconnectedBluetoothPlacement.Hidden,
+        FlyoutDisconnectedBluetoothDeviceVisibility.Show => normallyVisible
+            ? DisconnectedBluetoothPlacement.Standard
+            : DisconnectedBluetoothPlacement.Hidden,
+        FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow => DisconnectedBluetoothPlacement.Trailing,
+        FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed =>
+            DisconnectedBluetoothPlacement.Standard,
+        _ => normallyVisible ? DisconnectedBluetoothPlacement.Standard : DisconnectedBluetoothPlacement.Hidden
+    };
+
+    private static List<AudioDevice> Sort(List<AudioDevice> visible, AppSettings settings) =>
+        settings.FlyoutDeviceSort switch
         {
             FlyoutDeviceSortOrder.WindowsEnumeration => SortWindowsEnumeration(visible, settings),
             _ => SortStateGrouped(visible, settings)
         };
-    }
-
-    /// <summary>
-    /// Visibility gate for the flyout's device list. Reuses the shared <see cref="DeviceVisibility"/>
-    /// rules, then overlays the flyout-only "show recording" toggle on top so the user can see
-    /// recording devices in the tray menu without cluttering the volume flyout.
-    /// </summary>
-    private static bool IsAllowedInFlyout(AudioDevice device, AppSettings settings)
-    {
-        if (!DeviceVisibility.IsVisible(device, settings)) return false;
-        return device.DataFlow != EDataFlow.eCapture || settings.ShowRecordingDevicesInFlyout;
-    }
 
     /// <summary>
     /// State-bucket ordering. Intermixed devices use state as the outer grouping. Separated devices
@@ -156,5 +212,12 @@ internal static class FlyoutDeviceOrdering
         }
 
         return ordered;
+    }
+
+    internal enum DisconnectedBluetoothPlacement
+    {
+        Hidden,
+        Standard,
+        Trailing
     }
 }

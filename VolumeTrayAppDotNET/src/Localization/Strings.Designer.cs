@@ -314,6 +314,16 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Battery: {0}% (last known)
+        /// Click to connect.
+        /// </summary>
+        public static string Flyout_BatteryButton_Tooltip_Disconnected_Format {
+            get {
+                return ResourceManager.GetString("Flyout_BatteryButton_Tooltip_Disconnected_Format", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Battery: {0}%
         /// Ctrl+click to disconnect.
         /// </summary>
@@ -323,6 +333,26 @@ namespace VolumeTrayAppDotNET.Localization {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth
+        /// Ctrl+click to disconnect.
+        /// </summary>
+        public static string Flyout_BluetoothButton_Tooltip_Connected {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothButton_Tooltip_Connected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth
+        /// Click to connect.
+        /// </summary>
+        public static string Flyout_BluetoothButton_Tooltip_Disconnected {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothButton_Tooltip_Disconnected", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Communications.
         /// </summary>
@@ -1080,7 +1110,7 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A battery glyph on Bluetooth rows showing the remaining charge. Hidden automatically on devices that don&apos;t report a battery level..
+        ///   Looks up a localized string similar to A battery glyph on Bluetooth rows showing the remaining charge, or a Bluetooth glyph when no charge is available. Disconnected devices keep their last known charge and the button reconnects them..
         /// </summary>
         public static string Settings_Devices_ShowPlaybackBatteryButton_Description {
             get {
@@ -1655,6 +1685,60 @@ namespace VolumeTrayAppDotNET.Localization {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized string similar to Always show.
+        /// </summary>
+        public static string Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Always show (intermixed).
+        /// </summary>
+        public static string Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after the normal device list. The intermixed option instead sorts each endpoint with its playback or recording devices..
+        /// </summary>
+        public static string Settings_Flyout_DisconnectedBluetoothDevices_Description {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Never show.
+        /// </summary>
+        public static string Settings_Flyout_DisconnectedBluetoothDevices_NeverShow {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_NeverShow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show.
+        /// </summary>
+        public static string Settings_Flyout_DisconnectedBluetoothDevices_Show {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_Show", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Disconnected Bluetooth audio devices.
+        /// </summary>
+        public static string Settings_Flyout_DisconnectedBluetoothDevices_Title {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_Title", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Render the flyout&apos;s title bar (Settings cluster and Undock button) at the bottom of the flyout instead of the top..
         /// </summary>
