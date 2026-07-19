@@ -25,7 +25,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private const string NewGroupBaseName = "New_Fan_Group";
     private const string NewProbeCardBaseName = "New_Probe_Card";
+#if DEBUG
     private static readonly bool EnableFanDragDebugOverlay = true;
+#else
+    private static readonly bool EnableFanDragDebugOverlay = false;
+#endif
     private static readonly bool EnableFanDragInstrumentation = false;
 
     private readonly LHMService? _lhmService;
@@ -528,9 +532,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         for (int columnIndex = 0; columnIndex < primaryButtonColumnCount; columnIndex++)
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
 
+#if DEBUG
         int dragDebugVisualsColumn = grid.ColumnDefinitions.Count;
-        if (EnableFanDragDebugOverlay)
-            grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
+        grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.HeaderWideColumnWidth)));
+#endif
 
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         int firstProfileColumn = grid.ColumnDefinitions.Count;
@@ -559,16 +564,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             ToggleNonFunctioningFans,
             "Show/hide non-functioning fans");
         AddItemButton(grid, 3, flyoutControlPalette);
-        if (EnableFanDragDebugOverlay)
-        {
-            generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
-                grid,
-                dragDebugVisualsColumn,
-                FanDragDebugVisualsGlyph,
-                flyoutControlPalette,
-                ToggleFanDragDebugVisuals,
-                "Toggle fan drag debug visuals");
-        }
+#if DEBUG
+        generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
+            grid,
+            dragDebugVisualsColumn,
+            FanDragDebugVisualsGlyph,
+            flyoutControlPalette,
+            ToggleFanDragDebugVisuals,
+            "Toggle fan drag debug visuals");
+#endif
 
         AddProfileButton(grid, firstProfileColumn, 1, flyoutControlPalette);
         AddProfileButton(grid, firstProfileColumn + 1, 2, flyoutControlPalette);
