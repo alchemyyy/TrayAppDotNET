@@ -3380,8 +3380,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         PixelPoint anchor = Position;
         if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
             anchor = iconRect.Center;
-        return (Screens.ScreenFromPoint(anchor) ?? Screens.Primary)?.WorkingArea
-               ?? FallbackWorkArea();
+        return TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
     }
 
     private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)

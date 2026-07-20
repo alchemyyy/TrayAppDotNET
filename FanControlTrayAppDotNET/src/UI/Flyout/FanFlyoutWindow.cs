@@ -5905,8 +5905,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         PixelPoint anchor = Position;
         if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
             anchor = iconRect.Center;
-        return (Screens.ScreenFromPoint(anchor) ?? Screens.Primary)?.WorkingArea
-               ?? FallbackWorkArea();
+        return TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
     }
 
     private void ApplyWorkAreaMaxHeight()

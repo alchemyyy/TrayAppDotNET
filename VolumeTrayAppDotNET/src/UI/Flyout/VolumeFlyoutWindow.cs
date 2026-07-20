@@ -243,8 +243,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             PixelPoint saved = new((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
             if (!_settings.ClampUndockedFlyoutToScreen) return saved;
 
-            PixelRect savedWorkArea = (Screens.ScreenFromPoint(saved) ?? Screens.Primary)?.WorkingArea
-                                      ?? ResolveWorkArea(trayIcon);
+            PixelRect savedWorkArea = TrayWorkArea.Resolve(Screens, saved, ResolveWorkArea(trayIcon));
             return ClampWindowPosition(saved, savedWorkArea);
         }
 
@@ -300,8 +299,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
             anchor = iconRect.Center;
 
-        return (Screens.ScreenFromPoint(anchor) ?? Screens.Primary)?.WorkingArea
-               ?? FallbackWorkArea();
+        return TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
     }
 
     private void ApplyWorkAreaMaxHeight()
@@ -3342,12 +3340,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 int height = Math.Max(PixelMinSize,
                     (int)Math.Ceiling(Math.Min(Bounds.Height, _maxHeight) * scale));
 
-                PixelRect workArea = (Screens.ScreenFromPoint(anchorBottom) ?? Screens.Primary)?.WorkingArea
-                                     ?? new PixelRect(
-                                         _layout.FallbackWorkAreaX,
-                                         _layout.FallbackWorkAreaY,
-                                         _layout.FallbackWorkAreaWidth,
-                                         _layout.FallbackWorkAreaHeight);
+                PixelRect workArea = TrayWorkArea.Resolve(
+                    Screens,
+                    anchorBottom,
+                    new PixelRect(
+                        _layout.FallbackWorkAreaX,
+                        _layout.FallbackWorkAreaY,
+                        _layout.FallbackWorkAreaWidth,
+                        _layout.FallbackWorkAreaHeight));
                 int left = Math.Clamp(anchorBottom.X, workArea.X + EdgePadding,
                     Math.Max(workArea.X + EdgePadding, workArea.Right - width - EdgePadding));
                 int top = anchorBottom.Y;

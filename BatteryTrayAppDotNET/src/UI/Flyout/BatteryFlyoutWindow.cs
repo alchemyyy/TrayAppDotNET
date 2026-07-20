@@ -639,8 +639,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             PixelPoint saved = new((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
             if (!_settings.ClampUndockedFlyoutToScreen) return saved;
 
-            PixelRect savedWorkArea = (Screens.ScreenFromPoint(saved) ?? Screens.Primary)?.WorkingArea
-                                      ?? ResolveWorkArea(trayIcon);
+            PixelRect savedWorkArea = TrayWorkArea.Resolve(Screens, saved, ResolveWorkArea(trayIcon));
             return ClampWindowPosition(saved, savedWorkArea);
         }
 
@@ -666,8 +665,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         if (trayIcon?.TryGetIconRect(out PixelRect iconRect) == true)
             anchor = iconRect.Center;
 
-        return (Screens.ScreenFromPoint(anchor) ?? Screens.Primary)?.WorkingArea
-               ?? new PixelRect(0, 0, 1920, 1080);
+        return TrayWorkArea.Resolve(Screens, anchor, new PixelRect(0, 0, 1920, 1080));
     }
 
     private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)

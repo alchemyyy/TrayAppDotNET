@@ -300,8 +300,10 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     }
 
     private PixelRect ResolveWorkArea(PixelPoint cursorPoint) =>
-        (Screens.ScreenFromPoint(cursorPoint) ?? Screens.Primary)?.WorkingArea
-        ?? new PixelRect(0, 0, _options.FallbackWorkAreaWidth, _options.FallbackWorkAreaHeight);
+        TrayWorkArea.Resolve(
+            Screens,
+            cursorPoint,
+            new PixelRect(0, 0, _options.FallbackWorkAreaWidth, _options.FallbackWorkAreaHeight));
 
     internal static PixelPoint ResolveOverlayPosition(
         PixelRect containingBounds,
