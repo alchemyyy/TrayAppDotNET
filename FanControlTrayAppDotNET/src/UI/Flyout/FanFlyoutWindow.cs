@@ -5865,14 +5865,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
     {
-        PixelRect workArea = ResolveWorkArea(trayIcon);
+        PixelRect? iconRect = null;
+        if (trayIcon?.TryGetIconRect(out PixelRect resolvedIconRect) == true)
+            iconRect = resolvedIconRect;
+
+        PixelPoint anchor = iconRect?.Center ?? Position;
+        PixelRect workArea = TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
         int width = CurrentPixelWidth();
         int height = CurrentPixelHeight();
-        int left = trayIcon?.TryGetIconRect(out PixelRect rect) == true
-            ? rect.Center.X - width / 2
-            : workArea.Right - width - EdgePadding;
-        int top = workArea.Bottom - height - EdgePadding;
-        return ClampWindowPosition(new PixelPoint(left, top), workArea);
+        return TrayPopupPositioning.ResolveDockedPosition(
+            workArea,
+            new PixelSize(width, height),
+            iconRect,
+            EdgePadding);
     }
 
     private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)

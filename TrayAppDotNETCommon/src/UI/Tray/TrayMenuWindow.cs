@@ -276,24 +276,20 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             _options.PixelMinSize,
             (int)Math.Ceiling(Bounds.Height * scale));
 
-        int minLeft = workArea.X + _options.EdgePadding;
         int minTop = workArea.Y + _options.EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - menuWidth - _options.EdgePadding);
         int maxTop = Math.Max(minTop, workArea.Bottom - menuHeight - _options.EdgePadding);
 
         if (placement == TrayMenuWindowPlacement.Modern)
         {
-            int left = workArea.Right - menuWidth - _options.EdgePadding;
-            int top = workArea.Bottom - menuHeight - _options.EdgePadding;
-            if (trayIcon.TryGetIconRect(out PixelRect iconRect))
-            {
-                left = iconRect.Center.X - menuWidth / 2;
-                top = iconRect.Center.Y - menuHeight / 2;
-            }
+            PixelRect? iconRect = null;
+            if (trayIcon.TryGetIconRect(out PixelRect resolvedIconRect))
+                iconRect = resolvedIconRect;
 
-            return new PixelPoint(
-                Math.Clamp(left, minLeft, maxLeft),
-                Math.Clamp(top, minTop, maxTop));
+            return TrayPopupPositioning.ResolveDockedPosition(
+                workArea,
+                new PixelSize(menuWidth, menuHeight),
+                iconRect,
+                _options.EdgePadding);
         }
 
         return new PixelPoint(cursorPoint.X, Math.Clamp(cursorPoint.Y, minTop, maxTop));
