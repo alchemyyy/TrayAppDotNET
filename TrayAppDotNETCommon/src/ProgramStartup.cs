@@ -36,6 +36,7 @@ public static class TrayAppDotNETProgram
     private const string LegacyBrightnessNoWatcherEnvironmentVariable = "BTAWPF_NO_WATCHER";
 
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
+    private static ApplicationInstanceCoordinator? _applicationInstanceCoordinator;
 
     public static int? WatcherPID { get; private set; }
 
@@ -100,6 +101,7 @@ public static class TrayAppDotNETProgram
         TADNLog.Initialize(appDataDirectory);
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
+            ReleaseApplicationInstance();
             ReleaseSingleInstance();
             flush();
         };
@@ -146,12 +148,19 @@ public static class TrayAppDotNETProgram
             !AcquireSingleInstance(singleInstanceIdentity, WatcherPID ?? 0, Environment.ProcessId, log))
             return 1;
 
+        if (!AcquireApplicationInstance(singleInstanceIdentity, log))
+        {
+            ReleaseSingleInstance();
+            return 1;
+        }
+
         try
         {
             return options.RunApplication(args);
         }
         finally
         {
+            ReleaseApplicationInstance();
             ReleaseSingleInstance();
         }
     }
@@ -181,6 +190,7 @@ public static class TrayAppDotNETProgram
 
     private static void ResetState()
     {
+        ReleaseApplicationInstance();
         ReleaseSingleInstance();
         WatcherPID = null;
         IsUninstallerMode = false;
@@ -199,13 +209,51 @@ public static class TrayAppDotNETProgram
             _singleInstanceCoordinator = SingleInstanceCoordinator.AcquireOrTakeover(
                 identity,
                 watcherPID,
-                monitoredPID);
+                monitoredPID,
+                log);
             return true;
         }
         catch (Exception ex)
         {
             log($"TrayAppDotNETProgram.AcquireSingleInstance: {ex}");
             return false;
+        }
+    }
+
+    private static bool AcquireApplicationInstance(SingleInstanceIdentity identity, Action<string> log)
+    {
+        try
+        {
+            _applicationInstanceCoordinator = ApplicationInstanceCoordinator.TryAcquire(
+                identity,
+                TimeConstants.ApplicationInstanceMutexAcquireTimeoutMs);
+            if (_applicationInstanceCoordinator != null) return true;
+
+            log(
+                "TrayAppDotNETProgram.AcquireApplicationInstance: timed out waiting for the previous "
+                + "application process to exit.");
+            return false;
+        }
+        catch (Exception exception)
+        {
+            log($"TrayAppDotNETProgram.AcquireApplicationInstance: {exception}");
+            return false;
+        }
+    }
+
+    private static void ReleaseApplicationInstance()
+    {
+        try
+        {
+            _applicationInstanceCoordinator?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"TrayAppDotNETProgram.ReleaseApplicationInstance: {exception.Message}");
+        }
+        finally
+        {
+            _applicationInstanceCoordinator = null;
         }
     }
 

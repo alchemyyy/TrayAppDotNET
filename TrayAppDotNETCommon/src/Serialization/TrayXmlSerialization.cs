@@ -21,6 +21,7 @@ public static class TrayXmlSerializer
 {
     private static readonly Dictionary<Type, ITrayXmlTypeSerializer> Serializers = [];
     private static readonly Lock Gate = new();
+    private static readonly Lock FileWriteGate = new();
 
     public static XmlWriterSettings WriterSettings { get; } = new()
     {
@@ -51,7 +52,11 @@ public static class TrayXmlSerializer
 
     public static T ReadFile<T>(string path)
     {
-        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream stream = new(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read | FileShare.Delete);
         return Read<T>(stream);
     }
 
@@ -111,29 +116,37 @@ public static class TrayXmlSerializer
         string? directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-        string tmpPath = path + ".tmp";
-        try
+        lock (FileWriteGate)
         {
-            using (FileStream stream = new(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                Write(stream, value);
-                stream.Flush();
-            }
-
-            File.Move(tmpPath, path, overwrite: true);
-        }
-        catch
-        {
+            string temporaryPath = $"{path}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
             try
             {
-                if (File.Exists(tmpPath)) File.Delete(tmpPath);
+                using (FileStream stream = new(
+                           temporaryPath,
+                           FileMode.CreateNew,
+                           FileAccess.Write,
+                           FileShare.None))
+                {
+                    Write(stream, value);
+                    stream.Flush();
+                }
+
+                ReplaceFileWithRetry(temporaryPath, path);
             }
             catch
             {
-                // ignored - the next save attempt overwrites the tmp file
-            }
+                try
+                {
+                    if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                }
+                catch (Exception cleanupException)
+                {
+                    TADNLog.Log(
+                        $"TrayXmlSerializer.WriteFile: temporary file cleanup failed: {cleanupException.Message}");
+                }
 
-            throw;
+                throw;
+            }
         }
     }
 
@@ -149,6 +162,24 @@ public static class TrayXmlSerializer
         {
             logError?.Invoke(ex);
             return false;
+        }
+    }
+
+    private static void ReplaceFileWithRetry(string temporaryPath, string path)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(temporaryPath, path, overwrite: true);
+                return;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException &&
+                attempt < TimeConstants.SettingsFileReplaceRetryCount)
+            {
+                Thread.Sleep(TimeConstants.SettingsFileReplaceRetryDelayMs);
+            }
         }
     }
 

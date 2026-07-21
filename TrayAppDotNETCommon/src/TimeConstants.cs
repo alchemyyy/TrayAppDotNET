@@ -11,12 +11,15 @@ public abstract class TimeConstants
 
     // Single instance
     protected internal const int SingleInstanceMutexAcquireTimeoutMs = 5_000;
+    protected internal const int ApplicationInstanceMutexAcquireTimeoutMs = 10_000;
     protected internal const int SingleInstancePidBulletinReadTimeoutMs = 1_000;
     protected internal const int SingleInstancePidBulletinReadRetryMs = 25;
 
     // Async throttling / settings persistence
     protected internal const int DrainPollIntervalMs = 50;
     protected internal const int SettingsSaveDebounceMs = 400;
+    protected internal const int SettingsFileReplaceRetryCount = 6;
+    protected internal const int SettingsFileReplaceRetryDelayMs = 50;
 
     // Settings UI
     protected internal const int AboutStaleCheckTimerIntervalMs = 1_000;

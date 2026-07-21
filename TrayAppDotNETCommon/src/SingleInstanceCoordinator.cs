@@ -6,6 +6,7 @@ namespace TrayAppDotNETCommon;
 public sealed record SingleInstanceIdentity(string ApplicationName, string AppGuid)
 {
     public string SingleInstanceMutexName => $"Local\\{ApplicationName}-Watcher-{AppGuid}";
+    public string ApplicationInstanceMutexName => $"Local\\{ApplicationName}-Application-{AppGuid}";
     public string PIDMmfName => $"Local\\{ApplicationName}-WatcherPID-{AppGuid}";
 }
 
@@ -40,7 +41,8 @@ public sealed class SingleInstanceCoordinator : IDisposable
     public static SingleInstanceCoordinator AcquireOrTakeover(
         SingleInstanceIdentity identity,
         int watcherPID,
-        int monitoredPID)
+        int monitoredPID,
+        Action<string>? log = null)
     {
         ArgumentNullException.ThrowIfNull(identity);
         ArgumentOutOfRangeException.ThrowIfNegative(watcherPID);
@@ -52,7 +54,7 @@ public sealed class SingleInstanceCoordinator : IDisposable
 
         try
         {
-            if (!createdNew) TakeoverFromExistingOwner(identity, mutex);
+            if (!createdNew) TakeoverFromExistingOwner(identity, mutex, log);
 
             mmf = MemoryMappedFile.CreateOrOpen(identity.PIDMmfName, MmfSize);
             view = mmf.CreateViewAccessor(0, MmfSize);
@@ -109,7 +111,10 @@ public sealed class SingleInstanceCoordinator : IDisposable
         _view.Flush();
     }
 
-    private static void TakeoverFromExistingOwner(SingleInstanceIdentity identity, Mutex mutex)
+    private static void TakeoverFromExistingOwner(
+        SingleInstanceIdentity identity,
+        Mutex mutex,
+        Action<string>? log)
     {
         if (TryReadExistingOwner(identity, out int oldWatcherPID, out int oldMonitoredPID))
         {
@@ -125,6 +130,60 @@ public sealed class SingleInstanceCoordinator : IDisposable
         catch (AbandonedMutexException)
         {
             // Expected - previous owner was killed. We now own the mutex.
+        }
+
+        // The previous watcher can be killed after CreateProcess but before it publishes the child PID.
+        // Sweep same-name processes only after owning the mutex, when the old watcher can no longer spawn.
+        TerminateUnrecordedApplicationProcesses(identity.ApplicationName, log);
+    }
+
+    private static void TerminateUnrecordedApplicationProcesses(string applicationName, Action<string>? log)
+    {
+        string processName = Path.GetFileNameWithoutExtension(applicationName);
+        if (string.IsNullOrWhiteSpace(processName)) return;
+
+        int currentSessionID;
+        Process[] processes;
+        try
+        {
+            using Process currentProcess = Process.GetCurrentProcess();
+            currentSessionID = currentProcess.SessionId;
+            processes = Process.GetProcessesByName(processName);
+        }
+        catch (Exception exception)
+        {
+            log?.Invoke($"SingleInstanceCoordinator: process sweep enumeration failed: {exception.Message}");
+            return;
+        }
+
+        foreach (Process process in processes)
+        {
+            using (process)
+            {
+                int processID = 0;
+                try
+                {
+                    processID = process.Id;
+                    if (processID == Environment.ProcessId ||
+                        process.SessionId != currentSessionID ||
+                        process.HasExited)
+                        continue;
+
+                    // A transient launcher can be the current watcher's parent, so never kill its tree.
+                    process.Kill(entireProcessTree: false);
+                    if (!process.WaitForExit(TimeConstants.SingleInstanceMutexAcquireTimeoutMs))
+                    {
+                        log?.Invoke(
+                            $"SingleInstanceCoordinator: unrecorded {applicationName} PID {processID} did not exit.");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    log?.Invoke(
+                        $"SingleInstanceCoordinator: unrecorded {applicationName} PID {processID} cleanup failed: "
+                        + exception.Message);
+                }
+            }
         }
     }
 

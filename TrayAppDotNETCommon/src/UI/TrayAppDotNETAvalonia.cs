@@ -107,7 +107,12 @@ public static class TrayAppDotNETAvalonia
                 IgnoreWhitespace = true
             };
 
-            using XmlReader reader = XmlReader.Create(settingsPath, readerSettings);
+            using FileStream settingsStream = new(
+                settingsPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read | FileShare.Delete);
+            using XmlReader reader = XmlReader.Create(settingsStream, readerSettings);
             while (reader.Read())
             {
                 if (reader.NodeType != XmlNodeType.Element ||
