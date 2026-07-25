@@ -9,7 +9,6 @@ namespace TrayAppDotNETCommon.UI.Tray;
 public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 {
     private const int WM_CALLBACKMOUSEMSG = User32.WM_USER + 1024;
-    private const uint TrayIconID = 1;
     private const int TrayIconLocationRefreshCooldownMs = 250;
     private const int TaskbarRecoveryRetryCount = 5;
     private const int TaskbarRecoveryRetryDelayMs = 500;
@@ -54,7 +53,6 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     private bool _isPointerOverIcon;
     private bool _isTouchWindowRegistered;
     private bool _isGestureConfigured;
-    private bool _usesGUIDIdentity = true;
 
     public TrayAppDotNETShellTrayIcon(string trayIconGUID, string messageWindowClassPrefix)
     {
@@ -256,17 +254,17 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         }
     }
 
+    // Keep one GUID identity for the icon's full lifetime; switching to hWnd/uID can create a second shell icon
     private NOTIFYICONDATAW MakeData(NotifyIconFlags flags) =>
         new()
         {
             cbSize = Marshal.SizeOf<NOTIFYICONDATAW>(),
             hWnd = _window.Handle,
-            uID = TrayIconID,
-            uFlags = flags | (_usesGUIDIdentity ? NotifyIconFlags.NIF_GUID : 0),
+            uFlags = flags | NotifyIconFlags.NIF_GUID,
             uCallbackMessage = (flags & NotifyIconFlags.NIF_MESSAGE) != 0 ? (uint)WM_CALLBACKMOUSEMSG : 0,
             hIcon = (flags & NotifyIconFlags.NIF_ICON) != 0 ? _currentIcon?.Handle ?? IntPtr.Zero : IntPtr.Zero,
             szTip = TruncateTooltipText(_tooltipText),
-            guidItem = _usesGUIDIdentity ? _iconGUID : Guid.Empty
+            guidItem = _iconGUID
         };
 
     private NOTIFYICONIDENTIFIER MakeIdentifier() =>
@@ -274,8 +272,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         {
             cbSize = Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
             hWnd = _window.Handle,
-            uID = TrayIconID,
-            guidItem = _usesGUIDIdentity ? _iconGUID : Guid.Empty
+            guidItem = _iconGUID
         };
 
     private void Update()
@@ -405,17 +402,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
                 "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: "
                 + $"NIM_MODIFY failed (0x{modifyError:X8}); recovery NIM_ADD failed (0x{recoveryAddError:X8}); "
                 + $"retry NIM_MODIFY failed (0x{retryModifyError:X8}).");
-            if (TryResetAndAddTrayIcon(
-                    out int createdDeleteError,
-                    out int createdPostDeleteAddError,
-                    out int createdLegacyAddError))
-                return;
-
-            TADNLog.Log(
-                "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: reset failed; "
-                + $"NIM_DELETE error=0x{createdDeleteError:X8}; post-delete NIM_ADD failed "
-                + $"(0x{createdPostDeleteAddError:X8}); legacy NIM_ADD failed "
-                + $"(0x{createdLegacyAddError:X8}).");
+            _forceFullIconUpdate = true;
             QueueTaskbarRecovery();
             return;
         }
@@ -448,58 +435,8 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
             "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: "
             + $"pre-add NIM_MODIFY failed (0x{preAddModifyError:X8}); NIM_ADD failed (0x{addError:X8}); "
             + $"recovery NIM_MODIFY failed (0x{modifyRecoveryError:X8}).");
-        if (TryResetAndAddTrayIcon(
-                out int initialDeleteError,
-                out int initialPostDeleteAddError,
-                out int initialLegacyAddError))
-            return;
-
-        TADNLog.Log(
-            "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: reset failed; "
-            + $"NIM_DELETE error=0x{initialDeleteError:X8}; post-delete NIM_ADD failed "
-            + $"(0x{initialPostDeleteAddError:X8}); legacy NIM_ADD failed "
-            + $"(0x{initialLegacyAddError:X8}).");
-        ReleaseShellIcon();
+        _forceFullIconUpdate = true;
         QueueTaskbarRecovery();
-    }
-
-    private bool TryResetAndAddTrayIcon(
-        out int deleteError,
-        out int postDeleteAddError,
-        out int legacyAddError)
-    {
-        const NotifyIconFlags fullFlags =
-            NotifyIconFlags.NIF_MESSAGE
-            | NotifyIconFlags.NIF_ICON
-            | NotifyIconFlags.NIF_TIP
-            | NotifyIconFlags.NIF_SHOWTIP;
-
-        NOTIFYICONDATAW deleteData = MakeData(0);
-        _ = TryNotify(Shell32.NotifyIconMessage.NIM_DELETE, ref deleteData, out deleteError);
-        _isCreated = false;
-
-        NOTIFYICONDATAW postDeleteData = MakeData(fullFlags);
-        if (TryAddTrayIcon(ref postDeleteData, preserveCreatedOnFailure: false, out postDeleteAddError))
-        {
-            legacyAddError = 0;
-            return true;
-        }
-
-        if (!_usesGUIDIdentity)
-        {
-            legacyAddError = postDeleteAddError;
-            return false;
-        }
-
-        _usesGUIDIdentity = false;
-        NOTIFYICONDATAW legacyData = MakeData(fullFlags);
-        if (!TryAddTrayIcon(ref legacyData, preserveCreatedOnFailure: false, out legacyAddError))
-            return false;
-
-        TADNLog.Log(
-            "TrayAppDotNETShellTrayIcon.UpdateIconAndTooltip: recovered with hWnd/uID identity "
-            + "after Explorer rejected the GUID registration.");
-        return true;
     }
 
     private bool TryModifyTrayIcon(
