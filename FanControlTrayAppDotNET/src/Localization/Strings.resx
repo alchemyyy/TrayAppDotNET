@@ -265,6 +265,12 @@
   <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
     <value>Reopen the flyout in its previously-undocked window if it was undocked when the app last closed.</value>
   </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
+    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
+    <value>Keep undocked flyout on screen</value>
+  </data>
   <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
     <value>Restore undocked flyout on startup</value>
   </data>

@@ -34,6 +34,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private readonly BrightnessFlyoutSession _session;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
+    private readonly FlyoutDockingController _dockingController;
     private readonly UIResourceScope _externalResources = new(nameof(BrightnessFlyoutWindow) + ".External");
     private readonly HashSet<MonitorInfo> _subscribedMonitors = [];
     private readonly HashSet<string> _curveStopwatchReengageBlockedByMaster = [];
@@ -57,7 +58,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private DispatcherTimer? _previewSweepTimer;
     private Stopwatch? _previewSweepStopwatch;
     private DispatcherTimer? _curveStopwatchTimer;
-    private bool _isUndocked;
     private bool _isDraggingWindow;
     private bool _suppressPropagation;
     private bool _masterSliderGesturePrepared;
@@ -193,13 +193,20 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
             BuildProfileButtonItems();
 
-            _isUndocked = _settings is
+            AppSettings dockingSettings = _settings
+                                          ?? throw new InvalidOperationException(
+                                              "Brightness flyout docking requires settings.");
+            _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
             {
-                FlyoutUndocked: true,
-                FlyoutHasSavedPosition: true,
-                AllowFlyoutUndock: true,
-                RestoreFlyoutUndockedOnStartup: true
-            };
+                Settings = dockingSettings,
+                DragHelper = _dragHelper,
+                CurrentPosition = () => Position,
+                SetPosition = position => Position = position,
+                ResolveDockedPosition = () => ResolveDockedPosition(_lastTrayIcon),
+                ResolveSavedPosition = ResolveSavedPosition,
+                ResolveSnapTolerance = ResolveSnapTolerance,
+                StateChanged = OnDockStateChanged
+            });
 
             CheckAndUpdateUnsavedChanges();
             if (_isBrightnessCurveEnabled || _isNightLightCurveEnabled) OnCurveToggleStateChanged();
@@ -257,7 +264,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public MonitorInfo NightLightMonitor => _session.NightLightMonitor;
 
     public bool BrightnessChanged { get; private set; }
-    public bool IsUndocked => _isUndocked;
+    public bool IsUndocked => _dockingController.IsUndocked;
     public int SelectedProfileIndex => _profileManager.SelectedIndex;
     public bool HasUnsavedChanges => _hasUnsavedChanges;
     public bool IsNightLightActive => _isNightLightActive;
@@ -320,7 +327,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     protected override bool HasOpenChildWindow => _isUpdateDialogOpen;
 
-    protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
+    protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
 
     protected override void HideFlyout()
     {
@@ -421,20 +428,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     public void Redock()
     {
-        if (!_isUndocked) return;
-        _isUndocked = false;
-        if (_settings != null)
-        {
-            _settings.FlyoutUndocked = false;
-            _settings.Save();
-        }
-
-        UpdateUndockButtonVisual();
-        QueuePositionNearTray();
-        OnPropertyChanged(nameof(IsUndocked));
+        if (!IsWindowAlive) return;
+        _dockingController.Redock();
     }
 
-    public void PositionNearTray() => Position = ResolvePosition(_lastTrayIcon);
+    public void PositionNearTray() => Position = _dockingController.ResolvePosition();
 
     private PixelPoint OffscreenPosition() => new(Layout.OffscreenPosition, Layout.OffscreenPosition);
 
@@ -1535,18 +1533,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             FontWeight = FontWeight.Normal,
             IsVisible = _settings?.AllowFlyoutUndock ?? true,
             Owner = this,
-            DragHelper = _dragHelper,
+            Docking = _dockingController,
             Palette = palette,
-            CaptureDockedPosition = CaptureDockedPosition,
-            IsUndocked = () => _isUndocked,
-            SetUndockedFromDrag = SetUndockedFromDrag,
-            ToggleUndocked = ToggleUndocked,
-            CommitDragPosition = CommitDragPosition,
             DraggingChanged = dragging =>
             {
                 _isDraggingWindow = dragging;
-                if (!dragging) FlushPendingRebuildVisual();
             },
+            InteractionCompleted = _ => FlushPendingRebuildVisual(),
             UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
             RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
             DragThreshold = Layout.DragThreshold,
@@ -2433,7 +2426,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (NightLightMonitor.RoundedBrightness != displayValue) NightLightMonitor.Brightness = displayValue;
         _isNightLightActive = NightLightProvider.IsSupported() && NightLightProvider.IsEnabled();
 
-        if (_isUndocked && _settings?.AllowFlyoutUndock == false) Redock();
+        _dockingController.RedockIfUndockingDisabled();
         UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
         _curveService.Start();
         _curveService.Evaluate();
@@ -3210,14 +3203,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         FlyoutVisualState? visualState = _visualState;
         if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
-        if (!_isUndocked) return;
+        if (!_dockingController.IsUndocked) return;
         if (_isDraggingWindow || visualState.RootCapturedPointer != null) return;
         if (_undockButtonController?.IsPointerCaptured == true) return;
         if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
         if (sender is not Control control) return;
 
-        (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
+        (PixelPoint dockedPosition, int snapTolerance) = _dockingController.CaptureDockedPosition();
         PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
         visualState.RootCapturedPointer = e.Pointer;
@@ -3243,7 +3236,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         FlyoutVisualState? visualState = _visualState;
         if (visualState == null || !ReferenceEquals(sender, visualState.RootCard)) return;
         if (!ReferenceEquals(e.Pointer, visualState.RootCapturedPointer)) return;
-        if (!_isDraggingWindow || !_isUndocked || _undockButtonController?.IsPointerCaptured == true) return;
+        if (!_isDraggingWindow || !_dockingController.IsUndocked
+                              || _undockButtonController?.IsPointerCaptured == true)
+            return;
         if (sender is not Control control) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
         {
@@ -3276,7 +3271,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         visualState.RootCapturedPointer = null;
         if (_isDraggingWindow && _undockButtonController?.IsPointerCaptured != true)
-            CommitDragPosition();
+            _dockingController.CommitDragPosition();
         _isDraggingWindow = false;
         FlushPendingRebuildVisual();
     }
@@ -3293,74 +3288,38 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             WPFLog.Log($"BrightnessFlyoutWindow pointer release failed: {exception.Message}");
         }
-        if (commit) CommitDragPosition();
+        if (commit) _dockingController.CommitDragPosition();
         FlushPendingRebuildVisual();
     }
 
-    private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition() =>
-        (ResolveDockedPosition(_lastTrayIcon), ResolveSnapTolerance());
-
-    private void ToggleUndocked()
+    private void OnDockStateChanged(FlyoutDockStateChange change)
     {
-        if (_isUndocked) Redock();
-        else UndockToSavedPosition();
-    }
-
-    private void SetUndockedFromDrag()
-    {
-        _isUndocked = true;
         UpdateUndockButtonVisual();
         OnPropertyChanged(nameof(IsUndocked));
-    }
-
-    private void CommitDragPosition()
-    {
-        if (_dragHelper.IsCurrentlySnapped) Redock();
-        else SaveUndockedPosition();
-    }
-
-    private void UndockToSavedPosition()
-    {
-        _isUndocked = true;
-        if (_settings != null)
+        switch (change)
         {
-            _settings.FlyoutUndocked = true;
-            _settings.Save();
+            case FlyoutDockStateChange.Redocked:
+                QueuePositionNearTray();
+                break;
+            case FlyoutDockStateChange.Undocked:
+            case FlyoutDockStateChange.UndockedFromDrag:
+            case FlyoutDockStateChange.PositionSaved:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }
-
-        if (_settings?.FlyoutHasSavedPosition == true)
-            Position = new PixelPoint((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
-        UpdateUndockButtonVisual();
-        OnPropertyChanged(nameof(IsUndocked));
-    }
-
-    private void SaveUndockedPosition()
-    {
-        _isUndocked = true;
-        if (_settings != null)
-        {
-            _settings.FlyoutUndocked = true;
-            _settings.FlyoutHasSavedPosition = true;
-            _settings.FlyoutLeft = Position.X;
-            _settings.FlyoutTop = Position.Y;
-            _settings.Save();
-        }
-
-        UpdateUndockButtonVisual();
-        OnPropertyChanged(nameof(IsUndocked));
     }
 
     private void UpdateUndockButtonVisual() => _undockButtonController?.UpdateVisual();
 
-    private PixelPoint ResolvePosition(TrayAppDotNETShellTrayIcon? trayIcon)
+    private PixelPoint ResolveSavedPosition(PixelPoint savedPosition)
     {
-        if (_isUndocked && _settings?.FlyoutHasSavedPosition == true)
-        {
-            PixelPoint saved = new((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
-            return ClampWindowPosition(saved, ResolveWorkArea(trayIcon));
-        }
-
-        return ResolveDockedPosition(trayIcon);
+        return TrayPopupPositioning.ClampToSavedMonitor(
+            Screens,
+            ResolveWorkArea(_lastTrayIcon),
+            CurrentPixelSize(),
+            savedPosition,
+            EdgePadding);
     }
 
     private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
@@ -3388,16 +3347,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return TrayWorkArea.Resolve(Screens, anchor, FallbackWorkArea());
     }
 
-    private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)
-    {
-        int width = CurrentPixelWidth();
-        int height = CurrentPixelHeight();
-        int minLeft = workArea.X + EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
-        int minTop = workArea.Y + EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
-        return new PixelPoint(Math.Clamp(target.X, minLeft, maxLeft), Math.Clamp(target.Y, minTop, maxTop));
-    }
+    private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
 
     private int CurrentPixelWidth() =>
         Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));

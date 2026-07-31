@@ -126,7 +126,7 @@ public class AppTheme : IDisposable
     public ThemeColor ControlBackground { get; set; } = new("FFFFFF", "3C3C3C");
     public ThemeColor ControlBorder { get; set; } = new("808080", "444444");
     public ThemeColor DisabledForeground { get; set; } = new("808080");
-    public ThemeColor Accent { get; set; } = new("FFFFFF");
+    public ThemeColor Accent { get; set; } = new("222222", "DDDDDD");
     public ThemeColor Acrylic { get; set; } = new("D0F3F3F3", "D0202020");
     public ThemeColor SecondaryForeground { get; set; } = new("222222", "DDDDDD");
     public ThemeColor FooterBackground { get; set; } = new("E8E8E8", "1A1A1A");
@@ -138,8 +138,8 @@ public class AppTheme : IDisposable
     public ThemeColor IconForeground { get; set; } = new("222222", "DDDDDD");
     public ThemeColor CardBackground { get; set; } = new("FBFBFB", "2B2B2B");
     public ThemeColor TextBoxFocused { get; set; } = new("F5F5F5", "363636");
-    public ThemeColor SearchListItemSelected { get; set; } = new("F7F7F7", "E8E8E8");
-    public ThemeColor SearchListItemHover { get; set; } = new("EDEDED", "BDBDBD");
+    public ThemeColor SearchListItemSelected { get; set; } = new("DFDFDF", "454545");
+    public ThemeColor SearchListItemHover { get; set; } = new("E9E9E9", "292929");
     public ThemeColor ToggleSwitchOnTrack { get; set; } = new("5B5B5B");
     public ThemeColor ToggleSwitchOnThumb { get; set; } = new("FFFFFF");
     public ThemeColor CloseButtonHover { get; set; } = new("C42B1C");

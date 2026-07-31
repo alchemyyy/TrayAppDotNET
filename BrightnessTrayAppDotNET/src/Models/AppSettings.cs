@@ -1,6 +1,7 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Serialization;
+using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Models;
 
 namespace BrightnessTrayAppDotNET.Models;
@@ -229,7 +230,7 @@ public class KnownDisplayEntry
 /// </summary>
 [XmlRoot("AppSettings")]
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayXmlSerializationCallbacks
+    IFlyoutDockSettings, ITrayXmlSerializationCallbacks
 {
     public const int FlyoutScrollWheelStepMin = 1;
     public const int FlyoutScrollWheelStepMax = 50;
@@ -319,6 +320,9 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // When false, the undock button is hidden, and any persisted undocked state is force-redocked
     // the next time the flyout opens - disabling the feature should never leave a free-floating window stranded.
     public bool AllowFlyoutUndock { get; set; } = true;
+
+    // Keep restored floating coordinates inside the monitor that contains them.
+    public bool ClampUndockedFlyoutToScreen { get; set; } = true;
 
     // When true, the flyout reopens in the previous session's docked/undocked state at startup.
     // When false, the flyout always opens docked at launch regardless of FlyoutUndocked;

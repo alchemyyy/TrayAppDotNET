@@ -1,5 +1,6 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
+using TrayAppDotNETCommon.UI;
 
 namespace FanControlTrayAppDotNET.Models;
 
@@ -51,7 +52,7 @@ public enum MultipleSliderValuesDisplayMode
 /// </summary>
 [XmlRoot("AppSettings")]
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayXmlSerializationCallbacks
+    IFlyoutDockSettings, ITrayXmlSerializationCallbacks
 {
     private const string CPUNickname = "CPU";
     private const string GPUNickname = "GPU";
@@ -123,6 +124,8 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // real properties to bind to; rip them out (along with FlyoutPage) if your fork never grows a
     // flyout.
     public bool AllowFlyoutUndock { get; set; } = true;
+
+    public bool ClampUndockedFlyoutToScreen { get; set; } = true;
 
     public bool RestoreFlyoutUndockedOnStartup { get; set; } = true;
 

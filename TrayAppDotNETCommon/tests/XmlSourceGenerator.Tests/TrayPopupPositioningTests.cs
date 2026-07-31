@@ -118,4 +118,35 @@ public sealed class TrayPopupPositioningTests
 
         Assert.Equal(new PixelPoint(108, 108), position);
     }
+
+    [Fact]
+    public void FloatingPopupClampsToSavedMonitorWorkArea()
+    {
+        PixelRect workArea = new(-1920, 40, 1920, 1040);
+        PixelSize popupSize = new(400, 500);
+
+        PixelPoint position = TrayPopupPositioning.ClampToWorkArea(
+            workArea,
+            popupSize,
+            new PixelPoint(-2100, 900),
+            EdgePadding);
+
+        Assert.Equal(new PixelPoint(-1912, 572), position);
+    }
+
+    [Fact]
+    public void FloatingPopupInsideWorkAreaKeepsSavedPosition()
+    {
+        PixelRect workArea = new(0, 0, 1920, 1040);
+        PixelSize popupSize = new(350, 500);
+        PixelPoint savedPosition = new(700, 300);
+
+        PixelPoint position = TrayPopupPositioning.ClampToWorkArea(
+            workArea,
+            popupSize,
+            savedPosition,
+            EdgePadding);
+
+        Assert.Equal(savedPosition, position);
+    }
 }

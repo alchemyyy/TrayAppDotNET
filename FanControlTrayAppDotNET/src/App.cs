@@ -90,6 +90,7 @@ internal sealed class FanAvaloniaApp : Application
         StartServices();
         CreateTrayIcon();
         RequestTrayRefresh();
+        RestoreStartupUndockedFlyoutIfRequested();
         ScheduleKeepWarmPriming();
         base.OnFrameworkInitializationCompleted();
     }
@@ -414,7 +415,7 @@ internal sealed class FanAvaloniaApp : Application
     private void OnTrayLeftMouseDown()
     {
         if (IsControlOrAltDown()) return;
-        if (_fanFlyout is { IsUndocked: false, IsVisible: true, IsActive: true })
+        if (_fanFlyout is { IsVisible: true, IsActive: true })
         {
             _fanFlyout.Hide();
             _suppressNextTrayClick = true;
@@ -433,6 +434,12 @@ internal sealed class FanAvaloniaApp : Application
                 _settings?.TrayCtrlLeftClickAction ?? TrayClickAction.Nothing,
                 _settings?.TrayAltLeftClickAction ?? TrayClickAction.Nothing))
             return;
+
+        if (_fanFlyout is { IsVisible: true })
+        {
+            _fanFlyout.Hide();
+            return;
+        }
 
         ShowFanFlyout();
     }
@@ -531,6 +538,7 @@ internal sealed class FanAvaloniaApp : Application
 
         _fanFlyout ??= FanFlyoutWarmSlot.TakeOrCreate(CreateManagedFanFlyout);
 
+        _fanFlyout.Redock();
         _fanFlyout.ShowAt(_trayIcon, activate);
         if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
             SettingsFlyoutKeepOpen.HoldOpen();
@@ -545,6 +553,15 @@ internal sealed class FanAvaloniaApp : Application
         _fanFlyout = flyout;
         flyout.Closed += OnFanFlyoutClosed;
         return flyout;
+    }
+
+    private void RestoreStartupUndockedFlyoutIfRequested()
+    {
+        if (_settings == null || _trayIcon == null) return;
+        if (!FlyoutDockingController.ShouldRestoreOnStartup(_settings)) return;
+
+        _fanFlyout ??= FanFlyoutWarmSlot.TakeOrCreate(CreateManagedFanFlyout);
+        _fanFlyout.ShowAt(_trayIcon);
     }
 
     private TrayAppDotNETWarmWindowSlot<FanFlyoutWindow> FanFlyoutWarmSlot =>

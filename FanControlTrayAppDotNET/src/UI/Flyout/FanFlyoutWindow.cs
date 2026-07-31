@@ -46,6 +46,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly List<Fan> _fanPropertiesOrder = [];
     private readonly Dictionary<Fan, UIResourceScope> _fanSubscriptionResources = [];
     private readonly FlyoutWindowDragHelper _dragHelper = new();
+    private readonly FlyoutDockingController _dockingController;
     private readonly FanDragInstrumentation _dragInstrumentation = new(log: static message => TADNLog.Log(message));
     private readonly List<Control> _dragDebugVisuals = [];
 
@@ -82,15 +83,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private double _dragGhostHeight;
     private double _lastDragPointerY;
     private int _dragSourceTopLevelIndex = -1;
-    private bool _isUndocked;
     private bool _showNonFunctioningFans;
     private bool _showFanDragDebugVisuals = EnableFanDragDebugOverlay;
     private bool _suppressFanRebuild;
     private bool _isUpdateDownloadInFlight;
     private bool _isUpdateDialogOpen;
     private bool _isDraggingWindow;
-    private bool _undockButtonPointerCaptured;
-    private bool _undockButtonDragOccurred;
     private bool _isCompletingDrag;
     private bool _isResettingPointerGestures;
     private bool _dragMovingDown = true;
@@ -103,7 +101,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private TaskCompletionSource<bool>? _confirmTcs;
     private IPointer? _capturedCardDragPointer;
     private IPointer? _capturedSliderPointer;
-    private IPointer? _capturedUndockPointer;
     private IPointer? _capturedWindowDragPointer;
 
     public FanFlyoutWindow()
@@ -124,11 +121,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             InitializeComponent();
             TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
-            _isUndocked = settings is
+            _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
             {
-                AllowFlyoutUndock: true, RestoreFlyoutUndockedOnStartup: true, FlyoutUndocked: true,
-                FlyoutHasSavedPosition: true
-            };
+                Settings = _settings,
+                DragHelper = _dragHelper,
+                CurrentPosition = () => Position,
+                SetPosition = position => Position = position,
+                ResolveDockedPosition = () => ResolveDockedPosition(_lastTrayIcon),
+                ResolveSavedPosition = ResolveSavedPosition,
+                ResolveSnapTolerance = ResolveSnapTolerance,
+                StateChanged = OnDockStateChanged
+            });
 
             LoadGroupCatalog();
             LoadProbeCards();
@@ -201,9 +204,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private Border? RootCard => _activeVisualGeneration?.RootCard;
 
-    private Border? UndockButtonControl => _activeVisualGeneration?.UndockButton;
-
-    private TextBlock? UndockButtonGlyphControl => _activeVisualGeneration?.UndockButtonGlyph;
+    private FlyoutUndockButtonController? UndockButtonController =>
+        _activeVisualGeneration?.UndockButtonController;
 
     private TextBlock? NonFunctioningFansButtonGlyph =>
         _activeVisualGeneration?.NonFunctioningFansButtonGlyph;
@@ -228,7 +230,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     public new event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool IsUndocked => _isUndocked;
+    public bool IsUndocked => _dockingController.IsUndocked;
 
     private Glyph NonFunctioningFansGlyph => _showNonFunctioningFans ? GlyphCatalog.VIEW : GlyphCatalog.HIDE;
 
@@ -245,19 +247,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         || _probeSelectorWindows.Values.Any(window => window.IsVisible)
         || _isUpdateDialogOpen;
 
-    protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
+    protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
 
     protected override void HideFlyout() => Hide();
 
     public void Redock()
     {
-        if (!_isUndocked) return;
-        _isUndocked = false;
-        _settings.FlyoutUndocked = false;
-        _settings.Save();
-        UpdateUndockButtonVisual();
-        QueuePositionNearTray();
-        OnPropertyChanged(nameof(IsUndocked));
+        if (WindowResources.IsDisposed) return;
+        _dockingController.Redock();
     }
 
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
@@ -578,10 +575,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         AddProfileButton(grid, firstProfileColumn + 1, 2, flyoutControlPalette);
         AddProfileButton(grid, firstProfileColumn + 2, 3, flyoutControlPalette);
 
-        generation.UndockButton = BuildUndockButton(flyoutControlPalette, generation);
-        generation.UndockButton.IsVisible = _settings.AllowFlyoutUndock;
-        Grid.SetColumn(generation.UndockButton, undockColumn);
-        grid.Children.Add(generation.UndockButton);
+        FlyoutUndockButtonController undockButtonController =
+            BuildUndockButton(flyoutControlPalette, generation);
+        Border undockButton = undockButtonController.Button;
+        Grid.SetColumn(undockButton, undockColumn);
+        grid.Children.Add(undockButton);
         return new Border
         {
             Height = Layout.HeaderHeight,
@@ -1566,7 +1564,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             if (!ReferenceEquals(_capturedSliderPointer, e.Pointer)
                 && !ReferenceEquals(_capturedCardDragPointer, e.Pointer)
-                && !ReferenceEquals(_capturedUndockPointer, e.Pointer)
+                && !ReferenceEquals(UndockButtonController?.CapturedPointer, e.Pointer)
                 && !ReferenceEquals(_capturedWindowDragPointer, e.Pointer))
             {
                 ReleasePointerCapture(e.Pointer, "rejected slider press");
@@ -2306,83 +2304,42 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         grid.Children.Add(button);
     }
 
-    private Border BuildUndockButton(
+    private FlyoutUndockButtonController BuildUndockButton(
         FlyoutControlPalette p,
         FanFlyoutVisualGeneration generation)
     {
-        TextBlock text = IconText(UndockButtonGlyph(), p, Layout.UndockFontSize);
-        Border button = new()
-        {
-            Width = Layout.HeaderButtonWidth,
-            Height = Layout.HeaderButtonHeight,
-            CornerRadius = Rounded(Layout.HeaderButtonCornerRadius),
-            Background = Brushes.Transparent,
-            Child = text,
-            Cursor = _settings.AllowFlyoutUndock
-                ? TrayAppDotNETCursors.Hand
-                : TrayAppDotNETCursors.Arrow,
-            IsEnabled = _settings.AllowFlyoutUndock
-        };
-
-        generation.UndockButtonGlyph = text;
-        TrayAppDotNETToolTip.SetTip(button, UndockButtonTooltip());
-        TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-
-        bool pointerInside = false;
-        button.PointerEntered += (_, _) =>
-        {
-            pointerInside = true;
-            if (!_isDraggingWindow && button.IsEnabled)
-                button.Background = TrayAppDotNETFlyoutUI.Brush(p.Hover);
-        };
-        button.PointerExited += (_, _) =>
-        {
-            pointerInside = false;
-            if (!_isDraggingWindow)
-                button.Background = Brushes.Transparent;
-        };
-        button.PointerPressed += (_, e) =>
-        {
-            if (!button.IsEnabled) return;
-            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
-            if (HasCapturedPointer)
+        FlyoutUndockButtonController controller = generation.Resources.Own(
+            new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
             {
-                e.Handled = true;
-                return;
-            }
-            pointerInside = true;
-            BeginUndockButtonDrag(button, e);
-            button.Background = TrayAppDotNETFlyoutUI.Brush(p.Pressed);
-            e.Handled = true;
-        };
-        button.PointerMoved += (_, e) =>
-        {
-            if (!_undockButtonPointerCaptured || !ReferenceEquals(_capturedUndockPointer, e.Pointer)) return;
-            ContinueUndockButtonDrag(button, e);
-            e.Handled = true;
-        };
-        button.PointerReleased += (_, e) =>
-        {
-            if (!_undockButtonPointerCaptured
-                || !ReferenceEquals(_capturedUndockPointer, e.Pointer)
-                || e.InitialPressMouseButton != MouseButton.Left)
-            {
-                return;
-            }
-            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(button, e);
-            FinishUndockButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: releasedInside);
-            button.Background = releasedInside ? TrayAppDotNETFlyoutUI.Brush(p.Hover) : Brushes.Transparent;
-            e.Handled = true;
-        };
-        button.PointerCaptureLost += (_, e) =>
-        {
-            if (!_undockButtonPointerCaptured || !ReferenceEquals(_capturedUndockPointer, e.Pointer)) return;
-            if (_isResettingPointerGestures || _isPublishingVisualGeneration) return;
-            FinishUndockButtonDrag(e.Pointer, commitDrag: _undockButtonDragOccurred, clickWhenNotDragged: false);
-            button.Background = pointerInside ? TrayAppDotNETFlyoutUI.Brush(p.Hover) : Brushes.Transparent;
-        };
-
-        return button;
+                Width = Layout.HeaderButtonWidth,
+                Height = Layout.HeaderButtonHeight,
+                FontSize = Layout.UndockFontSize,
+                FontWeight = FontWeight.Normal,
+                CornerRadius = Rounded(Layout.HeaderButtonCornerRadius),
+                IsEnabled = _settings.AllowFlyoutUndock,
+                IsVisible = _settings.AllowFlyoutUndock,
+                Owner = this,
+                Docking = _dockingController,
+                Palette = p,
+                CanStartInteraction = () =>
+                {
+                    if (WindowResources.IsDisposed || _isResettingPointerGestures || _isPublishingVisualGeneration)
+                        return false;
+                    if (!ReferenceEquals(_activeVisualGeneration, generation)) return false;
+                    return !HasCapturedPointer;
+                },
+                DraggingChanged = isDragging => _isDraggingWindow = isDragging,
+                InteractionCompleted = _ =>
+                {
+                    if (WindowResources.IsDisposed || !ReferenceEquals(_activeVisualGeneration, generation)) return;
+                    FlushPendingFanRebuild();
+                },
+                UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
+                RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
+                DragThreshold = Layout.DragThreshold
+            }));
+        generation.UndockButtonController = controller;
+        return controller;
     }
 
     private Border BuildConfirmOverlay(
@@ -4189,14 +4146,10 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (_isResettingPointerGestures) return;
 
-        IPointer? undockPointer = _capturedUndockPointer;
-        _capturedUndockPointer = null;
         IPointer? windowPointer = _capturedWindowDragPointer;
         _capturedWindowDragPointer = null;
         IPointer? sliderPointer = _capturedSliderPointer;
         _capturedSliderPointer = null;
-        _undockButtonPointerCaptured = false;
-        _undockButtonDragOccurred = false;
         _isDraggingWindow = false;
         _isCompletingDrag = false;
         _activeSliderDrags = 0;
@@ -4204,6 +4157,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _isResettingPointerGestures = true;
         try
         {
+            UndockButtonController?.CancelInteraction();
             CancelDrag();
         }
         catch (Exception exception)
@@ -4213,14 +4167,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
         finally
         {
-            ReleasePointerCapture(undockPointer, "undock drag");
-            if (!ReferenceEquals(windowPointer, undockPointer))
-                ReleasePointerCapture(windowPointer, "window drag");
-            if (!ReferenceEquals(sliderPointer, undockPointer)
-                && !ReferenceEquals(sliderPointer, windowPointer))
-            {
+            ReleasePointerCapture(windowPointer, "window drag");
+            if (!ReferenceEquals(sliderPointer, windowPointer))
                 ReleasePointerCapture(sliderPointer, "slider drag");
-            }
             _isResettingPointerGestures = false;
         }
     }
@@ -5348,7 +5297,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             return;
         }
 
-        if (_isUndocked && !_settings.AllowFlyoutUndock)
+        if (_dockingController.IsUndocked && !_settings.AllowFlyoutUndock)
         {
             Redock();
             return;
@@ -5365,12 +5314,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         || _draggedGroupCell != null
         || _draggedProbeCard != null
         || _isDraggingWindow
-        || _undockButtonPointerCaptured;
+        || UndockButtonController?.IsPointerCaptured == true;
 
     private bool HasCapturedPointer =>
         _capturedCardDragPointer != null
         || _capturedSliderPointer != null
-        || _capturedUndockPointer != null
+        || UndockButtonController?.CapturedPointer != null
         || _capturedWindowDragPointer != null;
 
     /// <summary>Queues one coalesced fan rebuild and defers hidden warm-window churn.</summary>
@@ -5432,7 +5381,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// <summary>Runs a deferred rebuild after pointer gestures complete.</summary>
     private void FlushPendingFanRebuild()
     {
-        if (!_pendingFanRebuild || IsPointerGestureActive) return;
+        if (IsPointerGestureActive) return;
+        _dockingController.RedockIfUndockingDisabled();
+        if (!_pendingFanRebuild) return;
         if (!IsVisible && !IsWarmPriming) return;
 
         ExecuteFanRebuild(reposition: true);
@@ -5627,125 +5578,39 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private static string? NormalizeGroupName(string? groupName) =>
         string.IsNullOrWhiteSpace(groupName) ? null : groupName;
 
-    private void ToggleUndock()
+    private void OnDockStateChanged(FlyoutDockStateChange change)
     {
-        if (_undockButtonDragOccurred)
-        {
-            _undockButtonDragOccurred = false;
-            return;
-        }
-
-        if (_isUndocked) Redock();
-        else UndockToSavedPosition();
-    }
-
-    private void UndockToSavedPosition()
-    {
-        _isUndocked = true;
-        _settings.FlyoutUndocked = true;
-        _settings.Save();
-        if (_settings.FlyoutHasSavedPosition)
-            Position = new PixelPoint((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
-        UpdateUndockButtonVisual();
+        UndockButtonController?.UpdateVisual();
         OnPropertyChanged(nameof(IsUndocked));
-    }
-
-    private void UpdateUndockButtonVisual()
-    {
-        TextBlock? glyph = UndockButtonGlyphControl;
-        if (glyph != null)
-            GlyphApplicator.ApplyTo(glyph, UndockButtonGlyph());
-        Border? button = UndockButtonControl;
-        if (button != null)
-            TrayAppDotNETToolTip.SetTip(button, UndockButtonTooltip());
-    }
-
-    private Glyph UndockButtonGlyph() =>
-        _isUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
-
-    private string UndockButtonTooltip() =>
-        _isUndocked ? "Redock" : "Undock";
-
-    private void BeginUndockButtonDrag(Control source, PointerPressedEventArgs e)
-    {
-        (PixelPoint docked, int snap) = CaptureDockedPosition();
-        PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
-        _dragHelper.BeginDrag(pointer, Position, docked, snap);
-        _undockButtonPointerCaptured = true;
-        _undockButtonDragOccurred = false;
-        _isDraggingWindow = true;
-        CapturePointerOrRollback(
-            e.Pointer,
-            source,
-            ref _capturedUndockPointer,
-            "undock drag",
-            () =>
-            {
-                _undockButtonPointerCaptured = false;
-                _undockButtonDragOccurred = false;
-                _isDraggingWindow = false;
-            });
-    }
-
-    private void ContinueUndockButtonDrag(Control source, PointerEventArgs e)
-    {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        switch (change)
         {
-            FinishUndockButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: false);
-            return;
+            case FlyoutDockStateChange.Redocked:
+                QueuePositionNearTray();
+                break;
+            case FlyoutDockStateChange.Undocked:
+            case FlyoutDockStateChange.UndockedFromDrag:
+            case FlyoutDockStateChange.PositionSaved:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }
-
-        PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
-        PixelPoint natural = _dragHelper.ComputeNatural(pointer);
-
-        if (!_undockButtonDragOccurred)
-        {
-            double thresholdPixels = Layout.DragThreshold * RenderScaling;
-            if (!_dragHelper.ExceedsThreshold(natural, thresholdPixels)) return;
-            _undockButtonDragOccurred = true;
-            _isUndocked = true;
-            UpdateUndockButtonVisual();
-            OnPropertyChanged(nameof(IsUndocked));
-        }
-
-        _dragHelper.ApplyDragPosition(this, natural);
-    }
-
-    private void FinishUndockButtonDrag(IPointer? pointer, bool commitDrag, bool clickWhenNotDragged)
-    {
-        bool dragOccurred = _undockButtonDragOccurred;
-        IPointer? capturedPointer = _capturedUndockPointer ?? pointer;
-        _capturedUndockPointer = null;
-        _undockButtonPointerCaptured = false;
-        _undockButtonDragOccurred = false;
-        _isDraggingWindow = false;
-        ReleasePointerCapture(capturedPointer, "undock drag");
-
-        if (dragOccurred)
-        {
-            if (commitDrag) CommitDragPosition();
-            FlushPendingFanRebuild();
-            return;
-        }
-
-        if (clickWhenNotDragged) ToggleUndock();
-        FlushPendingFanRebuild();
     }
 
     private void OnRootPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!_isUndocked || ConfirmOverlay?.IsVisible == true) return;
+        if (!_dockingController.IsUndocked || ConfirmOverlay?.IsVisible == true) return;
         if (HasCapturedPointer)
         {
             e.Handled = true;
             return;
         }
-        if (_undockButtonPointerCaptured || _draggedFan != null || _draggedGroupCell != null
+        if (UndockButtonController?.IsPointerCaptured == true
+            || _draggedFan != null || _draggedGroupCell != null
             || _draggedProbeCard != null) return;
         if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         if (sender is not Control control) return;
-        (PixelPoint docked, int snap) = CaptureDockedPosition();
+        (PixelPoint docked, int snap) = _dockingController.CaptureDockedPosition();
         PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
         _dragHelper.BeginDrag(pointer, Position, docked, snap);
         _isDraggingWindow = true;
@@ -5760,7 +5625,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void OnRootPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_isDraggingWindow || _undockButtonPointerCaptured || sender is not Control control) return;
+        if (!_isDraggingWindow || UndockButtonController?.IsPointerCaptured == true
+                              || sender is not Control control)
+            return;
         if (!ReferenceEquals(_capturedWindowDragPointer, e.Pointer)) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
         {
@@ -5776,7 +5643,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void OnRootPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (!_isDraggingWindow || _undockButtonPointerCaptured) return;
+        if (!_isDraggingWindow || UndockButtonController?.IsPointerCaptured == true) return;
         if (!ReferenceEquals(_capturedWindowDragPointer, e.Pointer)) return;
         EndWindowDrag(e.Pointer);
         e.Handled = true;
@@ -5791,7 +5658,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             _isDraggingWindow = false;
             return;
         }
-        if (_isDraggingWindow) CommitDragPosition();
+        if (_isDraggingWindow) _dockingController.CommitDragPosition();
         _isDraggingWindow = false;
         FlushPendingFanRebuild();
     }
@@ -5802,29 +5669,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _capturedWindowDragPointer = null;
         _isDraggingWindow = false;
         ReleasePointerCapture(capturedPointer, "window drag");
-        CommitDragPosition();
+        _dockingController.CommitDragPosition();
         FlushPendingFanRebuild();
-    }
-
-    private void CommitDragPosition()
-    {
-        if (_dragHelper.IsCurrentlySnapped) Redock();
-        else SaveCurrentFlyoutPosition();
-    }
-
-    private void SaveCurrentFlyoutPosition()
-    {
-        if (!_isUndocked) return;
-        _settings.FlyoutUndocked = true;
-        _settings.FlyoutHasSavedPosition = true;
-        _settings.FlyoutLeft = Position.X;
-        _settings.FlyoutTop = Position.Y;
-        _settings.Save();
     }
 
     private void PositionNearTray()
     {
-        Position = ResolvePosition(_lastTrayIcon);
+        Position = _dockingController.ResolvePosition();
         PositionFanPropertiesWindows();
     }
 
@@ -5856,11 +5707,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }, DispatcherPriority.Loaded);
     }
 
-    private PixelPoint ResolvePosition(TrayAppDotNETShellTrayIcon? trayIcon)
+    private PixelPoint ResolveSavedPosition(PixelPoint savedPosition)
     {
-        if (_isUndocked && _settings.FlyoutHasSavedPosition)
-            return new PixelPoint((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
-        return ResolveDockedPosition(trayIcon);
+        return TrayPopupPositioning.ClampToSavedMonitor(
+            Screens,
+            ResolveWorkArea(_lastTrayIcon),
+            CurrentPixelSize(),
+            savedPosition,
+            EdgePadding);
     }
 
     private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
@@ -5880,16 +5734,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             EdgePadding);
     }
 
-    private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)
-    {
-        int width = CurrentPixelWidth();
-        int height = CurrentPixelHeight();
-        int minLeft = workArea.X + EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
-        int minTop = workArea.Y + EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
-        return new PixelPoint(Math.Clamp(target.X, minLeft, maxLeft), Math.Clamp(target.Y, minTop, maxTop));
-    }
+    private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
 
     private int CurrentPixelWidth() =>
         Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
@@ -5897,12 +5742,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private int CurrentPixelHeight() =>
         Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
 
-    private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition()
+    private int ResolveSnapTolerance()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        int snapTolerance = Math.Max(PixelMinSize,
+        return Math.Max(PixelMinSize,
             (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * Layout.SnapTolerancePercent));
-        return (ResolveDockedPosition(_lastTrayIcon), snapTolerance);
     }
 
     private PixelRect ResolveWorkArea(TrayAppDotNETShellTrayIcon? trayIcon)
@@ -6076,8 +5920,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         public Canvas DragOverlay { get; set; } = null!;
         public ScrollViewer ScrollViewer { get; set; } = null!;
         public Border RootCard { get; set; } = null!;
-        public Border UndockButton { get; set; } = null!;
-        public TextBlock UndockButtonGlyph { get; set; } = null!;
+        public FlyoutUndockButtonController UndockButtonController { get; set; } = null!;
         public TextBlock? NonFunctioningFansButtonGlyph { get; set; }
         public TextBlock? FanDragDebugVisualsButtonGlyph { get; set; }
         public Border ConfirmOverlay { get; set; } = null!;

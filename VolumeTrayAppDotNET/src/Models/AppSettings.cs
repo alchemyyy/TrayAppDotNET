@@ -1,5 +1,6 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
+using TrayAppDotNETCommon.UI;
 using Color = Avalonia.Media.Color;
 
 namespace VolumeTrayAppDotNET.Models;
@@ -26,7 +27,7 @@ namespace VolumeTrayAppDotNET.Models;
 ///   Changed event still fires for non-binding consumers.
 /// </summary>
 [XmlRoot("AppSettings")]
-public class AppSettings : AppSettingsCommon
+public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
 {
     // When the user promotes a device to default through this app (ctrl+click on the device icon
     // or via the tray menu), also promote it to the communications-role default. Strictly a

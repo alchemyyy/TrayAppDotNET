@@ -576,6 +576,12 @@ Requires at least one slider in the flyout to be set to curve mode.</value>
   <data name="Settings_Flyout_RestoreUndockState_Description" xml:space="preserve">
     <value>When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked.</value>
   </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Description" xml:space="preserve">
+    <value>Keep the undocked flyout fully inside one monitor's work area when it restores or repositions.</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_Title" xml:space="preserve">
+    <value>Keep undocked flyout on screen</value>
+  </data>
   <data name="Settings_Flyout_RestoreUndockState_Title" xml:space="preserve">
     <value>Restore undock state on startup</value>
   </data>

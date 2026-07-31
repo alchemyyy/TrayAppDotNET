@@ -27,7 +27,15 @@ public sealed partial class BrightnessSettingsWindow
                 "Show the undock button in the flyout. When off, the flyout always stays anchored to the tray."),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
-            p));
+            p,
+            afterSave: () => RebuildShell(BrightnessSettingsPage.Flyout)));
+        stack.Children.Add(Maybe(_settings.AllowFlyoutUndock, BoolCard(
+            L("Settings_Flyout_ClampUndockedToScreen_Title", "Keep undocked flyout on screen"),
+            L("Settings_Flyout_ClampUndockedToScreen_Description",
+                "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
+            _settings.ClampUndockedFlyoutToScreen,
+            v => _settings.ClampUndockedFlyoutToScreen = v,
+            p)));
         stack.Children.Add(BoolCard(
             L("Settings_Flyout_ShowMonitorPowerButtons_Title", "Show monitor power buttons"),
             L("Settings_Flyout_ShowMonitorPowerButtons_Description",

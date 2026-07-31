@@ -51,8 +51,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private static readonly CornerRadius TitleBarTopCornerRadius = new(7, 7, 0, 0);
     private static readonly CornerRadius TitleBarBottomCornerRadius = new(0, 0, 7, 7);
     private static readonly CornerRadius TitleBarButtonCornerRadius = new(4);
-    private static readonly Color BatteryBarFill = Color.FromRgb(245, 242, 232);
-
     private enum FlyoutPowerMode
     {
         Ultimate,
@@ -64,13 +62,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private readonly AppSettings _settings;
     private readonly Action _openSettings;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
+    private readonly FlyoutDockingController _dockingController;
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private FlyoutUndockButtonController? _undockButtonController;
     private Control? _chromeCaptureOwner;
     private IPointer? _chromeCapturedPointer;
     private bool _isPowerModeChanging;
     private bool _isEnergySaverChanging;
-    private bool _isUndocked;
     private bool _isDraggingWindow;
     private bool _isRebuilding;
     private bool _rebuildPending;
@@ -82,6 +80,17 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         _batteryMonitor = batteryMonitor;
         _settings = settings;
         _openSettings = openSettings;
+        _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
+        {
+            Settings = _settings,
+            DragHelper = _dragHelper,
+            CurrentPosition = () => Position,
+            SetPosition = position => Position = position,
+            ResolveDockedPosition = () => ResolveDockedPosition(_lastTrayIcon),
+            ResolveSavedPosition = ResolveSavedPosition,
+            ResolveSnapTolerance = ResolveSnapTolerance,
+            StateChanged = OnDockStateChanged
+        });
 
         Width = FlyoutWidth;
         WindowDecorations = WindowDecorations.None;
@@ -91,14 +100,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         CanResize = false;
         Topmost = true;
         SizeToContent = SizeToContent.Height;
-
-        _isUndocked = _settings is
-        {
-            AllowFlyoutUndock: true,
-            RestoreFlyoutUndockedOnStartup: true,
-            FlyoutUndocked: true,
-            FlyoutHasSavedPosition: true
-        };
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
         WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
@@ -115,8 +116,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
-        if (_isUndocked && !_settings.AllowFlyoutUndock)
-            Redock();
+        _dockingController.RedockIfUndockingDisabled();
         ApplyWorkAreaMaxHeight();
         Rebuild();
 
@@ -148,16 +148,11 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     public void Redock()
     {
-        if (_isClosed || !_isUndocked) return;
-        _isUndocked = false;
-        _settings.FlyoutUndocked = false;
-        _settings.Save();
-        UpdateUndockButtonVisual();
-        Rebuild();
-        QueuePositionNearTray();
+        if (_isClosed) return;
+        _dockingController.Redock();
     }
 
-    protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
+    protected override bool ShouldAutoHideWhenDeactivated => !_dockingController.IsUndocked;
 
     protected override void HideFlyout() => Hide();
 
@@ -190,7 +185,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         Dispatcher.UIThread.Post(() =>
         {
             if (_isClosed || cancellationToken.IsCancellationRequested) return;
-            if (_isUndocked && !_settings.AllowFlyoutUndock)
+            if (_dockingController.IsUndocked && !_settings.AllowFlyoutUndock)
             {
                 Redock();
                 return;
@@ -290,7 +285,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             title.Margin = new Thickness(0, BatteryTitleTopOffset, 0, 0);
             body.Children.Add(title);
 
-            body.Children.Add(BatteryBar(snapshot, p));
+            body.Children.Add(BatteryBar(snapshot, p, theme.ResolveBatteryFill(snapshot, isLight)));
 
             TextBlock status = Text(BuildStatus(snapshot), p, 14);
             status.HorizontalAlignment = HorizontalAlignment.Center;
@@ -570,14 +565,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         FlyoutUndockButtonController controller = new(new FlyoutUndockButtonOptions
         {
             Owner = this,
-            DragHelper = _dragHelper,
+            Docking = _dockingController,
             Palette = p,
-            CaptureDockedPosition = CaptureDockedPosition,
-            IsUndocked = () => _isUndocked,
-            SetUndockedFromDrag = SetUndockedFromDrag,
-            ToggleUndocked = ToggleUndocked,
-            CommitDragPosition = CommitDragPosition,
             DraggingChanged = OnUndockDraggingChanged,
+            InteractionCompleted = _ => FlushPendingRebuild(),
             UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
             RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
             Width = TitleBarUndockButtonSize,
@@ -608,16 +599,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private void OnUndockDraggingChanged(bool isDragging)
     {
         _isDraggingWindow = isDragging;
-        if (isDragging || _isClosed) return;
-
-        CancellationToken cancellationToken = WindowResources.CancellationToken;
-        Dispatcher.UIThread.Post(
-            () =>
-            {
-                if (_isClosed || cancellationToken.IsCancellationRequested) return;
-                FlushPendingRebuild();
-            },
-            DispatcherPriority.Background);
     }
 
     private static void UseDefaultGlyphRendering(TextBlock glyph)
@@ -630,20 +611,16 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private CornerRadius Rounded(CornerRadius radius) =>
         _settings.EnableRoundedCorners ? radius : new CornerRadius(0);
 
-    private void PositionNearTray() => Position = ResolvePosition(_lastTrayIcon);
+    private void PositionNearTray() => Position = _dockingController.ResolvePosition();
 
-    private PixelPoint ResolvePosition(TrayAppDotNETShellTrayIcon? trayIcon)
+    private PixelPoint ResolveSavedPosition(PixelPoint savedPosition)
     {
-        if (_isUndocked && _settings.FlyoutHasSavedPosition)
-        {
-            PixelPoint saved = new((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
-            if (!_settings.ClampUndockedFlyoutToScreen) return saved;
-
-            PixelRect savedWorkArea = TrayWorkArea.Resolve(Screens, saved, ResolveWorkArea(trayIcon));
-            return ClampWindowPosition(saved, savedWorkArea);
-        }
-
-        return ResolveDockedPosition(trayIcon);
+        return TrayPopupPositioning.ClampToSavedMonitor(
+            Screens,
+            ResolveWorkArea(_lastTrayIcon),
+            CurrentPixelSize(),
+            savedPosition,
+            EdgePadding);
     }
 
     private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
@@ -673,16 +650,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return TrayWorkArea.Resolve(Screens, anchor, new PixelRect(0, 0, 1920, 1080));
     }
 
-    private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)
-    {
-        int width = CurrentPixelWidth();
-        int height = CurrentPixelHeight();
-        int minLeft = workArea.X + EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
-        int minTop = workArea.Y + EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
-        return new PixelPoint(Math.Clamp(target.X, minLeft, maxLeft), Math.Clamp(target.Y, minTop, maxTop));
-    }
+    private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
 
     private int CurrentPixelWidth() =>
         Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
@@ -696,9 +664,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         MaxHeight = workArea.Height / RenderScaling - 2 * EdgePadding;
     }
 
-    private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition() =>
-        (ResolveDockedPosition(_lastTrayIcon), ResolveSnapTolerance());
-
     private int ResolveSnapTolerance()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
@@ -707,54 +672,24 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * SnapTolerancePercent));
     }
 
-    private void ToggleUndocked()
+    private void OnDockStateChanged(FlyoutDockStateChange change)
     {
-        if (_isUndocked)
+        UpdateUndockButtonVisual();
+        switch (change)
         {
-            Redock();
-            return;
+            case FlyoutDockStateChange.Undocked:
+                Rebuild();
+                break;
+            case FlyoutDockStateChange.Redocked:
+                Rebuild();
+                QueuePositionNearTray();
+                break;
+            case FlyoutDockStateChange.UndockedFromDrag:
+            case FlyoutDockStateChange.PositionSaved:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }
-
-        UndockToSavedPosition();
-    }
-
-    private void SetUndockedFromDrag()
-    {
-        _isUndocked = true;
-        UpdateUndockButtonVisual();
-    }
-
-    private void CommitDragPosition()
-    {
-        if (_dragHelper.IsCurrentlySnapped)
-        {
-            Redock();
-            return;
-        }
-
-        SaveCurrentFlyoutPosition();
-    }
-
-    private void UndockToSavedPosition()
-    {
-        _isUndocked = true;
-        _settings.FlyoutUndocked = true;
-        _settings.Save();
-        if (_settings.FlyoutHasSavedPosition)
-            Position = ResolvePosition(_lastTrayIcon);
-        UpdateUndockButtonVisual();
-        Rebuild();
-    }
-
-    private void SaveCurrentFlyoutPosition()
-    {
-        if (!_isUndocked) return;
-        _settings.FlyoutUndocked = true;
-        _settings.FlyoutHasSavedPosition = true;
-        _settings.FlyoutLeft = Position.X;
-        _settings.FlyoutTop = Position.Y;
-        _settings.Save();
-        UpdateUndockButtonVisual();
     }
 
     private void UpdateUndockButtonVisual() => _undockButtonController?.UpdateVisual();
@@ -778,13 +713,13 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void OnChromePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_isClosed || !_isUndocked) return;
+        if (_isClosed || !_dockingController.IsUndocked) return;
         if (_undockButtonController?.IsPointerCaptured == true) return;
         if (TrayAppDotNETFlyoutUI.IsInteractiveDragSource(e.Source as Visual)) return;
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
         if (sender is not Control control) return;
 
-        (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
+        (PixelPoint dockedPosition, int snapTolerance) = _dockingController.CaptureDockedPosition();
         PixelPoint pointer = control.PointToScreen(e.GetPosition(control));
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
         _chromeCaptureOwner = control;
@@ -807,7 +742,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private void OnChromePointerMoved(object? sender, PointerEventArgs e)
     {
-        if (!_isDraggingWindow || !_isUndocked || _undockButtonController?.IsPointerCaptured == true) return;
+        if (!_isDraggingWindow || !_dockingController.IsUndocked
+                              || _undockButtonController?.IsPointerCaptured == true)
+            return;
         if (sender is not Control control) return;
         if (!ReferenceEquals(_chromeCaptureOwner, control)) return;
         if (!e.GetCurrentPoint(control).Properties.IsLeftButtonPressed)
@@ -840,7 +777,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         _chromeCapturedPointer = null;
         _isDraggingWindow = false;
         if (commit)
-            CommitDragPosition();
+            _dockingController.CommitDragPosition();
         FlushPendingRebuild();
     }
 
@@ -858,7 +795,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             TADNLog.Log($"BatteryFlyoutWindow pointer release failed: {exception.Message}");
         }
 
-        if (commit) CommitDragPosition();
+        if (commit) _dockingController.CommitDragPosition();
         FlushPendingRebuild();
     }
 
@@ -1030,7 +967,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return row;
     }
 
-    private static Border BatteryBar(BatterySnapshot snapshot, SettingsPalette p)
+    private static Border BatteryBar(BatterySnapshot snapshot, SettingsPalette p, Color fill)
     {
         Grid bar = new()
         {
@@ -1054,7 +991,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Height = BatteryBarHeight - 2,
             Margin = new Thickness(1),
             HorizontalAlignment = HorizontalAlignment.Left,
-            Background = Brush(BatteryBarFill),
+            Background = Brush(fill),
             CornerRadius = new CornerRadius(3)
         });
 

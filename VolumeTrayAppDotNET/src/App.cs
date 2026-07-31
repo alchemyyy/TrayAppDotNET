@@ -93,6 +93,7 @@ internal sealed class VolumeAvaloniaApp : Application
         StartServices();
         CreateTrayIcon();
         RequestTrayRefresh();
+        RestoreStartupUndockedFlyoutIfRequested();
         ScheduleKeepWarmPriming();
         base.OnFrameworkInitializationCompleted();
     }
@@ -692,6 +693,15 @@ internal sealed class VolumeAvaloniaApp : Application
         _volumeFlyout = flyout;
         flyout.Closed += OnVolumeFlyoutClosed;
         return flyout;
+    }
+
+    private void RestoreStartupUndockedFlyoutIfRequested()
+    {
+        if (_audioManager == null || _settings == null || _trayIcon == null) return;
+        if (!FlyoutDockingController.ShouldRestoreOnStartup(_settings)) return;
+
+        _volumeFlyout ??= VolumeFlyoutWarmSlot.TakeOrCreate(CreateManagedVolumeFlyout);
+        _volumeFlyout.ShowAt(_trayIcon);
     }
 
     private TrayAppDotNETWarmWindowSlot<VolumeFlyoutWindow> VolumeFlyoutWarmSlot =>

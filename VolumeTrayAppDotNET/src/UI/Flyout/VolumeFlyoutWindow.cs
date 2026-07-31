@@ -40,7 +40,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private readonly AppVolumeFeedbackPlayer? _feedback;
     private readonly string? _ownAppID;
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
-    private bool _isUndocked;
     private bool _isRebuilding;
     private bool _isUpdateDownloadInFlight;
     private bool _isUpdateDialogOpen;
@@ -51,6 +50,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private VolumeFlyoutContentGeneration? _activeContent;
     private VolumeFlyoutContentGeneration? _buildingContent;
     private readonly FlyoutWindowDragHelper _dragHelper = new();
+    private FlyoutDockingController? _dockingController;
 
     public VolumeFlyoutWindow()
     {
@@ -73,11 +73,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
-        _isUndocked = _settings is
+        _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
         {
-            AllowFlyoutUndock: true, RestoreFlyoutUndockedOnStartup: true, FlyoutUndocked: true,
-            FlyoutHasSavedPosition: true
-        };
+            Settings = _settings,
+            DragHelper = _dragHelper,
+            CurrentPosition = () => Position,
+            SetPosition = position => Position = position,
+            ResolveDockedPosition = () => ResolveDockedPosition(_lastTrayIcon),
+            ResolveSavedPosition = ResolveSavedPosition,
+            ResolveSnapTolerance = ResolveSnapTolerance,
+            StateChanged = OnDockStateChanged
+        });
 
         _settings.Changed += OnSettingsChanged;
         WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
@@ -118,19 +124,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private FlyoutAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Flyout layout resources have not been loaded.");
 
+    private FlyoutDockingController Docking =>
+        _dockingController ?? throw new InvalidOperationException("Flyout docking has not been initialized.");
+
     private int EdgePadding => (int)Math.Round(Layout.EdgePadding);
 
     private int PixelMinSize => (int)Math.Round(Layout.PixelMinSize);
 
     public void Redock()
     {
-        if (_isClosed || !_isUndocked) return;
-        _isUndocked = false;
-        UpdateUndockButtonVisual();
-        _settings.FlyoutUndocked = false;
-        _settings.Save();
-        Rebuild();
-        QueuePositionNearTray();
+        if (_isClosed) return;
+        Docking.Redock();
     }
 
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
@@ -185,7 +189,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     protected override bool HasOpenChildWindow => IsFlyoutMenuOpen || _isUpdateDialogOpen;
 
-    protected override bool ShouldAutoHideWhenDeactivated => !_isUndocked;
+    protected override bool ShouldAutoHideWhenDeactivated => _dockingController?.IsUndocked != true;
 
     protected override void HideFlyout() => Hide();
 
@@ -195,7 +199,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (_isClosed) return;
 
-        if (_isUndocked && !_settings.AllowFlyoutUndock)
+        if (Docking.IsUndocked && !_settings.AllowFlyoutUndock)
         {
             Redock();
             return;
@@ -213,7 +217,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
         QueueRebuild();
 
-    private void PositionNearTray() => Position = ResolvePosition(_lastTrayIcon);
+    private void PositionNearTray() => Position = Docking.ResolvePosition();
 
     private PixelPoint OffscreenPosition() => new(Layout.OffscreenPosition, Layout.OffscreenPosition);
 
@@ -236,18 +240,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }, DispatcherPriority.Loaded);
     }
 
-    private PixelPoint ResolvePosition(TrayAppDotNETShellTrayIcon? trayIcon)
+    private PixelPoint ResolveSavedPosition(PixelPoint savedPosition)
     {
-        if (_isUndocked && _settings.FlyoutHasSavedPosition)
-        {
-            PixelPoint saved = new((int)Math.Round(_settings.FlyoutLeft), (int)Math.Round(_settings.FlyoutTop));
-            if (!_settings.ClampUndockedFlyoutToScreen) return saved;
-
-            PixelRect savedWorkArea = TrayWorkArea.Resolve(Screens, saved, ResolveWorkArea(trayIcon));
-            return ClampWindowPosition(saved, savedWorkArea);
-        }
-
-        return ResolveDockedPosition(trayIcon);
+        return TrayPopupPositioning.ClampToSavedMonitor(
+            Screens,
+            ResolveWorkArea(_lastTrayIcon),
+            CurrentPixelSize(),
+            savedPosition,
+            EdgePadding);
     }
 
     private PixelPoint ResolveDockedPosition(TrayAppDotNETShellTrayIcon? trayIcon)
@@ -268,20 +268,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             EdgePadding);
     }
 
-    private PixelPoint ClampWindowPosition(PixelPoint target, PixelRect workArea)
-    {
-        int width = CurrentPixelWidth();
-        int height = CurrentPixelHeight();
-
-        int minLeft = workArea.X + EdgePadding;
-        int maxLeft = Math.Max(minLeft, workArea.Right - width - EdgePadding);
-        int minTop = workArea.Y + EdgePadding;
-        int maxTop = Math.Max(minTop, workArea.Bottom - height - EdgePadding);
-
-        return new PixelPoint(
-            Math.Clamp(target.X, minLeft, maxLeft),
-            Math.Clamp(target.Y, minTop, maxTop));
-    }
+    private PixelSize CurrentPixelSize() => new(CurrentPixelWidth(), CurrentPixelHeight());
 
     private int CurrentPixelWidth() =>
         Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Width, Width) * RenderScaling));
@@ -289,12 +276,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private int CurrentPixelHeight() =>
         Math.Max(PixelMinSize, (int)Math.Ceiling(Math.Max(Bounds.Height, MinHeight) * RenderScaling));
 
-    private (PixelPoint DockedPosition, int SnapTolerance) CaptureDockedPosition()
+    private int ResolveSnapTolerance()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
-        int snapTolerance = Math.Max(PixelMinSize,
+        return Math.Max(PixelMinSize,
             (int)Math.Round(Math.Min(workArea.Width, workArea.Height) * Layout.SnapTolerancePercent));
-        return (ResolveDockedPosition(_lastTrayIcon), snapTolerance);
     }
 
     private PixelRect ResolveWorkArea(TrayAppDotNETShellTrayIcon? trayIcon)
@@ -361,7 +347,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void RebuildCore()
     {
         if (_isClosed || _layout == null) return;
-        if (_activeContent?.ActiveVolumeSliderDragCount > 0 || _isRebuilding)
+        if (IsContentInteractionActive() || _isRebuilding)
         {
             _rebuildPending = true;
             return;
@@ -535,7 +521,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             return;
         }
 
-        if (_activeContent?.ActiveVolumeSliderDragCount > 0 || _isRebuilding)
+        if (IsContentInteractionActive() || _isRebuilding)
         {
             _rebuildPending = true;
             return;
@@ -585,12 +571,18 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void FlushPendingRebuild()
     {
-        if (_isClosed || !_rebuildPending || _isRebuilding || _activeContent?.ActiveVolumeSliderDragCount > 0)
+        if (_isClosed || !_rebuildPending || _isRebuilding || IsContentInteractionActive())
             return;
 
         _rebuildPending = false;
         QueueRebuild();
     }
+
+    private bool IsContentInteractionActive() =>
+        _activeContent is { } content
+        && (content.ActiveVolumeSliderDragCount > 0
+            || content.IsDraggingWindow
+            || content.UndockButtonController?.IsPointerCaptured == true);
 
     private void RestoreCellsScrollOffset(VolumeFlyoutContentGeneration content, double offset)
     {
@@ -1828,83 +1820,51 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Border BuildUndockButton(FlyoutPalette p)
     {
-        TextBlock text = Text(UndockButtonGlyph(), p, Layout.HeaderUndockFontSize);
-        text.Foreground = Brush(p.IconForeground);
-        text.HorizontalAlignment = HorizontalAlignment.Center;
-        text.VerticalAlignment = VerticalAlignment.Center;
-        text.LineHeight = Layout.HeaderUndockLineHeight;
-
-        Border button = new()
-        {
-            Width = Layout.HeaderIconButtonWidth,
-            Height = Layout.HeaderIconButtonHeight,
-            Margin = Layout.HeaderIconButtonMargin,
-            CornerRadius = Rounded(Layout.HeaderIconButtonCornerRadius),
-            Background = Brushes.Transparent,
-            Child = text,
-            Cursor = TrayAppDotNETCursors.Hand
-        };
+        FlyoutControlPalette palette = new(
+            p.Foreground,
+            p.SecondaryForeground,
+            p.Border,
+            p.Pressed,
+            p.Pressed,
+            p.ControlBackground,
+            p.Background,
+            p.IconForeground,
+            p.SliderTrack,
+            p.SliderProgress,
+            p.SliderThumb);
         VolumeFlyoutContentGeneration content = BuildingContent;
-        content.UndockButton = button;
-        content.UndockButtonGlyph = text;
-        UpdateUndockButtonVisual(content);
-        TrayAppDotNETToolTip.SuppressWhileEngaged(button);
-
-        bool pointerInside = false;
-        button.PointerEntered += (_, _) =>
-        {
-            pointerInside = true;
-            if (!content.IsDraggingWindow) button.Background = Brush(p.Pressed);
-        };
-        button.PointerExited += (_, _) =>
-        {
-            pointerInside = false;
-            if (!content.IsDraggingWindow) button.Background = Brushes.Transparent;
-        };
-        button.PointerPressed += (_, e) =>
-        {
-            if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
-            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
-
-            pointerInside = true;
-            BeginUndockButtonDrag(content, button, e);
-            button.Background = Brush(p.Pressed);
-            e.Handled = true;
-        };
-        button.PointerMoved += (_, e) =>
-        {
-            if (_isClosed || !content.UndockButtonPointerCaptured) return;
-            ContinueUndockButtonDrag(content, button, e);
-            e.Handled = true;
-        };
-        button.PointerReleased += (_, e) =>
-        {
-            if (_isClosed || !content.UndockButtonPointerCaptured
-                          || e.InitialPressMouseButton != MouseButton.Left)
-                return;
-
-            bool releasedInside = IsPointerInside(button, e);
-            FinishUndockButtonDrag(
-                content,
-                e.Pointer,
-                commitDrag: true,
-                clickWhenNotDragged: releasedInside);
-            button.Background = releasedInside ? Brush(p.Pressed) : Brushes.Transparent;
-            e.Handled = true;
-        };
-        button.PointerCaptureLost += (_, _) =>
-        {
-            if (_isClosed || !content.UndockButtonPointerCaptured) return;
-
-            FinishUndockButtonDrag(
-                content,
-                null,
-                commitDrag: content.UndockButtonDragOccurred,
-                clickWhenNotDragged: false);
-            button.Background = pointerInside ? Brush(p.Pressed) : Brushes.Transparent;
-        };
-
-        return button;
+        FlyoutUndockButtonController controller = content.Resources.Own(
+            new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
+            {
+                Width = Layout.HeaderIconButtonWidth,
+                Height = Layout.HeaderIconButtonHeight,
+                FontSize = Layout.HeaderUndockFontSize,
+                FontWeight = FontWeight.Normal,
+                CornerRadius = Rounded(Layout.HeaderIconButtonCornerRadius),
+                IsVisible = _settings.AllowFlyoutUndock,
+                Owner = this,
+                Docking = Docking,
+                Palette = palette,
+                CanStartInteraction = () =>
+                    !_isClosed
+                    && !content.Resources.IsDisposed
+                    && ReferenceEquals(_activeContent, content),
+                DraggingChanged = dragging => content.IsDraggingWindow = dragging,
+                InteractionCompleted = committedChange =>
+                {
+                    if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content))
+                        return;
+                    if (committedChange == FlyoutDockStateChange.PositionSaved) Rebuild();
+                    FlushPendingRebuild();
+                },
+                UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
+                RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
+                DragThreshold = Layout.DragThreshold
+            }));
+        controller.Glyph.Foreground = Brush(p.IconForeground);
+        controller.Glyph.LineHeight = Layout.HeaderUndockLineHeight;
+        content.UndockButtonController = controller;
+        return controller.Button;
     }
 
     private Border DeviceIconButton(
@@ -2017,14 +1977,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         return button;
     }
 
-    private static bool IsPointerInside(Control control, PointerEventArgs e)
-    {
-        Point point = e.GetPosition(control);
-        return point is { X: >= 0, Y: >= 0 }
-               && point.X <= control.Bounds.Width
-               && point.Y <= control.Bounds.Height;
-    }
-
     /// <summary>
     /// Runs a UI action without letting observer update failures escape Avalonia callbacks.
     /// </summary>
@@ -2048,128 +2000,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         catch (Exception ex) { TADNLog.Log($"VolumeFlyoutWindow UI action failed: {ex.GetType().Name}: {ex.Message}"); }
     }
 
-    private void BeginUndockButtonDrag(
-        VolumeFlyoutContentGeneration content,
-        Control source,
-        PointerPressedEventArgs e)
+    private void OnDockStateChanged(FlyoutDockStateChange change)
     {
-        if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
-
-        (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
-        PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
-
-        _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
-        content.UndockButtonPointerCaptured = true;
-        content.UndockButtonDragOccurred = false;
-        content.IsDraggingWindow = true;
-        content.CapturedPointer = e.Pointer;
-        e.Pointer.Capture(source);
-    }
-
-    private void ContinueUndockButtonDrag(
-        VolumeFlyoutContentGeneration content,
-        Control source,
-        PointerEventArgs e)
-    {
-        if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
-
-        PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
-        if (!properties.IsLeftButtonPressed)
+        _activeContent?.UndockButtonController?.UpdateVisual();
+        switch (change)
         {
-            FinishUndockButtonDrag(content, e.Pointer, commitDrag: true, clickWhenNotDragged: false);
-            return;
+            case FlyoutDockStateChange.Undocked:
+                Rebuild();
+                break;
+            case FlyoutDockStateChange.Redocked:
+                Rebuild();
+                QueuePositionNearTray();
+                break;
+            case FlyoutDockStateChange.UndockedFromDrag:
+            case FlyoutDockStateChange.PositionSaved:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }
-
-        PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
-        PixelPoint natural = _dragHelper.ComputeNatural(pointer);
-
-        if (!content.UndockButtonDragOccurred)
-        {
-            double thresholdPixels = Layout.DragThreshold * RenderScaling;
-            if (!_dragHelper.ExceedsThreshold(natural, thresholdPixels)) return;
-
-            content.UndockButtonDragOccurred = true;
-            _isUndocked = true;
-            UpdateUndockButtonVisual();
-        }
-
-        _dragHelper.ApplyDragPosition(this, natural);
-    }
-
-    private void FinishUndockButtonDrag(
-        VolumeFlyoutContentGeneration content,
-        IPointer? pointer,
-        bool commitDrag,
-        bool clickWhenNotDragged)
-    {
-        bool dragOccurred = content.UndockButtonDragOccurred;
-        bool canCommit = !_isClosed
-                         && !content.Resources.IsDisposed
-                         && ReferenceEquals(_activeContent, content);
-        content.UndockButtonPointerCaptured = false;
-        content.UndockButtonDragOccurred = false;
-        content.IsDraggingWindow = false;
-        IPointer? capturedPointer = pointer ?? content.CapturedPointer;
-        content.CapturedPointer = null;
-        capturedPointer?.Capture(null);
-
-        if (!canCommit) return;
-
-        if (dragOccurred)
-        {
-            if (commitDrag) CommitDragPosition(rebuildAfterSave: true);
-            return;
-        }
-
-        if (clickWhenNotDragged) ToggleUndocked();
-    }
-
-    private void ToggleUndocked()
-    {
-        if (_isClosed) return;
-
-        if (_isUndocked)
-        {
-            Redock();
-            return;
-        }
-
-        UndockToSavedPosition();
-    }
-
-    private void UndockToSavedPosition()
-    {
-        if (_isClosed) return;
-
-        _isUndocked = true;
-        UpdateUndockButtonVisual();
-        _settings.FlyoutUndocked = true;
-        _settings.Save();
-
-        if (_settings.FlyoutHasSavedPosition)
-            Position = ResolvePosition(_lastTrayIcon);
-
-        Rebuild();
-    }
-
-    private Glyph UndockButtonGlyph() =>
-        _isUndocked ? GlyphCatalog.REDOCK : GlyphCatalog.UNDOCK;
-
-    private string UndockButtonTooltip() =>
-        _isUndocked ? L("Flyout_Redock_Tooltip", "Redock") : L("Flyout_Undock_Tooltip", "Undock");
-
-    private void UpdateUndockButtonVisual()
-    {
-        VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content != null) UpdateUndockButtonVisual(content);
-    }
-
-    private void UpdateUndockButtonVisual(VolumeFlyoutContentGeneration content)
-    {
-        if (content.UndockButtonGlyph != null)
-            GlyphApplicator.ApplyTo(content.UndockButtonGlyph, UndockButtonGlyph());
-        if (content.UndockButton != null)
-            TrayAppDotNETToolTip.SetTip(content.UndockButton, UndockButtonTooltip());
     }
 
     /// <summary>Shows or hides disabled playback and recording devices as one flyout action.</summary>
@@ -2731,7 +2579,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         VolumeFlyoutContentGeneration? content = _activeContent;
         if (content == null) return;
-        if (!_isUndocked) return;
+        if (!Docking.IsUndocked) return;
         if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
         if (IsInteractiveDragSource(e.Source)) return;
         if (sender is not Control control) return;
@@ -2747,13 +2595,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (_isClosed || content.Resources.IsDisposed || !ReferenceEquals(_activeContent, content)) return;
 
-        (PixelPoint dockedPosition, int snapTolerance) = CaptureDockedPosition();
+        (PixelPoint dockedPosition, int snapTolerance) = Docking.CaptureDockedPosition();
         PixelPoint pointer = source.PointToScreen(e.GetPosition(source));
 
         _dragHelper.BeginDrag(pointer, Position, dockedPosition, snapTolerance);
         content.IsDraggingWindow = true;
         content.CapturedPointer = e.Pointer;
-        e.Pointer.Capture(source);
+        try
+        {
+            e.Pointer.Capture(source);
+        }
+        catch
+        {
+            content.IsDraggingWindow = false;
+            content.CapturedPointer = null;
+            throw;
+        }
     }
 
     private void OnChromePointerMoved(object? sender, PointerEventArgs e)
@@ -2761,7 +2618,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content is not { IsDraggingWindow: true } || content.UndockButtonPointerCaptured) return;
+        if (content is not { IsDraggingWindow: true }
+            || content.UndockButtonController?.IsPointerCaptured == true)
+            return;
         PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
         if (!properties.IsLeftButtonPressed)
         {
@@ -2782,7 +2641,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content is not { IsDraggingWindow: true } || content.UndockButtonPointerCaptured) return;
+        if (content is not { IsDraggingWindow: true }
+            || content.UndockButtonController?.IsPointerCaptured == true)
+            return;
         EndWindowDrag(content, e.Pointer, commit: true);
         e.Handled = true;
     }
@@ -2790,11 +2651,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void OnChromePointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
         VolumeFlyoutContentGeneration? content = _activeContent;
-        if (content is not { IsDraggingWindow: true } || content.UndockButtonPointerCaptured) return;
+        if (content is not { IsDraggingWindow: true }
+            || content.UndockButtonController?.IsPointerCaptured == true)
+            return;
         content.IsDraggingWindow = false;
         content.CapturedPointer = null;
         if (_isClosed || content.Resources.IsDisposed) return;
-        CommitDragPosition();
+        Docking.CommitDragPosition();
+        FlushPendingRebuild();
     }
 
     private void EndWindowDrag(VolumeFlyoutContentGeneration content, IPointer pointer, bool commit)
@@ -2806,31 +2670,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         content.IsDraggingWindow = false;
         content.CapturedPointer = null;
         pointer.Capture(null);
-        if (canCommit) CommitDragPosition();
-    }
-
-    private void CommitDragPosition(bool rebuildAfterSave = false)
-    {
-        if (_isClosed) return;
-
-        if (_dragHelper.IsCurrentlySnapped)
-        {
-            Redock();
-            return;
-        }
-
-        SaveCurrentFlyoutPosition();
-        if (rebuildAfterSave) Rebuild();
-    }
-
-    private void SaveCurrentFlyoutPosition()
-    {
-        if (!_isUndocked) return;
-        _settings.FlyoutUndocked = true;
-        _settings.FlyoutHasSavedPosition = true;
-        _settings.FlyoutLeft = Position.X;
-        _settings.FlyoutTop = Position.Y;
-        _settings.Save();
+        if (canCommit) Docking.CommitDragPosition();
+        FlushPendingRebuild();
     }
 
     private static bool IsInteractiveDragSource(object? source)
@@ -3007,14 +2848,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         public readonly UIResourceScope Resources = resources;
         public UIContentGeneration Generation = null!;
         public ScrollViewer? CellsScrollViewer;
-        public Border? UndockButton;
-        public TextBlock? UndockButtonGlyph;
+        public FlyoutUndockButtonController? UndockButtonController;
         public readonly ActiveInteractionSlot<FlyoutMenuInteraction> MenuInteraction = new();
         public readonly ActiveInteractionSlot<UIResourceScope> DeviceNameEditInteraction = new();
         public IPointer? CapturedPointer;
         public bool IsDraggingWindow;
-        public bool UndockButtonPointerCaptured;
-        public bool UndockButtonDragOccurred;
         public bool DeviceOrderingRebuildPending;
         public int HoveredDeviceStateButtonCount;
         public int ActiveVolumeSliderDragCount;
@@ -3026,8 +2864,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             _disposed = true;
 
             IsDraggingWindow = false;
-            UndockButtonPointerCaptured = false;
-            UndockButtonDragOccurred = false;
             ActiveVolumeSliderDragCount = 0;
             MenuInteraction.Dispose();
             DeviceNameEditInteraction.Dispose();
@@ -3041,8 +2877,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             }
 
             CellsScrollViewer = null;
-            UndockButton = null;
-            UndockButtonGlyph = null;
+            UndockButtonController = null;
             DeviceOrderingRebuildPending = false;
             HoveredDeviceStateButtonCount = 0;
         }
@@ -3167,55 +3002,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 resources?.Dispose();
             }
         }
-    }
-
-    private sealed class FlyoutWindowDragHelper
-    {
-        private PixelPoint _grabOffset;
-        private PixelPoint _startPosition;
-        private PixelPoint _dockedPosition;
-        private int _snapTolerance;
-
-        public bool IsCurrentlySnapped { get; private set; }
-
-        public void BeginDrag(PixelPoint pointerScreenPosition, PixelPoint windowPosition, PixelPoint dockedPosition,
-            int snapTolerance)
-        {
-            _grabOffset = new PixelPoint(
-                pointerScreenPosition.X - windowPosition.X,
-                pointerScreenPosition.Y - windowPosition.Y);
-            _startPosition = windowPosition;
-            _dockedPosition = dockedPosition;
-            _snapTolerance = snapTolerance;
-            IsCurrentlySnapped = IsWithinSnapTolerance(windowPosition);
-        }
-
-        public PixelPoint ComputeNatural(PixelPoint pointerScreenPosition) =>
-            new(pointerScreenPosition.X - _grabOffset.X, pointerScreenPosition.Y - _grabOffset.Y);
-
-        public bool ExceedsThreshold(PixelPoint naturalPosition, double threshold)
-        {
-            int dx = naturalPosition.X - _startPosition.X;
-            int dy = naturalPosition.Y - _startPosition.Y;
-            return dx * dx + dy * dy >= threshold * threshold;
-        }
-
-        public void ApplyDragPosition(Window window, PixelPoint naturalPosition)
-        {
-            if (IsWithinSnapTolerance(naturalPosition))
-            {
-                window.Position = _dockedPosition;
-                IsCurrentlySnapped = true;
-                return;
-            }
-
-            window.Position = naturalPosition;
-            IsCurrentlySnapped = false;
-        }
-
-        private bool IsWithinSnapTolerance(PixelPoint position) =>
-            Math.Abs(position.X - _dockedPosition.X) <= _snapTolerance
-            && Math.Abs(position.Y - _dockedPosition.Y) <= _snapTolerance;
     }
 
     private readonly record struct FlyoutPalette(

@@ -1,10 +1,11 @@
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
+using TrayAppDotNETCommon.UI;
 
 namespace BatteryTrayAppDotNET.Models;
 
 [XmlRoot("AppSettings")]
-public sealed class AppSettings : AppSettingsCommon
+public sealed class AppSettings : AppSettingsCommon, IFlyoutDockSettings
 {
     private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
         TimeConstants.SettingsSaveDebounceMs,

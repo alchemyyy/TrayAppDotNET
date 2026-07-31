@@ -88,6 +88,7 @@ internal sealed class BatteryAvaloniaApp : Application
         StartServices();
         CreateTrayIcon();
         RequestTrayRefresh();
+        RestoreStartupUndockedFlyoutIfRequested();
         ScheduleKeepWarmPriming();
         base.OnFrameworkInitializationCompleted();
     }
@@ -461,6 +462,7 @@ internal sealed class BatteryAvaloniaApp : Application
         if (_batteryMonitor == null || _settings == null || _trayIcon == null) return;
 
         _batteryFlyout ??= BatteryFlyoutWarmSlot.TakeOrCreate(CreateManagedBatteryFlyout);
+        _batteryFlyout.Redock();
         _batteryFlyout.ShowAt(_trayIcon, activate);
         if (holdOpenForSettings && _settingsWindow is { IsVisible: true })
             SettingsFlyoutKeepOpen.HoldOpen();
@@ -475,6 +477,15 @@ internal sealed class BatteryAvaloniaApp : Application
         _batteryFlyout = flyout;
         flyout.Closed += OnBatteryFlyoutClosed;
         return flyout;
+    }
+
+    private void RestoreStartupUndockedFlyoutIfRequested()
+    {
+        if (_batteryMonitor == null || _settings == null || _trayIcon == null) return;
+        if (!FlyoutDockingController.ShouldRestoreOnStartup(_settings)) return;
+
+        _batteryFlyout ??= BatteryFlyoutWarmSlot.TakeOrCreate(CreateManagedBatteryFlyout);
+        _batteryFlyout.ShowAt(_trayIcon);
     }
 
     private TrayAppDotNETWarmWindowSlot<BatteryFlyoutWindow> BatteryFlyoutWarmSlot =>
