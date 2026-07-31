@@ -1121,7 +1121,7 @@ Target: {1}</value>
     <value>Display num (rev)</value>
   </data>
   <data name="Settings_Monitors_ValidationAttempts_Description" xml:space="preserve">
-    <value>Number of times to retry a brightness read before giving up. Each retry waits one validation dwell, and the final attempt also refreshes the cached HMONITOR. Higher = more tolerant of transient I2C noise; lower = faster failure for genuinely stuck monitors.</value>
+    <value>Number of times to verify brightness and readable power-state writes before giving up. Higher = more tolerant of transient I2C noise; lower = faster failure for genuinely stuck monitors.</value>
   </data>
   <data name="Settings_Monitors_ValidationAttempts_Title" xml:space="preserve">
     <value>Validation attempts</value>
@@ -1130,7 +1130,7 @@ Target: {1}</value>
     <value>Validation dwell</value>
   </data>
   <data name="Settings_Monitors_ValidationDwell_Description" xml:space="preserve">
-    <value>How long to wait after a settled brightness write before reading it back to confirm it applied. Increase on slow-responding monitors.</value>
+    <value>Maximum retry dwell while reading back brightness or power state to confirm a write applied. Increase on slow-responding monitors.</value>
   </data>
   <data name="Settings_Monitors_ValidationDwell_Title" xml:space="preserve">
     <value>Validation dwell</value>

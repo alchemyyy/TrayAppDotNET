@@ -264,6 +264,112 @@ public sealed class MonitorRecoveryTests
     }
 
     [Fact]
+    public async Task PowerOffReappliesWhenAcceptedWriteStillReadsAsPoweredOn()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-POWER-RETRY";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 35, serial: "HDMI-POWER-RETRY"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(
+            VCPConstants.PowerMode,
+            applySuccessfulWrites: true,
+            successfulWritesToDrop: 1);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 4,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, false);
+
+        Assert.False(monitor.IsPoweredOn);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Equal(2, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+        Assert.Equal((uint)5, display.GetLastSetValueForCode(VCPConstants.PowerMode));
+    }
+
+    [Fact]
+    public async Task PowerOffKeepsMonitorOnAfterPersistentReadableMismatch()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-POWER-MISMATCH";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 36, serial: "HDMI-POWER-MISMATCH"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 3,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, false);
+
+        Assert.True(monitor.IsPoweredOn);
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Equal(3, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+    }
+
+    [Fact]
+    public async Task PowerOffAcceptsMissingReadBackAfterTransportAcceptedWrite()
+    {
+        const string DeviceID = "DISPLAY\\DP-HARD-OFF";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 37, serial: "DP-HARD-OFF"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 4,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        await service.SetPowerStateAsync(monitor, false);
+
+        Assert.False(monitor.IsPoweredOn);
+        Assert.True(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Equal(1, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+    }
+
+    [Fact]
+    public async Task NewerPowerIntentPreventsStalePowerOffReapply()
+    {
+        const string DeviceID = "DISPLAY\\POWER-SUPERSEDE";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 38, serial: "POWER-SUPERSEDE"));
+        display.SetRead(DeviceID, ok: true, current: 40, max: 100);
+        display.SetFeatureRead(DeviceID, VCPConstants.PowerMode, ok: true, current: 1, max: 5);
+        display.ConfigureFeatureWriteReadBack(VCPConstants.PowerMode, applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 4,
+            validationDwellMs: 500,
+            configureSettings: settings => settings.PowerOffMode = PowerOffMode.Hard);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        Task powerOff = service.SetPowerStateAsync(monitor, false);
+        await WaitUntil(() => display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode) == 1);
+        Task powerOn = service.SetPowerStateAsync(monitor, true);
+        await Task.WhenAll(powerOff, powerOn);
+
+        Assert.True(monitor.IsPoweredOn);
+        Assert.False(monitor.SuppressDDCRecoveryForPowerIntent);
+        Assert.Equal(2, display.GetSetVCPFeatureCallCount(VCPConstants.PowerMode));
+        Assert.Equal((uint)1, display.GetLastSetValueForCode(VCPConstants.PowerMode));
+    }
+
+    [Fact]
     public async Task PowerOnRefreshReplaysPreviouslyVerifiedManualTarget()
     {
         FakeDisplayService display = new();
@@ -1271,11 +1377,14 @@ public sealed class MonitorRecoveryTests
     {
         private readonly Lock _gate = new();
         private readonly Dictionary<string, VcpRead> _reads = new(StringComparer.Ordinal);
+        private readonly Dictionary<(string Key, byte Code), VcpRead> _featureReads = [];
         private readonly Dictionary<string, int> _readFailuresRemaining = new(StringComparer.Ordinal);
         private readonly Dictionary<string, string?> _readFailureErrors = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _transportResetCounts = new(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _transportResetsUntilRecovery = new(StringComparer.Ordinal);
         private readonly Dictionary<string, VcpRead> _readsAfterTransportRecovery = new(StringComparer.Ordinal);
+        private readonly HashSet<byte> _featureWriteReadBackCodes = [];
+        private readonly Dictionary<byte, int> _successfulFeatureWritesToDrop = [];
         private readonly List<uint> _readValues = [];
         private readonly List<byte> _getVCPFeatureCodes = [];
         private readonly List<(byte Code, uint Value)> _setVCPFeatureCalls = [];
@@ -1306,6 +1415,22 @@ public sealed class MonitorRecoveryTests
             {
                 _applySuccessfulWritesToReadBack = applySuccessfulWrites;
                 _successfulWritesToDrop = Math.Max(0, successfulWritesToDrop);
+            }
+        }
+
+        public void ConfigureFeatureWriteReadBack(
+            byte code,
+            bool applySuccessfulWrites,
+            int successfulWritesToDrop = 0)
+        {
+            lock (_gate)
+            {
+                if (applySuccessfulWrites)
+                    _featureWriteReadBackCodes.Add(code);
+                else
+                    _featureWriteReadBackCodes.Remove(code);
+
+                _successfulFeatureWritesToDrop[code] = Math.Max(0, successfulWritesToDrop);
             }
         }
 
@@ -1359,6 +1484,12 @@ public sealed class MonitorRecoveryTests
                 return _setVCPFeatureCalls.Last(call => call.Code == code).Value;
         }
 
+        public int GetSetVCPFeatureCallCount(byte code)
+        {
+            lock (_gate)
+                return _setVCPFeatureCalls.Count(call => call.Code == code);
+        }
+
         public void SetMonitors(params DDCMonitor[] monitors)
         {
             lock (_gate)
@@ -1373,6 +1504,18 @@ public sealed class MonitorRecoveryTests
                 _readFailuresRemaining.Remove(key);
                 _readFailureErrors.Remove(key);
             }
+        }
+
+        public void SetFeatureRead(
+            string key,
+            byte code,
+            bool ok,
+            uint current,
+            uint max,
+            string? error = null)
+        {
+            lock (_gate)
+                _featureReads[(key, code)] = new VcpRead(ok, current, max, error);
         }
 
         public void SetReadFailuresBeforeSuccess(
@@ -1437,11 +1580,23 @@ public sealed class MonitorRecoveryTests
                 _getVCPFeatureCodes.Add(code);
                 string key = KeyFor(monitor);
                 LastReadKey = key;
-                VcpRead read = _reads.TryGetValue(key, out VcpRead configured)
-                    ? configured
-                    : new VcpRead(true, 50, 100, null);
+                bool hasFeatureRead = _featureReads.TryGetValue((key, code), out VcpRead featureRead);
+                if (code != monitor.BrightnessCode && !hasFeatureRead)
+                {
+                    currentValue = 0;
+                    maxValue = 0;
+                    error = "feature read not configured";
+                    return false;
+                }
 
-                if (_readFailuresRemaining.TryGetValue(key, out int failuresRemaining)
+                VcpRead read = hasFeatureRead
+                    ? featureRead
+                    : _reads.TryGetValue(key, out VcpRead configured)
+                        ? configured
+                        : new VcpRead(true, 50, 100, null);
+
+                if (!hasFeatureRead
+                    && _readFailuresRemaining.TryGetValue(key, out int failuresRemaining)
                     && failuresRemaining > 0)
                 {
                     _readFailuresRemaining[key] = failuresRemaining - 1;
@@ -1498,6 +1653,26 @@ public sealed class MonitorRecoveryTests
                             ? currentRead.Max
                             : 100;
                         _reads[key] = new VcpRead(true, value, maximum, null);
+                    }
+                }
+
+                if (_featureWriteReadBackCodes.Contains(code))
+                {
+                    int writesToDrop = _successfulFeatureWritesToDrop.TryGetValue(code, out int configuredDrops)
+                        ? configuredDrops
+                        : 0;
+                    if (writesToDrop > 0)
+                    {
+                        _successfulFeatureWritesToDrop[code] = writesToDrop - 1;
+                    }
+                    else
+                    {
+                        string key = KeyFor(monitor);
+                        uint maximum = _featureReads.TryGetValue((key, code), out VcpRead currentRead)
+                                       && currentRead.Max > 0
+                            ? currentRead.Max
+                            : byte.MaxValue;
+                        _featureReads[(key, code)] = new VcpRead(true, value, maximum, null);
                     }
                 }
 

@@ -374,8 +374,8 @@ public class MonitorInfo : INotifyPropertyChanged
 
     /// <summary>
     /// Whether the monitor is powered on.
-    /// Managed by <see cref="Services.MonitorService.SetPowerStateAsync"/> after a transport-accepted power VCP write.
-    /// This is optimistic state because hard-off leaves the DDC bus and power replies are not verified.
+    /// Managed by <see cref="Services.MonitorService.SetPowerStateAsync"/> after matching power read-back, or after a
+    /// transport-accepted write whose reply becomes unavailable because hard-off removed the monitor from the DDC bus.
     /// </summary>
     public bool IsPoweredOn
     {

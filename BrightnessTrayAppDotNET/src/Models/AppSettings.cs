@@ -282,9 +282,10 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public int ValidationDwellMs { get; set; } = TimeConstants.ValidationDwellDefaultMs;
 
     /// <summary>
-    /// Number of attempts the acquisition-read, brightness-write, and write-verification loops make before giving up.
-    /// Acquisition reads use the fixed responsive backoff sequence in <c>TimeConstants</c>. Write and verification
-    /// retries ramp to <see cref="ValidationDwellMs"/>; the final acquisition attempt also refreshes HMONITOR.
+    /// Number of attempts the acquisition-read, brightness-write, brightness-verification, and readable power-state
+    /// verification loops make before giving up. Acquisition reads use the fixed responsive backoff sequence in
+    /// <c>TimeConstants</c>. Write and verification retries ramp to <see cref="ValidationDwellMs"/>; the final
+    /// acquisition attempt also refreshes HMONITOR.
     /// Higher = more tolerant of transient I2C noise / DPMS-wake races;
     /// lower = faster failure for genuinely stuck monitors.
     /// </summary>

@@ -2423,7 +2423,9 @@ public sealed class MonitorService : IDisposable
     /// {2=Sleep, 4=Soft, 5=Hard}; Dell P/U-series monitors with inverted 0xE1 override to 0xE1
     /// with {0=On, 1=Off} - so e.g. asking for "Hard" on those still resolves to a single
     /// monitor-correct write.
-    /// Updates <see cref="MonitorInfo.IsPoweredOn"/> after transport acceptance.
+    /// Verifies readable power-state replies and re-applies a transport-accepted write when the monitor still reports
+    /// the prior state. Hard-off commonly removes the monitor from the DDC bus, so an unavailable reply after an
+    /// accepted write remains a successful but explicitly logged unverified result.
     /// </summary>
     public async Task SetPowerStateAsync(MonitorInfo monitor, bool on)
     {
@@ -2433,6 +2435,9 @@ public sealed class MonitorService : IDisposable
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? entry)) return;
         DDCMonitor ddc = Volatile.Read(ref entry.DDC);
         if (!ddc.SupportsVcpPower) return;
+
+        long powerIntentGeneration = Interlocked.Increment(ref entry.PowerIntentGeneration);
+        bool previousRecoverySuppression = monitor.SuppressDDCRecoveryForPowerIntent;
 
         // A queued brightness re-apply after an off command can wake some monitors or immediately fail and demote
         // the row. Make every older brightness generation stale before sending power-down traffic.
@@ -2456,29 +2461,33 @@ public sealed class MonitorService : IDisposable
         WPFLog.Log(
             $"MonitorService: SetPowerState '{ddc.Name}' on={on}; code=0x{code:X2}; value=0x{value:X2}; "
             + $"mode={_settings.PowerOffMode}");
-        (bool ok, string? errorMessage) = await WithDDCLockAsync(ddc, () =>
-        {
-            bool wrote = _display.TrySetVCPFeature(ddc, code, value, out string? e);
-            if (!wrote) _display.ResetDDCTransport(ddc);
-            return (wrote, e);
-        }).ConfigureAwait(false);
-        if (!ok)
-        {
-            WPFLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {errorMessage}");
-            if (!on)
-            {
-                // The failed command left the panel on, but its queued brightness target was invalidated before the
-                // power attempt to guarantee ordering. Re-acquire and replay that intent instead of silently losing it.
-                RequestBrightnessReplayAfterRefresh();
-                Refresh();
-            }
-            return;
-        }
 
-        // Publish the recovery gate immediately after transport acceptance. A hard-off can remove the row from
-        // enumeration before the dispatcher processes IsPoweredOn; recovery must not race that UI publication and
-        // send traffic that wakes the panel again.
-        monitor.SuppressDDCRecoveryForPowerIntent = !on;
+        PowerStateApplyResult application = await ApplyPowerStateWithVerificationAsync(
+                entry,
+                monitor,
+                powerIntentGeneration,
+                on,
+                code,
+                value)
+            .ConfigureAwait(false);
+        switch (application.Outcome)
+        {
+            case PowerStateApplyOutcome.Superseded:
+                return;
+            case PowerStateApplyOutcome.Failed:
+                monitor.SuppressDDCRecoveryForPowerIntent = previousRecoverySuppression;
+                WPFLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {application.Error}");
+                if (!on)
+                {
+                    // The panel remained on, but its queued brightness target was invalidated before the power attempt
+                    // to guarantee ordering. Re-acquire and replay that intent instead of silently losing it.
+                    RequestBrightnessReplayAfterRefresh();
+                    Refresh();
+                }
+                return;
+            case PowerStateApplyOutcome.Applied:
+                break;
+        }
 
         if (_dispatcher.CheckAccess())
             PublishPowerState();
@@ -2498,6 +2507,169 @@ public sealed class MonitorService : IDisposable
             NotifyTopologyEvent();
             Refresh();
         }
+    }
+
+    private async Task<PowerStateApplyResult> ApplyPowerStateWithVerificationAsync(
+        MonitorEntry entry,
+        MonitorInfo monitor,
+        long powerIntentGeneration,
+        bool on,
+        byte code,
+        byte value)
+    {
+        int attempts = Math.Max(1, _settings.ValidationAttempts);
+        int finalDwellMs = ResolveValidationDwellMs(entry);
+        string? lastError = null;
+        PowerWriteAttempt initialWrite = await TryWritePowerStateAsync(
+                entry,
+                powerIntentGeneration,
+                code,
+                value)
+            .ConfigureAwait(false);
+        if (!initialWrite.WasAttempted)
+            return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+        if (!initialWrite.Success)
+            return new PowerStateApplyResult(
+                PowerStateApplyOutcome.Failed,
+                initialWrite.Error ?? "TrySetVCPFeature failed");
+
+        // Publish the recovery gate as soon as the write is accepted. Hard-off can remove the row before read-back
+        // completes; recovery must not race verification and send traffic that wakes the panel.
+        monitor.SuppressDDCRecoveryForPowerIntent = !on;
+        bool latestWriteAccepted = true;
+
+        int initialVerificationDwellMs = Math.Min(
+            finalDwellMs,
+            TimeConstants.MonitorInitialVerificationDwellMaxMs);
+        if (!await DelayWhilePowerIntentCurrentAsync(
+                entry,
+                powerIntentGeneration,
+                initialVerificationDwellMs).ConfigureAwait(false))
+            return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+
+        for (int attempt = 0; attempt < attempts; attempt++)
+        {
+            PowerReadBack readBack = await TryReadPowerStateAsync(
+                    entry,
+                    powerIntentGeneration,
+                    code)
+                .ConfigureAwait(false);
+            if (!readBack.WasAttempted)
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+
+            if (!readBack.Success)
+            {
+                if (!latestWriteAccepted)
+                    return new PowerStateApplyResult(
+                        PowerStateApplyOutcome.Failed,
+                        lastError ?? readBack.Error ?? "power write and read-back both failed");
+
+                // Hard-off is intentionally write-only on many monitors and removes the DDC endpoint. Do not turn an
+                // expected missing reply into failure or reset the transport after an accepted off command.
+                WPFLog.Log(
+                    $"MonitorService: power verification unavailable for '{readBack.MonitorName}'; "
+                    + $"accepted write remains unverified: {readBack.Error}");
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, null);
+            }
+
+            if (readBack.Actual == value)
+            {
+                WPFLog.Log(
+                    $"MonitorService: power write verified for '{readBack.MonitorName}'; "
+                    + $"code=0x{code:X2}; value=0x{value:X2}");
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, null);
+            }
+
+            lastError = $"read-back 0x{readBack.Actual:X2}, expected 0x{value:X2}";
+            WPFLog.Log(
+                $"MonitorService: power verify mismatch {attempt + 1}/{attempts} for "
+                + $"'{readBack.MonitorName}': {lastError}");
+            if (attempt == attempts - 1) break;
+
+            PowerWriteAttempt reapply = await TryWritePowerStateAsync(
+                    entry,
+                    powerIntentGeneration,
+                    code,
+                    value)
+                .ConfigureAwait(false);
+            if (!reapply.WasAttempted)
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+            latestWriteAccepted = reapply.Success;
+            if (!reapply.Success)
+            {
+                lastError = reapply.Error;
+                WPFLog.Log(
+                    $"MonitorService: power re-apply {attempt + 2}/{attempts} failed for "
+                    + $"'{reapply.MonitorName}': {reapply.Error}");
+            }
+
+            int waitMs = ScaledRetryDwellMs(attempt + 1, attempts, finalDwellMs);
+            if (!await DelayWhilePowerIntentCurrentAsync(
+                    entry,
+                    powerIntentGeneration,
+                    waitMs).ConfigureAwait(false))
+                return new PowerStateApplyResult(PowerStateApplyOutcome.Superseded, null);
+        }
+
+        return new PowerStateApplyResult(
+            PowerStateApplyOutcome.Failed,
+            lastError ?? "power state did not match the requested value");
+    }
+
+    private async Task<PowerWriteAttempt> TryWritePowerStateAsync(
+        MonitorEntry entry,
+        long powerIntentGeneration,
+        byte code,
+        byte value)
+    {
+        DDCMonitor ddc = Volatile.Read(ref entry.DDC);
+        return await WithDDCLockAsync(ddc, () =>
+        {
+            if (!IsPowerIntentCurrent(entry, powerIntentGeneration))
+                return new PowerWriteAttempt(false, false, ddc.Name, null);
+
+            bool success = _display.TrySetVCPFeature(ddc, code, value, out string? error);
+            if (!success) _display.ResetDDCTransport(ddc);
+            return new PowerWriteAttempt(true, success, ddc.Name, error);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task<PowerReadBack> TryReadPowerStateAsync(
+        MonitorEntry entry,
+        long powerIntentGeneration,
+        byte code)
+    {
+        DDCMonitor ddc = Volatile.Read(ref entry.DDC);
+        return await WithDDCLockAsync(ddc, () =>
+        {
+            if (!IsPowerIntentCurrent(entry, powerIntentGeneration))
+                return new PowerReadBack(false, false, ddc.Name, 0, null);
+
+            bool success = _display.TryGetVCPFeature(
+                ddc,
+                code,
+                out uint actual,
+                out _,
+                out string? error);
+            return new PowerReadBack(true, success, ddc.Name, actual, error);
+        }).ConfigureAwait(false);
+    }
+
+    private bool IsPowerIntentCurrent(MonitorEntry entry, long powerIntentGeneration) =>
+        !_disposed
+        && !_draining
+        && Volatile.Read(ref entry.PowerIntentGeneration) == powerIntentGeneration;
+
+    private async Task<bool> DelayWhilePowerIntentCurrentAsync(
+        MonitorEntry entry,
+        long powerIntentGeneration,
+        int delayMs)
+    {
+        if (!IsPowerIntentCurrent(entry, powerIntentGeneration)) return false;
+        if (delayMs <= 0) return true;
+
+        await Task.Delay(delayMs).ConfigureAwait(false);
+        return IsPowerIntentCurrent(entry, powerIntentGeneration);
     }
 
     private void OnMonitorPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -3464,6 +3636,9 @@ public sealed class MonitorService : IDisposable
         public int LastVerifiedBrightnessPercentage = -1;
         public bool HasPendingBrightnessTarget;
 
+        // Supersedes an older power verification loop before it can re-apply stale power intent.
+        public long PowerIntentGeneration;
+
         // Negative values inherit the global setting; non-negative values are resolved from MonitorOverrides.
         public int ValidationDwellMs = -1;
         public int BrightnessDwellMs = -1;
@@ -3487,6 +3662,28 @@ public sealed class MonitorService : IDisposable
     }
 
     private readonly record struct BrightnessWriteTarget(long Generation, int Percentage);
+
+    private enum PowerStateApplyOutcome
+    {
+        Applied,
+        Failed,
+        Superseded
+    }
+
+    private readonly record struct PowerStateApplyResult(PowerStateApplyOutcome Outcome, string? Error);
+
+    private readonly record struct PowerWriteAttempt(
+        bool WasAttempted,
+        bool Success,
+        string MonitorName,
+        string? Error);
+
+    private readonly record struct PowerReadBack(
+        bool WasAttempted,
+        bool Success,
+        string MonitorName,
+        uint Actual,
+        string? Error);
 
     private readonly record struct DDCRecoveryIdentity(
         string DeviceID,
