@@ -30,9 +30,8 @@ internal sealed class DingSuppressionPeak
     }
 
     /// <summary>
-    /// Applies the suppression decision. An unavailable peak fails closed because that state means
-    /// the device's own feedback is active or the endpoint is tearing down; allowing playback would
-    /// let repeated changes continually extend the self-ding meter bypass.
+    /// Applies the suppression decision. An unavailable peak fails closed because the endpoint is
+    /// tearing down and should not begin new feedback playback.
     /// </summary>
     internal static bool ShouldSuppressFeedback(
         float recentPeak,

@@ -82,7 +82,7 @@ public sealed class DingSuppressionPeakTests
     }
 
     [Fact]
-    public void UnavailablePeakSuppressesFeedbackInsteadOfExtendingTheBypass()
+    public void UnavailablePeakSuppressesFeedbackDuringEndpointTeardown()
     {
         bool shouldSuppress = DingSuppressionPeak.ShouldSuppressFeedback(
             recentPeak: 0f,
@@ -91,5 +91,17 @@ public sealed class DingSuppressionPeakTests
             isPeakAvailable: false);
 
         Assert.True(shouldSuppress);
+    }
+
+    [Fact]
+    public void AvailableSilentPeakAllowsRapidFeedback()
+    {
+        bool shouldSuppress = DingSuppressionPeak.ShouldSuppressFeedback(
+            recentPeak: 0f,
+            configuredPercent: 5,
+            scalarVolume: 1f,
+            isPeakAvailable: true);
+
+        Assert.False(shouldSuppress);
     }
 }

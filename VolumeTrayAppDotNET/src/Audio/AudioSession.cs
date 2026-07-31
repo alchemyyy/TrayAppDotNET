@@ -158,6 +158,26 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     /// <summary>Coalesced peak payload for group aggregation and WPF meter binding.</summary>
     public MeterPeakValues PeakValues => new(_meterLerp.DisplayMin, _meterLerp.DisplayMax);
 
+    /// <summary>
+    /// Reads the current raw session peak without mutating the rendered meter. Used while an
+    /// endpoint feedback ding is active so the device can meter other processes without including
+    /// its own feedback stream.
+    /// </summary>
+    internal float ReadCurrentPeak()
+    {
+        if (_disposed || _disconnected || State != AudioSessionState.Active) return 0f;
+
+        try
+        {
+            MeterReader.ReadStereoPeaks(_meter, unified: false, biasMultiplier: 0, out _, out float maxPeak);
+            return maxPeak;
+        }
+        catch
+        {
+            return 0f;
+        }
+    }
+
     public AudioSessionState State
     {
         get => _state;

@@ -127,6 +127,25 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
     /// <summary>Recent decaying maximum derived from this group's rendered peak meter.</summary>
     internal float ReadDingSuppressionPeak() => _dingSuppressionPeak.Read();
 
+    /// <summary>Returns the loudest current session peak not owned by the excluded process.</summary>
+    internal float ReadCurrentPeakExcludingProcess(uint excludedProcessID)
+    {
+        if (_disposed) return 0f;
+
+        float maxPeak = 0f;
+        AudioSession[] sessions = _sessionsSnapshot;
+        for (int sessionIndex = 0; sessionIndex < sessions.Length; sessionIndex++)
+        {
+            AudioSession session = sessions[sessionIndex];
+            if (session.ProcessID == excludedProcessID) continue;
+
+            float sessionPeak = session.ReadCurrentPeak();
+            if (sessionPeak > maxPeak) maxPeak = sessionPeak;
+        }
+
+        return maxPeak;
+    }
+
     /// <summary>
     /// True when one of this group's sessions is the process currently holding the parent device
     /// in exclusive mode. Drives the mini-glyph lock overlay on the app icon. Backend stub:
