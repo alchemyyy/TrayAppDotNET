@@ -80,4 +80,16 @@ public sealed class DingSuppressionPeakTests
 
         Assert.InRange(threshold, expected - 0.000001f, expected + 0.000001f);
     }
+
+    [Fact]
+    public void UnavailablePeakSuppressesFeedbackInsteadOfExtendingTheBypass()
+    {
+        bool shouldSuppress = DingSuppressionPeak.ShouldSuppressFeedback(
+            recentPeak: 0f,
+            configuredPercent: 5,
+            scalarVolume: 1f,
+            isPeakAvailable: false);
+
+        Assert.True(shouldSuppress);
+    }
 }

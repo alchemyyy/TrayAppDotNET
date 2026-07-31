@@ -94,12 +94,13 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     {
         AppSettings? settings = _settings;
         if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
-        if (!device.TryReadDingSuppressionPeak(out float recentPeak)) return false;
 
-        float threshold = DingSuppressionPeak.ResolveThreshold(
+        bool isPeakAvailable = device.TryReadDingSuppressionPeak(out float recentPeak);
+        return DingSuppressionPeak.ShouldSuppressFeedback(
+            recentPeak,
             settings.DingSuppressionPeakThresholdPercent,
-            device.Volume);
-        return recentPeak > threshold;
+            device.Volume,
+            isPeakAvailable);
     }
 
     private bool ShouldSuppressAppDing(AudioAppGroup group)
@@ -107,10 +108,11 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
         AppSettings? settings = _settings;
         if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
 
-        float threshold = DingSuppressionPeak.ResolveThreshold(
+        return DingSuppressionPeak.ShouldSuppressFeedback(
+            group.ReadDingSuppressionPeak(),
             settings.DingSuppressionPeakThresholdPercent,
-            group.Volume);
-        return group.ReadDingSuppressionPeak() > threshold;
+            group.Volume,
+            isPeakAvailable: true);
     }
 
     private void PlayAppFeedbackNow(float scalarVolume, WAVTemplate template)

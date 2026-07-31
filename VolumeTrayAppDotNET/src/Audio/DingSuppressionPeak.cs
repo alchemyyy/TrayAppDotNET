@@ -29,6 +29,23 @@ internal sealed class DingSuppressionPeak
         return clampedPercent * PercentToScalar * clampedVolume;
     }
 
+    /// <summary>
+    /// Applies the suppression decision. An unavailable peak fails closed because that state means
+    /// the device's own feedback is active or the endpoint is tearing down; allowing playback would
+    /// let repeated changes continually extend the self-ding meter bypass.
+    /// </summary>
+    internal static bool ShouldSuppressFeedback(
+        float recentPeak,
+        int configuredPercent,
+        float scalarVolume,
+        bool isPeakAvailable)
+    {
+        if (!isPeakAvailable) return true;
+
+        float clampedPeak = float.IsFinite(recentPeak) ? Math.Clamp(recentPeak, 0f, 1f) : 0f;
+        return clampedPeak > ResolveThreshold(configuredPercent, scalarVolume);
+    }
+
     // Explicit timestamps keep the envelope deterministic in tests and avoid update-rate-dependent
     // falloff when the user changes the configurable peak-meter sample rate.
     internal float Observe(float currentPeak, long timestampMilliseconds)
