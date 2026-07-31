@@ -29,6 +29,7 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
     // tick reads the field once per pass without allocating an AudioSession[] each time.
     private volatile AudioSession[] _sessionsSnapshot = [];
     private readonly Dispatcher _dispatcher = dispatcher;
+    private readonly DingSuppressionPeak _dingSuppressionPeak = new();
 
     private float _peakValueMin;
     private float _peakValueMax;
@@ -122,6 +123,9 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
 
     /// <summary>Coalesced peak payload for the WPF meter binding.</summary>
     public MeterPeakValues PeakValues => new(_peakValueMin, _peakValueMax);
+
+    /// <summary>Recent decaying maximum derived from this group's rendered peak meter.</summary>
+    internal float ReadDingSuppressionPeak() => _dingSuppressionPeak.Read();
 
     /// <summary>
     /// True when one of this group's sessions is the process currently holding the parent device
@@ -273,6 +277,10 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
             _batchingSessionPeakUpdates = false;
         }
 
+        // Observe on every render tick, including steady-state ticks where no binding notification
+        // is needed, so sustained audio keeps the suppression envelope alive.
+        _dingSuppressionPeak.Observe(_peakValueMax);
+
         if (!_aggregatePeakDirty) return;
         _aggregatePeakDirty = false;
         RefreshAggregatePeak();
@@ -330,6 +338,8 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
 
     private void SetPeakValues(float min, float max)
     {
+        _dingSuppressionPeak.Observe(max);
+
         bool minChanged = Math.Abs(min - _peakValueMin) > PeakAggregateEpsilon;
         bool maxChanged = Math.Abs(max - _peakValueMax) > PeakAggregateEpsilon;
         if (!minChanged && !maxChanged) return;

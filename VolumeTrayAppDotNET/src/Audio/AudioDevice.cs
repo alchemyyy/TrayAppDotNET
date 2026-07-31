@@ -97,6 +97,11 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     // sequence of intermediate values rather than snap-to-latest.
     private MeterLerp _meterLerp;
 
+    // Recent maximum derived from the same endpoint samples as the visible meter. Feedback checks
+    // also refresh it directly when metering is stopped, such as tray-icon scrolling.
+    private readonly DingSuppressionPeak _dingSuppressionPeak = new();
+    private long _dingSuppressionPeakBypassUntilMilliseconds;
+
     // Throttled COM-write driver for endpoint volume. Shape shared with AudioSession; only the
     // COM call differs (SetMasterVolumeLevelScalar vs SetMasterVolume).
     private readonly VolumeThrottle _volumeWrite;
@@ -848,16 +853,56 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     /// <summary>Coalesced peak payload for the WPF meter binding.</summary>
     public MeterPeakValues PeakValues => new(_meterLerp.DisplayMin, _meterLerp.DisplayMax);
 
-    internal bool IsCurrentEndpointPeakAbove(float threshold)
+    /// <summary>
+    /// Reads the endpoint meter and folds it into the recent decaying maximum used by feedback
+    /// suppression. Returns false while the app's own endpoint ding is inside its meter-bypass
+    /// window so that ding cannot suppress the next one.
+    /// </summary>
+    internal bool TryReadDingSuppressionPeak(out float peak)
     {
-        if (_disposed || _pinEndpointMeterToSilence) return false;
+        peak = 0f;
+        if (_disposed || IsDingSuppressionPeakBypassed()) return false;
+
+        if (_pinEndpointMeterToSilence)
+        {
+            peak = _dingSuppressionPeak.Observe(0f);
+            return true;
+        }
 
         IAudioMeterInformation? meter = _endpointMeter;
-        if (meter == null) return false;
+        if (meter == null)
+        {
+            peak = _dingSuppressionPeak.Read();
+            return true;
+        }
 
         MeterReader.ReadStereoPeaks(meter, unified: false, biasMultiplier: 0, out _, out float maxPeak);
-        return maxPeak > threshold;
+        if (IsDingSuppressionPeakBypassed()) return false;
+
+        peak = _dingSuppressionPeak.Observe(maxPeak);
+        return true;
     }
+
+    /// <summary>Ignores endpoint samples while this app's feedback ding is audible.</summary>
+    internal void BeginDingSuppressionPeakBypass(int durationMilliseconds)
+    {
+        if (durationMilliseconds <= 0) return;
+
+        long requestedUntilMilliseconds = Environment.TickCount64 + durationMilliseconds;
+        long observedUntilMilliseconds = Volatile.Read(ref _dingSuppressionPeakBypassUntilMilliseconds);
+        while (observedUntilMilliseconds < requestedUntilMilliseconds)
+        {
+            long exchangedUntilMilliseconds = Interlocked.CompareExchange(
+                ref _dingSuppressionPeakBypassUntilMilliseconds,
+                requestedUntilMilliseconds,
+                observedUntilMilliseconds);
+            if (exchangedUntilMilliseconds == observedUntilMilliseconds) return;
+            observedUntilMilliseconds = exchangedUntilMilliseconds;
+        }
+    }
+
+    private bool IsDingSuppressionPeakBypassed() =>
+        Environment.TickCount64 < Volatile.Read(ref _dingSuppressionPeakBypassUntilMilliseconds);
 
     /// <summary>
     /// Capture endpoint with no Active session. UI swaps to MICROPHONE_SLEEP and the sample loop
@@ -1369,6 +1414,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             // asleep, or render has no active shared stream to justify a non-zero endpoint peak.
             // Pin raw peaks to 0 instead; the lerp falls smoothly to silence.
             _meterLerp.PinRawPeaksToSilence();
+            if (!IsDingSuppressionPeakBypassed()) _dingSuppressionPeak.Observe(0f);
         }
         else
         {
@@ -1376,6 +1422,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             {
                 MeterReader.ReadStereoPeaks(meter, unified, biasMultiplier, out float minPeak, out float maxPeak);
                 _meterLerp.WriteRawPeaks(minPeak, maxPeak);
+                if (!IsDingSuppressionPeakBypassed()) _dingSuppressionPeak.Observe(maxPeak);
             }
             catch
             {

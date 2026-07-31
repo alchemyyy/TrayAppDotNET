@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Avalonia.Threading;
 using VolumeTrayAppDotNET.Audio;
 
@@ -11,7 +10,6 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     private const string AppDingThrottleKey = "app";
 
     private readonly AsyncThrottler<string> _feedbackThrottler = new(0, StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, long> _dingActiveUntilTicks = new(StringComparer.Ordinal);
     private readonly Lock _soundGate = new();
     private readonly AppSettings? _settings;
     private readonly Task<WAVTemplate?> _wavTemplateTask;
@@ -52,7 +50,7 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
             if (wav == null) return;
 
             int dingWindowMs = wav.DurationMs + TimeConstants.VolumeFeedbackDingMeterBypassGraceMs;
-            _dingActiveUntilTicks[device.Id] = Environment.TickCount64 + dingWindowMs;
+            device.BeginDingSuppressionPeakBypass(dingWindowMs);
             try { EndpointSoundPlayback.PlayAsync(device.Id, wav); }
             catch
             {
@@ -96,17 +94,23 @@ internal sealed class AppVolumeFeedbackPlayer : IDisposable
     {
         AppSettings? settings = _settings;
         if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
-        if (!device.IsCurrentEndpointPeakAbove(settings.DingSuppressionPeakThresholdPercent * 0.01f)) return false;
+        if (!device.TryReadDingSuppressionPeak(out float recentPeak)) return false;
 
-        return !_dingActiveUntilTicks.TryGetValue(device.Id, out long until)
-               || Environment.TickCount64 >= until;
+        float threshold = DingSuppressionPeak.ResolveThreshold(
+            settings.DingSuppressionPeakThresholdPercent,
+            device.Volume);
+        return recentPeak > threshold;
     }
 
     private bool ShouldSuppressAppDing(AudioAppGroup group)
     {
         AppSettings? settings = _settings;
         if (settings is not { SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true }) return false;
-        return group.PeakValues.Max > settings.DingSuppressionPeakThresholdPercent * 0.01f;
+
+        float threshold = DingSuppressionPeak.ResolveThreshold(
+            settings.DingSuppressionPeakThresholdPercent,
+            group.Volume);
+        return group.ReadDingSuppressionPeak() > threshold;
     }
 
     private void PlayAppFeedbackNow(float scalarVolume, WAVTemplate template)

@@ -562,13 +562,13 @@
     <value>Skip the sound when audio is already playing</value>
   </data>
   <data name="Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description" xml:space="preserve">
-    <value>Don't play the volume-change beep when the device's peak meter is above zero, so the feedback won't step on music, calls, or games.</value>
+    <value>Don't play the volume-change beep when the recent rolling peak is above the volume-adjusted threshold, so the feedback won't step on music, calls, or games.</value>
   </data>
   <data name="Settings_General_DingSuppressionPeakThreshold_Title" xml:space="preserve">
     <value>Peak meter threshold (%)</value>
   </data>
   <data name="Settings_General_DingSuppressionPeakThreshold_Description" xml:space="preserve">
-    <value>Only suppress the beep when the peak meter is above this percentage. Lower values are stricter (silence required); higher values let the beep play even over loud audio.</value>
+    <value>Only suppress the beep when the recent rolling peak is above this percentage, scaled by the volume being set. Lower values are stricter; older peaks continuously lose influence through exponential falloff.</value>
   </data>
   <data name="Settings_General_WheelVolumeStepPercent_Title" xml:space="preserve">
     <value>Wheel volume step (%)</value>

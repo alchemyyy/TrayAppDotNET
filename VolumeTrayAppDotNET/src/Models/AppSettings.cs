@@ -191,21 +191,20 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     } = true;
 
-    // Gate on top of PlayDeviceVolumeChangeSound: skip the ding when the device is already rendering
-    // audio (peak meter > 0 at play-time). Keeps the beep out of music / calls / games where it would
-    // just step on the existing audio. Checked right before the ding fires, after the dwell, so the
-    // reading reflects "is anything playing right now" rather than the gesture's leading edge.
+    // Gate on top of PlayDeviceVolumeChangeSound: skip the ding when the recent decaying peak is
+    // above the volume-scaled threshold. Keeps the beep out of music / calls / games where it would
+    // just step on the existing audio. Checked throughout the dwell and right before playback.
     public bool SuppressDeviceVolumeChangeSoundWhenAudioPlaying
     {
         get;
         set => SetField(ref field, value);
     } = true;
 
-    // Noise floor for the suppression gate above, expressed as 0..100 percent of full scale on the
-    // smoothed peak meter (PeakValueMax). Suppression triggers only when the meter EXCEEDS this
-    // value, so 0 reproduces the original "any audio at all" behavior and 100 effectively disables
-    // suppression. Clamped to [Min, Max] in the setter so a corrupt settings.xml can't drift the
-    // gate outside what the spinner allows.
+    // Full-volume noise floor for the suppression gate above, expressed as 0..100 percent of the
+    // rolling peak meter. The effective threshold is multiplied by the volume being set, so the
+    // same source remains detectable after endpoint or app attenuation. Suppression triggers only
+    // when the recent peak EXCEEDS this value. Clamped to [Min, Max] in the setter so a corrupt
+    // settings.xml cannot drift the gate outside what the spinner allows.
     public const int DingSuppressionPeakThresholdPercentDefault = 5;
     public const int DingSuppressionPeakThresholdPercentMin = 0;
     public const int DingSuppressionPeakThresholdPercentMax = 100;
