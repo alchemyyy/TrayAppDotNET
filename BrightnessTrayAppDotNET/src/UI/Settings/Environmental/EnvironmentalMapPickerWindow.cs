@@ -7,6 +7,9 @@ using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
@@ -28,6 +31,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private readonly bool _isLight;
     private readonly EnvironmentalMapPickerCanvas _map;
     private readonly TextBlock _coordinateText;
+    private readonly List<(TextBlock Target, Func<Glyph> Resolve)> _glyphBindings = [];
     private bool _isRetiring;
 
     public EnvironmentalMapPickerWindow(
@@ -73,6 +77,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         _coordinateText.FontFamily = new FontFamily("Consolas, Cascadia Mono, Segoe UI");
 
         Content = BuildContent();
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         UpdateCoordinateText();
     }
 
@@ -103,6 +108,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         {
             Width = CloseButtonWidth, Height = TitleBarHeight, Padding = new Thickness(0), Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
         };
+        BindGlyph(close, static () => GlyphCatalog.CHROME_CLOSE);
         close.Click += (_, _) => Hide();
         TrayAppDotNETToolTip.SetTip(close, L("Common_Close", "Close"));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
@@ -206,13 +212,13 @@ public sealed class EnvironmentalMapPickerWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(6)));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
-        AddHudButton(grid, p, "Up", GlyphCatalog.CHEVRON_UP.Text, 0, 1);
-        AddHudButton(grid, p, "Left", GlyphCatalog.CHEVRON_LEFT.Text, 1, 0);
-        AddHudButton(grid, p, "Right", GlyphCatalog.CHEVRON_RIGHT.Text, 1, 2);
-        AddHudButton(grid, p, "Down", GlyphCatalog.CHEVRON_DOWN.Text, 2, 1);
+        AddHudGlyphButton(grid, p, "Up", static () => GlyphCatalog.CHEVRON_UP, 0, 1);
+        AddHudGlyphButton(grid, p, "Left", static () => GlyphCatalog.CHEVRON_LEFT, 1, 0);
+        AddHudGlyphButton(grid, p, "Right", static () => GlyphCatalog.CHEVRON_RIGHT, 1, 2);
+        AddHudGlyphButton(grid, p, "Down", static () => GlyphCatalog.CHEVRON_DOWN, 2, 1);
         AddHudButton(grid, p, "ZoomIn", "+", 0, 4, useIconFont: false);
         AddHudButton(grid, p, "ZoomOut", "-", 1, 4, useIconFont: false);
-        AddHudButton(grid, p, "Center", GlyphCatalog.MAP_CENTER.Text, 2, 4);
+        AddHudGlyphButton(grid, p, "Center", static () => GlyphCatalog.MAP_CENTER, 2, 4);
 
         return new Border
         {
@@ -225,7 +231,20 @@ public sealed class EnvironmentalMapPickerWindow : Window
         };
     }
 
-    private void AddHudButton(
+    private void AddHudGlyphButton(
+        Grid grid,
+        SettingsPalette palette,
+        string action,
+        Func<Glyph> resolveGlyph,
+        int row,
+        int column)
+    {
+        Glyph glyph = resolveGlyph();
+        SettingsButton button = AddHudButton(grid, palette, action, glyph.Text, row, column);
+        BindGlyph(button, resolveGlyph);
+    }
+
+    private SettingsButton AddHudButton(
         Grid grid,
         SettingsPalette p,
         string action,
@@ -245,6 +264,32 @@ public sealed class EnvironmentalMapPickerWindow : Window
         Grid.SetRow(button, row);
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
+        return button;
+    }
+
+    /// <summary>
+    /// Associates a persistent button label with its live glyph definition.
+    /// </summary>
+    private void BindGlyph(SettingsButton button, Func<Glyph> resolveGlyph)
+    {
+        Glyph glyph = resolveGlyph();
+        GlyphApplicator.ApplyTo(button.Label, glyph);
+        _glyphBindings.Add((button.Label, resolveGlyph));
+    }
+
+    /// <summary>
+    /// Reapplies glyph metadata to controls that remain alive while the picker is hidden.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        if (_isRetiring) return;
+
+        foreach ((TextBlock target, Func<Glyph> resolve) in _glyphBindings)
+        {
+            target.RenderTransform = null;
+            target.FontWeight = FontWeight.Normal;
+            GlyphApplicator.ApplyTo(target, resolve());
+        }
     }
 
     private void ApplyMapHudAction(string action)
@@ -310,6 +355,8 @@ public sealed class EnvironmentalMapPickerWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         Closing -= OnClosing;
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
+        _glyphBindings.Clear();
         Applied = null;
         try
         {

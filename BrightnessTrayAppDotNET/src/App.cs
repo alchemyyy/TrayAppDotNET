@@ -20,6 +20,7 @@ using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using TrayAppDotNETCommon.Utils;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using BrightnessHotkeyFiredEventArgs =
     TrayAppDotNETCommon.Services.HotkeyFiredEventArgs<BrightnessTrayAppDotNET.Models.BrightnessHotkeyAction>;
 using BrightnessHotkeyService =
@@ -105,6 +106,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             return;
         }
 
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -917,6 +919,15 @@ internal sealed class BrightnessAvaloniaApp : Application
         RequestTrayRefresh();
     }
 
+    /// <summary>
+    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        _trayIconRenderer?.InvalidateCache();
+        RequestTrayRefresh();
+    }
+
     private void RequestTrayRefresh()
     {
         if (_trayIcon == null) return;
@@ -1249,6 +1260,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
         bool glyphConsumersClosed = true;
 
         try

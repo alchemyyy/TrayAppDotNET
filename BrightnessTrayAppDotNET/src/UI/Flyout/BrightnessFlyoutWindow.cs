@@ -21,6 +21,7 @@ using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using BrightnessAppTheme = BrightnessTrayAppDotNET.Visuals.AppTheme;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -157,6 +158,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             InitializeComponent();
             TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
+            GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+            _externalResources.Add(() =>
+                GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+
             _profileManager.EnsureProfileCount(Math.Max(1, _theme.ProfileButtons.ButtonCount));
             RestoreInitialProfileState();
             if (Monitors.Count > 0) MasterMonitor.Brightness = ComputeMasterFromEnabledIndividuals();
@@ -237,6 +242,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _layout = AxamlFlyout;
 
         RebuildVisual();
+    }
+
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        if (!IsWindowAlive) return;
+
+        QueueRebuildVisual();
     }
 
     private FlyoutAxamlProperties Layout =>

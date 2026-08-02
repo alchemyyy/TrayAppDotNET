@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -44,6 +45,7 @@ public sealed partial class FanPropertiesWindow : Window
     private readonly List<FanPropertyUnitBinding> _propertyUnitBindings = [];
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
+    private readonly SettingsButton _closeButton;
     private readonly List<FanCurveEditorWindow> _curveEditorWindows = [];
     private readonly Dictionary<FanCurveEditorWindow, UIResourceScope> _curveEditorSubscriptionResources = [];
     private readonly UIResourceScope _windowResources = new(nameof(FanPropertiesWindow));
@@ -72,6 +74,7 @@ public sealed partial class FanPropertiesWindow : Window
         _offsetBox = null!;
         _editCurveButton = null!;
         _pinButton = null!;
+        _closeButton = null!;
 
         InitializeComponent();
         InitializeComponentState();
@@ -123,11 +126,11 @@ public sealed partial class FanPropertiesWindow : Window
             _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", palette);
 
             _pinButton = CaptionButton(GlyphCatalog.PIN, palette);
-            SettingsButton closeButton = CaptionButton(GlyphCatalog.EXIT, palette);
+            _closeButton = CaptionButton(GlyphCatalog.EXIT, palette);
             _pinButton.Click += (_, _) => IsPinned = !IsPinned;
-            closeButton.Click += (_, _) => RequestClose();
+            _closeButton.Click += (_, _) => RequestClose();
 
-            Grid titleBar = BuildTitleBar(palette, _pinButton, closeButton);
+            Grid titleBar = BuildTitleBar(palette, _pinButton, _closeButton);
             Grid body = BuildBody(palette);
             Grid footer = BuildFooter(palette);
 
@@ -155,6 +158,9 @@ public sealed partial class FanPropertiesWindow : Window
             _windowResources.Add(() => _fan.PropertyChanged -= OnFanPropertyChanged);
             _settings.Changed += OnSettingsChanged;
             _windowResources.Add(() => _settings.Changed -= OnSettingsChanged);
+            GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+            _windowResources.Add(() =>
+                GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
         }
         catch
         {
@@ -164,6 +170,19 @@ public sealed partial class FanPropertiesWindow : Window
     }
 
     private void InitializeComponentState() => _layout = AxamlFanProperties;
+
+    /// <summary>
+    /// Reapplies glyph metadata to the persistent caption buttons.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        if (_windowResources.IsDisposed) return;
+
+        _pinButton.Label.RenderTransform = null;
+        _closeButton.Label.RenderTransform = null;
+        GlyphApplicator.ApplyTo(_pinButton.Label, IsPinned ? GlyphCatalog.PINNED : GlyphCatalog.PIN);
+        GlyphApplicator.ApplyTo(_closeButton.Label, GlyphCatalog.EXIT);
+    }
 
     private FanPropertiesAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Fan properties layout resources have not been loaded.");

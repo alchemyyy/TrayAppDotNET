@@ -78,6 +78,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _wndProcHook = WndProcHook;
         Opened += OnWindowOpened;
         Closed += OnWindowClosed;
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+        _windowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
         _windowResources.Add(DetachWndProcHook);
         _windowResources.Add(() => Closed -= OnWindowClosed);
         _windowResources.Add(() => Opened -= OnWindowOpened);
@@ -173,6 +175,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         RefreshPalette();
         BuildAndCommitShell(selectedPageKey);
+    }
+
+    /// <summary>
+    /// Rebuilds code-created settings glyphs after a catalog source reload.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        if (IsClosing || !_shellInitialized) return;
+
+        RebuildShell(CurrentPageKey);
     }
 
     /// <summary>

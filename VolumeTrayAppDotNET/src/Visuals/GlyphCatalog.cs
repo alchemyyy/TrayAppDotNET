@@ -1,5 +1,6 @@
 using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using TrayAppDotNETCommon.Visuals;
 
 namespace VolumeTrayAppDotNET.Visuals;
 
@@ -8,7 +9,14 @@ namespace VolumeTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
+#if DEBUG
+    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
+        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
+            "Volume",
+            static () => new GlyphCatalogResources());
+#else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => []);
+#endif
 
     public new const string SEGOE_FLUENT_ICONS = CommonGlyphCatalog.SEGOE_FLUENT_ICONS;
     public new const string SEGOE_MDL2_ASSETS = CommonGlyphCatalog.SEGOE_MDL2_ASSETS;
@@ -88,5 +96,12 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph SQUARE => Glyph("Square");
     public static Glyph HEART => Glyph("Heart");
 
-    private static Glyph Glyph(string name) => Resources.Value.Glyph(name);
+    private static Glyph Glyph(string name)
+    {
+#if DEBUG
+        return Resources.Current.Glyph(name);
+#else
+        return Resources.Value.Glyph(name);
+#endif
+    }
 }

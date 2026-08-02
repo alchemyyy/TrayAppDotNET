@@ -8,7 +8,14 @@ namespace BrightnessTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
+#if DEBUG
+    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
+        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
+            "Brightness",
+            static () => new GlyphCatalogResources());
+#else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
+#endif
 
     public static Glyph ECLIPSED_SUN => Glyph("EclipsedSun");
     public static Glyph HALF_SUN => Glyph("HalfSun");
@@ -57,5 +64,12 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph MAP_CENTER => Glyph("MapCenter");
     public static Glyph MAP_PIN => Glyph("MapPin");
 
-    private static Glyph Glyph(string name) => Resources.Value.Glyph(name);
+    private static Glyph Glyph(string name)
+    {
+#if DEBUG
+        return Resources.Current.Glyph(name);
+#else
+        return Resources.Value.Glyph(name);
+#endif
+    }
 }

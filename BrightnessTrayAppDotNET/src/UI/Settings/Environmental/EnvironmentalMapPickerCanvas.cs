@@ -8,6 +8,8 @@ using BrightnessTrayAppDotNET.UI;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
 
@@ -33,8 +35,6 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
     internal const double HudPanStep = 80.0;
     internal const double HudZoomStep = 1.25;
 
-    private static readonly FontFamily PinFont =
-        TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamily(GlyphCatalog.MAP_PIN.Font);
     private static readonly Geometry? MapGeometry = LoadMapGeometry();
     private static readonly MercatorMapProjection Projection = MercatorMapProjection.FromMapSize(MapWidth, MapHeight);
 
@@ -69,6 +69,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         PointerReleased += OnPointerReleased;
         PointerWheelChanged += OnPointerWheelChanged;
         PointerCaptureLost += OnPointerCaptureLost;
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
     }
 
     public event EventHandler? CoordinateChanged;
@@ -147,11 +148,13 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
     private void DrawPin(DrawingContext context)
     {
         Point center = _viewport.MapToViewport(Projection.Project(_selectedCoordinate));
+        Glyph pinGlyph = GlyphCatalog.MAP_PIN;
+        FontFamily pinFont = TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamily(pinGlyph.Font);
         FormattedText text = new(
-            GlyphCatalog.MAP_PIN.Text,
+            pinGlyph.Text,
             System.Globalization.CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight,
-            new Typeface(PinFont),
+            new Typeface(pinFont),
             PinFontSize,
             TrayAppDotNETSettingsUI.Brush(_pinColor));
 
@@ -160,6 +163,16 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
             center.Y - text.Height * PinAnchorYFraction);
         _pinHitRect = new Rect(origin, new Size(text.Width, text.Height)).Inflate(PinHitPadding);
         context.DrawText(text, origin);
+    }
+
+    /// <summary>
+    /// Invalidates the map so its drawn pin uses the reloaded glyph.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        InvalidateVisual();
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -387,6 +400,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         PointerReleased -= OnPointerReleased;
         PointerWheelChanged -= OnPointerWheelChanged;
         PointerCaptureLost -= OnPointerCaptureLost;
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
         CoordinateChanged = null;
         Cursor = null;
     }

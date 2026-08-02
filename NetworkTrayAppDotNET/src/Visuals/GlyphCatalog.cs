@@ -8,7 +8,14 @@ namespace NetworkTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
+#if DEBUG
+    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
+        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
+            "Network",
+            static () => new GlyphCatalogResources());
+#else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
+#endif
 
     public new static Glyph WARNING => Glyph("Warning");
 
@@ -23,5 +30,12 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph NETWORK_WIFI_4 => Glyph("NetworkWifi4");
     public static Glyph NETWORK_NONE => Glyph("NetworkNone");
 
-    private static Glyph Glyph(string name) => Resources.Value.Glyph(name);
+    private static Glyph Glyph(string name)
+    {
+#if DEBUG
+        return Resources.Current.Glyph(name);
+#else
+        return Resources.Value.Glyph(name);
+#endif
+    }
 }

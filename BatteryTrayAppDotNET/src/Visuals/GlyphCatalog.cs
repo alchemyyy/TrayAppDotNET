@@ -1,11 +1,19 @@
 using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
+using TrayAppDotNETCommon.Visuals;
 
 namespace BatteryTrayAppDotNET.Visuals;
 
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
+#if DEBUG
+    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
+        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
+            "Battery",
+            static () => new GlyphCatalogResources());
+#else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
+#endif
 
     public new const string SEGOE_FLUENT_ICONS = CommonGlyphCatalog.SEGOE_FLUENT_ICONS;
     public new const string SEGOE_MDL2_ASSETS = CommonGlyphCatalog.SEGOE_MDL2_ASSETS;
@@ -41,5 +49,12 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph BATTERY_CHARGING_9 => Glyph("BatteryCharging9");
     public static Glyph BATTERY_CHARGING_10 => Glyph("BatteryCharging10");
 
-    private static Glyph Glyph(string name) => Resources.Value.Glyph(name);
+    private static Glyph Glyph(string name)
+    {
+#if DEBUG
+        return Resources.Current.Glyph(name);
+#else
+        return Resources.Value.Glyph(name);
+#endif
+    }
 }

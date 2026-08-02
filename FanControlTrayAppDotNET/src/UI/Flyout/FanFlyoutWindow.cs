@@ -14,6 +14,7 @@ using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -157,6 +158,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             KeyDown += OnFlyoutKeyDown;
             WindowResources.Add(() => KeyDown -= OnFlyoutKeyDown);
+            GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+            WindowResources.Add(() =>
+                GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
             if (EnableFanDragInstrumentation)
             {
                 AddHandler(KeyDownEvent, OnDragInstrumentationKeyDown, RoutingStrategies.Tunnel,
@@ -182,6 +186,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Hide();
         e.Handled = true;
     }
+
+    /// <summary>
+    /// Rebuilds code-created flyout glyphs after a catalog source reload.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded() => RequestFanRebuild();
 
     private void InitializeComponentState()
     {

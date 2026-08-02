@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using HotAvalonia;
 #endif
 using TrayAppDotNETCommon.UI.WarmWindows;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Localization;
 using VolumeTrayAppDotNET.UI.Flyout;
@@ -89,6 +90,7 @@ internal sealed class VolumeAvaloniaApp : Application
             return;
         }
 
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -465,6 +467,15 @@ internal sealed class VolumeAvaloniaApp : Application
         _trayIconRenderer.TrayIconColorOverride = _settings?.TrayIconColor.Resolve(isLight);
     }
 
+    /// <summary>
+    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        _trayIconRenderer?.InvalidateCache();
+        RequestTrayRefresh();
+    }
+
     private void RequestTrayRefresh()
     {
         if (_trayIcon == null) return;
@@ -781,6 +792,7 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
 
         try
         {

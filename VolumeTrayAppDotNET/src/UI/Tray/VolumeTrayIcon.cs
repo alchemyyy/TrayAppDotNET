@@ -25,13 +25,6 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
         Log = TADNLog.Log
     });
 
-    private readonly VolumeTrayIconGlyphs _glyphs = new(
-        GlyphCatalog.PLAYBACK_VOLUME_MUTE,
-        GlyphCatalog.PLAYBACK_VOLUME_SILENT,
-        GlyphCatalog.PLAYBACK_VOLUME_LOW,
-        GlyphCatalog.PLAYBACK_VOLUME_MID,
-        GlyphCatalog.PLAYBACK_VOLUME_HIGH);
-
     private readonly AppTheme _theme = theme ?? AppTheme.Default;
     private bool _isDirty = true;
 
@@ -124,9 +117,10 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
     private TrayIconGlyphLayer ResolveGlyphs()
     {
         Glyph foreground = GlyphCatalog.GetVolumeTier(Volume, IsMuted);
-        string? backdrop = IsMuted || foreground == _glyphs.High
+        Glyph high = GlyphCatalog.PLAYBACK_VOLUME_HIGH;
+        string? backdrop = IsMuted || foreground.Text == high.Text
             ? null
-            : _glyphs.High.Text;
+            : high.Text;
         return new TrayIconGlyphLayer(backdrop, foreground.Text);
     }
 
@@ -135,10 +129,3 @@ internal sealed class VolumeTrayIcon(AppTheme? theme) : IDisposable
 
     public void Dispose() => _renderer.Dispose();
 }
-
-internal sealed record VolumeTrayIconGlyphs(
-    Glyph Muted,
-    Glyph Silent,
-    Glyph Low,
-    Glyph Mid,
-    Glyph High);

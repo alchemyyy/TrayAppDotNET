@@ -14,6 +14,7 @@ using NetworkTrayAppDotNET.Services;
 using NetworkTrayAppDotNET.UI;
 using NetworkTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI.WarmWindows;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using CommonUser32 = TrayAppDotNETCommon.Interop.User32;
 
 namespace NetworkTrayAppDotNET;
@@ -84,6 +85,7 @@ internal sealed class NetworkAvaloniaApp : Application
             return;
         }
 
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -342,6 +344,15 @@ internal sealed class NetworkAvaloniaApp : Application
         RequestedThemeVariant = ResolveEffectiveIsLightTheme()
             ? ThemeVariant.Light
             : ThemeVariant.Dark;
+    }
+
+    /// <summary>
+    /// Invalidates the renderer so tray glyph edits are visible immediately.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        _networkIconRenderer?.InvalidateCache();
+        RequestTrayRefresh();
     }
 
     private void RequestTrayRefresh()
@@ -640,6 +651,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
 
         try
         {

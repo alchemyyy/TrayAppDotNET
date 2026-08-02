@@ -2,7 +2,14 @@ namespace TrayAppDotNETCommon.Visuals;
 
 public abstract class GlyphCatalog
 {
+#if DEBUG
+    private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
+        GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
+            "Common",
+            static () => new GlyphCatalogResources());
+#else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
+#endif
 
     protected internal const string SEGOE_FLUENT_ICONS = TADNFontResolver.SegoeFluentIconsFamilyName;
     protected internal const string SEGOE_MDL2_ASSETS = TADNFontResolver.SegoeMDL2AssetsFamilyName;
@@ -35,5 +42,12 @@ public abstract class GlyphCatalog
     protected internal static Glyph SLIDER_THUMB_SQUARE => Glyph("SliderThumbSquare");
     protected internal static Glyph SLIDER_THUMB_HEART => Glyph("SliderThumbHeart");
 
-    private static Glyph Glyph(string name) => Resources.Value.Glyph(name);
+    private static Glyph Glyph(string name)
+    {
+#if DEBUG
+        return Resources.Current.Glyph(name);
+#else
+        return Resources.Value.Glyph(name);
+#endif
+    }
 }

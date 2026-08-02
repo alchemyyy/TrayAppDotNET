@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Settings;
+using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -118,6 +119,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
             }
 
             RebuildContent(ProbeSelectorTab.Home);
+            GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+            _windowResources.Add(() =>
+                GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
         }
         catch
         {
@@ -127,6 +131,16 @@ public sealed partial class ProbeDataSelectorWindow : Window
     }
 
     private void InitializeComponentState() => _layout = AxamlProbeSelector;
+
+    /// <summary>
+    /// Rebuilds code-created selector glyphs after a catalog source reload.
+    /// </summary>
+    private void OnGlyphCatalogResourcesReloaded()
+    {
+        if (_windowResources.IsDisposed || _activeVisualGeneration == null) return;
+
+        RebuildContent();
+    }
 
     private ProbeSelectorAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Probe selector layout resources have not been loaded.");
