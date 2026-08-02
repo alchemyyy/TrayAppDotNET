@@ -553,7 +553,7 @@ internal sealed class NetworkAvaloniaApp : Application
 
     private void OpenNetworkFlyout()
     {
-        FlyoutStyle flyoutStyle = _settings?.FlyoutStyle ?? FlyoutStyle.AvailableNetworks;
+        FlyoutStyle flyoutStyle = _settings?.FlyoutStyle ?? AppSettings.DefaultFlyoutStyle;
 
         bool success = flyoutStyle switch
         {

@@ -55,9 +55,10 @@ public class AppSettings : AppSettingsCommon
     public TrayClickAction TrayAltDoubleLeftClickAction { get; set; } = TrayClickAction.Nothing;
 
     // Network app: which UI to surface on tray left-click and which adapter window to open
-    // from the context menu. AvailableNetworks is the safest default - works under any Win10/11
-    // build without depending on the undocumented shell-experience COM contracts.
-    public FlyoutStyle FlyoutStyle { get; set; } = FlyoutStyle.AvailableNetworks;
+    // from the context menu. The Windows 10 network flyout is the intended primary experience;
+    // App falls back to the available-networks URI if its shell COM contract is unavailable.
+    public const FlyoutStyle DefaultFlyoutStyle = FlyoutStyle.Windows10;
+    public FlyoutStyle FlyoutStyle { get; set; } = DefaultFlyoutStyle;
     public AdapterSettingsStyle AdapterSettingsStyle { get; set; } = AdapterSettingsStyle.Explorer;
 
     // Network app: per-state tray icon color overrides. Each falls back to the per-theme default
