@@ -218,7 +218,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void OnAudioManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AudioDeviceManager.DefaultDevice))
+        if (e.PropertyName is nameof(AudioDeviceManager.DefaultDevice)
+            or nameof(AudioDeviceManager.DefaultCaptureDevice))
             QueueRebuild();
     }
 
@@ -418,11 +419,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 isLight);
 
             List<AudioDevice> devices = FlyoutDeviceOrdering.Build(_audioManager.Devices, _settings);
+            Dictionary<AudioDevice, List<AudioAppGroup>> visibleGroupsByDevice =
+                ResolveVisibleGroupsByDevice(devices);
             StackPanel cellStack = new() { Spacing = 0 };
             for (int index = 0; index < devices.Count; index++)
             {
+                AudioDevice device = devices[index];
                 cellStack.Children.Add(BuildCell(
-                    devices[index],
+                    device,
+                    visibleGroupsByDevice[device],
                     flyoutPalette,
                     isFirst: index == 0,
                     isLast: index == devices.Count - 1));
@@ -683,9 +688,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private static Thickness CenteredHeaderMargin(Thickness margin) =>
         new(margin.Left, 0, margin.Right, 0);
 
-    private Grid BuildCell(AudioDevice device, FlyoutPalette p, bool isFirst, bool isLast)
+    private Grid BuildCell(
+        AudioDevice device,
+        List<AudioAppGroup> groups,
+        FlyoutPalette p,
+        bool isFirst,
+        bool isLast)
     {
-        List<AudioAppGroup> groups = VisibleGroups(device);
         bool expanded = IsAppDrawerExpanded(device);
         bool drawerVisible = groups.Count > 0 && expanded;
         UpdateGroupMeterVisibility(device, groups, drawerVisible);
@@ -2361,25 +2370,62 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private List<AudioAppGroup> VisibleGroups(AudioDevice device)
+    private Dictionary<AudioDevice, List<AudioAppGroup>> ResolveVisibleGroupsByDevice(
+        IReadOnlyList<AudioDevice> devices)
     {
-        List<AudioAppGroup> groups = [];
-        foreach (AudioAppGroup group in device.Groups)
+        Dictionary<AudioDevice, List<AudioAppGroup>> visibleGroupsByDevice = [];
+        List<(AudioDevice Device, AudioAppGroup Group)> candidateBindings = [];
+        List<AppDrawerVisibilityCandidate> candidates = [];
+
+        foreach (AudioDevice device in devices)
         {
-            if (group.State == AudioSessionState.Expired) continue;
-            if (group.IsSystemSounds) continue;
-            if (_ownAppID != null &&
-                string.Equals(group.AppID, _ownAppID, StringComparison.OrdinalIgnoreCase)) continue;
-            if (group.Sessions.Count == 0) continue;
-            if (_settings.CaptureActivityIndicator == CaptureActivityIndicator.HideInactive
-                && device.IsCaptureDevice
-                && group.State != AudioSessionState.Active)
-                continue;
-            groups.Add(group);
+            visibleGroupsByDevice.Add(device, []);
+            bool isDefaultDevice = IsCurrentDefaultDevice(device);
+            foreach (AudioAppGroup group in device.Groups)
+            {
+                if (!IsLocallyVisibleGroup(device, group)) continue;
+
+                candidateBindings.Add((device, group));
+                candidates.Add(new AppDrawerVisibilityCandidate(
+                    device.DataFlow,
+                    device.Id,
+                    isDefaultDevice,
+                    group.AppID,
+                    group.State));
+            }
         }
 
-        return groups;
+        bool[] isVisible = AppDrawerVisibilityPolicy.Resolve(candidates);
+        for (int candidateIndex = 0; candidateIndex < candidateBindings.Count; candidateIndex++)
+        {
+            if (!isVisible[candidateIndex]) continue;
+
+            (AudioDevice device, AudioAppGroup group) = candidateBindings[candidateIndex];
+            visibleGroupsByDevice[device].Add(group);
+        }
+
+        return visibleGroupsByDevice;
     }
+
+    private bool IsLocallyVisibleGroup(AudioDevice device, AudioAppGroup group)
+    {
+        if (group.State == AudioSessionState.Expired) return false;
+        if (group.IsSystemSounds) return false;
+        if (_ownAppID != null
+            && string.Equals(group.AppID, _ownAppID, StringComparison.OrdinalIgnoreCase)) return false;
+        if (group.Sessions.Count == 0) return false;
+        if (_settings.CaptureActivityIndicator == CaptureActivityIndicator.HideInactive
+            && device.IsCaptureDevice
+            && group.State != AudioSessionState.Active) return false;
+        return true;
+    }
+
+    private bool IsCurrentDefaultDevice(AudioDevice device) => device.DataFlow switch
+    {
+        EDataFlow.eRender => ReferenceEquals(device, _audioManager.DefaultDevice),
+        EDataFlow.eCapture => ReferenceEquals(device, _audioManager.DefaultCaptureDevice),
+        _ => false
+    };
 
     private void HookDeviceForRebuild(AudioDevice device)
     {
