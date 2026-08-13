@@ -34,6 +34,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     private readonly Dispatcher _dispatcher;
 
+    // Core Audio requires the process to keep an explicitly initialized MTA alive before session
+    // managers register IAudioSessionNotification callbacks. The Avalonia dispatcher is STA.
+    private readonly CoreAudioSessionMTAThread _sessionNotificationMTAThread;
+
     // Threadpool-fired timers. Sample timer reads the COM peak off the UI thread; render timer
     // BeginInvokes the lerp advancement onto the dispatcher. Mirrors EarTrumpet exactly:
     // running the render timer at FPS > SampleRate is what keeps the lerp visiting intermediate
@@ -323,6 +327,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 0,
                 drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
 
+            // Must be running before any AudioDevice activates IAudioSessionManager2 and registers
+            // its create-session callback. Otherwise sessions created after initial enumeration can
+            // be omitted permanently from both playback and recording drawers.
+            _sessionNotificationMTAThread = new CoreAudioSessionMTAThread();
             _enumerator = CreateDeviceEnumerator();
 
             // Sample timer's Elapsed fires on the threadpool and does the COM peak read off the UI
@@ -499,6 +507,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_deviceListRefreshThrottler);
         Safe.Dispose(_processExitMonitor);
         Safe.Release(enumerator);
+        Safe.Dispose(_sessionNotificationMTAThread);
     }
 
     private double ResolveRenderIntervalMs()
@@ -1658,6 +1667,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_processExitMonitor);
 
         Safe.Release(_enumerator);
+        Safe.Dispose(_sessionNotificationMTAThread);
     }
 
     // Notification callbacks fire on COM worker threads; everything is marshaled to the dispatcher
