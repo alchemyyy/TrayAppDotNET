@@ -38,6 +38,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     // managers register IAudioSessionNotification callbacks. The Avalonia dispatcher is STA.
     private readonly CoreAudioSessionMTAThread _sessionNotificationMTAThread;
 
+    // Optional shared capture streams that wake software-only endpoint peak meters. The service
+    // owns a dedicated MTA and remains idle unless both the setting and flyout metering are active.
+    private readonly CaptureMeterActivationService _captureMeterActivationService;
+
     // Threadpool-fired timers. Sample timer reads the COM peak off the UI thread; render timer
     // BeginInvokes the lerp advancement onto the dispatcher. Mirrors EarTrumpet exactly:
     // running the render timer at FPS > SampleRate is what keeps the lerp visiting intermediate
@@ -331,6 +335,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // its create-session callback. Otherwise sessions created after initial enumeration can
             // be omitted permanently from both playback and recording drawers.
             _sessionNotificationMTAThread = new CoreAudioSessionMTAThread();
+            _captureMeterActivationService = new CaptureMeterActivationService();
             _enumerator = CreateDeviceEnumerator();
 
             // Sample timer's Elapsed fires on the threadpool and does the COM peak read off the UI
@@ -347,6 +352,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             {
                 _settings.MeterPeakFpsChanged += OnMeterPeakFpsChanged;
                 _settings.MeterPeakSampleRateChanged += OnMeterPeakSampleRateChanged;
+                _settings.ActivateRecordingDevicesForPeakMetersChanged +=
+                    OnActivateRecordingDevicesForPeakMetersChanged;
             }
 
             _bridge = new NotificationBridge(this);
@@ -407,6 +414,17 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             catch (Exception ex)
             {
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: sample-rate unsubscribe failed: {ex.Message}");
+            }
+
+            try
+            {
+                _settings.ActivateRecordingDevicesForPeakMetersChanged -=
+                    OnActivateRecordingDevicesForPeakMetersChanged;
+            }
+            catch (Exception ex)
+            {
+                TADNLog.Log(
+                    $"AudioDeviceManager.DisposePartialConstruction: capture-activation unsubscribe failed: {ex.Message}");
             }
         }
 
@@ -507,6 +525,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_deviceListRefreshThrottler);
         Safe.Dispose(_processExitMonitor);
         Safe.Release(enumerator);
+        Safe.Dispose(_captureMeterActivationService);
         Safe.Dispose(_sessionNotificationMTAThread);
     }
 
@@ -556,6 +575,35 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (restartMetering) ArmPeakMeterTimers();
     }
 
+    private void OnActivateRecordingDevicesForPeakMetersChanged()
+    {
+        if (_disposed) return;
+        ReconcileCaptureMeterActivation();
+    }
+
+    private void ReconcileCaptureMeterActivation()
+    {
+        if (_disposed
+            || _settings?.ActivateRecordingDevicesForPeakMeters != true
+            || Volatile.Read(ref _activeMeteringGeneration) == 0)
+        {
+            _captureMeterActivationService.ClearActiveDeviceIDs();
+            return;
+        }
+
+        List<string> activeCaptureDeviceIDs = [];
+        foreach (AudioDevice device in _devices)
+        {
+            if (device is { DataFlow: EDataFlow.eCapture, IsActive: true }
+                && !string.IsNullOrEmpty(device.Id))
+            {
+                activeCaptureDeviceIDs.Add(device.Id);
+            }
+        }
+
+        _captureMeterActivationService.SetActiveDeviceIDs(activeCaptureDeviceIDs);
+    }
+
     /// <summary>Starts the peak-meter polling + render timers, and the Bluetooth battery active-poll
     /// timer. Called when the flyout becomes visible.</summary>
     public void StartMetering()
@@ -563,12 +611,14 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (_disposed) return;
         InvalidateAndStopPeakMeterTimers();
         ArmPeakMeterTimers();
+        ReconcileCaptureMeterActivation();
         try
         {
             _batteryMonitor.StartPolling();
         }
         catch
         {
+            _captureMeterActivationService.ClearActiveDeviceIDs();
             InvalidateAndStopPeakMeterTimers();
             throw;
         }
@@ -585,6 +635,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
         finally
         {
+            _captureMeterActivationService.ClearActiveDeviceIDs();
             _batteryMonitor.StopPolling();
         }
     }
@@ -822,6 +873,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
 
         UpdateAllDefaults();
+        ReconcileCaptureMeterActivation();
         // UpdateAllDefaults already calls UpdateListenTargetActiveness, but only after the default
         // resolution lands - so the seed is good on first paint without an extra call here.
         return true;
@@ -901,6 +953,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             if (wrapped == null) return;
 
             _devices.Add(wrapped);
+            ReconcileCaptureMeterActivation();
             NoteExternalDeviceTopologyChanged();
             ScheduleUpdateAllDefaults();
             // Refresh and promote synchronously for runtime device-add events. The
@@ -935,6 +988,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         bool wasBluetoothRender = match is { IsBluetooth: true, DataFlow: EDataFlow.eRender };
         _devices.Remove(match);
         Safe.Dispose(match);
+        ReconcileCaptureMeterActivation();
         NoteExternalDeviceTopologyChanged();
         ScheduleUpdateAllDefaults();
 
@@ -973,6 +1027,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
         else match.DowngradeFromActiveState();
 
+        ReconcileCaptureMeterActivation();
         NoteExternalDeviceTopologyChanged();
         ScheduleUpdateAllDefaults();
         // Any render endpoint going active / inactive can change the dim state of every capture
@@ -1639,7 +1694,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         {
             _settings.MeterPeakFpsChanged -= OnMeterPeakFpsChanged;
             _settings.MeterPeakSampleRateChanged -= OnMeterPeakSampleRateChanged;
+            _settings.ActivateRecordingDevicesForPeakMetersChanged -=
+                OnActivateRecordingDevicesForPeakMetersChanged;
         }
+
+        Safe.Dispose(_captureMeterActivationService);
 
         _codecMonitor.CodecChanged -= OnBluetoothCodecChanged;
         Safe.Dispose(_codecMonitor);

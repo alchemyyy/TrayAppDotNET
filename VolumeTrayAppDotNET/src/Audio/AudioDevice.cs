@@ -107,16 +107,16 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     // COM call differs (SetMasterVolumeLevelScalar vs SetMasterVolume).
     private readonly VolumeThrottle _volumeWrite;
 
-    // True on a capture endpoint when no session is currently in the Active state. Windows lets
-    // the capture engine idle when no app is streaming the mic, so the endpoint meter stops
-    // updating and holds whatever peak was last sampled. The bound UI swaps the mute-row glyph to
-    // MICROPHONE_SLEEP; the background sample loop reads _pinEndpointMeterToSilence instead.
+    // True on a capture endpoint when no Core Audio session is currently Active. The bound UI
+    // swaps the mute-row glyph to MICROPHONE_SLEEP, but this state must not suppress direct
+    // IAudioMeterInformation reads: hardware meters and some drivers can report input without a
+    // session visible through IAudioSessionManager2.
     private volatile bool _isCaptureSleeping;
 
     // Event-driven gate for endpoint-level meter samples. The sample timer runs on a threadpool
     // worker, so it reads this cached decision instead of enumerating UI-owned session groups.
-    // Capture: pin while no capture client is active. Render: pin while no shared render session
-    // is active, except when exclusive mode has taken over and shared-session visibility is lost.
+    // Render endpoints pin while no shared session is active, except when exclusive mode has taken
+    // over and shared-session visibility is lost. Active capture endpoints are always polled.
     private volatile bool _pinEndpointMeterToSilence;
 
     public string Id { get; }
@@ -1423,9 +1423,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Bg-thread sample tick. Pins to silence on the event-driven gate, else reads endpoint stereo
-    /// peaks and writes onto the lerp. Cascades into every group so per-session raw peaks fill in
-    /// parallel - all off the UI thread.
+    /// Bg-thread sample tick. Pins inactive render endpoints to silence; otherwise reads endpoint
+    /// stereo peaks and writes onto the lerp. Capture endpoints are polled even without an Active
+    /// Core Audio session. Cascades into every group so per-session raw peaks fill in parallel.
     /// </summary>
     internal void UpdatePeakValueBackground(bool unified, int biasMultiplier)
     {
@@ -1435,9 +1435,8 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
 
         if (_pinEndpointMeterToSilence)
         {
-            // Event-driven lifecycle says endpoint metering is currently stale: either capture is
-            // asleep, or render has no active shared stream to justify a non-zero endpoint peak.
-            // Pin raw peaks to 0 instead; the lerp falls smoothly to silence.
+            // Render has no active shared stream to justify a non-zero endpoint peak. Pin raw
+            // peaks to 0 instead; the lerp falls smoothly to silence.
             _meterLerp.PinRawPeaksToSilence();
             float suppressionPeak = IsDingSuppressionPeakBypassed() ? ReadExternalSessionPeak() : 0f;
             _dingSuppressionPeak.Observe(suppressionPeak);
@@ -1632,17 +1631,25 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(IsCaptureSleeping));
         }
 
-        bool shouldPin = DataFlow switch
-        {
-            EDataFlow.eCapture => sleeping,
-            EDataFlow.eRender => !_isExclusiveControlHeld && !hasActiveSession,
-            _ => false
-        };
+        bool shouldPin = ShouldPinEndpointMeterToSilence(
+            DataFlow,
+            hasActiveSession,
+            _isExclusiveControlHeld);
 
         if (_pinEndpointMeterToSilence == shouldPin) return;
         _pinEndpointMeterToSilence = shouldPin;
         if (shouldPin) PinEndpointMeterToSilenceNow();
     }
+
+    /// <summary>
+    /// Capture endpoint meters remain readable independently of session enumeration. Only an idle
+    /// shared render endpoint is known to have no meaningful peak and can be pinned to silence.
+    /// </summary>
+    internal static bool ShouldPinEndpointMeterToSilence(
+        EDataFlow dataFlow,
+        bool hasActiveSession,
+        bool isExclusiveControlHeld) =>
+        dataFlow == EDataFlow.eRender && !isExclusiveControlHeld && !hasActiveSession;
 
     /// <summary>
     /// Dispatcher-side lifecycle fast path. When session events prove the endpoint cannot have a

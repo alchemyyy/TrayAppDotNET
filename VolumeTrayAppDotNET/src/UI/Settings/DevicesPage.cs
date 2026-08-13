@@ -21,6 +21,12 @@ public sealed partial class VolumeSettingsWindow
             _settings.ShowNotPresentDevices,
             v => _settings.ShowNotPresentDevices = v,
             p));
+        stack.Children.Add(BoolCard(
+            Loc("Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title"),
+            Loc("Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description"),
+            _settings.ActivateRecordingDevicesForPeakMeters,
+            enabled => _settings.ActivateRecordingDevicesForPeakMeters = enabled,
+            p));
 
         string playback = Loc("Settings_Common_Playback");
         string recording = Loc("Settings_Common_Recording");

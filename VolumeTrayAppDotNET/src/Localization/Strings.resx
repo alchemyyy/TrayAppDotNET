@@ -1142,6 +1142,12 @@ Target: {1}</value>
   <data name="Settings_Devices_ShowNotPresent_Description" xml:space="preserve">
     <value>List endpoints Windows still has on file but no driver is currently loaded for - old USB DACs, removed GPUs' HDMI outputs, paired Bluetooth headsets. Most surface as "Unknown Device". Off by default.</value>
   </data>
+  <data name="Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title" xml:space="preserve">
+    <value>Activate recording devices for peak meters</value>
+  </data>
+  <data name="Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description" xml:space="preserve">
+    <value>While the flyout is visible, open a shared capture stream on each active recording device so software-only peak meters can update. Windows will treat VolumeTrayAppDotNET as using those inputs, and exclusive-mode audio applications may be affected. Off by default.</value>
+  </data>
   <data name="Settings_Devices_RowButtons_Header" xml:space="preserve">
     <value>Row buttons</value>
   </data>

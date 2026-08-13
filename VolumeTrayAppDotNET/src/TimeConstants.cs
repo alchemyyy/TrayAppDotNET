@@ -70,6 +70,13 @@ public abstract class TimeConstants : CommonTimeConstants
     public const int EndpointSoundPlaybackPollSliceMs = 30;
     public const int EndpointSoundPlaybackMaxDrainMs = 5_000;
 
+    // Optional capture-stream activation used to wake software-only recording peak meters while
+    // the flyout is visible. Packets are discarded at a short cadence so capture buffers do not
+    // overrun; failed endpoint activations are retried slowly to tolerate transient driver states.
+    public const int CaptureMeterActivationDrainIntervalMs = 20;
+    public const int CaptureMeterActivationRetryIntervalMs = 2_000;
+    public const int CaptureMeterActivationWorkerJoinTimeoutMs = 2_000;
+
     // App icon retry
     public const int IconRetryIntervalMsDefault = 250;
     public const int IconRetryIntervalMsMin = 50;

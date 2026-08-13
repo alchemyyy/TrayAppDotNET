@@ -19,7 +19,8 @@ namespace VolumeTrayAppDotNET.Models;
 ///   <see cref="RaiseChanged"/> fires <see cref="Changed"/> and schedules a debounced disk write via
 ///   <see cref="RequestSave"/> (one save per quiet period regardless of how many setters fired during
 ///   it). Per-property events still exist for <see cref="MeterPeakFpsChanged"/> /
-///   <see cref="MeterPeakSampleRateChanged"/> which feed AudioDeviceManager retune logic.
+///   <see cref="MeterPeakSampleRateChanged"/> and <see cref="ActivateRecordingDevicesForPeakMetersChanged"/>
+///   which feed AudioDeviceManager runtime logic.
 ///   Hex setters and Temporary*Color setters call <see cref="RaiseChanged"/> so DynamicResource consumers
 ///   re-resolve; derived projections need notifications on every input.
 ///   Explicit "save now" paths call <see cref="Save()"/> directly to bypass the debounce.
@@ -144,6 +145,22 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     {
         get;
         set => SetField(ref field, value);
+    }
+
+    // Some capture drivers expose only a software peak meter, which stays at zero until an app
+    // starts a shared capture stream. Off by default because activation makes Windows treat VTADN
+    // as using each active recording endpoint and can interfere with exclusive-mode applications.
+    public bool ActivateRecordingDevicesForPeakMeters
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            OnPropertyChanged();
+            ActivateRecordingDevicesForPeakMetersChanged?.Invoke();
+            RaiseChanged();
+        }
     }
 
     // Tray-menu quick links to the classic Sound control-panel tabs.
@@ -529,6 +546,9 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
 
     /// <summary>Raised when MeterPeakSampleRate changes so AudioDeviceManager can retune its sample interval.</summary>
     public event Action? MeterPeakSampleRateChanged;
+
+    /// <summary>Raised when capture streams should be started or stopped for software peak meters.</summary>
+    public event Action? ActivateRecordingDevicesForPeakMetersChanged;
 
     // Slider thumb. The built-in catalog (SliderThumbGlyphOption.CreateDefaults) is hardcoded and rebuilt
     // from scratch on every load, so the list itself is never persisted. Only the user's current selection

@@ -216,7 +216,7 @@ internal static class PropertyKeys
 
 // Activatable on an IMMDevice. Vtable layout matches audioclient.h: every slot we don't call
 // is left as a stubbed Unused_* so the slots we do call (Initialize / GetBufferSize /
-// GetCurrentPadding / Start / Stop / GetService) land at the right indices. PreserveSig so
+// GetCurrentPadding / GetMixFormat / Start / Stop / GetService) land at the right indices. PreserveSig so
 // callers branch on the HRESULT directly.
 [Guid("1cb9ad4c-dbfa-4c32-b178-c2f568a703b2")]
 [GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
@@ -246,7 +246,9 @@ internal partial interface IAudioClient
 
     void Unused_IsFormatSupported();
 
-    void Unused_GetMixFormat();
+    [PreserveSig]
+    int GetMixFormat(out IntPtr deviceFormat);
+
     void Unused_GetDevicePeriod();
 
     [PreserveSig]
@@ -277,6 +279,29 @@ internal partial interface IAudioRenderClient
     int ReleaseBuffer(uint numFramesWritten, uint dwFlags);
 }
 
+// Capture-side service obtained via IAudioClient.GetService. The caller must drain every packet
+// from the shared capture ring even when it only needs to keep the endpoint's software meter alive.
+// GetService, GetBuffer, and ReleaseBuffer must all run from the same COM apartment.
+[Guid("c8adbd64-e71e-48a0-a4de-185c395cd317")]
+[GeneratedComInterface(StringMarshalling = StringMarshalling.Utf16)]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal partial interface IAudioCaptureClient
+{
+    [PreserveSig]
+    int GetBuffer(
+        out IntPtr data,
+        out uint numFramesToRead,
+        out uint flags,
+        out ulong devicePosition,
+        out ulong qpcPosition);
+
+    [PreserveSig]
+    int ReleaseBuffer(uint numFramesRead);
+
+    [PreserveSig]
+    int GetNextPacketSize(out uint numFramesInNextPacket);
+}
+
 internal static class AudioClientExtensions
 {
     public static int GetService<T>(this IAudioClient client, Guid iid, out T? service)
@@ -305,9 +330,9 @@ internal static class AudioClientExtensions
     }
 }
 
-// IAudioClient.Initialize streamFlags. NoPersist keeps our short feedback wav from leaking a
-// per-app entry into the OS volume mixer history; AutoConvertPcm + SrcDefaultQuality let us
-// submit the wav in its native PCM format and have the engine resample / remix transparently.
+// IAudioClient.Initialize streamFlags. NoPersist keeps helper render and capture sessions from
+// leaking entries into the OS volume mixer history; AutoConvertPcm + SrcDefaultQuality let the
+// feedback player submit a wav in its native PCM format for transparent engine conversion.
 internal static class AudioClientStreamFlags
 {
     public const uint NoPersist = 0x00080000;
