@@ -10,12 +10,12 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 /// so the live kelvin filter reapplies without flicker.
 ///
 /// This class is the entry point that <see cref="NightLightProvider"/> dispatches to.
-/// Reads (<see cref="GetStrength"/>, <see cref="IsEnabled"/>)
-/// and on/off mutations (<see cref="SetEnabled"/>, <see cref="Toggle"/>) delegate to <see cref="NightLightRegistry"/>
-/// because the registry is the source of truth for those.
+/// Reads (<see cref="GetStrength"/>, <see cref="IsEnabled"/>) use <see cref="NightLightRegistry"/> as the source
+/// of truth. Explicit active-state changes use the SettingsHandler singleton so fresh Windows profiles receive
+/// the initialized marker and the Settings UI observes the same CloudStore save chain as its own toggle.
 ///
-/// On top of the cloud-store strength path, every gesture (SetStrength, SetEnabled, Toggle)
-/// arms a single shared System.Threading.Timer that fires
+/// On top of the cloud-store strength path, every strength gesture arms a single shared System.Threading.Timer
+/// that fires
 /// <see cref="NightLightRegistry.SetStrength"/> against the latest known kelvin
 /// once <see cref="TimeConstants.NightLightUIHandleryRegistryEnforceDelayMs"/> of quiet has elapsed.
 /// This is a belt-and-suspenders settle-write: the cloud-store bracket should already have updated
@@ -24,12 +24,20 @@ namespace BrightnessTrayAppDotNET.Interop.NightLight;
 /// </summary>
 internal static class NightLightSettingsHandler
 {
-    // -1 = no recorded strength yet; SetEnabled/Toggle will snapshot the registry on first arm
-    // so the deferred fire always has a real value to write.
+    private const string SettingsHandlersDllPath = @"C:\Windows\System32\SettingsHandlers_Display.dll";
+
+    // -1 = no recorded strength yet
     private static int _deferredStrengthPercent = -1;
     private static Timer? _deferredRegistryTimer;
 
     public static bool IsSupported() => NightLightHelperClient.IsSupported();
+
+    /// <summary>
+    /// Cheap capability probe that does not load SettingsHandlers_Display or initialize its Night Light
+    /// singleton. Actual symbol/backend validation is deferred until the first explicit write.
+    /// </summary>
+    public static bool CanInitialize() =>
+        OperatingSystem.IsWindows() && Environment.Is64BitProcess && File.Exists(SettingsHandlersDllPath);
 
     /// <summary>Strength 0-100. Source of truth is the registry, same as the other backends.</summary>
     public static int GetStrength() => NightLightRegistry.GetStrength();
@@ -37,28 +45,21 @@ internal static class NightLightSettingsHandler
     public static bool IsEnabled() => NightLightRegistry.IsEnabled();
 
     /// <summary>
-    /// On/off via the registry path. Also re-arms the deferred registry settle-write so a toggle
-    /// pushes any pending strength enforcement out by the full quiet period.
+    /// Drives the Settings UI's own active-state mutator. When enabling with a target strength, the helper
+    /// commits that strength before the active transition so a fresh profile cannot flash at a stale value.
     /// </summary>
-    public static bool SetEnabled(bool enabled)
+    public static bool SetEnabled(bool enabled, int? enableStrength = null)
     {
-        bool ok = NightLightRegistry.SetEnabled(enabled);
-        EnsureDeferredStrengthSeeded();
-        ArmDeferredRegistryWrite();
-        return ok;
+        if (!enabled)
+            NightLightHelperClient.CancelPendingStrength();
+
+        return NightLightHelperClient.SetEnabled(enabled, enableStrength);
     }
 
     /// <summary>
-    /// Toggles via the registry path. Also re-arms the deferred registry settle-write
-    /// for the same reason as <see cref="SetEnabled"/>.
+    /// Toggles via the native SettingsHandler active-state path.
     /// </summary>
-    public static bool Toggle()
-    {
-        bool ok = NightLightRegistry.Toggle();
-        EnsureDeferredStrengthSeeded();
-        ArmDeferredRegistryWrite();
-        return ok;
-    }
+    public static bool Toggle() => SetEnabled(!NightLightRegistry.IsEnabled());
 
     /// <summary>
     /// Queues a kelvin write through the recyclable helper process. The main-process queue is length-one and
@@ -71,22 +72,13 @@ internal static class NightLightSettingsHandler
     /// </summary>
     public static void SetStrength(int percent)
     {
+        if (!NightLightRegistry.IsEnabled()) return;
+
         int clamped = Math.Clamp(percent, 0, 100);
         if (!NightLightHelperClient.TryQueueSettingsKelvin(clamped)) return;
 
         Volatile.Write(ref _deferredStrengthPercent, clamped);
         ArmDeferredRegistryWrite();
-    }
-
-    /// <summary>
-    /// First-time seed for the deferred-strength field. SetStrength always overwrites it with the
-    /// user's latest argument; the on/off mutators only seed when the field is still the sentinel,
-    /// so a toggle never clobbers an in-flight slider value the user just requested.
-    /// </summary>
-    private static void EnsureDeferredStrengthSeeded()
-    {
-        if (Volatile.Read(ref _deferredStrengthPercent) >= 0) return;
-        Volatile.Write(ref _deferredStrengthPercent, NightLightRegistry.GetStrength());
     }
 
     /// <summary>
@@ -120,9 +112,9 @@ internal static class NightLightSettingsHandler
             int percent = Volatile.Read(ref _deferredStrengthPercent);
             if (percent < 0) return;
 
-            // Reset the sentinel before the write so a gesture that arrives while we're writing
-            // still snapshots fresh state on its EnsureDeferredStrengthSeeded call.
+            // Reset the sentinel before the write so a gesture arriving during the write owns the next fire
             Volatile.Write(ref _deferredStrengthPercent, -1);
+            if (!NightLightRegistry.IsEnabled()) return;
             NightLightRegistry.SetStrength(percent);
         }
         catch (Exception ex)
@@ -137,6 +129,8 @@ internal static class NightLightSettingsHandler
     /// </summary>
     public static void CancelPendingResend()
     {
+        NightLightHelperClient.CancelPendingStrength();
+        Volatile.Write(ref _deferredStrengthPercent, -1);
         Timer? timer = _deferredRegistryTimer;
         timer?.Change(Timeout.Infinite, Timeout.Infinite);
     }

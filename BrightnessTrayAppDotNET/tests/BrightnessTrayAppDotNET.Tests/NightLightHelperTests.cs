@@ -1,4 +1,6 @@
 using BrightnessTrayAppDotNET.Interop.NightLight;
+using BrightnessTrayAppDotNET.Models;
+using BrightnessTrayAppDotNET.Services;
 using BrightnessTrayAppDotNET.UI.Flyout;
 using Xunit;
 
@@ -6,6 +8,18 @@ namespace BrightnessTrayAppDotNET.Tests;
 
 public sealed class NightLightHelperTests
 {
+    [Fact]
+    public void ProviderCapabilityProbeDoesNotStartNativeHelper()
+    {
+        Assert.False(NightLightHelperClient.HasStartedInitialization);
+
+        AppSettings settings = new();
+        NightLightProvider.Initialize(settings);
+        _ = NightLightProvider.IsSupported();
+
+        Assert.False(NightLightHelperClient.HasStartedInitialization);
+    }
+
     [Fact]
     public void LatestQueueReplacesPendingIntermediateValue()
     {
@@ -72,6 +86,18 @@ public sealed class NightLightHelperTests
         string response = NightLightHelperServer.HandleCommand(NightLightHelperServer.PingCommand);
 
         Assert.Equal(NightLightHelperServer.PongResponse, response);
+    }
+
+    [Theory]
+    [InlineData("ACTIVE")]
+    [InlineData("ACTIVE\t2")]
+    [InlineData("ACTIVE\t0\t50")]
+    [InlineData("ACTIVE\t1\t101")]
+    public void InvalidActiveStateCommandsAreRejected(string command)
+    {
+        string response = NightLightHelperServer.HandleCommand(command);
+
+        Assert.Equal(NightLightHelperServer.FailureResponse, response);
     }
 
     [Theory]

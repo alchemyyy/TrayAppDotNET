@@ -38,6 +38,7 @@ internal static class NightLightCloudStore
 {
     private const uint ROInitMultithreaded = 1;
     private const int BackendShutdownTimeoutMs = 10_000;
+    private const int StateReadbackPollIntervalMs = 25;
     private const string BackendThreadName = "NightLightCloudStore-MTA";
 
     // The three bracket calls (kelvin, IsDragging-on, IsDragging-off) must each reach the broker as a distinct
@@ -55,6 +56,11 @@ internal static class NightLightCloudStore
         + @"default$windows.data.bluelightreduction.settings\"
         + "windows.data.bluelightreduction.settings";
 
+    private const string StateBlobKeyPath =
+        @"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current\"
+        + @"default$windows.data.bluelightreduction.bluelightreductionstate\"
+        + "windows.data.bluelightreduction.bluelightreductionstate";
+
     private const string CallerName = "NightLightCloudStore";
 
     // SettingsHandlers_Display.dll is pinned for process lifetime - we deliberately don't FreeLibrary because
@@ -70,11 +76,15 @@ internal static class NightLightCloudStore
     private const string SymBlueLightSingletonSetPreviewColorTemperatureChanges =
         "BlueLightSingleton::SetPreviewColorTemperatureChanges";
 
+    private const string SymBlueLightSingletonSetBlueLightActive =
+        "BlueLightSingleton::SetBlueLightActive";
+
     // Verified RVAs for known builds. Falls through to PDBSymbolResolver on miss; the resolver caches its
     // result so the symbol-server hit is a one-time cost per Windows update.
     //
-    // Defaults are mirrored to %LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\nightlight\nightlight_known_rvas.xml on
-    // first run so users can add entries for new Windows builds without recompiling. If the file matches the
+    // Defaults are mirrored to
+    // %LocalAppData%\TrayAppDotNET\BrightnessTrayAppDotNET\nightlight\nightlight_known_rvas.xml on first run so
+    // users can add entries for new Windows builds without recompiling. If the file matches the
     // canonical default XML byte-for-byte we keep the in-memory defaults; if it has been hand-edited we discard
     // defaults and load the file. See LoadKnownRVAs for the full reconciliation logic.
     private const string KnownRVAsFileName = "nightlight_known_rvas.xml";
@@ -83,7 +93,8 @@ internal static class NightLightCloudStore
         Path.Combine(PDBSymbolResolver.NightlightDir, KnownRVAsFileName);
 
     private static readonly Dictionary<string,
-            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+            int SetBlueLightActiveRVA)>
         KnownSettingsHandlersRVAs = LoadKnownRVAs();
 
     private static readonly Lock _gate = new();
@@ -107,8 +118,10 @@ internal static class NightLightCloudStore
     private static IntPtr _singleton; // SettingsHandlersDll + SInstanceRva
     private static IntPtr _setTargetColorTemperatureFn;
     private static IntPtr _setPreviewColorTemperatureChangesFn;
+    private static IntPtr _setBlueLightActiveFn;
     private static SetTargetColorTemperatureDel? _setTargetColorTemperature;
     private static SetPreviewColorTemperatureChangesDel? _setPreviewColorTemperatureChanges;
+    private static SetBlueLightActiveDel? _setBlueLightActive;
 
     public static bool IsSupported()
     {
@@ -122,6 +135,7 @@ internal static class NightLightCloudStore
     /// </summary>
     public static bool TryQueueStreamingKelvin(int percent)
     {
+        if (!NightLightRegistry.IsEnabled()) return false;
         if (!IsSupported()) return false;
 
         int kelvin = NightLightKelvin.PercentToKelvin(percent);
@@ -253,6 +267,11 @@ internal static class NightLightCloudStore
 
                 if (hasKelvin)
                 {
+                    // The main process can turn Night Light off after a SET command was acknowledged but before
+                    // this MTA request executes. Drop that stale value at the last possible boundary.
+                    if (!NightLightRegistry.IsEnabled())
+                        continue;
+
                     setTargetColorTemperature(_singleton, kelvin);
                     if (!_streamPreviewActive)
                     {
@@ -351,6 +370,7 @@ internal static class NightLightCloudStore
     /// </summary>
     public static Task<bool> SaveSettingsKelvinAsync(int percent)
     {
+        if (!NightLightRegistry.IsEnabled()) return Task.FromResult(false);
         if (!IsSupported()) return Task.FromResult(false);
 
         int kelvin = NightLightKelvin.PercentToKelvin(percent);
@@ -406,6 +426,74 @@ internal static class NightLightCloudStore
     /// </summary>
     public static bool SaveSettingsKelvin(int percent) =>
         SaveSettingsKelvinAsync(percent).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Commits an active-state transition through <c>BlueLightSingleton::SetBlueLightActive</c>. Unlike a raw
+    /// registry toggle, this path sets Windows' initialized field and creates the CloudStore state on profiles
+    /// where Night Light has never been enabled. An optional strength is saved before enabling.
+    /// </summary>
+    public static async Task<bool> SetEnabledAsync(bool enabled, int? enableStrength = null)
+    {
+        if (!enabled && enableStrength.HasValue) return false;
+        if (!IsSupported()) return false;
+
+        Thread? backendThread;
+        lock (_gate)
+            backendThread = _backendThread;
+
+        if (ReferenceEquals(Thread.CurrentThread, backendThread))
+        {
+            if (!DrainStreamingOnMTAThread()) return false;
+            return SetEnabledOnMTAThread(enabled, enableStrength);
+        }
+
+        bool drained = await DrainStreamingAsync().ConfigureAwait(false);
+        if (!drained) return false;
+
+        return await QueueBackendRequest(() => SetEnabledOnMTAThread(enabled, enableStrength))
+            .ConfigureAwait(false);
+    }
+
+    private static bool SetEnabledOnMTAThread(bool enabled, int? enableStrength)
+    {
+        SetBlueLightActiveDel? setBlueLightActive = _setBlueLightActive;
+        if (setBlueLightActive == null) return false;
+
+        if (enabled && enableStrength.HasValue)
+        {
+            int kelvin = NightLightKelvin.PercentToKelvin(enableStrength.Value);
+            if (!SaveSettingsKelvinOnMTAThread(kelvin)) return false;
+        }
+
+        long startedAtTick = Environment.TickCount64;
+        try
+        {
+            AsyncUtils.IssueWithSaveNotifyAsync(
+                    StateBlobKeyPath,
+                    () => setBlueLightActive(_singleton, enabled ? (byte)1 : (byte)0),
+                    TimeConstants.NightLightSaveNotifyTimeoutMs,
+                    TimeConstants.NightLightCloudStoreFallbackDwellMs,
+                    CallerName)
+                .GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            WPFLog.Log($"NightLightCloudStore.SetEnabledOnMTAThread: state save threw: {ex.Message}");
+            return false;
+        }
+
+        while (Environment.TickCount64 - startedAtTick <= TimeConstants.NightLightSaveNotifyTimeoutMs)
+        {
+            NightLightStateStatus stateStatus = NightLightRegistry.GetStateStatus();
+            if (stateStatus.IsInitialized && stateStatus.IsEnabled == enabled)
+                return true;
+
+            Thread.Sleep(StateReadbackPollIntervalMs);
+        }
+
+        NightLightStateStatus finalStatus = NightLightRegistry.GetStateStatus();
+        return finalStatus.IsInitialized && finalStatus.IsEnabled == enabled;
+    }
 
     /// <summary>
     /// Stops accepting work, drains the backend queue, and balances WinRT initialization on the backend thread.
@@ -568,6 +656,9 @@ internal static class NightLightCloudStore
             _setPreviewColorTemperatureChanges =
                 Marshal.GetDelegateForFunctionPointer<SetPreviewColorTemperatureChangesDel>(
                     _setPreviewColorTemperatureChangesFn);
+            _setBlueLightActive =
+                Marshal.GetDelegateForFunctionPointer<SetBlueLightActiveDel>(
+                    _setBlueLightActiveFn);
 
             bool initializationAccepted;
             lock (_gate)
@@ -594,6 +685,7 @@ internal static class NightLightCloudStore
             FailPendingRequests(backendRequests);
             _setTargetColorTemperature = null;
             _setPreviewColorTemperatureChanges = null;
+            _setBlueLightActive = null;
 
             if (windowsRuntimeInitialized)
                 RoUninitialize();
@@ -629,16 +721,19 @@ internal static class NightLightCloudStore
             throw new InvalidOperationException($"GetVersionInfo failed: {ex.Message}");
         }
 
-        int initializeRVA, sInstanceRVA, setTempRVA, setPreviewRVA;
+        int initializeRVA, sInstanceRVA, setTempRVA, setPreviewRVA, setActiveRVA;
         if (KnownSettingsHandlersRVAs.TryGetValue(
                 version,
-                out (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)
-                hardcoded))
+                out (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                int SetBlueLightActiveRVA)
+                hardcoded)
+            && hardcoded.SetBlueLightActiveRVA > 0)
         {
             initializeRVA = hardcoded.InitializeRVA;
             sInstanceRVA = hardcoded.SInstanceRVA;
             setTempRVA = hardcoded.SetTargetColorTemperatureRVA;
             setPreviewRVA = hardcoded.SetPreviewRVA;
+            setActiveRVA = hardcoded.SetBlueLightActiveRVA;
         }
         else
         {
@@ -648,7 +743,8 @@ internal static class NightLightCloudStore
                     [
                         SymBlueLightSingletonInitialize, SymBlueLightSingletonSInstance,
                         SymBlueLightSingletonSetTargetColorTemperature,
-                        SymBlueLightSingletonSetPreviewColorTemperatureChanges
+                        SymBlueLightSingletonSetPreviewColorTemperatureChanges,
+                        SymBlueLightSingletonSetBlueLightActive
                     ],
                     out Dictionary<string, int> rvas))
             {
@@ -660,11 +756,13 @@ internal static class NightLightCloudStore
             sInstanceRVA = rvas[SymBlueLightSingletonSInstance];
             setTempRVA = rvas[SymBlueLightSingletonSetTargetColorTemperature];
             setPreviewRVA = rvas[SymBlueLightSingletonSetPreviewColorTemperatureChanges];
+            setActiveRVA = rvas[SymBlueLightSingletonSetBlueLightActive];
         }
 
         _singleton = nint.Add(_hSettingsHandlersDll, sInstanceRVA);
         _setTargetColorTemperatureFn = nint.Add(_hSettingsHandlersDll, setTempRVA);
         _setPreviewColorTemperatureChangesFn = nint.Add(_hSettingsHandlersDll, setPreviewRVA);
+        _setBlueLightActiveFn = nint.Add(_hSettingsHandlersDll, setActiveRVA);
         IntPtr initFn = nint.Add(_hSettingsHandlersDll, initializeRVA);
 
         try
@@ -678,15 +776,16 @@ internal static class NightLightCloudStore
                 $"BlueLightSingleton::Initialize threw: {ex.Message}");
         }
 
-        // Sanity-check that init populated the singleton's inner state/settings ptrs. Both must be non-null
-        // for SetTargetColorTemperature to write through (it has an early null-check).
-        IntPtr stateInner = Marshal.ReadIntPtr(_singleton, 272);
+        // Sanity-check every pointer required by SetBlueLightActive and SetTargetColorTemperature
+        IntPtr stateInner = Marshal.ReadIntPtr(_singleton, 264);
+        IntPtr stateWrapper = Marshal.ReadIntPtr(_singleton, 272);
         IntPtr settingsInner = Marshal.ReadIntPtr(_singleton, 296);
-        if (stateInner == IntPtr.Zero || settingsInner == IntPtr.Zero)
+        if (stateInner == IntPtr.Zero || stateWrapper == IntPtr.Zero || settingsInner == IntPtr.Zero)
         {
             throw new InvalidOperationException(
                 $"BlueLightSingleton::Initialize did not populate inner ptrs " +
-                $"(state=0x{stateInner.ToInt64():X16}, settings=0x{settingsInner.ToInt64():X16})");
+                $"(state=0x{stateInner.ToInt64():X16}, stateWrapper=0x{stateWrapper.ToInt64():X16}, " +
+                $"settings=0x{settingsInner.ToInt64():X16})");
         }
 
         WPFLog.Log("NightLightCloudStore: BlueLight singleton initialized on permanent MTA thread");
@@ -706,6 +805,8 @@ internal static class NightLightCloudStore
     private delegate void SetTargetColorTemperatureDel(IntPtr thisPtr, int kelvin);
 
     private delegate void SetPreviewColorTemperatureChangesDel(IntPtr thisPtr, byte isDragging);
+
+    private delegate void SetBlueLightActiveDel(IntPtr thisPtr, byte isActive);
 
     private sealed class BackendRequest(Func<bool> operation)
     {
@@ -734,11 +835,12 @@ internal static class NightLightCloudStore
     // Canonical defaults: the only thing that ships with the binary. Empty today; add an entry here to seed
     // a new Windows build's RVAs into the on-disk file on first run.
     private static Dictionary<string,
-            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+            int SetBlueLightActiveRVA)>
         BuildDefaultKnownRVAs() => new()
     {
-        //need to update this to check guid too????
-        //["10.0.26100.8117"] = (0x26564, 0x68D50, 0x27EE8, 0x27E20),
+        // TODO: Key hardcoded RVAs by PDB signature as well as file version
+        // ["10.0.26100.8117"] = (0x265C4, 0x68D80, 0x27F58, 0x27E90, 0x27D4C),
     };
 
     /// <summary>
@@ -750,11 +852,13 @@ internal static class NightLightCloudStore
     /// mishaps.
     /// </summary>
     private static Dictionary<string,
-            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+            int SetBlueLightActiveRVA)>
         LoadKnownRVAs()
     {
         Dictionary<string,
-                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                int SetBlueLightActiveRVA)>
             defaults = BuildDefaultKnownRVAs();
 
         byte[] defaultsBytes;
@@ -793,12 +897,14 @@ internal static class NightLightCloudStore
 
     private static byte[] SerializeKnownRVAs(
         Dictionary<string,
-                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                int SetBlueLightActiveRVA)>
             dict)
     {
         NightLightKnownRVAsDocument document = new();
         foreach (KeyValuePair<string,
-                     (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+                     (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                     int SetBlueLightActiveRVA)>
                  kvp in dict.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
         {
             document.Entries.Add(new NightLightKnownRVAEntry
@@ -807,7 +913,8 @@ internal static class NightLightCloudStore
                 Initialize = kvp.Value.InitializeRVA,
                 SInstance = kvp.Value.SInstanceRVA,
                 SetTargetColorTemperature = kvp.Value.SetTargetColorTemperatureRVA,
-                SetPreview = kvp.Value.SetPreviewRVA
+                SetPreview = kvp.Value.SetPreviewRVA,
+                SetBlueLightActive = kvp.Value.SetBlueLightActiveRVA
             });
         }
 
@@ -817,11 +924,13 @@ internal static class NightLightCloudStore
     }
 
     private static Dictionary<string,
-            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+            (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+            int SetBlueLightActiveRVA)>
         ParseKnownRVAs(byte[] xmlBytes)
     {
         Dictionary<string,
-                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA)>
+                (int InitializeRVA, int SInstanceRVA, int SetTargetColorTemperatureRVA, int SetPreviewRVA,
+                int SetBlueLightActiveRVA)>
             result = [];
 
         using MemoryStream stream = new(xmlBytes, writable: false);
@@ -834,7 +943,8 @@ internal static class NightLightCloudStore
                 entry.Initialize,
                 entry.SInstance,
                 entry.SetTargetColorTemperature,
-                entry.SetPreview);
+                entry.SetPreview,
+                entry.SetBlueLightActive);
         }
 
         return result;
@@ -876,4 +986,7 @@ internal sealed class NightLightKnownRVAEntry
 
     [XmlAttribute]
     public int SetPreview { get; set; }
+
+    [XmlAttribute]
+    public int SetBlueLightActive { get; set; }
 }

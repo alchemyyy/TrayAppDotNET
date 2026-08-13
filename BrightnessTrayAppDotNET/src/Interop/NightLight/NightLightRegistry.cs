@@ -3,6 +3,8 @@ using TrayAppDotNETCommon.Services;
 
 namespace BrightnessTrayAppDotNET.Interop.NightLight;
 
+internal readonly record struct NightLightStateStatus(bool IsInitialized, bool IsEnabled);
+
 /// <summary>
 /// Access layer for Windows Night Light via the CloudStore registry blobs. Format is Microsoft Bond
 /// CompactBinary v1 (CB v1) inside a CloudStore envelope:
@@ -28,9 +30,8 @@ internal static class NightLightRegistry
 {
     // Latest-pending-wins scheduler for fire-and-forget callers (slider drag, env curve). Cooldown is zero:
     // the bottleneck is the registry I/O itself (~5ms per round-trip), and the throttler's job here is
-    // single-flight + intermediate-collapse, not rate-limiting. Synchronous callers (tests,
-    // EnsureNonZeroStrengthBeforeEnable's pre-enable write) still call the sync SetStrength directly so they
-    // observe the readback.
+    // single-flight + intermediate-collapse, not rate-limiting. Diagnostic callers can still use the synchronous
+    // SetStrength method when they need immediate readback.
     private const string ThrottlerKey = "nightlight";
     private static readonly AsyncThrottler<string> _throttler = new(0, StringComparer.Ordinal);
 
@@ -53,6 +54,7 @@ internal static class NightLightRegistry
     private static readonly byte[] OuterHeader = [0x0A, 0x02, 0x01, 0x00, 0x2A, 0x06];
     private static readonly byte[] OuterInnerPrefix = [0x2A, 0x2B, 0x0E];
     private static readonly byte[] EnabledMarker = [0x10, 0x00]; // STATE inner field 0 INT32=0 (presence = ON)
+    private static readonly byte[] InitializedTag = [0xD0, 0x0A]; // STATE inner field 10 INT32 marker
     private static readonly byte[] TempTag = [0xCF, 0x28]; // SETTINGS inner field 40 INT16 marker
 
     private static readonly byte[] FileTimeTag = [0xC6, 0x14]; // STATE inner field 20 UINT64 marker
@@ -70,9 +72,9 @@ internal static class NightLightRegistry
         {
             byte[]? state = ReadBlob(StateKeyPath);
             byte[]? settings = ReadBlob(SettingsKeyPath);
-            return state is not null
+            NightLightStateStatus stateStatus = InspectStateBlob(state);
+            return stateStatus.IsInitialized
                    && settings is not null
-                   && TryParseOuter(state, out _)
                    && TryParseOuter(settings, out _);
         }
         catch (Exception ex)
@@ -82,17 +84,23 @@ internal static class NightLightRegistry
         }
     }
 
+    /// <summary>
+    /// True after Windows has committed the Night Light STATE initialization field. A parseable state blob alone
+    /// is insufficient: fresh profiles can expose a default in-memory state before the Settings toggle has ever
+    /// initialized the feature.
+    /// </summary>
+    public static bool IsInitialized() => GetStateStatus().IsInitialized;
+
     public static bool IsEnabled()
     {
-        byte[]? blob = ReadBlob(StateKeyPath);
-        return blob is not null
-               && TryParseOuter(blob, out OuterLayout layout)
-               && HasEnabledMarker(blob, layout);
+        return GetStateStatus().IsEnabled;
     }
 
     /// <summary>Strength 0 (no tint) to 100 (max warmth).</summary>
     public static int GetStrength()
     {
+        if (!IsInitialized()) return 0;
+
         byte[]? blob = ReadBlob(SettingsKeyPath);
         if (blob is null || !TryParseOuter(blob, out OuterLayout layout)) return 0;
 
@@ -124,6 +132,7 @@ internal static class NightLightRegistry
     {
         byte[]? blob = ReadBlob(StateKeyPath);
         if (blob is null || !TryParseOuter(blob, out OuterLayout layout)) return false;
+        if (!HasInitializedMarker(blob, layout)) return false;
 
         bool wasEnabled = HasEnabledMarker(blob, layout);
         byte[] inner = Slice(blob, layout.InnerStart, layout.InnerLength);
@@ -143,10 +152,12 @@ internal static class NightLightRegistry
     /// state-blob rewrite is what forces Windows' live filter to re-evaluate against the new strength on
     /// builds where settings-only writes are silently ignored. Enabled state is preserved (we only touch the
     /// FILETIME). Returns true if the strength read back matches what we wrote within +/-1% rounding
-    /// tolerance.
+    /// tolerance. Returns false without writing when Night Light is uninitialized or off.
     /// </summary>
     public static bool SetStrength(int percent)
     {
+        if (!IsEnabled()) return false;
+
         percent = Math.Clamp(percent, 0, 100);
         WriteKelvin(NightLightKelvin.PercentToKelvin(percent));
         RefreshStateFileTime();
@@ -224,6 +235,8 @@ internal static class NightLightRegistry
         // hitches; pushing the lot off the UI thread eliminates that path entirely.
         _ = Task.Run(() =>
         {
+            if (!IsEnabled()) return Task.CompletedTask;
+
             SchedulePostSettleResend(clamped);
             return _throttler.RunAsync(
                 ThrottlerKey,
@@ -266,6 +279,8 @@ internal static class NightLightRegistry
         // catch-all: log and swallow so a transient throw doesn't crash the app.
         try
         {
+            if (!IsEnabled()) return;
+
             int percent = Volatile.Read(ref _lastResettlePercent);
             // Already on a thread pool thread. Same throttler key as user calls, so a real user call that
             // slips in between the timer firing and the throttler picking us up wins via latest-pending-wins.
@@ -280,12 +295,13 @@ internal static class NightLightRegistry
     }
 
     /// <summary>
-    /// Cancels any pending post-settle resend so the next callback never fires until a fresh
-    /// <see cref="EnqueueSetStrengthSpaced"/> arms it again. Used by the auto-off-at-zero path to make sure
-    /// the resend doesn't race against an off-state - the resend's bracket assumes on-state semantics.
+    /// Drops queued bracket replacements and cancels any post-settle resend so no new strength work starts until
+    /// a fresh <see cref="EnqueueSetStrengthSpaced"/> call. An in-flight bracket may still emit its final
+    /// IsDragging=false cleanup write.
     /// </summary>
     public static void CancelPendingResend()
     {
+        _throttler.Drop(ThrottlerKey);
         Timer? timer = _resendTimer;
         timer?.Change(Timeout.Infinite, Timeout.Infinite);
     }
@@ -309,6 +325,8 @@ internal static class NightLightRegistry
 
     private static async Task SetStrengthSpacedAsync(int percent, ThrottlerContext ctx)
     {
+        if (!IsEnabled()) return;
+
         int targetKelvin = NightLightKelvin.PercentToKelvin(percent);
 
         // Each step: write SETTINGS, wait for our own RegNotify (confirms write landed), then sleep
@@ -324,8 +342,10 @@ internal static class NightLightRegistry
                 TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightFallbackDwellMs, CallerName)
             .ConfigureAwait(false);
         if (ctx.HasReplacement) return;
+        if (!IsEnabled()) return;
         await Task.Delay(TimeConstants.NightLightInterWriteDelayMs).ConfigureAwait(false);
         if (ctx.HasReplacement) return;
+        if (!IsEnabled()) return;
 
         // Step 2: insert IsDragging tag. False->true edge triggers fb3daf -> Apply(target).
         await AsyncUtils.IssueWithSaveNotifyAsync(
@@ -333,11 +353,10 @@ internal static class NightLightRegistry
                 () => WriteSettingsBlob(targetKelvin, dragging: true),
                 TimeConstants.NightLightSaveNotifyTimeoutMs, TimeConstants.NightLightFallbackDwellMs, CallerName)
             .ConfigureAwait(false);
-        if (ctx.HasReplacement) return;
         await Task.Delay(TimeConstants.NightLightInterWriteDelayMs).ConfigureAwait(false);
-        if (ctx.HasReplacement) return;
 
-        // Step 3: remove IsDragging tag. True->false edge runs telemetry only when active.
+        // Step 3 always removes IsDragging after step 2, even if the active state changed meanwhile. Leaving
+        // the preview marker behind would poison the next explicit enable; this is cleanup, not a resettle.
         await AsyncUtils.IssueWithSaveNotifyAsync(
                 SettingsKeyPath,
                 () => WriteSettingsBlob(targetKelvin, dragging: false),
@@ -406,6 +425,8 @@ internal static class NightLightRegistry
     /// <summary>Kelvin 1200 (warmest) to 6500 (coolest). Values outside the range are clamped.</summary>
     public static void SetTemperature(int kelvin)
     {
+        if (!IsEnabled()) return;
+
         WriteKelvin(Math.Clamp(kelvin, NightLightKelvin.MinKelvin, NightLightKelvin.MaxKelvin));
         RefreshStateFileTime();
     }
@@ -417,6 +438,8 @@ internal static class NightLightRegistry
     /// </summary>
     public static void PulseApply()
     {
+        if (!IsEnabled()) return;
+
         Toggle();
         Toggle();
     }
@@ -580,6 +603,32 @@ internal static class NightLightRegistry
         int markerStart = layout.InnerStart + OuterMagic.Length;
         return markerStart + EnabledMarker.Length <= layout.InnerEnd
                && MatchesAt(blob, markerStart, EnabledMarker);
+    }
+
+    private static bool HasInitializedMarker(byte[] blob, OuterLayout layout)
+    {
+        int tagStart = layout.InnerStart + OuterMagic.Length;
+        if (HasEnabledMarker(blob, layout))
+            tagStart += EnabledMarker.Length;
+
+        int valueStart = tagStart + InitializedTag.Length;
+        // Bond ZigZag encodes the initialized INT32 value 1 as the single byte 0x02
+        return valueStart < layout.InnerEnd
+               && MatchesAt(blob, tagStart, InitializedTag)
+               && blob[valueStart] == 0x02;
+    }
+
+    internal static NightLightStateStatus GetStateStatus() => InspectStateBlob(ReadBlob(StateKeyPath));
+
+    /// <summary>Decodes initialized/enabled state without touching the registry.</summary>
+    internal static NightLightStateStatus InspectStateBlob(byte[]? blob)
+    {
+        if (blob is null || !TryParseOuter(blob, out OuterLayout layout))
+            return default;
+
+        bool isInitialized = HasInitializedMarker(blob, layout);
+        bool isEnabled = isInitialized && HasEnabledMarker(blob, layout);
+        return new NightLightStateStatus(isInitialized, isEnabled);
     }
 
     private static int FindTagValueStart(byte[] blob, OuterLayout layout, byte[] tag)

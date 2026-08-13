@@ -32,6 +32,8 @@ internal static class NightLightHelperClient
     private static bool _shutdownRequested;
     private static long _lastQueuedStrengthTick;
 
+    internal static bool HasStartedInitialization => InitializationTask.IsValueCreated;
+
     /// <summary>
     /// Starts and primes one helper, then waits until the production IPC pump is blocked and ready for input.
     /// </summary>
@@ -59,6 +61,9 @@ internal static class NightLightHelperClient
     /// </summary>
     public static bool TryQueueSettingsKelvin(int percent)
     {
+        // Keep this invariant here as well as at the provider: no future direct caller may initialize the native
+        // helper merely because a stale curve or UI update attempted to write strength while Night Light is off.
+        if (!NightLightRegistry.IsEnabled()) return false;
         if (!IsSupported()) return false;
 
         int clamped = Math.Clamp(percent, 0, 100);
@@ -72,6 +77,43 @@ internal static class NightLightHelperClient
 
         SignalPendingWork();
         return true;
+    }
+
+    /// <summary>Discards a strength value that has not yet reached the helper process.</summary>
+    public static void CancelPendingStrength() => PendingStrength.Clear();
+
+    /// <summary>
+    /// Applies an explicit active-state transition through SettingsHandlers_Display. A supplied enable strength
+    /// is committed in the helper before the active transition, which also initializes fresh Windows profiles.
+    /// </summary>
+    public static bool SetEnabled(bool enabled, int? enableStrength)
+    {
+        if (!enabled) CancelPendingStrength();
+
+        NightLightStateStatus stateStatus = NightLightRegistry.GetStateStatus();
+        if (stateStatus.IsInitialized && stateStatus.IsEnabled == enabled) return true;
+        if (!enabled && !stateStatus.IsInitialized) return true;
+
+        if (!IsSupported()) return false;
+
+        NightLightHelperConnection? helper = GetActiveHelper();
+        if (helper == null) return false;
+
+        int? clampedStrength = enableStrength.HasValue
+            ? Math.Clamp(enableStrength.Value, 0, 100)
+            : null;
+        try
+        {
+            return helper.SetEnabledAsync(enabled, clampedStrength, ShutdownTokenSource.Token)
+                .GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            WPFLog.Log(
+                $"NightLightHelperClient: helper PID {helper.ProcessID} active-state operation failed: "
+                + ex.Message);
+            return false;
+        }
     }
 
     /// <summary>
@@ -710,6 +752,7 @@ internal static class NightLightHelperClient
         private readonly NamedPipeServerStream _pipe;
         private readonly StreamWriter _writer;
         private readonly StreamReader _reader;
+        private readonly SemaphoreSlim _operationGate = new(initialCount: 1, maxCount: 1);
         private int _stopped;
 
         private NightLightHelperConnection(
@@ -816,30 +859,15 @@ internal static class NightLightHelperClient
 
         public async Task<bool> SetStrengthAsync(int percent, CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _stopped) != 0)
-                throw new ObjectDisposedException(nameof(NightLightHelperConnection));
-
-            _writer.WriteLine(
+            string command =
                 NightLightHelperServer.SetStrengthCommand + "\t" +
-                percent.ToString(CultureInfo.InvariantCulture));
-            _writer.Flush();
-
-            using CancellationTokenSource operationTokenSource =
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            operationTokenSource.CancelAfter(TimeConstants.NightLightHelperHotPathTimeoutMs);
-
-            Task<string?> responseTask = _reader.ReadLineAsync();
-            string? response;
-            try
-            {
-                response = await responseTask.WaitAsync(operationTokenSource.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new TimeoutException(
-                    $"Helper hot-path acknowledgement exceeded " +
-                    $"{TimeConstants.NightLightHelperHotPathTimeoutMs}ms.");
-            }
+                percent.ToString(CultureInfo.InvariantCulture);
+            string? response = await SendCommandAsync(
+                    command,
+                    TimeConstants.NightLightHelperHotPathTimeoutMs,
+                    "strength acknowledgement",
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             bool accepted = response switch
             {
@@ -853,19 +881,41 @@ internal static class NightLightHelperClient
             return accepted;
         }
 
+        public async Task<bool> SetEnabledAsync(
+            bool enabled,
+            int? enableStrength,
+            CancellationToken cancellationToken)
+        {
+            string command = NightLightHelperServer.SetEnabledCommand + "\t" +
+                             (enabled ? "1" : "0");
+            if (enableStrength.HasValue)
+            {
+                command += "\t" + enableStrength.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
+            string? response = await SendCommandAsync(
+                    command,
+                    TimeConstants.NightLightHelperStateChangeTimeoutMs,
+                    "active-state acknowledgement",
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return response switch
+            {
+                NightLightHelperServer.SuccessResponse => true,
+                NightLightHelperServer.FailureResponse => false,
+                null => throw new IOException("Helper exited without an active-state response."),
+                _ => throw new IOException($"Unknown helper active-state response '{response}'.")
+            };
+        }
+
         public async Task<bool> PingAsync(CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _stopped) != 0)
-                throw new ObjectDisposedException(nameof(NightLightHelperConnection));
-
-            _writer.WriteLine(NightLightHelperServer.PingCommand);
-            _writer.Flush();
-
-            using CancellationTokenSource pingTokenSource =
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            pingTokenSource.CancelAfter(TimeConstants.NightLightHelperHotPathTimeoutMs);
-            Task<string?> responseTask = _reader.ReadLineAsync();
-            string? response = await responseTask.WaitAsync(pingTokenSource.Token).ConfigureAwait(false);
+            string? response = await SendCommandAsync(
+                    NightLightHelperServer.PingCommand,
+                    TimeConstants.NightLightHelperHotPathTimeoutMs,
+                    "PING acknowledgement",
+                    cancellationToken)
+                .ConfigureAwait(false);
             return response switch
             {
                 NightLightHelperServer.PongResponse => true,
@@ -877,17 +927,12 @@ internal static class NightLightHelperClient
 
         public async Task<bool> DrainAsync(CancellationToken cancellationToken)
         {
-            if (Volatile.Read(ref _stopped) != 0)
-                throw new ObjectDisposedException(nameof(NightLightHelperConnection));
-
-            _writer.WriteLine(NightLightHelperServer.DrainCommand);
-            _writer.Flush();
-
-            using CancellationTokenSource drainTokenSource =
-                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            drainTokenSource.CancelAfter(TimeConstants.NightLightHelperHotPathTimeoutMs);
-            Task<string?> responseTask = _reader.ReadLineAsync();
-            string? response = await responseTask.WaitAsync(drainTokenSource.Token).ConfigureAwait(false);
+            string? response = await SendCommandAsync(
+                    NightLightHelperServer.DrainCommand,
+                    TimeConstants.NightLightHelperHotPathTimeoutMs,
+                    "drain acknowledgement",
+                    cancellationToken)
+                .ConfigureAwait(false);
             return response switch
             {
                 NightLightHelperServer.DrainedResponse => true,
@@ -895,6 +940,43 @@ internal static class NightLightHelperClient
                 null => throw new IOException("Helper exited without a drain response."),
                 _ => throw new IOException($"Unknown helper drain response '{response}'.")
             };
+        }
+
+        private async Task<string?> SendCommandAsync(
+            string command,
+            int timeoutMs,
+            string operationName,
+            CancellationToken cancellationToken)
+        {
+            if (Volatile.Read(ref _stopped) != 0)
+                throw new ObjectDisposedException(nameof(NightLightHelperConnection));
+
+            using CancellationTokenSource operationTokenSource =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            operationTokenSource.CancelAfter(timeoutMs);
+
+            bool gateEntered = false;
+            try
+            {
+                await _operationGate.WaitAsync(operationTokenSource.Token).ConfigureAwait(false);
+                gateEntered = true;
+                if (Volatile.Read(ref _stopped) != 0)
+                    throw new ObjectDisposedException(nameof(NightLightHelperConnection));
+
+                _writer.WriteLine(command);
+                _writer.Flush();
+                Task<string?> responseTask = _reader.ReadLineAsync();
+                return await responseTask.WaitAsync(operationTokenSource.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException($"Helper {operationName} exceeded {timeoutMs}ms.");
+            }
+            finally
+            {
+                if (gateEntered)
+                    _operationGate.Release();
+            }
         }
 
         public async Task StopAsync(bool graceful)
@@ -905,8 +987,15 @@ internal static class NightLightHelperClient
             {
                 if (graceful && !_process.HasExited)
                 {
+                    bool gateEntered = false;
                     try
                     {
+                        gateEntered = await _operationGate.WaitAsync(
+                                TimeSpan.FromMilliseconds(TimeConstants.NightLightHelperExitTimeoutMs))
+                            .ConfigureAwait(false);
+                        if (!gateEntered)
+                            throw new TimeoutException("Helper pipe remained busy during graceful exit.");
+
                         _writer.WriteLine(NightLightHelperServer.ExitCommand);
                         _writer.Flush();
                     }
@@ -914,6 +1003,11 @@ internal static class NightLightHelperClient
                     {
                         WPFLog.Log(
                             $"NightLightHelperClient: EXIT to PID {ProcessID} failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (gateEntered)
+                            _operationGate.Release();
                     }
 
                     try
@@ -976,6 +1070,7 @@ internal static class NightLightHelperServer
     public const string ParentProcessIDArg = "--parent-pid";
     public const string PipeNameArg = "--pipe-name";
     public const string SetStrengthCommand = "SET";
+    public const string SetEnabledCommand = "ACTIVE";
     public const string PingCommand = "PING";
     public const string DrainCommand = "DRAIN";
     public const string ExitCommand = "EXIT";
@@ -1084,21 +1179,56 @@ internal static class NightLightHelperServer
         }
 
         string[] fields = line.Split('\t');
-        if (fields.Length != 2 || !fields[0].Equals(SetStrengthCommand, StringComparison.Ordinal))
-            return FailureResponse;
-
-        if (!int.TryParse(
-                fields[1],
-                NumberStyles.Integer,
-                CultureInfo.InvariantCulture,
-                out int percent) || percent is < 0 or > 100)
+        if (fields.Length == 2 && fields[0].Equals(SetStrengthCommand, StringComparison.Ordinal))
         {
-            return FailureResponse;
+            if (!int.TryParse(
+                    fields[1],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int percent) || percent is < 0 or > 100)
+            {
+                return FailureResponse;
+            }
+
+            // Reject a late main-process queue item after an off transition. Pre-enable strength priming uses
+            // the ACTIVE command's combined transaction and therefore does not need this path while disabled.
+            return NightLightRegistry.IsEnabled() && NightLightCloudStore.TryQueueStreamingKelvin(percent)
+                ? SuccessResponse
+                : FailureResponse;
         }
 
-        return NightLightCloudStore.TryQueueStreamingKelvin(percent)
-            ? SuccessResponse
-            : FailureResponse;
+        if (fields.Length is 2 or 3 && fields[0].Equals(SetEnabledCommand, StringComparison.Ordinal))
+        {
+            bool? parsedEnabled = fields[1] switch
+            {
+                "0" => false,
+                "1" => true,
+                _ => null
+            };
+            if (!parsedEnabled.HasValue) return FailureResponse;
+
+            bool enabled = parsedEnabled.Value;
+            int? enableStrength = null;
+            if (fields.Length == 3)
+            {
+                if (!enabled || !int.TryParse(
+                        fields[2],
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out int parsedStrength) || parsedStrength is < 0 or > 100)
+                {
+                    return FailureResponse;
+                }
+
+                enableStrength = parsedStrength;
+            }
+
+            return NightLightCloudStore.SetEnabledAsync(enabled, enableStrength).GetAwaiter().GetResult()
+                ? SuccessResponse
+                : FailureResponse;
+        }
+
+        return FailureResponse;
     }
 
     private static bool HasArg(string[] args, string name)

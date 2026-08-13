@@ -58,7 +58,7 @@ internal sealed class NightLightLatestStrengthQueue
     }
 
     /// <summary>
-    /// Drops the pending value during shutdown.
+    /// Drops the pending value during shutdown or an active-state transition.
     /// </summary>
     public void Clear()
     {

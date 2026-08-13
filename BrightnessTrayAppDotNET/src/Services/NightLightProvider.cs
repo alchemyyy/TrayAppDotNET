@@ -13,7 +13,8 @@ namespace BrightnessTrayAppDotNET.Services;
 /// / <see cref="GetStrength"/> / <see cref="IsEnabled"/>
 /// and the right thing happens.
 ///
-/// Backend resolution runs during initialization and is recomputed whenever the user changes the fallback mode.
+/// Backend resolution is deferred until an explicit write while Night Light is active or being enabled. Reads and
+/// capability checks remain non-invasive so merely starting the app cannot initialize Windows' Night Light state.
 /// </summary>
 internal static class NightLightProvider
 {
@@ -51,7 +52,6 @@ internal static class NightLightProvider
         _settings = settings;
         _settings.Changed += OnSettingsChanged;
         InvalidateBackendCache();
-        _ = GetCachedBackend();
     }
 
     /// <summary>
@@ -110,35 +110,28 @@ internal static class NightLightProvider
         if (_backendCached && currentMode == _lastResolvedFallbackMode) return;
 
         InvalidateBackendCache();
-        _ = GetCachedBackend();
     }
 
     /// <summary>
-    /// True when at least one backend is usable on the current machine.
+    /// True when the selected backend can control Night Light on this machine. This probe is deliberately
+    /// non-invasive: it never starts the native SettingsHandler helper, because initializing Microsoft's
+    /// singleton against a fresh Windows profile can create transient state before the user requests a toggle.
     /// </summary>
-    public static bool IsSupported() => GetCachedBackend() != Backend.None;
-
-    /// <summary>Current strength, 0-100. Reads from whichever backend owns the truth.</summary>
-    public static int GetStrength()
+    public static bool IsSupported()
     {
-        return GetCachedBackend() switch
+        NightLightFallbackMode mode = _settings?.NightLightFallbackMode ?? NightLightFallbackMode.Auto;
+        return mode switch
         {
-            Backend.Registry => NightLightRegistry.GetStrength(),
-            Backend.SettingsHandler => NightLightSettingsHandler.GetStrength(),
-            _ => 0
+            NightLightFallbackMode.SettingsHandler => NightLightSettingsHandler.CanInitialize(),
+            _ => NightLightRegistry.IsSupported()
         };
     }
 
-    /// <summary>True when night light is currently on.</summary>
-    public static bool IsEnabled()
-    {
-        return GetCachedBackend() switch
-        {
-            Backend.Registry => NightLightRegistry.IsEnabled(),
-            Backend.SettingsHandler => NightLightSettingsHandler.IsEnabled(),
-            _ => false
-        };
-    }
+    /// <summary>Current strength, 0-100. The Windows CloudStore registry is the source of truth.</summary>
+    public static int GetStrength() => NightLightRegistry.GetStrength();
+
+    /// <summary>True only when Windows Night Light is initialized and currently on.</summary>
+    public static bool IsEnabled() => NightLightRegistry.IsEnabled();
 
     /// <summary>Sets the strength (0-100) on the active backend; preserves enabled state.</summary>
     public static void SetStrength(int percent) => SetStrength(percent, persistAsLastUserValue: true);
@@ -150,20 +143,26 @@ internal static class NightLightProvider
     /// </summary>
     public static void SetStrength(int percent, bool persistAsLastUserValue)
     {
+        // Never resolve or initialize a write backend while Windows Night Light is off. This is the final
+        // boundary for startup profile restores, environmental ticks, stale queued UI work, and hotkeys.
+        if (!NightLightRegistry.IsEnabled())
+        {
+            CancelBackendResendTimers();
+            return;
+        }
+
         percent = Math.Clamp(percent, 0, 100);
-        WriteStrength(GetCachedBackend(), percent);
+        Backend backend = GetCachedBackend();
+        if (backend == Backend.None) return;
+
+        WriteStrength(backend, percent);
 
         if (persistAsLastUserValue)
             PersistLastUserStrength(percent);
 
-        // Optional auto-off at zero.
-        // Runs after the strength write so the backends settle on 0 first, then we flip the on/off bit.
-        // EnsureNonZeroStrengthBeforeEnable on the next toggle-on restores the user's last warmth,
-        // so this round-trips cleanly.
-        //
-        // Order matters: stop the resend timers BEFORE SetEnabled(false). Both backends arm a delayed
-        // re-fire that assumes on-state semantics; letting one race the off-flip can re-light the filter
-        // moments after we turn it off.
+        // Optional auto-off at zero. Stop queued/resend work before the state transition so a late strength
+        // write cannot re-light the filter. ResolveEnableStrength restores the last non-zero warmth on the next
+        // explicit enable.
         if (percent == 0
             && _settings is { TurnOffNightLightAtZeroStrength: true }
             && IsEnabled())
@@ -188,8 +187,9 @@ internal static class NightLightProvider
 
     /// <summary>
     /// Turns night light on or off on the active backend.
-    /// When <paramref name="enableStrength"/> is supplied, primes the backend to that strength before
-    /// enabling so curve-owned toggles do not flash at the stale manual value first.
+    /// When <paramref name="enableStrength"/> is supplied, the SettingsHandler backend commits it before the
+    /// active transition; the registry backend applies it immediately after the state transition because writes
+    /// while disabled are intentionally prohibited.
     /// Otherwise, transitioning to enabled while the live strength is 0
     /// silently restores <see cref="AppSettings.NightLightLastNonZeroStrength"/> first -
     /// otherwise the user sees no visible change after toggling on, which feels broken.
@@ -203,19 +203,70 @@ internal static class NightLightProvider
         int? enableStrength = null,
         bool persistEnableStrengthAsLastUserValue = true)
     {
+        bool wasEnabled = NightLightRegistry.IsEnabled();
+        if (wasEnabled == enabled)
+        {
+            if (!enabled) CancelBackendResendTimers();
+            return true;
+        }
+
+        // Turning off must remain available even if the selected strength backend cannot initialize. It also
+        // must not start the native helper: the registry already contains an initialized live state, and a
+        // single state transition is sufficient.
+        if (!enabled)
+        {
+            CancelBackendResendTimers();
+            bool disabled = NightLightRegistry.SetEnabled(false);
+            CancelBackendResendTimers();
+            return CompleteEnabledStateChange(disabled, enabled, Backend.Registry);
+        }
+
         Backend backend = GetCachedBackend();
-        if (enabled) EnsureStrengthBeforeEnable(backend, enableStrength, persistEnableStrengthAsLastUserValue);
-        else CancelBackendResendTimers();
+        int? strengthToApply = ResolveEnableStrength(enableStrength);
 
         bool ok = backend switch
         {
-            Backend.Registry => NightLightRegistry.SetEnabled(enabled),
-            Backend.SettingsHandler => NightLightSettingsHandler.SetEnabled(enabled),
+            Backend.Registry => EnableRegistryBackend(strengthToApply),
+            Backend.SettingsHandler => NightLightSettingsHandler.SetEnabled(true, strengthToApply),
             _ => false
         };
 
-        // SettingsHandler.SetEnabled arms its own deferred registry settle-write even on off transitions.
-        // Cancel again after the backend call so a just-created timer cannot re-fire into the off state.
+        if (ok && strengthToApply.HasValue && persistEnableStrengthAsLastUserValue)
+            PersistLastUserStrength(strengthToApply.Value);
+
+        return CompleteEnabledStateChange(ok, enabled, backend);
+    }
+
+    private static int? ResolveEnableStrength(int? requestedStrength)
+    {
+        if (requestedStrength.HasValue)
+            return Math.Clamp(requestedStrength.Value, 0, 100);
+
+        int currentStrength = NightLightRegistry.GetStrength();
+        if (currentStrength > 0) return null;
+
+        return _settings?.NightLightLastNonZeroStrength is { } lastStrength and > 0
+            ? Math.Clamp(lastStrength, 1, 100)
+            : 50;
+    }
+
+    private static bool EnableRegistryBackend(int? strengthToApply)
+    {
+        bool enabled = NightLightRegistry.SetEnabled(true);
+        if (!enabled) return false;
+
+        if (strengthToApply.HasValue)
+            NightLightRegistry.EnqueueSetStrengthSpaced(strengthToApply.Value);
+
+        return true;
+    }
+
+    private static bool CompleteEnabledStateChange(bool ok, bool enabled, Backend backend)
+    {
+        // A backend acknowledgement can race the final CloudStore readback. Never report failure if the
+        // requested initialized state is already visible in the registry.
+        ok = ok || NightLightRegistry.IsEnabled() == enabled;
+
         if (!enabled) CancelBackendResendTimers();
 
         if (!ok)
@@ -256,76 +307,11 @@ internal static class NightLightProvider
         int? enableStrength = null,
         bool persistEnableStrengthAsLastUserValue = true)
     {
-        Backend backend = GetCachedBackend();
-        bool willEnable = !IsEnabled();
-        if (willEnable) EnsureStrengthBeforeEnable(backend, enableStrength, persistEnableStrengthAsLastUserValue);
-        else CancelBackendResendTimers();
-
-        bool ok = backend switch
-        {
-            Backend.Registry => NightLightRegistry.Toggle(),
-            Backend.SettingsHandler => NightLightSettingsHandler.Toggle(),
-            _ => false
-        };
-
-        // See SetEnabled(false): the SettingsHandler backend may arm a settle-write during the off flip.
-        if (!willEnable) CancelBackendResendTimers();
-
-        if (!ok)
-        {
-            WPFLog.Log(
-                $"NightLightProvider.Toggle returned false on backend {backend} "
-                + "(write rejected or readback didn't show the flip).");
-        }
-        else
-        {
-            EnabledStateChanged?.Invoke();
-        }
-
-        return ok;
-    }
-
-    private static void EnsureStrengthBeforeEnable(
-        Backend backend,
-        int? enableStrength,
-        bool persistEnableStrengthAsLastUserValue)
-    {
-        if (enableStrength.HasValue)
-        {
-            int targetStrength = Math.Clamp(enableStrength.Value, 0, 100);
-            WriteStrength(backend, targetStrength);
-            if (persistEnableStrengthAsLastUserValue)
-                PersistLastUserStrength(targetStrength);
-            return;
-        }
-
-        EnsureNonZeroStrengthBeforeEnable(backend);
-    }
-
-    private static void EnsureNonZeroStrengthBeforeEnable(Backend backend)
-    {
-        int currentStrength = backend switch
-        {
-            Backend.Registry => NightLightRegistry.GetStrength(),
-            Backend.SettingsHandler => NightLightSettingsHandler.GetStrength(),
-            _ => 0
-        };
-        if (currentStrength > 0) return;
-
-        int restored = _settings?.NightLightLastNonZeroStrength is { } last and > 0 ? last : 50;
-        // Use the spaced/throttled write rather than the bare synchronous SetStrength: the registry path's
-        // bare write triggers the wedged-+36-inflight broker bug and visibly flickers on toggle-on. The
-        // spaced bracket bypasses that gate via the IsDragging false->true edge. SettingsHandler's
-        // SetStrength is already the latest-wins helper-process entry point.
-        switch (backend)
-        {
-            case Backend.Registry:
-                NightLightRegistry.EnqueueSetStrengthSpaced(restored);
-                break;
-            case Backend.SettingsHandler:
-                NightLightSettingsHandler.SetStrength(restored);
-                break;
-        }
+        bool willEnable = !NightLightRegistry.IsEnabled();
+        return SetEnabled(
+            willEnable,
+            willEnable ? enableStrength : null,
+            persistEnableStrengthAsLastUserValue);
     }
 
     private static void WriteStrength(Backend backend, int percent)

@@ -482,6 +482,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (!IsWindowAlive) return;
 
         bool isNightLightActive = NightLightProvider.IsSupported() && NightLightProvider.IsEnabled();
+        if (isNightLightActive)
+            SyncNightLightSliderFromProvider();
         if (_isNightLightActive == isNightLightActive) return;
 
         _isNightLightActive = isNightLightActive;
@@ -2510,6 +2512,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             enableStrength,
             persistEnableStrengthAsLastUserValue: !enableStrength.HasValue);
         _isNightLightActive = NightLightProvider.IsEnabled();
+        if (_isNightLightActive)
+            SyncNightLightSliderFromProvider();
         OnPropertyChanged(nameof(IsNightLightActive));
         if (_isNightLightActive && enableStrength.HasValue)
             _curveService.Evaluate(immediateHardware: true);
@@ -2733,6 +2737,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private int FlipIfNightLightInverted(int value) =>
         _settings?.InvertNightLightSlider ?? false ? 100 - value : value;
+
+    private void SyncNightLightSliderFromProvider()
+    {
+        int displayValue = FlipIfNightLightInverted(NightLightProvider.GetStrength());
+        if (NightLightMonitor.RoundedBrightness != displayValue)
+            NightLightMonitor.Brightness = displayValue;
+    }
 
     private void RunPreviewSweep(EnvironmentalCurve? previewCurve, EnvironmentalCurve? disabledPeriodCurve)
     {
@@ -3552,7 +3563,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private static bool CanEditSlider(MonitorInfo monitor)
     {
-        if (monitor.IsNightLight) return NightLightProvider.IsSupported();
+        if (monitor.IsNightLight)
+            return NightLightProvider.IsSupported() && NightLightProvider.IsEnabled();
         if (monitor.IsMaster) return true;
         return monitor.IsHardwareFunctional && monitor.SliderState != SliderState.Disabled;
     }

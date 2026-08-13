@@ -76,6 +76,7 @@ public abstract class TimeConstants : CommonTimeConstants
     // Night Light helper process
     public const int NightLightHelperStartTimeoutMs = PDBSymbolResolverDownloadTimeout + 5_000;
     public const int NightLightHelperHotPathTimeoutMs = 1_000;
+    public const int NightLightHelperStateChangeTimeoutMs = NightLightSaveNotifyTimeoutMs * 4 + 2_000;
     public const int NightLightHelperExitTimeoutMs = 2_000;
     public const int NightLightHelperRecoveryDelayMs = 250;
     public const int NightLightStreamingPreviewReleaseDelayMs = 150;
