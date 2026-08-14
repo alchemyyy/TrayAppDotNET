@@ -367,7 +367,7 @@ public static class TrayAppDotNETProgram
         return options.RunApplication(args);
     }
 
-    private static int RunInstall(
+    internal static int RunInstall(
         string? scope,
         TrayAppDotNETProgramOptions options,
         Action<string> log,
@@ -378,45 +378,66 @@ public static class TrayAppDotNETProgram
         if (normalizedScope is not ("local" or "system"))
             return PrintInstallUsage($"Unknown scope '{scope}'", log);
 
-        string? terminationError = TerminateRunningApplicationCopies(options.ApplicationName, log);
-        if (terminationError != null)
+        SingleInstanceCoordinator installCoordinator;
+        try
         {
-            WriteInstallMessage($"Install failed before copying: {terminationError}", error: true, log);
+            SingleInstanceIdentity identity = new(options.ApplicationName, options.AppGuid);
+            installCoordinator = SingleInstanceCoordinator.AcquireOrTakeover(
+                identity,
+                watcherPID: 0,
+                monitoredPID: 0,
+                log);
+        }
+        catch (Exception exception)
+        {
+            log($"TrayAppDotNETProgram.RunInstall: failed to acquire install coordinator: {exception}");
+            WriteInstallMessage(
+                $"Install failed before copying: could not stop running {options.ApplicationName} instances: "
+                + exception.Message,
+                error: true,
+                log);
             return 1;
         }
 
-        switch (normalizedScope)
+        TrayAppDotNETProgramInstallResult result;
+        string installExecutable;
+        string failureMessage;
+
+        using (installCoordinator)
         {
-            case "local":
+            string? terminationError = TerminateRunningApplicationCopies(options.ApplicationName, log);
+            if (terminationError != null)
             {
-                TrayAppDotNETProgramInstallResult result = options.InstallToLocalAppData();
-                string installExecutable = options.LocalAppDataInstallExecutable();
-                return CompleteInstall(
-                    result,
-                    installExecutable,
-                    startInstalled,
-                    successMessage: $"Installed to {installExecutable}",
-                    failureMessage: $"Local install failed: {result.ErrorMessage}",
-                    log: log);
+                WriteInstallMessage($"Install failed before copying: {terminationError}", error: true, log);
+                return 1;
             }
-            case "system":
+
+            switch (normalizedScope)
             {
-                TrayAppDotNETProgramInstallResult result = options.InstallSystemWide();
-                string installExecutable = options.ProgramFilesInstallExecutable();
-                string failureMessage = result.UserCancelled
-                    ? "System install cancelled (UAC prompt declined)"
-                    : $"System install failed: {result.ErrorMessage}";
-                return CompleteInstall(
-                    result,
-                    installExecutable,
-                    startInstalled,
-                    successMessage: $"Installed to {installExecutable}",
-                    failureMessage: failureMessage,
-                    log: log);
+                case "local":
+                    result = options.InstallToLocalAppData();
+                    installExecutable = options.LocalAppDataInstallExecutable();
+                    failureMessage = $"Local install failed: {result.ErrorMessage}";
+                    break;
+                case "system":
+                    result = options.InstallSystemWide();
+                    installExecutable = options.ProgramFilesInstallExecutable();
+                    failureMessage = result.UserCancelled
+                        ? "System install cancelled (UAC prompt declined)"
+                        : $"System install failed: {result.ErrorMessage}";
+                    break;
+                default:
+                    throw new UnreachableException();
             }
-            default:
-                throw new UnreachableException();
         }
+
+        return CompleteInstall(
+            result,
+            installExecutable,
+            startInstalled,
+            successMessage: $"Installed to {installExecutable}",
+            failureMessage,
+            log);
     }
 
     private static string? TerminateRunningApplicationCopies(string applicationName, Action<string> log)
