@@ -116,8 +116,6 @@
         <sys:Double x:Key="Flyout.DeviceIconButtonFontSize">15</sys:Double>
         <Thickness x:Key="Flyout.DeviceIconButtonMargin">0,3,0,-3</Thickness>
         <Thickness x:Key="Flyout.BluetoothBatteryButtonMargin">0,3,4,-3</Thickness>
-        <sys:Double x:Key="Flyout.BluetoothConnectionOverlaySize">12</sys:Double>
-        <Thickness x:Key="Flyout.BluetoothConnectionOverlayMargin">0,0,-3,-2</Thickness>
         <sys:Double x:Key="Flyout.BluetoothConnectionOverlayOpacity">0.3</sys:Double>
         <sys:Double x:Key="Flyout.BluetoothConnectionOverlayStrokeThickness">1</sys:Double>
         <CornerRadius x:Key="Flyout.IconButtonCornerRadius">4</CornerRadius>

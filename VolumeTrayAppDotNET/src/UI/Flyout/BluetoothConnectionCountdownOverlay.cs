@@ -25,7 +25,6 @@ internal sealed class BluetoothConnectionCountdownOverlay : Control, IDisposable
         int timeoutMilliseconds,
         Color color,
         double size,
-        Thickness margin,
         double opacity,
         double strokeThickness)
     {
@@ -42,10 +41,9 @@ internal sealed class BluetoothConnectionCountdownOverlay : Control, IDisposable
 
         Width = size;
         Height = size;
-        Margin = margin;
         Opacity = opacity;
-        HorizontalAlignment = HorizontalAlignment.Right;
-        VerticalAlignment = VerticalAlignment.Bottom;
+        HorizontalAlignment = HorizontalAlignment.Center;
+        VerticalAlignment = VerticalAlignment.Center;
         IsHitTestVisible = false;
         ClipToBounds = false;
 
