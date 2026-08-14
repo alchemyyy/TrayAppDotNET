@@ -70,9 +70,9 @@
         x:Key="GlyphCatalog.PlaybackDeviceDisabled"
         Text="&#xF13D;"
         Font="SegoeFluentIconsThenMDL2Assets"
-        ScaleX="1.8888888888888888"
-        ScaleY="1.8888888888888888"
-        TranslateX="-1.5"
+        ScaleX="1.85"
+        ScaleY="1.85"
+        TranslateX="0"
         TranslateY="-0.5" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.PlaybackDeviceDefaultComms" Text="&#xE95B;" Font="SegoeFluentIconsThenMDL2Assets" />
 
