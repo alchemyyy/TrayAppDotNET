@@ -1669,7 +1669,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     device.BluetoothConnectionDeadlineMilliseconds,
                     TimeConstants.BluetoothConnectionAttemptTimeoutMs,
                     p.IconForeground,
-                    Layout.DeviceIconButtonFontSize,
+                    Layout.BluetoothConnectionOverlaySize,
                     Layout.BluetoothConnectionOverlayOpacity,
                     Layout.BluetoothConnectionOverlayStrokeThickness));
             overlayHost.Children.Add(overlay);
