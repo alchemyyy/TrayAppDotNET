@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
+using TrayAppDotNETCommon.UI;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -775,7 +776,7 @@ public sealed partial class FanPropertiesWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
-        ToolTip.SetTip(toggle, "Use RPM units for this property");
+        TrayAppDotNETToolTip.SetTip(toggle, "Use RPM units for this property");
         return toggle;
     }
 

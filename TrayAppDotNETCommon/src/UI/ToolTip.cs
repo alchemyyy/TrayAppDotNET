@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 
@@ -6,6 +7,15 @@ namespace TrayAppDotNETCommon.UI;
 
 public static class TrayAppDotNETToolTip
 {
+    private const double TargetGap = 4.0;
+    private const PopupPositionerConstraintAdjustment NonOccludingAdjustments =
+        PopupPositionerConstraintAdjustment.FlipY |
+        PopupPositionerConstraintAdjustment.SlideX |
+        PopupPositionerConstraintAdjustment.ResizeX;
+
+    private static readonly CustomPopupPlacementCallback NonOccludingPlacementCallback =
+        ConfigureNonOccludingPlacement;
+
     public static int ShowDelayMs
     {
         get;
@@ -17,8 +27,9 @@ public static class TrayAppDotNETToolTip
 
     public static void SetTip(Control control, object? tip)
     {
-        ToolTip.SetTip(control, tip);
+        ApplyNonOccludingPlacement(control);
         ApplyShowDelay(control);
+        ToolTip.SetTip(control, tip);
     }
 
     public static void SuppressWhileEngaged(Control control)
@@ -55,6 +66,25 @@ public static class TrayAppDotNETToolTip
     {
         ToolTip.SetShowDelay(control, ShowDelayMs);
         ToolTip.SetBetweenShowDelay(control, ShowDelayMs);
+    }
+
+    private static void ApplyNonOccludingPlacement(Control control)
+    {
+        ToolTip.SetPlacement(control, PlacementMode.Custom);
+        ToolTip.SetHorizontalOffset(control, 0);
+        ToolTip.SetVerticalOffset(control, 0);
+        ToolTip.SetCustomPopupPlacementCallback(control, NonOccludingPlacementCallback);
+    }
+
+    private static void ConfigureNonOccludingPlacement(CustomPopupPlacement placement)
+    {
+        placement.AnchorRectangle = placement.AnchorRectangle.Inflate(TargetGap);
+        placement.Anchor = PopupAnchor.Top;
+        placement.Gravity = PopupGravity.Top;
+
+        // Vertical sliding or resizing can move a constrained tooltip back across its target
+        placement.ConstraintAdjustment = NonOccludingAdjustments;
+        placement.Offset = default;
     }
 
     private static bool IsEngagingPress(Control control, PointerPressedEventArgs e)
