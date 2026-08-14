@@ -80,6 +80,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.AppFallback" Text="&#xE978;" Font="SegoeFluentIconsThenMDL2Assets" />
 
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Bluetooth" Text="&#xE702;" Font="SegoeFluentIconsThenMDL2Assets" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.BluetoothAudioWaiting" Text="&#xEA91;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery0" Text="&#xF5F2;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery1" Text="&#xF5F3;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.BTBattery2" Text="&#xF5F4;" Font="SegoeFluentIconsThenMDL2Assets" />

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Avalonia.Threading;
 using VolumeTrayAppDotNET.Interop;
 
@@ -11,14 +12,18 @@ namespace VolumeTrayAppDotNET.Audio;
 /// <para/>
 /// The app used to split this between a WinRT PnP watcher for Bluetooth container discovery and
 /// cfgmgr32 polling for <c>DEVPKEY_Bluetooth_Battery</c>. The value always lived in cfgmgr32, and
-/// the WinRT watcher requires runtime COM/WinRT marshalling that is brittle in constrained publish modes, so
-/// this class now uses one cfgmgr32 reconciliation pass for both responsibilities.
+/// the WinRT watcher requires runtime COM/WinRT marshalling that is brittle in constrained publish
+/// modes. This class uses cfgmgr32 for container identity and battery data, then the cached Classic
+/// Bluetooth device record's <c>fConnected</c> flag for actual physical connection state.
 /// </summary>
 internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPropertyChanged, IDisposable
 {
     private static readonly Guid BluetoothClassGuid = new("e0cbf06c-cd8b-4647-bb8a-263b43f0f974");
     private const string RefreshThrottleKey = "bluetooth-battery-refresh";
     private const string PollRefreshThrottleKey = "bluetooth-battery-poll-refresh";
+    private const string ConnectionRefreshThrottleKey = "bluetooth-connection-refresh";
+    private const string BluetoothDeviceInstancePrefix = "BTH";
+    private const int CMNotifyEventDataHeaderSize = 8;
 
     // Present devnodes that classify a container as Bluetooth, keyed by PnP instance id. This
     // includes both Bluetooth-class devnodes and battery-bearing devnodes that carry
@@ -28,15 +33,25 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     // Current battery cache by physical-device container id.
     private readonly Dictionary<Guid, int> _batteries = [];
 
-    // Current, present Bluetooth containers from the latest successful reconciliation pass.
-    private readonly HashSet<Guid> _activeBluetoothContainers = [];
+    // Paired/present PnP containers identify Bluetooth devices but do not imply a live radio link.
+    // Windows keeps BTHENUM devnodes started after a headset disconnects.
+    private readonly HashSet<Guid> _knownBluetoothContainers = [];
+
+    // Containers whose cached Classic Bluetooth record currently has fConnected set. This is the
+    // physical-link signal used independently of Core Audio endpoint activation.
+    private readonly HashSet<Guid> _connectedBluetoothContainers = [];
     private readonly AsyncThrottler<string> _refreshThrottler = new(0, StringComparer.Ordinal);
 
     private DispatcherTimer? _pollTimer;
+    private DispatcherTimer? _connectionPollTimer;
     private long _pollGeneration;
     private long _activePollGeneration;
     private long _refreshRequestGeneration;
     private long _lastAppliedRefreshGeneration;
+    private long _connectionRefreshRequestGeneration;
+    private long _lastAppliedConnectionRefreshGeneration;
+    private CfgMgr32.CMNotifyCallback? _deviceNotificationCallback;
+    private IntPtr _deviceNotificationHandle;
     private bool _isRunning;
     private bool _disposed;
 
@@ -49,10 +64,10 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     public event Action<Guid, int?>? BatteryChanged;
 
     /// <summary>
-    /// Fires on the dispatcher whenever a Bluetooth container becomes active in a reconciliation
-    /// pass. Audio code uses this to promote already-wrapped endpoints sharing that container.
+    /// Fires on the dispatcher whenever the Classic Bluetooth API reports that a container's
+    /// physical connection flag changed. This is independent of Core Audio endpoint activation.
     /// </summary>
-    public event Action<Guid>? BluetoothContainerSeen;
+    public event Action<Guid, bool>? BluetoothContainerConnectionChanged;
 
     /// <summary>True once cfgmgr32 reconciliation is active.</summary>
     public bool IsRunning
@@ -74,7 +89,11 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     public int? TryGet(Guid containerId) => _batteries.TryGetValue(containerId, out int v) ? v : null;
 
     /// <summary>True when the latest reconciliation pass classified this container as Bluetooth.</summary>
-    public bool IsBluetoothContainer(Guid containerId) => _activeBluetoothContainers.Contains(containerId);
+    public bool IsBluetoothContainer(Guid containerId) => _knownBluetoothContainers.Contains(containerId);
+
+    /// <summary>True when Windows currently reports a live Classic Bluetooth connection.</summary>
+    public bool IsBluetoothContainerConnected(Guid containerId) =>
+        _connectedBluetoothContainers.Contains(containerId);
 
     /// <summary>
     /// Resolves a physical Bluetooth container to the remote address embedded in its present
@@ -112,8 +131,66 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         if (_disposed || _isRunning) return;
 
         IsRunning = true;
+        RegisterDeviceNotifications();
         Refresh();
         TADNLog.LogDebug("BluetoothBatteryMonitor.Start: cfgmgr32 reconciliation started.");
+    }
+
+    private void RegisterDeviceNotifications()
+    {
+        if (_disposed || _deviceNotificationHandle != IntPtr.Zero) return;
+
+        _deviceNotificationCallback = OnDeviceNotification;
+        CfgMgr32.CMNotifyFilter filter = new()
+        {
+            Size = (uint)Marshal.SizeOf<CfgMgr32.CMNotifyFilter>(),
+            Flags = CfgMgr32.CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES,
+            FilterType = CfgMgr32.CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE
+        };
+
+        int result = CfgMgr32.CM_Register_Notification(
+            ref filter,
+            IntPtr.Zero,
+            _deviceNotificationCallback,
+            out _deviceNotificationHandle);
+        if (result == CfgMgr32.CR_SUCCESS && _deviceNotificationHandle != IntPtr.Zero) return;
+
+        _deviceNotificationHandle = IntPtr.Zero;
+        _deviceNotificationCallback = null;
+        TADNLog.Log(
+            $"BluetoothBatteryMonitor: CM_Register_Notification failed, cr=0x{result:X8}; " +
+            "connection presence will use flyout polling");
+    }
+
+    private uint OnDeviceNotification(
+        IntPtr notification,
+        IntPtr context,
+        uint action,
+        IntPtr eventData,
+        uint eventDataSize)
+    {
+        try
+        {
+            if (_disposed || eventData == IntPtr.Zero || eventDataSize <= CMNotifyEventDataHeaderSize)
+                return 0;
+            if (action is not CfgMgr32.CM_NOTIFY_ACTION_DEVICEINSTANCEENUMERATED
+                and not CfgMgr32.CM_NOTIFY_ACTION_DEVICEINSTANCESTARTED
+                and not CfgMgr32.CM_NOTIFY_ACTION_DEVICEINSTANCEREMOVED)
+                return 0;
+
+            string? instanceID = Marshal.PtrToStringUni(IntPtr.Add(eventData, CMNotifyEventDataHeaderSize));
+            if (instanceID?.StartsWith(BluetoothDeviceInstancePrefix, StringComparison.OrdinalIgnoreCase) != true)
+                return 0;
+
+            Refresh();
+        }
+        catch (Exception exception)
+        {
+            if (!_disposed)
+                TADNLog.Log($"BluetoothBatteryMonitor device notification failed: {exception.Message}");
+        }
+
+        return 0;
     }
 
     /// <summary>
@@ -126,6 +203,7 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     {
         if (_disposed || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value))) return;
         long refreshGeneration = Interlocked.Increment(ref _refreshRequestGeneration);
+        long connectionRefreshGeneration = Interlocked.Increment(ref _connectionRefreshRequestGeneration);
         string throttleKey = pollLease.HasValue ? PollRefreshThrottleKey : RefreshThrottleKey;
         _ = _refreshThrottler.RunAsync(throttleKey, async context =>
         {
@@ -150,9 +228,18 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
                     if (_disposed || (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value))) return;
                     if (refreshGeneration <= Volatile.Read(ref _lastAppliedRefreshGeneration)) return;
                     Volatile.Write(ref _lastAppliedRefreshGeneration, refreshGeneration);
-                    ApplyCurrentState(result.CurrentIds, result.CurrentContainers, result.CurrentBatteries);
+                    ApplyCurrentState(
+                        result.CurrentIds,
+                        result.CurrentContainers,
+                        result.CurrentBatteries,
+                        result.ConnectedContainers,
+                        result.HasConnectionData,
+                        connectionRefreshGeneration);
                     TADNLog.LogDebug(
-                        $"BluetoothBatteryMonitor.Reconcile: scanned={result.ScannedCount} bluetoothClass={result.BluetoothClassMatches} battery={result.BatteryMatches} activeContainers={_activeBluetoothContainers.Count}");
+                        $"BluetoothBatteryMonitor.Reconcile: scanned={result.ScannedCount} " +
+                        $"bluetoothClass={result.BluetoothClassMatches} battery={result.BatteryMatches} " +
+                        $"knownContainers={_knownBluetoothContainers.Count} " +
+                        $"connectedContainers={_connectedBluetoothContainers.Count}");
                 }, DispatcherPriority.Background);
 
                 if (pollLease.HasValue && !IsPollGenerationCurrent(pollLease.Value)) return;
@@ -166,24 +253,32 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     }
 
     /// <summary>
-    /// Begins periodic active reconciliation while the flyout is visible. This keeps battery
-    /// percentages and container presence fresh without a process-lifetime WinRT watcher.
+    /// Begins periodic active reconciliation while the flyout is visible. Battery properties use
+    /// their low-frequency timer; the inexpensive cached Classic Bluetooth connection query uses
+    /// a separate fast timer so physical-link changes precede delayed Core Audio activation.
     /// </summary>
     public void StartPolling()
     {
-        if (_disposed || _pollTimer != null) return;
+        if (_disposed || _pollTimer != null || _connectionPollTimer != null) return;
         TADNLog.LogDebug($"BluetoothBatteryMonitor.StartPolling: tracking {_idToContainer.Count} devnodes");
         long generation = Interlocked.Increment(ref _pollGeneration);
         DispatcherTimer pollTimer = new(DispatcherPriority.Background, dispatcher)
         {
             Interval = TimeSpan.FromMilliseconds(TimeConstants.BluetoothBatteryPollIntervalMs)
         };
+        DispatcherTimer connectionPollTimer = new(DispatcherPriority.Background, dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.BluetoothConnectionStatePollIntervalMs)
+        };
         _pollTimer = pollTimer;
+        _connectionPollTimer = connectionPollTimer;
         Volatile.Write(ref _activePollGeneration, generation);
         pollTimer.Tick += OnPollTick;
+        connectionPollTimer.Tick += OnConnectionPollTick;
         try
         {
             pollTimer.Start();
+            connectionPollTimer.Start();
         }
         catch
         {
@@ -202,17 +297,34 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
     {
         Volatile.Write(ref _activePollGeneration, 0);
         DispatcherTimer? pollTimer = _pollTimer;
+        DispatcherTimer? connectionPollTimer = _connectionPollTimer;
         _pollTimer = null;
-        if (pollTimer == null) return;
+        _connectionPollTimer = null;
 
-        try { pollTimer.Stop(); }
-        catch (Exception exception)
+        if (pollTimer != null)
         {
-            TADNLog.Log($"BluetoothBatteryMonitor polling stop failed: {exception.Message}");
+            try { pollTimer.Stop(); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"BluetoothBatteryMonitor battery polling stop failed: {exception.Message}");
+            }
+            finally
+            {
+                pollTimer.Tick -= OnPollTick;
+            }
         }
-        finally
+
+        if (connectionPollTimer != null)
         {
-            pollTimer.Tick -= OnPollTick;
+            try { connectionPollTimer.Stop(); }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"BluetoothBatteryMonitor connection polling stop failed: {exception.Message}");
+            }
+            finally
+            {
+                connectionPollTimer.Tick -= OnConnectionPollTick;
+            }
         }
     }
 
@@ -226,11 +338,59 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         RefreshCore(pollLease);
     }
 
+    private void OnConnectionPollTick(object? sender, EventArgs eventArgs)
+    {
+        if (_disposed || !ReferenceEquals(sender, _connectionPollTimer)) return;
+        if (Volatile.Read(ref _activePollGeneration) == 0) return;
+        RefreshConnectionState();
+    }
+
     private bool IsPollGenerationCurrent(PollGenerationLease pollLease) =>
         pollLease.Generation != 0
         && !_disposed
         && ReferenceEquals(_pollTimer, pollLease.Timer)
         && Volatile.Read(ref _activePollGeneration) == pollLease.Generation;
+
+    private void RefreshConnectionState()
+    {
+        if (_disposed) return;
+
+        Dictionary<string, Guid> currentIds = new(_idToContainer, StringComparer.Ordinal);
+        if (currentIds.Count == 0) return;
+
+        long refreshGeneration = Interlocked.Increment(ref _connectionRefreshRequestGeneration);
+        _ = _refreshThrottler.RunAsync(ConnectionRefreshThrottleKey, async context =>
+        {
+            if (_disposed) return;
+
+            BluetoothConnectionQuery query = await Task.Run(
+                    QueryConnectedClassicAddresses,
+                    context.CancellationToken)
+                .ConfigureAwait(false);
+            if (_disposed || context.HasReplacement || !query.HasData) return;
+
+            HashSet<Guid> connectedContainers = ResolveConnectedContainers(
+                currentIds,
+                query.ConnectedAddresses);
+            try
+            {
+                await dispatcher.InvokeAsync(() =>
+                {
+                    if (_disposed) return;
+                    if (refreshGeneration <= Volatile.Read(ref _lastAppliedConnectionRefreshGeneration))
+                        return;
+
+                    Volatile.Write(ref _lastAppliedConnectionRefreshGeneration, refreshGeneration);
+                    ApplyConnectedState(connectedContainers);
+                }, DispatcherPriority.Background);
+            }
+            catch (Exception exception)
+            {
+                if (!_disposed)
+                    TADNLog.Log($"BluetoothBatteryMonitor connection refresh failed: {exception.Message}");
+            }
+        });
+    }
 
     private static ReconciliationResult BuildCurrentState()
     {
@@ -270,49 +430,60 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             batteryMatches++;
         }
 
+        BluetoothConnectionQuery connectionQuery = QueryConnectedClassicAddresses();
+        HashSet<Guid> connectedContainers = connectionQuery.HasData
+            ? ResolveConnectedContainers(currentIds, connectionQuery.ConnectedAddresses)
+            : [];
+
         return new ReconciliationResult(
             currentIds,
             currentContainers,
             currentBatteries,
+            connectedContainers,
             ids.Count,
             bluetoothClassMatches,
             batteryMatches,
-            HasData: true);
+            HasData: true,
+            HasConnectionData: connectionQuery.HasData);
     }
 
     private void ApplyCurrentState(
         Dictionary<string, Guid> currentIds,
         HashSet<Guid> currentContainers,
-        Dictionary<Guid, int> currentBatteries)
+        Dictionary<Guid, int> currentBatteries,
+        HashSet<Guid> connectedContainers,
+        bool hasConnectionData,
+        long connectionRefreshGeneration)
     {
-        List<Guid> containersBecameActive = [];
-        List<Guid> containersBecameInactive = [];
-
-        foreach (Guid container in _activeBluetoothContainers)
-        {
-            if (!currentContainers.Contains(container))
-                containersBecameInactive.Add(container);
-        }
-
+        List<Guid> newlyKnownContainers = [];
         foreach (Guid container in currentContainers)
         {
-            if (!_activeBluetoothContainers.Contains(container))
-                containersBecameActive.Add(container);
+            if (!_knownBluetoothContainers.Contains(container)) newlyKnownContainers.Add(container);
         }
 
         _idToContainer.Clear();
         foreach (KeyValuePair<string, Guid> kv in currentIds) _idToContainer[kv.Key] = kv.Value;
 
-        foreach (Guid container in containersBecameInactive)
-        {
-            _activeBluetoothContainers.Remove(container);
-            ApplyBattery(container, null);
-        }
+        _knownBluetoothContainers.Clear();
+        foreach (Guid container in currentContainers) _knownBluetoothContainers.Add(container);
 
-        foreach (Guid container in containersBecameActive)
+        if (hasConnectionData
+            && connectionRefreshGeneration > Volatile.Read(ref _lastAppliedConnectionRefreshGeneration))
         {
-            _activeBluetoothContainers.Add(container);
-            RaiseBluetoothContainerSeen(container);
+            Volatile.Write(ref _lastAppliedConnectionRefreshGeneration, connectionRefreshGeneration);
+            ApplyConnectedState(connectedContainers);
+        }
+        else
+            RemoveConnectionsForUnknownContainers();
+
+        if (hasConnectionData)
+        {
+            for (int containerIndex = 0; containerIndex < newlyKnownContainers.Count; containerIndex++)
+            {
+                Guid container = newlyKnownContainers[containerIndex];
+                if (!_connectedBluetoothContainers.Contains(container))
+                    RaiseBluetoothContainerConnectionChanged(container, isConnected: false);
+            }
         }
 
         List<Guid> staleBatteryContainers = [];
@@ -329,11 +500,152 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
             ApplyBattery(kv.Key, kv.Value);
     }
 
-    private void RaiseBluetoothContainerSeen(Guid containerId)
+    private void ApplyConnectedState(HashSet<Guid> connectedContainers)
     {
-        TADNLog.LogDebug($"BluetoothBatteryMonitor: active BT container={containerId}");
-        try { BluetoothContainerSeen?.Invoke(containerId); }
-        catch (Exception ex) { TADNLog.Log($"BluetoothBatteryMonitor: container-seen subscriber threw: {ex.Message}"); }
+        List<Guid> disconnectedContainers = [];
+        foreach (Guid container in _connectedBluetoothContainers)
+        {
+            if (!_knownBluetoothContainers.Contains(container) || !connectedContainers.Contains(container))
+                disconnectedContainers.Add(container);
+        }
+
+        List<Guid> newlyConnectedContainers = [];
+        foreach (Guid container in connectedContainers)
+        {
+            if (_knownBluetoothContainers.Contains(container)
+                && !_connectedBluetoothContainers.Contains(container))
+                newlyConnectedContainers.Add(container);
+        }
+
+        for (int containerIndex = 0; containerIndex < disconnectedContainers.Count; containerIndex++)
+        {
+            Guid container = disconnectedContainers[containerIndex];
+            _connectedBluetoothContainers.Remove(container);
+            RaiseBluetoothContainerConnectionChanged(container, isConnected: false);
+        }
+
+        for (int containerIndex = 0; containerIndex < newlyConnectedContainers.Count; containerIndex++)
+        {
+            Guid container = newlyConnectedContainers[containerIndex];
+            _connectedBluetoothContainers.Add(container);
+            RaiseBluetoothContainerConnectionChanged(container, isConnected: true);
+        }
+    }
+
+    private void RemoveConnectionsForUnknownContainers()
+    {
+        List<Guid> unknownContainers = [];
+        foreach (Guid container in _connectedBluetoothContainers)
+        {
+            if (!_knownBluetoothContainers.Contains(container)) unknownContainers.Add(container);
+        }
+
+        for (int containerIndex = 0; containerIndex < unknownContainers.Count; containerIndex++)
+        {
+            Guid container = unknownContainers[containerIndex];
+            _connectedBluetoothContainers.Remove(container);
+            RaiseBluetoothContainerConnectionChanged(container, isConnected: false);
+        }
+    }
+
+    internal static HashSet<Guid> ResolveConnectedContainers(
+        IReadOnlyDictionary<string, Guid> idToContainer,
+        IReadOnlySet<ulong> connectedAddresses)
+    {
+        HashSet<Guid> connectedContainers = [];
+        foreach (KeyValuePair<string, Guid> entry in idToContainer)
+        {
+            if (BluetoothDeviceDisconnector.TryParseAddress(entry.Key, out ulong address)
+                && connectedAddresses.Contains(address))
+                connectedContainers.Add(entry.Value);
+        }
+
+        return connectedContainers;
+    }
+
+    private static BluetoothConnectionQuery QueryConnectedClassicAddresses()
+    {
+        HashSet<ulong> connectedAddresses = [];
+        BluetoothApis.BLUETOOTH_DEVICE_SEARCH_PARAMS searchParameters = new()
+        {
+            dwSize = (uint)Marshal.SizeOf<BluetoothApis.BLUETOOTH_DEVICE_SEARCH_PARAMS>(),
+            fReturnAuthenticated = 1,
+            fReturnRemembered = 1,
+            fReturnUnknown = 1,
+            fReturnConnected = 1,
+            fIssueInquiry = 0,
+            cTimeoutMultiplier = 0,
+            hRadio = IntPtr.Zero
+        };
+        BluetoothApis.BLUETOOTH_DEVICE_INFO deviceInfo = NewBluetoothDeviceInfo();
+        IntPtr findHandle = IntPtr.Zero;
+
+        try
+        {
+            findHandle = BluetoothApis.BluetoothFindFirstDevice(ref searchParameters, ref deviceInfo);
+            if (findHandle == IntPtr.Zero)
+            {
+                int error = Marshal.GetLastWin32Error();
+                bool emptyResult = error is BluetoothApis.ERROR_SUCCESS
+                    or BluetoothApis.ERROR_NO_MORE_ITEMS
+                    or BluetoothApis.ERROR_NOT_FOUND;
+                if (!emptyResult)
+                {
+                    TADNLog.LogDebug(
+                        $"BluetoothBatteryMonitor: BluetoothFindFirstDevice failed; error={error}");
+                }
+
+                return new BluetoothConnectionQuery(connectedAddresses, emptyResult);
+            }
+
+            while (true)
+            {
+                if (deviceInfo.Address != 0 && deviceInfo.fConnected != 0)
+                    connectedAddresses.Add(deviceInfo.Address);
+                deviceInfo = NewBluetoothDeviceInfo();
+
+                if (BluetoothApis.BluetoothFindNextDevice(findHandle, ref deviceInfo)) continue;
+
+                int error = Marshal.GetLastWin32Error();
+                if (error is not BluetoothApis.ERROR_SUCCESS and not BluetoothApis.ERROR_NO_MORE_ITEMS)
+                {
+                    TADNLog.LogDebug(
+                        $"BluetoothBatteryMonitor: BluetoothFindNextDevice failed; error={error}");
+                    return new BluetoothConnectionQuery(connectedAddresses, HasData: false);
+                }
+
+                break;
+            }
+
+            return new BluetoothConnectionQuery(connectedAddresses, HasData: true);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.LogDebug(
+                $"BluetoothBatteryMonitor: Classic connection query failed: {exception.Message}");
+            return new BluetoothConnectionQuery(connectedAddresses, HasData: false);
+        }
+        finally
+        {
+            if (findHandle != IntPtr.Zero) BluetoothApis.BluetoothFindDeviceClose(findHandle);
+        }
+    }
+
+    private static BluetoothApis.BLUETOOTH_DEVICE_INFO NewBluetoothDeviceInfo() => new()
+    {
+        dwSize = (uint)Marshal.SizeOf<BluetoothApis.BLUETOOTH_DEVICE_INFO>()
+    };
+
+    private void RaiseBluetoothContainerConnectionChanged(Guid containerID, bool isConnected)
+    {
+        TADNLog.LogDebug(
+            $"BluetoothBatteryMonitor: BT container={containerID} connected={isConnected}");
+        try { BluetoothContainerConnectionChanged?.Invoke(containerID, isConnected); }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"BluetoothBatteryMonitor: connection-state subscriber threw: {exception.Message}");
+        }
     }
 
     private void ApplyBattery(Guid containerId, int? newValue)
@@ -427,6 +739,18 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         if (_disposed) return;
         _disposed = true;
         StopPolling();
+        IntPtr deviceNotificationHandle = _deviceNotificationHandle;
+        _deviceNotificationHandle = IntPtr.Zero;
+        if (deviceNotificationHandle != IntPtr.Zero)
+        {
+            int result = CfgMgr32.CM_Unregister_Notification(deviceNotificationHandle);
+            if (result != CfgMgr32.CR_SUCCESS)
+            {
+                TADNLog.Log(
+                    $"BluetoothBatteryMonitor: CM_Unregister_Notification failed, cr=0x{result:X8}");
+            }
+        }
+        _deviceNotificationCallback = null;
         try { IsRunning = false; }
         catch (Exception exception)
         {
@@ -435,31 +759,40 @@ internal sealed class BluetoothBatteryMonitor(Dispatcher dispatcher) : INotifyPr
         Safe.Dispose(_refreshThrottler);
         _idToContainer.Clear();
         _batteries.Clear();
-        _activeBluetoothContainers.Clear();
+        _knownBluetoothContainers.Clear();
+        _connectedBluetoothContainers.Clear();
         PropertyChanged = null;
         BatteryChanged = null;
-        BluetoothContainerSeen = null;
+        BluetoothContainerConnectionChanged = null;
     }
 
     private readonly record struct PollGenerationLease(DispatcherTimer Timer, long Generation);
+
+    private readonly record struct BluetoothConnectionQuery(
+        HashSet<ulong> ConnectedAddresses,
+        bool HasData);
 
     private sealed record ReconciliationResult(
         Dictionary<string, Guid> CurrentIds,
         HashSet<Guid> CurrentContainers,
         Dictionary<Guid, int> CurrentBatteries,
+        HashSet<Guid> ConnectedContainers,
         int ScannedCount,
         int BluetoothClassMatches,
         int BatteryMatches,
-        bool HasData)
+        bool HasData,
+        bool HasConnectionData)
     {
         public static ReconciliationResult Empty { get; } =
             new(
                 new Dictionary<string, Guid>(StringComparer.Ordinal),
                 [],
                 [],
+                [],
                 0,
                 0,
                 0,
-                HasData: false);
+                HasData: false,
+                HasConnectionData: false);
     }
 }

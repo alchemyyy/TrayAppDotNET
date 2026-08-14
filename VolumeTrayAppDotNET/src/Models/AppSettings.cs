@@ -788,6 +788,8 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     // controls whether render and capture devices interleave inside their state buckets or whether
     // capture devices group together at the top of the list. The disconnected-Bluetooth policy can
     // override only the per-state visibility gates; it never overrides either recording master.
+    // ShowBluetoothDevicesOnlyWhenBluetoothIsOn is the outer flyout-only Bluetooth gate and wins
+    // over every disconnected-device visibility mode.
     public FlyoutDeviceLayoutStyle FlyoutDeviceLayout
     {
         get;
@@ -810,7 +812,13 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     {
         get;
         set => SetField(ref field, value);
-    } = FlyoutDisconnectedBluetoothDeviceVisibility.Show;
+    } = FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed;
+
+    public bool ShowBluetoothDevicesOnlyWhenBluetoothIsOn
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
 
     public bool ShowRecordingDevicesInFlyout
     {

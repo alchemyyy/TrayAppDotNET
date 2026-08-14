@@ -14,14 +14,41 @@ internal static class CfgMgr32
 
     public const int CM_LOCATE_DEVNODE_NORMAL = 0;
     public const uint CM_GETIDLIST_FILTER_PRESENT = 0x00000100;
+    public const uint CM_NOTIFY_FILTER_FLAG_ALL_DEVICE_INSTANCES = 0x00000002;
+    public const uint CM_NOTIFY_FILTER_TYPE_DEVICEINSTANCE = 2;
     public const uint DEVPROP_TYPE_BYTE = 0x00000003;
     public const uint DEVPROP_TYPE_GUID = 0x0000000D;
+
+    public const uint CM_NOTIFY_ACTION_DEVICEINSTANCEENUMERATED = 7;
+    public const uint CM_NOTIFY_ACTION_DEVICEINSTANCESTARTED = 8;
+    public const uint CM_NOTIFY_ACTION_DEVICEINSTANCEREMOVED = 9;
+
+    private const int MaxDeviceIDLength = 200;
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    public delegate uint CMNotifyCallback(
+        IntPtr notification,
+        IntPtr context,
+        uint action,
+        IntPtr eventData,
+        uint eventDataSize);
 
     [StructLayout(LayoutKind.Sequential)]
     public struct DEVPROPKEY
     {
         public Guid fmtid;
         public uint pid;
+    }
+
+    // The native union's largest member is WCHAR InstanceId[MAX_DEVICE_ID_LEN]. The all-device
+    // registration uses an empty instance id, so an explicitly zeroed union is sufficient.
+    [StructLayout(LayoutKind.Explicit, Size = 16 + MaxDeviceIDLength * sizeof(char))]
+    public struct CMNotifyFilter
+    {
+        [FieldOffset(0)] public uint Size;
+        [FieldOffset(4)] public uint Flags;
+        [FieldOffset(8)] public uint FilterType;
+        [FieldOffset(12)] public uint Reserved;
     }
 
     // DEVPKEY_Bluetooth_Battery: {104ea319-6ee2-4701-bd47-8ddbf425bbe5} pid 2. Byte 0-100.
@@ -69,4 +96,14 @@ internal static class CfgMgr32
         [Out] char[] buffer,
         uint bufferLen,
         uint ulFlags);
+
+    [DllImport("cfgmgr32.dll", ExactSpelling = true)]
+    public static extern int CM_Register_Notification(
+        ref CMNotifyFilter filter,
+        IntPtr context,
+        CMNotifyCallback callback,
+        out IntPtr notification);
+
+    [DllImport("cfgmgr32.dll", ExactSpelling = true)]
+    public static extern int CM_Unregister_Notification(IntPtr notification);
 }

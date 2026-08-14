@@ -20,6 +20,14 @@ using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace VolumeTrayAppDotNET.UI.Flyout;
 
+internal enum BluetoothButtonAction
+{
+    None,
+    Connect,
+    Retry,
+    Disconnect
+}
+
 public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 {
     private static readonly FontFamily FlyoutFont = new("Segoe UI");
@@ -28,6 +36,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         nameof(AudioDevice.IsActive),
         nameof(AudioDevice.IsBluetooth),
+        nameof(AudioDevice.IsBluetoothConnected),
+        nameof(AudioDevice.IsBluetoothAudioWaiting),
+        nameof(AudioDevice.IsBluetoothConnectionPending),
+        nameof(AudioDevice.BluetoothConnectionDeadlineMilliseconds),
         nameof(AudioDevice.State),
         nameof(AudioDevice.BatteryLevel),
         nameof(AudioDevice.LastKnownBatteryLevel),
@@ -38,12 +50,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private readonly AudioDeviceManager _audioManager;
     private readonly AppSettings _settings;
     private readonly Action _openSettings;
+    private readonly BluetoothRadioController? _bluetoothRadioController;
     private readonly AppVolumeFeedbackPlayer? _feedback;
     private readonly string? _ownAppID;
+    private readonly HashSet<AudioDevice> _visibilityTrackedDevices = [];
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private bool _isRebuilding;
     private bool _isUpdateDownloadInFlight;
     private bool _isUpdateDialogOpen;
+    private bool _isBluetoothRadioToggleInFlight;
     private bool _rebuildPending;
     private bool _rebuildQueued;
     private bool _isClosed;
@@ -58,6 +73,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _audioManager = null!;
         _settings = null!;
         _openSettings = () => { };
+        _bluetoothRadioController = null;
         InitializeComponent();
         InitializeComponentState();
     }
@@ -67,6 +83,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _audioManager = audioManager;
         _settings = settings;
         _openSettings = openSettings;
+        _bluetoothRadioController = new BluetoothRadioController(Dispatcher.UIThread);
         _feedback = new AppVolumeFeedbackPlayer(Dispatcher.UIThread, settings);
         _ownAppID = ResolveOwnAppID();
 
@@ -90,9 +107,18 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
         _audioManager.PropertyChanged += OnAudioManagerPropertyChanged;
         WindowResources.Add(() => _audioManager.PropertyChanged -= OnAudioManagerPropertyChanged);
+        _bluetoothRadioController.StateChanged += OnBluetoothRadioStateChanged;
+        WindowResources.Add(() =>
+        {
+            _bluetoothRadioController.StateChanged -= OnBluetoothRadioStateChanged;
+            _bluetoothRadioController.Dispose();
+        });
+        _bluetoothRadioController.Refresh();
         INotifyCollectionChanged devices = (INotifyCollectionChanged)_audioManager.Devices;
         devices.CollectionChanged += OnDevicesCollectionChanged;
         WindowResources.Add(() => devices.CollectionChanged -= OnDevicesCollectionChanged);
+        SyncDeviceVisibilitySubscriptions();
+        WindowResources.Add(ClearDeviceVisibilitySubscriptions);
 
         if (AppServices.UpdateCheckService is { } updateService)
         {
@@ -151,6 +177,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
+        _bluetoothRadioController?.Refresh();
         ApplyWorkAreaMaxHeight();
         Rebuild();
         if (!IsVisible)
@@ -223,8 +250,53 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             QueueRebuild();
     }
 
-    private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+    private void OnBluetoothRadioStateChanged() => QueueRebuild();
+
+    private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        SyncDeviceVisibilitySubscriptions();
         QueueRebuild();
+    }
+
+    private void SyncDeviceVisibilitySubscriptions()
+    {
+        HashSet<AudioDevice> currentDevices = new(_audioManager.Devices);
+        List<AudioDevice> removedDevices = [];
+        foreach (AudioDevice trackedDevice in _visibilityTrackedDevices)
+        {
+            if (!currentDevices.Contains(trackedDevice)) removedDevices.Add(trackedDevice);
+        }
+
+        for (int deviceIndex = 0; deviceIndex < removedDevices.Count; deviceIndex++)
+        {
+            AudioDevice removedDevice = removedDevices[deviceIndex];
+            removedDevice.PropertyChanged -= OnDeviceVisibilityPropertyChanged;
+            _visibilityTrackedDevices.Remove(removedDevice);
+        }
+
+        foreach (AudioDevice currentDevice in currentDevices)
+        {
+            if (!_visibilityTrackedDevices.Add(currentDevice)) continue;
+            currentDevice.PropertyChanged += OnDeviceVisibilityPropertyChanged;
+        }
+    }
+
+    private void ClearDeviceVisibilitySubscriptions()
+    {
+        foreach (AudioDevice trackedDevice in _visibilityTrackedDevices)
+            trackedDevice.PropertyChanged -= OnDeviceVisibilityPropertyChanged;
+        _visibilityTrackedDevices.Clear();
+    }
+
+    private void OnDeviceVisibilityPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName is nameof(AudioDevice.IsBluetooth)
+            or nameof(AudioDevice.IsBluetoothConnected)
+            or nameof(AudioDevice.IsBluetoothAudioWaiting)
+            or nameof(AudioDevice.IsBluetoothConnectionPending)
+            or nameof(AudioDevice.BluetoothConnectionDeadlineMilliseconds))
+            QueueRebuild();
+    }
 
     private void PositionNearTray() => Position = Docking.ResolvePosition();
 
@@ -312,6 +384,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed || _audioManager == null || _settings == null) return;
 
         _audioManager.StartMetering();
+        _bluetoothRadioController?.StartPolling();
         if (_settings.FlyoutCommunicationsButtonVisibility != CommunicationsButtonVisibility.Hidden)
             CommunicationsDucking.Start();
         else
@@ -321,6 +394,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void StopFlyoutActivity()
     {
         _audioManager?.StopMetering();
+        _bluetoothRadioController?.StopPolling();
         CommunicationsDucking.Stop();
         SetAllGroupMetersVisible(false);
     }
@@ -418,7 +492,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 _settings,
                 isLight);
 
-            List<AudioDevice> devices = FlyoutDeviceOrdering.Build(_audioManager.Devices, _settings);
+            bool isBluetoothRadioEnabled =
+                _bluetoothRadioController?.State == BluetoothRadioPowerState.On;
+            List<AudioDevice> devices = FlyoutDeviceOrdering.Build(
+                _audioManager.Devices,
+                _settings,
+                isBluetoothRadioEnabled);
             Dictionary<AudioDevice, List<AudioAppGroup>> visibleGroupsByDevice =
                 ResolveVisibleGroupsByDevice(devices);
             StackPanel cellStack = new() { Spacing = 0 };
@@ -636,6 +715,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             ToggleDisabledDevices,
             L("Flyout_DisabledDevices_Tooltip", "Show/hide disabled devices")));
 
+        BluetoothRadioPowerState bluetoothRadioState =
+            _bluetoothRadioController?.State ?? BluetoothRadioPowerState.Unavailable;
+        Border bluetoothRadioButton = HeaderIconButton(
+            GlyphCatalog.BLUETOOTH,
+            p,
+            ToggleBluetoothRadio,
+            BluetoothRadioTooltip(bluetoothRadioState),
+            enabled: !_isBluetoothRadioToggleInFlight
+                     && bluetoothRadioState != BluetoothRadioPowerState.Unavailable);
+        bluetoothRadioButton.Opacity = bluetoothRadioState == BluetoothRadioPowerState.On
+            ? 1.0
+            : Layout.HeaderInactiveIconOpacity;
+        left.Children.Add(bluetoothRadioButton);
+
         if (ShowCommunicationsButton)
         {
             Border communications = HeaderIconButton(
@@ -643,11 +736,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 p,
                 e => ToggleCommunicationsDucking(e.KeyModifiers),
                 L("Flyout_Communications_Tooltip", "Communications"));
-            communications.Opacity = CommunicationsDucking.IsActive() ? 1.0 : 0.4;
+            communications.Opacity = CommunicationsDucking.IsActive()
+                ? 1.0
+                : Layout.HeaderInactiveIconOpacity;
             left.Children.Add(communications);
         }
 
-        left.Children.Add(HeaderIconButton(null, p, () => { }, null, enabled: false));
         grid.Children.Add(left);
 
         if (IsUpdateButtonVisible)
@@ -1071,8 +1165,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             }
         };
 
+        string formatLine = DeviceFormatLine(device);
         Grid nameStack = new() { Background = Brushes.Transparent, VerticalAlignment = VerticalAlignment.Center };
-        if (_settings is { ShowDeviceFormatText: false, ShowDeviceCodecText: false })
+        if (string.IsNullOrEmpty(formatLine))
             nameStack.RenderTransform = CloneTransform(Layout.DeviceTitleNameNoFormatTransform);
 
         TextBlock name = Text(device.FriendlyName, p, Layout.DeviceTitleFontSize);
@@ -1087,7 +1182,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
         nameStack.Children.Add(name);
 
-        string formatLine = DeviceFormatLine(device);
+        TextBlock? format = null;
         if (!string.IsNullOrEmpty(formatLine))
         {
             Canvas formatCanvas = new()
@@ -1096,7 +1191,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            TextBlock format = Text(formatLine, p, Layout.DeviceFormatFontSize);
+            format = Text(formatLine, p, Layout.DeviceFormatFontSize);
             format.Background = Brushes.Transparent;
             format.Opacity = Layout.DeviceFormatOpacity;
             format.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -1132,6 +1227,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             {
                 case nameof(AudioDevice.FriendlyName):
                     name.Text = device.FriendlyName;
+                    break;
+                case nameof(AudioDevice.BluetoothConnectionSecondsRemaining):
+                    if (format != null) format.Text = DeviceFormatLine(device);
                     break;
                 case nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications)
                     when !IsDefaultDeviceButtonVisible(device):
@@ -1523,21 +1621,62 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             device.IsDisconnected,
             device.BatteryLevel,
             device.LastKnownBatteryLevel);
-        Glyph glyph = displayedBatteryLevel.HasValue
-            ? BatteryGlyph(displayedBatteryLevel.Value)
-            : GlyphCatalog.BLUETOOTH;
+        Glyph glyph = device switch
+        {
+            { IsBluetoothConnectionPending: true } => GlyphCatalog.BLUETOOTH,
+            { IsBluetoothAudioWaiting: true } => GlyphCatalog.BLUETOOTH_AUDIO_WAITING,
+            _ when displayedBatteryLevel.HasValue => BatteryGlyph(displayedBatteryLevel.Value),
+            _ => GlyphCatalog.BLUETOOTH
+        };
 
         Border button = DeviceIconButton(glyph, p, e =>
         {
-            if (device.IsDisconnected)
-                _audioManager.ConnectBluetoothDevice(device);
-            else if ((e.KeyModifiers & KeyModifiers.Control) != 0)
-                _audioManager.DisconnectBluetoothDevice(device);
+            BluetoothButtonAction action = ResolveBluetoothButtonAction(
+                device.IsDisconnected,
+                device.IsBluetoothConnectionPending,
+                e.KeyModifiers);
+            switch (action)
+            {
+                case BluetoothButtonAction.Connect:
+                case BluetoothButtonAction.Retry:
+                    _audioManager.ConnectBluetoothDevice(device);
+                    break;
+                case BluetoothButtonAction.Disconnect:
+                    _audioManager.DisconnectBluetoothDevice(device);
+                    break;
+                case BluetoothButtonAction.None:
+                default:
+                    break;
+            }
         });
         button.Margin = Layout.BluetoothBatteryButtonMargin;
         button.Focusable = false;
-        button.Opacity = device.IsActive ? 1.0 : 0.4;
-        TrayAppDotNETToolTip.SetTip(button, BluetoothButtonTooltip(device.IsDisconnected, displayedBatteryLevel));
+        button.Opacity = device.IsActive
+                         || device.IsBluetoothAudioWaiting
+                         || device.IsBluetoothConnectionPending
+            ? 1.0
+            : 0.4;
+        TrayAppDotNETToolTip.SetTip(button, BluetoothButtonTooltip(device, displayedBatteryLevel));
+
+        if (device.IsBluetoothConnectionPending)
+        {
+            Control? glyphControl = button.Child;
+            button.Child = null;
+            Grid overlayHost = new() { IsHitTestVisible = false, ClipToBounds = false };
+            if (glyphControl != null) overlayHost.Children.Add(glyphControl);
+            BluetoothConnectionCountdownOverlay overlay = BuildingContent.Resources.Own(
+                new BluetoothConnectionCountdownOverlay(
+                    device.BluetoothConnectionDeadlineMilliseconds,
+                    TimeConstants.BluetoothConnectionAttemptTimeoutMs,
+                    p.IconForeground,
+                    Layout.BluetoothConnectionOverlaySize,
+                    Layout.BluetoothConnectionOverlayMargin,
+                    Layout.BluetoothConnectionOverlayOpacity,
+                    Layout.BluetoothConnectionOverlayStrokeThickness));
+            overlayHost.Children.Add(overlay);
+            button.Child = overlayHost;
+        }
+
         return button;
     }
 
@@ -1547,9 +1686,35 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         int? lastKnownBatteryLevel) =>
         isDisconnected ? lastKnownBatteryLevel : currentBatteryLevel;
 
-    private static string BluetoothButtonTooltip(bool isDisconnected, int? displayedBatteryLevel)
+    internal static BluetoothButtonAction ResolveBluetoothButtonAction(
+        bool isDisconnected,
+        bool isConnectionPending,
+        KeyModifiers keyModifiers)
     {
-        if (isDisconnected)
+        if (isConnectionPending) return BluetoothButtonAction.Retry;
+        if (isDisconnected) return BluetoothButtonAction.Connect;
+        return (keyModifiers & KeyModifiers.Control) != 0
+            ? BluetoothButtonAction.Disconnect
+            : BluetoothButtonAction.None;
+    }
+
+    private static string BluetoothButtonTooltip(AudioDevice device, int? displayedBatteryLevel)
+    {
+        if (device.IsBluetoothConnectionPending)
+        {
+            return L(
+                "Flyout_BluetoothButton_Tooltip_ConnectionPending",
+                "Bluetooth\nConnection pending\nClick to retry");
+        }
+
+        if (device.IsBluetoothAudioWaiting)
+        {
+            return L(
+                "Flyout_BluetoothButton_Tooltip_AudioWaiting",
+                "Bluetooth connected\nAudio waiting\nClick to retry");
+        }
+
+        if (device.IsDisconnected)
         {
             return displayedBatteryLevel.HasValue
                 ? string.Format(
@@ -2044,6 +2209,41 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _settings.ShowDisabledPlaybackDevices = showDisabledDevices;
         _settings.ShowDisabledRecordingDevices = showDisabledDevices;
     }
+
+    private async void ToggleBluetoothRadio()
+    {
+        BluetoothRadioController? controller = _bluetoothRadioController;
+        if (_isClosed || _isBluetoothRadioToggleInFlight || controller == null) return;
+
+        _isBluetoothRadioToggleInFlight = true;
+        QueueRebuild();
+        try
+        {
+            await controller.ToggleAsync();
+        }
+        finally
+        {
+            _isBluetoothRadioToggleInFlight = false;
+            if (!_isClosed) QueueRebuild();
+        }
+    }
+
+    private static string BluetoothRadioTooltip(BluetoothRadioPowerState state) => state switch
+    {
+        BluetoothRadioPowerState.On => L(
+            "Flyout_BluetoothRadio_Tooltip_On",
+            "Bluetooth on\nClick to turn off"),
+        BluetoothRadioPowerState.Off => L(
+            "Flyout_BluetoothRadio_Tooltip_Off",
+            "Bluetooth off\nClick to turn on"),
+        BluetoothRadioPowerState.Unavailable => L(
+            "Flyout_BluetoothRadio_Tooltip_Unavailable",
+            "Bluetooth unavailable"),
+        BluetoothRadioPowerState.Unknown => L(
+            "Flyout_BluetoothRadio_Tooltip_Unknown",
+            "Bluetooth\nReading radio state"),
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
+    };
 
     private static void ToggleCommunicationsDucking(KeyModifiers modifiers)
     {
@@ -2594,13 +2794,27 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         string format = _settings.ShowDeviceFormatText ? device.DefaultFormat ?? string.Empty : string.Empty;
         string codec = _settings.ShowDeviceCodecText && device.IsBluetooth ? device.CurrentCodecName : string.Empty;
-
-        return format.Length switch
+        string connectionStatus = device switch
         {
-            > 0 when codec.Length > 0 => format + ", " + codec,
-            > 0 => format,
-            _ => codec
+            { IsBluetoothConnectionPending: true } => string.Format(
+                L("Flyout_BluetoothStatus_ConnectionPending_Format", "Connection Pending: {0}s"),
+                device.BluetoothConnectionSecondsRemaining),
+            { IsBluetoothAudioWaiting: true } => L(
+                "Flyout_BluetoothStatus_AudioWaiting",
+                "Connected - Audio Waiting"),
+            _ => string.Empty
         };
+
+        return BuildDeviceFormatLine(format, codec, connectionStatus);
+    }
+
+    internal static string BuildDeviceFormatLine(string format, string codec, string connectionStatus)
+    {
+        List<string> segments = [];
+        if (!string.IsNullOrEmpty(format)) segments.Add(format);
+        if (!string.IsNullOrEmpty(codec)) segments.Add(codec);
+        if (!string.IsNullOrEmpty(connectionStatus)) segments.Add(connectionStatus);
+        return string.Join(", ", segments);
     }
 
     private CornerRadius ResolveDeviceBandRadius(bool isLast, bool appsBottom, bool drawerVisible)

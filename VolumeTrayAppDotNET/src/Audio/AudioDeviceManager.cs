@@ -112,8 +112,10 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private string? _notifiedRenderCommunicationsDeviceID;
     private string? _notifiedCaptureDefaultDeviceID;
     private string? _notifiedCaptureCommunicationsDeviceID;
-    private int _bluetoothConnectInFlight;
+    private readonly object _bluetoothConnectCallLock = new();
     private int _bluetoothDisconnectInFlight;
+    private DispatcherTimer? _bluetoothConnectionCountdownTimer;
+    private long _lastBluetoothConnectionStatePollMilliseconds;
     private bool _disposed;
 
     public ReadOnlyObservableCollection<AudioDevice> Devices { get; }
@@ -194,16 +196,17 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
     /// <summary>
     /// Best-effort, single-flight reconnect request for a disconnected Bluetooth audio endpoint.
-    /// The KS driver call runs on the threadpool and the normal Core Audio notifications drive the
-    /// eventual endpoint-state update. A related capture endpoint is tried first because Windows'
-    /// documented one-shot reconnect contract is implemented by the Bluetooth HFP audio filter.
+    /// Calling this again while the visible attempt is pending reissues the one-shot driver request
+    /// and restarts its observation window. Windows exposes no cancellation handle for the earlier
+    /// asynchronous attempt. A related capture endpoint is tried first because Windows' documented
+    /// one-shot reconnect contract is implemented by the Bluetooth HFP audio filter.
     /// </summary>
     public void ConnectBluetoothDevice(AudioDevice device)
     {
         if (_disposed || !device.IsBluetooth || !device.IsDisconnected || string.IsNullOrEmpty(device.Id)) return;
 
         Guid? containerID = device.ContainerId;
-        string[] endpointIDs = _devices
+        AudioDevice[] relatedDevices = _devices
             .Where(candidate => candidate.IsBluetooth
                                 && candidate.IsDisconnected
                                 && (containerID is null
@@ -211,24 +214,41 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                                     : candidate.ContainerId == containerID))
             .OrderBy(candidate => candidate.DataFlow == EDataFlow.eCapture ? 0 : 1)
             .ThenBy(candidate => ReferenceEquals(candidate, device) ? 0 : 1)
-            .Select(candidate => candidate.Id)
+            .ToArray();
+
+        if (relatedDevices.Length == 0) relatedDevices = [device];
+        bool isRetry = relatedDevices.Any(static candidate => candidate.IsBluetoothConnectionPending);
+
+        string[] endpointIDs = relatedDevices
+            .Select(static candidate => candidate.Id)
             .Where(static deviceID => !string.IsNullOrEmpty(deviceID))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-
         if (endpointIDs.Length == 0) endpointIDs = [device.Id];
 
-        if (Interlocked.CompareExchange(ref _bluetoothConnectInFlight, 1, 0) != 0)
-        {
-            TADNLog.LogDebug("AudioDeviceManager.ConnectBluetoothDevice: prior reconnect still in flight");
-            return;
-        }
+        if (isRetry)
+            TADNLog.LogDebug("AudioDeviceManager.ConnectBluetoothDevice: retrying pending reconnect");
+
+        long nowMilliseconds = Environment.TickCount64;
+        long previousDeadlineMilliseconds = relatedDevices.Max(
+            static candidate => candidate.BluetoothConnectionDeadlineMilliseconds);
+        long deadlineMilliseconds = ResolveBluetoothConnectionAttemptDeadline(
+            nowMilliseconds,
+            previousDeadlineMilliseconds);
+        for (int deviceIndex = 0; deviceIndex < relatedDevices.Length; deviceIndex++)
+            relatedDevices[deviceIndex].BeginBluetoothConnectionAttempt(deadlineMilliseconds, nowMilliseconds);
+        StartBluetoothConnectionCountdownTimer(nowMilliseconds);
+        _batteryMonitor.Refresh();
 
         _ = Task.Run(() =>
         {
+            bool requested = false;
             try
             {
-                bool requested = endpointIDs.Any(BluetoothAudioConnector.TryReconnect);
+                // The driver request completes quickly but cannot be cancelled. Serialize native
+                // calls so a rapid second click becomes a queued retry instead of a dropped click.
+                lock (_bluetoothConnectCallLock)
+                    requested = endpointIDs.Any(BluetoothAudioConnector.TryReconnect);
                 if (!requested)
                     TADNLog.Log("AudioDeviceManager.ConnectBluetoothDevice: no related endpoint accepted reconnect");
             }
@@ -238,9 +258,139 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             }
             finally
             {
-                Interlocked.Exchange(ref _bluetoothConnectInFlight, 0);
+                // A rejected retry can mean the preceding asynchronous driver attempt still owns
+                // the target. Preserve the observation window in that case and let state events or
+                // its deadline settle it. Only a rejected initial request is known to have no work.
+                if (!requested && !isRetry)
+                {
+                    PostEndBluetoothConnectionAttempts(endpointIDs, deadlineMilliseconds);
+                }
             }
         });
+    }
+
+    internal static long ResolveBluetoothConnectionAttemptDeadline(
+        long nowMilliseconds,
+        long previousDeadlineMilliseconds)
+    {
+        long deadlineMilliseconds = nowMilliseconds + TimeConstants.BluetoothConnectionAttemptTimeoutMs;
+        return deadlineMilliseconds > previousDeadlineMilliseconds
+            ? deadlineMilliseconds
+            : previousDeadlineMilliseconds + 1;
+    }
+
+    private void StartBluetoothConnectionCountdownTimer(long nowMilliseconds)
+    {
+        _lastBluetoothConnectionStatePollMilliseconds = nowMilliseconds;
+        if (_bluetoothConnectionCountdownTimer != null) return;
+
+        DispatcherTimer timer = new(DispatcherPriority.Background, _dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(TimeConstants.BluetoothConnectionCountdownTickMs)
+        };
+        _bluetoothConnectionCountdownTimer = timer;
+        timer.Tick += OnBluetoothConnectionCountdownTick;
+        timer.Start();
+    }
+
+    private void OnBluetoothConnectionCountdownTick(object? sender, EventArgs eventArgs)
+    {
+        if (_disposed || !ReferenceEquals(sender, _bluetoothConnectionCountdownTimer)) return;
+
+        long nowMilliseconds = Environment.TickCount64;
+        bool hasPendingAttempt = false;
+        foreach (AudioDevice candidate in _devices)
+        {
+            bool wasPending = candidate.IsBluetoothConnectionPending;
+            if (candidate.UpdateBluetoothConnectionAttempt(nowMilliseconds))
+            {
+                hasPendingAttempt = true;
+                continue;
+            }
+
+            if (wasPending)
+                TADNLog.Log($"AudioDeviceManager: Bluetooth reconnect timed out for '{candidate.Id}'");
+        }
+
+        if (!hasPendingAttempt)
+        {
+            StopBluetoothConnectionCountdownTimer();
+            return;
+        }
+
+        if (nowMilliseconds - _lastBluetoothConnectionStatePollMilliseconds
+            < TimeConstants.BluetoothConnectionStatePollIntervalMs)
+            return;
+
+        _lastBluetoothConnectionStatePollMilliseconds = nowMilliseconds;
+        _batteryMonitor.Refresh();
+    }
+
+    private void PostEndBluetoothConnectionAttempts(
+        string[] endpointIDs,
+        long expectedDeadlineMilliseconds)
+    {
+        try
+        {
+            _dispatcher.Post(() =>
+            {
+                if (_disposed) return;
+                EndBluetoothConnectionAttempts(endpointIDs, expectedDeadlineMilliseconds);
+            }, DispatcherPriority.Background);
+        }
+        catch (Exception exception)
+        {
+            if (!_disposed)
+            {
+                TADNLog.Log(
+                    $"AudioDeviceManager Bluetooth reconnect cleanup dispatch failed: {exception.Message}");
+            }
+        }
+    }
+
+    private void EndBluetoothConnectionAttempts(
+        IEnumerable<string> endpointIDs,
+        long? expectedDeadlineMilliseconds = null)
+    {
+        HashSet<string> endpointIDSet = new(endpointIDs, StringComparer.Ordinal);
+        foreach (AudioDevice candidate in _devices)
+        {
+            if (!endpointIDSet.Contains(candidate.Id)) continue;
+            if (expectedDeadlineMilliseconds.HasValue
+                && candidate.BluetoothConnectionDeadlineMilliseconds
+                != expectedDeadlineMilliseconds.Value)
+                continue;
+
+            candidate.EndBluetoothConnectionAttempt();
+        }
+
+        StopBluetoothConnectionCountdownTimerIfIdle();
+    }
+
+    private void EndBluetoothConnectionAttempts(Guid containerID)
+    {
+        foreach (AudioDevice candidate in _devices)
+        {
+            if (candidate.ContainerId == containerID) candidate.EndBluetoothConnectionAttempt();
+        }
+
+        StopBluetoothConnectionCountdownTimerIfIdle();
+    }
+
+    private void StopBluetoothConnectionCountdownTimerIfIdle()
+    {
+        if (_devices.Any(static candidate => candidate.IsBluetoothConnectionPending)) return;
+        StopBluetoothConnectionCountdownTimer();
+    }
+
+    private void StopBluetoothConnectionCountdownTimer()
+    {
+        DispatcherTimer? timer = _bluetoothConnectionCountdownTimer;
+        _bluetoothConnectionCountdownTimer = null;
+        if (timer == null) return;
+
+        timer.Stop();
+        timer.Tick -= OnBluetoothConnectionCountdownTick;
     }
 
     /// <summary>
@@ -373,11 +523,11 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // Bluetooth battery monitor. No elevation requirement; a cfgmgr32 reconciliation pass
             // classifies Bluetooth containers and reads DEVPKEY_Bluetooth_Battery. The first pass
             // retroactively seeds BatteryLevel on wrappers whose container id matches a paired BT
-            // device and fires BluetoothContainerSeen so we can promote endpoints whose property
-            // store did not surface BTHENUM.
+            // device and fires BluetoothContainerConnectionChanged so we can promote endpoints
+            // whose property store did not surface BTHENUM.
             _batteryMonitor = new BluetoothBatteryMonitor(dispatcher);
             _batteryMonitor.BatteryChanged += OnBluetoothBatteryChanged;
-            _batteryMonitor.BluetoothContainerSeen += OnBluetoothContainerSeen;
+            _batteryMonitor.BluetoothContainerConnectionChanged += OnBluetoothContainerConnectionChanged;
             _batteryMonitor.Start();
 
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -495,11 +645,15 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
                 TADNLog.Log($"AudioDeviceManager.DisposePartialConstruction: battery unsubscribe failed: {ex.Message}");
             }
 
-            try { batteryMonitor.BluetoothContainerSeen -= OnBluetoothContainerSeen; }
+            try
+            {
+                batteryMonitor.BluetoothContainerConnectionChanged -= OnBluetoothContainerConnectionChanged;
+            }
             catch (Exception ex)
             {
                 TADNLog.Log(
-                    $"AudioDeviceManager.DisposePartialConstruction: bluetooth-container unsubscribe failed: {ex.Message}");
+                    "AudioDeviceManager.DisposePartialConstruction: bluetooth-container " +
+                    $"unsubscribe failed: {ex.Message}");
             }
 
             Safe.Dispose(batteryMonitor);
@@ -835,6 +989,16 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     {
         if (_disposed) return false;
 
+        Dictionary<string, long> pendingBluetoothConnections = [];
+        foreach (AudioDevice existingDevice in _devices)
+        {
+            if (existingDevice.IsBluetoothConnectionPending)
+            {
+                pendingBluetoothConnections[existingDevice.Id] =
+                    existingDevice.BluetoothConnectionDeadlineMilliseconds;
+            }
+        }
+
         List<AudioDevice> rebuilt = [];
         bool committed = false;
         try
@@ -871,6 +1035,24 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         {
             if (!committed) DisposeTemporaryDevices(rebuilt);
         }
+
+        long nowMilliseconds = Environment.TickCount64;
+        BluetoothBatteryMonitor? batteryMonitor = _batteryMonitor;
+        foreach (AudioDevice rebuiltDevice in _devices)
+        {
+            if (rebuiltDevice is { IsBluetooth: true, IsActive: true })
+                rebuiltDevice.IsBluetoothConnected = true;
+            if (batteryMonitor != null) PromoteBluetoothIfClassified(rebuiltDevice);
+
+            if (pendingBluetoothConnections.TryGetValue(rebuiltDevice.Id, out long deadlineMilliseconds)
+                && deadlineMilliseconds > nowMilliseconds)
+            {
+                rebuiltDevice.BeginBluetoothConnectionAttempt(deadlineMilliseconds, nowMilliseconds);
+            }
+        }
+
+        if (_devices.Any(static device => device.IsBluetoothConnectionPending))
+            StartBluetoothConnectionCountdownTimer(nowMilliseconds);
 
         UpdateAllDefaults();
         ReconcileCaptureMeterActivation();
@@ -966,6 +1148,14 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             // so it doesn't paint blank until the next ETW event fires.
             if (wrapped is { IsBluetooth: true, DataFlow: EDataFlow.eRender })
                 wrapped.CurrentCodec = _codecMonitor.CurrentCodec;
+            if (wrapped is { IsBluetooth: true, IsActive: true })
+            {
+                wrapped.IsBluetoothConnected = true;
+                if (wrapped.ContainerId is { } activeContainerID)
+                    EndBluetoothConnectionAttempts(activeContainerID);
+                else
+                    EndBluetoothConnectionAttempts([wrapped.Id]);
+            }
         }
         catch
         {
@@ -988,6 +1178,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         bool wasBluetoothRender = match is { IsBluetooth: true, DataFlow: EDataFlow.eRender };
         _devices.Remove(match);
         Safe.Dispose(match);
+        StopBluetoothConnectionCountdownTimerIfIdle();
         ReconcileCaptureMeterActivation();
         NoteExternalDeviceTopologyChanged();
         ScheduleUpdateAllDefaults();
@@ -1024,8 +1215,20 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             match.UpgradeFromActiveState();
             _batteryMonitor.Refresh();
             PromoteBluetoothIfClassified(match);
+            if (match.IsBluetooth)
+            {
+                match.IsBluetoothConnected = true;
+                if (match.ContainerId is { } activeContainerID)
+                    EndBluetoothConnectionAttempts(activeContainerID);
+                else
+                    EndBluetoothConnectionAttempts([match.Id]);
+            }
         }
-        else match.DowngradeFromActiveState();
+        else
+        {
+            match.DowngradeFromActiveState();
+            if (match.IsBluetooth) _batteryMonitor.Refresh();
+        }
 
         ReconcileCaptureMeterActivation();
         NoteExternalDeviceTopologyChanged();
@@ -1508,7 +1711,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
     }
 
-    private static bool RefreshDeviceStateFromDefaultEndpoint(AudioDevice device, IMMDevice? defaultDevice)
+    private bool RefreshDeviceStateFromDefaultEndpoint(AudioDevice device, IMMDevice? defaultDevice)
     {
         if (defaultDevice == null) return false;
 
@@ -1529,6 +1732,15 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
             device.State = state;
             if (isActive) device.UpgradeFromActiveState();
             else device.DowngradeFromActiveState();
+        }
+
+        if (isActive && device.IsBluetooth)
+        {
+            device.IsBluetoothConnected = true;
+            if (device.ContainerId is { } activeContainerID)
+                EndBluetoothConnectionAttempts(activeContainerID);
+            else
+                EndBluetoothConnectionAttempts([device.Id]);
         }
 
         return isActive;
@@ -1589,6 +1801,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         if (!CanPromoteToBluetooth(device)) return;
 
         if (!device.IsBluetooth) device.IsBluetooth = true;
+        device.IsBluetoothConnected = device.IsActive
+                                      || _batteryMonitor.IsBluetoothContainerConnected(container);
         ApplyBluetoothBattery(device, container, _batteryMonitor.TryGet(container));
     }
 
@@ -1612,24 +1826,28 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         }
     }
 
-    // BatteryMonitor fires this when a BT container becomes active in a cfgmgr32 reconciliation.
-    // Promote IsBluetooth on every wrapped endpoint sharing that container - the property-store
-    // EnumeratorName check at construction misses devices where the audio endpoint doesn't
-    // inherit BTHENUM (common on Win11 with some drivers), so the codec strip and battery row
-    // both stay collapsed until we upgrade the flag here. Once promoted, fan in the cached codec
-    // (render endpoints only) and cached battery so the UI catches up immediately.
-    private void OnBluetoothContainerSeen(Guid containerId)
+    // BatteryMonitor fires this when Bluetooth's cached fConnected flag changes. Promote
+    // IsBluetooth on every matching endpoint, then keep the physical connection flag independent
+    // of Core Audio so a connected headset plus an Unplugged endpoint surfaces as audio waiting.
+    // A connected transition also completes the radio-level reconnect attempt; the row can then
+    // move to audio-waiting while Windows finishes activating the endpoint.
+    private void OnBluetoothContainerConnectionChanged(Guid containerID, bool isConnected)
     {
         if (_disposed) return;
 
         foreach (AudioDevice d in _devices)
         {
-            if (d.ContainerId != containerId) continue;
-            if (!CanPromoteToBluetooth(d)) continue;
+            if (d.ContainerId != containerID) continue;
+            if (!d.IsBluetooth && !CanPromoteToBluetooth(d)) continue;
             if (!d.IsBluetooth) d.IsBluetooth = true;
+            d.IsBluetoothConnected = isConnected;
+            if (!isConnected) continue;
+
             if (d.DataFlow == EDataFlow.eRender) d.CurrentCodec = _codecMonitor.CurrentCodec;
-            ApplyBluetoothBattery(d, containerId, _batteryMonitor.TryGet(containerId));
+            ApplyBluetoothBattery(d, containerID, _batteryMonitor.TryGet(containerID));
         }
+
+        if (isConnected) EndBluetoothConnectionAttempts(containerID);
     }
 
     private void ApplyBluetoothBattery(AudioDevice device, Guid containerId, int? currentLevel)
@@ -1682,6 +1900,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         _disposed = true;
 
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        StopBluetoothConnectionCountdownTimer();
 
         try { InvalidateAndStopPeakMeterTimers(); }
         catch (Exception exception)
@@ -1704,7 +1923,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         Safe.Dispose(_codecMonitor);
 
         _batteryMonitor.BatteryChanged -= OnBluetoothBatteryChanged;
-        _batteryMonitor.BluetoothContainerSeen -= OnBluetoothContainerSeen;
+        _batteryMonitor.BluetoothContainerConnectionChanged -= OnBluetoothContainerConnectionChanged;
         Safe.Dispose(_batteryMonitor);
 
         try { _enumerator.UnregisterEndpointNotificationCallback(_bridge); }

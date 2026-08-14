@@ -183,6 +183,18 @@
   <data name="Flyout_DisabledDevices_Tooltip" xml:space="preserve">
     <value>Show/hide disabled devices</value>
   </data>
+  <data name="Flyout_BluetoothRadio_Tooltip_On" xml:space="preserve">
+    <value>Bluetooth on&#xA;Click to turn off</value>
+  </data>
+  <data name="Flyout_BluetoothRadio_Tooltip_Off" xml:space="preserve">
+    <value>Bluetooth off&#xA;Click to turn on</value>
+  </data>
+  <data name="Flyout_BluetoothRadio_Tooltip_Unavailable" xml:space="preserve">
+    <value>Bluetooth unavailable</value>
+  </data>
+  <data name="Flyout_BluetoothRadio_Tooltip_Unknown" xml:space="preserve">
+    <value>Bluetooth&#xA;Reading radio state</value>
+  </data>
   <data name="Flyout_Undock_Tooltip" xml:space="preserve">
     <value>Undock</value>
   </data>
@@ -386,6 +398,12 @@
   </data>
   <data name="Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed" xml:space="preserve">
     <value>Always show (intermixed)</value>
+  </data>
+  <data name="Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title" xml:space="preserve">
+    <value>Only show Bluetooth devices while Bluetooth is on</value>
+  </data>
+  <data name="Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description" xml:space="preserve">
+    <value>Hides all Bluetooth playback and recording devices from the flyout while the Windows Bluetooth radio is off. This overrides the disconnected Bluetooth visibility mode above.</value>
   </data>
   <data name="Settings_Flyout_IntermixRecording_Title" xml:space="preserve">
     <value>Intermix recording with playback</value>
@@ -1192,6 +1210,18 @@ Target: {1}</value>
   </data>
   <data name="Flyout_BluetoothButton_Tooltip_Disconnected" xml:space="preserve">
     <value>Bluetooth&#xA;Click to connect</value>
+  </data>
+  <data name="Flyout_BluetoothButton_Tooltip_ConnectionPending" xml:space="preserve">
+    <value>Bluetooth&#xA;Connection pending&#xA;Click to retry</value>
+  </data>
+  <data name="Flyout_BluetoothButton_Tooltip_AudioWaiting" xml:space="preserve">
+    <value>Bluetooth connected&#xA;Audio waiting&#xA;Click to retry</value>
+  </data>
+  <data name="Flyout_BluetoothStatus_ConnectionPending_Format" xml:space="preserve">
+    <value>Connection Pending: {0}s</value>
+  </data>
+  <data name="Flyout_BluetoothStatus_AudioWaiting" xml:space="preserve">
+    <value>Connected - Audio Waiting</value>
   </data>
   <data name="Settings_Devices_ShowTrayRecordingLink_Title" xml:space="preserve">
     <value>Show "Recording" link in tray menu</value>

@@ -67,6 +67,12 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.FlyoutDisconnectedBluetoothDeviceVisibility = v,
             p));
         stack.Children.Add(BoolCard(
+            Loc("Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title"),
+            Loc("Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description"),
+            _settings.ShowBluetoothDevicesOnlyWhenBluetoothIsOn,
+            v => _settings.ShowBluetoothDevicesOnlyWhenBluetoothIsOn = v,
+            p));
+        stack.Children.Add(BoolCard(
             Loc("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title"),
             Loc("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description"),
             _settings.UseDynamicPlaybackVolumeGlyphInFlyout,

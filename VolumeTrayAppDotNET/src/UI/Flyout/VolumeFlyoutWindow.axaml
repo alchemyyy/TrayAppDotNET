@@ -44,6 +44,7 @@
         <CornerRadius x:Key="Flyout.HeaderIconButtonCornerRadius">4</CornerRadius>
         <sys:Double x:Key="Flyout.HeaderIconFontSize">20</sys:Double>
         <sys:Double x:Key="Flyout.HeaderIconLineHeight">26</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderInactiveIconOpacity">0.4</sys:Double>
         <sys:Double x:Key="Flyout.HeaderUndockFontSize">20.5</sys:Double>
         <sys:Double x:Key="Flyout.HeaderUndockLineHeight">27</sys:Double>
         <Thickness x:Key="Flyout.HeaderUpdateMarginTop">0,5,42,0</Thickness>
@@ -115,6 +116,10 @@
         <sys:Double x:Key="Flyout.DeviceIconButtonFontSize">15</sys:Double>
         <Thickness x:Key="Flyout.DeviceIconButtonMargin">0,3,0,-3</Thickness>
         <Thickness x:Key="Flyout.BluetoothBatteryButtonMargin">0,3,4,-3</Thickness>
+        <sys:Double x:Key="Flyout.BluetoothConnectionOverlaySize">12</sys:Double>
+        <Thickness x:Key="Flyout.BluetoothConnectionOverlayMargin">0,0,-3,-2</Thickness>
+        <sys:Double x:Key="Flyout.BluetoothConnectionOverlayOpacity">0.3</sys:Double>
+        <sys:Double x:Key="Flyout.BluetoothConnectionOverlayStrokeThickness">1</sys:Double>
         <CornerRadius x:Key="Flyout.IconButtonCornerRadius">4</CornerRadius>
         <sys:Double x:Key="Flyout.EqualizerFontSize">15</sys:Double>
         <sys:Double x:Key="Flyout.EqualizerBadgeFontSize">11</sys:Double>

@@ -92,12 +92,58 @@ public sealed class FlyoutDeviceOrderingTests
             (int)FlyoutDeviceOrdering.ClassifyDisconnectedBluetooth(visibility, normallyVisible));
     }
 
-    [Fact]
-    public void DisconnectedBluetoothVisibilityDefaultsToShow()
+    [Theory]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.NeverShow,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Hidden)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.Show,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShow,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.DedicatedSection)]
+    [InlineData(FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed,
+        (int)FlyoutDeviceOrdering.DisconnectedBluetoothPlacement.Standard)]
+    public void ConnectionActivitySurfacesBluetoothRowsUnlessExplicitlyHidden(
+        FlyoutDisconnectedBluetoothDeviceVisibility visibility,
+        int expected)
     {
         Assert.Equal(
-            FlyoutDisconnectedBluetoothDeviceVisibility.Show,
+            expected,
+            (int)FlyoutDeviceOrdering.ClassifyDisconnectedBluetooth(
+                visibility,
+                normallyVisible: false,
+                hasConnectionActivity: true));
+    }
+
+    [Fact]
+    public void DisconnectedBluetoothVisibilityDefaultsToAlwaysShowIntermixed()
+    {
+        Assert.Equal(
+            FlyoutDisconnectedBluetoothDeviceVisibility.AlwaysShowIntermixed,
             new AppSettings().FlyoutDisconnectedBluetoothDeviceVisibility);
+    }
+
+    [Fact]
+    public void BluetoothRadioVisibilityGateDefaultsToEnabled()
+    {
+        Assert.True(new AppSettings().ShowBluetoothDevicesOnlyWhenBluetoothIsOn);
+    }
+
+    [Theory]
+    [InlineData(false, true, false, true)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, true, true)]
+    [InlineData(true, true, false, false)]
+    public void BluetoothRadioGateOnlyHidesBluetoothDevicesWhenConfiguredAndOff(
+        bool isBluetoothDevice,
+        bool showOnlyWhenBluetoothIsOn,
+        bool isBluetoothRadioEnabled,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            FlyoutDeviceOrdering.PassesBluetoothRadioGate(
+                isBluetoothDevice,
+                showOnlyWhenBluetoothIsOn,
+                isBluetoothRadioEnabled));
     }
 
     [Theory]

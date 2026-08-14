@@ -49,7 +49,8 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         List<AudioDevice> orderedForFlyout = FlyoutDeviceOrdering.Build(
             devices,
             settings,
-            applyDisconnectedBluetoothMode: false);
+            applyFlyoutBluetoothPolicies: false,
+            isBluetoothRadioEnabled: true);
         if (settings.ShowTrayMenuDeviceLinks && orderedForFlyout.Count > 0)
         {
             for (int i = orderedForFlyout.Count - 1; i >= 0; i--)

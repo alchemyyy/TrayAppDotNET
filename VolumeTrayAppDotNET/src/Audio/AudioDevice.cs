@@ -87,6 +87,9 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     private BluetoothCodec? _currentCodec;
     private int? _batteryLevel;
     private int? _lastKnownBatteryLevel;
+    private bool _isBluetoothConnected;
+    private long _bluetoothConnectionDeadlineMilliseconds;
+    private int _bluetoothConnectionSecondsRemaining;
     private bool _disposed;
 
     // Single-flight gate. SetEnabled / SetAsDefault / SetAsDefaultCommunications / ForceCycleEndpoint
@@ -138,7 +141,93 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             field = value;
             FriendlyName = value ? ResolveDisplayedFriendlyName(_systemFriendlyName) : _systemFriendlyName;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsBluetoothAudioWaiting));
         }
+    }
+
+    /// <summary>
+    /// True when Configuration Manager currently reports the physical Bluetooth container as
+    /// present. This is intentionally independent of <see cref="IsActive"/>: the headset can be
+    /// connected while Windows is still creating or activating its Core Audio endpoint.
+    /// </summary>
+    public bool IsBluetoothConnected
+    {
+        get => _isBluetoothConnected;
+        internal set
+        {
+            if (_isBluetoothConnected == value) return;
+            _isBluetoothConnected = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsBluetoothAudioWaiting));
+        }
+    }
+
+    /// <summary>True while the physical headset is connected but this audio endpoint is unavailable.</summary>
+    public bool IsBluetoothAudioWaiting => IsBluetooth && _isBluetoothConnected && IsDisconnected;
+
+    /// <summary>True while a one-shot Bluetooth reconnect request is inside its observation window.</summary>
+    public bool IsBluetoothConnectionPending => _bluetoothConnectionDeadlineMilliseconds != 0;
+
+    /// <summary>Monotonic Environment.TickCount64 deadline used by the animated flyout overlay.</summary>
+    public long BluetoothConnectionDeadlineMilliseconds => _bluetoothConnectionDeadlineMilliseconds;
+
+    /// <summary>Whole seconds remaining in the active reconnect observation window.</summary>
+    public int BluetoothConnectionSecondsRemaining => _bluetoothConnectionSecondsRemaining;
+
+    /// <summary>Begins or restarts the visible reconnect observation window.</summary>
+    internal void BeginBluetoothConnectionAttempt(long deadlineMilliseconds, long nowMilliseconds)
+    {
+        if (deadlineMilliseconds <= nowMilliseconds)
+            throw new ArgumentOutOfRangeException(nameof(deadlineMilliseconds));
+
+        bool wasPending = IsBluetoothConnectionPending;
+        _bluetoothConnectionDeadlineMilliseconds = deadlineMilliseconds;
+        OnPropertyChanged(nameof(BluetoothConnectionDeadlineMilliseconds));
+        if (!wasPending) OnPropertyChanged(nameof(IsBluetoothConnectionPending));
+        UpdateBluetoothConnectionAttempt(nowMilliseconds);
+    }
+
+    /// <summary>Updates the rounded-up countdown and ends the attempt once its deadline passes.</summary>
+    internal bool UpdateBluetoothConnectionAttempt(long nowMilliseconds)
+    {
+        if (!IsBluetoothConnectionPending) return false;
+
+        int secondsRemaining = ResolveBluetoothConnectionSecondsRemaining(
+            _bluetoothConnectionDeadlineMilliseconds,
+            nowMilliseconds);
+        if (secondsRemaining == 0)
+        {
+            EndBluetoothConnectionAttempt();
+            return false;
+        }
+
+        if (_bluetoothConnectionSecondsRemaining == secondsRemaining) return true;
+        _bluetoothConnectionSecondsRemaining = secondsRemaining;
+        OnPropertyChanged(nameof(BluetoothConnectionSecondsRemaining));
+        return true;
+    }
+
+    /// <summary>Clears the active reconnect observation window.</summary>
+    internal void EndBluetoothConnectionAttempt()
+    {
+        if (!IsBluetoothConnectionPending) return;
+
+        _bluetoothConnectionDeadlineMilliseconds = 0;
+        _bluetoothConnectionSecondsRemaining = 0;
+        OnPropertyChanged(nameof(BluetoothConnectionDeadlineMilliseconds));
+        OnPropertyChanged(nameof(BluetoothConnectionSecondsRemaining));
+        OnPropertyChanged(nameof(IsBluetoothConnectionPending));
+    }
+
+    internal static int ResolveBluetoothConnectionSecondsRemaining(
+        long deadlineMilliseconds,
+        long nowMilliseconds)
+    {
+        long remainingMilliseconds = deadlineMilliseconds - nowMilliseconds;
+        if (remainingMilliseconds <= 0) return 0;
+
+        long secondsRemaining = (remainingMilliseconds + 999) / 1_000;
+        return secondsRemaining > int.MaxValue ? int.MaxValue : (int)secondsRemaining;
     }
 
     /// <summary>
@@ -323,6 +412,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(IsDisabled));
             OnPropertyChanged(nameof(IsDisconnected));
             OnPropertyChanged(nameof(IsNotPresent));
+            OnPropertyChanged(nameof(IsBluetoothAudioWaiting));
         }
     }
 

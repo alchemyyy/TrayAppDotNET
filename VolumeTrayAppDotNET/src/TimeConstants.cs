@@ -46,13 +46,32 @@ public abstract class TimeConstants : CommonTimeConstants
     // to cover a normal scroll cadence and short enough that the ding still feels coupled to the gesture.
     public const int VolumeFeedbackDingDelayMs = 350;
 
-    // Bluetooth battery active-poll interval. The PnP watcher emits Updated events on
-    // Connected-state changes but not on battery deltas, so without an explicit re-query via
-    // CM_Get_DevNode_Property the bound UI would freeze on the value read at Added time. The
-    // timer is only running while the flyout is open (no point polling the OS when nothing is
-    // bound). 30s is well under typical headset reporting cadence and matches what Windows
-    // Settings itself polls at.
+    // Bluetooth battery active-poll interval. Configuration Manager notifications do not report
+    // every battery delta, so without an explicit CM_Get_DevNode_Property re-query the bound UI
+    // would freeze on the value read at arrival time. The timer runs only while the flyout is open.
+    // 30s is well under typical headset reporting cadence and matches what Windows Settings polls.
     public const int BluetoothBatteryPollIntervalMs = 30_000;
+
+    // VTADN-defined observation window, not a timeout reported by Windows or the Bluetooth device.
+    // KSPROPERTY_ONESHOT_RECONNECT only reports that the audio driver accepted an asynchronous
+    // request; Windows exposes no completion handle, connecting state, progress, deadline, or
+    // documented universal timeout. The 30s value approximates the behavior observed with the
+    // target headphones. It drives only attempts initiated by VTADN and the associated countdown.
+    // Connections initiated elsewhere cannot show pending progress because VTADN cannot observe
+    // their start or deadline. VTADN can subsequently correlate the Classic Bluetooth fConnected
+    // flag with Core Audio endpoint state to show Connected - Audio Waiting, then clear that state
+    // when the endpoint becomes active.
+    public const int BluetoothConnectionAttemptTimeoutMs = 30_000;
+    public const int BluetoothConnectionCountdownTickMs = 100;
+    public const int BluetoothConnectionStatePollIntervalMs = 500;
+    public const int BluetoothConnectionAnimationIntervalMs = 6;
+
+    // RadioMgr.h exposes a synchronous Bluetooth radio state change with a caller-selected
+    // timeout. Microsoft recommends one to five seconds; three seconds bounds the background
+    // operation without favoring either end of that range. State polling runs only while the
+    // flyout is visible so changes made through Windows are reflected by the header button.
+    public const int BluetoothRadioStateChangeTimeoutSeconds = 3;
+    public const int BluetoothRadioStatePollIntervalMs = 1_000;
 
     // Device policy / process monitoring
     public const int DefaultDeviceRoleChangeTimeoutMs = 2_000;
