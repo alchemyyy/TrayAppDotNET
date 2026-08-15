@@ -23,6 +23,10 @@ public sealed record SettingsPageDescriptor<TPageKey>(
 public abstract partial class SettingsWindowCommon<TPageKey> : Window
     where TPageKey : notnull
 {
+    // Keep the custom frame available for borderless windows. It stays disabled while BorderOnly supplies
+    // native resizing because drawing both frames doubles the border and insets the caption buttons
+    private const bool EnableCustomWindowBorder = false;
+
     private ContentControl _content = new();
     private readonly SettingsWindowCommonResources _settingsResources = new();
     private readonly CommonBindingsResources _commonBindingResources = new();
@@ -97,7 +101,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         ApplyWindowDimensions(sizeProfile);
         Icon = icon;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        WindowDecorations = WindowDecorations.None;
+        // BorderOnly supplies native resize hit testing while the extended client area retains custom chrome
+        WindowDecorations = WindowDecorations.BorderOnly;
+        ExtendClientAreaToDecorationsHint = true;
         Background = Brushes.Transparent;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         CanResize = true;
@@ -405,7 +411,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = _settingsResources.AxamlSettingsWindow.RootBorderThickness,
+            BorderThickness = EnableCustomWindowBorder
+                ? _settingsResources.AxamlSettingsWindow.RootBorderThickness
+                : _settingsResources.AxamlSettingsWindow.ZeroThickness,
             CornerRadius = outerRadius,
             ClipToBounds = false,
             Child = new Border
@@ -413,7 +421,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
                 CornerRadius = innerRadius,
                 ClipToBounds = EnableRoundedCorners,
-                Margin = _settingsResources.AxamlSettingsWindow.InnerBorderMargin,
+                Margin = EnableCustomWindowBorder
+                    ? _settingsResources.AxamlSettingsWindow.InnerBorderMargin
+                    : _settingsResources.AxamlSettingsWindow.ZeroThickness,
                 Child = root
             }
         };

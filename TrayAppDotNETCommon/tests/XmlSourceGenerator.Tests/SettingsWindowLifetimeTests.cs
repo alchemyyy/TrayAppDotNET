@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI;
@@ -8,6 +9,20 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class SettingsWindowLifetimeTests
 {
+    [Fact]
+    public void SettingsWindowUsesOnlyNativeResizeBorderWithCustomChrome() => AvaloniaTestHost.Run(() =>
+    {
+        TestSettingsWindow window = new();
+        Border root = Assert.IsType<Border>(window.Content);
+        Border contentSurface = Assert.IsType<Border>(root.Child);
+
+        Assert.Equal(WindowDecorations.BorderOnly, window.WindowDecorations);
+        Assert.True(window.ExtendClientAreaToDecorationsHint);
+        Assert.True(window.CanResize);
+        Assert.Equal(new Thickness(0), root.BorderThickness);
+        Assert.Equal(new Thickness(0), contentSurface.Margin);
+    });
+
     [Fact]
     public void FailedPageBuildKeepsPreviousPageGenerationActive() => AvaloniaTestHost.Run(() =>
     {
@@ -67,6 +82,7 @@ public sealed class SettingsWindowLifetimeTests
         public TestSettingsWindow()
         {
             StablePage = new TextBlock { Text = "stable", DataContext = new object() };
+            ConfigureSettingsWindow("Test", null);
             InitializeSettingsShell();
         }
 
