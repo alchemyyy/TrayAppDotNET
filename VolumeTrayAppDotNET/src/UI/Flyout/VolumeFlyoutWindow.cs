@@ -89,8 +89,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         InitializeComponent();
 
-        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-
         _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
         {
             Settings = _settings,
@@ -542,39 +540,29 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             root.Children.Add(header);
             root.Children.Add(body);
 
-            Border chrome = new()
-            {
-                Background = Brush(flyoutPalette.Background),
-                BorderBrush = Brush(flyoutPalette.Border),
-                BorderThickness = Layout.ChromeBorderThickness,
-                CornerRadius = Rounded(Layout.ChromeCornerRadius),
-                ClipToBounds = false,
-                Child = new Border
-                {
-                    Background = Brush(flyoutPalette.Background),
-                    CornerRadius = Rounded(Layout.ChromeInnerCornerRadius),
-                    ClipToBounds = true,
-                    Margin = Layout.ChromeInnerMargin,
-                    Child = root
-                }
-            };
-            chrome.PointerPressed += OnChromePointerPressed;
-            chrome.PointerMoved += OnChromePointerMoved;
-            chrome.PointerReleased += OnChromePointerReleased;
-            chrome.PointerCaptureLost += OnChromePointerCaptureLost;
+            FlyoutFrame frame = new(
+                root,
+                flyoutPalette.Background,
+                flyoutPalette.Border,
+                _settings.EnableRoundedCorners,
+                contentMargin: Layout.ChromeInnerMargin);
+            frame.PointerPressed += OnChromePointerPressed;
+            frame.PointerMoved += OnChromePointerMoved;
+            frame.PointerReleased += OnChromePointerReleased;
+            frame.PointerCaptureLost += OnChromePointerCaptureLost;
             resources.Add(() =>
             {
-                chrome.PointerPressed -= OnChromePointerPressed;
-                chrome.PointerMoved -= OnChromePointerMoved;
-                chrome.PointerReleased -= OnChromePointerReleased;
-                chrome.PointerCaptureLost -= OnChromePointerCaptureLost;
+                frame.PointerPressed -= OnChromePointerPressed;
+                frame.PointerMoved -= OnChromePointerMoved;
+                frame.PointerReleased -= OnChromePointerReleased;
+                frame.PointerCaptureLost -= OnChromePointerCaptureLost;
             });
 
             // Retire interaction and drag state before controls release pointer capture
             resources.Add(candidate.Dispose);
             candidate.Generation = new UIContentGeneration(
                 "VolumeFlyoutWindow.Content",
-                chrome,
+                frame,
                 resources,
                 logError: exception => TADNLog.Log(
                     $"Volume flyout generation release failed: {exception.Message}"));

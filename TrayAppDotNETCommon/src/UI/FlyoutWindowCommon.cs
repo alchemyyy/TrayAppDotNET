@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.WarmWindows;
 
@@ -22,6 +24,13 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     protected FlyoutWindowCommon()
     {
         _windowResources = new UIResourceScope(GetType().Name);
+        WindowDecorations = WindowDecorations.None;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        Background = Brushes.Transparent;
+        ShowInTaskbar = false;
+        CanResize = false;
+        Topmost = true;
+        SizeToContent = SizeToContent.Height;
         Deactivated += OnDeactivated;
         _windowResources.Add(() => Deactivated -= OnDeactivated);
     }

@@ -1,0 +1,11 @@
+<ResourceDictionary
+    x:Class="TrayAppDotNETCommon.UI.Controls.FlyoutFrameResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Thickness x:Key="FlyoutFrame.ZeroThickness">0</Thickness>
+    <CornerRadius x:Key="FlyoutFrame.ZeroCornerRadius">0</CornerRadius>
+    <Thickness x:Key="FlyoutFrame.BorderThickness">1</Thickness>
+    <CornerRadius x:Key="FlyoutFrame.CornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="FlyoutFrame.InnerCornerRadius">7</CornerRadius>
+</ResourceDictionary>

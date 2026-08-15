@@ -94,13 +94,6 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         });
 
         Width = FlyoutWidth;
-        WindowDecorations = WindowDecorations.None;
-        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-        Background = Brushes.Transparent;
-        ShowInTaskbar = false;
-        CanResize = false;
-        Topmost = true;
-        SizeToContent = SizeToContent.Height;
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
         WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
@@ -357,30 +350,27 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 content.Children.Add(floatingUndock);
             }
 
-            Border chrome = new()
-            {
-                Background = Brush(flyoutBackground),
-                BorderBrush = Brush(p.Border),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(_settings.EnableRoundedCorners ? 8 : 0),
-                Child = content
-            };
-            chrome.PointerPressed += OnChromePointerPressed;
-            chrome.PointerMoved += OnChromePointerMoved;
-            chrome.PointerReleased += OnChromePointerReleased;
-            chrome.PointerCaptureLost += OnChromePointerCaptureLost;
+            FlyoutFrame frame = new(
+                content,
+                flyoutBackground,
+                p.Border,
+                _settings.EnableRoundedCorners);
+            frame.PointerPressed += OnChromePointerPressed;
+            frame.PointerMoved += OnChromePointerMoved;
+            frame.PointerReleased += OnChromePointerReleased;
+            frame.PointerCaptureLost += OnChromePointerCaptureLost;
             resources.Add(() =>
             {
-                ReleaseChromeCapture(chrome);
-                chrome.PointerCaptureLost -= OnChromePointerCaptureLost;
-                chrome.PointerReleased -= OnChromePointerReleased;
-                chrome.PointerMoved -= OnChromePointerMoved;
-                chrome.PointerPressed -= OnChromePointerPressed;
+                ReleaseChromeCapture(frame);
+                frame.PointerCaptureLost -= OnChromePointerCaptureLost;
+                frame.PointerReleased -= OnChromePointerReleased;
+                frame.PointerMoved -= OnChromePointerMoved;
+                frame.PointerPressed -= OnChromePointerPressed;
             });
 
             UIContentGeneration generation = new(
                 $"{nameof(BatteryFlyoutWindow)}.Content",
-                chrome,
+                frame,
                 resources);
             return (generation, undockButtonController);
         }

@@ -120,7 +120,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         try
         {
             InitializeComponent();
-            TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
             _dockingController = new FlyoutDockingController(new FlyoutDockingOptions
             {
@@ -388,28 +387,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             generation.DragOverlay = new Canvas { IsHitTestVisible = false };
             rootGrid.Children.Add(generation.DragOverlay);
 
-            Border rootCard = new()
+            FlyoutFrame rootCard = new(
+                rootGrid,
+                theme.ResolveFlyoutBackground(_settings, isLight),
+                theme.Border.For(isLight),
+                _settings.EnableRoundedCorners,
+                framePadding: Layout.RootInnerPadding)
             {
-                Focusable = true,
-                Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
-                BorderBrush = TrayAppDotNETFlyoutUI.Brush(theme.Border.For(isLight)),
-                BorderThickness = Layout.RootBorderThickness,
-                Padding = Layout.RootInnerPadding,
-                CornerRadius = Rounded(Layout.RootCornerRadius),
-                ClipToBounds = false,
-                BoxShadow = new BoxShadows(new BoxShadow
-                {
-                    OffsetY = Layout.RootShadowOffsetY,
-                    Blur = Layout.RootShadowBlur,
-                    Color = theme.FlyoutShadow.For(isLight)
-                }),
-                Child = new Border
-                {
-                    Background = TrayAppDotNETFlyoutUI.Brush(theme.ResolveFlyoutBackground(_settings, isLight)),
-                    CornerRadius = Rounded(Layout.RootInnerCornerRadius),
-                    ClipToBounds = true,
-                    Child = rootGrid
-                }
+                Focusable = true
             };
             generation.RootCard = rootCard;
             rootCard.PointerPressed += OnRootPointerPressed;
@@ -2400,7 +2385,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Background =
                 TrayAppDotNETSettingsUI.Brush(
                     (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight)),
-            CornerRadius = Rounded(Layout.RootCornerRadius),
+            CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
             Child = dialog
         };
     }

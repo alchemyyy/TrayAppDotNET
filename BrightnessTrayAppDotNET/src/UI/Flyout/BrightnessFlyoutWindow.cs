@@ -156,7 +156,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try
         {
             InitializeComponent();
-            TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             _externalResources.Add(() =>
@@ -753,28 +752,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Grid.SetRowSpan(candidate.ConfirmOverlay, 2);
             rootGrid.Children.Add(candidate.ConfirmOverlay);
 
-            candidate.RootCard = new Border
-            {
-                Background = TrayAppDotNETFlyoutUI.Brush(_theme.ResolveBackground(_settings, isLight)),
-                BorderBrush = TrayAppDotNETFlyoutUI.Brush(_theme.Border.For(isLight)),
-                BorderThickness = Layout.RootBorderThickness,
-                CornerRadius = Rounded(Layout.RootCornerRadius),
-                ClipToBounds = false,
-                BoxShadow = new BoxShadows(new BoxShadow
-                {
-                    OffsetY = Layout.RootShadowOffsetY,
-                    Blur = Layout.RootShadowBlur,
-                    Color = _theme.FlyoutShadow.For(isLight)
-                }),
-                Child = new Border
-                {
-                    Background = TrayAppDotNETFlyoutUI.Brush(_theme.ResolveBackground(_settings, isLight)),
-                    CornerRadius = Rounded(Layout.RootInnerCornerRadius),
-                    ClipToBounds = true,
-                    Padding = Layout.RootInnerPadding,
-                    Child = rootGrid
-                }
-            };
+            candidate.RootCard = new FlyoutFrame(
+                rootGrid,
+                _theme.ResolveBackground(_settings, isLight),
+                _theme.Border.For(isLight),
+                rounded,
+                contentPadding: Layout.RootInnerPadding);
             candidate.RootCard.PointerPressed += OnRootPointerPressed;
             candidateResources.Add(() => candidate.RootCard.PointerPressed -= OnRootPointerPressed);
             candidate.RootCard.PointerMoved += OnRootPointerMoved;

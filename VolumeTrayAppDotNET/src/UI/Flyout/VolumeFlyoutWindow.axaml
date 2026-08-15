@@ -5,12 +5,6 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:TrayAppDotNETCommon.UI;assembly=TrayAppDotNETCommon"
     Width="{DynamicResource Flyout.WindowWidth}"
-    SizeToContent="Height"
-    WindowDecorations="None"
-    Background="Transparent"
-    ShowInTaskbar="False"
-    CanResize="False"
-    Topmost="True"
     FontFamily="Segoe UI">
 
     <ui:FlyoutWindowCommon.Resources>
@@ -28,10 +22,7 @@
         <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
         <sys:Double x:Key="Flyout.IconGlyphLineHeightPadding">6</sys:Double>
 
-        <Thickness x:Key="Flyout.ChromeBorderThickness">1</Thickness>
         <Thickness x:Key="Flyout.ChromeInnerMargin">1</Thickness>
-        <CornerRadius x:Key="Flyout.ChromeCornerRadius">8</CornerRadius>
-        <CornerRadius x:Key="Flyout.ChromeInnerCornerRadius">7</CornerRadius>
         <CornerRadius x:Key="Flyout.ZeroCornerRadius">0</CornerRadius>
         <Thickness x:Key="Flyout.ZeroThickness">0</Thickness>
 
