@@ -66,7 +66,7 @@ internal sealed class BrightnessTrayMenuWindow(
 
         bool hasPowerTargets = monitors.Any(static m => m.SupportsPowerControl);
         if (settings.ShowAllDisplaysPowerButton && hasPowerTargets)
-            entries.Add(L("Tray_PowerOffAllDisplays", "Power off all displays"), powerOffAllMonitors);
+            entries.Add(L(nameof(AppStrings.Tray_PowerOffAllDisplays), "Power off all displays"), powerOffAllMonitors);
 
         if (settings.ShowMonitorPowerButtons && hasPowerTargets)
         {
@@ -74,7 +74,7 @@ internal sealed class BrightnessTrayMenuWindow(
             {
                 MonitorInfo capturedMonitor = monitor;
                 string label = string.Format(
-                    L("Tray_PowerOffMonitor_Format", "Power off {0}"),
+                    L(nameof(AppStrings.Tray_PowerOffMonitor_Format), "Power off {0}"),
                     monitor.Name);
                 entries.Add(label, () => powerOffMonitor(capturedMonitor));
             }
@@ -82,9 +82,9 @@ internal sealed class BrightnessTrayMenuWindow(
 
         if (entries.Count > 0) entries.AddSeparator();
 
-        entries.Add(L("Tray_Settings", "Settings"), openSettings);
+        entries.Add(L(nameof(AppStrings.Tray_Settings), "Settings"), openSettings);
         entries.AddSeparator();
-        entries.Add(L("Tray_Exit", "Exit"), exit);
+        entries.Add(L(nameof(AppStrings.Tray_Exit), "Exit"), exit);
 
         return entries.ToList();
     }

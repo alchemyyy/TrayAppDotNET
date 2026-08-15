@@ -100,7 +100,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
 
         return TrayAppDotNETSettingsCards.Card(
             L("Settings_General_RenderingBackend_Title", "Rendering backend"),
-            L("Settings_General_RenderingBackend_Description",
+            L(nameof(CommonStrings.Settings_General_RenderingBackend_Description),
                 "\"GPU preferred\" uses Avalonia's Windows GPU path with software fallback. \"Software\" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required."),
             combo,
             options.Palette,

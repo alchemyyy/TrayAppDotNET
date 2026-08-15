@@ -171,9 +171,9 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private Border BuildCoordinateHud(SettingsPalette p)
     {
         SettingsButton apply =
-            TrayAppDotNETSettingsCards.Button(L("Settings_MapPicker_Apply_Button", "Apply"), p, new CornerRadius(4));
+            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Apply_Button), "Apply"), p, new CornerRadius(4));
         SettingsButton abort =
-            TrayAppDotNETSettingsCards.Button(L("Settings_MapPicker_Abort_Button", "Abort"), p, new CornerRadius(4));
+            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Abort_Button), "Abort"), p, new CornerRadius(4));
         apply.MinWidth = 64;
         abort.MinWidth = 64;
         apply.Margin = new Thickness(0, 0, 6, 0);

@@ -26,9 +26,9 @@ public sealed class FanTrayMenuWindow(
     private static List<TrayMenuEntry> BuildEntries(Action openSettings, Action exit)
     {
         TrayMenuEntryBuilder entries = new();
-        entries.Add(L("Tray_Settings", "Settings"), openSettings);
+        entries.Add(L(nameof(AppStrings.Tray_Settings), "Settings"), openSettings);
         entries.AddSeparator();
-        entries.Add(L("Tray_Exit", "Exit"), exit);
+        entries.Add(L(nameof(AppStrings.Tray_Exit), "Exit"), exit);
         return entries.ToList();
     }
 

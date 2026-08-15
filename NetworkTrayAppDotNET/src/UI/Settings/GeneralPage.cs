@@ -8,7 +8,7 @@ public sealed partial class NetworkSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_General_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_General_SectionHeader)), p);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
@@ -18,7 +18,7 @@ public sealed partial class NetworkSettingsWindow
                 new TrayAppDotNETInstallCardOptions
                 {
                     Scope = InstallScope.LocalAppData,
-                    Title = Loc("Settings_General_LocalUser_Title"),
+                    Title = Loc(nameof(AppStrings.Settings_General_LocalUser_Title)),
                     ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                     Elevated = false,
                     Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -32,7 +32,7 @@ public sealed partial class NetworkSettingsWindow
                 new TrayAppDotNETInstallCardOptions
                 {
                     Scope = InstallScope.ProgramFiles,
-                    Title = Loc("Settings_General_SystemWide_Title"),
+                    Title = Loc(nameof(AppStrings.Settings_General_SystemWide_Title)),
                     ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                     Elevated = true,
                     Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -45,7 +45,7 @@ public sealed partial class NetworkSettingsWindow
                 }
             ],
             new TrayAppDotNETStoreInstallOptions(
-                Loc("Settings_General_WindowsStore_Title"),
+                Loc(nameof(AppStrings.Settings_General_WindowsStore_Title)),
                 StoreInstallDescription));
         CreateRenderingSettingsSection(p).AddCards(stack);
 
@@ -93,7 +93,7 @@ public sealed partial class NetworkSettingsWindow
         TrayAppDotNETInstallationInfo? info = AppServices.Installation.DetectAll()
             .FirstOrDefault(i => i.Scope == InstallScope.WindowsStore);
         return info?.Status == TrayAppDotNETInstallStatus.CurrentlyRunning
-            ? Loc("Settings_General_StoreRunning")
-            : Loc("Settings_General_StoreNotInstalled");
+            ? Loc(nameof(AppStrings.Settings_General_StoreRunning))
+            : Loc(nameof(AppStrings.Settings_General_StoreNotInstalled));
     }
 }

@@ -64,7 +64,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             L("UpdateDialog_Cancel", "Cancel"),
             palette,
             rounded,
-            L("UpdateDialog_SkipRelease", "Skip this release"))
+            L(nameof(CommonStrings.UpdateDialog_SkipRelease), "Skip this release"))
     {
     }
 

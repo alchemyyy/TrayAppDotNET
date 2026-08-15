@@ -10,28 +10,28 @@ public sealed partial class VolumeSettingsWindow
     private StackPanel BuildThemePage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_Theme_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         bool isLight = ResolveEffectiveIsLight();
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Common_ContextMenu_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Common_ContextMenu_Header)), p));
         stack.Children.Add(IntCard(
-            Loc("Settings_Theme_FontSize_Title"),
-            Loc("Settings_Theme_FontSize_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_FontSize_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_FontSize_Description)),
             _settings.ContextMenuFontSize,
             AppSettings.ContextMenuFontSizeMin,
             AppSettings.ContextMenuFontSizeMax,
             v => _settings.ContextMenuFontSize = v,
             p));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_Theme_Appearance_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
         stack.Children.Add(StringComboCard(
-            Loc("Settings_Theme_ThemeStyle_Title"),
-            Loc("Settings_Theme_ThemeStyle_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
             [
-                (ThemeMode.System, Loc("Settings_Theme_ThemeStyle_System")),
-                (ThemeMode.Light, Loc("Settings_Theme_ThemeStyle_Light")),
-                (ThemeMode.Dark, Loc("Settings_Theme_ThemeStyle_Dark"))
+                (ThemeMode.System, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_System))),
+                (ThemeMode.Light, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Light))),
+                (ThemeMode.Dark, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Dark)))
             ],
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
@@ -39,40 +39,40 @@ public sealed partial class VolumeSettingsWindow
             afterSave: () => RebuildShell(VolumeSettingsPage.Theme)));
         stack.Children.Add(VariantColorCard(
             "Text",
-            Loc("Settings_Theme_TextColor_Title"),
-            Loc("Settings_Theme_TextColor_Description"),
-            Loc("Settings_Theme_TextColor_LightTooltip"),
-            Loc("Settings_Theme_TextColor_DarkTooltip"),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)),
             _settings.TextColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p));
         stack.Children.Add(VariantColorCard(
             "Background",
-            Loc("Settings_Theme_BackgroundColor_Title"),
-            Loc("Settings_Theme_BackgroundColor_Description"),
-            Loc("Settings_Theme_BackgroundColor_LightTooltip"),
-            Loc("Settings_Theme_BackgroundColor_DarkTooltip"),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)),
             _settings.BackgroundColor,
             theme.Background.Light,
             theme.Background.Dark,
             p));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_Theme_Flyout_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc("Settings_Theme_RoundedCorners_Title"),
-            Loc("Settings_Theme_RoundedCorners_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
             afterSave: () => RebuildShell(VolumeSettingsPage.Theme)));
         stack.Children.Add(StringComboCard(
-            Loc("Settings_Theme_Animations_Title"),
-            Loc("Settings_Theme_Animations_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_Animations_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_Animations_Description)),
             [
-                (TrayAppDotNETAnimationMode.System, Loc("Settings_Theme_Animations_System")),
-                (TrayAppDotNETAnimationMode.Disabled, Loc("Settings_Theme_Animations_Disabled")),
-                (TrayAppDotNETAnimationMode.Enabled, Loc("Settings_Theme_Animations_Enabled"))
+                (TrayAppDotNETAnimationMode.System, Loc(nameof(AppStrings.Settings_Theme_Animations_System))),
+                (TrayAppDotNETAnimationMode.Disabled, Loc(nameof(AppStrings.Settings_Theme_Animations_Disabled))),
+                (TrayAppDotNETAnimationMode.Enabled, Loc(nameof(AppStrings.Settings_Theme_Animations_Enabled)))
             ],
             _settings.AnimationMode,
             v => _settings.AnimationMode = v,
@@ -84,8 +84,8 @@ public sealed partial class VolumeSettingsWindow
                 RebuildShell(VolumeSettingsPage.Theme);
             }));
         stack.Children.Add(IntCard(
-            L("Settings_Theme_ToolTipShowDelay_Title", "Tooltip delay"),
-            L("Settings_Theme_ToolTipShowDelay_Description", "Milliseconds to wait before showing a tooltip."),
+            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title), "Tooltip delay"),
+            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description), "Milliseconds to wait before showing a tooltip."),
             _settings.ToolTipShowDelayMs,
             TimeConstants.ToolTipShowDelayMinMs,
             TimeConstants.ToolTipShowDelayMaxMs,
@@ -96,7 +96,7 @@ public sealed partial class VolumeSettingsWindow
                 TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
             },
             p,
-            Loc("Common_MillisecondsSuffix")));
+            Loc(nameof(AppStrings.Common_MillisecondsSuffix))));
 
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(
             p,
@@ -122,27 +122,27 @@ public sealed partial class VolumeSettingsWindow
             Save();
         };
         stack.Children.Add(Card(
-            Loc("Settings_Theme_SliderIndicator_Title"),
-            Loc("Settings_Theme_SliderIndicator_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_Description)),
             sliderThumbCombo,
             p));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_Theme_TrayIcon_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
         stack.Children.Add(VariantColorCard(
             "TrayIcon",
-            Loc("Settings_Theme_StaticIconColor_Title"),
-            Loc("Settings_Theme_StaticIconColor_Description"),
-            Loc("Settings_Theme_StaticIconColor_LightTooltip"),
-            Loc("Settings_Theme_StaticIconColor_DarkTooltip"),
+            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
+            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
             _settings.TrayIconColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
             p));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_Theme_MeterPeak_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
         stack.Children.Add(SingleColorCard(
-            Loc("Settings_Theme_MeterPeakColor_Title"),
-            Loc("Settings_Theme_MeterPeakColor_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Description)),
             _settings.EffectiveMeterPeakColor,
             ColorMath.TryParseHexOrNull(AppSettings.MeterPeakColorDefaultHex) ?? AppTheme.MeterPeakColorDefault,
             c => _settings.TemporaryMeterPeakColor = c,
@@ -153,10 +153,10 @@ public sealed partial class VolumeSettingsWindow
                 _settings.TemporaryMeterPeakColor = null;
             },
             p,
-            Loc("Settings_Theme_MeterPeakColor_Tooltip")));
+            Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Tooltip))));
         stack.Children.Add(SingleColorCard(
-            Loc("Settings_Theme_MeterPeakStereoColor_Title"),
-            Loc("Settings_Theme_MeterPeakStereoColor_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Description)),
             _settings.EffectiveMeterPeakStereoColor,
             ColorMath.TryParseHexOrNull(AppSettings.MeterPeakStereoColorDefaultHex)
             ?? AppTheme.MeterPeakStereoColorDefault,
@@ -168,19 +168,19 @@ public sealed partial class VolumeSettingsWindow
                 _settings.TemporaryMeterPeakStereoColor = null;
             },
             p,
-            Loc("Settings_Theme_MeterPeakStereoColor_Tooltip")));
+            Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Tooltip))));
 
         return stack;
     }
 
     private static string SliderThumbDisplayName(string name) => name switch
     {
-        "Capsule" => Loc("Settings_Theme_SliderThumb_Capsule"),
-        "Circle" => Loc("Settings_Theme_SliderThumb_Circle"),
-        "Diamond" => Loc("Settings_Theme_SliderThumb_Diamond"),
-        "Star" => Loc("Settings_Theme_SliderThumb_Star"),
-        "Square" => Loc("Settings_Theme_SliderThumb_Square"),
-        "Heart" => Loc("Settings_Theme_SliderThumb_Heart"),
+        "Capsule" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Capsule)),
+        "Circle" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Circle)),
+        "Diamond" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Diamond)),
+        "Star" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Star)),
+        "Square" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Square)),
+        "Heart" => Loc(nameof(AppStrings.Settings_Theme_SliderThumb_Heart)),
         _ => name
     };
 

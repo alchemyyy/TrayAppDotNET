@@ -236,12 +236,12 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
     private StackPanel BuildButtons(UIResourceScope resources)
     {
         SettingsButton uninstall = TrayAppDotNETSettingsUI.Button(
-            Localize("Uninstaller_UninstallButton", "Uninstall"),
+            Localize(nameof(CommonStrings.Uninstaller_UninstallButton), "Uninstall"),
             Options.Palette);
         uninstall.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(
-            Localize("Uninstaller_Cancel", "Cancel"),
+            Localize(nameof(CommonStrings.Uninstaller_Cancel), "Cancel"),
             Options.Palette);
         cancel.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
         cancel.Margin = TrayAppDotNETDialogChromeLayout.CancelButtonMargin;
@@ -342,7 +342,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         if (_uninstallButton != null)
         {
             _uninstallButton.IsEnabled = false;
-            _uninstallButton.Text = Localize("Uninstaller_UninstallingButton", "Uninstalling...");
+            _uninstallButton.Text = Localize(nameof(CommonStrings.Uninstaller_UninstallingButton), "Uninstalling...");
         }
 
         _cancelButton?.IsEnabled = false;

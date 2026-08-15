@@ -47,7 +47,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         _monitorService = AppServices.MonitorService;
         _brightnessRangeProvider = AppServices.MonitorBrightnessRangeProvider;
 
-        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -60,10 +60,10 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 
     protected override BrightnessSettingsPage DefaultPageKey => BrightnessSettingsPage.General;
 
-    protected override string HeaderText => L("SettingsWindow_Header", "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
 
     protected override string OpenSettingsFolderText =>
-        L("SettingsWindow_OpenSettingsFolder", "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -80,21 +80,21 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 
     protected override IReadOnlyList<SettingsPageDescriptor<BrightnessSettingsPage>> CreatePageDescriptors() =>
     [
-        new(BrightnessSettingsPage.General, Loc("Settings_Common_Page_General"),
+        new(BrightnessSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
             () => BuildSettingsPage(BrightnessSettingsPage.General, BuildGeneralPage)),
-        new(BrightnessSettingsPage.Flyout, Loc("Settings_Common_Page_Flyout"),
+        new(BrightnessSettingsPage.Flyout, Loc(nameof(AppStrings.Settings_Common_Page_Flyout)),
             () => BuildSettingsPage(BrightnessSettingsPage.Flyout, BuildFlyoutPage)),
-        new(BrightnessSettingsPage.TrayIcon, Loc("Settings_Common_Page_TrayIcon"),
+        new(BrightnessSettingsPage.TrayIcon, Loc(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
             () => BuildSettingsPage(BrightnessSettingsPage.TrayIcon, BuildTrayIconPage)),
-        new(BrightnessSettingsPage.Monitors, Loc("Settings_Common_Page_Monitors"),
+        new(BrightnessSettingsPage.Monitors, Loc(nameof(AppStrings.Settings_Common_Page_Monitors)),
             () => BuildSettingsPage(BrightnessSettingsPage.Monitors, BuildMonitorsPage)),
-        new(BrightnessSettingsPage.Hotkeys, Loc("Settings_Common_Page_Hotkeys"),
+        new(BrightnessSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
             () => BuildSettingsPage(BrightnessSettingsPage.Hotkeys, BuildHotkeysPage)),
-        new(BrightnessSettingsPage.Environmental, L("Settings_Common_Page_Environmental", "Environmental"),
+        new(BrightnessSettingsPage.Environmental, L(nameof(AppStrings.Settings_Common_Page_Environmental), "Environmental"),
             () => BuildSettingsPage(BrightnessSettingsPage.Environmental, BuildEnvironmentalPage)),
-        new(BrightnessSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
+        new(BrightnessSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
             () => BuildSettingsPage(BrightnessSettingsPage.Theme, BuildThemePage)),
-        new(BrightnessSettingsPage.About, Loc("Settings_Common_Page_About"),
+        new(BrightnessSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
             () => BuildSettingsPage(BrightnessSettingsPage.About, BuildAboutPage))
     ];
 

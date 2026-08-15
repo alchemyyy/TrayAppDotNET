@@ -43,7 +43,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -56,10 +56,10 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     protected override FanSettingsPage DefaultPageKey => FanSettingsPage.General;
 
-    protected override string HeaderText => L("SettingsWindow_Header", "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
 
     protected override string OpenSettingsFolderText =>
-        L("SettingsWindow_OpenSettingsFolder", "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -76,19 +76,19 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     protected override IReadOnlyList<SettingsPageDescriptor<FanSettingsPage>> CreatePageDescriptors() =>
     [
-        new(FanSettingsPage.General, Loc("Settings_Common_Page_General"),
+        new(FanSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
             BuildGeneralPage),
-        new(FanSettingsPage.FanProperties, L("Settings_Common_Page_FanProperties", "Fan properties"),
+        new(FanSettingsPage.FanProperties, L(nameof(AppStrings.Settings_Common_Page_FanProperties), "Fan properties"),
             BuildFanPropertiesPage),
-        new(FanSettingsPage.Flyout, L("Settings_Common_Page_Flyout", "Flyout"),
+        new(FanSettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout), "Flyout"),
             BuildFlyoutPage),
-        new(FanSettingsPage.TrayIcon, L("Settings_Common_Page_TrayIcon", "Tray icon"),
+        new(FanSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon), "Tray icon"),
             BuildTrayIconPage),
-        new(FanSettingsPage.Hotkeys, Loc("Settings_Common_Page_Hotkeys"),
+        new(FanSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
             BuildHotkeysPage),
-        new(FanSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
+        new(FanSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
             BuildThemePage),
-        new(FanSettingsPage.About, Loc("Settings_Common_Page_About"),
+        new(FanSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
             BuildAboutPage)
     ];
 
@@ -124,7 +124,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L("Settings_General_SectionHeader", "General"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader), "General"), p);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
@@ -134,7 +134,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = FanInstallScope.LocalAppData,
-                Title = L("Settings_General_LocalUser_Title", "Local user"),
+                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title), "Local user"),
                 ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                 Elevated = false,
                 Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -148,7 +148,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = FanInstallScope.ProgramFiles,
-                Title = L("Settings_General_SystemWide_Title", "System-wide"),
+                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title), "System-wide"),
                 ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                 Elevated = true,
                 Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -163,8 +163,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(BoolCard(
-            L("Settings_General_DefaultToRPMMode_Title", "Default to RPM mode"),
-            L("Settings_General_DefaultToRPMMode_Description", "Newly discovered fans start in RPM mode."),
+            L(nameof(AppStrings.Settings_General_DefaultToRPMMode_Title), "Default to RPM mode"),
+            L(nameof(AppStrings.Settings_General_DefaultToRPMMode_Description), "Newly discovered fans start in RPM mode."),
             _settings.DefaultToRPMMode,
             v => _settings.DefaultToRPMMode = v,
             p));
@@ -190,7 +190,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildFanPropertiesPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L("Settings_FanProperties_SectionHeader", "Fan properties"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_FanProperties_SectionHeader), "Fan properties"), p);
 
         stack.Children.Add(IntCard(
             L("Settings_FanProperties_DefaultJumpstart_Title", "Default jumpstart"),
@@ -220,9 +220,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             autoSizeToText: true));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_FanProperties_Reassign_Header", "Reassign saved fan settings"), p));
+            L(nameof(AppStrings.Settings_FanProperties_Reassign_Header), "Reassign saved fan settings"), p));
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            L("Settings_FanProperties_Reassign_Description",
+            L(nameof(AppStrings.Settings_FanProperties_Reassign_Description),
                 "Drag rows, or use Ctrl+Up/Ctrl+Down, then apply to move saved settings between physical fan slots."),
             p,
             new Thickness(0, 0, 0, 12)));
@@ -241,13 +241,13 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         stack.Children.Add(apply);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_FanProperties_NonFunctioning_Header", "Manually tag fans as non-functioning"), p));
+            L(nameof(AppStrings.Settings_FanProperties_NonFunctioning_Header), "Manually tag fans as non-functioning"), p));
 
         List<Fan> liveFans = GetLiveFans();
         if (liveFans.Count == 0)
         {
             stack.Children.Add(RawCard(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_FanProperties_NoFans", "No live fans detected."), p), p));
+                L(nameof(AppStrings.Settings_FanProperties_NoFans), "No live fans detected."), p), p));
             return stack;
         }
 
@@ -291,17 +291,17 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildFlyoutPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L("Settings_Flyout_SectionHeader", "Flyout"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader), "Flyout"), p);
 
         stack.Children.Add(BoolCard(
-            L("Settings_Flyout_RestoreUndockState_Title", "Restore undocked state"),
-            L("Settings_Flyout_RestoreUndockState_Description", "Reopen the flyout at its saved floating position."),
+            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title), "Restore undocked state"),
+            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description), "Reopen the flyout at its saved floating position."),
             _settings.RestoreFlyoutUndockedOnStartup,
             v => _settings.RestoreFlyoutUndockedOnStartup = v,
             p));
         stack.Children.Add(BoolCard(
-            L("Settings_Flyout_ShowUndockButton_Title", "Allow undocking"),
-            L("Settings_Flyout_ShowUndockButton_Description", "Show the undock/redock control in the flyout header."),
+            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title), "Allow undocking"),
+            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description), "Show the undock/redock control in the flyout header."),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
@@ -309,8 +309,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         if (_settings.AllowFlyoutUndock)
         {
             stack.Children.Add(BoolCard(
-                L("Settings_Flyout_ClampUndockedToScreen_Title", "Keep undocked flyout on screen"),
-                L("Settings_Flyout_ClampUndockedToScreen_Description",
+                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title), "Keep undocked flyout on screen"),
+                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description),
                     "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
                 _settings.ClampUndockedFlyoutToScreen,
                 v => _settings.ClampUndockedFlyoutToScreen = v,
@@ -358,7 +358,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildTrayIconPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L("Settings_TrayIcon_SectionHeader", "Tray icon"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader), "Tray icon"), p);
 
         stack.Children.Add(BoolCard("Tray wheel", "Allow mouse wheel events over the tray icon.",
             _settings.TrayScrollEnabled, v => _settings.TrayScrollEnabled = v, p));
@@ -401,17 +401,17 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildHotkeysPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_Hotkeys_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p);
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            Loc("Settings_Hotkeys_SectionDescription"), p, new Thickness(0, 0, 0, 16)));
+            Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p, new Thickness(0, 0, 0, 16)));
 
         AddHotkeyRow(stack, FanHotkeyAction.OpenFlyout,
-            Loc("Settings_Hotkeys_OpenFlyout_Title"),
-            Loc("Settings_Hotkeys_OpenFlyout_Description"),
+            Loc(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
+            Loc(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
             p);
         AddHotkeyRow(stack, FanHotkeyAction.OpenSettings,
-            Loc("Settings_Hotkeys_OpenSettings_Title"),
-            Loc("Settings_Hotkeys_OpenSettings_Description"),
+            Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
+            Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
             p);
         return stack;
     }
@@ -419,39 +419,39 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildThemePage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_Theme_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         bool isLight = ResolveEffectiveIsLight();
 
         stack.Children.Add(IntCard("Context menu font size", "Controls tray menu text size.",
             _settings.ContextMenuFontSize, 10, 28, v => _settings.ContextMenuFontSize = v, p));
         stack.Children.Add(StringComboCard(
-            Loc("Settings_Theme_ThemeStyle_Title"),
-            Loc("Settings_Theme_ThemeStyle_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
             [
-                (ThemeMode.System, Loc("Settings_Theme_ThemeStyle_System")),
-                (ThemeMode.Light, Loc("Settings_Theme_ThemeStyle_Light")),
-                (ThemeMode.Dark, Loc("Settings_Theme_ThemeStyle_Dark"))
+                (ThemeMode.System, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_System))),
+                (ThemeMode.Light, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Light))),
+                (ThemeMode.Dark, Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Dark)))
             ],
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
             p,
             afterSave: () => RebuildShell(FanSettingsPage.Theme)));
         stack.Children.Add(BoolCard(
-            Loc("Settings_Theme_RoundedCorners_Title"),
-            Loc("Settings_Theme_RoundedCorners_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
             afterSave: () => RebuildShell(FanSettingsPage.Theme)));
 
-        stack.Children.Add(VariantColorCard("Text", Loc("Settings_Theme_TextColor_Title"),
-            Loc("Settings_Theme_TextColor_Description"), Loc("Settings_Theme_TextColor_LightTooltip"),
-            Loc("Settings_Theme_TextColor_DarkTooltip"), _settings.TextColor, theme.Foreground.Light,
+        stack.Children.Add(VariantColorCard("Text", Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)), Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)), _settings.TextColor, theme.Foreground.Light,
             theme.Foreground.Dark, p));
-        stack.Children.Add(VariantColorCard("Background", Loc("Settings_Theme_BackgroundColor_Title"),
-            Loc("Settings_Theme_BackgroundColor_Description"), Loc("Settings_Theme_BackgroundColor_LightTooltip"),
-            Loc("Settings_Theme_BackgroundColor_DarkTooltip"), _settings.BackgroundColor, theme.Background.Light,
+        stack.Children.Add(VariantColorCard("Background", Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)), Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)), _settings.BackgroundColor, theme.Background.Light,
             theme.Background.Dark, p));
         stack.Children.Add(VariantColorCard("FlyoutBackground", "Flyout background", "Override the flyout background.",
             "Light flyout background", "Dark flyout background", _settings.FlyoutBackgroundColor,
@@ -469,9 +469,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         stack.Children.Add(VariantColorCard("CardBorder", "Card border", "Override flyout card border color.",
             "Light border", "Dark border", _settings.CardBorderColor, theme.FlyoutCardBorder.Light,
             theme.FlyoutCardBorder.Dark, p));
-        stack.Children.Add(VariantColorCard("TrayIcon", Loc("Settings_Theme_StaticIconColor_Title"),
-            Loc("Settings_Theme_StaticIconColor_Description"), Loc("Settings_Theme_StaticIconColor_LightTooltip"),
-            Loc("Settings_Theme_StaticIconColor_DarkTooltip"), _settings.TrayIconColor, theme.Foreground.Light,
+        stack.Children.Add(VariantColorCard("TrayIcon", Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)), Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)), _settings.TrayIconColor, theme.Foreground.Light,
             theme.Foreground.Dark, p));
 
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(p, autoSizeToText: true,
@@ -518,7 +518,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Localize = L,
             Save = Save,
             ApplicationName = Constants.ApplicationName,
-            Tagline = L("Settings_About_Tagline", "A tray-based fan controller."),
+            Tagline = L(nameof(AppStrings.Settings_About_Tagline), "A tray-based fan controller."),
             BuildNumber = BuildInfo.BuildNumber,
             Publisher = Constants.Publisher,
             HelpLink = Constants.HelpLink,
@@ -552,7 +552,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(Loc("Settings_Hotkeys_Add_Button"), p);
+        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
@@ -560,7 +560,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         {
             if (selectedModifiers == 0 || selectedVk == 0)
             {
-                addButton.Text = Loc("Settings_Hotkeys_Add_Button");
+                addButton.Text = Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
                 addButton.IsEnabled = false;
                 return;
             }
@@ -571,8 +571,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 && b.Modifiers == selectedModifiers
                 && b.VirtualKey == selectedVk);
             addButton.Text = exists
-                ? Loc("Settings_Hotkeys_Exists_Button")
-                : Loc("Settings_Hotkeys_Add_Button");
+                ? Loc(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
+                : Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
             addButton.IsEnabled = !exists;
         }
 
@@ -690,14 +690,14 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         if (AppServices.HotkeyService == null)
         {
             GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
-            TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_HotkeyServiceUnavailable"));
+            TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable)));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
             GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(status, error);
         }
-        else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_Registered"));
+        else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
         SettingsButton delete = Button("x", p);
         delete.Width = 32;
@@ -750,7 +750,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         if (pageGeneration.FanSlots.Count == 0)
         {
             pageGeneration.FanSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_FanProperties_NoFans", "No live fans detected."), Palette));
+                L(nameof(AppStrings.Settings_FanProperties_NoFans), "No live fans detected."), Palette));
             return;
         }
 

@@ -16,7 +16,7 @@ public sealed partial class NetworkSettingsWindow
                 Localize = L,
                 Save = Save,
                 ApplicationName = Constants.ApplicationName,
-                Tagline = L("Settings_About_Tagline", "A tray-based network controller."),
+                Tagline = L(nameof(AppStrings.Settings_About_Tagline), "A tray-based network controller."),
                 BuildNumber = BuildInfo.BuildNumber,
                 Publisher = Constants.Publisher,
                 HelpLink = Constants.HelpLink,

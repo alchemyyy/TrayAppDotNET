@@ -30,7 +30,7 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
     public VolumeSettingsWindow(AppSettings settings, Action<string, VolumeInstallScope> showUninstaller)
     {
         _settings = settings;
-        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -43,10 +43,10 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     protected override VolumeSettingsPage DefaultPageKey => VolumeSettingsPage.General;
 
-    protected override string HeaderText => L("SettingsWindow_Header", "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
 
     protected override string OpenSettingsFolderText =>
-        L("SettingsWindow_OpenSettingsFolder", "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -75,21 +75,21 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     protected override IReadOnlyList<SettingsPageDescriptor<VolumeSettingsPage>> CreatePageDescriptors() =>
     [
-        new(VolumeSettingsPage.General, Loc("Settings_Common_Page_General"),
+        new(VolumeSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
             BuildGeneralPage),
-        new(VolumeSettingsPage.Flyout, Loc("Settings_Common_Page_Flyout"),
+        new(VolumeSettingsPage.Flyout, Loc(nameof(AppStrings.Settings_Common_Page_Flyout)),
             BuildFlyoutPage),
-        new(VolumeSettingsPage.Devices, Loc("Settings_Common_Page_Devices"),
+        new(VolumeSettingsPage.Devices, Loc(nameof(AppStrings.Settings_Common_Page_Devices)),
             BuildDevicesPage),
-        new(VolumeSettingsPage.DeviceAppDrawers, Loc("Settings_Common_Page_DeviceAppDrawers"),
+        new(VolumeSettingsPage.DeviceAppDrawers, Loc(nameof(AppStrings.Settings_Common_Page_DeviceAppDrawers)),
             BuildDeviceAppDrawersPage),
-        new(VolumeSettingsPage.TrayIcon, Loc("Settings_Common_Page_TrayIcon"),
+        new(VolumeSettingsPage.TrayIcon, Loc(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
             BuildTrayIconPage),
-        new(VolumeSettingsPage.Hotkeys, Loc("Settings_Common_Page_Hotkeys"),
+        new(VolumeSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
             BuildHotkeysPage),
-        new(VolumeSettingsPage.Theme, Loc("Settings_Common_Page_Theme"),
+        new(VolumeSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
             BuildThemePage),
-        new(VolumeSettingsPage.About, Loc("Settings_Common_Page_About"),
+        new(VolumeSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
             BuildAboutPage)
     ];
 

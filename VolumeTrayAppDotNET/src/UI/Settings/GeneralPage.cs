@@ -11,7 +11,7 @@ public sealed partial class VolumeSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_General_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_General_SectionHeader)), p);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
@@ -21,7 +21,7 @@ public sealed partial class VolumeSettingsWindow
                 new TrayAppDotNETInstallCardOptions
                 {
                     Scope = VolumeInstallScope.LocalAppData,
-                    Title = Loc("Settings_General_LocalUser_Title"),
+                    Title = Loc(nameof(AppStrings.Settings_General_LocalUser_Title)),
                     ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                     Elevated = false,
                     Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -37,7 +37,7 @@ public sealed partial class VolumeSettingsWindow
                 new TrayAppDotNETInstallCardOptions
                 {
                     Scope = VolumeInstallScope.ProgramFiles,
-                    Title = Loc("Settings_General_SystemWide_Title"),
+                    Title = Loc(nameof(AppStrings.Settings_General_SystemWide_Title)),
                     ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                     Elevated = true,
                     Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -52,33 +52,33 @@ public sealed partial class VolumeSettingsWindow
                 }
             ],
             new TrayAppDotNETStoreInstallOptions(
-                Loc("Settings_General_WindowsStore_Title"),
+                Loc(nameof(AppStrings.Settings_General_WindowsStore_Title)),
                 StoreInstallDescription));
         CreateRenderingSettingsSection(p).AddCards(stack);
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_General_Notifications_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Notifications_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc("Settings_General_PlayDeviceVolumeChangeSound_Title"),
-            Loc("Settings_General_PlayDeviceVolumeChangeSound_Description"),
+            Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Title)),
+            Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_Description)),
             _settings.PlayDeviceVolumeChangeSound,
             v => _settings.PlayDeviceVolumeChangeSound = v,
             p,
             afterSave: RefreshCurrentPage));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
-            Loc("Settings_General_PlayTrayScrollVolumeChangeSound_Title"),
-            Loc("Settings_General_PlayTrayScrollVolumeChangeSound_Description"),
+            Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Title)),
+            Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Description)),
             _settings.PlayTrayScrollVolumeChangeSound,
             v => _settings.PlayTrayScrollVolumeChangeSound = v,
             p)));
         stack.Children.Add(BoolCard(
-            Loc("Settings_General_PlayAppVolumeChangeSound_Title"),
-            Loc("Settings_General_PlayAppVolumeChangeSound_Description"),
+            Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Title)),
+            Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Description)),
             _settings.PlayAppVolumeChangeSound,
             v => _settings.PlayAppVolumeChangeSound = v,
             p));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
-            Loc("Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title"),
-            Loc("Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description"),
+            Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title)),
+            Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description)),
             _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying,
             v => _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying = v,
             p,
@@ -86,30 +86,30 @@ public sealed partial class VolumeSettingsWindow
         stack.Children.Add(Maybe(
             _settings is { PlayDeviceVolumeChangeSound: true, SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true },
             IntCard(
-                Loc("Settings_General_DingSuppressionPeakThreshold_Title"),
-                Loc("Settings_General_DingSuppressionPeakThreshold_Description"),
+                Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_Title)),
+                Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_Description)),
                 _settings.DingSuppressionPeakThresholdPercent,
                 AppSettings.DingSuppressionPeakThresholdPercentMin,
                 AppSettings.DingSuppressionPeakThresholdPercentMax,
                 v => _settings.DingSuppressionPeakThresholdPercent = v,
                 p)));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc("Settings_General_Other_Header"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
         stack.Children.Add(BoolCard(
-            Loc("Settings_General_LogarithmicVolumeScale_Title"),
-            Loc("Settings_General_LogarithmicVolumeScale_Description"),
+            Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Title)),
+            Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Description)),
             _settings.UseLogarithmicVolumeScale,
             v => _settings.UseLogarithmicVolumeScale = v,
             p));
         stack.Children.Add(IntCard(
-            Loc("Settings_General_WheelVolumeStepPercent_Title"),
-            Loc("Settings_General_WheelVolumeStepPercent_Description"),
+            Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
+            Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Description)),
             _settings.WheelVolumeStepPercent,
             AppSettings.WheelVolumeStepPercentMin,
             AppSettings.WheelVolumeStepPercentMax,
             v => _settings.WheelVolumeStepPercent = v,
             p,
-            Loc("Common_PercentSuffix")));
+            Loc(nameof(AppStrings.Common_PercentSuffix))));
 
         return stack;
     }
@@ -156,8 +156,8 @@ public sealed partial class VolumeSettingsWindow
         TrayAppDotNETInstallationInfo? info = AppServices.Installation.DetectAll()
             .FirstOrDefault(i => i.Scope == VolumeInstallScope.WindowsStore);
         return info?.Status == TrayAppDotNETInstallStatus.CurrentlyRunning
-            ? Loc("Settings_General_StoreRunning")
-            : Loc("Settings_General_StoreNotInstalled");
+            ? Loc(nameof(AppStrings.Settings_General_StoreRunning))
+            : Loc(nameof(AppStrings.Settings_General_StoreNotInstalled));
     }
 
     private void HookPostUninstallRefresh(VolumeUninstallerWindow uninstallerDialog)
@@ -232,8 +232,8 @@ public sealed partial class VolumeSettingsWindow
         try
         {
             await ShowMessage(
-                Loc("Settings_General_UninstallIncomplete_Title"),
-                Loc("Settings_General_UninstallIncomplete_Message"));
+                Loc(nameof(AppStrings.Settings_General_UninstallIncomplete_Title)),
+                Loc(nameof(AppStrings.Settings_General_UninstallIncomplete_Message)));
         }
         catch (Exception exception)
         {

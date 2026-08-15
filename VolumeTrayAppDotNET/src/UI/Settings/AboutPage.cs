@@ -16,7 +16,7 @@ public sealed partial class VolumeSettingsWindow
                 Localize = L,
                 Save = Save,
                 ApplicationName = Constants.ApplicationName,
-                Tagline = L("Settings_About_Tagline", "A tray-based volume controller."),
+                Tagline = L(nameof(AppStrings.Settings_About_Tagline), "A tray-based volume controller."),
                 BuildNumber = BuildInfo.BuildNumber,
                 Publisher = Constants.Publisher,
                 HelpLink = Constants.HelpLink,
@@ -31,8 +31,8 @@ public sealed partial class VolumeSettingsWindow
                 KnownIssues =
                 [
                     new TrayAppDotNETKnownIssue(
-                        Loc("Settings_About_BluetoothCodecNotDisplaying_Title"),
-                        Loc("Settings_About_BluetoothCodecNotDisplaying_Description"))
+                        Loc(nameof(AppStrings.Settings_About_BluetoothCodecNotDisplaying_Title)),
+                        Loc(nameof(AppStrings.Settings_About_BluetoothCodecNotDisplaying_Description)))
                 ]
             }));
         AddPageCleanup(aboutPage.StopUpdateRefresh);

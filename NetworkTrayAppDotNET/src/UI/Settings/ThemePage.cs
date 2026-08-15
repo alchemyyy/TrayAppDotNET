@@ -11,7 +11,7 @@ public sealed partial class NetworkSettingsWindow
     private StackPanel BuildThemePage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_Theme_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
 
         TextBlock contextHeader = TrayAppDotNETSettingsUI.TitleText(
             L("Settings_Theme_ContextMenu_Header", "Context menu"), p);
@@ -19,8 +19,8 @@ public sealed partial class NetworkSettingsWindow
         contextHeader.Margin = new Thickness(0, 0, 0, 8);
         stack.Children.Add(contextHeader);
         stack.Children.Add(IntCard(
-            Loc("Settings_Theme_FontSize_Title"),
-            Loc("Settings_Theme_FontSize_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_FontSize_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_FontSize_Description)),
             _settings.ContextMenuFontSize,
             8,
             48,
@@ -28,14 +28,14 @@ public sealed partial class NetworkSettingsWindow
             p));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            Loc("Settings_Theme_Appearance_Header"), p));
+            Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
         stack.Children.Add(ComboCard(
-            Loc("Settings_Theme_ThemeStyle_Title"),
-            Loc("Settings_Theme_ThemeStyle_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
             [
-                ("System", Loc("Settings_Theme_ThemeStyle_System")),
-                ("Light", Loc("Settings_Theme_ThemeStyle_Light")),
-                ("Dark", Loc("Settings_Theme_ThemeStyle_Dark"))
+                ("System", Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_System))),
+                ("Light", Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Light))),
+                ("Dark", Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Dark)))
             ],
             _settings.ThemeMode.ToString(),
             tag =>
@@ -47,20 +47,20 @@ public sealed partial class NetworkSettingsWindow
             afterSave: () => RebuildShell(NetworkSettingsPage.Theme)));
         stack.Children.Add(ColorCard(
             "Text",
-            Loc("Settings_Theme_TextColor_Title"),
-            Loc("Settings_Theme_TextColor_Description"),
-            Loc("Settings_Theme_TextColor_LightTooltip"),
-            Loc("Settings_Theme_TextColor_DarkTooltip"),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)),
             _settings.TextColor,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Light,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Dark,
             p));
         stack.Children.Add(ColorCard(
             "Background",
-            Loc("Settings_Theme_BackgroundColor_Title"),
-            Loc("Settings_Theme_BackgroundColor_Description"),
-            Loc("Settings_Theme_BackgroundColor_LightTooltip"),
-            Loc("Settings_Theme_BackgroundColor_DarkTooltip"),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
+            Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)),
             _settings.BackgroundColor,
             (AppServices.Theme ?? AppTheme.Default).Background.Light,
             (AppServices.Theme ?? AppTheme.Default).Background.Dark,
@@ -69,20 +69,20 @@ public sealed partial class NetworkSettingsWindow
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L("Settings_Theme_Flyout_Header", "Flyout"), p));
         stack.Children.Add(BoolCard(
-            Loc("Settings_Theme_RoundedCorners_Title"),
-            Loc("Settings_Theme_RoundedCorners_Description"),
+            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
             afterSave: () => RebuildShell(NetworkSettingsPage.Theme)));
         stack.Children.Add(ComboCard(
-            L("Settings_Theme_Animations_Title", "Animations"),
-            L("Settings_Theme_Animations_Description",
+            L(nameof(AppStrings.Settings_Theme_Animations_Title), "Animations"),
+            L(nameof(AppStrings.Settings_Theme_Animations_Description),
                 "Controls whether tooltip fades and other UI animations are allowed."),
             [
-                (nameof(TrayAppDotNETAnimationMode.System), L("Settings_Theme_Animations_System", "System")),
-                (nameof(TrayAppDotNETAnimationMode.Disabled), L("Settings_Theme_Animations_Disabled", "Disabled")),
-                (nameof(TrayAppDotNETAnimationMode.Enabled), L("Settings_Theme_Animations_Enabled", "Enabled"))
+                (nameof(TrayAppDotNETAnimationMode.System), L(nameof(AppStrings.Settings_Theme_Animations_System), "System")),
+                (nameof(TrayAppDotNETAnimationMode.Disabled), L(nameof(AppStrings.Settings_Theme_Animations_Disabled), "Disabled")),
+                (nameof(TrayAppDotNETAnimationMode.Enabled), L(nameof(AppStrings.Settings_Theme_Animations_Enabled), "Enabled"))
             ],
             _settings.AnimationMode.ToString(),
             tag =>
@@ -98,8 +98,8 @@ public sealed partial class NetworkSettingsWindow
                 RebuildShell(NetworkSettingsPage.Theme);
             }));
         stack.Children.Add(IntCard(
-            L("Settings_Theme_ToolTipShowDelay_Title", "Tooltip delay"),
-            L("Settings_Theme_ToolTipShowDelay_Description", "Milliseconds to wait before showing a tooltip."),
+            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title), "Tooltip delay"),
+            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description), "Milliseconds to wait before showing a tooltip."),
             _settings.ToolTipShowDelayMs,
             TimeConstants.ToolTipShowDelayMinMs,
             TimeConstants.ToolTipShowDelayMaxMs,

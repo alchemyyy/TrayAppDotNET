@@ -5,15 +5,15 @@ using System.Resources;
 namespace TrayAppDotNETCommon.Localization;
 
 /// <summary>
-/// Shared bridge between .resx-backed string lookups and UI binding.
+/// Resolves app-specific resources before shared resources and exposes culture changes to UI binding.
 /// The host app supplies its generated resource manager once at startup.
 /// </summary>
 public sealed class LocalizationManager : INotifyPropertyChanged
 {
     public static LocalizationManager Instance { get; } = new();
 
-    private ResourceManager? _resourceManager;
-    private Action<CultureInfo>? _applyGeneratedStringsCulture;
+    private ResourceManager? _applicationResourceManager;
+    private Action<CultureInfo>? _applyApplicationStringsCulture;
     private CultureInfo _currentCulture = CultureInfo.CurrentUICulture;
 
     private LocalizationManager() { }
@@ -35,24 +35,28 @@ public sealed class LocalizationManager : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool IsInitialized => _resourceManager != null;
+    public bool IsInitialized => _applicationResourceManager != null;
 
     public string this[string key] => GetString(key, key);
 
     public string GetString(string key, string fallback = "")
     {
         if (string.IsNullOrEmpty(key)) return string.Empty;
+        if (_applicationResourceManager == null) return fallback;
 
-        string? resolved = _resourceManager?.GetString(key, _currentCulture);
+        // Application resources intentionally override shared defaults
+        string? resolved = _applicationResourceManager.GetString(key, _currentCulture)
+            ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
         return resolved ?? fallback;
     }
 
     public bool TryGetString(string key, out string value)
     {
         value = string.Empty;
-        if (string.IsNullOrEmpty(key) || _resourceManager == null) return false;
+        if (string.IsNullOrEmpty(key) || _applicationResourceManager == null) return false;
 
-        string? resolved = _resourceManager.GetString(key, _currentCulture);
+        string? resolved = _applicationResourceManager.GetString(key, _currentCulture)
+            ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
         if (resolved == null) return false;
 
         value = resolved;
@@ -66,8 +70,8 @@ public sealed class LocalizationManager : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(resourceManager);
 
-        _resourceManager = resourceManager;
-        _applyGeneratedStringsCulture = applyGeneratedStringsCulture;
+        _applicationResourceManager = resourceManager;
+        _applyApplicationStringsCulture = applyGeneratedStringsCulture;
 
         CultureInfo target = culture ?? CultureInfo.CurrentUICulture;
         ApplyCulture(target);
@@ -78,7 +82,8 @@ public sealed class LocalizationManager : INotifyPropertyChanged
     private void ApplyCulture(CultureInfo culture)
     {
         _currentCulture = culture;
-        _applyGeneratedStringsCulture?.Invoke(culture);
+        _applyApplicationStringsCulture?.Invoke(culture);
+        CommonStrings.Culture = culture;
 
         Thread.CurrentThread.CurrentCulture = culture;
         Thread.CurrentThread.CurrentUICulture = culture;

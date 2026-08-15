@@ -16,9 +16,9 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildHotkeysPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L("Settings_Hotkeys_SectionHeader", "Hotkeys"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Hotkeys_SectionHeader), "Hotkeys"), p);
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            L("Settings_Hotkeys_SectionDescription", "Assign global hotkeys to BrightnessTrayAppDotNET actions."),
+            L(nameof(AppStrings.Settings_Hotkeys_SectionDescription), "Assign global hotkeys to BrightnessTrayAppDotNET actions."),
             p,
             new Thickness(0, 0, 0, 16)));
 
@@ -29,7 +29,7 @@ public sealed partial class BrightnessSettingsWindow
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 12)
         };
-        TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(L("Settings_Hotkeys_SearchLabel", "Search"), p);
+        TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(L(nameof(AppStrings.Settings_Hotkeys_SearchLabel), "Search"), p);
         searchLabel.VerticalAlignment = VerticalAlignment.Center;
         searchLabel.Margin = new Thickness(0, 0, 8, 0);
         searchRow.Children.Add(searchLabel);
@@ -47,7 +47,7 @@ public sealed partial class BrightnessSettingsWindow
                 rows,
                 BrightnessHotkeyAction.MonitorOff,
                 parameter,
-                L("Settings_Hotkeys_PowerOffSpecificMonitor_Title", "Power off specific monitor"),
+                L(nameof(AppStrings.Settings_Hotkeys_PowerOffSpecificMonitor_Title), "Power off specific monitor"),
                 MonitorTargetLabel(parameter),
                 removableMonitorTarget: true,
                 p);
@@ -71,37 +71,37 @@ public sealed partial class BrightnessSettingsWindow
     private IEnumerable<(BrightnessHotkeyAction Action, string Parameter, string Title, string Description)>
         HotkeyRows()
     {
-        yield return (BrightnessHotkeyAction.OpenFlyout, "", L("Settings_Hotkeys_OpenFlyout_Title", "Open flyout"),
-            L("Settings_Hotkeys_OpenFlyout_Description", "Show or hide the brightness flyout."));
+        yield return (BrightnessHotkeyAction.OpenFlyout, "", L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title), "Open flyout"),
+            L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description), "Show or hide the brightness flyout."));
         yield return (BrightnessHotkeyAction.OpenSettings, "",
-            L("Settings_Hotkeys_OpenSettings_Title", "Open settings"),
-            L("Settings_Hotkeys_OpenSettings_Description", "Open this settings window."));
-        yield return (BrightnessHotkeyAction.FullBright, "", L("Settings_Hotkeys_FullBright_Title", "Full bright"),
-            L("Settings_Hotkeys_FullBright_Description", "Raise participating monitors to full brightness."));
-        yield return (BrightnessHotkeyAction.FullDim, "", L("Settings_Hotkeys_FullDim_Title", "Full dim"),
-            L("Settings_Hotkeys_FullDim_Description", "Lower participating monitors to minimum brightness."));
+            L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title), "Open settings"),
+            L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description), "Open this settings window."));
+        yield return (BrightnessHotkeyAction.FullBright, "", L(nameof(AppStrings.Settings_Hotkeys_FullBright_Title), "Full bright"),
+            L(nameof(AppStrings.Settings_Hotkeys_FullBright_Description), "Raise participating monitors to full brightness."));
+        yield return (BrightnessHotkeyAction.FullDim, "", L(nameof(AppStrings.Settings_Hotkeys_FullDim_Title), "Full dim"),
+            L(nameof(AppStrings.Settings_Hotkeys_FullDim_Description), "Lower participating monitors to minimum brightness."));
         yield return (BrightnessHotkeyAction.IncrementMasterBrightness, "",
-            L("Settings_Hotkeys_IncrementMasterBrightness_Title", "Increase master brightness"),
-            L("Settings_Hotkeys_IncrementMasterBrightness_Description", "Increase the master brightness value."));
+            L(nameof(AppStrings.Settings_Hotkeys_IncrementMasterBrightness_Title), "Increase master brightness"),
+            L(nameof(AppStrings.Settings_Hotkeys_IncrementMasterBrightness_Description), "Increase the master brightness value."));
         yield return (BrightnessHotkeyAction.DecrementMasterBrightness, "",
-            L("Settings_Hotkeys_DecrementMasterBrightness_Title", "Decrease master brightness"),
-            L("Settings_Hotkeys_DecrementMasterBrightness_Description", "Decrease the master brightness value."));
+            L(nameof(AppStrings.Settings_Hotkeys_DecrementMasterBrightness_Title), "Decrease master brightness"),
+            L(nameof(AppStrings.Settings_Hotkeys_DecrementMasterBrightness_Description), "Decrease the master brightness value."));
         yield return (BrightnessHotkeyAction.NormalizeBrightnesses, "",
-            L("Settings_Hotkeys_NormalizeBrightnesses_Title", "Normalize brightnesses"),
-            L("Settings_Hotkeys_NormalizeBrightnesses_Description",
+            L(nameof(AppStrings.Settings_Hotkeys_NormalizeBrightnesses_Title), "Normalize brightnesses"),
+            L(nameof(AppStrings.Settings_Hotkeys_NormalizeBrightnesses_Description),
                 "Sync individual monitors to the current master brightness."));
         yield return (BrightnessHotkeyAction.ToggleNightLight, "",
-            L("Settings_Hotkeys_ToggleNightLight_Title", "Toggle night light"),
-            L("Settings_Hotkeys_ToggleNightLight_Description", "Toggle Windows Night Light."));
+            L(nameof(AppStrings.Settings_Hotkeys_ToggleNightLight_Title), "Toggle night light"),
+            L(nameof(AppStrings.Settings_Hotkeys_ToggleNightLight_Description), "Toggle Windows Night Light."));
         yield return (BrightnessHotkeyAction.IncrementNightLight, "",
-            L("Settings_Hotkeys_IncrementNightLight_Title", "Increase night light"),
-            L("Settings_Hotkeys_IncrementNightLight_Description", "Increase Night Light strength."));
+            L(nameof(AppStrings.Settings_Hotkeys_IncrementNightLight_Title), "Increase night light"),
+            L(nameof(AppStrings.Settings_Hotkeys_IncrementNightLight_Description), "Increase Night Light strength."));
         yield return (BrightnessHotkeyAction.DecrementNightLight, "",
-            L("Settings_Hotkeys_DecrementNightLight_Title", "Decrease night light"),
-            L("Settings_Hotkeys_DecrementNightLight_Description", "Decrease Night Light strength."));
+            L(nameof(AppStrings.Settings_Hotkeys_DecrementNightLight_Title), "Decrease night light"),
+            L(nameof(AppStrings.Settings_Hotkeys_DecrementNightLight_Description), "Decrease Night Light strength."));
         yield return (BrightnessHotkeyAction.PowerOffAllMonitors, "",
-            L("Settings_Hotkeys_PowerOffAllMonitors_Title", "Power off all monitors"),
-            L("Settings_Hotkeys_PowerOffAllMonitors_Description",
+            L(nameof(AppStrings.Settings_Hotkeys_PowerOffAllMonitors_Title), "Power off all monitors"),
+            L(nameof(AppStrings.Settings_Hotkeys_PowerOffAllMonitors_Description),
                 "Run the configured power-off command for all monitors."));
 
         if (_profileManager == null) yield break;
@@ -111,20 +111,20 @@ public sealed partial class BrightnessSettingsWindow
             string name = _profileManager.GetName(i) is { Length: > 0 } profileName
                 ? profileName
                 : string.Format(CultureInfo.CurrentCulture,
-                    L("Settings_Hotkeys_DefaultProfileName_Format", "Profile {0}"), i + 1);
+                    L(nameof(AppStrings.Settings_Hotkeys_DefaultProfileName_Format), "Profile {0}"), i + 1);
             yield return (
                 BrightnessHotkeyAction.ProfileSelect,
                 i.ToString(CultureInfo.InvariantCulture),
                 string.Format(CultureInfo.CurrentCulture,
-                    L("Settings_Hotkeys_SelectProfile_Title_Format", "Select {0}"), name),
-                L("Settings_Hotkeys_SelectProfile_Description", "Select and apply the profile."));
+                    L(nameof(AppStrings.Settings_Hotkeys_SelectProfile_Title_Format), "Select {0}"), name),
+                L(nameof(AppStrings.Settings_Hotkeys_SelectProfile_Description), "Select and apply the profile."));
         }
     }
 
     private void AddMonitorOffBindingButton(StackPanel stack, SettingsPalette p)
     {
         IReadOnlyList<(string Value, string Label)> targets = BuildMonitorTargetOptions();
-        SettingsButton add = Button(L("Settings_Hotkeys_AddMonitorOffBinding_Button", "Add monitor-off binding"), p);
+        SettingsButton add = Button(L(nameof(AppStrings.Settings_Hotkeys_AddMonitorOffBinding_Button), "Add monitor-off binding"), p);
         add.HorizontalAlignment = HorizontalAlignment.Left;
         add.Margin = new Thickness(0, 8, 0, 0);
         add.IsEnabled = targets.Count > 0
@@ -173,14 +173,14 @@ public sealed partial class BrightnessSettingsWindow
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(L("Settings_Hotkeys_Add_Button", "Add"), p);
+        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button), "Add"), p);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
         SettingsButton? removeTarget = null;
         if (removableMonitorTarget)
         {
-            removeTarget = Button(L("Settings_Hotkeys_Remove_Button", "Remove"), p);
+            removeTarget = Button(L(nameof(AppStrings.Settings_Hotkeys_Remove_Button), "Remove"), p);
             removeTarget.Click += (_, _) =>
             {
                 _settings.Hotkeys.RemoveAll(b => b.Matches(action, currentParameter));
@@ -209,7 +209,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             if (selectedModifiers == 0 || selectedVirtualKey == 0)
             {
-                addButton.Text = L("Settings_Hotkeys_Add_Button", "Add");
+                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button), "Add");
                 addButton.IsEnabled = false;
                 return;
             }
@@ -220,8 +220,8 @@ public sealed partial class BrightnessSettingsWindow
                 && b.Modifiers == selectedModifiers
                 && b.VirtualKey == selectedVirtualKey);
             addButton.Text = exists
-                ? L("Settings_Hotkeys_Exists_Button", "Exists")
-                : L("Settings_Hotkeys_Add_Button", "Add");
+                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button), "Exists")
+                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button), "Add");
             addButton.IsEnabled = !exists;
         }
 
@@ -422,7 +422,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             status.Text = GlyphCatalog.WARNING.Text;
             TrayAppDotNETToolTip.SetTip(status,
-                L("Settings_Hotkeys_Status_HotkeyServiceUnavailable", "Hotkey service unavailable."));
+                L(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable), "Hotkey service unavailable."));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
@@ -430,14 +430,14 @@ public sealed partial class BrightnessSettingsWindow
             TrayAppDotNETToolTip.SetTip(status, error);
         }
         else if (binding.IsBound)
-            TrayAppDotNETToolTip.SetTip(status, L("Settings_Hotkeys_Status_Registered", "Registered."));
+            TrayAppDotNETToolTip.SetTip(status, L(nameof(AppStrings.Settings_Hotkeys_Status_Registered), "Registered."));
 
         SettingsButton delete = Button("x", p);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
         delete.Label.FontSize = 20;
-        TrayAppDotNETToolTip.SetTip(delete, L("Settings_Hotkeys_DeleteHotkey_ToolTip", "Delete hotkey"));
+        TrayAppDotNETToolTip.SetTip(delete, L(nameof(AppStrings.Settings_Hotkeys_DeleteHotkey_ToolTip), "Delete hotkey"));
         TrayAppDotNETToolTip.SuppressWhileEngaged(delete);
         delete.Click += (_, _) =>
         {
@@ -497,7 +497,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             targets.Add((
                 HotkeyTarget.ForDisplayNumber(displayNumber),
-                string.Format(CultureInfo.CurrentCulture, L("Settings_Hotkeys_DisplayNumber_Format", "Display #{0}"),
+                string.Format(CultureInfo.CurrentCulture, L(nameof(AppStrings.Settings_Hotkeys_DisplayNumber_Format), "Display #{0}"),
                     displayNumber)));
         }
 
@@ -506,12 +506,12 @@ public sealed partial class BrightnessSettingsWindow
             if (string.IsNullOrWhiteSpace(known.EDIDKey)) continue;
             string baseLabel = !string.IsNullOrWhiteSpace(known.OriginalName)
                 ? known.OriginalName
-                : L("Settings_Hotkeys_DisplayFallbackName", "Display");
+                : L(nameof(AppStrings.Settings_Hotkeys_DisplayFallbackName), "Display");
             string serial = string.IsNullOrWhiteSpace(known.EDIDSerial) ? "" : $": {known.EDIDSerial}";
             MonitorInfo? active = live.FirstOrDefault(m => m.EDIDKey == known.EDIDKey);
             string activeSuffix = active is { DisplayNumber: > 0 }
                 ? " " + string.Format(CultureInfo.CurrentCulture,
-                    L("Settings_Hotkeys_CurrentlyDisplayNumber_Format", "currently #{0}"), active.DisplayNumber)
+                    L(nameof(AppStrings.Settings_Hotkeys_CurrentlyDisplayNumber_Format), "currently #{0}"), active.DisplayNumber)
                 : "";
             targets.Add((HotkeyTarget.ForEDID(known.EDIDKey), $"{baseLabel}{serial}{activeSuffix}"));
         }
@@ -529,7 +529,7 @@ public sealed partial class BrightnessSettingsWindow
 
         if (HotkeyTarget.TryParseDisplayNumber(parameter, out int number))
         {
-            return string.Format(CultureInfo.CurrentCulture, L("Settings_Hotkeys_DisplayNumber_Format", "Display #{0}"),
+            return string.Format(CultureInfo.CurrentCulture, L(nameof(AppStrings.Settings_Hotkeys_DisplayNumber_Format), "Display #{0}"),
                 number);
         }
 

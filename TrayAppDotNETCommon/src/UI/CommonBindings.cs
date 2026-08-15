@@ -136,7 +136,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         swatch.SetColor(currentValue, defaultColor);
         if (!string.IsNullOrWhiteSpace(tooltip))
             TrayAppDotNETToolTip.SetTip(swatch, tooltip);
-        SettingsButton resetButton = Button(Loc("Settings_Theme_Reset"), palette);
+        SettingsButton resetButton = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette);
 
         swatch.Click += (_, _) =>
         {
@@ -209,7 +209,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         SettingsSwatch dark = new(palette);
         TrayAppDotNETToolTip.SetTip(light, lightTooltip);
         TrayAppDotNETToolTip.SetTip(dark, darkTooltip);
-        SettingsButton reset = Button(Loc("Settings_Theme_Reset"), palette);
+        SettingsButton reset = Button(Loc(nameof(CommonStrings.Settings_Theme_Reset)), palette);
 
         bool effectiveIsLight = ResolveEffectiveIsLightForBindings();
         light.IsVisible = effectiveIsLight;
@@ -301,21 +301,23 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
     private static string VariantPickerTitle(string title, bool isLight) =>
         string.Format(
-            Loc("Settings_Theme_PickerTitle_Format"),
+            Loc(nameof(CommonStrings.Settings_Theme_PickerTitle_Format)),
             title,
-            Loc(isLight ? "Settings_Theme_PickerTitle_LightVariant" : "Settings_Theme_PickerTitle_DarkVariant"));
+            Loc(isLight
+                ? nameof(CommonStrings.Settings_Theme_PickerTitle_LightVariant)
+                : nameof(CommonStrings.Settings_Theme_PickerTitle_DarkVariant)));
 
     private static TrayAppDotNETColorPickerStrings ColorPickerStrings() =>
         new(
             Loc("ColorPicker_DefaultTitle"),
-            Loc("ColorPicker_CloseTooltip"),
-            Loc("ColorPicker_ChannelLabel_Hue"),
-            Loc("ColorPicker_ChannelLabel_Alpha"),
-            Loc("ColorPicker_ChannelLabel_R"),
-            Loc("ColorPicker_ChannelLabel_G"),
-            Loc("ColorPicker_ChannelLabel_B"),
-            L("ColorPicker_RGBAHexLabel", L("ColorPicker_RgbaHexLabel", "rgba hex:")),
-            L("ColorPicker_ARGBHexLabel", L("ColorPicker_ArgbHexLabel", "argb hex:")),
-            Loc("ColorPicker_DefaultButton"),
-            Loc("ColorPicker_ResetButton"));
+            Loc(nameof(CommonStrings.ColorPicker_CloseTooltip)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
+            L(nameof(CommonStrings.ColorPicker_RGBAHexLabel), "rgba hex:"),
+            L(nameof(CommonStrings.ColorPicker_ARGBHexLabel), "argb hex:"),
+            Loc(nameof(CommonStrings.ColorPicker_DefaultButton)),
+            Loc(nameof(CommonStrings.ColorPicker_ResetButton)));
 }

@@ -78,7 +78,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     [
         new(BatterySettingsPage.General, L("Settings_Common_Page_General", "General"), BuildGeneralPage),
         new(BatterySettingsPage.Triggers, L("Settings_Common_Page_Triggers", "Triggers"), BuildTriggersPage),
-        new(BatterySettingsPage.Flyout, L("Settings_Common_Page_Flyout", "Flyout"), BuildFlyoutPage),
+        new(BatterySettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout), "Flyout"), BuildFlyoutPage),
         new(BatterySettingsPage.TrayIcon, L("Settings_Common_Page_TrayIcon", "Tray Icon"), BuildTrayIconPage),
         new(BatterySettingsPage.Hotkeys, L("Settings_Common_Page_Hotkeys", "Hotkeys"), BuildHotkeysPage),
         new(BatterySettingsPage.Theme, L("Settings_Common_Page_Theme", "Theme"), BuildThemePage),
@@ -653,21 +653,21 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L("Settings_Flyout_SectionHeader", "Flyout"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader), "Flyout"), p);
 
             stack.Children.Add(BoolCard(
-                L("Settings_Flyout_RestoreUndockState_Title", "Restore undock state on startup"),
-                L("Settings_Flyout_RestoreUndockState_Description",
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title), "Restore undock state on startup"),
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description),
                     "When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked."),
                 _settings.RestoreFlyoutUndockedOnStartup,
                 v => _settings.RestoreFlyoutUndockedOnStartup = v,
                 p));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Flyout_Visibility_Header", "Visibility"), p));
+                L(nameof(AppStrings.Settings_Flyout_Visibility_Header), "Visibility"), p));
             stack.Children.Add(BoolCard(
-                L("Settings_Flyout_ShowUndockButton_Title", "Show undock button"),
-                L("Settings_Flyout_ShowUndockButton_Description",
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title), "Show undock button"),
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description),
                     "Show the undock button in the flyout. When off, the flyout always stays anchored to the tray."),
                 _settings.AllowFlyoutUndock,
                 v => _settings.AllowFlyoutUndock = v,
@@ -677,8 +677,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             if (_settings.AllowFlyoutUndock)
             {
                 stack.Children.Add(BoolCard(
-                    L("Settings_Flyout_ClampUndockedToScreen_Title", "Keep undocked flyout on screen"),
-                    L("Settings_Flyout_ClampUndockedToScreen_Description",
+                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title), "Keep undocked flyout on screen"),
+                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description),
                         "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
                     _settings.ClampUndockedFlyoutToScreen,
                     v => _settings.ClampUndockedFlyoutToScreen = v,
@@ -686,10 +686,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             }
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Flyout_Layout_Header", "Layout"), p));
+                L(nameof(AppStrings.Settings_Flyout_Layout_Header), "Layout"), p));
             stack.Children.Add(BoolCard(
-                L("Settings_Flyout_HeaderAtBottom_Title", "Title bar at the bottom"),
-                L("Settings_Flyout_HeaderAtBottom_Description",
+                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Title), "Title bar at the bottom"),
+                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Description),
                     "Render the flyout title bar at the bottom of the flyout instead of the top."),
                 _settings.FlyoutHeaderAtBottom,
                 v => _settings.FlyoutHeaderAtBottom = v,
@@ -1070,22 +1070,22 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 L("Settings_Theme_Flyout_Header", "Flyout"), p));
             stack.Children.Add(VariantColorCard(
                 "FlyoutBackground",
-                L("Settings_Theme_FlyoutBackgroundColor_Title", "Flyout background"),
-                L("Settings_Theme_FlyoutBackgroundColor_Description",
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Title), "Flyout background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Description),
                     "Override the main battery flyout background color."),
-                L("Settings_Theme_FlyoutBackgroundColor_LightTooltip", "Light flyout background"),
-                L("Settings_Theme_FlyoutBackgroundColor_DarkTooltip", "Dark flyout background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_LightTooltip), "Light flyout background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_DarkTooltip), "Dark flyout background"),
                 _settings.FlyoutBackgroundColor,
                 theme.Background.Light,
                 theme.Background.Dark,
                 p));
             stack.Children.Add(VariantColorCard(
                 "FlyoutTitleBarBackground",
-                L("Settings_Theme_FlyoutTitleBarBackgroundColor_Title", "Titlebar background"),
-                L("Settings_Theme_FlyoutTitleBarBackgroundColor_Description",
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Title), "Titlebar background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Description),
                     "Override the battery flyout titlebar background color."),
-                L("Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip", "Light titlebar background"),
-                L("Settings_Theme_FlyoutTitleBarBackgroundColor_DarkTooltip", "Dark titlebar background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip), "Light titlebar background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_DarkTooltip), "Dark titlebar background"),
                 _settings.FlyoutTitleBarBackgroundColor,
                 theme.FooterBackground.Light,
                 theme.FooterBackground.Dark,

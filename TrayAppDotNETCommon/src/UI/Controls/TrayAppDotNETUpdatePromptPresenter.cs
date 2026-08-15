@@ -100,10 +100,10 @@ public static class TrayAppDotNETUpdatePromptPresenter
         return await StageAndShutdownAsync(
             options,
             "TrayAppDotNETUpdatePromptPresenter.ShowBackdateAsync",
-            Localize(options, "BackdateDialog_FailedTitle", "Backdate failed"),
+            Localize(options, nameof(CommonStrings.BackdateDialog_FailedTitle), "Backdate failed"),
             Localize(
                 options,
-                "BackdateDialog_DownloadFailed",
+                nameof(CommonStrings.BackdateDialog_DownloadFailed),
                 "The previous version could not be downloaded. Check the log for details."));
     }
 
@@ -150,7 +150,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             : options.UpdateInfo.Changelog;
         string confirmText = Localize(options, "UpdateDialog_Install", "Install");
         string cancelText = Localize(options, "UpdateDialog_Cancel", "Cancel");
-        string skipText = Localize(options, "UpdateDialog_SkipRelease", "Skip this release");
+        string skipText = Localize(options, nameof(CommonStrings.UpdateDialog_SkipRelease), "Skip this release");
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
@@ -172,13 +172,13 @@ public static class TrayAppDotNETUpdatePromptPresenter
     {
         string title = string.Format(
             CultureInfo.CurrentCulture,
-            Localize(options, "BackdateDialog_TitleFormat", "Backdate to {0}?"),
+            Localize(options, nameof(CommonStrings.BackdateDialog_TitleFormat), "Backdate to {0}?"),
             options.UpdateInfo.Version);
         string description = string.Format(
             CultureInfo.CurrentCulture,
             Localize(
                 options,
-                "BackdateDialog_DescriptionFormat",
+                nameof(CommonStrings.BackdateDialog_DescriptionFormat),
                 "This will replace the current version with {0} and restart the app."),
             options.UpdateInfo.Version);
         string changelog = string.IsNullOrWhiteSpace(options.UpdateInfo.Changelog)
@@ -188,7 +188,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
             title,
             description,
             changelog,
-            Localize(options, "BackdateDialog_Confirm", "Backdate"),
+            Localize(options, nameof(CommonStrings.BackdateDialog_Confirm), "Backdate"),
             Localize(options, "UpdateDialog_Cancel", "Cancel"),
             options.Palette,
             options.EnableRoundedCorners)
@@ -205,18 +205,18 @@ public static class TrayAppDotNETUpdatePromptPresenter
             CultureInfo.CurrentCulture,
             Localize(
                 options,
-                "BackdateDialog_SkipCurrentDescriptionFormat",
+                nameof(CommonStrings.BackdateDialog_SkipCurrentDescriptionFormat),
                 "After backdating, version {0} will be offered as an update. Do you want to skip it?"),
             options.Service.CurrentBuild);
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
-            Localize(options, "BackdateDialog_SkipCurrentTitle", "Skip the current version?"),
+            Localize(options, nameof(CommonStrings.BackdateDialog_SkipCurrentTitle), "Skip the current version?"),
             description,
             null,
-            Localize(options, "BackdateDialog_Yes", "Yes"),
+            Localize(options, nameof(CommonStrings.BackdateDialog_Yes), "Yes"),
             null,
             options.Palette,
             options.EnableRoundedCorners,
-            Localize(options, "BackdateDialog_No", "No"))
+            Localize(options, nameof(CommonStrings.BackdateDialog_No), "No"))
         {
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };

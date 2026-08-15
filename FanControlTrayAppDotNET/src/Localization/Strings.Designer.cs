@@ -61,101 +61,11 @@ namespace FanControlTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to argb hex:.
-        /// </summary>
-        public static string ColorPicker_ArgbHexLabel {
-            get {
-                return ResourceManager.GetString("ColorPicker_ArgbHexLabel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to alpha.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_Alpha {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_Alpha", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to b.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_B {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_B", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to g.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_G {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_G", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to hue.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_Hue {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_Hue", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to r.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_R {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_R", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Close.
-        /// </summary>
-        public static string ColorPicker_CloseTooltip {
-            get {
-                return ResourceManager.GetString("ColorPicker_CloseTooltip", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Default.
-        /// </summary>
-        public static string ColorPicker_DefaultButton {
-            get {
-                return ResourceManager.GetString("ColorPicker_DefaultButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to ColorPicker.
         /// </summary>
         public static string ColorPicker_DefaultTitle {
             get {
                 return ResourceManager.GetString("ColorPicker_DefaultTitle", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Reset.
-        /// </summary>
-        public static string ColorPicker_ResetButton {
-            get {
-                return ResourceManager.GetString("ColorPicker_ResetButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to rgba hex:.
-        /// </summary>
-        public static string ColorPicker_RgbaHexLabel {
-            get {
-                return ResourceManager.GetString("ColorPicker_RgbaHexLabel", resourceCulture);
             }
         }
         
@@ -718,6 +628,24 @@ namespace FanControlTrayAppDotNET.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Keep the undocked flyout fully inside one monitor&apos;s work area when it restores or repositions..
+        /// </summary>
+        public static string Settings_Flyout_ClampUndockedToScreen_Description {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ClampUndockedToScreen_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep undocked flyout on screen.
+        /// </summary>
+        public static string Settings_Flyout_ClampUndockedToScreen_Title {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ClampUndockedToScreen_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Reopen the flyout in its previously-undocked window if it was undocked when the app last closed..
         /// </summary>
         public static string Settings_Flyout_RestoreUndockState_Description {
@@ -939,15 +867,6 @@ namespace FanControlTrayAppDotNET.Localization {
         public static string Settings_General_NotInstalled_Format {
             get {
                 return ResourceManager.GetString("Settings_General_NotInstalled_Format", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to &quot;GPU preferred&quot; uses Avalonia&apos;s Windows GPU path with software fallback. &quot;Software&quot; forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required..
-        /// </summary>
-        public static string Settings_General_RenderingBackend_Description {
-            get {
-                return ResourceManager.GetString("Settings_General_RenderingBackend_Description", resourceCulture);
             }
         }
         
@@ -1772,42 +1691,6 @@ namespace FanControlTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to dark.
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_DarkVariant {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_DarkVariant", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to {0} ({1}).
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_Format {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_Format", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to light.
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_LightVariant {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_LightVariant", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Reset.
-        /// </summary>
-        public static string Settings_Theme_Reset {
-            get {
-                return ResourceManager.GetString("Settings_Theme_Reset", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look..
         /// </summary>
         public static string Settings_Theme_RoundedCorners_Description {
@@ -2330,15 +2213,6 @@ namespace FanControlTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Cancel.
-        /// </summary>
-        public static string Uninstaller_Cancel {
-            get {
-                return ResourceManager.GetString("Uninstaller_Cancel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Close.
         /// </summary>
         public static string Uninstaller_Caption_Close {
@@ -2425,24 +2299,6 @@ namespace FanControlTrayAppDotNET.Localization {
         public static string Uninstaller_Title {
             get {
                 return ResourceManager.GetString("Uninstaller_Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Uninstall.
-        /// </summary>
-        public static string Uninstaller_UninstallButton {
-            get {
-                return ResourceManager.GetString("Uninstaller_UninstallButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Uninstalling....
-        /// </summary>
-        public static string Uninstaller_UninstallingButton {
-            get {
-                return ResourceManager.GetString("Uninstaller_UninstallingButton", resourceCulture);
             }
         }
         

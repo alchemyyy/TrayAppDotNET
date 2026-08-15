@@ -542,7 +542,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             GlyphCatalog.SETTINGS,
             flyoutControlPalette,
             () => _openSettings(null),
-            L("Tray_Settings", "Settings"),
+            L(nameof(AppStrings.Tray_Settings), "Settings"),
             configureButton: SuppressNextAutoHideWhenPressed);
         AddHeaderButton(grid, 1, GlyphCatalog.CURVE_WINDOW, flyoutControlPalette, OpenHeaderCurveEditor,
             "Fan curve editor", fontSize: Layout.HeaderManagerButtonFontSize,
@@ -710,7 +710,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private Border BuildUpdateCard(FlyoutControlPalette p, AppTheme theme, bool isLight)
     {
         UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
-        string releaseName = update?.ReleaseName ?? L("UpdateDialog_DefaultTitle", "Update available");
+        string releaseName = update?.ReleaseName ?? L(nameof(AppStrings.UpdateDialog_DefaultTitle), "Update available");
 
         Grid row = new()
         {
@@ -740,14 +740,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Margin = Layout.FanNameStackUngroupedMargin
         };
         TextBlock title = TrayAppDotNETFlyoutUI.Text(
-            L("UpdateNotification_Title", "Update available"),
+            L(nameof(AppStrings.UpdateNotification_Title), "Update available"),
             p,
             Layout.FanNameFontSize,
             FontWeight.SemiBold);
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         TextBlock subtitle = TrayAppDotNETFlyoutUI.Text(
             string.Format(CultureInfo.CurrentCulture,
-                L("UpdateNotification_BodyFormat", "{0} is available."),
+                L(nameof(AppStrings.UpdateNotification_BodyFormat), "{0} is available."),
                 releaseName),
             p,
             Layout.FanSubtitleFontSize,
@@ -760,7 +760,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         row.Children.Add(text);
 
         Border install = TrayAppDotNETFlyoutUI.TextButton(
-            L("Settings_About_InstallUpdate_Available", "Install update"),
+            L(nameof(AppStrings.Settings_About_InstallUpdate_Available), "Install update"),
             p,
             ShowUpdateConfirmation,
             Layout.FanSubtitleFontSize,
@@ -2328,8 +2328,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                     if (WindowResources.IsDisposed || !ReferenceEquals(_activeVisualGeneration, generation)) return;
                     FlushPendingFanRebuild();
                 },
-                UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
-                RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
+                UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip), "Undock"),
+                RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip), "Redock"),
                 DragThreshold = Layout.DragThreshold
             }));
         generation.UndockButtonController = controller;
@@ -2342,17 +2342,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FanFlyoutVisualGeneration generation)
     {
         generation.ConfirmTitle = TrayAppDotNETSettingsUI.Text(
-            L("SettingsWindow_ConfirmOverlay_DefaultTitle", "Confirm"), p,
+            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultTitle), "Confirm"), p,
             Layout.ConfirmTitleFontSize, FontWeight.SemiBold);
         generation.ConfirmTitle.TextWrapping = TextWrapping.Wrap;
         generation.ConfirmTitle.Margin = Layout.ConfirmTitleMargin;
         generation.ConfirmMessage = TrayAppDotNETSettingsUI.DescriptionText(
-            L("SettingsWindow_ConfirmOverlay_DefaultMessage", "Are you sure?"),
+            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultMessage), "Are you sure?"),
             p,
             Layout.ConfirmMessageMargin);
-        generation.ConfirmOK = TrayAppDotNETSettingsUI.Button(L("Flyout_DeleteGroup_Confirm", "Delete"), p);
+        generation.ConfirmOK = TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm), "Delete"), p);
         generation.ConfirmCancel =
-            TrayAppDotNETSettingsUI.Button(L("SettingsWindow_ConfirmOverlay_Cancel", "Cancel"), p);
+            TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel), "Cancel"), p);
         generation.ConfirmCancel.Margin = Layout.ConfirmCancelMargin;
         generation.ConfirmOK.Click += (_, _) => CompleteConfirm(true);
         generation.ConfirmCancel.Click += (_, _) => CompleteConfirm(false);
@@ -2394,12 +2394,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         if (string.IsNullOrWhiteSpace(cell.GroupName)) return;
         bool ok = await ConfirmAsync(
-            L("Flyout_DeleteGroup_Title", "Delete group"),
+            L(nameof(AppStrings.Flyout_DeleteGroup_Title), "Delete group"),
             string.Format(
-                L("Flyout_DeleteGroup_MessageFormat", "Delete {0}? Fans in this group will be moved out of the group."),
+                L(nameof(AppStrings.Flyout_DeleteGroup_MessageFormat), "Delete {0}? Fans in this group will be moved out of the group."),
                 cell.GroupName),
-            L("Flyout_DeleteGroup_Confirm", "Delete"),
-            L("SettingsWindow_ConfirmOverlay_Cancel", "Cancel"));
+            L(nameof(AppStrings.Flyout_DeleteGroup_Confirm), "Delete"),
+            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel), "Cancel"));
         if (!ok) return;
 
         _groupNames.RemoveAll(g => string.Equals(g, cell.GroupName, StringComparison.OrdinalIgnoreCase));
@@ -2429,8 +2429,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 CultureInfo.CurrentCulture,
                 L("Flyout_DeleteProbeCard_MessageFormat", "Delete {0}?"),
                 probeCard.DisplayName),
-            L("Flyout_DeleteGroup_Confirm", "Delete"),
-            L("SettingsWindow_ConfirmOverlay_Cancel", "Cancel"));
+            L(nameof(AppStrings.Flyout_DeleteGroup_Confirm), "Delete"),
+            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel), "Cancel"));
         if (!ok) return;
 
         if (_probeSelectorWindows.TryGetValue(probeCard, out ProbeDataSelectorWindow? selector))

@@ -22,20 +22,20 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L("Settings_General_SectionHeader", "General"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader), "General"), p);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
         stack.Children.Add(BoolCard(
-            L("Settings_General_ApplyBrightnessOnStartup_Title", "Apply brightness on startup"),
-            L("Settings_General_ApplyBrightnessOnStartup_Description",
+            L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_Title), "Apply brightness on startup"),
+            L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_Description),
                 "Restore the selected profile's saved brightness values when the app starts."),
             _settings.ApplyBrightnessOnStartup,
             v => _settings.ApplyBrightnessOnStartup = v,
             p));
         stack.Children.Add(BoolCard(
-            L("Settings_General_Autosave_Title", "Autosave profiles"),
-            L("Settings_General_Autosave_Description",
+            L(nameof(AppStrings.Settings_General_Autosave_Title), "Autosave profiles"),
+            L(nameof(AppStrings.Settings_General_Autosave_Description),
                 "Save profile changes automatically after brightness or monitor-state edits."),
             _settings.Autosave,
             v => _settings.Autosave = v,
@@ -47,7 +47,7 @@ public sealed partial class BrightnessSettingsWindow
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = BrightnessInstallScope.LocalAppData,
-                Title = L("Settings_General_LocalUser_Title", "Local user"),
+                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title), "Local user"),
                 ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                 Elevated = false,
                 Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -62,7 +62,7 @@ public sealed partial class BrightnessSettingsWindow
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = BrightnessInstallScope.ProgramFiles,
-                Title = L("Settings_General_SystemWide_Title", "System-wide"),
+                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title), "System-wide"),
                 ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                 Elevated = true,
                 Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -78,17 +78,17 @@ public sealed partial class BrightnessSettingsWindow
         CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_General_NightLight_Header", "Night light"), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_NightLight_Header), "Night light"), p));
         stack.Children.Add(BoolCard(
-            L("Settings_General_ShowNightLightSlider_Title", "Show night-light slider"),
-            L("Settings_General_ShowNightLightSlider_Description",
+            L(nameof(AppStrings.Settings_General_ShowNightLightSlider_Title), "Show night-light slider"),
+            L(nameof(AppStrings.Settings_General_ShowNightLightSlider_Description),
                 "Include the Windows Night Light strength slider in the flyout."),
             _settings.ShowNightLightSlider,
             v => _settings.ShowNightLightSlider = v,
             p));
         stack.Children.Add(BoolCard(
-            L("Settings_General_InvertNightLightSlider_Title", "Invert night-light slider"),
-            L("Settings_General_InvertNightLightSlider_Description",
+            L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Title), "Invert night-light slider"),
+            L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Description),
                 "Make higher slider positions cooler instead of warmer."),
             _settings.InvertNightLightSlider,
             v => _settings.InvertNightLightSlider = v,
@@ -122,7 +122,7 @@ public sealed partial class BrightnessSettingsWindow
             600,
             v => _settings.NightLightPDBDownloadTimeoutSeconds = v,
             p,
-            L("Common_SecondsSuffix", "s")));
+            L(nameof(AppStrings.Common_SecondsSuffix), "s")));
         stack.Children.Add(IntCard(
             L("Settings_General_EnvironmentalTick_Title", "Environmental tick interval"),
             L("Settings_General_EnvironmentalTick_Description", "Milliseconds between active curve evaluations."),
@@ -131,10 +131,10 @@ public sealed partial class BrightnessSettingsWindow
             600_000,
             v => _settings.EnvironmentalCurveTickIntervalMs = v,
             p,
-            Loc("Common_MillisecondsSuffix")));
+            Loc(nameof(AppStrings.Common_MillisecondsSuffix))));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_General_Profiles_Header", "Profiles"), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Profiles_Header), "Profiles"), p));
         StackPanel profileSlotPanel = new();
         List<ProfileSlotEntry> profileSlots = [];
         _profileSlotPanelGenerations.Add(profileSlotPanel);
@@ -178,7 +178,7 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.AutoEngageEnvironmentalCurveDelayMinSeconds,
             TimeConstants.AutoEngageEnvironmentalCurveDelayMaxSeconds,
             AutoEngageEnvironmentalCurveDelayBoxWidth,
-            L("Common_SecondsSuffix", "s"));
+            L(nameof(AppStrings.Common_SecondsSuffix), "s"));
         delayBox.IsVisible = _settings.AutoEngageEnvironmentalCurveEnabled;
         delayBox.Margin = new Thickness(0, 0, AutoEngageEnvironmentalCurveControlSpacing, 0);
         delayBox.ValueChanged += (_, e) =>
@@ -221,7 +221,7 @@ public sealed partial class BrightnessSettingsWindow
 
         for (int i = 0; i < _profileManager.Profiles.Profiles.Count; i++)
         {
-            string defaultName = L("Settings_General_DefaultProfileName", "Profile");
+            string defaultName = L(nameof(AppStrings.Settings_General_DefaultProfileName), "Profile");
             string name = string.IsNullOrWhiteSpace(_profileManager.Profiles.Profiles[i].Name)
                 ? defaultName
                 : _profileManager.Profiles.Profiles[i].Name!;
@@ -277,7 +277,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         if (_profileManager == null) return;
         string trimmed = (text ?? string.Empty).Trim();
-        string defaultName = L("Settings_General_DefaultProfileName", "Profile");
+        string defaultName = L(nameof(AppStrings.Settings_General_DefaultProfileName), "Profile");
         string? stored =
             string.IsNullOrWhiteSpace(trimmed) || string.Equals(trimmed, defaultName, StringComparison.CurrentCulture)
                 ? null

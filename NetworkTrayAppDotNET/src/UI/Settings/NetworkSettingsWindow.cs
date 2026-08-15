@@ -34,7 +34,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -47,10 +47,10 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override NetworkSettingsPage DefaultPageKey => NetworkSettingsPage.General;
 
-    protected override string HeaderText => L("SettingsWindow_Header", "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
 
     protected override string OpenSettingsFolderText =>
-        L("SettingsWindow_OpenSettingsFolder", "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -59,12 +59,12 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override IReadOnlyList<SettingsPageDescriptor<NetworkSettingsPage>> CreatePageDescriptors() =>
     [
-        new(NetworkSettingsPage.General, L("Settings_Common_Page_General", "General"), BuildGeneralPage),
-        new(NetworkSettingsPage.TrayIcon, L("Settings_Common_Page_TrayIcon", "Tray Icon"), BuildTrayIconPage),
-        new(NetworkSettingsPage.Network, L("Settings_Common_Page_Network", "Network"), BuildNetworkPage),
-        new(NetworkSettingsPage.Hotkeys, L("Settings_Common_Page_Hotkeys", "Hotkeys"), BuildHotkeysPage),
-        new(NetworkSettingsPage.Theme, L("Settings_Common_Page_Theme", "Theme"), BuildThemePage),
-        new(NetworkSettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage)
+        new(NetworkSettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General), "General"), BuildGeneralPage),
+        new(NetworkSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon), "Tray Icon"), BuildTrayIconPage),
+        new(NetworkSettingsPage.Network, L(nameof(AppStrings.Settings_Common_Page_Network), "Network"), BuildNetworkPage),
+        new(NetworkSettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys), "Hotkeys"), BuildHotkeysPage),
+        new(NetworkSettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme), "Theme"), BuildThemePage),
+        new(NetworkSettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About), "About"), BuildAboutPage)
     ];
 
     protected override void OnSettingsWindowClosed()
@@ -136,7 +136,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
             EnableRoundedCorners,
             RadiusMedium,
             RadiusLarge,
-            Loc("Settings_Theme_Reset"),
+            Loc(nameof(CommonStrings.Settings_Theme_Reset)),
             ResolveEffectiveIsLight,
             VariantPickerTitle,
             ColorPickerStrings(),
@@ -148,23 +148,25 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     private static string VariantPickerTitle(string title, bool isLight) =>
         string.Format(
-            Loc("Settings_Theme_PickerTitle_Format"),
+            Loc(nameof(CommonStrings.Settings_Theme_PickerTitle_Format)),
             title,
-            Loc(isLight ? "Settings_Theme_PickerTitle_LightVariant" : "Settings_Theme_PickerTitle_DarkVariant"));
+            Loc(isLight
+                ? nameof(CommonStrings.Settings_Theme_PickerTitle_LightVariant)
+                : nameof(CommonStrings.Settings_Theme_PickerTitle_DarkVariant)));
 
     private static TrayAppDotNETColorPickerStrings ColorPickerStrings() =>
         new(
-            Loc("ColorPicker_DefaultTitle"),
-            Loc("ColorPicker_CloseTooltip"),
-            Loc("ColorPicker_ChannelLabel_Hue"),
-            Loc("ColorPicker_ChannelLabel_Alpha"),
-            Loc("ColorPicker_ChannelLabel_R"),
-            Loc("ColorPicker_ChannelLabel_G"),
-            Loc("ColorPicker_ChannelLabel_B"),
-            Loc("ColorPicker_RgbaHexLabel"),
-            Loc("ColorPicker_ArgbHexLabel"),
-            Loc("ColorPicker_DefaultButton"),
-            Loc("ColorPicker_ResetButton"));
+            Loc(nameof(AppStrings.ColorPicker_DefaultTitle)),
+            Loc(nameof(CommonStrings.ColorPicker_CloseTooltip)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
+            Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
+            Loc(nameof(CommonStrings.ColorPicker_RGBAHexLabel)),
+            Loc(nameof(CommonStrings.ColorPicker_ARGBHexLabel)),
+            Loc(nameof(CommonStrings.ColorPicker_DefaultButton)),
+            Loc(nameof(CommonStrings.ColorPicker_ResetButton)));
 
     private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch
     {

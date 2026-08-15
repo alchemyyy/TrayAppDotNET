@@ -134,101 +134,11 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to argb hex:.
-        /// </summary>
-        public static string ColorPicker_ARGBHexLabel {
-            get {
-                return ResourceManager.GetString("ColorPicker_ARGBHexLabel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to alpha.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_Alpha {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_Alpha", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to b.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_B {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_B", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to g.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_G {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_G", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to hue.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_Hue {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_Hue", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to r.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_R {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_R", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Close.
-        /// </summary>
-        public static string ColorPicker_CloseTooltip {
-            get {
-                return ResourceManager.GetString("ColorPicker_CloseTooltip", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Default.
-        /// </summary>
-        public static string ColorPicker_DefaultButton {
-            get {
-                return ResourceManager.GetString("ColorPicker_DefaultButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to ColorPicker.
         /// </summary>
         public static string ColorPicker_DefaultTitle {
             get {
                 return ResourceManager.GetString("ColorPicker_DefaultTitle", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Reset.
-        /// </summary>
-        public static string ColorPicker_ResetButton {
-            get {
-                return ResourceManager.GetString("ColorPicker_ResetButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to rgba hex:.
-        /// </summary>
-        public static string ColorPicker_RGBAHexLabel {
-            get {
-                return ResourceManager.GetString("ColorPicker_RGBAHexLabel", resourceCulture);
             }
         }
         
@@ -315,17 +225,17 @@ namespace VolumeTrayAppDotNET.Localization {
         
         /// <summary>
         ///   Looks up a localized string similar to Battery: {0}% (last known)
-        /// Click to connect.
+        ///Click to connect.
         /// </summary>
         public static string Flyout_BatteryButton_Tooltip_Disconnected_Format {
             get {
                 return ResourceManager.GetString("Flyout_BatteryButton_Tooltip_Disconnected_Format", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Battery: {0}%
-        /// Ctrl+click to disconnect.
+        ///Ctrl+click to disconnect.
         /// </summary>
         public static string Flyout_BatteryButton_Tooltip_Format {
             get {
@@ -334,25 +244,104 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Bluetooth connected
+        ///Audio waiting
+        ///Click to retry.
+        /// </summary>
+        public static string Flyout_BluetoothButton_Tooltip_AudioWaiting {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothButton_Tooltip_AudioWaiting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Bluetooth
-        /// Ctrl+click to disconnect.
+        ///Ctrl+click to disconnect.
         /// </summary>
         public static string Flyout_BluetoothButton_Tooltip_Connected {
             get {
                 return ResourceManager.GetString("Flyout_BluetoothButton_Tooltip_Connected", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Bluetooth
-        /// Click to connect.
+        ///Connection pending
+        ///Click to retry.
+        /// </summary>
+        public static string Flyout_BluetoothButton_Tooltip_ConnectionPending {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothButton_Tooltip_ConnectionPending", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth
+        ///Click to connect.
         /// </summary>
         public static string Flyout_BluetoothButton_Tooltip_Disconnected {
             get {
                 return ResourceManager.GetString("Flyout_BluetoothButton_Tooltip_Disconnected", resourceCulture);
             }
         }
-
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth off
+        ///Click to turn on.
+        /// </summary>
+        public static string Flyout_BluetoothRadio_Tooltip_Off {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothRadio_Tooltip_Off", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth on
+        ///Click to turn off.
+        /// </summary>
+        public static string Flyout_BluetoothRadio_Tooltip_On {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothRadio_Tooltip_On", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth unavailable.
+        /// </summary>
+        public static string Flyout_BluetoothRadio_Tooltip_Unavailable {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothRadio_Tooltip_Unavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth
+        ///Reading radio state.
+        /// </summary>
+        public static string Flyout_BluetoothRadio_Tooltip_Unknown {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothRadio_Tooltip_Unknown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Connected - Audio Waiting.
+        /// </summary>
+        public static string Flyout_BluetoothStatus_AudioWaiting {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothStatus_AudioWaiting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Connection Pending: {0}s.
+        /// </summary>
+        public static string Flyout_BluetoothStatus_ConnectionPending_Format {
+            get {
+                return ResourceManager.GetString("Flyout_BluetoothStatus_ConnectionPending_Format", resourceCulture);
+            }
+        }
+        
         /// <summary>
         ///   Looks up a localized string similar to Communications.
         /// </summary>
@@ -395,6 +384,15 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Flyout_DeviceUnmute_Tooltip {
             get {
                 return ResourceManager.GetString("Flyout_DeviceUnmute_Tooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show/hide disabled devices.
+        /// </summary>
+        public static string Flyout_DisabledDevices_Tooltip {
+            get {
+                return ResourceManager.GetString("Flyout_DisabledDevices_Tooltip", resourceCulture);
             }
         }
         
@@ -980,6 +978,24 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Settings_DeviceAppDrawers_SectionHeader {
             get {
                 return ResourceManager.GetString("Settings_DeviceAppDrawers_SectionHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to While the flyout is visible, open a shared capture stream on each active recording device so software-only peak meters can update. Windows will treat VolumeTrayAppDotNET as using those inputs, and exclusive-mode audio applications may be affected. Off by default..
+        /// </summary>
+        public static string Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description {
+            get {
+                return ResourceManager.GetString("Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activate recording devices for peak meters.
+        /// </summary>
+        public static string Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title {
+            get {
+                return ResourceManager.GetString("Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title", resourceCulture);
             }
         }
         
@@ -1693,7 +1709,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShow", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Always show (intermixed).
         /// </summary>
@@ -1702,16 +1718,16 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_AlwaysShowIntermixed", resourceCulture);
             }
         }
-
+        
         /// <summary>
-        ///   Looks up a localized string similar to Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after the normal device list. The intermixed option instead sorts each endpoint with its playback or recording devices..
+        ///   Looks up a localized string similar to Show follows the disconnected and registry-ghost switches on the Devices page. Always show overrides those switches and puts disconnected Bluetooth endpoints after both the normal playback and recording devices in the configured sort direction. The intermixed option instead sorts each endpoint with its playback or recording devices..
         /// </summary>
         public static string Settings_Flyout_DisconnectedBluetoothDevices_Description {
             get {
                 return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_Description", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Never show.
         /// </summary>
@@ -1720,7 +1736,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_NeverShow", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Show.
         /// </summary>
@@ -1729,7 +1745,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_Show", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Disconnected Bluetooth audio devices.
         /// </summary>
@@ -1738,7 +1754,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_Flyout_DisconnectedBluetoothDevices_Title", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Render the flyout&apos;s title bar (Settings cluster and Undock button) at the bottom of the flyout instead of the top..
         /// </summary>
@@ -1862,6 +1878,24 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Settings_Flyout_SectionHeader {
             get {
                 return ResourceManager.GetString("Settings_Flyout_SectionHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Hides all Bluetooth playback and recording devices from the flyout while the Windows Bluetooth radio is off. This overrides the disconnected Bluetooth visibility mode above..
+        /// </summary>
+        public static string Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Only show Bluetooth devices while Bluetooth is on.
+        /// </summary>
+        public static string Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title", resourceCulture);
             }
         }
         
@@ -2064,7 +2098,7 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Only suppress the beep when the peak meter is above this percentage. Lower values are stricter (silence required); higher values let the beep play even over loud audio..
+        ///   Looks up a localized string similar to Only suppress the beep when the recent rolling peak is above this percentage, scaled by the volume being set. Lower values are stricter; older peaks continuously lose influence through exponential falloff..
         /// </summary>
         public static string Settings_General_DingSuppressionPeakThreshold_Description {
             get {
@@ -2307,15 +2341,6 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to &quot;GPU preferred&quot; uses Avalonia&apos;s Windows GPU path with software fallback. &quot;Software&quot; forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required..
-        /// </summary>
-        public static string Settings_General_RenderingBackend_Description {
-            get {
-                return ResourceManager.GetString("Settings_General_RenderingBackend_Description", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to  (requires admin).
         /// </summary>
         public static string Settings_General_RequiresAdmin_Suffix {
@@ -2389,7 +2414,7 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Don&apos;t play the volume-change beep when the device&apos;s peak meter is above zero, so the feedback won&apos;t step on music, calls, or games..
+        ///   Looks up a localized string similar to Don&apos;t play the volume-change beep when the recent rolling peak is above the volume-adjusted threshold, so the feedback won&apos;t step on music, calls, or games..
         /// </summary>
         public static string Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description {
             get {
@@ -2452,15 +2477,6 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Default amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders..
-        /// </summary>
-        public static string Settings_General_WheelVolumeStepPercent_Description {
-            get {
-                return ResourceManager.GetString("Settings_General_WheelVolumeStepPercent_Description", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Coarse amount to raise or lower volume when a tray-icon scroll uses the Coarse action..
         /// </summary>
         public static string Settings_General_WheelVolumeStepCoarsePercent_Description {
@@ -2468,7 +2484,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_General_WheelVolumeStepCoarsePercent_Description", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Wheel volume step (%) - Coarse.
         /// </summary>
@@ -2477,7 +2493,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_General_WheelVolumeStepCoarsePercent_Title", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Fine amount to raise or lower volume when a tray-icon scroll uses the Fine action..
         /// </summary>
@@ -2486,13 +2502,22 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_General_WheelVolumeStepFinePercent_Description", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Wheel volume step (%) - Fine.
         /// </summary>
         public static string Settings_General_WheelVolumeStepFinePercent_Title {
             get {
                 return ResourceManager.GetString("Settings_General_WheelVolumeStepFinePercent_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Default amount to raise or lower volume for each mouse-wheel notch over the tray icon or flyout sliders..
+        /// </summary>
+        public static string Settings_General_WheelVolumeStepPercent_Description {
+            get {
+                return ResourceManager.GetString("Settings_General_WheelVolumeStepPercent_Description", resourceCulture);
             }
         }
         
@@ -3037,42 +3062,6 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to dark.
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_DarkVariant {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_DarkVariant", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to {0} ({1}).
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_Format {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_Format", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to light.
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_LightVariant {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_LightVariant", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Reset.
-        /// </summary>
-        public static string Settings_Theme_Reset {
-            get {
-                return ResourceManager.GetString("Settings_Theme_Reset", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look..
         /// </summary>
         public static string Settings_Theme_RoundedCorners_Description {
@@ -3368,7 +3357,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_TrayIcon_AltLeftClick_Title", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Alt + mouse wheel.
         /// </summary>
@@ -3413,7 +3402,7 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_TrayIcon_CtrlLeftClick_Title", resourceCulture);
             }
         }
-
+        
         /// <summary>
         ///   Looks up a localized string similar to Ctrl + mouse wheel.
         /// </summary>
@@ -3573,6 +3562,42 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Settings_TrayIcon_PlaybackDeviceName_Title {
             get {
                 return ResourceManager.GetString("Settings_TrayIcon_PlaybackDeviceName_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use precision touchpad scroll reports over the tray icon for finer volume control..
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadScroll_Description {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadScroll_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Precision touchpad.
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadScroll_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadScroll_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Raw touchpad movement units required for each 1% volume step. Lower values are more sensitive..
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Touchpad sensitivity.
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title", resourceCulture);
             }
         }
         
@@ -3739,15 +3764,6 @@ namespace VolumeTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Cancel.
-        /// </summary>
-        public static string Uninstaller_Cancel {
-            get {
-                return ResourceManager.GetString("Uninstaller_Cancel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Close.
         /// </summary>
         public static string Uninstaller_Caption_Close {
@@ -3834,24 +3850,6 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Uninstaller_Title {
             get {
                 return ResourceManager.GetString("Uninstaller_Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Uninstall.
-        /// </summary>
-        public static string Uninstaller_UninstallButton {
-            get {
-                return ResourceManager.GetString("Uninstaller_UninstallButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Uninstalling....
-        /// </summary>
-        public static string Uninstaller_UninstallingButton {
-            get {
-                return ResourceManager.GetString("Uninstaller_UninstallingButton", resourceCulture);
             }
         }
         

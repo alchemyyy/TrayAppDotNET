@@ -52,6 +52,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Update="Localization\CommonStrings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>CommonStrings.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Localization\CommonStrings.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>CommonStrings.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="TrayAppDotNETCommon.XmlSourceGenerator.Tests" />
     <InternalsVisibleTo Include="VolumeTrayAppDotNET.Tests" />
   </ItemGroup>

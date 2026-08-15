@@ -523,7 +523,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             body.Children.Add(scroll);
 
             TextBlock empty = Text(
-                L("Flyout_NoAudioDevices", "No audio devices"),
+                L(nameof(AppStrings.Flyout_NoAudioDevices), "No audio devices"),
                 flyoutPalette,
                 Layout.EmptyDevicesFontSize);
             empty.Opacity = Layout.EmptyDevicesOpacity;
@@ -691,17 +691,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         };
 
         Border settingsButton = HeaderIconButton(GlyphCatalog.SETTINGS, p, _openSettings,
-            L("Flyout_Settings_Tooltip", "Settings"));
+            L(nameof(AppStrings.Flyout_Settings_Tooltip), "Settings"));
         SuppressNextAutoHideWhenPressed(settingsButton);
         left.Children.Add(settingsButton);
         left.Children.Add(HeaderIconButton(GlyphCatalog.SOUND_SETTINGS, p,
             () => DeviceShellLinks.OpenSoundSettings(_settings.SoundSettingsTarget),
-            L("Flyout_SoundSettings_Tooltip", "Sound settings")));
+            L(nameof(AppStrings.Flyout_SoundSettings_Tooltip), "Sound settings")));
         left.Children.Add(HeaderIconButton(
             DisabledDevicesGlyph,
             p,
             ToggleDisabledDevices,
-            L("Flyout_DisabledDevices_Tooltip", "Show/hide disabled devices")));
+            L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip), "Show/hide disabled devices")));
 
         BluetoothRadioPowerState bluetoothRadioState =
             _bluetoothRadioController?.State ?? BluetoothRadioPowerState.Unavailable;
@@ -723,7 +723,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 GlyphCatalog.COMMUNICATIONS_ACTIVITY,
                 p,
                 e => ToggleCommunicationsDucking(e.KeyModifiers),
-                L("Flyout_Communications_Tooltip", "Communications"));
+                L(nameof(AppStrings.Flyout_Communications_Tooltip), "Communications"));
             communications.Opacity = CommunicationsDucking.IsActive()
                 ? 1.0
                 : Layout.HeaderInactiveIconOpacity;
@@ -734,7 +734,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         if (IsUpdateButtonVisible)
         {
-            Border update = TextButton(L("Flyout_Update_ButtonText", "Update!"), p, ShowUpdateConfirmation);
+            Border update = TextButton(L(nameof(AppStrings.Flyout_Update_ButtonText), "Update!"), p, ShowUpdateConfirmation);
             SuppressNextAutoHideWhenPressed(update);
             update.Width = Layout.HeaderUpdateWidth;
             update.Height = Layout.HeaderUpdateHeight;
@@ -747,7 +747,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             update.Margin = bottomHeader
                 ? CenteredHeaderMargin(Layout.HeaderUpdateMarginBottom)
                 : Layout.HeaderUpdateMarginTop;
-            TrayAppDotNETToolTip.SetTip(update, L("Flyout_Update_Tooltip", "Install update"));
+            TrayAppDotNETToolTip.SetTip(update, L(nameof(AppStrings.Flyout_Update_Tooltip), "Install update"));
             update.SetValue(ZIndexProperty, Layout.HeaderUpdateZIndex);
             grid.Children.Add(update);
         }
@@ -1574,8 +1574,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             TrayAppDotNETToolTip.SetTip(
                 button,
                 device.IsMuted
-                    ? L("Flyout_DeviceUnmute_Tooltip", "Unmute")
-                    : L("Flyout_DeviceMute_Tooltip", "Mute"));
+                    ? L(nameof(AppStrings.Flyout_DeviceUnmute_Tooltip), "Unmute")
+                    : L(nameof(AppStrings.Flyout_DeviceMute_Tooltip), "Mute"));
         }
     }
 
@@ -1690,14 +1690,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (device.IsBluetoothConnectionPending)
         {
             return L(
-                "Flyout_BluetoothButton_Tooltip_ConnectionPending",
+                nameof(AppStrings.Flyout_BluetoothButton_Tooltip_ConnectionPending),
                 "Bluetooth\nConnection pending\nClick to retry");
         }
 
         if (device.IsBluetoothAudioWaiting)
         {
             return L(
-                "Flyout_BluetoothButton_Tooltip_AudioWaiting",
+                nameof(AppStrings.Flyout_BluetoothButton_Tooltip_AudioWaiting),
                 "Bluetooth connected\nAudio waiting\nClick to retry");
         }
 
@@ -1705,17 +1705,17 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             return displayedBatteryLevel.HasValue
                 ? string.Format(
-                    L("Flyout_BatteryButton_Tooltip_Disconnected_Format",
+                    L(nameof(AppStrings.Flyout_BatteryButton_Tooltip_Disconnected_Format),
                         "Battery: {0}% (last known)\nClick to connect"),
                     displayedBatteryLevel.Value)
-                : L("Flyout_BluetoothButton_Tooltip_Disconnected", "Bluetooth\nClick to connect");
+                : L(nameof(AppStrings.Flyout_BluetoothButton_Tooltip_Disconnected), "Bluetooth\nClick to connect");
         }
 
         return displayedBatteryLevel.HasValue
             ? string.Format(
-                L("Flyout_BatteryButton_Tooltip_Format", "Battery: {0}%\nCtrl+click to disconnect"),
+                L(nameof(AppStrings.Flyout_BatteryButton_Tooltip_Format), "Battery: {0}%\nCtrl+click to disconnect"),
                 displayedBatteryLevel.Value)
-            : L("Flyout_BluetoothButton_Tooltip_Connected", "Bluetooth\nCtrl+click to disconnect");
+            : L(nameof(AppStrings.Flyout_BluetoothButton_Tooltip_Connected), "Bluetooth\nCtrl+click to disconnect");
     }
 
     private Border? BuildExclusiveButton(AudioDevice device, FlyoutPalette p)
@@ -1747,9 +1747,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             button.Opacity = device.IsExclusiveModeAllowed ? 1.0 : 0.4;
             TrayAppDotNETToolTip.SetTip(button, device.IsExclusiveModeAllowed
                 ? device.IsExclusiveControlHeld
-                    ? L("Flyout_ExclusiveMode_Tooltip_Held", "Exclusive control is held")
-                    : L("Flyout_ExclusiveMode_Tooltip_Allowed", "Exclusive mode allowed")
-                : L("Flyout_ExclusiveMode_Tooltip_Disallowed", "Exclusive mode disallowed"));
+                    ? L(nameof(AppStrings.Flyout_ExclusiveMode_Tooltip_Held), "Exclusive control is held")
+                    : L(nameof(AppStrings.Flyout_ExclusiveMode_Tooltip_Allowed), "Exclusive mode allowed")
+                : L(nameof(AppStrings.Flyout_ExclusiveMode_Tooltip_Disallowed), "Exclusive mode disallowed"));
         }
     }
 
@@ -1822,7 +1822,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             else
                 device.SetListenEnabled(!device.IsListeningToThisDevice);
         }, rightClick: _ => ShowListenTargetMenu(content, button!, device, p));
-        TrayAppDotNETToolTip.SetTip(button, L("Flyout_ListenButton_Tooltip", "Listen to this device"));
+        TrayAppDotNETToolTip.SetTip(button, L(nameof(AppStrings.Flyout_ListenButton_Tooltip), "Listen to this device"));
         UpdateVisual();
 
         device.PropertyChanged += OnDeviceChanged;
@@ -1857,7 +1857,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         glyph.HorizontalAlignment = HorizontalAlignment.Center;
         glyph.VerticalAlignment = VerticalAlignment.Center;
         button.Child = glyph;
-        TrayAppDotNETToolTip.SetTip(button, L("Flyout_DeviceIcon_Tooltip", "Set as default device"));
+        TrayAppDotNETToolTip.SetTip(button, L(nameof(AppStrings.Flyout_DeviceIcon_Tooltip), "Set as default device"));
         TrackDeviceStateButtonHover(content, button);
         UpdateVisual();
 
@@ -2026,8 +2026,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     if (committedChange == FlyoutDockStateChange.PositionSaved) Rebuild();
                     FlushPendingRebuild();
                 },
-                UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
-                RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
+                UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip), "Undock"),
+                RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip), "Redock"),
                 DragThreshold = Layout.DragThreshold
             }));
         controller.Glyph.Foreground = Brush(p.IconForeground);
@@ -2218,16 +2218,16 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private static string BluetoothRadioTooltip(BluetoothRadioPowerState state) => state switch
     {
         BluetoothRadioPowerState.On => L(
-            "Flyout_BluetoothRadio_Tooltip_On",
+            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_On),
             "Bluetooth on\nClick to turn off"),
         BluetoothRadioPowerState.Off => L(
-            "Flyout_BluetoothRadio_Tooltip_Off",
+            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Off),
             "Bluetooth off\nClick to turn on"),
         BluetoothRadioPowerState.Unavailable => L(
-            "Flyout_BluetoothRadio_Tooltip_Unavailable",
+            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Unavailable),
             "Bluetooth unavailable"),
         BluetoothRadioPowerState.Unknown => L(
-            "Flyout_BluetoothRadio_Tooltip_Unknown",
+            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Unknown),
             "Bluetooth\nReading radio state"),
         _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
     };
@@ -2300,7 +2300,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                              && current.Value.SampleRate == rate;
             entries.Add(new FlyoutMenuEntry(
                 string.Format(
-                    L("Flyout_DeviceFormatMenu_Format", "{0} channel, {1} bit, {2} Hz"),
+                    L(nameof(AppStrings.Flyout_DeviceFormatMenu_Format), "{0} channel, {1} bit, {2} Hz"),
                     channels,
                     bits,
                     rate),
@@ -2335,7 +2335,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         List<FlyoutMenuEntry> entries =
         [
             new(
-                L("Flyout_ListenMenu_DefaultPlaybackDevice", "Default Playback Device"),
+                L(nameof(AppStrings.Flyout_ListenMenu_DefaultPlaybackDevice), "Default Playback Device"),
                 currentTarget == null,
                 () => captureDevice.SetListenTarget(null, enable: true))
         ];
@@ -2528,15 +2528,15 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private void ShowEqualizerAPONotAvailableDialog()
     {
-        string body = L("EqualizerAPO_NotAvailable_Body", "Equalizer APO was not found on this system.");
-        string download = L("EqualizerAPO_NotAvailable_DownloadButton", "Download latest x64 installer");
+        string body = L(nameof(AppStrings.EqualizerAPO_NotAvailable_Body), "Equalizer APO was not found on this system.");
+        string download = L(nameof(AppStrings.EqualizerAPO_NotAvailable_DownloadButton), "Download latest x64 installer");
         SettingsPalette palette = VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight());
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
-            L("EqualizerAPO_NotAvailable_Title", "Equalizer APO not detected"),
+            L(nameof(AppStrings.EqualizerAPO_NotAvailable_Title), "Equalizer APO not detected"),
             body,
             string.Empty,
             download,
-            L("UpdateDialog_Cancel", "Cancel"),
+            L(nameof(AppStrings.UpdateDialog_Cancel), "Cancel"),
             palette,
             _settings.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
@@ -2784,10 +2784,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         string connectionStatus = device switch
         {
             { IsBluetoothConnectionPending: true } => string.Format(
-                L("Flyout_BluetoothStatus_ConnectionPending_Format", "Connection Pending: {0}s"),
+                L(nameof(AppStrings.Flyout_BluetoothStatus_ConnectionPending_Format), "Connection Pending: {0}s"),
                 device.BluetoothConnectionSecondsRemaining),
             { IsBluetoothAudioWaiting: true } => L(
-                "Flyout_BluetoothStatus_AudioWaiting",
+                nameof(AppStrings.Flyout_BluetoothStatus_AudioWaiting),
                 "Connected - Audio Waiting"),
             _ => string.Empty
         };
@@ -3006,12 +3006,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private static string EqualizerTooltip(EqualizerAPOState state) => state switch
     {
-        EqualizerAPOState.Running => L("Flyout_EqualizerAPO_Tooltip_Running", "Equalizer APO is running"),
-        EqualizerAPOState.EnhancementsOff => L("Flyout_EqualizerAPO_Tooltip_EnhancementsOff",
+        EqualizerAPOState.Running => L(nameof(AppStrings.Flyout_EqualizerAPO_Tooltip_Running), "Equalizer APO is running"),
+        EqualizerAPOState.EnhancementsOff => L(nameof(AppStrings.Flyout_EqualizerAPO_Tooltip_EnhancementsOff),
             "Enhancements are disabled"),
-        EqualizerAPOState.NotInstalled => L("Flyout_EqualizerAPO_Tooltip_NotInstalled",
+        EqualizerAPOState.NotInstalled => L(nameof(AppStrings.Flyout_EqualizerAPO_Tooltip_NotInstalled),
             "Equalizer APO is not installed"),
-        _ => L("Flyout_EqualizerAPO_Tooltip_NotAvailable", "Equalizer APO is not available")
+        _ => L(nameof(AppStrings.Flyout_EqualizerAPO_Tooltip_NotAvailable), "Equalizer APO is not available")
     };
 
     private static string ScalarText(float scalar) => $"{(int)Math.Round(scalar * 100)}";

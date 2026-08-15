@@ -64,18 +64,18 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
             entries.AddSeparator();
         }
 
-        entries.Add(L("Tray_SoundDevices", "Sound devices"), DeviceShellLinks.OpenPlaybackTab);
+        entries.Add(L(nameof(AppStrings.Tray_SoundDevices), "Sound devices"), DeviceShellLinks.OpenPlaybackTab);
         if (settings.ShowTrayMenuRecordingLink)
             entries.Add(L("Tray_Recording", "Recording"), DeviceShellLinks.OpenRecordingTab);
         if (settings.ShowTrayMenuSoundsLink)
             entries.Add(L("Tray_Sounds", "Sounds"), DeviceShellLinks.OpenSoundsTab);
         if (settings.ShowTrayMenuCommunicationsLink)
             entries.Add(L("Tray_Communications", "Communications"), DeviceShellLinks.OpenCommunicationsTab);
-        entries.Add(L("Tray_Bluetooth", "Bluetooth"), OpenBluetoothFlyout);
+        entries.Add(L(nameof(AppStrings.Tray_Bluetooth), "Bluetooth"), OpenBluetoothFlyout);
         entries.AddSeparator();
-        entries.Add(L("Tray_Settings", "Settings"), openSettings);
+        entries.Add(L(nameof(AppStrings.Tray_Settings), "Settings"), openSettings);
         entries.AddSeparator();
-        entries.Add(L("Tray_Exit", "Exit"), exit);
+        entries.Add(L(nameof(AppStrings.Tray_Exit), "Exit"), exit);
         return entries.ToList();
     }
 

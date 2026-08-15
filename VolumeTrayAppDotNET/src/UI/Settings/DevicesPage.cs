@@ -7,33 +7,33 @@ public sealed partial class VolumeSettingsWindow
     private StackPanel BuildDevicesPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_Devices_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Devices_SectionHeader)), p);
 
         stack.Children.Add(BoolCard(
-            Loc("Settings_Devices_SetDefaultCommsToDefault_Title"),
-            Loc("Settings_Devices_SetDefaultCommsToDefault_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_SetDefaultCommsToDefault_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_SetDefaultCommsToDefault_Description)),
             _settings.SetDefaultCommsToDefault,
             v => _settings.SetDefaultCommsToDefault = v,
             p));
         stack.Children.Add(BoolCard(
-            Loc("Settings_Devices_ShowNotPresent_Title"),
-            Loc("Settings_Devices_ShowNotPresent_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_Description)),
             _settings.ShowNotPresentDevices,
             v => _settings.ShowNotPresentDevices = v,
             p));
         stack.Children.Add(BoolCard(
-            Loc("Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title"),
-            Loc("Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_Description)),
             _settings.ActivateRecordingDevicesForPeakMeters,
             enabled => _settings.ActivateRecordingDevicesForPeakMeters = enabled,
             p));
 
-        string playback = Loc("Settings_Common_Playback");
-        string recording = Loc("Settings_Common_Recording");
-        stack.Children.Add(PairColumnHeader(Loc("Settings_Devices_VisibilityColumn_Header"), p));
+        string playback = Loc(nameof(AppStrings.Settings_Common_Playback));
+        string recording = Loc(nameof(AppStrings.Settings_Common_Recording));
+        stack.Children.Add(PairColumnHeader(Loc(nameof(AppStrings.Settings_Devices_VisibilityColumn_Header)), p));
         stack.Children.Add(PairBoolCard(
-            Loc("Settings_Devices_ShowRecording_Title"),
-            Loc("Settings_Devices_ShowRecording_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ShowRecording_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowRecording_Description)),
             playback,
             recording,
             null,
@@ -44,8 +44,8 @@ public sealed partial class VolumeSettingsWindow
             showRight: true,
             afterSave: RefreshCurrentPage));
         stack.Children.Add(PairBoolCard(
-            Loc("Settings_Devices_ShowDisabled_Title"),
-            Loc("Settings_Devices_ShowDisabled_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_Description)),
             playback,
             recording,
             _settings.ShowDisabledPlaybackDevices,
@@ -59,8 +59,8 @@ public sealed partial class VolumeSettingsWindow
         bool hideDefaultCards = _settings.ShowDisabledPlaybackDevices
                                 && (!_settings.ShowRecordingDevices || _settings.ShowDisabledRecordingDevices);
         stack.Children.Add(Maybe(!hideDefaultCards, PairBoolCard(
-            Loc("Settings_Devices_ShowDefaultEvenIfDisabled_Title"),
-            Loc("Settings_Devices_ShowDefaultEvenIfDisabled_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDefaultEvenIfDisabled_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDefaultEvenIfDisabled_Description)),
             playback,
             recording,
             _settings.ShowDefaultPlaybackDeviceEvenIfDisabled,
@@ -71,8 +71,8 @@ public sealed partial class VolumeSettingsWindow
             showLeft: !_settings.ShowDisabledPlaybackDevices,
             showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false })));
         stack.Children.Add(Maybe(!hideDefaultCards, PairBoolCard(
-            Loc("Settings_Devices_ShowDefaultCommsEvenIfDisabled_Title"),
-            Loc("Settings_Devices_ShowDefaultCommsEvenIfDisabled_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_Description)),
             playback,
             recording,
             _settings.ShowDefaultCommsPlaybackDeviceEvenIfDisabled,
@@ -83,8 +83,8 @@ public sealed partial class VolumeSettingsWindow
             showLeft: !_settings.ShowDisabledPlaybackDevices,
             showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false })));
         stack.Children.Add(PairBoolCard(
-            Loc("Settings_Devices_ShowDisconnectedPlayback_Title"),
-            Loc("Settings_Devices_ShowDisconnectedPlayback_Description"),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_Description)),
             playback,
             recording,
             _settings.ShowDisconnectedPlaybackDevices,
@@ -94,28 +94,28 @@ public sealed partial class VolumeSettingsWindow
             p,
             showRight: _settings.ShowRecordingDevices));
 
-        stack.Children.Add(PairColumnHeader(Loc("Settings_Devices_RowButtons_Header"), p));
-        stack.Children.Add(PairBoolCard(Loc("Settings_Devices_ShowPlaybackLockButton_Title"),
-            Loc("Settings_Devices_ShowPlaybackLockButton_Description"),
+        stack.Children.Add(PairColumnHeader(Loc(nameof(AppStrings.Settings_Devices_RowButtons_Header)), p));
+        stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackLockButton_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackLockButton_Description)),
             playback, recording, _settings.ShowLockButtonForPlayback, v => _settings.ShowLockButtonForPlayback = v,
             _settings.ShowLockButtonForRecording, v => _settings.ShowLockButtonForRecording = v, p));
-        stack.Children.Add(PairBoolCard(Loc("Settings_Devices_ShowPlaybackEqualizerAPOButton_Title"),
-            Loc("Settings_Devices_ShowPlaybackEqualizerAPOButton_Description"),
+        stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_Description)),
             playback, recording, _settings.ShowEqualizerAPOButtonForPlayback,
             v => _settings.ShowEqualizerAPOButtonForPlayback = v, _settings.ShowEqualizerAPOButtonForRecording,
             v => _settings.ShowEqualizerAPOButtonForRecording = v, p));
-        stack.Children.Add(PairBoolCard(Loc("Settings_Devices_ShowPlaybackDefaultDeviceButton_Title"),
-            Loc("Settings_Devices_ShowPlaybackDefaultDeviceButton_Description"),
+        stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_Description)),
             playback, recording, _settings.ShowDefaultDeviceButtonForPlayback,
             v => _settings.ShowDefaultDeviceButtonForPlayback = v, _settings.ShowDefaultDeviceButtonForRecording,
             v => _settings.ShowDefaultDeviceButtonForRecording = v, p));
-        stack.Children.Add(PairBoolCard(Loc("Settings_Devices_ShowPlaybackBatteryButton_Title"),
-            Loc("Settings_Devices_ShowPlaybackBatteryButton_Description"),
+        stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_Description)),
             playback, recording, _settings.ShowBatteryButtonForPlayback,
             v => _settings.ShowBatteryButtonForPlayback = v, _settings.ShowBatteryButtonForRecording,
             v => _settings.ShowBatteryButtonForRecording = v, p));
-        stack.Children.Add(PairBoolCard(Loc("Settings_Devices_ShowRecordingListenButton_Title"),
-            Loc("Settings_Devices_ShowRecordingListenButton_Description"),
+        stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Title)),
+            Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Description)),
             playback, recording, null, null, _settings.ShowListenButtonForRecording,
             v => _settings.ShowListenButtonForRecording = v, p));
 

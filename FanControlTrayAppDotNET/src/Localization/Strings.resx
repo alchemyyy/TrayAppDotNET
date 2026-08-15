@@ -58,38 +58,8 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="ColorPicker_ArgbHexLabel" xml:space="preserve">
-    <value>argb hex:</value>
-  </data>
-  <data name="ColorPicker_ChannelLabel_Alpha" xml:space="preserve">
-    <value>alpha</value>
-  </data>
-  <data name="ColorPicker_ChannelLabel_B" xml:space="preserve">
-    <value>b</value>
-  </data>
-  <data name="ColorPicker_ChannelLabel_G" xml:space="preserve">
-    <value>g</value>
-  </data>
-  <data name="ColorPicker_ChannelLabel_Hue" xml:space="preserve">
-    <value>hue</value>
-  </data>
-  <data name="ColorPicker_ChannelLabel_R" xml:space="preserve">
-    <value>r</value>
-  </data>
-  <data name="ColorPicker_CloseTooltip" xml:space="preserve">
-    <value>Close</value>
-  </data>
-  <data name="ColorPicker_DefaultButton" xml:space="preserve">
-    <value>Default</value>
-  </data>
   <data name="ColorPicker_DefaultTitle" xml:space="preserve">
     <value>ColorPicker</value>
-  </data>
-  <data name="ColorPicker_ResetButton" xml:space="preserve">
-    <value>Reset</value>
-  </data>
-  <data name="ColorPicker_RgbaHexLabel" xml:space="preserve">
-    <value>rgba hex:</value>
   </data>
   <data name="SettingsWindow_Caption_Close" xml:space="preserve">
     <value>Close</value>
@@ -144,9 +114,6 @@
   </data>
   <data name="Settings_About_CheckForUpdates_Button" xml:space="preserve">
     <value>Check for updates</value>
-  </data>
-  <data name="Settings_About_SkipUpdate_Button" xml:space="preserve">
-    <value>Skip this release</value>
   </data>
   <data name="Settings_About_CheckForUpdates_Description" xml:space="preserve">
     <value>Periodically ask GitHub if a newer release is available.</value>
@@ -232,9 +199,6 @@
   <data name="Settings_About_UpdateStatus_NeverChecked" xml:space="preserve">
     <value>No update check has run yet.</value>
   </data>
-  <data name="Settings_About_UpdateStatus_SkippedFormat" xml:space="preserve">
-    <value>Release {0} skipped. You'll be notified when a newer release is available.</value>
-  </data>
   <data name="Settings_About_UpdateStatus_Unavailable" xml:space="preserve">
     <value>Update service is not available.</value>
   </data>
@@ -297,9 +261,6 @@
   </data>
   <data name="UpdateDialog_Install" xml:space="preserve">
     <value>Install</value>
-  </data>
-  <data name="UpdateDialog_SkipRelease" xml:space="preserve">
-    <value>Skip this release</value>
   </data>
   <data name="UpdateDialog_NoChangelog" xml:space="preserve">
     <value>(no changelog provided)</value>
@@ -683,18 +644,6 @@ Target: {1}</value>
   <data name="Settings_Theme_GroupCardBackgroundColor_Title" xml:space="preserve">
     <value>Group card background</value>
   </data>
-  <data name="Settings_Theme_PickerTitle_DarkVariant" xml:space="preserve">
-    <value>dark</value>
-  </data>
-  <data name="Settings_Theme_PickerTitle_Format" xml:space="preserve">
-    <value>{0} ({1})</value>
-  </data>
-  <data name="Settings_Theme_PickerTitle_LightVariant" xml:space="preserve">
-    <value>light</value>
-  </data>
-  <data name="Settings_Theme_Reset" xml:space="preserve">
-    <value>Reset</value>
-  </data>
   <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
     <value>Applies rounded corners to the flyout, settings cards, buttons, and menus. Turn off for a squared-off look.</value>
   </data>
@@ -854,9 +803,6 @@ Target: {1}</value>
   <data name="Settings_TrayIcon_AltDoubleLeftClick_Title" xml:space="preserve">
     <value>Alt + double left click</value>
   </data>
-  <data name="Uninstaller_Cancel" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
   <data name="Uninstaller_Caption_Close" xml:space="preserve">
     <value>Close</value>
   </data>
@@ -886,59 +832,5 @@ Target: {1}</value>
   </data>
   <data name="Uninstaller_Title" xml:space="preserve">
     <value>Uninstall FanControlTrayAppDotNET</value>
-  </data>
-  <data name="Uninstaller_UninstallButton" xml:space="preserve">
-    <value>Uninstall</value>
-  </data>
-  <data name="Uninstaller_UninstallingButton" xml:space="preserve">
-    <value>Uninstalling...</value>
-  </data>
-  <data name="Settings_General_RenderingBackend_Description" xml:space="preserve">
-    <value>"GPU preferred" uses Avalonia's Windows GPU path with software fallback. "Software" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required.</value>
-  </data>
-  <data name="Settings_About_Backdate_Title" xml:space="preserve">
-    <value>Backdate app</value>
-  </data>
-  <data name="Settings_About_Backdate_Checking" xml:space="preserve">
-    <value>Checking GitHub for the previous version...</value>
-  </data>
-  <data name="Settings_About_Backdate_AvailableFormat" xml:space="preserve">
-    <value>Previous available version: {0}. Installing it will restart the app.</value>
-  </data>
-  <data name="Settings_About_Backdate_None" xml:space="preserve">
-    <value>No previous release is available for this app.</value>
-  </data>
-  <data name="Settings_About_Backdate_Failed" xml:space="preserve">
-    <value>The previous release could not be checked.</value>
-  </data>
-  <data name="Settings_About_Backdate_Button" xml:space="preserve">
-    <value>Backdate</value>
-  </data>
-  <data name="BackdateDialog_TitleFormat" xml:space="preserve">
-    <value>Backdate to {0}?</value>
-  </data>
-  <data name="BackdateDialog_DescriptionFormat" xml:space="preserve">
-    <value>This will replace the current version with {0} and restart the app.</value>
-  </data>
-  <data name="BackdateDialog_Confirm" xml:space="preserve">
-    <value>Backdate</value>
-  </data>
-  <data name="BackdateDialog_SkipCurrentTitle" xml:space="preserve">
-    <value>Skip the current version?</value>
-  </data>
-  <data name="BackdateDialog_SkipCurrentDescriptionFormat" xml:space="preserve">
-    <value>After backdating, version {0} will be offered as an update. Do you want to skip it?</value>
-  </data>
-  <data name="BackdateDialog_Yes" xml:space="preserve">
-    <value>Yes</value>
-  </data>
-  <data name="BackdateDialog_No" xml:space="preserve">
-    <value>No</value>
-  </data>
-  <data name="BackdateDialog_FailedTitle" xml:space="preserve">
-    <value>Backdate failed</value>
-  </data>
-  <data name="BackdateDialog_DownloadFailed" xml:space="preserve">
-    <value>The previous version could not be downloaded. Check the log for details.</value>
   </data>
 </root>

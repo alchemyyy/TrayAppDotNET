@@ -803,7 +803,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         {
             string label = profileManager.GetName(i) is { Length: > 0 } name
                 ? name
-                : string.Format(L("Tray_Profile_Format", "Profile {0}"), i + 1);
+                : string.Format(L(nameof(AppStrings.Tray_Profile_Format), "Profile {0}"), i + 1);
             profiles.Add(new BrightnessTrayMenuProfile(i, label, i == profileManager.SelectedIndex));
         }
 
@@ -985,11 +985,11 @@ internal sealed class BrightnessAvaloniaApp : Application
         int brightness = monitors.Count > 0
             ? ComputeTrackedIconBrightness(monitors)
             : _settings?.LastMasterBrightness ?? 100;
-        string tooltip = string.Format(L("Tray_Tooltip_Brightness_Format", "Brightness: {0}%"), brightness);
+        string tooltip = string.Format(L(nameof(AppStrings.Tray_Tooltip_Brightness_Format), "Brightness: {0}%"), brightness);
 
         if (NightLightProvider.IsSupported() && NightLightProvider.IsEnabled())
         {
-            tooltip += string.Format(L("Tray_Tooltip_NightLight_Format", " - Night light: {0}%"),
+            tooltip += string.Format(L(nameof(AppStrings.Tray_Tooltip_NightLight_Format), " - Night light: {0}%"),
                 GetCurrentNightLightTooltipStrength());
         }
 
@@ -1090,8 +1090,8 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         _lastNotifiedUpdateVersion = info.Version;
         _trayIcon?.ShowBalloon(
-            L("UpdateNotification_Title", "Update available"),
-            string.Format(L("UpdateNotification_BodyFormat", "{0} is available."), info.ReleaseName));
+            L(nameof(AppStrings.UpdateNotification_Title), "Update available"),
+            string.Format(L(nameof(AppStrings.UpdateNotification_BodyFormat), "{0} is available."), info.ReleaseName));
     }
 
     private void OnNightLightEnabledStateChanged()

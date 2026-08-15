@@ -17,7 +17,7 @@ public sealed partial class BrightnessSettingsWindow
             Localize = L,
             Save = Save,
             ApplicationName = Constants.ApplicationName,
-            Tagline = L("Settings_About_Tagline", "A tray-based brightness controller for DDC/CI monitors."),
+            Tagline = L(nameof(AppStrings.Settings_About_Tagline), "A tray-based brightness controller for DDC/CI monitors."),
             BuildNumber = BuildInfo.BuildNumber,
             Publisher = Constants.Publisher,
             HelpLink = Constants.HelpLink,
@@ -33,12 +33,12 @@ public sealed partial class BrightnessSettingsWindow
             KnownIssues =
             [
                 new TrayAppDotNETKnownIssue(
-                    L("Settings_About_NightLightCorruption_Title", "Night Light corruption"),
-                    L("Settings_About_NightLightCorruption_Description",
+                    L(nameof(AppStrings.Settings_About_NightLightCorruption_Title), "Night Light corruption"),
+                    L(nameof(AppStrings.Settings_About_NightLightCorruption_Description),
                         "If Night Light becomes unresponsive, win+alt+shift+b then signing out and back in should clear it.")),
                 new TrayAppDotNETKnownIssue(
-                    L("Settings_About_DDCCorruption_Title", "DDC state corruption"),
-                    L("Settings_About_DDCCorruption_Description",
+                    L(nameof(AppStrings.Settings_About_DDCCorruption_Title), "DDC state corruption"),
+                    L(nameof(AppStrings.Settings_About_DDCCorruption_Description),
                         "If a monitor becomes unrecoverable, its slider will show with a warning triangle glyph. The monitor will have to be power cycled to restore DDC."))
             ]
         }));

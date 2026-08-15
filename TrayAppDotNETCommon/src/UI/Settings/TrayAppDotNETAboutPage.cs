@@ -224,7 +224,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(UpdateStatusText(CurrentService), p);
 
         SettingsButton check = Button(L("Settings_About_CheckForUpdates_Button", "Check for updates"), p);
-        SettingsButton skip = Button(L("Settings_About_SkipUpdate_Button", "Skip this release"), p);
+        SettingsButton skip = Button(L(nameof(CommonStrings.Settings_About_SkipUpdate_Button), "Skip this release"), p);
         SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p);
         check.Margin = layout.UpdateCheckButtonMargin;
         skip.Margin = layout.UpdateCheckButtonMargin;
@@ -254,9 +254,9 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private Border BuildBackdateCard(SettingsPalette p)
     {
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
-            L("Settings_About_Backdate_Checking", "Checking GitHub for the previous version..."),
+            L(nameof(CommonStrings.Settings_About_Backdate_Checking), "Checking GitHub for the previous version..."),
             p);
-        SettingsButton backdate = Button(L("Settings_About_Backdate_Button", "Backdate"), p);
+        SettingsButton backdate = Button(L(nameof(CommonStrings.Settings_About_Backdate_Button), "Backdate"), p);
         backdate.Click += async (_, _) => await BackdateAsync();
 
         Grid grid = new();
@@ -265,7 +265,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         StackPanel text = new();
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(
-            L("Settings_About_Backdate_Title", "Backdate app"),
+            L(nameof(CommonStrings.Settings_About_Backdate_Title), "Backdate app"),
             p));
         text.Children.Add(description);
         grid.Children.Add(text);
@@ -555,13 +555,13 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         if (_previousReleaseLookupInProgress)
         {
             _backdateDescriptionText.Text = L(
-                "Settings_About_Backdate_Checking",
+                nameof(CommonStrings.Settings_About_Backdate_Checking),
                 "Checking GitHub for the previous version...");
         }
         else if (_previousReleaseLookupFailed)
         {
             _backdateDescriptionText.Text = L(
-                "Settings_About_Backdate_Failed",
+                nameof(CommonStrings.Settings_About_Backdate_Failed),
                 "The previous release could not be checked.");
         }
         else if (_previousRelease is { } previousRelease)
@@ -569,14 +569,14 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _backdateDescriptionText.Text = string.Format(
                 CultureInfo.CurrentCulture,
                 L(
-                    "Settings_About_Backdate_AvailableFormat",
+                    nameof(CommonStrings.Settings_About_Backdate_AvailableFormat),
                     "Previous available version: {0}. Installing it will restart the app."),
                 previousRelease.Version);
         }
         else
         {
             _backdateDescriptionText.Text = L(
-                "Settings_About_Backdate_None",
+                nameof(CommonStrings.Settings_About_Backdate_None),
                 "No previous release is available for this app.");
         }
 
@@ -614,7 +614,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         {
             return string.Format(
                 CultureInfo.CurrentCulture,
-                L("Settings_About_UpdateStatus_SkippedFormat",
+                L(nameof(CommonStrings.Settings_About_UpdateStatus_SkippedFormat),
                     "Release {0} skipped. You'll be notified when a newer release is available."),
                 service.SkippedUpdateVersion);
         }

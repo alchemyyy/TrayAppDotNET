@@ -148,8 +148,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             theme,
             monitorService,
             AppServices.Settings,
-            L("Flyout_MasterRowName", "All displays"),
-            L("Flyout_NightLightRowName", "Night light"),
+            L(nameof(AppStrings.Flyout_MasterRowName), "All displays"),
+            L(nameof(AppStrings.Flyout_NightLightRowName), "Night light"),
             inDisabled => IsInCurveDisabledPeriod = inDisabled,
             AutoEngageBrightnessCurveManualOverride);
 
@@ -1160,7 +1160,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             new Glyph(_theme.GlyphSettings, GlyphCatalog.SETTINGS.Font),
             palette,
             () => SettingsRequested?.Invoke(),
-            L("Tray_Settings", "Settings"));
+            L(nameof(AppStrings.Tray_Settings), "Settings"));
         SuppressNextAutoHideWhenPressed(settingsButton);
         actions.Children.Add(settingsButton);
         Grid.SetColumn(actions, 2);
@@ -1537,8 +1537,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _isDraggingWindow = dragging;
             },
             InteractionCompleted = _ => FlushPendingRebuildVisual(),
-            UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
-            RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
+            UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip), "Undock"),
+            RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip), "Redock"),
             DragThreshold = Layout.DragThreshold,
             CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
         }));
@@ -2446,10 +2446,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             {
                 ShowConfirmOverlay(
                     L("Flyout_HardPowerOff_Title", "Power off display"),
-                    L("Flyout_HardPowerOff_WarningText",
+                    L(nameof(AppStrings.Flyout_HardPowerOff_WarningText),
                         "This sends a hard power-off command to the display. Use it only when DDC/CI recovery is needed."),
-                    okText: L("Flyout_HardPowerOff_Confirm", "Power off"),
-                    cancelText: L("Flyout_HardPowerOff_Abort", "Cancel"),
+                    okText: L(nameof(AppStrings.Flyout_HardPowerOff_Confirm), "Power off"),
+                    cancelText: L(nameof(AppStrings.Flyout_HardPowerOff_Abort), "Cancel"),
                     onOK: () =>
                     {
                         CancelConfirmOverlay();
@@ -2513,7 +2513,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         CancellationToken cancellationToken = WindowResources.CancellationToken;
         ShowConfirmOverlay(
             L("Flyout_HardPowerOff_Title", "Power off display"),
-            L("Flyout_HardPowerOff_InProgress", "Sending hard power-off command..."),
+            L(nameof(AppStrings.Flyout_HardPowerOff_InProgress), "Sending hard power-off command..."),
             okText: L("Common_OK", "OK"),
             cancelText: null,
             onOK: CancelConfirmOverlay);
@@ -2541,13 +2541,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                     !window.IsWindowAlive)
                     return;
                 string message = ok
-                    ? L("Flyout_HardPowerOff_Success", "The hard power-off command was sent.")
+                    ? L(nameof(AppStrings.Flyout_HardPowerOff_Success), "The hard power-off command was sent.")
                     : string.Format(
                         CultureInfo.CurrentCulture,
-                        L("Flyout_HardPowerOff_FailedFormat", "Hard power-off failed: {0}"),
+                        L(nameof(AppStrings.Flyout_HardPowerOff_FailedFormat), "Hard power-off failed: {0}"),
                         !string.IsNullOrWhiteSpace(error)
                             ? error
-                            : lastDDCError ?? L("Flyout_HardPowerOff_NoResponseDetail",
+                            : lastDDCError ?? L(nameof(AppStrings.Flyout_HardPowerOff_NoResponseDetail),
                                 "No response from the display."));
                 window.ShowConfirmOverlay(
                     L("Flyout_HardPowerOff_Title", "Power off display"),
@@ -3485,7 +3485,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             int strength = FlipIfNightLightInverted(monitor.RoundedBrightness);
             string suffix = _settings?.TurnOffNightLightAtZeroStrength == true && strength <= 0
-                ? L("NightLight_OffSuffix", "Off")
+                ? L(nameof(AppStrings.NightLight_OffSuffix), "Off")
                 : $"{NightLightKelvin.PercentToKelvin(strength).ToString(CultureInfo.InvariantCulture)}K";
             return $"{monitor.Name} {suffix}";
         }
@@ -3531,8 +3531,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private static string CurveModeTooltip(MonitorInfo monitor) =>
         monitor.IsCurveReleased
-            ? L("Flyout_CurveMode_ManualTooltip", "Manual override")
-            : L("Flyout_CurveMode_CurveTooltip", "Curve control");
+            ? L(nameof(AppStrings.Flyout_CurveMode_ManualTooltip), "Manual override")
+            : L(nameof(AppStrings.Flyout_CurveMode_CurveTooltip), "Curve control");
 
     private void ApplyCurveModeButtonVisual(MonitorInfo monitor, Border? button)
     {

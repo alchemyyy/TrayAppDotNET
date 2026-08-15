@@ -13,9 +13,9 @@ public sealed partial class NetworkSettingsWindow
     private StackPanel BuildHotkeysPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc("Settings_Hotkeys_SectionHeader"), p);
+        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p);
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            Loc("Settings_Hotkeys_SectionDescription"), p, new Thickness(0, 0, 0, 16)));
+            Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p, new Thickness(0, 0, 0, 16)));
 
         TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, 240);
         StackPanel searchRow = new()
@@ -24,7 +24,7 @@ public sealed partial class NetworkSettingsWindow
             HorizontalAlignment = HorizontalAlignment.Left,
             Margin = new Thickness(0, 0, 0, 12)
         };
-        TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(Loc("Settings_Hotkeys_SearchLabel"), p);
+        TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(Loc(nameof(AppStrings.Settings_Hotkeys_SearchLabel)), p);
         searchLabel.VerticalAlignment = VerticalAlignment.Center;
         searchLabel.Margin = new Thickness(0, 0, 8, 0);
         searchRow.Children.Add(searchLabel);
@@ -37,8 +37,8 @@ public sealed partial class NetworkSettingsWindow
             L("Settings_Hotkeys_OpenFlyout_Description", "Show the network flyout above the tray icon."),
             p);
         AddHotkeyRow(stack, rows, HotkeyAction.OpenSettings,
-            Loc("Settings_Hotkeys_OpenSettings_Title"),
-            Loc("Settings_Hotkeys_OpenSettings_Description"),
+            Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
+            Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
             p);
 
         searchBox.TextChanged += (_, _) =>
@@ -74,7 +74,7 @@ public sealed partial class NetworkSettingsWindow
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(Loc("Settings_Hotkeys_Add_Button"), p);
+        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
@@ -82,7 +82,7 @@ public sealed partial class NetworkSettingsWindow
         {
             if (selectedModifiers == 0 || selectedVk == 0)
             {
-                addButton.Text = Loc("Settings_Hotkeys_Add_Button");
+                addButton.Text = Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
                 addButton.IsEnabled = false;
                 return;
             }
@@ -93,8 +93,8 @@ public sealed partial class NetworkSettingsWindow
                 && b.Modifiers == selectedModifiers
                 && b.VirtualKey == selectedVk);
             addButton.Text = exists
-                ? Loc("Settings_Hotkeys_Exists_Button")
-                : Loc("Settings_Hotkeys_Add_Button");
+                ? Loc(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
+                : Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
             addButton.IsEnabled = !exists;
         }
 
@@ -213,21 +213,21 @@ public sealed partial class NetworkSettingsWindow
         if (AppServices.HotkeyService == null)
         {
             status.Text = GlyphCatalog.WARNING.Text;
-            TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_HotkeyServiceUnavailable"));
+            TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable)));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
             status.Text = GlyphCatalog.WARNING.Text;
             TrayAppDotNETToolTip.SetTip(status, error);
         }
-        else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc("Settings_Hotkeys_Status_Registered"));
+        else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
         SettingsButton delete = Button("x", p);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
         delete.Label.FontSize = 20;
-        TrayAppDotNETToolTip.SetTip(delete, Loc("Settings_Hotkeys_DeleteHotkey_ToolTip"));
+        TrayAppDotNETToolTip.SetTip(delete, Loc(nameof(AppStrings.Settings_Hotkeys_DeleteHotkey_ToolTip)));
         delete.Click += (_, _) =>
         {
             if (AppSettings.IsDefaultHotkeyIdentity(action, string.Empty, binding.BindingID))

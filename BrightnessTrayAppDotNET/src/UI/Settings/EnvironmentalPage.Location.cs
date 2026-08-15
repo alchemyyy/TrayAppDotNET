@@ -66,7 +66,7 @@ public sealed partial class BrightnessSettingsWindow
 
         button.IsEnabled = false;
         string original = button.Text;
-        button.Text = L("Settings_Environmental_ApproxFromIP_Locating", "Locating...");
+        button.Text = L(nameof(AppStrings.Settings_Environmental_ApproxFromIP_Locating), "Locating...");
         try
         {
             using HttpResponseMessage response = await EnvironmentalHttpClient

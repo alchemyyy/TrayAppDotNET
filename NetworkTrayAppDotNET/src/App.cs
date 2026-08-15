@@ -359,7 +359,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         if (_trayIcon == null) return;
         string tooltip = _networkMonitor?.GetTooltipText()
-                         ?? L("Tray_Tooltip_Default", Constants.ApplicationName);
+                         ?? L(nameof(AppStrings.Tray_Tooltip_Default), Constants.ApplicationName);
 
         if (_networkMonitor != null && _networkIconRenderer != null)
         {
@@ -491,10 +491,10 @@ internal sealed class NetworkAvaloniaApp : Application
             TrayMenuPalette(),
             rounded: _settings?.EnableRoundedCorners ?? true,
             fontSize: _settings?.ContextMenuFontSize ?? 15,
-            networkSettingsText: L("Tray_NetworkSettings", "Network settings"),
-            adapterSettingsText: L("Tray_AdapterSettings", "Adapter settings"),
-            settingsText: L("Tray_Settings", "Settings"),
-            exitText: L("Tray_Exit", "Exit"),
+            networkSettingsText: L(nameof(AppStrings.Tray_NetworkSettings), "Network settings"),
+            adapterSettingsText: L(nameof(AppStrings.Tray_AdapterSettings), "Adapter settings"),
+            settingsText: L(nameof(AppStrings.Tray_Settings), "Settings"),
+            exitText: L(nameof(AppStrings.Tray_Exit), "Exit"),
             openNetworkSettings: OpenNetworkSettings,
             openAdapterSettings: OpenAdapterSettings,
             openSettings: () => OpenSettings(),

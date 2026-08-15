@@ -61,101 +61,11 @@ namespace BrightnessTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to argb hex:.
-        /// </summary>
-        public static string ColorPicker_ArgbHexLabel {
-            get {
-                return ResourceManager.GetString("ColorPicker_ArgbHexLabel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to alpha.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_Alpha {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_Alpha", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to b.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_B {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_B", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to g.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_G {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_G", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to hue.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_Hue {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_Hue", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to r.
-        /// </summary>
-        public static string ColorPicker_ChannelLabel_R {
-            get {
-                return ResourceManager.GetString("ColorPicker_ChannelLabel_R", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Close.
-        /// </summary>
-        public static string ColorPicker_CloseTooltip {
-            get {
-                return ResourceManager.GetString("ColorPicker_CloseTooltip", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Default.
-        /// </summary>
-        public static string ColorPicker_DefaultButton {
-            get {
-                return ResourceManager.GetString("ColorPicker_DefaultButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to ColorPicker.
         /// </summary>
         public static string ColorPicker_DefaultTitle {
             get {
                 return ResourceManager.GetString("ColorPicker_DefaultTitle", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Reset.
-        /// </summary>
-        public static string ColorPicker_ResetButton {
-            get {
-                return ResourceManager.GetString("ColorPicker_ResetButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to rgba hex:.
-        /// </summary>
-        public static string ColorPicker_RgbaHexLabel {
-            get {
-                return ResourceManager.GetString("ColorPicker_RgbaHexLabel", resourceCulture);
             }
         }
         
@@ -192,6 +102,24 @@ namespace BrightnessTrayAppDotNET.Localization {
         public static string Common_SecondsSuffix {
             get {
                 return ResourceManager.GetString("Common_SecondsSuffix", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Curve control.
+        /// </summary>
+        public static string Flyout_CurveMode_CurveTooltip {
+            get {
+                return ResourceManager.GetString("Flyout_CurveMode_CurveTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Manual override.
+        /// </summary>
+        public static string Flyout_CurveMode_ManualTooltip {
+            get {
+                return ResourceManager.GetString("Flyout_CurveMode_ManualTooltip", resourceCulture);
             }
         }
         
@@ -1359,6 +1287,24 @@ namespace BrightnessTrayAppDotNET.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Keep the undocked flyout fully inside one monitor&apos;s work area when it restores or repositions..
+        /// </summary>
+        public static string Settings_Flyout_ClampUndockedToScreen_Description {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ClampUndockedToScreen_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep undocked flyout on screen.
+        /// </summary>
+        public static string Settings_Flyout_ClampUndockedToScreen_Title {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ClampUndockedToScreen_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Average.
         /// </summary>
         public static string Settings_Flyout_MasterSliderTracking_Average {
@@ -1976,15 +1922,6 @@ namespace BrightnessTrayAppDotNET.Localization {
         public static string Settings_General_RearrangeProfiles_Title {
             get {
                 return ResourceManager.GetString("Settings_General_RearrangeProfiles_Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to &quot;GPU preferred&quot; uses Avalonia&apos;s Windows GPU path with software fallback. &quot;Software&quot; forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required..
-        /// </summary>
-        public static string Settings_General_RenderingBackend_Description {
-            get {
-                return ResourceManager.GetString("Settings_General_RenderingBackend_Description", resourceCulture);
             }
         }
         
@@ -3106,7 +3043,7 @@ namespace BrightnessTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Number of times to retry a brightness read before giving up. Each retry waits one validation dwell, and the final attempt also refreshes the cached HMONITOR. Higher = more tolerant of transient I2C noise; lower = faster failure for genuinely stuck monitors..
+        ///   Looks up a localized string similar to Number of times to verify brightness and readable power-state writes before giving up. Higher = more tolerant of transient I2C noise; lower = faster failure for genuinely stuck monitors..
         /// </summary>
         public static string Settings_Monitors_ValidationAttempts_Description {
             get {
@@ -3124,7 +3061,7 @@ namespace BrightnessTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to How long to wait after a settled brightness write before reading it back to confirm it applied. Increase on slow-responding monitors..
+        ///   Looks up a localized string similar to Maximum retry dwell while reading back brightness or power state to confirm a write applied. Increase on slow-responding monitors..
         /// </summary>
         public static string Settings_Monitors_ValidationDwell_Description {
             get {
@@ -3570,42 +3507,6 @@ namespace BrightnessTrayAppDotNET.Localization {
         public static string Settings_Theme_NightLightCurveColor_Title {
             get {
                 return ResourceManager.GetString("Settings_Theme_NightLightCurveColor_Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to dark.
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_DarkVariant {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_DarkVariant", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to {0} ({1}).
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_Format {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_Format", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to light.
-        /// </summary>
-        public static string Settings_Theme_PickerTitle_LightVariant {
-            get {
-                return ResourceManager.GetString("Settings_Theme_PickerTitle_LightVariant", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Reset.
-        /// </summary>
-        public static string Settings_Theme_Reset {
-            get {
-                return ResourceManager.GetString("Settings_Theme_Reset", resourceCulture);
             }
         }
         
@@ -4078,6 +3979,60 @@ namespace BrightnessTrayAppDotNET.Localization {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to How many percent each mouse wheel notch adjusts brightness from the tray icon or flyout sliders..
+        /// </summary>
+        public static string Settings_TrayIcon_MouseWheelStep_Description {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_MouseWheelStep_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mouse wheel step.
+        /// </summary>
+        public static string Settings_TrayIcon_MouseWheelStep_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_MouseWheelStep_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Use precision touchpad scroll reports over the tray icon for finer brightness control..
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadScroll_Description {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadScroll_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Precision touchpad.
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadScroll_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadScroll_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Raw touchpad movement units required for each 1% brightness step. Lower values are more sensitive..
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Touchpad sensitivity.
+        /// </summary>
+        public static string Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title {
+            get {
+                return ResourceManager.GetString("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Tray Icon.
         /// </summary>
         public static string Settings_TrayIcon_SectionHeader {
@@ -4322,15 +4277,6 @@ namespace BrightnessTrayAppDotNET.Localization {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Cancel.
-        /// </summary>
-        public static string Uninstaller_Cancel {
-            get {
-                return ResourceManager.GetString("Uninstaller_Cancel", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Close.
         /// </summary>
         public static string Uninstaller_Caption_Close {
@@ -4417,24 +4363,6 @@ namespace BrightnessTrayAppDotNET.Localization {
         public static string Uninstaller_Title {
             get {
                 return ResourceManager.GetString("Uninstaller_Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Uninstall.
-        /// </summary>
-        public static string Uninstaller_UninstallButton {
-            get {
-                return ResourceManager.GetString("Uninstaller_UninstallButton", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Uninstalling....
-        /// </summary>
-        public static string Uninstaller_UninstallingButton {
-            get {
-                return ResourceManager.GetString("Uninstaller_UninstallingButton", resourceCulture);
             }
         }
         
