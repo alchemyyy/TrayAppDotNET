@@ -840,6 +840,21 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         set => SetField(ref field, value);
     }
 
+    // Flyout header Bluetooth radio power button. Visibility defaults on to preserve the existing
+    // header layout. Requiring Ctrl+left-click by default prevents an unmodified click from
+    // accidentally disabling Bluetooth and disconnecting active devices.
+    public bool ShowBluetoothRadioButtonInFlyoutHeader
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
+    public BluetoothRadioButtonClickGesture FlyoutBluetoothRadioButtonClickGesture
+    {
+        get;
+        set => SetField(ref field, value);
+    } = BluetoothRadioButtonClickGesture.ControlLeftClick;
+
     // Titlebar communications-activity button visibility. Drives both the button's Visibility and
     // whether the registry watcher even runs - Hidden keeps the watcher asleep entirely.
     public CommunicationsButtonVisibility FlyoutCommunicationsButtonVisibility

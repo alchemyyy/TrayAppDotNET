@@ -122,6 +122,17 @@ public enum FlyoutDisconnectedBluetoothDeviceVisibility
 }
 
 /// <summary>
+/// Left-click gesture that activates the flyout header's Bluetooth radio power button.
+/// </summary>
+public enum BluetoothRadioButtonClickGesture
+{
+    LeftClick,
+    ControlLeftClick,
+    AltLeftClick,
+    ShiftLeftClick
+}
+
+/// <summary>
 /// Visibility rule for the titlebar communications-activity button.
 /// AlwaysShow: button always rendered in the header cluster.
 /// WhenDuckingOn (default): button only rendered when UserDuckingPreference is set to any active

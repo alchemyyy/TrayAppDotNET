@@ -73,6 +73,29 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowBluetoothDevicesOnlyWhenBluetoothIsOn = v,
             p));
         stack.Children.Add(BoolCard(
+            Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Title)),
+            Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Description)),
+            _settings.ShowBluetoothRadioButtonInFlyoutHeader,
+            value => _settings.ShowBluetoothRadioButtonInFlyoutHeader = value,
+            p,
+            afterSave: RefreshCurrentPage));
+        stack.Children.Add(Maybe(_settings.ShowBluetoothRadioButtonInFlyoutHeader, StringComboCard(
+            Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Title)),
+            Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Description)),
+            [
+                (BluetoothRadioButtonClickGesture.LeftClick,
+                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick))),
+                (BluetoothRadioButtonClickGesture.ControlLeftClick,
+                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick))),
+                (BluetoothRadioButtonClickGesture.AltLeftClick,
+                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick))),
+                (BluetoothRadioButtonClickGesture.ShiftLeftClick,
+                    Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick)))
+            ],
+            _settings.FlyoutBluetoothRadioButtonClickGesture,
+            value => _settings.FlyoutBluetoothRadioButtonClickGesture = value,
+            p)));
+        stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Description)),
             _settings.UseDynamicPlaybackVolumeGlyphInFlyout,

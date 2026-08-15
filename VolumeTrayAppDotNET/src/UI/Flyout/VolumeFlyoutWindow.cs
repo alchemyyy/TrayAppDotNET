@@ -703,19 +703,22 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             ToggleDisabledDevices,
             L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip), "Show/hide disabled devices")));
 
-        BluetoothRadioPowerState bluetoothRadioState =
-            _bluetoothRadioController?.State ?? BluetoothRadioPowerState.Unavailable;
-        Border bluetoothRadioButton = HeaderIconButton(
-            GlyphCatalog.BLUETOOTH,
-            p,
-            ToggleBluetoothRadio,
-            BluetoothRadioTooltip(bluetoothRadioState),
-            enabled: !_isBluetoothRadioToggleInFlight
-                     && bluetoothRadioState != BluetoothRadioPowerState.Unavailable);
-        bluetoothRadioButton.Opacity = bluetoothRadioState == BluetoothRadioPowerState.On
-            ? 1.0
-            : Layout.HeaderInactiveIconOpacity;
-        left.Children.Add(bluetoothRadioButton);
+        if (_settings.ShowBluetoothRadioButtonInFlyoutHeader)
+        {
+            BluetoothRadioPowerState bluetoothRadioState =
+                _bluetoothRadioController?.State ?? BluetoothRadioPowerState.Unavailable;
+            Border bluetoothRadioButton = HeaderIconButton(
+                GlyphCatalog.BLUETOOTH,
+                p,
+                eventArgs => ToggleBluetoothRadio(eventArgs.KeyModifiers),
+                BluetoothRadioTooltip(bluetoothRadioState, _settings.FlyoutBluetoothRadioButtonClickGesture),
+                enabled: !_isBluetoothRadioToggleInFlight
+                         && bluetoothRadioState != BluetoothRadioPowerState.Unavailable);
+            bluetoothRadioButton.Opacity = bluetoothRadioState == BluetoothRadioPowerState.On
+                ? 1.0
+                : Layout.HeaderInactiveIconOpacity;
+            left.Children.Add(bluetoothRadioButton);
+        }
 
         if (ShowCommunicationsButton)
         {
@@ -2197,8 +2200,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _settings.ShowDisabledRecordingDevices = showDisabledDevices;
     }
 
-    private async void ToggleBluetoothRadio()
+    private async void ToggleBluetoothRadio(KeyModifiers modifiers)
     {
+        if (!_settings.ShowBluetoothRadioButtonInFlyoutHeader
+            || !IsBluetoothRadioToggleGesture(_settings.FlyoutBluetoothRadioButtonClickGesture, modifiers))
+            return;
+
         BluetoothRadioController? controller = _bluetoothRadioController;
         if (_isClosed || _isBluetoothRadioToggleInFlight || controller == null) return;
 
@@ -2215,22 +2222,60 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private static string BluetoothRadioTooltip(BluetoothRadioPowerState state) => state switch
+    /// <summary>Returns whether the configured Bluetooth power-button gesture was performed.</summary>
+    internal static bool IsBluetoothRadioToggleGesture(
+        BluetoothRadioButtonClickGesture gesture,
+        KeyModifiers modifiers) => gesture switch
     {
-        BluetoothRadioPowerState.On => L(
-            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_On),
-            "Bluetooth on\nClick to turn off"),
-        BluetoothRadioPowerState.Off => L(
-            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Off),
-            "Bluetooth off\nClick to turn on"),
-        BluetoothRadioPowerState.Unavailable => L(
-            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Unavailable),
-            "Bluetooth unavailable"),
-        BluetoothRadioPowerState.Unknown => L(
-            nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Unknown),
-            "Bluetooth\nReading radio state"),
-        _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
+        BluetoothRadioButtonClickGesture.LeftClick => modifiers == KeyModifiers.None,
+        BluetoothRadioButtonClickGesture.ControlLeftClick => modifiers == KeyModifiers.Control,
+        BluetoothRadioButtonClickGesture.AltLeftClick => modifiers == KeyModifiers.Alt,
+        BluetoothRadioButtonClickGesture.ShiftLeftClick => modifiers == KeyModifiers.Shift,
+        _ => throw new ArgumentOutOfRangeException(nameof(gesture), gesture, null)
     };
+
+    private static string BluetoothRadioTooltip(
+        BluetoothRadioPowerState state,
+        BluetoothRadioButtonClickGesture gesture)
+    {
+        string gestureText = BluetoothRadioButtonClickGestureText(gesture);
+        return state switch
+        {
+            BluetoothRadioPowerState.On => string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_On), "Bluetooth on\n{0} to turn off"),
+                gestureText),
+            BluetoothRadioPowerState.Off => string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Off), "Bluetooth off\n{0} to turn on"),
+                gestureText),
+            BluetoothRadioPowerState.Unavailable => L(
+                nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Unavailable),
+                "Bluetooth unavailable"),
+            BluetoothRadioPowerState.Unknown => L(
+                nameof(AppStrings.Flyout_BluetoothRadio_Tooltip_Unknown),
+                "Bluetooth\nReading radio state"),
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
+        };
+    }
+
+    private static string BluetoothRadioButtonClickGestureText(BluetoothRadioButtonClickGesture gesture) =>
+        gesture switch
+        {
+            BluetoothRadioButtonClickGesture.LeftClick => L(
+                nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick),
+                "Left Click"),
+            BluetoothRadioButtonClickGesture.ControlLeftClick => L(
+                nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick),
+                "Ctrl+Left Click"),
+            BluetoothRadioButtonClickGesture.AltLeftClick => L(
+                nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick),
+                "Alt+Left Click"),
+            BluetoothRadioButtonClickGesture.ShiftLeftClick => L(
+                nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick),
+                "Shift+Left Click"),
+            _ => throw new ArgumentOutOfRangeException(nameof(gesture), gesture, null)
+        };
 
     private static void ToggleCommunicationsDucking(KeyModifiers modifiers)
     {

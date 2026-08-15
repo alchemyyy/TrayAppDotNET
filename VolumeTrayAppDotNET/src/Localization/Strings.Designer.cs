@@ -287,7 +287,7 @@ namespace VolumeTrayAppDotNET.Localization {
         
         /// <summary>
         ///   Looks up a localized string similar to Bluetooth off
-        ///Click to turn on.
+        ///{0} to turn on.
         /// </summary>
         public static string Flyout_BluetoothRadio_Tooltip_Off {
             get {
@@ -297,7 +297,7 @@ namespace VolumeTrayAppDotNET.Localization {
         
         /// <summary>
         ///   Looks up a localized string similar to Bluetooth on
-        ///Click to turn off.
+        ///{0} to turn off.
         /// </summary>
         public static string Flyout_BluetoothRadio_Tooltip_On {
             get {
@@ -1529,6 +1529,60 @@ namespace VolumeTrayAppDotNET.Localization {
                 return ResourceManager.GetString("Settings_Flyout_AppDrawerStackDirection_TopBottom", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Alt+Left Click.
+        /// </summary>
+        public static string Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_BluetoothRadioButtonClickGesture_AltLeftClick", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ctrl+Left Click.
+        /// </summary>
+        public static string Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_BluetoothRadioButtonClickGesture_ControlLeftClick", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose the left-click gesture that turns the Windows Bluetooth radio on or off..
+        /// </summary>
+        public static string Settings_Flyout_BluetoothRadioButtonClickGesture_Description {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_BluetoothRadioButtonClickGesture_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Left Click.
+        /// </summary>
+        public static string Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_BluetoothRadioButtonClickGesture_LeftClick", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Shift+Left Click.
+        /// </summary>
+        public static string Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_BluetoothRadioButtonClickGesture_ShiftLeftClick", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bluetooth power button click action.
+        /// </summary>
+        public static string Settings_Flyout_BluetoothRadioButtonClickGesture_Title {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_BluetoothRadioButtonClickGesture_Title", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Keep the undocked flyout fully inside one monitor&apos;s work area when it restores or repositions..
@@ -1896,6 +1950,24 @@ namespace VolumeTrayAppDotNET.Localization {
         public static string Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title {
             get {
                 return ResourceManager.GetString("Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show the Bluetooth button in the flyout header for turning the Windows Bluetooth radio on or off..
+        /// </summary>
+        public static string Settings_Flyout_ShowBluetoothRadioButton_Description {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ShowBluetoothRadioButton_Description", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show Bluetooth power button.
+        /// </summary>
+        public static string Settings_Flyout_ShowBluetoothRadioButton_Title {
+            get {
+                return ResourceManager.GetString("Settings_Flyout_ShowBluetoothRadioButton_Title", resourceCulture);
             }
         }
         
