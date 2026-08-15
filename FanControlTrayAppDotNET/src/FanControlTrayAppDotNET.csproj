@@ -56,7 +56,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="10.0.9" PrivateAssets="all" IsImplicitlyDefined="true" />
     <IlcArg Include="--substitution:$(MSBuildProjectDirectory)\NativeAotSubstitutions.xml" Condition="'$(PublishAot)' == 'true' and '$(RuntimeIdentifier)' != ''" />
     <Using Include="TrayAppDotNETCommon.TADNLog" Alias="TADNLog" />
     <Using Include="TrayAppDotNETCommon" />
