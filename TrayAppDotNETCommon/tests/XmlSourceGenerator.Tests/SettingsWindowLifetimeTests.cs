@@ -10,6 +10,28 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 public sealed class SettingsWindowLifetimeTests
 {
     [Fact]
+    public void FullWorkAreaAxisUsesSharpCorners()
+    {
+        PixelRect workArea = new(0, 0, 1920, 1040);
+
+        Assert.False(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
+            new PixelRect(200, 150, 960, 670),
+            workArea));
+        Assert.True(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
+            new PixelRect(300, 0, 900, 1040),
+            workArea));
+        Assert.True(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
+            new PixelRect(300, -8, 900, 1056),
+            workArea));
+        Assert.True(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
+            new PixelRect(0, 200, 1920, 600),
+            workArea));
+        Assert.False(SettingsWindowCommon<TestPage>.SpansFullWorkAreaAxis(
+            new PixelRect(2, 2, 1916, 1036),
+            workArea));
+    }
+
+    [Fact]
     public void SettingsWindowUsesOnlyNativeResizeBorderWithCustomChrome() => AvaloniaTestHost.Run(() =>
     {
         TestSettingsWindow window = new();

@@ -9,6 +9,7 @@ public static class DWMAPI
 {
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    public const int DWMWCP_DEFAULT = 0;
     public const int DWMWCP_DONOTROUND = 1;
     public const int DWMWCP_ROUND = 2;
 

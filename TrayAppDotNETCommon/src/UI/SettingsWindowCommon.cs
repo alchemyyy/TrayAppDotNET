@@ -26,6 +26,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     // Keep the custom frame available for borderless windows. It stays disabled while BorderOnly supplies
     // native resizing because drawing both frames doubles the border and insets the caption buttons
     private const bool EnableCustomWindowBorder = false;
+    private const int WorkAreaEdgeTolerancePixels = 1;
 
     private ContentControl _content = new();
     private readonly SettingsWindowCommonResources _settingsResources = new();
@@ -49,6 +50,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private bool _shellInitialized;
     private bool _hasShownPage;
     private bool _wndProcHookAttached;
+    private int? _nativeCornerPreference;
     private SettingsPalette? _palette;
 
     private enum SettingsWindowSizeProfile
@@ -82,9 +84,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _wndProcHook = WndProcHook;
         Opened += OnWindowOpened;
         Closed += OnWindowClosed;
+        PositionChanged += OnWindowPositionChanged;
+        Resized += OnWindowResized;
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         _windowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
         _windowResources.Add(DetachWndProcHook);
+        _windowResources.Add(() => Resized -= OnWindowResized);
+        _windowResources.Add(() => PositionChanged -= OnWindowPositionChanged);
         _windowResources.Add(() => Closed -= OnWindowClosed);
         _windowResources.Add(() => Opened -= OnWindowOpened);
     }
@@ -681,6 +687,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 shellResources);
 
             Content = replacementShellGeneration.Root;
+            UpdateWindowCornerRadius();
             _shellGeneration = replacementShellGeneration;
             _pageGeneration = replacementPageGeneration;
         }
@@ -889,7 +896,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         tcs?.TrySetResult(false);
     }
 
-    private void OnWindowOpened(object? sender, EventArgs e) => AttachWndProcHook();
+    private void OnWindowOpened(object? sender, EventArgs e)
+    {
+        AttachWndProcHook();
+        UpdateWindowCornerRadius();
+    }
+
+    private void OnWindowPositionChanged(object? sender, PixelPointEventArgs e) => UpdateWindowCornerRadius();
+
+    private void OnWindowResized(object? sender, WindowResizedEventArgs e) => UpdateWindowCornerRadius();
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
@@ -982,6 +997,84 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         handled = true;
         return new IntPtr(User32.MA_ACTIVATE);
+    }
+
+    private void UpdateWindowCornerRadius()
+    {
+        if (Content is not Border windowFrame || windowFrame.Child is not Border contentSurface) return;
+
+        bool useSharpCorners = ShouldUseSharpWindowCorners();
+        windowFrame.CornerRadius = useSharpCorners
+            ? _settingsResources.AxamlSettingsWindow.ZeroCornerRadius
+            : RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.OuterCornerRadius);
+        contentSurface.CornerRadius = useSharpCorners
+            ? _settingsResources.AxamlSettingsWindow.ZeroCornerRadius
+            : RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.InnerCornerRadius);
+        ApplyNativeCornerPreference(useSharpCorners);
+    }
+
+    private bool ShouldUseSharpWindowCorners()
+    {
+        if (WindowState is WindowState.Maximized or WindowState.FullScreen) return true;
+        if (WindowState == WindowState.Minimized) return false;
+
+        PixelRect windowBounds = GetWindowPixelBounds();
+        PixelRect? workArea = Screens.ScreenFromWindow(this)?.WorkingArea
+                              ?? Screens.ScreenFromBounds(windowBounds)?.WorkingArea;
+        return workArea is PixelRect activeWorkArea
+               && SpansFullWorkAreaAxis(windowBounds, activeWorkArea);
+    }
+
+    private PixelRect GetWindowPixelBounds()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            if (windowHandle != IntPtr.Zero && User32.GetWindowRect(windowHandle, out RECT nativeBounds))
+            {
+                return new PixelRect(
+                    nativeBounds.Left,
+                    nativeBounds.Top,
+                    Math.Max(0, nativeBounds.Right - nativeBounds.Left),
+                    Math.Max(0, nativeBounds.Bottom - nativeBounds.Top));
+            }
+        }
+
+        double width = ClientSize.Width > 0 ? ClientSize.Width : Bounds.Width;
+        double height = ClientSize.Height > 0 ? ClientSize.Height : Bounds.Height;
+        int pixelWidth = Math.Max(0, (int)Math.Ceiling(width * RenderScaling));
+        int pixelHeight = Math.Max(0, (int)Math.Ceiling(height * RenderScaling));
+        return new PixelRect(Position.X, Position.Y, pixelWidth, pixelHeight);
+    }
+
+    private void ApplyNativeCornerPreference(bool useSharpCorners)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        int preference = useSharpCorners || !EnableRoundedCorners
+            ? DWMAPI.DWMWCP_DONOTROUND
+            : DWMAPI.DWMWCP_DEFAULT;
+        if (_nativeCornerPreference == preference) return;
+
+        IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (windowHandle == IntPtr.Zero) return;
+
+        _ = DWMAPI.DwmSetWindowAttribute(
+            windowHandle,
+            DWMAPI.DWMWA_WINDOW_CORNER_PREFERENCE,
+            ref preference,
+            sizeof(int));
+        _nativeCornerPreference = preference;
+    }
+
+    /// <summary>Returns whether the window covers either complete work-area axis.</summary>
+    internal static bool SpansFullWorkAreaAxis(PixelRect windowBounds, PixelRect workArea)
+    {
+        bool spansFullWidth = windowBounds.X <= workArea.X + WorkAreaEdgeTolerancePixels
+                              && windowBounds.Right >= workArea.Right - WorkAreaEdgeTolerancePixels;
+        bool spansFullHeight = windowBounds.Y <= workArea.Y + WorkAreaEdgeTolerancePixels
+                               && windowBounds.Bottom >= workArea.Bottom - WorkAreaEdgeTolerancePixels;
+        return spansFullWidth || spansFullHeight;
     }
 
     private CornerRadius RoundedCornerRadius(CornerRadius cornerRadius) =>
