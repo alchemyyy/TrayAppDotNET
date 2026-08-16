@@ -267,8 +267,8 @@ internal sealed class NetworkAvaloniaApp : Application
 
         _lastNotifiedUpdateVersion = info.Version;
         _trayIcon?.ShowBalloon(
-            L("UpdateNotification_Title", "Update available"),
-            string.Format(L("UpdateNotification_BodyFormat", "{0} is available."), info.ReleaseName));
+            L(nameof(CommonStrings.UpdateNotification_Title)),
+            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
     private void OnUpdateBalloonClicked()
@@ -359,7 +359,7 @@ internal sealed class NetworkAvaloniaApp : Application
     {
         if (_trayIcon == null) return;
         string tooltip = _networkMonitor?.GetTooltipText()
-                         ?? L(nameof(AppStrings.Tray_Tooltip_Default), Constants.ApplicationName);
+                         ?? L(nameof(AppStrings.Tray_Tooltip_Default));
 
         if (_networkMonitor != null && _networkIconRenderer != null)
         {
@@ -491,10 +491,10 @@ internal sealed class NetworkAvaloniaApp : Application
             TrayMenuPalette(),
             rounded: _settings?.EnableRoundedCorners ?? true,
             fontSize: _settings?.ContextMenuFontSize ?? 15,
-            networkSettingsText: L(nameof(AppStrings.Tray_NetworkSettings), "Network settings"),
-            adapterSettingsText: L(nameof(AppStrings.Tray_AdapterSettings), "Adapter settings"),
-            settingsText: L(nameof(AppStrings.Tray_Settings), "Settings"),
-            exitText: L(nameof(AppStrings.Tray_Exit), "Exit"),
+            networkSettingsText: L(nameof(AppStrings.Tray_NetworkSettings)),
+            adapterSettingsText: L(nameof(AppStrings.Tray_AdapterSettings)),
+            settingsText: L(nameof(AppStrings.Tray_Settings)),
+            exitText: L(nameof(AppStrings.Tray_Exit)),
             openNetworkSettings: OpenNetworkSettings,
             openAdapterSettings: OpenAdapterSettings,
             openSettings: () => OpenSettings(),
@@ -765,17 +765,16 @@ internal sealed class NetworkAvaloniaApp : Application
             desktop.Shutdown();
     }
 
-    private static string L(string key, string fallback)
+    private static string L(string key)
     {
         try
         {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
+            return LocalizationManager.Instance[key];
         }
         catch (Exception ex)
         {
             TADNLog.Log($"NetworkAvaloniaApp.L({key}): {ex.Message}");
-            return fallback;
+            return key;
         }
     }
 }

@@ -1784,4 +1784,115 @@ DDC state corruption|corrupted DDC state|stuck DDC|unresponsive DDC
 Night Light corruption|stuck Night Light|unresponsive Night Light</value>
     <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
   </data>
+  <data name="Common_OK" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Flyout_BrightnessCurve" xml:space="preserve">
+    <value>Brightness curve</value>
+  </data>
+  <data name="Flyout_DDCCIWarning" xml:space="preserve">
+    <value>DDC/CI needs recovery</value>
+  </data>
+  <data name="Flyout_DisableFromMaster" xml:space="preserve">
+    <value>Exclude from master</value>
+  </data>
+  <data name="Flyout_DisplaySettings" xml:space="preserve">
+    <value>Display settings</value>
+  </data>
+  <data name="Flyout_EnableForMaster" xml:space="preserve">
+    <value>Include in master</value>
+  </data>
+  <data name="Flyout_EnvironmentalCurves" xml:space="preserve">
+    <value>Environmental curves</value>
+  </data>
+  <data name="Flyout_HardPowerOff_Title" xml:space="preserve">
+    <value>Power off display</value>
+  </data>
+  <data name="Flyout_NightLightCurve" xml:space="preserve">
+    <value>Night-light curve</value>
+  </data>
+  <data name="Flyout_NoDisplays" xml:space="preserve">
+    <value>No DDC/CI displays detected</value>
+  </data>
+  <data name="Flyout_SaveProfile" xml:space="preserve">
+    <value>Save profile</value>
+  </data>
+  <data name="Flyout_SyncAllDisplays" xml:space="preserve">
+    <value>Sync displays</value>
+  </data>
+  <data name="Flyout_ToggleNightLight" xml:space="preserve">
+    <value>Toggle night light</value>
+  </data>
+  <data name="Flyout_TurnOffAllDisplays" xml:space="preserve">
+    <value>Turn off displays</value>
+  </data>
+  <data name="Flyout_TurnOffDisplay" xml:space="preserve">
+    <value>Turn off display</value>
+  </data>
+  <data name="Settings_Environmental_PickOnMap_Title" xml:space="preserve">
+    <value>Pick location</value>
+  </data>
+  <data name="Settings_General_AutoEngageEnvironmentalCurve_Description" xml:space="preserve">
+    <value>Re-engage the environmental brightness curve after it crosses the released master slider value.</value>
+  </data>
+  <data name="Settings_General_AutoEngageEnvironmentalCurve_Title" xml:space="preserve">
+    <value>Auto-engage environmental curve</value>
+  </data>
+  <data name="Settings_General_EnvironmentalTick_Description" xml:space="preserve">
+    <value>Milliseconds between active curve evaluations.</value>
+  </data>
+  <data name="Settings_General_EnvironmentalTick_Title" xml:space="preserve">
+    <value>Environmental tick interval</value>
+  </data>
+  <data name="Settings_General_NightLightBackend_Description" xml:space="preserve">
+    <value>Choose how the app applies Windows Night Light changes.</value>
+  </data>
+  <data name="Settings_General_NightLightBackend_GammaRamp" xml:space="preserve">
+    <value>Gamma ramp</value>
+  </data>
+  <data name="Settings_General_NightLightBackend_Registry" xml:space="preserve">
+    <value>Registry</value>
+  </data>
+  <data name="Settings_General_NightLightBackend_SettingsHandler" xml:space="preserve">
+    <value>Settings handler</value>
+  </data>
+  <data name="Settings_General_NightLightBackend_Title" xml:space="preserve">
+    <value>Night-light backend</value>
+  </data>
+  <data name="Settings_General_PDBTimeout_Description" xml:space="preserve">
+    <value>Maximum seconds to wait for SettingsHandlers_Display.dll symbols.</value>
+  </data>
+  <data name="Settings_General_PDBTimeout_Title" xml:space="preserve">
+    <value>PDB download timeout</value>
+  </data>
+  <data name="Settings_General_ProfileManagerUnavailable" xml:space="preserve">
+    <value>Profile manager is not available.</value>
+  </data>
+  <data name="Settings_General_TurnOffNightLightAtZero_Description" xml:space="preserve">
+    <value>Dragging night light to 0 also disables Night Light.</value>
+  </data>
+  <data name="Settings_General_TurnOffNightLightAtZero_Title" xml:space="preserve">
+    <value>Turn off at zero strength</value>
+  </data>
+  <data name="Settings_Monitors_DisconnectedDisplay_Label" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Capsule" xml:space="preserve">
+    <value>Capsule</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Circle" xml:space="preserve">
+    <value>Circle</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Diamond" xml:space="preserve">
+    <value>Diamond</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Heart" xml:space="preserve">
+    <value>Heart</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Square" xml:space="preserve">
+    <value>Square</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_Star" xml:space="preserve">
+    <value>Star</value>
+  </data>
 </root>

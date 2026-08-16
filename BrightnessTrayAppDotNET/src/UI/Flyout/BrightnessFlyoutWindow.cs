@@ -148,8 +148,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             theme,
             monitorService,
             AppServices.Settings,
-            L(nameof(AppStrings.Flyout_MasterRowName), "All displays"),
-            L(nameof(AppStrings.Flyout_NightLightRowName), "Night light"),
+            L(nameof(AppStrings.Flyout_MasterRowName)),
+            L(nameof(AppStrings.Flyout_NightLightRowName)),
             inDisabled => IsInCurveDisabledPeriod = inDisabled,
             AutoEngageBrightnessCurveManualOverride);
 
@@ -915,7 +915,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
         else if (Monitors.Count == 0)
         {
-            TextBlock empty = TrayAppDotNETFlyoutUI.Text(L("Flyout_NoDisplays", "No DDC/CI displays detected"), palette,
+            TextBlock empty = TrayAppDotNETFlyoutUI.Text(L(nameof(AppStrings.Flyout_NoDisplays)), palette,
                 Layout.EmptyDisplaysFontSize, color: palette.SecondaryForeground);
             empty.HorizontalAlignment = HorizontalAlignment.Center;
             rows.Children.Add(new Border { Padding = Layout.EmptyDisplaysPadding, Child = empty });
@@ -1024,8 +1024,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Layout.RowCurveIconSize,
                 margin: Layout.RowCurveButtonMargin,
                 tooltip: monitor.IsNightLight
-                    ? L("Flyout_NightLightCurve", "Night-light curve")
-                    : L("Flyout_BrightnessCurve", "Brightness curve"));
+                    ? L(nameof(AppStrings.Flyout_NightLightCurve))
+                    : L(nameof(AppStrings.Flyout_BrightnessCurve)));
             curve.Opacity = RowCurveEnabled(monitor) ? 1.0 : 0.4;
             Grid.SetColumn(curve, 3);
             grid.Children.Add(curve);
@@ -1042,7 +1042,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Layout.RowPowerButtonFontSize,
                 enabled: monitor.IsHardwareFunctional,
                 margin: Layout.RowPowerButtonMargin,
-                tooltip: L("Flyout_TurnOffDisplay", "Turn off display"));
+                tooltip: L(nameof(AppStrings.Flyout_TurnOffDisplay)));
             Grid.SetColumn(power, 3);
             grid.Children.Add(power);
         }
@@ -1136,7 +1136,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             actions.Children.Add(BuildCurveIconButton(palette, ToggleEnvironmentalCurves,
                 Layout.FooterCurveIconButtonWidth, Layout.FooterCurveIconButtonHeight, Layout.FooterCurveIconSize,
-                tooltip: L("Flyout_EnvironmentalCurves", "Environmental curves"),
+                tooltip: L(nameof(AppStrings.Flyout_EnvironmentalCurves)),
                 opacity: IsBrightnessCurveEnabled || IsNightLightCurveEnabled ? 1.0 : 0.4));
         }
 
@@ -1144,7 +1144,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             && Monitors.Any(static m => m.SupportsPowerControl))
         {
             actions.Children.Add(BuildFooterIconButton(_theme.GlyphPower, palette, PowerOffFooterTargets,
-                L("Flyout_TurnOffAllDisplays", "Turn off displays")));
+                L(nameof(AppStrings.Flyout_TurnOffAllDisplays))));
         }
 
         if (_settings?.ShowFlyoutDisplaySettingsButton ?? true)
@@ -1153,14 +1153,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 new Glyph(_theme.GlyphDisplaySettings, GlyphCatalog.DISPLAY_SETTINGS.Font),
                 palette,
                 OpenDisplaySettings,
-                L("Flyout_DisplaySettings", "Display settings")));
+                L(nameof(AppStrings.Flyout_DisplaySettings))));
         }
 
         Border settingsButton = BuildFooterIconButton(
             new Glyph(_theme.GlyphSettings, GlyphCatalog.SETTINGS.Font),
             palette,
             () => SettingsRequested?.Invoke(),
-            L(nameof(AppStrings.Tray_Settings), "Settings"));
+            L(nameof(AppStrings.Tray_Settings)));
         SuppressNextAutoHideWhenPressed(settingsButton);
         actions.Children.Add(settingsButton);
         Grid.SetColumn(actions, 2);
@@ -1236,7 +1236,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         content.Children.Add(glyph);
 
         Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, palette, _ => SaveCurrentProfile(),
-            Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, 0, tooltip: L("Flyout_SaveProfile", "Save profile"));
+            Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, 0, tooltip: L(nameof(AppStrings.Flyout_SaveProfile)));
         button.Child = content;
         return button;
     }
@@ -1537,8 +1537,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _isDraggingWindow = dragging;
             },
             InteractionCompleted = _ => FlushPendingRebuildVisual(),
-            UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip), "Undock"),
-            RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip), "Redock"),
+            UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
+            RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
             DragThreshold = Layout.DragThreshold,
             CornerRadius = Rounded(Layout.UndockButtonCornerRadius)
         }));
@@ -1614,7 +1614,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _settings,
                 BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
             EnableRoundedCorners = _settings?.EnableRoundedCorners == true,
-            Localize = L,
+            L = L,
             Log = static message => WPFLog.Log(message),
             FlushLog = static () => WPFLog.Flush(),
             Shutdown = static () =>
@@ -2445,11 +2445,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             if (_settings is { HasAcknowledgedHardPowerOffWarning: false })
             {
                 ShowConfirmOverlay(
-                    L("Flyout_HardPowerOff_Title", "Power off display"),
-                    L(nameof(AppStrings.Flyout_HardPowerOff_WarningText),
-                        "This sends a hard power-off command to the display. Use it only when DDC/CI recovery is needed."),
-                    okText: L(nameof(AppStrings.Flyout_HardPowerOff_Confirm), "Power off"),
-                    cancelText: L(nameof(AppStrings.Flyout_HardPowerOff_Abort), "Cancel"),
+                    L(nameof(AppStrings.Flyout_HardPowerOff_Title)),
+                    L(nameof(AppStrings.Flyout_HardPowerOff_WarningText)),
+                    okText: L(nameof(AppStrings.Flyout_HardPowerOff_Confirm)),
+                    cancelText: L(nameof(AppStrings.Flyout_HardPowerOff_Abort)),
                     onOK: () =>
                     {
                         CancelConfirmOverlay();
@@ -2512,9 +2511,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         WeakReference<BrightnessFlyoutWindow> windowReference = new(this);
         CancellationToken cancellationToken = WindowResources.CancellationToken;
         ShowConfirmOverlay(
-            L("Flyout_HardPowerOff_Title", "Power off display"),
-            L(nameof(AppStrings.Flyout_HardPowerOff_InProgress), "Sending hard power-off command..."),
-            okText: L("Common_OK", "OK"),
+            L(nameof(AppStrings.Flyout_HardPowerOff_Title)),
+            L(nameof(AppStrings.Flyout_HardPowerOff_InProgress)),
+            okText: L(nameof(AppStrings.Common_OK)),
             cancelText: null,
             onOK: CancelConfirmOverlay);
 
@@ -2541,18 +2540,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                     !window.IsWindowAlive)
                     return;
                 string message = ok
-                    ? L(nameof(AppStrings.Flyout_HardPowerOff_Success), "The hard power-off command was sent.")
+                    ? L(nameof(AppStrings.Flyout_HardPowerOff_Success))
                     : string.Format(
                         CultureInfo.CurrentCulture,
-                        L(nameof(AppStrings.Flyout_HardPowerOff_FailedFormat), "Hard power-off failed: {0}"),
+                        L(nameof(AppStrings.Flyout_HardPowerOff_FailedFormat)),
                         !string.IsNullOrWhiteSpace(error)
                             ? error
-                            : lastDDCError ?? L(nameof(AppStrings.Flyout_HardPowerOff_NoResponseDetail),
-                                "No response from the display."));
+                            : lastDDCError ?? L(nameof(AppStrings.Flyout_HardPowerOff_NoResponseDetail)));
                 window.ShowConfirmOverlay(
-                    L("Flyout_HardPowerOff_Title", "Power off display"),
+                    L(nameof(AppStrings.Flyout_HardPowerOff_Title)),
                     message,
-                    okText: L("Common_OK", "OK"),
+                    okText: L(nameof(AppStrings.Common_OK)),
                     cancelText: null,
                     onOK: window.CancelConfirmOverlay);
             });
@@ -3485,7 +3483,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             int strength = FlipIfNightLightInverted(monitor.RoundedBrightness);
             string suffix = _settings?.TurnOffNightLightAtZeroStrength == true && strength <= 0
-                ? L(nameof(AppStrings.NightLight_OffSuffix), "Off")
+                ? L(nameof(AppStrings.NightLight_OffSuffix))
                 : $"{NightLightKelvin.PercentToKelvin(strength).ToString(CultureInfo.InvariantCulture)}K";
             return $"{monitor.Name} {suffix}";
         }
@@ -3503,13 +3501,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private static string RowIconTooltip(MonitorInfo monitor)
     {
-        if (monitor.IsMaster) return L("Flyout_SyncAllDisplays", "Sync displays");
-        if (monitor.IsNightLight) return L("Flyout_ToggleNightLight", "Toggle night light");
+        if (monitor.IsMaster) return L(nameof(AppStrings.Flyout_SyncAllDisplays));
+        if (monitor.IsNightLight) return L(nameof(AppStrings.Flyout_ToggleNightLight));
         if (monitor.IsFailed || monitor.IsReadDegraded)
-            return monitor.LastDDCError ?? L("Flyout_DDCCIWarning", "DDC/CI needs recovery");
+            return monitor.LastDDCError ?? L(nameof(AppStrings.Flyout_DDCCIWarning));
         return monitor.IsParticipatingInMaster
-            ? L("Flyout_DisableFromMaster", "Exclude from master")
-            : L("Flyout_EnableForMaster", "Include in master");
+            ? L(nameof(AppStrings.Flyout_DisableFromMaster))
+            : L(nameof(AppStrings.Flyout_EnableForMaster));
     }
 
     private string ProfileTooltip(int index)
@@ -3531,8 +3529,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private static string CurveModeTooltip(MonitorInfo monitor) =>
         monitor.IsCurveReleased
-            ? L(nameof(AppStrings.Flyout_CurveMode_ManualTooltip), "Manual override")
-            : L(nameof(AppStrings.Flyout_CurveMode_CurveTooltip), "Curve control");
+            ? L(nameof(AppStrings.Flyout_CurveMode_ManualTooltip))
+            : L(nameof(AppStrings.Flyout_CurveMode_CurveTooltip));
 
     private void ApplyCurveModeButtonVisual(MonitorInfo monitor, Border? button)
     {
@@ -3632,18 +3630,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private static bool IsControlDown() =>
         (User32.GetAsyncKeyState(User32.VK_CONTROL) & unchecked((short)0x8000)) != 0;
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

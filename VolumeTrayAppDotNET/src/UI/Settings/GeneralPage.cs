@@ -66,8 +66,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords",
-                    "audio feedback speaker ding chime")
+                Loc(nameof(AppStrings.Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Title)),
@@ -77,8 +76,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords",
-                    "wheel audio feedback chime")
+                Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords))
             ])));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Title)),
@@ -88,8 +86,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_General_PlayAppVolumeChangeSound_SearchKeywords",
-                    "mixer application audio feedback preview chime")
+                Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
             Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title)),
@@ -100,8 +97,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords",
-                    "silence mute feedback while listening")
+                Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(
             _settings is { PlayDeviceVolumeChangeSound: true, SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true },
@@ -115,8 +111,7 @@ public sealed partial class VolumeSettingsWindow
                 p,
                 searchKeywords:
                 [
-                    L("Settings_General_DingSuppressionPeakThreshold_SearchKeywords",
-                        "beep sensitivity cutoff level")
+                    Loc(nameof(AppStrings.Settings_General_DingSuppressionPeakThreshold_SearchKeywords))
                 ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
@@ -128,8 +123,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_General_LogarithmicVolumeScale_SearchKeywords",
-                    "audio taper natural slider curve")
+                Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
@@ -142,8 +136,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             searchKeywords:
             [
-                L("Settings_General_WheelVolumeStepPercent_SearchKeywords",
-                    "scroll sensitivity increment amount")
+                Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
             ]));
 
         return stack;
@@ -155,7 +148,7 @@ public sealed partial class VolumeSettingsWindow
             Palette = p,
             ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
@@ -176,7 +169,7 @@ public sealed partial class VolumeSettingsWindow
         {
             Palette = p,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,

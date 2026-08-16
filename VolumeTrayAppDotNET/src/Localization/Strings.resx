@@ -1285,11 +1285,20 @@ Target: {1}</value>
   <data name="Tray_Exit" xml:space="preserve">
     <value>Exit</value>
   </data>
+  <data name="Tray_Communications" xml:space="preserve">
+    <value>Communications</value>
+  </data>
+  <data name="Tray_Recording" xml:space="preserve">
+    <value>Recording</value>
+  </data>
   <data name="Tray_Settings" xml:space="preserve">
     <value>Settings</value>
   </data>
   <data name="Tray_SoundDevices" xml:space="preserve">
     <value>Sound devices</value>
+  </data>
+  <data name="Tray_Sounds" xml:space="preserve">
+    <value>Sounds</value>
   </data>
   <data name="Uninstaller_Caption_Close" xml:space="preserve">
     <value>Close</value>

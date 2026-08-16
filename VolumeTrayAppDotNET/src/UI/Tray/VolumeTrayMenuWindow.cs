@@ -64,18 +64,18 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
             entries.AddSeparator();
         }
 
-        entries.Add(L(nameof(AppStrings.Tray_SoundDevices), "Sound devices"), DeviceShellLinks.OpenPlaybackTab);
+        entries.Add(L(nameof(AppStrings.Tray_SoundDevices)), DeviceShellLinks.OpenPlaybackTab);
         if (settings.ShowTrayMenuRecordingLink)
-            entries.Add(L("Tray_Recording", "Recording"), DeviceShellLinks.OpenRecordingTab);
+            entries.Add(L(nameof(AppStrings.Tray_Recording)), DeviceShellLinks.OpenRecordingTab);
         if (settings.ShowTrayMenuSoundsLink)
-            entries.Add(L("Tray_Sounds", "Sounds"), DeviceShellLinks.OpenSoundsTab);
+            entries.Add(L(nameof(AppStrings.Tray_Sounds)), DeviceShellLinks.OpenSoundsTab);
         if (settings.ShowTrayMenuCommunicationsLink)
-            entries.Add(L("Tray_Communications", "Communications"), DeviceShellLinks.OpenCommunicationsTab);
-        entries.Add(L(nameof(AppStrings.Tray_Bluetooth), "Bluetooth"), OpenBluetoothFlyout);
+            entries.Add(L(nameof(AppStrings.Tray_Communications)), DeviceShellLinks.OpenCommunicationsTab);
+        entries.Add(L(nameof(AppStrings.Tray_Bluetooth)), OpenBluetoothFlyout);
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Settings), "Settings"), openSettings);
+        entries.Add(L(nameof(AppStrings.Tray_Settings)), openSettings);
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Exit), "Exit"), exit);
+        entries.Add(L(nameof(AppStrings.Tray_Exit)), exit);
         return entries.ToList();
     }
 
@@ -143,16 +143,5 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
             ? TrayMenuWindowPlacement.Modern
             : TrayMenuWindowPlacement.Classic;
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = TrayLocalization.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => TrayLocalization.Instance[key];
 }

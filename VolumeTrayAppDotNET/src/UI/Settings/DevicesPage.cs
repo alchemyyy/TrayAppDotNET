@@ -17,8 +17,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Devices_SetDefaultCommsToDefault_SearchKeywords",
-                    "communications role calls headset primary endpoint")
+                Loc(nameof(AppStrings.Settings_Devices_SetDefaultCommsToDefault_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_Title)),
@@ -28,8 +27,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowNotPresent_SearchKeywords",
-                    "phantom obsolete orphaned stale hardware endpoints")
+                Loc(nameof(AppStrings.Settings_Devices_ShowNotPresent_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_Title)),
@@ -39,8 +37,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Devices_ActivateRecordingDevicesForPeakMeters_SearchKeywords",
-                    "microphone input level activity visualization monitor")
+                Loc(nameof(AppStrings.Settings_Devices_ActivateRecordingDevicesForPeakMeters_SearchKeywords))
             ]));
 
         string playback = Loc(nameof(AppStrings.Settings_Common_Playback));
@@ -60,8 +57,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_Devices_ShowRecording_SearchKeywords",
-                    "microphone input capture endpoints")
+                Loc(nameof(AppStrings.Settings_Devices_ShowRecording_SearchKeywords))
             ]));
         stack.Children.Add(PairBoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_Title)),
@@ -77,8 +73,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_Devices_ShowDisabled_SearchKeywords",
-                    "inactive hidden unavailable audio endpoints")
+                Loc(nameof(AppStrings.Settings_Devices_ShowDisabled_SearchKeywords))
             ]));
 
         bool hideDefaultCards = _settings.ShowDisabledPlaybackDevices
@@ -97,8 +92,7 @@ public sealed partial class VolumeSettingsWindow
             showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false },
             searchKeywords:
             [
-                L("Settings_Devices_ShowDefaultEvenIfDisabled_SearchKeywords",
-                    "primary speaker microphone hidden endpoint")
+                Loc(nameof(AppStrings.Settings_Devices_ShowDefaultEvenIfDisabled_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(!hideDefaultCards, PairBoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_Title)),
@@ -114,8 +108,7 @@ public sealed partial class VolumeSettingsWindow
             showRight: _settings is { ShowRecordingDevices: true, ShowDisabledRecordingDevices: false },
             searchKeywords:
             [
-                L("Settings_Devices_ShowDefaultCommsEvenIfDisabled_SearchKeywords",
-                    "calls headset communications role hidden endpoint")
+                Loc(nameof(AppStrings.Settings_Devices_ShowDefaultCommsEvenIfDisabled_SearchKeywords))
             ])));
         stack.Children.Add(PairBoolCard(
             Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_Title)),
@@ -130,8 +123,7 @@ public sealed partial class VolumeSettingsWindow
             showRight: _settings.ShowRecordingDevices,
             searchKeywords:
             [
-                L("Settings_Devices_ShowDisconnectedPlayback_SearchKeywords",
-                    "unplugged offline unavailable hardware endpoints")
+                Loc(nameof(AppStrings.Settings_Devices_ShowDisconnectedPlayback_SearchKeywords))
             ]));
 
         stack.Children.Add(PairColumnHeader(Loc(nameof(AppStrings.Settings_Devices_RowButtons_Header)), p));
@@ -141,8 +133,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.ShowLockButtonForRecording, v => _settings.ShowLockButtonForRecording = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowPlaybackLockButton_SearchKeywords",
-                    "exclusive control shared mode audio endpoint")
+                Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackLockButton_SearchKeywords))
             ]));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_Description)),
@@ -151,8 +142,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowEqualizerAPOButtonForRecording = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowPlaybackEqualizerAPOButton_SearchKeywords",
-                    "EQ effects enhancements DSP")
+                Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackEqualizerAPOButton_SearchKeywords))
             ]));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_Description)),
@@ -161,8 +151,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowDefaultDeviceButtonForRecording = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowPlaybackDefaultDeviceButton_SearchKeywords",
-                    "switch primary speakers microphone output input")
+                Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackDefaultDeviceButton_SearchKeywords))
             ]));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_Description)),
@@ -171,8 +160,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowBatteryButtonForRecording = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowPlaybackBatteryButton_SearchKeywords",
-                    "headset earbuds charge wireless reconnect")
+                Loc(nameof(AppStrings.Settings_Devices_ShowPlaybackBatteryButton_SearchKeywords))
             ]));
         stack.Children.Add(PairBoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_Description)),
@@ -180,8 +168,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.ShowListenButtonForRecording = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowRecordingListenButton_SearchKeywords",
-                    "microphone monitoring sidetone loopback hear input")
+                Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_SearchKeywords))
             ]));
 
         return stack;

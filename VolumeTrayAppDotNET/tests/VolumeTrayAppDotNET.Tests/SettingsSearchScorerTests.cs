@@ -13,7 +13,7 @@ public sealed class SettingsSearchScorerTests
     {
         string commonDefinitions = Assert.IsType<string>(
             TrayAppDotNETCommon.Localization.CommonStrings.ResourceManager.GetString(
-                SettingsSearchSynonymMap.CommonResourceKey,
+                nameof(TrayAppDotNETCommon.Localization.CommonStrings.SettingsWindow_SearchSynonymGroups_Common),
                 CultureInfo.InvariantCulture));
         Assert.False(string.IsNullOrWhiteSpace(commonDefinitions));
 
@@ -137,11 +137,11 @@ public sealed class SettingsSearchScorerTests
         ];
         string commonDefinitions = Assert.IsType<string>(
             TrayAppDotNETCommon.Localization.CommonStrings.ResourceManager.GetString(
-                SettingsSearchSynonymMap.CommonResourceKey,
+                nameof(TrayAppDotNETCommon.Localization.CommonStrings.SettingsWindow_SearchSynonymGroups_Common),
                 CultureInfo.InvariantCulture));
         string appDefinitions = Assert.IsType<string>(
             VolumeTrayAppDotNET.Localization.Strings.ResourceManager.GetString(
-                SettingsSearchSynonymMap.AppResourceKey,
+                nameof(VolumeTrayAppDotNET.Localization.Strings.SettingsWindow_SearchSynonymGroups_App),
                 CultureInfo.InvariantCulture));
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(
             commonDefinitions,

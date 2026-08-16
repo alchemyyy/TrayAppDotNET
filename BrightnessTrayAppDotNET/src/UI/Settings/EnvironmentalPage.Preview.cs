@@ -58,8 +58,8 @@ public sealed partial class BrightnessSettingsWindow
     {
         _environmentalCurveEditor?.SetPreviewSweepRunning(running);
         _previewSweepButton?.Text = running
-            ? L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Cancel_Button), "Cancel")
-            : L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Active_Button), "Preview next 24 hours");
+            ? L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Cancel_Button))
+            : L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Active_Button));
 
         UpdatePreviewSweepEnabled();
         ApplyEnvironmentalPreviewHardwareState(_environmentalSunOverlayDate);
@@ -87,10 +87,10 @@ public sealed partial class BrightnessSettingsWindow
         if (!engaged)
         {
             _previewSweepButton.Text =
-                L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Idle_Button), "Live preview next 24 hours");
+                L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Idle_Button));
         }
-        else if (_previewSweepButton.Text != L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Cancel_Button), "Cancel"))
-            _previewSweepButton.Text = L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Active_Button), "Preview next 24 hours");
+        else if (_previewSweepButton.Text != L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Cancel_Button)))
+            _previewSweepButton.Text = L(nameof(AppStrings.Settings_Environmental_PreviewSweep_Active_Button));
     }
 
     /// <summary>

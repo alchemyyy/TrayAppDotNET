@@ -197,7 +197,7 @@ public sealed class SecondaryWindowLifetimeTests
             Icon = null,
             Palette = Palette(),
             EnableRoundedCorners = true,
-            Localize = callbackTarget.Localize,
+            L = callbackTarget.L,
             RetargetStartupShortcut = callbackTarget.RetargetStartupShortcut,
             RunUninstall = callbackTarget.RunUninstall
         });
@@ -263,10 +263,10 @@ public sealed class SecondaryWindowLifetimeTests
     {
         private int _callCount;
 
-        public string Localize(string key, string fallback)
+        public string L(string key)
         {
             _callCount++;
-            return fallback;
+            return key;
         }
 
         public void RetargetStartupShortcut(InstallScope installScope)

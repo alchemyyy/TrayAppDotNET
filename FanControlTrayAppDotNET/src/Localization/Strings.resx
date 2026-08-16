@@ -85,6 +85,12 @@
   <data name="Flyout_DeleteGroup_Title" xml:space="preserve">
     <value>Delete group</value>
   </data>
+  <data name="Flyout_DeleteProbeCard_MessageFormat" xml:space="preserve">
+    <value>Delete {0}?</value>
+  </data>
+  <data name="Flyout_DeleteProbeCard_Title" xml:space="preserve">
+    <value>Delete probe card</value>
+  </data>
   <data name="SettingsWindow_ConfirmOverlay_DefaultMessage" xml:space="preserve">
     <value>Are you sure?</value>
   </data>
@@ -241,6 +247,21 @@
   <data name="Settings_Flyout_SectionHeader" xml:space="preserve">
     <value>Flyout</value>
   </data>
+  <data name="Settings_Flyout_Layout_Header" xml:space="preserve">
+    <value>Layout</value>
+  </data>
+  <data name="Settings_Flyout_ShowMultipleSliderValues_Description" xml:space="preserve">
+    <value>Show both the manual and curve slider thumbs when possible. Only in manual means this only appears when the slider is in manual mode.</value>
+  </data>
+  <data name="Settings_Flyout_ShowMultipleSliderValues_Title" xml:space="preserve">
+    <value>Show multiple slider values</value>
+  </data>
+  <data name="Settings_Flyout_ShowNonFunctioningFans_Description" xml:space="preserve">
+    <value>Include detached or forced non-functioning fans in the flyout.</value>
+  </data>
+  <data name="Settings_Flyout_ShowNonFunctioningFans_Title" xml:space="preserve">
+    <value>Show non-functioning fans</value>
+  </data>
   <data name="Settings_Flyout_ShowUndockButton_Description" xml:space="preserve">
     <value>Show the undock button in the flyout header. Disabling hides the button and forces the flyout back into its docked position.</value>
   </data>
@@ -382,6 +403,9 @@ Target: {1}</value>
   </data>
   <data name="Settings_FanProperties_Apply_Button" xml:space="preserve">
     <value>Apply</value>
+  </data>
+  <data name="Settings_FanProperties_ApplyFanSwaps_Button" xml:space="preserve">
+    <value>Apply swaps</value>
   </data>
   <data name="Settings_FanProperties_NonFunctioning_Header" xml:space="preserve">
     <value>Manually tag fans as non-functioning</value>

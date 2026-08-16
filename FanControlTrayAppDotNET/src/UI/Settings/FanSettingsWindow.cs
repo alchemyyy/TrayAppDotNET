@@ -43,7 +43,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -56,10 +56,10 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     protected override FanSettingsPage DefaultPageKey => FanSettingsPage.General;
 
-    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
 
     protected override string OpenSettingsFolderText =>
-        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -78,11 +78,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     [
         new(FanSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
             BuildGeneralPage),
-        new(FanSettingsPage.FanProperties, L(nameof(AppStrings.Settings_Common_Page_FanProperties), "Fan properties"),
+        new(FanSettingsPage.FanProperties, L(nameof(AppStrings.Settings_Common_Page_FanProperties)),
             BuildFanPropertiesPage),
-        new(FanSettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout), "Flyout"),
+        new(FanSettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout)),
             BuildFlyoutPage),
-        new(FanSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon), "Tray icon"),
+        new(FanSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
             BuildTrayIconPage),
         new(FanSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
             BuildHotkeysPage),
@@ -124,7 +124,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader), "General"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
@@ -134,7 +134,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = FanInstallScope.LocalAppData,
-                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title), "Local user"),
+                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title)),
                 ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                 Elevated = false,
                 Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -148,7 +148,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = FanInstallScope.ProgramFiles,
-                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title), "System-wide"),
+                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title)),
                 ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                 Elevated = true,
                 Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -163,15 +163,14 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_General_DefaultToRPMMode_Title), "Default to RPM mode"),
-            L(nameof(AppStrings.Settings_General_DefaultToRPMMode_Description), "Newly discovered fans start in RPM mode."),
+            L(nameof(AppStrings.Settings_General_DefaultToRPMMode_Title)),
+            L(nameof(AppStrings.Settings_General_DefaultToRPMMode_Description)),
             _settings.DefaultToRPMMode,
             v => _settings.DefaultToRPMMode = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_DefaultToRPMMode_SearchKeywords",
-                    "tachometer revolutions rotation speed cooling")
+                L(nameof(AppStrings.Settings_General_DefaultToRPMMode_SearchKeywords))
             ]));
 
         return stack;
@@ -182,7 +181,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         {
             Palette = p,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
@@ -195,11 +194,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildFanPropertiesPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_FanProperties_SectionHeader), "Fan properties"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_FanProperties_SectionHeader)), p);
 
         stack.Children.Add(IntCard(
-            L("Settings_FanProperties_DefaultJumpstart_Title", "Default jumpstart"),
-            L("Settings_FanProperties_DefaultJumpstart_Description", "Initial duty cycle for newly discovered fans."),
+            L(nameof(AppStrings.Settings_FanProperties_DefaultJumpstartDutyCycle_Title)),
+            L(nameof(AppStrings.Settings_FanProperties_DefaultJumpstartDutyCycle_Description)),
             _settings.DefaultJumpstartDutyCycle,
             0,
             100,
@@ -208,12 +207,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             "%",
             searchKeywords:
             [
-                L("Settings_FanProperties_DefaultJumpstart_SearchKeywords",
-                    "spin up startup boost stalled fan stiction")
+                L(nameof(AppStrings.Settings_FanProperties_DefaultJumpstart_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
-            L("Settings_FanProperties_DefaultDeltaMax_Title", "Default max delta"),
-            L("Settings_FanProperties_DefaultDeltaMax_Description", "Default maximum fan speed change per second."),
+            L(nameof(AppStrings.Settings_FanProperties_DefaultDeltaMaxDutyCycle_Title)),
+            L(nameof(AppStrings.Settings_FanProperties_DefaultDeltaMaxDutyCycle_Description)),
             _settings.DefaultDeltaMaxDutyCycle,
             0,
             100,
@@ -222,12 +220,11 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             "%/s",
             searchKeywords:
             [
-                L("Settings_FanProperties_DefaultDeltaMax_SearchKeywords",
-                    "ramp rate smoothing response acceleration cooling")
+                L(nameof(AppStrings.Settings_FanProperties_DefaultDeltaMax_SearchKeywords))
             ]));
         stack.Children.Add(ComboCard(
-            L("Settings_FanProperties_DefaultCurve_Title", "Default curve"),
-            L("Settings_FanProperties_DefaultCurve_Description", "Curve assigned to newly discovered fans."),
+            L(nameof(AppStrings.Settings_FanProperties_DefaultAssignedCurve_Title)),
+            L(nameof(AppStrings.Settings_FanProperties_DefaultAssignedCurve_Description)),
             CurveOptions(),
             string.IsNullOrWhiteSpace(_settings.DefaultAssignedCurve) ? "None" : _settings.DefaultAssignedCurve,
             tag => _settings.DefaultAssignedCurve = tag,
@@ -235,15 +232,13 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             autoSizeToText: true,
             searchKeywords:
             [
-                L("Settings_FanProperties_DefaultCurve_SearchKeywords",
-                    "temperature profile thermal response automatic cooling")
+                L(nameof(AppStrings.Settings_FanProperties_DefaultCurve_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_FanProperties_Reassign_Header), "Reassign saved fan settings"), p));
+            L(nameof(AppStrings.Settings_FanProperties_Reassign_Header)), p));
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(AppStrings.Settings_FanProperties_Reassign_Description),
-                "Drag rows, or use Ctrl+Up/Ctrl+Down, then apply to move saved settings between physical fan slots."),
+            L(nameof(AppStrings.Settings_FanProperties_Reassign_Description)),
             p,
             new Thickness(0, 0, 0, 12)));
 
@@ -256,11 +251,10 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             searchKeywords:
             [
-                L("Settings_FanProperties_Reassign_SearchKeywords",
-                    "swap reorder remap fan headers physical slots controller")
+                L(nameof(AppStrings.Settings_FanProperties_Reassign_SearchKeywords))
             ]));
 
-        SettingsButton apply = Button(L("Settings_FanProperties_ApplyFanSwaps_Button", "Apply swaps"), p);
+        SettingsButton apply = Button(L(nameof(AppStrings.Settings_FanProperties_ApplyFanSwaps_Button)), p);
         apply.HorizontalAlignment = HorizontalAlignment.Right;
         apply.Margin = new Thickness(0, 6, 0, 14);
         apply.IsEnabled = pageGeneration.FanSlots.Count > 1;
@@ -268,19 +262,18 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         stack.Children.Add(apply);
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_FanProperties_NonFunctioning_Header), "Manually tag fans as non-functioning"), p));
+            L(nameof(AppStrings.Settings_FanProperties_NonFunctioning_Header)), p));
 
         List<Fan> liveFans = GetLiveFans();
         if (liveFans.Count == 0)
         {
             stack.Children.Add(RawCard(
                 TrayAppDotNETSettingsUI.DescriptionText(
-                    L(nameof(AppStrings.Settings_FanProperties_NoFans), "No live fans detected."), p),
+                    L(nameof(AppStrings.Settings_FanProperties_NoFans)), p),
                 p,
                 searchKeywords:
                 [
-                    L("Settings_FanProperties_NonFunctioning_SearchKeywords",
-                        "broken stopped detached missing disabled cooling hardware")
+                    L(nameof(AppStrings.Settings_FanProperties_NonFunctioning_SearchKeywords))
                 ]));
             return stack;
         }
@@ -309,8 +302,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 p,
                 searchKeywords:
                 [
-                    L("Settings_FanProperties_NonFunctioning_SearchKeywords",
-                        "broken stopped detached missing disabled cooling hardware")
+                    L(nameof(AppStrings.Settings_FanProperties_NonFunctioning_SearchKeywords))
                 ]);
             card.Margin = new Thickness(
                 column == 0 ? 0 : NonFunctioningFanColumnGap / 2.0,
@@ -330,99 +322,92 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildFlyoutPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader), "Flyout"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader)), p);
 
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title), "Restore undocked state"),
-            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description), "Reopen the flyout at its saved floating position."),
+            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title)),
+            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description)),
             _settings.RestoreFlyoutUndockedOnStartup,
             v => _settings.RestoreFlyoutUndockedOnStartup = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_RestoreUndockState_SearchKeywords",
-                    "floating window position remember startup")
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title), "Allow undocking"),
-            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description), "Show the undock/redock control in the flyout header."),
+            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description)),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
             afterSave: () => RebuildShell(FanSettingsPage.Flyout),
             searchKeywords:
             [
-                L("Settings_Flyout_ShowUndockButton_SearchKeywords",
-                    "detach floating window redock separate panel")
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
             ]));
         if (_settings.AllowFlyoutUndock)
         {
             stack.Children.Add(BoolCard(
-                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title), "Keep undocked flyout on screen"),
-                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description),
-                    "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
+                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
+                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
                 _settings.ClampUndockedFlyoutToScreen,
                 v => _settings.ClampUndockedFlyoutToScreen = v,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Flyout_ClampUndockedToScreen_SearchKeywords",
-                        "monitor work area keep visible constrain window")
+                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
                 ]));
         }
         stack.Children.Add(BoolCard(
-            L("Settings_Flyout_ShowNonFunctioningFans_Title", "Show non-functioning fans"),
-            L("Settings_Flyout_ShowNonFunctioningFans_Description",
-                "Include detached or forced non-functioning fans in the flyout."),
+            L(nameof(AppStrings.Settings_Flyout_ShowNonFunctioningFans_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowNonFunctioningFans_Description)),
             _settings.ShowNonFunctioningFans,
             v => _settings.ShowNonFunctioningFans = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowNonFunctioningFans_SearchKeywords",
-                    "broken stopped detached missing disabled cooling hardware")
+                L(nameof(AppStrings.Settings_Flyout_ShowNonFunctioningFans_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
-            L("Settings_Flyout_ShowMultipleSliderValues_Title", "Show multiple slider values"),
-            L("Settings_Flyout_ShowMultipleSliderValues_Description",
-                "Show both the manual and curve slider thumbs when possible. Only in manual means this only appears when the slider is in manual mode."),
+            L(nameof(AppStrings.Settings_Flyout_ShowMultipleSliderValues_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowMultipleSliderValues_Description)),
             MultipleSliderValuesOptions(),
             _settings.ShowMultipleSliderValuesMode,
             v => _settings.ShowMultipleSliderValuesMode = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowMultipleSliderValues_SearchKeywords",
-                    "manual duty cycle curve setpoint target overlay")
+                L(nameof(AppStrings.Settings_Flyout_ShowMultipleSliderValues_SearchKeywords))
             ]));
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_Flyout_Layout_Header", "Layout"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
+            L(nameof(AppStrings.Settings_Flyout_Layout_Header)), p));
         stack.Children.Add(IntCard("Card spacing", "Vertical spacing between fan cards.", _settings.FlyoutCardSpacing,
             0, 48, v => _settings.FlyoutCardSpacing = v, p,
-            searchKeywords: [L("Settings_Theme_CardSpacing_SearchKeywords", "gap separation density")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_CardSpacing_SearchKeywords))]));
         stack.Children.Add(IntCard("Card horizontal inset", "Horizontal inset inside the flyout list.",
             _settings.FlyoutCardHorizontalInset, 0, 48, v => _settings.FlyoutCardHorizontalInset = v, p,
-            searchKeywords: [L("Settings_Theme_CardHorizontalInset_SearchKeywords", "side padding margin width")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_CardHorizontalInset_SearchKeywords))]));
         stack.Children.Add(IntCard("Title bar spacing", "Gap between the title bar and first card.",
             _settings.FlyoutTitleBarCardSpacing, 0, 48, v => _settings.FlyoutTitleBarCardSpacing = v, p,
-            searchKeywords: [L("Settings_Theme_FlyoutTitleBarCardSpacing_SearchKeywords", "header padding margin gap")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarCardSpacing_SearchKeywords))]));
         stack.Children.Add(BoolCard("Card borders", "Draw persistent borders around flyout cards.",
             _settings.EnableCardBorders, v => _settings.EnableCardBorders = v, p,
-            searchKeywords: [L("Settings_Theme_CardBorders_SearchKeywords", "outline stroke frame")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_CardBorders_SearchKeywords))]));
         stack.Children.Add(BoolCard("Hovered card borders", "Draw borders only while hovering cards.",
             _settings.EnableHoveredCardBorders, v => _settings.EnableHoveredCardBorders = v, p,
-            searchKeywords: [L("Settings_Theme_HoverCardBorders_SearchKeywords", "pointer mouseover outline highlight")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_HoverCardBorders_SearchKeywords))]));
         stack.Children.Add(BoolCard("Hide grouped fan borders", "Suppress borders on fan rows inside a group.",
             _settings.HideGroupedFanCardBorders, v => _settings.HideGroupedFanCardBorders = v, p,
-            searchKeywords: [L("Settings_Theme_HideGroupedFanCardBorders_SearchKeywords", "nested cooling rows outline")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_HideGroupedFanCardBorders_SearchKeywords))]));
         stack.Children.Add(BoolCard("Use group background", "Use the group card background for grouped fan rows.",
             _settings.UseGroupBackgroundForGroupedFanCards, v => _settings.UseGroupBackgroundForGroupedFanCards = v,
             p,
-            searchKeywords: [L("Settings_Theme_GroupedFanCardBackground_SearchKeywords", "nested cooling rows fill surface")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_GroupedFanCardBackground_SearchKeywords))]));
         stack.Children.Add(BoolCard("Square title bar corners",
             "Keep the flyout title bar square even when rounded corners are enabled.",
             _settings.SquareFlyoutTitleBarCorners, v => _settings.SquareFlyoutTitleBarCorners = v, p,
-            searchKeywords: [L("Settings_Theme_SquareFlyoutTitleBarCorners_SearchKeywords", "sharp rectangular header radius")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_SquareFlyoutTitleBarCorners_SearchKeywords))]));
 
         return stack;
     }
@@ -430,17 +415,17 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildTrayIconPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader), "Tray icon"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader)), p);
 
         stack.Children.Add(BoolCard("Tray wheel", "Allow mouse wheel events over the tray icon.",
             _settings.TrayScrollEnabled, v => _settings.TrayScrollEnabled = v, p,
-            searchKeywords: [L("Settings_TrayIcon_MouseWheel_SearchKeywords", "scroll pointer cooling control")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_SearchKeywords))]));
         stack.Children.Add(BoolCard("CPU temperature tooltip", "Show CPU temperature in the tray tooltip.",
             _settings.ShowCPUTempInTooltip, v => _settings.ShowCPUTempInTooltip = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ShowCPUTemp_SearchKeywords", "processor thermal heat sensor hover")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ShowCPUTemp_SearchKeywords))]));
         stack.Children.Add(BoolCard("GPU temperature tooltip", "Show GPU temperature in the tray tooltip.",
             _settings.ShowGPUTempInTooltip, v => _settings.ShowGPUTempInTooltip = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ShowGPUTemp_SearchKeywords", "graphics card thermal heat sensor hover")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ShowGPUTemp_SearchKeywords))]));
         stack.Children.Add(StringComboCard(
             "Context menu position",
             "Classic opens at the cursor; Modern centers on the tray icon.",
@@ -453,8 +438,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_MenuPosition_SearchKeywords",
-                    "right click popup taskbar cursor corner")
+                L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
             "Double click",
@@ -465,27 +449,26 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_ClickActions_SearchKeywords",
-                    "mouse gesture shortcut command notification area")
+                L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard("Ctrl + left click", "Modifier tray action.", TrayClickActionOptions(),
             _settings.TrayCtrlLeftClickAction, v => _settings.TrayCtrlLeftClickAction = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ClickActions_SearchKeywords", "mouse gesture shortcut command notification area")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))]));
         stack.Children.Add(StringComboCard("Alt + left click", "Modifier tray action.", TrayClickActionOptions(),
             _settings.TrayAltLeftClickAction, v => _settings.TrayAltLeftClickAction = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ClickActions_SearchKeywords", "mouse gesture shortcut command notification area")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))]));
         stack.Children.Add(StringComboCard("Ctrl + right click", "Modifier tray action.", TrayClickActionOptions(),
             _settings.TrayCtrlRightClickAction, v => _settings.TrayCtrlRightClickAction = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ClickActions_SearchKeywords", "mouse gesture shortcut command notification area")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))]));
         stack.Children.Add(StringComboCard("Alt + right click", "Modifier tray action.", TrayClickActionOptions(),
             _settings.TrayAltRightClickAction, v => _settings.TrayAltRightClickAction = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ClickActions_SearchKeywords", "mouse gesture shortcut command notification area")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))]));
         stack.Children.Add(StringComboCard("Ctrl + double click", "Modifier tray action.", TrayClickActionOptions(),
             _settings.TrayCtrlDoubleLeftClickAction, v => _settings.TrayCtrlDoubleLeftClickAction = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ClickActions_SearchKeywords", "mouse gesture shortcut command notification area")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))]));
         stack.Children.Add(StringComboCard("Alt + double click", "Modifier tray action.", TrayClickActionOptions(),
             _settings.TrayAltDoubleLeftClickAction, v => _settings.TrayAltDoubleLeftClickAction = v, p,
-            searchKeywords: [L("Settings_TrayIcon_ClickActions_SearchKeywords", "mouse gesture shortcut command notification area")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))]));
         return stack;
     }
 
@@ -502,8 +485,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             searchKeywords:
             [
-                L("Settings_Hotkeys_OpenFlyout_SearchKeywords",
-                    "global key binding keyboard command show cooling controls")
+                L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_SearchKeywords))
             ]);
         AddHotkeyRow(stack, FanHotkeyAction.OpenSettings,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
@@ -511,8 +493,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             searchKeywords:
             [
-                L("Settings_Hotkeys_OpenSettings_SearchKeywords",
-                    "global key binding keyboard command preferences configuration")
+                L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_SearchKeywords))
             ]);
         return stack;
     }
@@ -526,7 +507,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
         stack.Children.Add(IntCard("Context menu font size", "Controls tray menu text size.",
             _settings.ContextMenuFontSize, 10, 28, v => _settings.ContextMenuFontSize = v, p,
-            searchKeywords: [L("Settings_Theme_FontSize_SearchKeywords", "text scale typography zoom")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))]));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
             Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
@@ -541,8 +522,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             afterSave: () => RebuildShell(FanSettingsPage.Theme),
             searchKeywords:
             [
-                L("Settings_Theme_ThemeStyle_SearchKeywords",
-                    "appearance color scheme Windows preference")
+                L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
@@ -553,46 +533,45 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             afterSave: () => RebuildShell(FanSettingsPage.Theme),
             searchKeywords:
             [
-                L("Settings_Theme_RoundedCorners_SearchKeywords",
-                    "square sharp rectangular radius geometry")
+                L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
             ]));
 
         stack.Children.Add(VariantColorCard("Text", Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Description)), Loc(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
             Loc(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)), _settings.TextColor, theme.Foreground.Light,
             theme.Foreground.Dark, p,
-            searchKeywords: [L("Settings_Theme_TextColor_SearchKeywords", "foreground font lettering contrast")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("Background", Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)), Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)), _settings.BackgroundColor, theme.Background.Light,
             theme.Background.Dark, p,
-            searchKeywords: [L("Settings_Theme_BackgroundColor_SearchKeywords", "canvas surface fill wallpaper")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("FlyoutBackground", "Flyout background", "Override the flyout background.",
             "Light flyout background", "Dark flyout background", _settings.FlyoutBackgroundColor,
             theme.FlyoutBackground.Light, theme.FlyoutBackground.Dark, p,
-            searchKeywords: [L("Settings_Theme_FlyoutBackgroundColor_SearchKeywords", "popup panel surface fill")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("FlyoutTitleBar", "Flyout title bar",
             "Override the flyout title bar background.", "Light title bar", "Dark title bar",
             _settings.FlyoutTitleBarBackgroundColor, theme.FlyoutTitleBarBackground.Light,
             theme.FlyoutTitleBarBackground.Dark, p,
-            searchKeywords: [L("Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords", "header caption surface fill")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("FanCard", "Fan card", "Override standalone fan card backgrounds.",
             "Light fan card", "Dark fan card", _settings.FanCardBackgroundColor, theme.FanCardBackground.Light,
             theme.FanCardBackground.Dark, p,
-            searchKeywords: [L("Settings_Theme_FanCardBackgroundColor_SearchKeywords", "cooling tile row surface fill")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_FanCardBackgroundColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("GroupCard", "Group card", "Override group card backgrounds.",
             "Light group card", "Dark group card", _settings.GroupCardBackgroundColor, theme.GroupCardBackground.Light,
             theme.GroupCardBackground.Dark, p,
-            searchKeywords: [L("Settings_Theme_GroupCardBackgroundColor_SearchKeywords", "cooling collection tile surface fill")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_GroupCardBackgroundColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("CardBorder", "Card border", "Override flyout card border color.",
             "Light border", "Dark border", _settings.CardBorderColor, theme.FlyoutCardBorder.Light,
             theme.FlyoutCardBorder.Dark, p,
-            searchKeywords: [L("Settings_Theme_CardBorderColor_SearchKeywords", "outline stroke frame")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_CardBorderColor_SearchKeywords))]));
         stack.Children.Add(VariantColorCard("TrayIcon", Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
             Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)), Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
             Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)), _settings.TrayIconColor, theme.Foreground.Light,
             theme.Foreground.Dark, p,
-            searchKeywords: [L("Settings_Theme_StaticIconColor_SearchKeywords", "notification area system tray glyph symbol")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))]));
 
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(p, autoSizeToText: true,
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem);
@@ -611,7 +590,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             "Shape used by flyout sliders.",
             sliderThumbCombo,
             p,
-            searchKeywords: [L("Settings_Theme_SliderThumb_SearchKeywords", "handle knob grip control")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_SliderThumb_SearchKeywords))]));
 
         SettingsComboBox curveSliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(p, autoSizeToText: true,
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem);
@@ -627,7 +606,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         };
         stack.Children.Add(Card("Curve slider thumb", "Shape used by non-manual flyout sliders.",
             curveSliderThumbCombo, p,
-            searchKeywords: [L("Settings_Theme_CurveSliderThumb_SearchKeywords", "automatic profile handle knob grip")]));
+            searchKeywords: [L(nameof(AppStrings.Settings_Theme_CurveSliderThumb_SearchKeywords))]));
 
         _ = isLight;
         return stack;
@@ -641,10 +620,10 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Palette = Palette,
             ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ApplicationName = Constants.ApplicationName,
-            Tagline = L(nameof(AppStrings.Settings_About_Tagline), "A tray-based fan controller."),
+            Tagline = L(nameof(AppStrings.Settings_About_Tagline)),
             BuildNumber = BuildInfo.BuildNumber,
             Publisher = Constants.Publisher,
             HelpLink = Constants.HelpLink,
@@ -883,7 +862,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         if (pageGeneration.FanSlots.Count == 0)
         {
             pageGeneration.FanSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L(nameof(AppStrings.Settings_FanProperties_NoFans), "No live fans detected."), Palette));
+                L(nameof(AppStrings.Settings_FanProperties_NoFans)), Palette));
             return;
         }
 
@@ -1280,7 +1259,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Palette = p,
             ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,

@@ -28,7 +28,7 @@ public sealed class FanUninstallerWindow(string installDir, FanInstallScope scop
             Icon = AppTheme.LoadAppIcon(),
             Palette = palette,
             EnableRoundedCorners = settings.EnableRoundedCorners,
-            Localize = Localize,
+            L = L,
             RetargetStartupShortcut = static uninstallScope =>
                 AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
@@ -36,16 +36,5 @@ public sealed class FanUninstallerWindow(string installDir, FanInstallScope scop
         };
     }
 
-    private static string Localize(string key, string fallback)
-    {
-        try
-        {
-            string value = TrayLocalization.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => TrayLocalization.Instance[key];
 }

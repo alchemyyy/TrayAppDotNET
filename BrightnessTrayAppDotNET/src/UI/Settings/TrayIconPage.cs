@@ -8,25 +8,22 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildTrayIconPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader), "Tray Icon"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader)), p);
 
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title), "Mouse wheel"),
-            L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Description),
-                "Enable scrolling the mouse wheel while hovering the tray icon."),
+            L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Description)),
             _settings.TrayScrollEnabled,
             v => _settings.TrayScrollEnabled = v,
             p,
             afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon),
             searchKeywords:
             [
-                L("Settings_TrayIcon_MouseWheel_SearchKeywords",
-                    "scroll notification area icon adjust brightness")
+                L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
-            L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_Title), "Mouse wheel step"),
-            L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_Description),
-                "How many percent each mouse wheel notch adjusts brightness from the tray icon or flyout sliders."),
+            L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_Description)),
             _settings.FlyoutScrollWheelStep,
             AppSettings.FlyoutScrollWheelStepMin,
             AppSettings.FlyoutScrollWheelStepMax,
@@ -35,26 +32,22 @@ public sealed partial class BrightnessSettingsWindow
             "%",
             searchKeywords:
             [
-                L("Settings_TrayIcon_MouseWheelStep_SearchKeywords",
-                    "scroll sensitivity increment")
+                L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
-            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Title), "Precision touchpad"),
-            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Description),
-                "Use precision touchpad scroll reports over the tray icon for finer brightness control."),
+            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Description)),
             _settings.PrecisionTouchpadScrollEnabled,
             v => _settings.PrecisionTouchpadScrollEnabled = v,
             p,
             afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon),
             searchKeywords:
             [
-                L("Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords",
-                    "trackpad gesture high resolution")
+                L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true }, IntCard(
-            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title), "Touchpad sensitivity"),
-            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description),
-                "Raw touchpad movement units required for each 1% brightness step. Lower values are more sensitive."),
+            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description)),
             _settings.PrecisionTouchpadUnitsPerScrollStep,
             AppSettings.PrecisionTouchpadUnitsPerScrollStepMin,
             AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
@@ -62,105 +55,95 @@ public sealed partial class BrightnessSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords",
-                    "trackpad gesture speed raw movement")
+                L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))
             ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_TrayIcon_ContextMenu_Header), "Context menu"),
+            L(nameof(AppStrings.Settings_TrayIcon_ContextMenu_Header)),
             p));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_TrayIcon_ShowProfileSelectors_Title), "Show profile selectors"),
-            L(nameof(AppStrings.Settings_TrayIcon_ShowProfileSelectors_Description),
-                "Display brightness profile entries in the tray right-click menu."),
+            L(nameof(AppStrings.Settings_TrayIcon_ShowProfileSelectors_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_ShowProfileSelectors_Description)),
             _settings.ShowProfileSelectorsInMenu,
             v => _settings.ShowProfileSelectorsInMenu = v,
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_ShowProfileSelectors_SearchKeywords",
-                    "presets right click menu")
+                L(nameof(AppStrings.Settings_TrayIcon_ShowProfileSelectors_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_Title), "Show individual power selectors"),
-            L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_Description),
-                "Display per-monitor power toggles in the tray right-click menu."),
+            L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_Description)),
             _settings.ShowMonitorPowerButtons,
             v => _settings.ShowMonitorPowerButtons = v,
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_ShowIndividualPowerSelectors_SearchKeywords",
-                    "turn screens off individually")
+                L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_Title), "Show all-displays power selector"),
-            L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_Description),
-                "Display a single entry that powers every display off."),
+            L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_Description)),
             _settings.ShowAllDisplaysPowerButton,
             v => _settings.ShowAllDisplaysPowerButton = v,
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_ShowAllDisplaysPowerSelector_SearchKeywords",
-                    "turn every screen off")
+                L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
-            L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Title), "Menu position"),
-            L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Description),
-                "Classic opens at the cursor. Modern docks the menu above the taskbar like the Windows 11 system flyouts."),
+            L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Title)),
+            L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Description)),
             [
-                (ContextMenuPosition.Classic, L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Classic), "Classic")),
-                (ContextMenuPosition.Modern, L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Modern), "Modern"))
+                (ContextMenuPosition.Classic, L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Classic))),
+                (ContextMenuPosition.Modern, L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Modern)))
             ],
             _settings.ContextMenuPosition,
             v => _settings.ContextMenuPosition = v,
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_MenuPosition_SearchKeywords",
-                    "right click cursor taskbar docked")
+                L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Header), "Modified actions"),
+            L(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Header)),
             p));
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Description),
-                "Assign actions to modified clicks or scrolls on the tray icon."),
+            L(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Description)),
             p,
             new Avalonia.Thickness(0, 0, 0, 8)));
         AddWheelActionCard(
             stack,
-            L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title), "Mouse wheel"),
+            L(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title)),
             _settings.TrayWheelAction,
             v => _settings.TrayWheelAction = v,
             p);
         AddWheelActionCard(
             stack,
-            L(nameof(AppStrings.Settings_TrayIcon_CtrlMouseWheel_Title), "Ctrl + mouse wheel"),
+            L(nameof(AppStrings.Settings_TrayIcon_CtrlMouseWheel_Title)),
             _settings.TrayCtrlWheelAction,
             v => _settings.TrayCtrlWheelAction = v,
             p);
         AddWheelActionCard(
             stack,
-            L(nameof(AppStrings.Settings_TrayIcon_AltMouseWheel_Title), "Alt + mouse wheel"),
+            L(nameof(AppStrings.Settings_TrayIcon_AltMouseWheel_Title)),
             _settings.TrayAltWheelAction,
             v => _settings.TrayAltWheelAction = v,
             p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_CtrlLeftClick_Title), "Ctrl + left click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_CtrlLeftClick_Title)),
             _settings.TrayCtrlLeftClickAction, v => _settings.TrayCtrlLeftClickAction = v, p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_AltLeftClick_Title), "Alt + left click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_AltLeftClick_Title)),
             _settings.TrayAltLeftClickAction, v => _settings.TrayAltLeftClickAction = v, p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_CtrlRightClick_Title), "Ctrl + right click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_CtrlRightClick_Title)),
             _settings.TrayCtrlRightClickAction, v => _settings.TrayCtrlRightClickAction = v, p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_AltRightClick_Title), "Alt + right click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_AltRightClick_Title)),
             _settings.TrayAltRightClickAction, v => _settings.TrayAltRightClickAction = v, p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_DoubleLeftClick_Title), "Double left click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_DoubleLeftClick_Title)),
             _settings.TrayDoubleClickAction, v => _settings.TrayDoubleClickAction = v, p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_CtrlDoubleLeftClick_Title), "Ctrl + double left click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_CtrlDoubleLeftClick_Title)),
             _settings.TrayCtrlDoubleLeftClickAction, v => _settings.TrayCtrlDoubleLeftClickAction = v, p);
-        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_AltDoubleLeftClick_Title), "Alt + double left click"),
+        AddTrayClickActionCard(stack, L(nameof(AppStrings.Settings_TrayIcon_AltDoubleLeftClick_Title)),
             _settings.TrayAltDoubleLeftClickAction, v => _settings.TrayAltDoubleLeftClickAction = v, p);
 
         return stack;
@@ -182,8 +165,7 @@ public sealed partial class BrightnessSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_WheelActions_SearchKeywords",
-                    "modifier gesture scroll adjust brightness night light")
+                L(nameof(AppStrings.Settings_TrayIcon_WheelActions_SearchKeywords))
             ]);
         card.IsEnabled = _settings.TrayScrollEnabled;
         stack.Children.Add(card);
@@ -204,24 +186,23 @@ public sealed partial class BrightnessSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_ClickActions_SearchKeywords",
-                    "modifier gesture shortcut turn screens on off maximum minimum brightness")
+                L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))
             ]));
 
     private static IReadOnlyList<(TrayClickAction Value, string Text)> TrayClickOptions() =>
     [
-        (TrayClickAction.Nothing, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_Nothing), "Nothing")),
+        (TrayClickAction.Nothing, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_Nothing))),
         (TrayClickAction.TurnOffAllDisplays,
-            L(nameof(AppStrings.Settings_TrayIcon_ClickAction_AllDisplaysOff), "Turn off all displays")),
-        (TrayClickAction.TurnOnAllDisplays, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_AllDisplaysOn), "Turn on all displays")),
-        (TrayClickAction.FullBright, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullBright), "Full bright")),
-        (TrayClickAction.FullDim, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullDim), "Full dim"))
+            L(nameof(AppStrings.Settings_TrayIcon_ClickAction_AllDisplaysOff))),
+        (TrayClickAction.TurnOnAllDisplays, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_AllDisplaysOn))),
+        (TrayClickAction.FullBright, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullBright))),
+        (TrayClickAction.FullDim, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullDim)))
     ];
 
     private static IReadOnlyList<(TrayWheelTarget Value, string Text)> TrayWheelOptions() =>
     [
-        (TrayWheelTarget.Nothing, L(nameof(AppStrings.Settings_TrayIcon_WheelAction_Nothing), "Nothing")),
-        (TrayWheelTarget.Brightness, L(nameof(AppStrings.Settings_TrayIcon_WheelAction_Brightness), "Brightness")),
-        (TrayWheelTarget.NightLight, L(nameof(AppStrings.Settings_TrayIcon_WheelAction_NightLight), "Night Light"))
+        (TrayWheelTarget.Nothing, L(nameof(AppStrings.Settings_TrayIcon_WheelAction_Nothing))),
+        (TrayWheelTarget.Brightness, L(nameof(AppStrings.Settings_TrayIcon_WheelAction_Brightness))),
+        (TrayWheelTarget.NightLight, L(nameof(AppStrings.Settings_TrayIcon_WheelAction_NightLight)))
     ];
 }

@@ -32,8 +32,7 @@ public sealed partial class NetworkSettingsWindow
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
             searchKeywords:
             [
-                L("Settings_TrayIcon_MenuPosition_SearchKeywords",
-                    "right click popup taskbar cursor corner")
+                L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
@@ -86,8 +85,7 @@ public sealed partial class NetworkSettingsWindow
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
             searchKeywords:
             [
-                L("Settings_TrayIcon_ClickActions_SearchKeywords",
-                    "mouse gesture shortcut command adapter properties interface network connections")
+                L(nameof(AppStrings.Settings_TrayIcon_ClickActions_SearchKeywords))
             ]));
     }
 }

@@ -81,35 +81,33 @@ public sealed record TrayAppDotNETHotkeyModifierOption(string Label, uint Modifi
 
 public static class TrayAppDotNETHotkeyModifierOptions
 {
-    public static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> Create(Func<string, string> localize) =>
-        Create((key, fallback) =>
-        {
-            string value = localize(key);
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        });
-
-    public static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> Create(Func<string, string, string> localize) =>
+    public static IReadOnlyList<TrayAppDotNETHotkeyModifierOption> Create(Func<string, string> L) =>
     [
-        new(localize("Settings_Hotkeys_Modifier_Ctrl", "Ctrl"), HotkeyModifiers.Control),
-        new(localize("Settings_Hotkeys_Modifier_Alt", "Alt"), HotkeyModifiers.Alt),
-        new(localize("Settings_Hotkeys_Modifier_Shift", "Shift"), HotkeyModifiers.Shift),
-        new(localize("Settings_Hotkeys_Modifier_Win", "Win"), HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_CtrlAlt", "Ctrl + Alt"), HotkeyModifiers.Control | HotkeyModifiers.Alt),
-        new(localize("Settings_Hotkeys_Modifier_CtrlShift", "Ctrl + Shift"),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Ctrl)), HotkeyModifiers.Control),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Alt)), HotkeyModifiers.Alt),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Shift)), HotkeyModifiers.Shift),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_Win)), HotkeyModifiers.Win),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlAlt)),
+            HotkeyModifiers.Control | HotkeyModifiers.Alt),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlShift)),
             HotkeyModifiers.Control | HotkeyModifiers.Shift),
-        new(localize("Settings_Hotkeys_Modifier_CtrlWin", "Ctrl + Win"), HotkeyModifiers.Control | HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_AltShift", "Alt + Shift"), HotkeyModifiers.Alt | HotkeyModifiers.Shift),
-        new(localize("Settings_Hotkeys_Modifier_AltWin", "Alt + Win"), HotkeyModifiers.Alt | HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_ShiftWin", "Shift + Win"), HotkeyModifiers.Shift | HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_CtrlAltShift", "Ctrl + Alt + Shift"),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlWin)),
+            HotkeyModifiers.Control | HotkeyModifiers.Win),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_AltShift)),
+            HotkeyModifiers.Alt | HotkeyModifiers.Shift),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_AltWin)),
+            HotkeyModifiers.Alt | HotkeyModifiers.Win),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_ShiftWin)),
+            HotkeyModifiers.Shift | HotkeyModifiers.Win),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlAltShift)),
             HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Shift),
-        new(localize("Settings_Hotkeys_Modifier_CtrlAltWin", "Ctrl + Alt + Win"),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlAltWin)),
             HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_CtrlShiftWin", "Ctrl + Shift + Win"),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlShiftWin)),
             HotkeyModifiers.Control | HotkeyModifiers.Shift | HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_AltShiftWin", "Alt + Shift + Win"),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_AltShiftWin)),
             HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win),
-        new(localize("Settings_Hotkeys_Modifier_CtrlAltShiftWin", "Ctrl + Alt + Shift + Win"),
+        new(L(nameof(CommonStrings.Settings_Hotkeys_Modifier_CtrlAltShiftWin)),
             HotkeyModifiers.Control | HotkeyModifiers.Alt | HotkeyModifiers.Shift | HotkeyModifiers.Win)
     ];
 }

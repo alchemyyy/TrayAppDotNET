@@ -95,16 +95,17 @@
     <AdditionalFiles Include="**\*.axaml" />
   </ItemGroup>
 
+  <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
+       Exclude source-tree custom-tool output to prevent duplicate classes. -->
   <ItemGroup>
     <EmbeddedResource Update="Localization\Strings.resx">
-      <Generator>PublicResXFileCodeGenerator</Generator>
-      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
+      <StronglyTypedLanguage>C#</StronglyTypedLanguage>
+      <StronglyTypedNamespace>$(RootNamespace).Localization</StronglyTypedNamespace>
+      <PublicClass>true</PublicClass>
     </EmbeddedResource>
-    <Compile Update="Localization\Strings.Designer.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Strings.resx</DependentUpon>
-    </Compile>
+    <Compile Remove="Localization\Strings.Designer.cs" />
   </ItemGroup>
 
   <Target Name="CopyHotAvaloniaRuntimeAssemblies"

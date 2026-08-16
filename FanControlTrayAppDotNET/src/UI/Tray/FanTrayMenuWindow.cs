@@ -26,9 +26,9 @@ public sealed class FanTrayMenuWindow(
     private static List<TrayMenuEntry> BuildEntries(Action openSettings, Action exit)
     {
         TrayMenuEntryBuilder entries = new();
-        entries.Add(L(nameof(AppStrings.Tray_Settings), "Settings"), openSettings);
+        entries.Add(L(nameof(AppStrings.Tray_Settings)), openSettings);
         entries.AddSeparator();
-        entries.Add(L(nameof(AppStrings.Tray_Exit), "Exit"), exit);
+        entries.Add(L(nameof(AppStrings.Tray_Exit)), exit);
         return entries.ToList();
     }
 
@@ -43,16 +43,5 @@ public sealed class FanTrayMenuWindow(
             ? TrayMenuWindowPlacement.Modern
             : TrayMenuWindowPlacement.Classic;
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = TrayLocalization.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => TrayLocalization.Instance[key];
 }

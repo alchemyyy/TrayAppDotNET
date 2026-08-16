@@ -12,20 +12,19 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildMonitorsPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Monitors_SectionHeader), "Monitors"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Monitors_SectionHeader)), p);
 
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_BrightnessRate_Title), "Brightness update rate"),
-            L(nameof(AppStrings.Settings_Monitors_BrightnessRate_Description), "Dwell between brightness writes."),
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_BrightnessRate_Title)),
+            L(nameof(AppStrings.Settings_Monitors_BrightnessRate_Description)),
             _settings.BrightnessUpdateRateMs,
             TimeConstants.BrightnessUpdateRateMinMs,
             TimeConstants.BrightnessUpdateRateMaxMs,
             v => _settings.BrightnessUpdateRateMs = v, p, Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             searchKeywords:
             [
-                L("Settings_Monitors_BrightnessRate_SearchKeywords",
-                    "DDC write pacing interval")
+                L(nameof(AppStrings.Settings_Monitors_BrightnessRate_SearchKeywords))
             ]));
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Title), "Validation dwell"), "",
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Title)), "",
             _settings.ValidationDwellMs,
             TimeConstants.ValidationDwellMinMs,
             TimeConstants.ValidationDwellMaxMs,
@@ -33,17 +32,15 @@ public sealed partial class BrightnessSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             searchKeywords:
             [
-                L("Settings_Monitors_ValidationDwell_SearchKeywords",
-                    "verify readback delay")
+                L(nameof(AppStrings.Settings_Monitors_ValidationDwell_SearchKeywords))
             ]));
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title), "Validation attempts"), "",
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title)), "",
             _settings.ValidationAttempts, 1, 20, v => _settings.ValidationAttempts = v, p,
             searchKeywords:
             [
-                L("Settings_Monitors_ValidationAttempts_SearchKeywords",
-                    "verification retries DDC")
+                L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_SearchKeywords))
             ]));
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Title), "DDC operation timeout"), "",
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Title)), "",
             _settings.DDCOperationTimeoutMs,
             TimeConstants.DDCOperationTimeoutMinMs,
             TimeConstants.DDCOperationTimeoutMaxMs,
@@ -51,61 +48,56 @@ public sealed partial class BrightnessSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             searchKeywords:
             [
-                L("Settings_Monitors_DDCOperationTimeout_SearchKeywords",
-                    "monitor control command wait")
+                L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_SearchKeywords))
             ]));
-        stack.Children.Add(StringComboCard(L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Title), "Power-off mode"),
-            L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Description), "VCP command used by monitor power buttons."),
+        stack.Children.Add(StringComboCard(L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Title)),
+            L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Description)),
             PowerOffOptions(), _settings.PowerOffMode, v => _settings.PowerOffMode = v, p,
             searchKeywords:
             [
-                L("Settings_Monitors_PowerOffMode_SearchKeywords",
-                    "DDC VCP sleep standby command")
+                L(nameof(AppStrings.Settings_Monitors_PowerOffMode_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
-            L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Title), "Monitor identity"),
-            L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Description), "Key used for profile monitor entries."),
+            L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Title)),
+            L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Description)),
             [
                 (MonitorIdentityStrategy.DisplayNumber,
-                    L(nameof(AppStrings.Settings_Monitors_Identity_DisplayNumber), "Display number")),
-                (MonitorIdentityStrategy.HardwarePort, L(nameof(AppStrings.Settings_Monitors_Identity_HardwarePort), "Hardware port")),
-                (MonitorIdentityStrategy.EDIDSerial, L(nameof(AppStrings.Settings_Monitors_Identity_EDIDSerial), "EDID serial"))
+                    L(nameof(AppStrings.Settings_Monitors_Identity_DisplayNumber))),
+                (MonitorIdentityStrategy.HardwarePort, L(nameof(AppStrings.Settings_Monitors_Identity_HardwarePort))),
+                (MonitorIdentityStrategy.EDIDSerial, L(nameof(AppStrings.Settings_Monitors_Identity_EDIDSerial)))
             ],
             _settings.MonitorIdentityStrategy,
             v => _settings.MonitorIdentityStrategy = v,
             p,
             searchKeywords:
             [
-                L("Settings_Monitors_IdentityStrategy_SearchKeywords",
-                    "stable display matching EDID serial port number")
+                L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_SearchKeywords))
             ]));
         stack.Children.Add(ComboCard(
-            L(nameof(AppStrings.Settings_Monitors_DefaultSort_Title), "Default sort"),
+            L(nameof(AppStrings.Settings_Monitors_DefaultSort_Title)),
             "",
             [
-                ("Arrangement", L(nameof(AppStrings.Settings_Monitors_Sort_Arrangement), "Arrangement")),
-                ("ArrangementRev", L(nameof(AppStrings.Settings_Monitors_Sort_ArrangementRev), "Arrangement, reversed")),
-                ("DisplayNumber", L(nameof(AppStrings.Settings_Monitors_Sort_DisplayNumber), "Display number")),
-                ("DisplayNumberRev", L(nameof(AppStrings.Settings_Monitors_Sort_DisplayNumberRev), "Display number, reversed"))
+                ("Arrangement", L(nameof(AppStrings.Settings_Monitors_Sort_Arrangement))),
+                ("ArrangementRev", L(nameof(AppStrings.Settings_Monitors_Sort_ArrangementRev))),
+                ("DisplayNumber", L(nameof(AppStrings.Settings_Monitors_Sort_DisplayNumber))),
+                ("DisplayNumberRev", L(nameof(AppStrings.Settings_Monitors_Sort_DisplayNumberRev)))
             ],
             ComposeDefaultSortTag(_settings.DefaultDisplaySortMode, _settings.DefaultDisplaySortDirection),
             ApplyDefaultSortTag,
             p,
             searchKeywords:
             [
-                L("Settings_Monitors_DefaultSort_SearchKeywords",
-                    "screen order arrangement reverse")
+                L(nameof(AppStrings.Settings_Monitors_DefaultSort_SearchKeywords))
             ]));
 
-        SettingsButton clear = Button(L(nameof(AppStrings.Settings_Monitors_ClearDisplays_Button), "Clear saved displays"), p);
+        SettingsButton clear = Button(L(nameof(AppStrings.Settings_Monitors_ClearDisplays_Button)), p);
         clear.Click += async (_, _) =>
         {
             bool ok = await ConfirmAsync(
-                L(nameof(AppStrings.Settings_Monitors_ClearDisplays_ConfirmTitle), "Clear saved displays?"),
-                L(nameof(AppStrings.Settings_Monitors_ClearDisplays_ConfirmMessage),
-                    "This removes saved display names, order, and monitor-specific overrides."),
-                L(nameof(AppStrings.Settings_Monitors_ClearDisplays_ConfirmButton), "Clear"),
-                L("Common_Cancel", "Cancel"));
+                L(nameof(AppStrings.Settings_Monitors_ClearDisplays_ConfirmTitle)),
+                L(nameof(AppStrings.Settings_Monitors_ClearDisplays_ConfirmMessage)),
+                L(nameof(AppStrings.Settings_Monitors_ClearDisplays_ConfirmButton)),
+                L(nameof(CommonStrings.Common_Cancel)));
             if (!ok) return;
 
             _settings.MonitorOrder.Clear();
@@ -115,15 +107,13 @@ public sealed partial class BrightnessSettingsWindow
             RebuildShell(BrightnessSettingsPage.Monitors);
         };
         stack.Children.Add(Card(
-            L(nameof(AppStrings.Settings_Monitors_DisplayOrder_Title), "Display order and overrides"),
-            L(nameof(AppStrings.Settings_Monitors_DisplayOrder_Description),
-                "Connected and previously seen displays with saved per-monitor options."),
+            L(nameof(AppStrings.Settings_Monitors_DisplayOrder_Title)),
+            L(nameof(AppStrings.Settings_Monitors_DisplayOrder_Description)),
             clear,
             p,
             searchKeywords:
             [
-                L("Settings_Monitors_DisplayOrder_SearchKeywords",
-                    "rename screens limits calibration clear saved")
+                L(nameof(AppStrings.Settings_Monitors_DisplayOrder_SearchKeywords))
             ]));
 
         foreach (MonitorSettingsRow row in BuildMonitorRows())
@@ -145,21 +135,21 @@ public sealed partial class BrightnessSettingsWindow
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         controls.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        AddTextOverride(controls, 0, 0, L(nameof(AppStrings.Settings_Monitors_Name_Label), "Name"), row.Override.Name,
+        AddTextOverride(controls, 0, 0, L(nameof(AppStrings.Settings_Monitors_Name_Label)), row.Override.Name,
             text => UpdateMonitorOverride(row.EDIDKey, o => o.Name = text.Trim()));
-        AddNumberOverride(controls, 0, 2, L(nameof(AppStrings.Settings_Monitors_MinBrightnessOverride_Label), "Min brightness"),
+        AddNumberOverride(controls, 0, 2, L(nameof(AppStrings.Settings_Monitors_MinBrightnessOverride_Label)),
             row.Override.MinBrightness, 0, 100,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.MinBrightness = value));
-        AddNumberOverride(controls, 1, 0, L(nameof(AppStrings.Settings_Monitors_MaxBrightnessOverride_Label), "Max brightness"),
+        AddNumberOverride(controls, 1, 0, L(nameof(AppStrings.Settings_Monitors_MaxBrightnessOverride_Label)),
             row.Override.MaxBrightness, 0, 100,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.MaxBrightness = value));
-        AddNumberOverride(controls, 1, 2, L(nameof(AppStrings.Settings_Monitors_ValidationDwellOverride_Label), "Validation dwell"),
+        AddNumberOverride(controls, 1, 2, L(nameof(AppStrings.Settings_Monitors_ValidationDwellOverride_Label)),
             row.Override.ValidationDwellMs, -1, 10_000,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.ValidationDwellMs = value));
-        AddNumberOverride(controls, 2, 0, L(nameof(AppStrings.Settings_Monitors_BrightnessDwellOverride_Label), "Brightness dwell"),
+        AddNumberOverride(controls, 2, 0, L(nameof(AppStrings.Settings_Monitors_BrightnessDwellOverride_Label)),
             row.Override.BrightnessDwellMs, -1, 10_000,
             value => UpdateMonitorOverride(row.EDIDKey, o => o.BrightnessDwellMs = value));
-        AddTextOverride(controls, 2, 2, L(nameof(AppStrings.Settings_Monitors_PowerOffVcpOverride_Label), "Power-off VCP"),
+        AddTextOverride(controls, 2, 2, L(nameof(AppStrings.Settings_Monitors_PowerOffVcpOverride_Label)),
             row.Override.PowerOffVcpOverride,
             text => UpdateMonitorOverride(row.EDIDKey, o => o.PowerOffVcpOverride = text.Trim()));
         content.Children.Add(controls);
@@ -229,11 +219,11 @@ public sealed partial class BrightnessSettingsWindow
             MonitorOverrideEntry ov = FindOrCreateMonitorOverride(EDIDKey);
             string displayName = !string.IsNullOrWhiteSpace(ov.Name)
                 ? ov.Name
-                : monitor?.Name ?? known?.OriginalName ?? L(nameof(AppStrings.Settings_Monitors_DisplayFallback_Name), "Display");
+                : monitor?.Name ?? known?.OriginalName ?? L(nameof(AppStrings.Settings_Monitors_DisplayFallback_Name));
             string detail = monitor is { DisplayNumber: > 0 }
                 ? string.Format(CultureInfo.CurrentCulture,
-                    L(nameof(AppStrings.Settings_Hotkeys_CurrentlyDisplayNumber_Format), "Currently #{0}"), monitor.DisplayNumber)
-                : L("Settings_Monitors_DisconnectedDisplay_Label", "Disconnected");
+                    L(nameof(AppStrings.Settings_Hotkeys_CurrentlyDisplayNumber_Format)), monitor.DisplayNumber)
+                : L(nameof(AppStrings.Settings_Monitors_DisconnectedDisplay_Label));
             rows.Add(new MonitorSettingsRow(EDIDKey, displayName, detail, ov));
         }
 
@@ -272,9 +262,9 @@ public sealed partial class BrightnessSettingsWindow
 
     private static IReadOnlyList<(PowerOffMode Value, string Text)> PowerOffOptions() =>
     [
-        (PowerOffMode.Sleep, L(nameof(AppStrings.Settings_Monitors_PowerOff_Sleep), "Sleep")),
-        (PowerOffMode.Soft, L(nameof(AppStrings.Settings_Monitors_PowerOff_Soft), "Soft")),
-        (PowerOffMode.Hard, L(nameof(AppStrings.Settings_Monitors_PowerOff_Hard), "Hard"))
+        (PowerOffMode.Sleep, L(nameof(AppStrings.Settings_Monitors_PowerOff_Sleep))),
+        (PowerOffMode.Soft, L(nameof(AppStrings.Settings_Monitors_PowerOff_Soft))),
+        (PowerOffMode.Hard, L(nameof(AppStrings.Settings_Monitors_PowerOff_Hard)))
     ];
 
     private void ApplyDefaultSortTag(string tag)

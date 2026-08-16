@@ -47,7 +47,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
         _monitorService = AppServices.MonitorService;
         _brightnessRangeProvider = AppServices.MonitorBrightnessRangeProvider;
 
-        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -60,10 +60,10 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 
     protected override BrightnessSettingsPage DefaultPageKey => BrightnessSettingsPage.General;
 
-    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
 
     protected override string OpenSettingsFolderText =>
-        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -90,7 +90,7 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
             () => BuildSettingsPage(BrightnessSettingsPage.Monitors, BuildMonitorsPage)),
         new(BrightnessSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
             () => BuildSettingsPage(BrightnessSettingsPage.Hotkeys, BuildHotkeysPage)),
-        new(BrightnessSettingsPage.Environmental, L(nameof(AppStrings.Settings_Common_Page_Environmental), "Environmental"),
+        new(BrightnessSettingsPage.Environmental, L(nameof(AppStrings.Settings_Common_Page_Environmental)),
             () => BuildSettingsPage(BrightnessSettingsPage.Environmental, BuildEnvironmentalPage)),
         new(BrightnessSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
             () => BuildSettingsPage(BrightnessSettingsPage.Theme, BuildThemePage)),

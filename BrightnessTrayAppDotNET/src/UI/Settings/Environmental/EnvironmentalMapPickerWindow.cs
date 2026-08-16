@@ -46,7 +46,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         _theme = theme;
         _settings = settings;
         _isLight = isLight;
-        Title = L("Settings_Environmental_PickOnMap_Title", "Pick location");
+        Title = L(nameof(AppStrings.Settings_Environmental_PickOnMap_Title));
         Width = WindowWidth;
         Height = WindowHeight;
         MinWidth = WindowMinWidth;
@@ -99,7 +99,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         };
 
         TextBlock title =
-            TrayAppDotNETSettingsUI.Text(L("Settings_Environmental_PickOnMap_Title", "Pick location"), _palette);
+            TrayAppDotNETSettingsUI.Text(L(nameof(AppStrings.Settings_Environmental_PickOnMap_Title)), _palette);
         title.VerticalAlignment = VerticalAlignment.Center;
         title.Margin = new Thickness(16, 0, 0, 0);
         titleBar.Children.Add(title);
@@ -110,7 +110,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         };
         BindGlyph(close, static () => GlyphCatalog.CHROME_CLOSE);
         close.Click += (_, _) => Hide();
-        TrayAppDotNETToolTip.SetTip(close, L("Common_Close", "Close"));
+        TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Common_Close)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         Grid.SetColumn(close, 1);
         titleBar.Children.Add(close);
@@ -171,9 +171,9 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private Border BuildCoordinateHud(SettingsPalette p)
     {
         SettingsButton apply =
-            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Apply_Button), "Apply"), p, new CornerRadius(4));
+            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Apply_Button)), p, new CornerRadius(4));
         SettingsButton abort =
-            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Abort_Button), "Abort"), p, new CornerRadius(4));
+            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Abort_Button)), p, new CornerRadius(4));
         apply.MinWidth = 64;
         abort.MinWidth = 64;
         apply.Margin = new Thickness(0, 0, 6, 0);
@@ -379,16 +379,5 @@ public sealed class EnvironmentalMapPickerWindow : Window
             selected.Longitude);
     }
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

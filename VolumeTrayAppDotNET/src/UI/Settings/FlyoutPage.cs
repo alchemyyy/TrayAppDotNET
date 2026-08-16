@@ -17,8 +17,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_RestoreUndockState_SearchKeywords",
-                    "remember popup panel position launch boot login")
+                Loc(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Visibility_Header)), p));
@@ -31,8 +30,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowUndockButton_SearchKeywords",
-                    "detach floating window popup panel unpin")
+                Loc(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.AllowFlyoutUndock, BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
@@ -42,8 +40,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ClampUndockedToScreen_SearchKeywords",
-                    "monitor bounds work area keep visible floating window")
+                Loc(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
             ])));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_Title)),
@@ -60,8 +57,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_CommunicationsButtonVisibility_SearchKeywords",
-                    "phone calls attenuation lower other audio")
+                Loc(nameof(AppStrings.Settings_Flyout_CommunicationsButtonVisibility_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_Title)),
@@ -72,8 +68,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowRecordingDevices_SearchKeywords",
-                    "microphone input capture endpoints")
+                Loc(nameof(AppStrings.Settings_Flyout_ShowRecordingDevices_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_Title)),
@@ -93,8 +88,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_DisconnectedBluetoothDevices_SearchKeywords",
-                    "headset earbuds wireless offline unavailable")
+                Loc(nameof(AppStrings.Settings_Flyout_DisconnectedBluetoothDevices_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_Title)),
@@ -104,8 +98,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_SearchKeywords",
-                    "wireless radio powered off hide endpoints")
+                Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_Title)),
@@ -116,8 +109,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords",
-                    "wireless radio toggle switch power")
+                Loc(nameof(AppStrings.Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.ShowBluetoothRadioButtonInFlyoutHeader, StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_Title)),
@@ -137,8 +129,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_BluetoothRadioButtonClickGesture_SearchKeywords",
-                    "modifier shortcut mouse action power toggle")
+                Loc(nameof(AppStrings.Settings_Flyout_BluetoothRadioButtonClickGesture_SearchKeywords))
             ])));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_Title)),
@@ -148,8 +139,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_UseDynamicPlaybackVolumeGlyph_SearchKeywords",
-                    "speaker icon level loudness mute")
+                Loc(nameof(AppStrings.Settings_Flyout_UseDynamicPlaybackVolumeGlyph_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_Title)),
@@ -159,8 +149,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowDeviceFormatText_SearchKeywords",
-                    "sample rate bit depth channels audio quality")
+                Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceFormatText_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_Title)),
@@ -170,8 +159,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowDeviceCodecText_SearchKeywords",
-                    "A2DP SBC AAC aptX LDAC wireless format")
+                Loc(nameof(AppStrings.Settings_Flyout_ShowDeviceCodecText_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_Title)),
@@ -185,8 +173,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_SoundSettingsTarget_SearchKeywords",
-                    "control panel mmsys CPL modern Windows preferences")
+                Loc(nameof(AppStrings.Settings_Flyout_SoundSettingsTarget_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_Layout_Header)), p));
@@ -202,8 +189,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_DeviceLayout_SearchKeywords",
-                    "mixer applications position order")
+                Loc(nameof(AppStrings.Settings_Flyout_DeviceLayout_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_Title)),
@@ -217,8 +203,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_DeviceTitlePosition_SearchKeywords",
-                    "device name controls buttons above below")
+                Loc(nameof(AppStrings.Settings_Flyout_DeviceTitlePosition_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_Title)),
@@ -232,8 +217,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_DeviceSort_SearchKeywords",
-                    "ordering arrange endpoint priority")
+                Loc(nameof(AppStrings.Settings_Flyout_DeviceSort_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.ShowRecordingDevicesInFlyout, BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_IntermixRecording_Title)),
@@ -243,8 +227,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_IntermixRecording_SearchKeywords",
-                    "microphone speaker ordering grouping")
+                Loc(nameof(AppStrings.Settings_Flyout_IntermixRecording_SearchKeywords))
             ])));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Title)),
@@ -254,8 +237,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_HeaderAtBottom_SearchKeywords",
-                    "toolbar titlebar controls position")
+                Loc(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_PeakMeter_Header)), p));
@@ -268,8 +250,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_Theme_UnifiedPeakMeter_SearchKeywords",
-                    "mono combine stereo channels level visualization")
+                Loc(nameof(AppStrings.Settings_Theme_UnifiedPeakMeter_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.UnifiedPeakMeter, IntCard(
             Loc(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_Title)),
@@ -281,8 +262,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_UnifiedMeterBias_SearchKeywords",
-                    "channel weighting balance stereo smoothing")
+                Loc(nameof(AppStrings.Settings_Theme_UnifiedMeterBias_SearchKeywords))
             ])));
         stack.Children.Add(IntCard(Loc(nameof(AppStrings.Settings_Theme_MeterPeakFps_Title)),
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakFps_Description)),
@@ -290,8 +270,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.MeterPeakFps = v, p,
             searchKeywords:
             [
-                L("Settings_Theme_MeterPeakFps_SearchKeywords",
-                    "animation smoothness redraw frequency performance")
+                Loc(nameof(AppStrings.Settings_Theme_MeterPeakFps_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(Loc(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_Title)),
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_Description)),
@@ -299,8 +278,7 @@ public sealed partial class VolumeSettingsWindow
             v => _settings.MeterPeakSampleRate = v, p,
             searchKeywords:
             [
-                L("Settings_Theme_MeterPeakSampleRate_SearchKeywords",
-                    "polling capture frequency CPU performance")
+                Loc(nameof(AppStrings.Settings_Theme_MeterPeakSampleRate_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_Title)),
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_Description)),
@@ -308,8 +286,7 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.MeterPeakChangeCeilingMax, v => _settings.MeterPeakChangeCeiling = v, p,
             searchKeywords:
             [
-                L("Settings_Theme_MeterPeakChangeCeiling_SearchKeywords",
-                    "attack speed jump limit smoothing responsiveness")
+                Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_SearchKeywords))
             ]));
 
         return stack;

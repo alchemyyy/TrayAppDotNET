@@ -22,33 +22,29 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader), "General"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p);
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_Title), "Apply brightness on startup"),
-            L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_Description),
-                "Restore the selected profile's saved brightness values when the app starts."),
+            L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_Title)),
+            L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_Description)),
             _settings.ApplyBrightnessOnStartup,
             v => _settings.ApplyBrightnessOnStartup = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_ApplyBrightnessOnStartup_SearchKeywords",
-                    "launch restore monitor levels")
+                L(nameof(AppStrings.Settings_General_ApplyBrightnessOnStartup_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_General_Autosave_Title), "Autosave profiles"),
-            L(nameof(AppStrings.Settings_General_Autosave_Description),
-                "Save profile changes automatically after brightness or monitor-state edits."),
+            L(nameof(AppStrings.Settings_General_Autosave_Title)),
+            L(nameof(AppStrings.Settings_General_Autosave_Description)),
             _settings.Autosave,
             v => _settings.Autosave = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_Autosave_SearchKeywords",
-                    "persist presets automatically")
+                L(nameof(AppStrings.Settings_General_Autosave_SearchKeywords))
             ]));
         stack.Children.Add(BuildAutoEngageEnvironmentalCurveCard(p));
 
@@ -57,7 +53,7 @@ public sealed partial class BrightnessSettingsWindow
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = BrightnessInstallScope.LocalAppData,
-                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title), "Local user"),
+                Title = L(nameof(AppStrings.Settings_General_LocalUser_Title)),
                 ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                 Elevated = false,
                 Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -72,7 +68,7 @@ public sealed partial class BrightnessSettingsWindow
             new TrayAppDotNETInstallCardOptions
             {
                 Scope = BrightnessInstallScope.ProgramFiles,
-                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title), "System-wide"),
+                Title = L(nameof(AppStrings.Settings_General_SystemWide_Title)),
                 ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                 Elevated = true,
                 Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -88,79 +84,69 @@ public sealed partial class BrightnessSettingsWindow
         CreateRenderingSettingsSection(p).AddCards(stack);
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_NightLight_Header), "Night light"), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_NightLight_Header)), p));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_General_ShowNightLightSlider_Title), "Show night-light slider"),
-            L(nameof(AppStrings.Settings_General_ShowNightLightSlider_Description),
-                "Include the Windows Night Light strength slider in the flyout."),
+            L(nameof(AppStrings.Settings_General_ShowNightLightSlider_Title)),
+            L(nameof(AppStrings.Settings_General_ShowNightLightSlider_Description)),
             _settings.ShowNightLightSlider,
             v => _settings.ShowNightLightSlider = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_ShowNightLightSlider_SearchKeywords",
-                    "blue light color temperature warmth control")
+                L(nameof(AppStrings.Settings_General_ShowNightLightSlider_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Title), "Invert night-light slider"),
-            L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Description),
-                "Make higher slider positions cooler instead of warmer."),
+            L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Title)),
+            L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Description)),
             _settings.InvertNightLightSlider,
             v => _settings.InvertNightLightSlider = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_InvertNightLightSlider_SearchKeywords",
-                    "reverse warmth direction cooler warmer")
+                L(nameof(AppStrings.Settings_General_InvertNightLightSlider_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L("Settings_General_TurnOffNightLightAtZero_Title", "Turn off at zero strength"),
-            L("Settings_General_TurnOffNightLightAtZero_Description",
-                "Dragging night light to 0 also disables Night Light."),
+            L(nameof(AppStrings.Settings_General_TurnOffNightLightAtZero_Title)),
+            L(nameof(AppStrings.Settings_General_TurnOffNightLightAtZero_Description)),
             _settings.TurnOffNightLightAtZeroStrength,
             v => _settings.TurnOffNightLightAtZeroStrength = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_TurnOffNightLightAtZero_SearchKeywords",
-                    "disable blue light minimum")
+                L(nameof(AppStrings.Settings_General_TurnOffNightLightAtZero_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
-            L("Settings_General_NightLightBackend_Title", "Night-light backend"),
-            L("Settings_General_NightLightBackend_Description",
-                "Choose how the app applies Windows Night Light changes."),
+            L(nameof(AppStrings.Settings_General_NightLightBackend_Title)),
+            L(nameof(AppStrings.Settings_General_NightLightBackend_Description)),
             [
                 (NightLightFallbackMode.SettingsHandler,
-                    L("Settings_General_NightLightBackend_SettingsHandler", "Settings handler")),
-                (NightLightFallbackMode.Registry, L("Settings_General_NightLightBackend_Registry", "Registry")),
-                (NightLightFallbackMode.GammaRamp, L("Settings_General_NightLightBackend_GammaRamp", "Gamma ramp"))
+                    L(nameof(AppStrings.Settings_General_NightLightBackend_SettingsHandler))),
+                (NightLightFallbackMode.Registry, L(nameof(AppStrings.Settings_General_NightLightBackend_Registry))),
+                (NightLightFallbackMode.GammaRamp, L(nameof(AppStrings.Settings_General_NightLightBackend_GammaRamp)))
             ],
             _settings.NightLightFallbackMode,
             v => _settings.NightLightFallbackMode = v,
             p,
             searchKeywords:
             [
-                L("Settings_General_NightLightBackend_SearchKeywords",
-                    "provider implementation registry gamma symbols")
+                L(nameof(AppStrings.Settings_General_NightLightBackend_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
-            L("Settings_General_PDBTimeout_Title", "PDB download timeout"),
-            L("Settings_General_PDBTimeout_Description",
-                "Maximum seconds to wait for SettingsHandlers_Display.dll symbols."),
+            L(nameof(AppStrings.Settings_General_PDBTimeout_Title)),
+            L(nameof(AppStrings.Settings_General_PDBTimeout_Description)),
             _settings.NightLightPDBDownloadTimeoutSeconds,
             1,
             600,
             v => _settings.NightLightPDBDownloadTimeoutSeconds = v,
             p,
-            L(nameof(AppStrings.Common_SecondsSuffix), "s"),
+            L(nameof(AppStrings.Common_SecondsSuffix)),
             searchKeywords:
             [
-                L("Settings_General_PDBTimeout_SearchKeywords",
-                    "symbol download network wait")
+                L(nameof(AppStrings.Settings_General_PDBTimeout_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
-            L("Settings_General_EnvironmentalTick_Title", "Environmental tick interval"),
-            L("Settings_General_EnvironmentalTick_Description", "Milliseconds between active curve evaluations."),
+            L(nameof(AppStrings.Settings_General_EnvironmentalTick_Title)),
+            L(nameof(AppStrings.Settings_General_EnvironmentalTick_Description)),
             _settings.EnvironmentalCurveTickIntervalMs,
             250,
             600_000,
@@ -169,12 +155,11 @@ public sealed partial class BrightnessSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             searchKeywords:
             [
-                L("Settings_General_EnvironmentalTick_SearchKeywords",
-                    "adaptive automation polling refresh frequency")
+                L(nameof(AppStrings.Settings_General_EnvironmentalTick_SearchKeywords))
             ]));
 
         stack.Children.Add(
-            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Profiles_Header), "Profiles"), p));
+            TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Profiles_Header)), p));
         StackPanel profileSlotPanel = new();
         List<ProfileSlotEntry> profileSlots = [];
         _profileSlotPanelGenerations.Add(profileSlotPanel);
@@ -218,7 +203,7 @@ public sealed partial class BrightnessSettingsWindow
             TimeConstants.AutoEngageEnvironmentalCurveDelayMinSeconds,
             TimeConstants.AutoEngageEnvironmentalCurveDelayMaxSeconds,
             AutoEngageEnvironmentalCurveDelayBoxWidth,
-            L(nameof(AppStrings.Common_SecondsSuffix), "s"));
+            L(nameof(AppStrings.Common_SecondsSuffix)));
         delayBox.IsVisible = _settings.AutoEngageEnvironmentalCurveEnabled;
         delayBox.Margin = new Thickness(0, 0, AutoEngageEnvironmentalCurveControlSpacing, 0);
         delayBox.ValueChanged += (_, e) =>
@@ -240,15 +225,13 @@ public sealed partial class BrightnessSettingsWindow
 
         StackPanel controls = TrayAppDotNETSettingsUI.Horizontal(delayBox, toggle);
         return Card(
-            L("Settings_General_AutoEngageEnvironmentalCurve_Title", "Auto-engage environmental curve"),
-            L("Settings_General_AutoEngageEnvironmentalCurve_Description",
-                "Re-engage the environmental brightness curve after it crosses the released master slider value."),
+            L(nameof(AppStrings.Settings_General_AutoEngageEnvironmentalCurve_Title)),
+            L(nameof(AppStrings.Settings_General_AutoEngageEnvironmentalCurve_Description)),
             controls,
             p,
             searchKeywords:
             [
-                L("Settings_General_AutoEngageEnvironmentalCurve_SearchKeywords",
-                    "resume adaptive automatic brightness after manual adjustment")
+                L(nameof(AppStrings.Settings_General_AutoEngageEnvironmentalCurve_SearchKeywords))
             ]);
     }
 
@@ -260,13 +243,13 @@ public sealed partial class BrightnessSettingsWindow
         if (_profileManager == null)
         {
             _profileSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_General_ProfileManagerUnavailable", "Profile manager is not available."), Palette));
+                L(nameof(AppStrings.Settings_General_ProfileManagerUnavailable)), Palette));
             return;
         }
 
         for (int i = 0; i < _profileManager.Profiles.Profiles.Count; i++)
         {
-            string defaultName = L(nameof(AppStrings.Settings_General_DefaultProfileName), "Profile");
+            string defaultName = L(nameof(AppStrings.Settings_General_DefaultProfileName));
             string name = string.IsNullOrWhiteSpace(_profileManager.Profiles.Profiles[i].Name)
                 ? defaultName
                 : _profileManager.Profiles.Profiles[i].Name!;
@@ -322,7 +305,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         if (_profileManager == null) return;
         string trimmed = (text ?? string.Empty).Trim();
-        string defaultName = L(nameof(AppStrings.Settings_General_DefaultProfileName), "Profile");
+        string defaultName = L(nameof(AppStrings.Settings_General_DefaultProfileName));
         string? stored =
             string.IsNullOrWhiteSpace(trimmed) || string.Equals(trimmed, defaultName, StringComparison.CurrentCulture)
                 ? null
@@ -348,7 +331,7 @@ public sealed partial class BrightnessSettingsWindow
             Palette = p,
             ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
@@ -369,7 +352,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             Palette = p,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,

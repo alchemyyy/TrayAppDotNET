@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 
@@ -115,7 +114,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         {
             SettingsPalette palette = Palette;
             StackPanel root = TrayAppDotNETSettingsCards.PageStack(
-                L("SettingsWindow_SearchResults", "Search results"),
+                L(nameof(CommonStrings.SettingsWindow_SearchResults)),
                 palette);
             TextBlock status = TrayAppDotNETSettingsUI.DescriptionText(string.Empty, palette);
             status.IsVisible = false;
@@ -141,12 +140,10 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             }
 
             OwnDisposablePageControls(root, resources);
-            string commonSynonymGroups = CommonStrings.ResourceManager.GetString(
-                SettingsSearchSynonymMap.CommonResourceKey,
-                LocalizationManager.Instance.CurrentCulture) ?? string.Empty;
+            string commonSynonymGroups = CommonStrings.SettingsWindow_SearchSynonymGroups_Common;
             SettingsSearchView view = new(
                 status,
-                L("SettingsWindow_SearchNoMatchesFormat", "No settings match \"{0}\"."),
+                L(nameof(CommonStrings.SettingsWindow_SearchNoMatchesFormat)),
                 sources,
                 SettingsSearchSynonymMap.Parse(
                     commonSynonymGroups,

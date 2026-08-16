@@ -54,17 +54,17 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
     public TrayAppDotNETUpdateConfirmationWindow(UpdateInfo info, SettingsPalette palette, bool rounded)
         : this(
-            string.Format(CultureInfo.CurrentCulture, L("UpdateDialog_TitleFormat", "Update available: {0}"),
+            string.Format(CultureInfo.CurrentCulture, L(nameof(CommonStrings.UpdateDialog_TitleFormat)),
                 info.ReleaseName),
-            L("UpdateDialog_DefaultDescription", "A newer release is available."),
+            L(nameof(CommonStrings.UpdateDialog_DefaultDescription)),
             string.IsNullOrWhiteSpace(info.Changelog)
-                ? L("UpdateDialog_NoChangelog", "No changelog provided.")
+                ? L(nameof(CommonStrings.UpdateDialog_NoChangelog))
                 : info.Changelog,
-            L("UpdateDialog_Install", "Install"),
-            L("UpdateDialog_Cancel", "Cancel"),
+            L(nameof(CommonStrings.UpdateDialog_Install)),
+            L(nameof(CommonStrings.UpdateDialog_Cancel)),
             palette,
             rounded,
-            L(nameof(CommonStrings.UpdateDialog_SkipRelease), "Skip this release"))
+            L(nameof(CommonStrings.UpdateDialog_SkipRelease)))
     {
     }
 
@@ -251,7 +251,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         bar.Children.Add(titleText);
 
         TrayAppDotNETCaptionCloseButton close = new(palette);
-        TrayAppDotNETToolTip.SetTip(close, L("UpdateDialog_CaptionClose_Tooltip", "Close"));
+        TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.UpdateDialog_CaptionClose_Tooltip)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
         resources.Add(() => close.Click -= OnCancelClick);
@@ -350,16 +350,5 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         }
     }
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

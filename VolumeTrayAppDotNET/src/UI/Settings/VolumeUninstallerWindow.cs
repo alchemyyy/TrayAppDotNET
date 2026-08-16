@@ -25,7 +25,7 @@ public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScop
             Icon = AppTheme.LoadAppIcon(),
             Palette = palette,
             EnableRoundedCorners = AppServices.Settings?.EnableRoundedCorners == true,
-            Localize = Localize,
+            L = L,
             RetargetStartupShortcut = static uninstallScope =>
                 AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
@@ -40,16 +40,5 @@ public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScop
         _ => AppServices.Theme?.IsLightTheme ?? AppTheme.Default.IsLightTheme
     };
 
-    private static string Localize(string key, string fallback)
-    {
-        try
-        {
-            string value = TrayLocalization.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => TrayLocalization.Instance[key];
 }

@@ -34,7 +34,7 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -47,10 +47,10 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override NetworkSettingsPage DefaultPageKey => NetworkSettingsPage.General;
 
-    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
 
     protected override string OpenSettingsFolderText =>
-        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -59,12 +59,12 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override IReadOnlyList<SettingsPageDescriptor<NetworkSettingsPage>> CreatePageDescriptors() =>
     [
-        new(NetworkSettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General), "General"), BuildGeneralPage),
-        new(NetworkSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon), "Tray Icon"), BuildTrayIconPage),
-        new(NetworkSettingsPage.Network, L(nameof(AppStrings.Settings_Common_Page_Network), "Network"), BuildNetworkPage),
-        new(NetworkSettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys), "Hotkeys"), BuildHotkeysPage),
-        new(NetworkSettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme), "Theme"), BuildThemePage),
-        new(NetworkSettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About), "About"), BuildAboutPage)
+        new(NetworkSettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)), BuildGeneralPage),
+        new(NetworkSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)), BuildTrayIconPage),
+        new(NetworkSettingsPage.Network, L(nameof(AppStrings.Settings_Common_Page_Network)), BuildNetworkPage),
+        new(NetworkSettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)), BuildHotkeysPage),
+        new(NetworkSettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)), BuildThemePage),
+        new(NetworkSettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)), BuildAboutPage)
     ];
 
     protected override void OnSettingsWindowClosed()

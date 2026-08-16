@@ -25,8 +25,9 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
-    <FanControlDesignTimeNCalcAotOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\bin\x64\$(Configuration)\net10.0\</FanControlDesignTimeNCalcAotOutputPath>
-    <FanControlDesignTimeLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlDesignTimeLibreHardwareMonitorOutputPath>
+    <FanControlNCalcAotOutputPath>$(MSBuildProjectDirectory)\..\vendor\NCalc\src\NCalc.AOT\bin\x64\$(Configuration)\net10.0\</FanControlNCalcAotOutputPath>
+    <FanControlLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlLibreHardwareMonitorOutputPath>
+    <FanControlUseVendoredAssemblyReferences Condition="'$(DesignTimeBuild)' == 'true' or '$(BuildingInsideVisualStudio)' == 'true'">true</FanControlUseVendoredAssemblyReferences>
     <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
@@ -93,31 +94,33 @@
                       SkipGetTargetFrameworkProperties="true"
                       PrivateAssets="all" />
     <!-- Visual Studio restore rejects ProjectReference items whose projects are not in
-         the loaded solution. Use metadata references for design-time only, pointing at
-         the real vendor outputs, so VS/ReSharper resolve NCalc and LHM without trying
-         to restore unloaded submodule projects. -->
-    <Reference Include="LibreHardwareMonitorLib" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll')">
-      <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll</HintPath>
-      <Private>false</Private>
+         the loaded solution. Use the vendor outputs for both design-time and regular VS
+         builds; BuildVendoredProjectReferencesInVisualStudio creates them before RAR. -->
+    <Reference Include="LibreHardwareMonitorLib" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll</HintPath>
+      <Private>true</Private>
     </Reference>
-    <Reference Include="DiskInfoToolkit" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeLibreHardwareMonitorOutputPath)DiskInfoToolkit.dll')">
-      <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)DiskInfoToolkit.dll</HintPath>
-      <Private>false</Private>
+    <Reference Include="DiskInfoToolkit" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlLibreHardwareMonitorOutputPath)DiskInfoToolkit.dll</HintPath>
+      <Private>true</Private>
     </Reference>
-    <Reference Include="HidSharp" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeLibreHardwareMonitorOutputPath)HidSharp.dll')">
-      <HintPath>$(FanControlDesignTimeLibreHardwareMonitorOutputPath)HidSharp.dll</HintPath>
-      <Private>false</Private>
+    <Reference Include="HidSharp" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlLibreHardwareMonitorOutputPath)HidSharp.dll</HintPath>
+      <Private>true</Private>
     </Reference>
-    <Reference Include="NCalc.AOT" Condition="'$(DesignTimeBuild)' == 'true' and Exists('$(FanControlDesignTimeNCalcAotOutputPath)NCalc.AOT.dll')">
-      <HintPath>$(FanControlDesignTimeNCalcAotOutputPath)NCalc.AOT.dll</HintPath>
-      <Private>false</Private>
+    <Reference Include="NCalc.AOT" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlNCalcAotOutputPath)NCalc.AOT.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Parlot" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlNCalcAotOutputPath)Parlot.dll</HintPath>
+      <Private>true</Private>
     </Reference>
 
-    <!-- Normal builds use hidden source references plus the serial prebuild targets
-         below. Do not use these ProjectReferences for design-time builds; VS restore
-         needs loaded solution projects for ProjectReference metadata. -->
+    <!-- Command-line builds use hidden source references. Visual Studio builds use the
+         assembly references above so unloaded vendor projects never enter solution restore. -->
     <ProjectReference Include="..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
-                      Condition="'$(DesignTimeBuild)' != 'true'">
+                      Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
       <!-- Keep non-fan LHM probes out of Debug too. Fan control uses PawnIO/LPC; IPMI/BMC
@@ -130,7 +133,7 @@
       <Visible>false</Visible>
     </ProjectReference>
     <ProjectReference Include="..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj"
-                      Condition="'$(DesignTimeBuild)' != 'true'">
+                      Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'">
       <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
       <SetPlatform>Platform=x64</SetPlatform>
       <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
@@ -166,20 +169,21 @@
     <AdditionalFiles Include="**\*.axaml" />
   </ItemGroup>
 
+  <!-- Generate the strongly typed resource API under obj so it always matches the RESX.
+       Exclude source-tree custom-tool output to prevent duplicate classes. -->
   <ItemGroup>
     <EmbeddedResource Update="Localization\Strings.resx">
-      <Generator>PublicResXFileCodeGenerator</Generator>
-      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+      <StronglyTypedClassName>Strings</StronglyTypedClassName>
+      <StronglyTypedFileName>$(IntermediateOutputPath)Strings.Designer.cs</StronglyTypedFileName>
+      <StronglyTypedLanguage>C#</StronglyTypedLanguage>
+      <StronglyTypedNamespace>$(RootNamespace).Localization</StronglyTypedNamespace>
+      <PublicClass>true</PublicClass>
     </EmbeddedResource>
-    <Compile Update="Localization\Strings.Designer.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Strings.resx</DependentUpon>
-    </Compile>
+    <Compile Remove="Localization\Strings.Designer.cs" />
   </ItemGroup>
 
-  <!-- Visual Studio resolves hidden vendored ProjectReference items with GetTargetPath,
-       so clean builds need a real build pass before dependency generation. -->
+  <!-- Visual Studio consumes vendor DLL references, so clean builds need a real vendor
+       build pass before dependency generation and ResolveAssemblyReference. -->
   <Target Name="BuildVendoredProjectReferencesInVisualStudio"
           BeforeTargets="ResolveProjectReferences"
           Condition="'$(BuildingInsideVisualStudio)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(FanControlBuildVendoredProjectReferencesInVisualStudio)' != 'false'">

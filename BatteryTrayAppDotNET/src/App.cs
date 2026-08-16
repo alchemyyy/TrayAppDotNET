@@ -299,8 +299,8 @@ internal sealed class BatteryAvaloniaApp : Application
 
         _lastNotifiedUpdateVersion = info.Version;
         _trayIcon?.ShowBalloon(
-            L("UpdateNotification_Title", "Update available"),
-            string.Format(L("UpdateNotification_BodyFormat", "{0} is available."), info.ReleaseName));
+            L(nameof(CommonStrings.UpdateNotification_Title)),
+            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
     private void OnUpdateBalloonClicked()
@@ -729,16 +729,5 @@ internal sealed class BatteryAvaloniaApp : Application
         return value.TotalHours >= 1 ? $"{(int)value.TotalHours}h {value.Minutes}m" : $"{Math.Max(1, value.Minutes)}m";
     }
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

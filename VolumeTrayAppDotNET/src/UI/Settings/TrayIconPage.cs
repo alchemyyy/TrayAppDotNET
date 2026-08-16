@@ -18,8 +18,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_TrayIcon_MouseWheel_SearchKeywords",
-                    "scroll notification area taskbar adjust sound speaker")
+                Loc(nameof(AppStrings.Settings_TrayIcon_MouseWheel_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
@@ -32,8 +31,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             searchKeywords:
             [
-                L("Settings_General_WheelVolumeStepPercent_SearchKeywords",
-                    "scroll sensitivity increment amount")
+                Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepFinePercent_Title)),
@@ -46,8 +44,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             searchKeywords:
             [
-                L("Settings_General_WheelVolumeStepFinePercent_SearchKeywords",
-                    "precise small scroll adjustment increment")
+                Loc(nameof(AppStrings.Settings_General_WheelVolumeStepFinePercent_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepCoarsePercent_Title)),
@@ -60,8 +57,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_PercentSuffix)),
             searchKeywords:
             [
-                L("Settings_General_WheelVolumeStepCoarsePercent_SearchKeywords",
-                    "large fast scroll adjustment increment")
+                Loc(nameof(AppStrings.Settings_General_WheelVolumeStepCoarsePercent_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
             Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Title)),
@@ -72,8 +68,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: RefreshCurrentPage,
             searchKeywords:
             [
-                L("Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords",
-                    "trackpad gesture scrolling laptop")
+                Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords))
             ])));
         stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true }, IntCard(
             Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title)),
@@ -85,8 +80,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords",
-                    "trackpad speed responsiveness movement threshold")
+                Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))
             ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Common_ContextMenu_Header)), p));
@@ -102,22 +96,19 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_MenuPosition_SearchKeywords",
-                    "popup cursor taskbar anchor dock Windows 11")
+                Loc(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
             ]));
         AddDeviceNameStyleCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_PlaybackDeviceName_Title)),
             Loc(nameof(AppStrings.Settings_TrayIcon_PlaybackDeviceName_Description)),
             _settings.TrayMenuPlaybackDeviceNameStyle, v => _settings.TrayMenuPlaybackDeviceNameStyle = v, p,
             [
-                L("Settings_TrayIcon_PlaybackDeviceName_SearchKeywords",
-                    "speaker output endpoint label model context menu")
+                Loc(nameof(AppStrings.Settings_TrayIcon_PlaybackDeviceName_SearchKeywords))
             ]);
         AddDeviceNameStyleCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_RecordingDeviceName_Title)),
             Loc(nameof(AppStrings.Settings_TrayIcon_RecordingDeviceName_Description)),
             _settings.TrayMenuRecordingDeviceNameStyle, v => _settings.TrayMenuRecordingDeviceNameStyle = v, p,
             [
-                L("Settings_TrayIcon_RecordingDeviceName_SearchKeywords",
-                    "microphone input capture endpoint label model context menu")
+                Loc(nameof(AppStrings.Settings_TrayIcon_RecordingDeviceName_SearchKeywords))
             ]);
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_TrayIcon_DeviceNameMaxLength_Title)),
@@ -129,40 +120,35 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_TrayIcon_DeviceNameMaxLength_SearchKeywords",
-                    "truncate ellipsis characters clipping")
+                Loc(nameof(AppStrings.Settings_TrayIcon_DeviceNameMaxLength_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTrayRecordingLink_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTrayRecordingLink_Description)),
             _settings.ShowTrayMenuRecordingLink, v => _settings.ShowTrayMenuRecordingLink = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowTrayRecordingLink_SearchKeywords",
-                    "control panel input microphones tab context menu")
+                Loc(nameof(AppStrings.Settings_Devices_ShowTrayRecordingLink_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTraySoundsLink_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTraySoundsLink_Description)),
             _settings.ShowTrayMenuSoundsLink, v => _settings.ShowTrayMenuSoundsLink = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowTraySoundsLink_SearchKeywords",
-                    "control panel sound scheme alerts events tab")
+                Loc(nameof(AppStrings.Settings_Devices_ShowTraySoundsLink_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTrayCommunicationsLink_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTrayCommunicationsLink_Description)),
             _settings.ShowTrayMenuCommunicationsLink, v => _settings.ShowTrayMenuCommunicationsLink = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowTrayCommunicationsLink_SearchKeywords",
-                    "control panel calls ducking tab")
+                Loc(nameof(AppStrings.Settings_Devices_ShowTrayCommunicationsLink_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(Loc(nameof(AppStrings.Settings_Devices_ShowTrayDeviceLinks_Title)),
             Loc(nameof(AppStrings.Settings_Devices_ShowTrayDeviceLinks_Description)),
             _settings.ShowTrayMenuDeviceLinks, v => _settings.ShowTrayMenuDeviceLinks = v, p,
             searchKeywords:
             [
-                L("Settings_Devices_ShowTrayDeviceLinks_SearchKeywords",
-                    "speakers microphones endpoint properties submenu")
+                Loc(nameof(AppStrings.Settings_Devices_ShowTrayDeviceLinks_SearchKeywords))
             ]));
 
         stack.Children.Add(
@@ -171,34 +157,34 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Description)), p, new Avalonia.Thickness(0, 0, 0, 8)));
         AddTrayWheelActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_MouseWheel_Title)), _settings.TrayWheelAction,
             v => _settings.TrayWheelAction = v, p,
-            [L("Settings_TrayIcon_ModifiedWheelActions_SearchKeywords", "scroll gesture binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))]);
         AddTrayWheelActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlMouseWheel_Title)), _settings.TrayCtrlWheelAction,
             v => _settings.TrayCtrlWheelAction = v, p,
-            [L("Settings_TrayIcon_ModifiedWheelActions_SearchKeywords", "scroll gesture binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))]);
         AddTrayWheelActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltMouseWheel_Title)), _settings.TrayAltWheelAction,
             v => _settings.TrayAltWheelAction = v, p,
-            [L("Settings_TrayIcon_ModifiedWheelActions_SearchKeywords", "scroll gesture binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedWheelActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlLeftClick_Title)), _settings.TrayCtrlLeftClickAction,
             v => _settings.TrayCtrlLeftClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltLeftClick_Title)), _settings.TrayAltLeftClickAction,
             v => _settings.TrayAltLeftClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlRightClick_Title)), _settings.TrayCtrlRightClickAction,
             v => _settings.TrayCtrlRightClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltRightClick_Title)), _settings.TrayAltRightClickAction,
             v => _settings.TrayAltRightClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_DoubleLeftClick_Title)), _settings.TrayDoubleClickAction,
             v => _settings.TrayDoubleClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_CtrlDoubleLeftClick_Title)),
             _settings.TrayCtrlDoubleLeftClickAction, v => _settings.TrayCtrlDoubleLeftClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltDoubleLeftClick_Title)),
             _settings.TrayAltDoubleLeftClickAction, v => _settings.TrayAltDoubleLeftClickAction = v, p,
-            [L("Settings_TrayIcon_ModifiedClickActions_SearchKeywords", "mouse gesture shortcut binding assign behavior")]);
+            [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
 
         return stack;
     }

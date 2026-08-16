@@ -172,9 +172,9 @@ public sealed partial class BrightnessSettingsWindow
         {
             string label = string.IsNullOrWhiteSpace(_profileManager.GetName(i))
                 ? string.Format(CultureInfo.CurrentCulture,
-                    L(nameof(AppStrings.Settings_Environmental_Profile_Default_Format), "Profile {0}"), i + 1)
+                    L(nameof(AppStrings.Settings_Environmental_Profile_Default_Format)), i + 1)
                 : string.Format(CultureInfo.CurrentCulture,
-                    L(nameof(AppStrings.Settings_Environmental_Profile_Named_Format), "{0} ({1})"), _profileManager.GetName(i), i + 1);
+                    L(nameof(AppStrings.Settings_Environmental_Profile_Named_Format)), _profileManager.GetName(i), i + 1);
             _environmentalProfileCombo.Items.Add(new SettingsComboBoxItem(i, label, Palette));
         }
 

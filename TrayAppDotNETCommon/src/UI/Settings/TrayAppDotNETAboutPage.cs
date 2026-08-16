@@ -22,7 +22,7 @@ public sealed class TrayAppDotNETAboutPageOptions
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius ButtonRadius { get; init; }
     public required CornerRadius CardRadius { get; init; }
-    public required Func<string, string, string> Localize { get; init; }
+    public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
     public required string ApplicationName { get; init; }
     public required string Tagline { get; init; }
@@ -86,7 +86,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     public TrayAppDotNETAboutPage(TrayAppDotNETAboutPageOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(options.Localize);
+        ArgumentNullException.ThrowIfNull(options.L);
         ArgumentNullException.ThrowIfNull(options.Save);
         _options = options;
     }
@@ -98,7 +98,9 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         SettingsPalette p = _options.Palette;
-        StackPanel stack = TrayAppDotNETSettingsCards.PageStack(L("Settings_About_SectionHeader", "About"), p);
+        StackPanel stack = TrayAppDotNETSettingsCards.PageStack(
+            L(nameof(CommonStrings.Settings_About_SectionHeader)),
+            p);
         SetRoot(stack);
 
         TextBlock appName = TrayAppDotNETSettingsUI.Text(_options.ApplicationName, p);
@@ -109,16 +111,16 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         tagline.Opacity = layout.TaglineOpacity;
         stack.Children.Add(tagline);
 
-        stack.Children.Add(AboutRow(L("Settings_About_BuildLabel", "Build"),
+        stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_BuildLabel)),
             _options.BuildNumber.ToString(CultureInfo.InvariantCulture), p));
-        stack.Children.Add(AboutRow(L("Settings_About_RuntimeLabel", "Runtime"),
+        stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_RuntimeLabel)),
             RuntimeInformation.FrameworkDescription, p));
-        stack.Children.Add(AboutRow(L("Settings_About_AuthorLabel", "Author"), _options.Publisher, p));
-        stack.Children.Add(AboutRow(L("Settings_About_GithubLabel", "GitHub"), _options.HelpLink, p,
+        stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_AuthorLabel)), _options.Publisher, p));
+        stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_GithubLabel)), _options.HelpLink, p,
             _options.HelpLink));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_About_Files_Header", "Files"), p));
+            L(nameof(CommonStrings.Settings_About_Files_Header)), p));
         stack.Children.Add(BuildSettingsFolderCard(p));
 
         if (_options.UpdateSettings != null)
@@ -127,7 +129,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         if (_options.KnownIssues.Count > 0)
         {
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_About_KnownIssues_Header", "Known Issues"), p));
+                L(nameof(CommonStrings.Settings_About_KnownIssues_Header)), p));
             foreach (TrayAppDotNETKnownIssue issue in _options.KnownIssues)
                 stack.Children.Add(BuildKnownIssueCard(issue.Title, issue.Description, p));
         }
@@ -188,45 +190,41 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     private void AddUpdatesSection(StackPanel stack, SettingsPalette p)
     {
         ITrayAppDotNETUpdateSettings settings = _options.UpdateSettings!;
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(L("Settings_About_Updates_Header", "Updates"), p));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
+            L(nameof(CommonStrings.Settings_About_Updates_Header)),
+            p));
         stack.Children.Add(BoolCard(
-            L("Settings_About_CheckForUpdates_Title", "Check for updates automatically"),
-            L("Settings_About_CheckForUpdates_Description", "Periodically ask GitHub if a newer release is available."),
+            L(nameof(CommonStrings.Settings_About_CheckForUpdates_Title)),
+            L(nameof(CommonStrings.Settings_About_CheckForUpdates_Description)),
             settings.CheckForUpdatesEnabled,
             value => settings.CheckForUpdatesEnabled = value,
             afterSave: _options.RebuildAboutPage,
-            searchKeywords: [L("Settings_About_Updates_SearchKeywords",
-                "upgrade download release version GitHub new build")]));
+            searchKeywords: [L(nameof(CommonStrings.Settings_About_Updates_SearchKeywords))]));
         stack.Children.Add(BoolCard(
-            L("Settings_About_ShowUpdateNotifications_Title", "Show notification for updates"),
-            L("Settings_About_ShowUpdateNotifications_Description",
-                "Raise a tray notification when a new version is detected and the flyout isn't open."),
+            L(nameof(CommonStrings.Settings_About_ShowUpdateNotifications_Title)),
+            L(nameof(CommonStrings.Settings_About_ShowUpdateNotifications_Description)),
             settings.ShowUpdateNotificationsEnabled,
             value => settings.ShowUpdateNotificationsEnabled = value,
-            searchKeywords: [L("Settings_About_UpdateNotifications_SearchKeywords",
-                "alert toast tray message new version")]));
+            searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateNotifications_SearchKeywords))]));
         if (_options.SupportsFlyoutUpdateButton)
         {
             stack.Children.Add(BoolCard(
-                L("Settings_About_ShowUpdateButton_Title", "Show update button in flyout"),
-                L("Settings_About_ShowUpdateButton_Description",
-                    "Show update affordances in the flyout while a new version is available."),
+                L(nameof(CommonStrings.Settings_About_ShowUpdateButton_Title)),
+                L(nameof(CommonStrings.Settings_About_ShowUpdateButton_Description)),
                 settings.ShowUpdateButtonInFlyout,
                 value => settings.ShowUpdateButtonInFlyout = value,
-                searchKeywords: [L("Settings_About_UpdateButton_SearchKeywords",
-                    "upgrade download install release")]));
+                searchKeywords: [L(nameof(CommonStrings.Settings_About_UpdateButton_SearchKeywords))]));
         }
 
         stack.Children.Add(IntCard(
-            L("Settings_About_UpdateInterval_Title", "Update check interval"),
-            L("Settings_About_UpdateInterval_Description",
-                "How often the background update check runs. The timer resets every time you click Check for updates."),
+            L(nameof(CommonStrings.Settings_About_UpdateInterval_Title)),
+            L(nameof(CommonStrings.Settings_About_UpdateInterval_Description)),
             Math.Clamp(settings.UpdateCheckIntervalMs / 60_000, 1, 1440),
             1,
             1440,
             minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
-            L("Settings_About_UpdateInterval_MinutesSuffix", " min"),
-            [L("Settings_About_UpdateInterval_SearchKeywords", "frequency schedule timer minutes")]));
+            L(nameof(CommonStrings.Settings_About_UpdateInterval_MinutesSuffix)),
+            [L(nameof(CommonStrings.Settings_About_UpdateInterval_SearchKeywords))]));
         stack.Children.Add(BuildUpdateActionCard(p));
         stack.Children.Add(BuildBackdateCard(p));
     }
@@ -236,8 +234,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         TrayAppDotNETAboutPageResources.AboutPageAxamlProperties layout = LayoutResources.AxamlAboutPage;
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(UpdateStatusText(CurrentService), p);
 
-        SettingsButton check = Button(L("Settings_About_CheckForUpdates_Button", "Check for updates"), p);
-        SettingsButton skip = Button(L(nameof(CommonStrings.Settings_About_SkipUpdate_Button), "Skip this release"), p);
+        SettingsButton check = Button(L(nameof(CommonStrings.Settings_About_CheckForUpdates_Button)), p);
+        SettingsButton skip = Button(L(nameof(CommonStrings.Settings_About_SkipUpdate_Button)), p);
         SettingsButton install = Button(UpdateInstallButtonText(CurrentService), p);
         check.Margin = layout.UpdateCheckButtonMargin;
         skip.Margin = layout.UpdateCheckButtonMargin;
@@ -251,7 +249,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
 
         StackPanel text = new();
-        text.Children.Add(TrayAppDotNETSettingsUI.TitleText(L("Settings_About_UpdateActions_Title", "Update actions"),
+        text.Children.Add(TrayAppDotNETSettingsUI.TitleText(
+            L(nameof(CommonStrings.Settings_About_UpdateActions_Title)),
             p));
         text.Children.Add(description);
         grid.Children.Add(text);
@@ -265,16 +264,15 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             grid,
             p,
             _options.CardRadius,
-            [L("Settings_About_UpdateActions_SearchKeywords",
-                "upgrade download install release version GitHub new build")]);
+            [L(nameof(CommonStrings.Settings_About_UpdateActions_SearchKeywords))]);
     }
 
     private Border BuildBackdateCard(SettingsPalette p)
     {
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(CommonStrings.Settings_About_Backdate_Checking), "Checking GitHub for the previous version..."),
+            L(nameof(CommonStrings.Settings_About_Backdate_Checking)),
             p);
-        SettingsButton backdate = Button(L(nameof(CommonStrings.Settings_About_Backdate_Button), "Backdate"), p);
+        SettingsButton backdate = Button(L(nameof(CommonStrings.Settings_About_Backdate_Button)), p);
         backdate.Click += async (_, _) => await BackdateAsync();
 
         Grid grid = new();
@@ -283,7 +281,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         StackPanel text = new();
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(
-            L(nameof(CommonStrings.Settings_About_Backdate_Title), "Backdate app"),
+            L(nameof(CommonStrings.Settings_About_Backdate_Title)),
             p));
         text.Children.Add(description);
         grid.Children.Add(text);
@@ -303,7 +301,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             grid,
             p,
             _options.CardRadius,
-            [L("Settings_About_Backdate_SearchKeywords", "downgrade rollback previous older version release")]);
+            [L(nameof(CommonStrings.Settings_About_Backdate_SearchKeywords))]);
     }
 
     private async Task LoadPreviousReleaseAsync(long generation)
@@ -386,7 +384,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                     UpdateInfo = info,
                     Palette = _options.Palette,
                     EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
-                    Localize = L,
+                    L = L,
                     Shutdown = _options.Shutdown,
                     FlushLog = _options.FlushLog,
                     Log = _options.Log,
@@ -436,7 +434,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                     UpdateInfo = previousRelease,
                     Palette = _options.Palette,
                     EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
-                    Localize = L,
+                    L = L,
                     Shutdown = _options.Shutdown,
                     FlushLog = _options.FlushLog,
                     Log = _options.Log,
@@ -576,30 +574,22 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
         if (_previousReleaseLookupInProgress)
         {
-            _backdateDescriptionText.Text = L(
-                nameof(CommonStrings.Settings_About_Backdate_Checking),
-                "Checking GitHub for the previous version...");
+            _backdateDescriptionText.Text = L(nameof(CommonStrings.Settings_About_Backdate_Checking));
         }
         else if (_previousReleaseLookupFailed)
         {
-            _backdateDescriptionText.Text = L(
-                nameof(CommonStrings.Settings_About_Backdate_Failed),
-                "The previous release could not be checked.");
+            _backdateDescriptionText.Text = L(nameof(CommonStrings.Settings_About_Backdate_Failed));
         }
         else if (_previousRelease is { } previousRelease)
         {
             _backdateDescriptionText.Text = string.Format(
                 CultureInfo.CurrentCulture,
-                L(
-                    nameof(CommonStrings.Settings_About_Backdate_AvailableFormat),
-                    "Previous available version: {0}. Installing it will restart the app."),
+                L(nameof(CommonStrings.Settings_About_Backdate_AvailableFormat)),
                 previousRelease.Version);
         }
         else
         {
-            _backdateDescriptionText.Text = L(
-                nameof(CommonStrings.Settings_About_Backdate_None),
-                "No previous release is available for this app.");
+            _backdateDescriptionText.Text = L(nameof(CommonStrings.Settings_About_Backdate_None));
         }
 
         _backdateButton.IsEnabled = _previousRelease != null
@@ -614,21 +604,21 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
     private string UpdateStatusText(UpdateCheckService? service)
     {
-        if (service == null) return L("Settings_About_UpdateStatus_Unavailable", "Update service is not available.");
-        if (service.IsChecking) return L("Settings_About_UpdateStatus_Checking", "Checking for updates...");
+        if (service == null) return L(nameof(CommonStrings.Settings_About_UpdateStatus_Unavailable));
+        if (service.IsChecking) return L(nameof(CommonStrings.Settings_About_UpdateStatus_Checking));
         if (service.AvailableUpdate is { } update)
         {
             return string.Format(CultureInfo.CurrentCulture,
-                L("Settings_About_UpdateStatus_AvailableFormat", "Update available: {0}"), update.ReleaseName);
+                L(nameof(CommonStrings.Settings_About_UpdateStatus_AvailableFormat)), update.ReleaseName);
         }
 
         if (service.LastCheckTimeUtc == null)
-            return L("Settings_About_UpdateStatus_NeverChecked", "No update check has run yet.");
+            return L(nameof(CommonStrings.Settings_About_UpdateStatus_NeverChecked));
         if (service.LastResult == UpdateCheckResult.Failed)
         {
             return string.Format(
                 CultureInfo.CurrentCulture,
-                L("Settings_About_UpdateStatus_FailedFormat", "Update check failed. Last tried {0}."),
+                L(nameof(CommonStrings.Settings_About_UpdateStatus_FailedFormat)),
                 FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
         }
 
@@ -636,24 +626,24 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         {
             return string.Format(
                 CultureInfo.CurrentCulture,
-                L(nameof(CommonStrings.Settings_About_UpdateStatus_SkippedFormat),
-                    "Release {0} skipped. You'll be notified when a newer release is available."),
+                L(nameof(CommonStrings.Settings_About_UpdateStatus_SkippedFormat)),
                 service.SkippedUpdateVersion);
         }
 
         return string.Format(CultureInfo.CurrentCulture, service.LastResult == UpdateCheckResult.Cancelled
-            ? L("Settings_About_UpdateStatus_CancelledFormat", "Update check was canceled {0}.")
-            : L("Settings_About_UpdateStatus_LastCheckedFormat", "You're up to date. Last checked {0}."), FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
+            ? L(nameof(CommonStrings.Settings_About_UpdateStatus_CancelledFormat))
+            : L(nameof(CommonStrings.Settings_About_UpdateStatus_LastCheckedFormat)),
+            FormatRelativeTimestamp(service.LastCheckTimeUtc.Value));
     }
 
     private string UpdateInstallButtonText(UpdateCheckService? service)
     {
-        if (service?.AvailableUpdate != null) return L("Settings_About_InstallUpdate_Available", "Install update");
+        if (service?.AvailableUpdate != null) return L(nameof(CommonStrings.Settings_About_InstallUpdate_Available));
         if (service?.LastResult == UpdateCheckResult.Failed)
-            return L("Settings_About_InstallUpdate_CheckFailed", "Check failed");
+            return L(nameof(CommonStrings.Settings_About_InstallUpdate_CheckFailed));
         if (service != null && ComputeStaleness(service))
-            return L("Settings_About_InstallUpdate_Stale", "Version stale");
-        return L("Settings_About_InstallUpdate_UpToDate", "Up to date");
+            return L(nameof(CommonStrings.Settings_About_InstallUpdate_Stale));
+        return L(nameof(CommonStrings.Settings_About_InstallUpdate_UpToDate));
     }
 
     private bool ComputeStaleness(UpdateCheckService service)
@@ -668,20 +658,23 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
     {
         TimeSpan diff = DateTime.UtcNow - utc;
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampJustNowThresholdMs))
-            return L("Settings_About_RelativeTime_JustNow", "just now");
+            return L(nameof(CommonStrings.Settings_About_RelativeTime_JustNow));
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampMinutesThresholdMs))
         {
-            return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_MinutesFormat", "{0}m ago"),
+            return string.Format(CultureInfo.CurrentCulture,
+                L(nameof(CommonStrings.Settings_About_RelativeTime_MinutesFormat)),
                 Math.Max(1, (int)diff.TotalMinutes));
         }
 
         if (diff < TimeSpan.FromMilliseconds(TimeConstants.RelativeTimestampHoursThresholdMs))
         {
-            return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_HoursFormat", "{0}h ago"),
+            return string.Format(CultureInfo.CurrentCulture,
+                L(nameof(CommonStrings.Settings_About_RelativeTime_HoursFormat)),
                 Math.Max(1, (int)diff.TotalHours));
         }
 
-        return string.Format(CultureInfo.CurrentCulture, L("Settings_About_RelativeTime_DaysFormat", "{0}d ago"),
+        return string.Format(CultureInfo.CurrentCulture,
+            L(nameof(CommonStrings.Settings_About_RelativeTime_DaysFormat)),
             Math.Max(1, (int)diff.TotalDays));
     }
 
@@ -731,17 +724,15 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
 
     private Border BuildSettingsFolderCard(SettingsPalette p)
     {
-        SettingsButton openFolder = Button(L("Settings_About_OpenSettingsFolder_Button", "Open"), p);
+        SettingsButton openFolder = Button(L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_Button)), p);
         openFolder.Click += (_, _) => TrayAppDotNETSettingsActions.OpenFolder(_options.SettingsFolderPath);
         return TrayAppDotNETSettingsCards.Card(
             _options.OpenSettingsFolderText,
-            L("Settings_About_OpenSettingsFolder_Description",
-                "Open the folder containing this app's settings and logs."),
+            L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_Description)),
             openFolder,
             p,
             _options.CardRadius,
-            [L("Settings_About_OpenSettingsFolder_SearchKeywords",
-                "configuration config files directory logs location browse")]);
+            [L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_SearchKeywords))]);
     }
 
     private static StackPanel AboutRow(string label, string value, SettingsPalette p, string? openUrl = null)
@@ -772,5 +763,5 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         };
     }
 
-    private string L(string key, string fallback) => _options.Localize(key, fallback);
+    private string L(string key) => _options.L(key);
 }

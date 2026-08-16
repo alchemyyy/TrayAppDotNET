@@ -356,13 +356,10 @@ public sealed partial class EnvironmentalCurveEditor
         {
             string label = (series, kind) switch
             {
-                (Series.Brightness, LimitKind.Min) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinBrightness),
-                    "Min brightness"),
-                (Series.Brightness, LimitKind.Max) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxBrightness),
-                    "Max brightness"),
-                (Series.NightLight, LimitKind.Min) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinNightLight),
-                    "Min night light"),
-                _ => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxNightLight), "Max night light")
+                (Series.Brightness, LimitKind.Min) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinBrightness)),
+                (Series.Brightness, LimitKind.Max) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxBrightness)),
+                (Series.NightLight, LimitKind.Min) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinNightLight)),
+                _ => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxNightLight))
             };
             Color color = WithOpacity(_palette.Foreground, active ? 1.0 : 0.7);
             FormattedText text = Text(label, TimeAxisLabelFontSize, color);
@@ -463,8 +460,8 @@ public sealed partial class EnvironmentalCurveEditor
         DrawDashedLine(context, new Point(plot.Left, y), new Point(plot.Right, y), color, 1.0, 1.0, 2.5);
 
         string label = kind == LimitKind.Max
-            ? L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_UpperBrightnessOffset), "Upper brightness offset limit")
-            : L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_LowerBrightnessOffset), "Lower brightness offset limit");
+            ? L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_UpperBrightnessOffset))
+            : L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_LowerBrightnessOffset));
         FormattedText text = Text(label, TimeAxisLabelFontSize, color);
         double textY = kind == LimitKind.Min ? y - text.Height - 2.0 : y + 2.0;
         context.DrawText(text, new Point(plot.Center.X - text.Width / 2.0, textY));
@@ -585,7 +582,7 @@ public sealed partial class EnvironmentalCurveEditor
 
         string textValue = string.Format(
             CultureInfo.CurrentCulture,
-            L(nameof(AppStrings.Settings_CurveEditor_NodeReadout_Format), "{0}  {1}"),
+            L(nameof(AppStrings.Settings_CurveEditor_NodeReadout_Format)),
             FormatCursorTime(_selectedPoint.Time, SystemUses24HourClock()),
             FormatCursorValue(_selectedPoint.Value));
         Color color = _selectedSeries == Series.Brightness ? _palette.BrightnessCurve : _palette.NightLightCurve;
@@ -599,7 +596,7 @@ public sealed partial class EnvironmentalCurveEditor
     {
         context.FillRectangle(Brush(_palette.PreviewTint), bounds, 6);
 
-        string label = L(nameof(AppStrings.Settings_CurveEditor_ExitPreviewMode_Button), "Exit preview");
+        string label = L(nameof(AppStrings.Settings_CurveEditor_ExitPreviewMode_Button));
         FormattedText text = Text(label, 12.0, _palette.Foreground);
         Rect button = new(
             plot.Right - text.Width - 28.0,

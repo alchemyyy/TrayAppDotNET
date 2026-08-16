@@ -487,7 +487,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p,
             TitleBarActionIconFontSize,
             _openSettings,
-            L("Flyout_Settings_Tooltip", "Settings"));
+            L(nameof(AppStrings.Flyout_Settings_Tooltip)));
         SuppressNextAutoHideWhenPressed(settingsButton);
 
         Border powerButton = BuildTitleBarIconButton(
@@ -495,7 +495,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             p,
             TitleBarPowerIconFontSize,
             OpenModernPowerSettings,
-            L("Flyout_PowerSettings_Tooltip", "Power settings"));
+            L(nameof(AppStrings.Flyout_PowerSettings_Tooltip)));
 
         StackPanel actions = new()
         {
@@ -572,8 +572,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             Palette = p,
             DraggingChanged = OnUndockDraggingChanged,
             InteractionCompleted = _ => FlushPendingRebuild(),
-            UndockTooltip = () => L("Flyout_Undock_Tooltip", "Undock"),
-            RedockTooltip = () => L("Flyout_Redock_Tooltip", "Redock"),
+            UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
+            RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
             Width = TitleBarUndockButtonSize,
             Height = TitleBarUndockButtonSize,
             FontSize = TitleBarUndockIconFontSize,
@@ -865,18 +865,18 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         };
 
         panel.Children.Add(BuildToggleRow(
-            L("Flyout_EnergySaver", "Energy Saver"),
+            L(nameof(AppStrings.Flyout_EnergySaver)),
             p,
             settingsPalette,
             energySaverEnabled,
             SetEnergySaver,
             energySaverAlways.HasValue
-                ? L("Flyout_EnergySaver_Tooltip", "Set Energy Saver to Always or Never")
-                : L("Flyout_EnergySaver_Unavailable_Tooltip", "Energy Saver threshold is unavailable"),
+                ? L(nameof(AppStrings.Flyout_EnergySaver_Tooltip))
+                : L(nameof(AppStrings.Flyout_EnergySaver_Unavailable_Tooltip)),
             enabled: !_isEnergySaverChanging && energySaverAlways.HasValue));
 
         TextBlock label = TrayAppDotNETFlyoutUI.Text(
-            L("Flyout_PowerMode_Label", "Power Mode"),
+            L(nameof(AppStrings.Flyout_PowerMode_Label)),
             p,
             12,
             FontWeight.SemiBold,
@@ -885,19 +885,19 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         panel.Children.Add(label);
 
         panel.Children.Add(BuildPowerModeRow(
-            L("Flyout_PowerMode_Ultimate", "Ultimate"),
+            L(nameof(AppStrings.Flyout_PowerMode_Ultimate)),
             FlyoutPowerMode.Ultimate,
             activeMode,
             p,
             settingsPalette));
         panel.Children.Add(BuildPowerModeRow(
-            L("Flyout_PowerMode_Balanced", "Balanced"),
+            L(nameof(AppStrings.Flyout_PowerMode_Balanced)),
             FlyoutPowerMode.Balanced,
             activeMode,
             p,
             settingsPalette));
         panel.Children.Add(BuildPowerModeRow(
-            L("Flyout_PowerMode_PowerSaver", "Power Saver"),
+            L(nameof(AppStrings.Flyout_PowerMode_PowerSaver)),
             FlyoutPowerMode.PowerSaver,
             activeMode,
             p,
@@ -1381,18 +1381,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return $"{Math.Max(1, value.Minutes)}m";
     }
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 
     protected override void OnClosed(EventArgs e)
     {

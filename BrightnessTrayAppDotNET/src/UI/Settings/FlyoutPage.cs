@@ -8,206 +8,175 @@ public sealed partial class BrightnessSettingsWindow
     private StackPanel BuildFlyoutPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader), "Flyout"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader)), p);
 
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title), "Restore undock state on startup"),
-            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description),
-                "When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked."),
+            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title)),
+            L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description)),
             _settings.RestoreFlyoutUndockedOnStartup,
             v => _settings.RestoreFlyoutUndockedOnStartup = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_RestoreUndockState_SearchKeywords",
-                    "remember floating detached window")
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Flyout_Visibility_Header), "Visibility"),
+            L(nameof(AppStrings.Settings_Flyout_Visibility_Header)),
             p));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title), "Show undock button"),
-            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description),
-                "Show the undock button in the flyout. When off, the flyout always stays anchored to the tray."),
+            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description)),
             _settings.AllowFlyoutUndock,
             v => _settings.AllowFlyoutUndock = v,
             p,
             afterSave: () => RebuildShell(BrightnessSettingsPage.Flyout),
             searchKeywords:
             [
-                L("Settings_Flyout_ShowUndockButton_SearchKeywords",
-                    "detach float popup window")
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
             ]));
         stack.Children.Add(Maybe(_settings.AllowFlyoutUndock, BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title), "Keep undocked flyout on screen"),
-            L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description),
-                "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
+            L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
             _settings.ClampUndockedFlyoutToScreen,
             v => _settings.ClampUndockedFlyoutToScreen = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ClampUndockedToScreen_SearchKeywords",
-                    "monitor work area bounds floating window")
+                L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
             ])));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_Title), "Show monitor power buttons"),
-            L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_Description),
-                "Display a per-monitor power off button next to each monitor in the brightness flyout."),
+            L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_Description)),
             _settings.ShowFlyoutMonitorPowerButtons,
             v => _settings.ShowFlyoutMonitorPowerButtons = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowMonitorPowerButtons_SearchKeywords",
-                    "turn screens off individually")
+                L(nameof(AppStrings.Settings_Flyout_ShowMonitorPowerButtons_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_Title), "Show display number on monitor icons"),
-            L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_Description),
-                "Overlay the OS-assigned display number inside each monitor icon in the brightness flyout."),
+            L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_Description)),
             _settings.ShowFlyoutMonitorNumberBadge,
             v => _settings.ShowFlyoutMonitorNumberBadge = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowDisplayNumberBadge_SearchKeywords",
-                    "screen identifier overlay badge")
+                L(nameof(AppStrings.Settings_Flyout_ShowDisplayNumberBadge_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_Title), "Show display settings button"),
-            L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_Description),
-                "Show the link to Windows display settings in the brightness flyout footer."),
+            L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_Description)),
             _settings.ShowFlyoutDisplaySettingsButton,
             v => _settings.ShowFlyoutDisplaySettingsButton = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowDisplaySettingsButton_SearchKeywords",
-                    "Windows screen configuration shortcut")
+                L(nameof(AppStrings.Settings_Flyout_ShowDisplaySettingsButton_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_Title), "Show power button"),
-            L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_Description), "Show a power button in the brightness flyout footer."),
+            L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_Description)),
             _settings.ShowFlyoutFooterPowerButton,
             v => _settings.ShowFlyoutFooterPowerButton = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowPowerButton_SearchKeywords",
-                    "turn screens off footer")
+                L(nameof(AppStrings.Settings_Flyout_ShowPowerButton_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_Title), "Show master slider"),
-            L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_Description),
-                "Show the All Displays master slider in the brightness flyout."),
+            L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_Description)),
             _settings.ShowMasterSlider,
             v => _settings.ShowMasterSlider = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowMasterSlider_SearchKeywords",
-                    "all screens brightness control")
+                L(nameof(AppStrings.Settings_Flyout_ShowMasterSlider_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_Title), "Show individual sliders"),
-            L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_Description),
-                "Show the per-monitor sliders in the brightness flyout."),
+            L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_Description)),
             _settings.ShowIndividualSliders,
             v => _settings.ShowIndividualSliders = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowIndividualSliders_SearchKeywords",
-                    "per display brightness controls")
+                L(nameof(AppStrings.Settings_Flyout_ShowIndividualSliders_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_Title), "Show environmental curves button"),
-            L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_Description),
-                "Show the environmental curves toggle button in the brightness flyout footer."),
+            L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_Description)),
             _settings.ShowEnvironmentalCurvesButton,
             v => _settings.ShowEnvironmentalCurvesButton = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowEnvironmentalCurvesButton_SearchKeywords",
-                    "adaptive automatic brightness shortcut")
+                L(nameof(AppStrings.Settings_Flyout_ShowEnvironmentalCurvesButton_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_Title), "Show Kelvin label on night light slider"),
-            L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_Description),
-                "Display the current color temperature (e.g. 4500K) above the night light slider in the brightness flyout."),
+            L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_Title)),
+            L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_Description)),
             _settings.ShowNightLightKelvinLabel,
             v => _settings.ShowNightLightKelvinLabel = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_ShowNightLightKelvinLabel_SearchKeywords",
-                    "color temperature degrees warmth")
+                L(nameof(AppStrings.Settings_Flyout_ShowNightLightKelvinLabel_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(AppStrings.Settings_Flyout_Behavior_Header), "Behavior"),
+            L(nameof(AppStrings.Settings_Flyout_Behavior_Header)),
             p));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_PowerButtonOnlyEnabled_Title), "Power button affects only enabled monitors"),
-            L(nameof(AppStrings.Settings_Flyout_PowerButtonOnlyEnabled_Description),
-                "When on, the footer power button only powers off monitors enabled in the app. When off, it powers off every monitor."),
+            L(nameof(AppStrings.Settings_Flyout_PowerButtonOnlyEnabled_Title)),
+            L(nameof(AppStrings.Settings_Flyout_PowerButtonOnlyEnabled_Description)),
             _settings.FooterPowerButtonOnlyEnabledMonitors,
             v => _settings.FooterPowerButtonOnlyEnabledMonitors = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_PowerButtonOnlyEnabled_SearchKeywords",
-                    "exclude disabled screens shutdown")
+                L(nameof(AppStrings.Settings_Flyout_PowerButtonOnlyEnabled_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_Title), "Number keys switch profile in flyout"),
-            L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_Description),
-                "While the brightness flyout is focused, press 1-4 to switch to the matching profile."),
+            L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_Title)),
+            L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_Description)),
             _settings.FlyoutNumberKeysSwitchProfile,
             v => _settings.FlyoutNumberKeysSwitchProfile = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_NumberKeysSwitchProfile_SearchKeywords",
-                    "keyboard shortcuts presets one two three four")
+                L(nameof(AppStrings.Settings_Flyout_NumberKeysSwitchProfile_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
-            L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Title), "Master slider tracking"),
-            L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Description),
-                "How the master slider reflects the individual monitor sliders when it's not driving them."),
+            L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Title)),
+            L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Description)),
             [
-                (MasterSliderMode.Lowest, L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Lowest), "Lowest")),
-                (MasterSliderMode.Average, L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Average), "Average")),
-                (MasterSliderMode.Highest, L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Highest), "Highest"))
+                (MasterSliderMode.Lowest, L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Lowest))),
+                (MasterSliderMode.Average, L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Average))),
+                (MasterSliderMode.Highest, L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_Highest)))
             ],
             _settings.MasterSliderMode,
             v => _settings.MasterSliderMode = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_MasterSliderTracking_SearchKeywords",
-                    "aggregate minimum mean maximum monitors")
+                L(nameof(AppStrings.Settings_Flyout_MasterSliderTracking_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_Title),
-                "Preserve slider offsets (prevent slider offset degeneration)"),
-            L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_Description),
-                "When the master slider pushes an individual monitor past 0% or 100%, retain the overflow so later master adjustments restore the original brightness differences between monitors."),
+            L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_Title)),
+            L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_Description)),
             _settings.PreserveMasterSliderOffsets,
             v => _settings.PreserveMasterSliderOffsets = v,
             p,
             searchKeywords:
             [
-                L("Settings_Flyout_PreserveSliderOffsets_SearchKeywords",
-                    "relative brightness differences overflow")
+                L(nameof(AppStrings.Settings_Flyout_PreserveSliderOffsets_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
-            L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_Title), "Mouse wheel step"),
-            L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_Description),
-                "How many percent each mouse wheel notch adjusts a brightness slider in the flyout."),
+            L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_Title)),
+            L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_Description)),
             _settings.FlyoutScrollWheelStep,
             AppSettings.FlyoutScrollWheelStepMin,
             AppSettings.FlyoutScrollWheelStepMax,
@@ -216,8 +185,7 @@ public sealed partial class BrightnessSettingsWindow
             "%",
             searchKeywords:
             [
-                L("Settings_Flyout_MouseWheelStep_SearchKeywords",
-                    "scroll sensitivity increment")
+                L(nameof(AppStrings.Settings_Flyout_MouseWheelStep_SearchKeywords))
             ]));
 
         return stack;

@@ -434,6 +434,12 @@ Target: {1}</value>
   <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
     <value>Open settings</value>
   </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
+    <value>Show the network flyout above the tray icon.</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
+    <value>Open flyout</value>
+  </data>
   <data name="Settings_Hotkeys_Remove_Button" xml:space="preserve">
     <value>Remove</value>
   </data>
@@ -454,6 +460,12 @@ Target: {1}</value>
   </data>
   <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
     <value>Appearance</value>
+  </data>
+  <data name="Settings_Theme_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
+    <value>Flyout</value>
   </data>
   <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme background color</value>
@@ -502,6 +514,21 @@ Target: {1}</value>
   </data>
   <data name="Settings_Theme_SectionHeader" xml:space="preserve">
     <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme static tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
+    <value>Override the tray icon color when Tray icon style is set to Static. Each variant falls back to the default when unset.</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
+    <value>Light theme static tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
+    <value>Static tray icon color</value>
+  </data>
+  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
+    <value>Tray icon</value>
   </data>
   <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
     <value>Dark theme text color</value>

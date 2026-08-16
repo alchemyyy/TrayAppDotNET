@@ -51,7 +51,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     {
         _settings = settings;
         _showUninstaller = showUninstaller;
-        ConfigureCompactSettingsWindow(L("SettingsWindow_Title", "Settings"), AppTheme.LoadAppIcon());
+        ConfigureCompactSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -64,10 +64,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     protected override BatterySettingsPage DefaultPageKey => BatterySettingsPage.General;
 
-    protected override string HeaderText => L("SettingsWindow_Header", "Settings");
+    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
 
     protected override string OpenSettingsFolderText =>
-        L("SettingsWindow_OpenSettingsFolder", "Open settings folder");
+        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 
@@ -76,13 +76,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     protected override IReadOnlyList<SettingsPageDescriptor<BatterySettingsPage>> CreatePageDescriptors() =>
     [
-        new(BatterySettingsPage.General, L("Settings_Common_Page_General", "General"), BuildGeneralPage),
-        new(BatterySettingsPage.Triggers, L("Settings_Common_Page_Triggers", "Triggers"), BuildTriggersPage),
-        new(BatterySettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout), "Flyout"), BuildFlyoutPage),
-        new(BatterySettingsPage.TrayIcon, L("Settings_Common_Page_TrayIcon", "Tray Icon"), BuildTrayIconPage),
-        new(BatterySettingsPage.Hotkeys, L("Settings_Common_Page_Hotkeys", "Hotkeys"), BuildHotkeysPage),
-        new(BatterySettingsPage.Theme, L("Settings_Common_Page_Theme", "Theme"), BuildThemePage),
-        new(BatterySettingsPage.About, L("Settings_Common_Page_About", "About"), BuildAboutPage)
+        new(BatterySettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)), BuildGeneralPage),
+        new(BatterySettingsPage.Triggers, L(nameof(AppStrings.Settings_Common_Page_Triggers)), BuildTriggersPage),
+        new(BatterySettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout)), BuildFlyoutPage),
+        new(BatterySettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)), BuildTrayIconPage),
+        new(BatterySettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)), BuildHotkeysPage),
+        new(BatterySettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)), BuildThemePage),
+        new(BatterySettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)), BuildAboutPage)
     ];
 
     protected override void Save()
@@ -118,7 +118,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L("Settings_General_SectionHeader", "General"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p);
 
             TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
             stack.Children.Add(commonSection.BuildStartupCard());
@@ -128,7 +128,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     new TrayAppDotNETInstallCardOptions
                     {
                         Scope = BatteryInstallScope.LocalAppData,
-                        Title = L("Settings_General_LocalUser_Title", "Local user"),
+                        Title = L(nameof(AppStrings.Settings_General_LocalUser_Title)),
                         ExecutablePath = AppServices.InstallLayout.LocalAppDataInstallExecutable,
                         Elevated = false,
                         Install = static () => AppServices.Installation.InstallToLocalAppData(),
@@ -143,7 +143,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     new TrayAppDotNETInstallCardOptions
                     {
                         Scope = BatteryInstallScope.ProgramFiles,
-                        Title = L("Settings_General_SystemWide_Title", "System-wide"),
+                        Title = L(nameof(AppStrings.Settings_General_SystemWide_Title)),
                         ExecutablePath = AppServices.InstallLayout.ProgramFilesInstallExecutable,
                         Elevated = true,
                         Install = static () => AppServices.Installation.InstallSystemWide(),
@@ -157,7 +157,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     }
                 ],
                 new TrayAppDotNETStoreInstallOptions(
-                    L("Settings_General_WindowsStore_Title", "Windows Store"),
+                    L(nameof(AppStrings.Settings_General_WindowsStore_Title)),
                     StoreInstallDescription));
             CreateRenderingSettingsSection(p).AddCards(stack);
 
@@ -170,7 +170,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Palette = p,
             ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
@@ -191,7 +191,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         {
             Palette = p,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
@@ -206,18 +206,17 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         TrayAppDotNETInstallationInfo? info = AppServices.Installation.DetectAll()
             .FirstOrDefault(i => i.Scope == BatteryInstallScope.WindowsStore);
         return info?.Status == TrayAppDotNETInstallStatus.CurrentlyRunning
-            ? L("Settings_General_StoreRunning", "Running from Windows Store")
-            : L("Settings_General_StoreNotInstalled", "Not installed from Windows Store");
+            ? L(nameof(AppStrings.Settings_General_StoreRunning))
+            : L(nameof(AppStrings.Settings_General_StoreNotInstalled));
     }
 
     private StackPanel BuildTriggersPage() =>
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L("Settings_Triggers_SectionHeader", "Triggers"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Triggers_SectionHeader)), p);
             stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_Triggers_Description",
-                    "Drag cards, or use Ctrl+Up/Ctrl+Down, to change trigger order."),
+                L(nameof(AppStrings.Settings_Triggers_Description)),
                 p,
                 new Thickness(0, 0, 0, 12)));
 
@@ -239,7 +238,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         if (_settings.Triggers.Count == 0)
         {
             _triggerPanel.Children.Add(RawCard(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_Triggers_Empty", "No triggers configured."), Palette), Palette));
+                L(nameof(AppStrings.Settings_Triggers_Empty)), Palette), Palette));
             return;
         }
 
@@ -255,13 +254,13 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         title.FontWeight = FontWeight.SemiBold;
 
         SettingsComboBox condition = BuildNullableTriggerCombo(
-            L("Settings_Triggers_Condition_Placeholder", "Condition"),
+            L(nameof(AppStrings.Settings_Triggers_Condition_Placeholder)),
             TriggerConditionOptions(),
             trigger.Condition,
             value => trigger.Condition = value,
             p);
         SettingsComboBox action = BuildNullableTriggerCombo(
-            L("Settings_Triggers_Action_Placeholder", "Action"),
+            L(nameof(AppStrings.Settings_Triggers_Action_Placeholder)),
             TriggerActionOptions(),
             trigger.Action,
             value => trigger.Action = value,
@@ -397,7 +396,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
         TrayAppDotNETToolTip.SetTip(
             card,
-            L("Settings_Triggers_Card_ToolTip", "Drag to reorder, or press Ctrl+Up/Ctrl+Down."));
+            L(nameof(AppStrings.Settings_Triggers_Card_ToolTip)));
         return TrayAppDotNETSettingsCards.RegisterSearchCard(card);
     }
 
@@ -450,24 +449,24 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     private static IReadOnlyList<(BatteryTriggerCondition Value, string Text)> TriggerConditionOptions() =>
     [
-        (BatteryTriggerCondition.BatteryBelow20, L("Settings_Triggers_Condition_BatteryBelow20", "Battery below 20%")),
-        (BatteryTriggerCondition.BatteryBelow10, L("Settings_Triggers_Condition_BatteryBelow10", "Battery below 10%")),
-        (BatteryTriggerCondition.BatteryAbove80, L("Settings_Triggers_Condition_BatteryAbove80", "Battery above 80%")),
-        (BatteryTriggerCondition.ChargingStarted, L("Settings_Triggers_Condition_ChargingStarted", "Charging started")),
-        (BatteryTriggerCondition.ChargingStopped, L("Settings_Triggers_Condition_ChargingStopped", "Charging stopped")),
+        (BatteryTriggerCondition.BatteryBelow20, L(nameof(AppStrings.Settings_Triggers_Condition_BatteryBelow20))),
+        (BatteryTriggerCondition.BatteryBelow10, L(nameof(AppStrings.Settings_Triggers_Condition_BatteryBelow10))),
+        (BatteryTriggerCondition.BatteryAbove80, L(nameof(AppStrings.Settings_Triggers_Condition_BatteryAbove80))),
+        (BatteryTriggerCondition.ChargingStarted, L(nameof(AppStrings.Settings_Triggers_Condition_ChargingStarted))),
+        (BatteryTriggerCondition.ChargingStopped, L(nameof(AppStrings.Settings_Triggers_Condition_ChargingStopped))),
         (BatteryTriggerCondition.ExternalPowerConnected,
-            L("Settings_Triggers_Condition_ExternalPowerConnected", "External power connected")),
+            L(nameof(AppStrings.Settings_Triggers_Condition_ExternalPowerConnected))),
         (BatteryTriggerCondition.ExternalPowerDisconnected,
-            L("Settings_Triggers_Condition_ExternalPowerDisconnected", "External power disconnected")),
-        (BatteryTriggerCondition.FullyCharged, L("Settings_Triggers_Condition_FullyCharged", "Battery full"))
+            L(nameof(AppStrings.Settings_Triggers_Condition_ExternalPowerDisconnected))),
+        (BatteryTriggerCondition.FullyCharged, L(nameof(AppStrings.Settings_Triggers_Condition_FullyCharged)))
     ];
 
     private static IReadOnlyList<(BatteryTriggerAction Value, string Text)> TriggerActionOptions() =>
     [
-        (BatteryTriggerAction.ShowNotification, L("Settings_Triggers_Action_ShowNotification", "Show notification")),
-        (BatteryTriggerAction.OpenFlyout, L("Settings_Triggers_Action_OpenFlyout", "Open flyout")),
-        (BatteryTriggerAction.OpenSettings, L("Settings_Triggers_Action_OpenSettings", "Open settings")),
-        (BatteryTriggerAction.OpenPowerSettings, L("Settings_Triggers_Action_OpenPowerSettings", "Open power settings"))
+        (BatteryTriggerAction.ShowNotification, L(nameof(AppStrings.Settings_Triggers_Action_ShowNotification))),
+        (BatteryTriggerAction.OpenFlyout, L(nameof(AppStrings.Settings_Triggers_Action_OpenFlyout))),
+        (BatteryTriggerAction.OpenSettings, L(nameof(AppStrings.Settings_Triggers_Action_OpenSettings))),
+        (BatteryTriggerAction.OpenPowerSettings, L(nameof(AppStrings.Settings_Triggers_Action_OpenPowerSettings)))
     ];
 
     private void UpdateTriggerCardVisual(
@@ -653,66 +652,58 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader), "Flyout"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader)), p);
 
             stack.Children.Add(BoolCard(
-                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title), "Restore undock state on startup"),
-                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description),
-                    "When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked."),
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title)),
+                L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Description)),
                 _settings.RestoreFlyoutUndockedOnStartup,
                 v => _settings.RestoreFlyoutUndockedOnStartup = v,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Flyout_RestoreUndockState_SearchKeywords",
-                        "remember floating detached window")
+                    L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_SearchKeywords))
                 ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L(nameof(AppStrings.Settings_Flyout_Visibility_Header), "Visibility"), p));
+                L(nameof(AppStrings.Settings_Flyout_Visibility_Header)), p));
             stack.Children.Add(BoolCard(
-                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title), "Show undock button"),
-                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description),
-                    "Show the undock button in the flyout. When off, the flyout always stays anchored to the tray."),
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Title)),
+                L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_Description)),
                 _settings.AllowFlyoutUndock,
                 v => _settings.AllowFlyoutUndock = v,
                 p,
                 afterSave: () => RebuildShell(BatterySettingsPage.Flyout),
                 searchKeywords:
                 [
-                    L("Settings_Flyout_ShowUndockButton_SearchKeywords",
-                        "detach float popup window")
+                    L(nameof(AppStrings.Settings_Flyout_ShowUndockButton_SearchKeywords))
                 ]));
 
             if (_settings.AllowFlyoutUndock)
             {
                 stack.Children.Add(BoolCard(
-                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title), "Keep undocked flyout on screen"),
-                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description),
-                        "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
+                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Title)),
+                    L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_Description)),
                     _settings.ClampUndockedFlyoutToScreen,
                     v => _settings.ClampUndockedFlyoutToScreen = v,
                     p,
                     searchKeywords:
                     [
-                        L("Settings_Flyout_ClampUndockedToScreen_SearchKeywords",
-                            "monitor work area bounds floating window")
+                        L(nameof(AppStrings.Settings_Flyout_ClampUndockedToScreen_SearchKeywords))
                     ]));
             }
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L(nameof(AppStrings.Settings_Flyout_Layout_Header), "Layout"), p));
+                L(nameof(AppStrings.Settings_Flyout_Layout_Header)), p));
             stack.Children.Add(BoolCard(
-                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Title), "Title bar at the bottom"),
-                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Description),
-                    "Render the flyout title bar at the bottom of the flyout instead of the top."),
+                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Title)),
+                L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_Description)),
                 _settings.FlyoutHeaderAtBottom,
                 v => _settings.FlyoutHeaderAtBottom = v,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Flyout_HeaderAtBottom_SearchKeywords",
-                        "move titlebar footer position")
+                    L(nameof(AppStrings.Settings_Flyout_HeaderAtBottom_SearchKeywords))
                 ]));
 
             return stack;
@@ -722,17 +713,16 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L("Settings_TrayIcon_SectionHeader", "Tray Icon"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader)), p);
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_TrayIcon_ContextMenu_Header", "Context menu"), p));
+                L(nameof(AppStrings.Settings_TrayIcon_ContextMenu_Header)), p));
             stack.Children.Add(ComboCard(
-                L("Settings_TrayIcon_MenuPosition_Title", "Menu position"),
-                L("Settings_TrayIcon_MenuPosition_Description",
-                    "Choose where the right-click tray menu opens."),
+                L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Title)),
+                L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Description)),
                 [
-                    (nameof(ContextMenuPosition.Classic), L("Settings_TrayIcon_MenuPosition_Classic", "Classic")),
-                    (nameof(ContextMenuPosition.Modern), L("Settings_TrayIcon_MenuPosition_Modern", "Modern"))
+                    (nameof(ContextMenuPosition.Classic), L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Classic))),
+                    (nameof(ContextMenuPosition.Modern), L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Modern)))
                 ],
                 _settings.ContextMenuPosition.ToString(),
                 tag =>
@@ -745,8 +735,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
                 searchKeywords:
                 [
-                    L("Settings_TrayIcon_MenuPosition_SearchKeywords",
-                        "right click cursor taskbar docked")
+                    L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_SearchKeywords))
                 ]));
 
             return stack;
@@ -756,10 +745,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L("Settings_Hotkeys_SectionHeader", "Hotkeys"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p);
             stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L("Settings_Hotkeys_SectionDescription",
-                    "Add keyboard shortcuts for common battery tray actions."),
+                L(nameof(AppStrings.Settings_Hotkeys_SectionDescription)),
                 p,
                 new Thickness(0, 0, 0, 16)));
 
@@ -771,7 +759,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 Margin = new Thickness(0, 0, 0, 12)
             };
             TextBlock searchLabel = TrayAppDotNETSettingsUI.TitleText(
-                L("Settings_Hotkeys_SearchLabel", "Search"), p);
+                L(nameof(AppStrings.Settings_Hotkeys_SearchLabel)), p);
             searchLabel.VerticalAlignment = VerticalAlignment.Center;
             searchLabel.Margin = new Thickness(0, 0, 8, 0);
             searchRow.Children.Add(searchLabel);
@@ -783,15 +771,15 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 stack,
                 rows,
                 HotkeyAction.OpenFlyout,
-                L("Settings_Hotkeys_OpenFlyout_Title", "Open flyout"),
-                L("Settings_Hotkeys_OpenFlyout_Description", "Show battery details above the tray icon."),
+                L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
+                L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
                 p);
             AddHotkeyRow(
                 stack,
                 rows,
                 HotkeyAction.OpenSettings,
-                L("Settings_Hotkeys_OpenSettings_Title", "Open settings"),
-                L("Settings_Hotkeys_OpenSettings_Description", "Open the BatteryTrayAppDotNET settings window."),
+                L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
+                L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
                 p);
 
             searchBox.TextChanged += (_, _) =>
@@ -828,7 +816,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(L("Settings_Hotkeys_Add_Button", "Add"), p);
+        SettingsButton addButton = Button(L(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
@@ -836,7 +824,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         {
             if (selectedModifiers == 0 || selectedVk == 0)
             {
-                addButton.Text = L("Settings_Hotkeys_Add_Button", "Add");
+                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
                 addButton.IsEnabled = false;
                 return;
             }
@@ -847,8 +835,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 && b.Modifiers == selectedModifiers
                 && b.VirtualKey == selectedVk);
             addButton.Text = exists
-                ? L("Settings_Hotkeys_Exists_Button", "Exists")
-                : L("Settings_Hotkeys_Add_Button", "Add");
+                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
+                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
             addButton.IsEnabled = !exists;
         }
 
@@ -972,7 +960,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             GlyphApplicator.ApplyTo(status, GlyphCatalog.WARNING);
             TrayAppDotNETToolTip.SetTip(
                 status,
-                L("Settings_Hotkeys_Status_HotkeyServiceUnavailable", "Hotkey service is unavailable."));
+                L(nameof(AppStrings.Settings_Hotkeys_Status_HotkeyServiceUnavailable)));
         }
         else if (applyResult?.Failed.TryGetValue(binding, out string? error) == true)
         {
@@ -983,7 +971,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         {
             TrayAppDotNETToolTip.SetTip(
                 status,
-                L("Settings_Hotkeys_Status_Registered", "Registered"));
+                L(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
         }
 
         SettingsButton delete = Button("x", p);
@@ -993,7 +981,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         delete.Label.FontSize = 20;
         TrayAppDotNETToolTip.SetTip(
             delete,
-            L("Settings_Hotkeys_DeleteHotkey_ToolTip", "Delete hotkey"));
+            L(nameof(AppStrings.Settings_Hotkeys_DeleteHotkey_ToolTip)));
         delete.Click += (_, _) =>
         {
             if (AppSettings.IsDefaultHotkeyIdentity(action, string.Empty, binding.BindingID))
@@ -1038,14 +1026,14 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         (StackPanel)BuildSettingsPage(() =>
         {
             SettingsPalette p = Palette;
-            StackPanel stack = PageStack(L("Settings_Theme_SectionHeader", "Theme"), p);
+            StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
             AppTheme theme = AppServices.Theme ?? AppTheme.Default;
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Theme_ContextMenu_Header", "Context menu"), p));
+                L(nameof(AppStrings.Settings_Theme_ContextMenu_Header)), p));
             stack.Children.Add(IntCard(
-                L("Settings_Theme_FontSize_Title", "Font size"),
-                L("Settings_Theme_FontSize_Description", "Adjust the right-click tray menu font size."),
+                L(nameof(AppStrings.Settings_Theme_FontSize_Title)),
+                L(nameof(AppStrings.Settings_Theme_FontSize_Description)),
                 _settings.ContextMenuFontSize,
                 AppSettings.ContextMenuFontSizeMin,
                 AppSettings.ContextMenuFontSizeMax,
@@ -1053,19 +1041,18 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Theme_FontSize_SearchKeywords",
-                        "text scale accessibility")
+                    L(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
                 ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Theme_Appearance_Header", "Appearance"), p));
+                L(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
             stack.Children.Add(ComboCard(
-                L("Settings_Theme_ThemeStyle_Title", "Theme"),
-                L("Settings_Theme_ThemeStyle_Description", "Choose the app theme mode."),
+                L(nameof(AppStrings.Settings_Theme_ThemeStyle_Title)),
+                L(nameof(AppStrings.Settings_Theme_ThemeStyle_Description)),
                 [
-                    (nameof(ThemeMode.System), L("Settings_Theme_ThemeStyle_System", "System")),
-                    (nameof(ThemeMode.Light), L("Settings_Theme_ThemeStyle_Light", "Light")),
-                    (nameof(ThemeMode.Dark), L("Settings_Theme_ThemeStyle_Dark", "Dark"))
+                    (nameof(ThemeMode.System), L(nameof(AppStrings.Settings_Theme_ThemeStyle_System))),
+                    (nameof(ThemeMode.Light), L(nameof(AppStrings.Settings_Theme_ThemeStyle_Light))),
+                    (nameof(ThemeMode.Dark), L(nameof(AppStrings.Settings_Theme_ThemeStyle_Dark)))
                 ],
                 _settings.ThemeMode.ToString(),
                 tag =>
@@ -1077,96 +1064,88 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 afterSave: () => RebuildShell(BatterySettingsPage.Theme),
                 searchKeywords:
                 [
-                    L("Settings_Theme_ThemeStyle_SearchKeywords",
-                        "appearance Windows color scheme")
+                    L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
                 "Text",
-                L("Settings_Theme_TextColor_Title", "Text color"),
-                L("Settings_Theme_TextColor_Description", "Override text color for each theme variant."),
-                L("Settings_Theme_TextColor_LightTooltip", "Light theme text color"),
-                L("Settings_Theme_TextColor_DarkTooltip", "Dark theme text color"),
+                L(nameof(AppStrings.Settings_Theme_TextColor_Title)),
+                L(nameof(AppStrings.Settings_Theme_TextColor_Description)),
+                L(nameof(AppStrings.Settings_Theme_TextColor_LightTooltip)),
+                L(nameof(AppStrings.Settings_Theme_TextColor_DarkTooltip)),
                 _settings.TextColor,
                 theme.Foreground.Light,
                 theme.Foreground.Dark,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Theme_TextColor_SearchKeywords",
-                        "foreground lettering font palette")
+                    L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
                 "Background",
-                L("Settings_Theme_BackgroundColor_Title", "Background color"),
-                L("Settings_Theme_BackgroundColor_Description", "Override background color for each theme variant."),
-                L("Settings_Theme_BackgroundColor_LightTooltip", "Light theme background color"),
-                L("Settings_Theme_BackgroundColor_DarkTooltip", "Dark theme background color"),
+                L(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
+                L(nameof(AppStrings.Settings_Theme_BackgroundColor_Description)),
+                L(nameof(AppStrings.Settings_Theme_BackgroundColor_LightTooltip)),
+                L(nameof(AppStrings.Settings_Theme_BackgroundColor_DarkTooltip)),
                 _settings.BackgroundColor,
                 theme.Background.Light,
                 theme.Background.Dark,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Theme_BackgroundColor_SearchKeywords",
-                        "window surface canvas palette")
+                    L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
                 ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Theme_Flyout_Header", "Flyout"), p));
+                L(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
             stack.Children.Add(VariantColorCard(
                 "FlyoutBackground",
-                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Title), "Flyout background"),
-                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Description),
-                    "Override the main battery flyout background color."),
-                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_LightTooltip), "Light flyout background"),
-                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_DarkTooltip), "Dark flyout background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Title)),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_Description)),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_LightTooltip)),
+                L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_DarkTooltip)),
                 _settings.FlyoutBackgroundColor,
                 theme.Background.Light,
                 theme.Background.Dark,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Theme_FlyoutBackgroundColor_SearchKeywords",
-                        "popup panel surface palette")
+                    L(nameof(AppStrings.Settings_Theme_FlyoutBackgroundColor_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
                 "FlyoutTitleBarBackground",
-                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Title), "Titlebar background"),
-                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Description),
-                    "Override the battery flyout titlebar background color."),
-                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip), "Light titlebar background"),
-                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_DarkTooltip), "Dark titlebar background"),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Title)),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Description)),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_LightTooltip)),
+                L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_DarkTooltip)),
                 _settings.FlyoutTitleBarBackgroundColor,
                 theme.FooterBackground.Light,
                 theme.FooterBackground.Dark,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords",
-                        "popup header bar palette")
+                    L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords))
                 ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Theme_Window_Header", "Windows"), p));
+                L(nameof(AppStrings.Settings_Theme_Window_Header)), p));
             stack.Children.Add(BoolCard(
-                L("Settings_Theme_RoundedCorners_Title", "Rounded corners"),
-                L("Settings_Theme_RoundedCorners_Description", "Use rounded corners on BatteryTrayAppDotNET windows."),
+                L(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
+                L(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
                 _settings.EnableRoundedCorners,
                 v => _settings.EnableRoundedCorners = v,
                 p,
                 afterSave: () => RebuildShell(BatterySettingsPage.Theme),
                 searchKeywords:
                 [
-                    L("Settings_Theme_RoundedCorners_SearchKeywords",
-                        "square edges window shape")
+                    L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
                 ]));
             stack.Children.Add(ComboCard(
-                L("Settings_Theme_Animations_Title", "Animations"),
-                L("Settings_Theme_Animations_Description", "Controls whether tooltip fades and other UI animations are allowed."),
+                L(nameof(AppStrings.Settings_Theme_Animations_Title)),
+                L(nameof(AppStrings.Settings_Theme_Animations_Description)),
                 [
-                    (nameof(TrayAppDotNETAnimationMode.System), L("Settings_Theme_Animations_System", "System")),
-                    (nameof(TrayAppDotNETAnimationMode.Disabled), L("Settings_Theme_Animations_Disabled", "Disabled")),
-                    (nameof(TrayAppDotNETAnimationMode.Enabled), L("Settings_Theme_Animations_Enabled", "Enabled"))
+                    (nameof(TrayAppDotNETAnimationMode.System), L(nameof(AppStrings.Settings_Theme_Animations_System))),
+                    (nameof(TrayAppDotNETAnimationMode.Disabled), L(nameof(AppStrings.Settings_Theme_Animations_Disabled))),
+                    (nameof(TrayAppDotNETAnimationMode.Enabled), L(nameof(AppStrings.Settings_Theme_Animations_Enabled)))
                 ],
                 _settings.AnimationMode.ToString(),
                 tag =>
@@ -1183,12 +1162,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 },
                 searchKeywords:
                 [
-                    L("Settings_Theme_Animations_SearchKeywords",
-                        "motion transitions fading effects")
+                    L(nameof(AppStrings.Settings_Theme_Animations_SearchKeywords))
                 ]));
             stack.Children.Add(IntCard(
-                L("Settings_Theme_ToolTipShowDelay_Title", "Tooltip delay"),
-                L("Settings_Theme_ToolTipShowDelay_Description", "Milliseconds to wait before showing a tooltip."),
+                L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title)),
+                L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description)),
                 _settings.ToolTipShowDelayMs,
                 TimeConstants.ToolTipShowDelayMinMs,
                 TimeConstants.ToolTipShowDelayMaxMs,
@@ -1202,27 +1180,24 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 " ms",
                 searchKeywords:
                 [
-                    L("Settings_Theme_ToolTipShowDelay_SearchKeywords",
-                        "hover help wait timing latency")
+                    L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
                 ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-                L("Settings_Theme_TrayIcon_Header", "Tray icon"), p));
+                L(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
             stack.Children.Add(VariantColorCard(
                 "TrayIcon",
-                L("Settings_Theme_StaticIconColor_Title", "Tray icon color"),
-                L("Settings_Theme_StaticIconColor_Description",
-                    "Override the tray icon color for each theme variant."),
-                L("Settings_Theme_StaticIconColor_LightTooltip", "Light theme tray icon color"),
-                L("Settings_Theme_StaticIconColor_DarkTooltip", "Dark theme tray icon color"),
+                L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
+                L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
+                L(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
+                L(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
                 _settings.TrayIconColor,
                 theme.Foreground.Light,
                 theme.Foreground.Dark,
                 p,
                 searchKeywords:
                 [
-                    L("Settings_Theme_StaticIconColor_SearchKeywords",
-                        "notification area glyph palette")
+                    L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
                 ]));
 
             return stack;
@@ -1236,10 +1211,10 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 Palette = Palette,
                 ButtonRadius = RadiusMedium,
                 CardRadius = RadiusLarge,
-                Localize = L,
+                L = L,
                 Save = Save,
                 ApplicationName = Constants.ApplicationName,
-                Tagline = L("Settings_About_Tagline", "A tray-based battery status monitor."),
+                Tagline = L(nameof(AppStrings.Settings_About_Tagline)),
                 BuildNumber = BuildInfo.BuildNumber,
                 Publisher = Constants.Publisher,
                 HelpLink = Constants.HelpLink,

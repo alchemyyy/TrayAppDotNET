@@ -166,4 +166,295 @@ triggers|battery trigger|automation rule|condition-action rule|battery event rul
 open power settings|open Windows power settings|open Power and battery settings|open power options</value>
     <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
   </data>
+  <data name="Flyout_EnergySaver" xml:space="preserve">
+    <value>Energy Saver</value>
+  </data>
+  <data name="Flyout_EnergySaver_Tooltip" xml:space="preserve">
+    <value>Set Energy Saver to Always or Never</value>
+  </data>
+  <data name="Flyout_EnergySaver_Unavailable_Tooltip" xml:space="preserve">
+    <value>Energy Saver threshold is unavailable</value>
+  </data>
+  <data name="Flyout_PowerMode_Balanced" xml:space="preserve">
+    <value>Balanced</value>
+  </data>
+  <data name="Flyout_PowerMode_Label" xml:space="preserve">
+    <value>Power Mode</value>
+  </data>
+  <data name="Flyout_PowerMode_PowerSaver" xml:space="preserve">
+    <value>Power Saver</value>
+  </data>
+  <data name="Flyout_PowerMode_Ultimate" xml:space="preserve">
+    <value>Ultimate</value>
+  </data>
+  <data name="Flyout_PowerSettings_Tooltip" xml:space="preserve">
+    <value>Power settings</value>
+  </data>
+  <data name="Flyout_Redock_Tooltip" xml:space="preserve">
+    <value>Redock</value>
+  </data>
+  <data name="Flyout_Settings_Tooltip" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Flyout_Undock_Tooltip" xml:space="preserve">
+    <value>Undock</value>
+  </data>
+  <data name="Settings_About_Tagline" xml:space="preserve">
+    <value>A tray-based battery status monitor.</value>
+  </data>
+  <data name="Settings_Common_Page_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Settings_Common_Page_General" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_Common_Page_Hotkeys" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Common_Page_Theme" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Common_Page_TrayIcon" xml:space="preserve">
+    <value>Tray Icon</value>
+  </data>
+  <data name="Settings_Common_Page_Triggers" xml:space="preserve">
+    <value>Triggers</value>
+  </data>
+  <data name="Settings_General_LocalUser_Title" xml:space="preserve">
+    <value>Local user</value>
+  </data>
+  <data name="Settings_General_SectionHeader" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_General_StoreNotInstalled" xml:space="preserve">
+    <value>Not installed from Windows Store</value>
+  </data>
+  <data name="Settings_General_StoreRunning" xml:space="preserve">
+    <value>Running from Windows Store</value>
+  </data>
+  <data name="Settings_General_SystemWide_Title" xml:space="preserve">
+    <value>System-wide</value>
+  </data>
+  <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
+    <value>Windows Store</value>
+  </data>
+  <data name="Settings_Hotkeys_Add_Button" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Settings_Hotkeys_DeleteHotkey_ToolTip" xml:space="preserve">
+    <value>Delete hotkey</value>
+  </data>
+  <data name="Settings_Hotkeys_Exists_Button" xml:space="preserve">
+    <value>Exists</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Description" xml:space="preserve">
+    <value>Show battery details above the tray icon.</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_Title" xml:space="preserve">
+    <value>Open flyout</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Description" xml:space="preserve">
+    <value>Open the BatteryTrayAppDotNET settings window.</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_Title" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Settings_Hotkeys_SearchLabel" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionDescription" xml:space="preserve">
+    <value>Add keyboard shortcuts for common battery tray actions.</value>
+  </data>
+  <data name="Settings_Hotkeys_SectionHeader" xml:space="preserve">
+    <value>Hotkeys</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_HotkeyServiceUnavailable" xml:space="preserve">
+    <value>Hotkey service is unavailable.</value>
+  </data>
+  <data name="Settings_Hotkeys_Status_Registered" xml:space="preserve">
+    <value>Registered</value>
+  </data>
+  <data name="Settings_Theme_Animations_Description" xml:space="preserve">
+    <value>Controls whether tooltip fades and other UI animations are allowed.</value>
+  </data>
+  <data name="Settings_Theme_Animations_Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Settings_Theme_Animations_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_Animations_Title" xml:space="preserve">
+    <value>Animations</value>
+  </data>
+  <data name="Settings_Theme_Appearance_Header" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Description" xml:space="preserve">
+    <value>Override background color for each theme variant.</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_LightTooltip" xml:space="preserve">
+    <value>Light theme background color</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_Title" xml:space="preserve">
+    <value>Background color</value>
+  </data>
+  <data name="Settings_Theme_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_Theme_Flyout_Header" xml:space="preserve">
+    <value>Flyout</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Description" xml:space="preserve">
+    <value>Adjust the right-click tray menu font size.</value>
+  </data>
+  <data name="Settings_Theme_FontSize_Title" xml:space="preserve">
+    <value>Font size</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Description" xml:space="preserve">
+    <value>Use rounded corners on BatteryTrayAppDotNET windows.</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_Title" xml:space="preserve">
+    <value>Rounded corners</value>
+  </data>
+  <data name="Settings_Theme_SectionHeader" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Description" xml:space="preserve">
+    <value>Override the tray icon color for each theme variant.</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_LightTooltip" xml:space="preserve">
+    <value>Light theme tray icon color</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_Title" xml:space="preserve">
+    <value>Tray icon color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_DarkTooltip" xml:space="preserve">
+    <value>Dark theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Description" xml:space="preserve">
+    <value>Override text color for each theme variant.</value>
+  </data>
+  <data name="Settings_Theme_TextColor_LightTooltip" xml:space="preserve">
+    <value>Light theme text color</value>
+  </data>
+  <data name="Settings_Theme_TextColor_Title" xml:space="preserve">
+    <value>Text color</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Description" xml:space="preserve">
+    <value>Choose the app theme mode.</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_Title" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_Description" xml:space="preserve">
+    <value>Milliseconds to wait before showing a tooltip.</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_Title" xml:space="preserve">
+    <value>Tooltip delay</value>
+  </data>
+  <data name="Settings_Theme_TrayIcon_Header" xml:space="preserve">
+    <value>Tray icon</value>
+  </data>
+  <data name="Settings_Theme_Window_Header" xml:space="preserve">
+    <value>Windows</value>
+  </data>
+  <data name="Settings_TrayIcon_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Classic" xml:space="preserve">
+    <value>Classic</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Description" xml:space="preserve">
+    <value>Choose where the right-click tray menu opens.</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Modern" xml:space="preserve">
+    <value>Modern</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_Title" xml:space="preserve">
+    <value>Menu position</value>
+  </data>
+  <data name="Settings_TrayIcon_SectionHeader" xml:space="preserve">
+    <value>Tray Icon</value>
+  </data>
+  <data name="Settings_Triggers_Action_OpenFlyout" xml:space="preserve">
+    <value>Open flyout</value>
+  </data>
+  <data name="Settings_Triggers_Action_OpenPowerSettings" xml:space="preserve">
+    <value>Open power settings</value>
+  </data>
+  <data name="Settings_Triggers_Action_OpenSettings" xml:space="preserve">
+    <value>Open settings</value>
+  </data>
+  <data name="Settings_Triggers_Action_Placeholder" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="Settings_Triggers_Action_ShowNotification" xml:space="preserve">
+    <value>Show notification</value>
+  </data>
+  <data name="Settings_Triggers_Card_ToolTip" xml:space="preserve">
+    <value>Drag to reorder, or press Ctrl+Up/Ctrl+Down.</value>
+  </data>
+  <data name="Settings_Triggers_Condition_BatteryAbove80" xml:space="preserve">
+    <value>Battery above 80%</value>
+  </data>
+  <data name="Settings_Triggers_Condition_BatteryBelow10" xml:space="preserve">
+    <value>Battery below 10%</value>
+  </data>
+  <data name="Settings_Triggers_Condition_BatteryBelow20" xml:space="preserve">
+    <value>Battery below 20%</value>
+  </data>
+  <data name="Settings_Triggers_Condition_ChargingStarted" xml:space="preserve">
+    <value>Charging started</value>
+  </data>
+  <data name="Settings_Triggers_Condition_ChargingStopped" xml:space="preserve">
+    <value>Charging stopped</value>
+  </data>
+  <data name="Settings_Triggers_Condition_ExternalPowerConnected" xml:space="preserve">
+    <value>External power connected</value>
+  </data>
+  <data name="Settings_Triggers_Condition_ExternalPowerDisconnected" xml:space="preserve">
+    <value>External power disconnected</value>
+  </data>
+  <data name="Settings_Triggers_Condition_FullyCharged" xml:space="preserve">
+    <value>Battery full</value>
+  </data>
+  <data name="Settings_Triggers_Condition_Placeholder" xml:space="preserve">
+    <value>Condition</value>
+  </data>
+  <data name="Settings_Triggers_Description" xml:space="preserve">
+    <value>Drag cards, or use Ctrl+Up/Ctrl+Down, to change trigger order.</value>
+  </data>
+  <data name="Settings_Triggers_Empty" xml:space="preserve">
+    <value>No triggers configured.</value>
+  </data>
+  <data name="Settings_Triggers_SectionHeader" xml:space="preserve">
+    <value>Triggers</value>
+  </data>
+  <data name="SettingsWindow_Header" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
+    <value>Open settings folder</value>
+  </data>
+  <data name="SettingsWindow_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
 </root>

@@ -10,14 +10,14 @@ namespace TrayAppDotNETCommon.UI.Settings;
 public sealed record TrayAppDotNETRenderingSettingsCardContext(
     SettingsPalette Palette,
     CornerRadius CardRadius,
-    Func<string, string, string> Localize,
+    Func<string, string> L,
     Action Save);
 
 public sealed class TrayAppDotNETRenderingSettingsSectionOptions
 {
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius CardRadius { get; init; }
-    public required Func<string, string, string> Localize { get; init; }
+    public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
     public required Func<string, string, string, string, Task<bool>> ConfirmAsync { get; init; }
     public required Func<string, string, Task> ShowMessage { get; init; }
@@ -32,14 +32,14 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
 {
     private const double RenderingBackendComboWidth = 172;
     private readonly TrayAppDotNETRenderingSettingsCardContext _cardContext =
-        new(options.Palette, options.CardRadius, options.Localize, options.Save);
+        new(options.Palette, options.CardRadius, options.L, options.Save);
 
     /// <summary>Adds rendering cards and optional rendering-adjacent cards to the supplied settings page stack.</summary>
     public void AddCards(StackPanel stack)
     {
         SettingsPalette p = options.Palette;
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_General_Rendering_Header", "Rendering"), p));
+            L(nameof(CommonStrings.Settings_General_Rendering_Header)), p));
 
         stack.Children.Add(BuildRenderingBackendCard());
         foreach (Func<TrayAppDotNETRenderingSettingsCardContext, Control> buildCard in options.AdditionalCards)
@@ -51,14 +51,13 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             return;
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_General_Performance_Header", "Performance"), p));
+            L(nameof(CommonStrings.Settings_General_Performance_Header)), p));
 
         if (options.SupportsFlyoutWarmWindow)
         {
             stack.Children.Add(BuildCard(
-                L("Settings_General_KeepFlyoutWarm_Title", "Keep flyout warm"),
-                L("Settings_General_KeepFlyoutWarm_Description",
-                    "Keep the flyout created in the background so it opens faster. When off, hidden UI resources are released after a short idle delay."),
+                L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Title)),
+                L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Description)),
                 warmWindowSettings.KeepFlyoutWarm,
                 value => warmWindowSettings.KeepFlyoutWarm = value));
         }
@@ -66,9 +65,8 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
         if (options.SupportsTrayContextMenuWarmWindow)
         {
             stack.Children.Add(BuildCard(
-                L("Settings_General_KeepTrayContextMenuWarm_Title", "Keep tray context menu warm"),
-                L("Settings_General_KeepTrayContextMenuWarm_Description",
-                    "Keep the tray context menu created in the background so it opens faster. When off, hidden UI resources are released after a short idle delay."),
+                L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Title)),
+                L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Description)),
                 warmWindowSettings.KeepTrayContextMenuWarm,
                 value => warmWindowSettings.KeepTrayContextMenuWarm = value));
         }
@@ -99,14 +97,12 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
         };
 
         return TrayAppDotNETSettingsCards.Card(
-            L("Settings_General_RenderingBackend_Title", "Rendering backend"),
-            L(nameof(CommonStrings.Settings_General_RenderingBackend_Description),
-                "\"GPU preferred\" uses Avalonia's Windows GPU path with software fallback. \"Software\" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required."),
+            L(nameof(CommonStrings.Settings_General_RenderingBackend_Title)),
+            L(nameof(CommonStrings.Settings_General_RenderingBackend_Description)),
             combo,
             options.Palette,
             options.CardRadius,
-            [L("Settings_General_RenderingBackend_SearchKeywords",
-                "graphics GPU CPU software hardware acceleration renderer")]);
+            [L(nameof(CommonStrings.Settings_General_RenderingBackend_SearchKeywords))]);
     }
 
     /// <summary>Builds a boolean keep-warm setting card.</summary>
@@ -125,19 +121,17 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             options.Palette,
             options.CardRadius,
             out _,
-            [L("Settings_General_KeepWarm_SearchKeywords",
-                "preload cache instant fast performance background")]);
+            [L(nameof(CommonStrings.Settings_General_KeepWarm_SearchKeywords))]);
     }
 
     /// <summary>Asks whether to restart now after a rendering backend change.</summary>
     private async Task PromptRestartAsync()
     {
         bool restart = await options.ConfirmAsync(
-            L("Settings_General_RenderingRestart_Title", "Restart required"),
-            L("Settings_General_RenderingRestart_Message",
-                "Restart the app now to apply the selected rendering backend?"),
-            L("Settings_General_RenderingRestart_Button", "Restart"),
-            L("Settings_General_NotNow_Button", "Not now"));
+            L(nameof(CommonStrings.Settings_General_RenderingRestart_Title)),
+            L(nameof(CommonStrings.Settings_General_RenderingRestart_Message)),
+            L(nameof(CommonStrings.Settings_General_RenderingRestart_Button)),
+            L(nameof(CommonStrings.Settings_General_NotNow_Button)));
         if (!restart) return;
 
         await RestartCurrentProcessAsync();
@@ -172,7 +166,7 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
         }
         catch (Exception ex)
         {
-            await options.ShowMessage(L("Settings_General_RestartFailed_Title", "Restart failed"), ex.Message);
+            await options.ShowMessage(L(nameof(CommonStrings.Settings_General_RestartFailed_Title)), ex.Message);
         }
     }
 
@@ -180,9 +174,9 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
     private IReadOnlyList<(TrayAppDotNETRenderingBackend Backend, string Text)> RenderingBackendOptions() =>
     [
         (TrayAppDotNETRenderingBackend.GPUPreferred,
-            L("Settings_General_RenderingBackend_GPUPreferred", "GPU preferred")),
+            L(nameof(CommonStrings.Settings_General_RenderingBackend_GPUPreferred))),
         (TrayAppDotNETRenderingBackend.Software,
-            L("Settings_General_RenderingBackend_Software", "Software"))
+            L(nameof(CommonStrings.Settings_General_RenderingBackend_Software)))
     ];
 
     /// <summary>Requests shutdown through the classic desktop lifetime.</summary>
@@ -192,6 +186,6 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             desktop.Shutdown();
     }
 
-    /// <summary>Localizes a settings string with a fallback.</summary>
-    private string L(string key, string fallback) => options.Localize(key, fallback);
+    /// <summary>Looks up a settings string.</summary>
+    private string L(string key) => options.L(key);
 }

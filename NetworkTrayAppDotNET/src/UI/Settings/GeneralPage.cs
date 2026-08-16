@@ -58,7 +58,7 @@ public sealed partial class NetworkSettingsWindow
             Palette = p,
             ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
@@ -79,7 +79,7 @@ public sealed partial class NetworkSettingsWindow
         {
             Palette = p,
             CardRadius = RadiusLarge,
-            Localize = L,
+            L = L,
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,

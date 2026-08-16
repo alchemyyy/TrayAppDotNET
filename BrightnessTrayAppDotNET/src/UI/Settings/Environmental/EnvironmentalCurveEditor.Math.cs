@@ -183,18 +183,5 @@ public sealed partial class EnvironmentalCurveEditor
     private static bool SystemUses24HourClock() =>
         !CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern.Contains('h');
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string text = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(text) || string.Equals(text, key, StringComparison.Ordinal)
-                ? fallback
-                : text;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

@@ -109,8 +109,12 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
         pair.ColumnDefinitions.Add(new ColumnDefinition(
             new GridLength(_commonBindingResources.AxamlCommonBindings.PairColumnWidth)));
-        TextBlock playback = TrayAppDotNETSettingsUI.DescriptionText(Loc("Settings_Common_Playback"), palette);
-        TextBlock recording = TrayAppDotNETSettingsUI.DescriptionText(Loc("Settings_Common_Recording"), palette);
+        TextBlock playback = TrayAppDotNETSettingsUI.DescriptionText(
+            Loc(nameof(CommonStrings.Settings_Common_Playback)),
+            palette);
+        TextBlock recording = TrayAppDotNETSettingsUI.DescriptionText(
+            Loc(nameof(CommonStrings.Settings_Common_Recording)),
+            palette);
         playback.FontWeight = FontWeight.SemiBold;
         recording.FontWeight = FontWeight.SemiBold;
         playback.HorizontalAlignment = HorizontalAlignment.Center;
@@ -319,15 +323,15 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
     private static TrayAppDotNETColorPickerStrings ColorPickerStrings() =>
         new(
-            Loc("ColorPicker_DefaultTitle"),
+            Loc(nameof(CommonStrings.ColorPicker_DefaultTitle)),
             Loc(nameof(CommonStrings.ColorPicker_CloseTooltip)),
             Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
             Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
             Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
             Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
             Loc(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
-            L(nameof(CommonStrings.ColorPicker_RGBAHexLabel), "rgba hex:"),
-            L(nameof(CommonStrings.ColorPicker_ARGBHexLabel), "argb hex:"),
+            L(nameof(CommonStrings.ColorPicker_RGBAHexLabel)),
+            L(nameof(CommonStrings.ColorPicker_ARGBHexLabel)),
             Loc(nameof(CommonStrings.ColorPicker_DefaultButton)),
             Loc(nameof(CommonStrings.ColorPicker_ResetButton)));
 }

@@ -5,31 +5,31 @@ namespace VolumeTrayAppDotNET.Audio;
 internal static class AudioLocalization
 {
     public static string UnknownAppName =>
-        L(nameof(AppStrings.Audio_UnknownAppName), "Unknown");
+        L(nameof(AppStrings.Audio_UnknownAppName));
 
     public static string SystemSoundsName =>
-        L(nameof(AppStrings.Audio_SystemSoundsName), "System Sounds");
+        L(nameof(AppStrings.Audio_SystemSoundsName));
 
     public static string UnknownDeviceName =>
-        L(nameof(AppStrings.Audio_UnknownDeviceName), "Unknown Device");
+        L(nameof(AppStrings.Audio_UnknownDeviceName));
 
     public static string AppTooltip(string appName, uint processId) =>
         string.Format(
             CultureInfo.CurrentCulture,
-            L(nameof(AppStrings.Audio_AppTooltipFormat), "{0}\nPID: {1}"),
+            L(nameof(AppStrings.Audio_AppTooltipFormat)),
             appName,
             processId);
 
     public static string BatteryLevel(int percent) =>
         string.Format(
             CultureInfo.CurrentCulture,
-            L(nameof(AppStrings.Audio_BatteryLevelFormat), "{0}%"),
+            L(nameof(AppStrings.Audio_BatteryLevelFormat)),
             percent);
 
     public static string DeviceFormat(int channels, int bits, int sampleRate) =>
         string.Format(
             CultureInfo.CurrentCulture,
-            L(nameof(AppStrings.Audio_DeviceFormatFormat), "{0} channel, {1} bit, {2} Hz"),
+            L(nameof(AppStrings.Audio_DeviceFormatFormat)),
             channels,
             bits,
             sampleRate);
@@ -37,7 +37,7 @@ internal static class AudioLocalization
     public static string BluetoothCodecUnknownInvalidVendor(byte standardCodecId, int vendorId, int vendorCodecId) =>
         string.Format(
             CultureInfo.CurrentCulture,
-            L(nameof(AppStrings.Audio_BluetoothCodecUnknownInvalidVendorFormat), "Unknown Codec (Invalid Vendor): 0x{0:X2} {1}:{2}"),
+            L(nameof(AppStrings.Audio_BluetoothCodecUnknownInvalidVendorFormat)),
             standardCodecId,
             vendorId,
             vendorCodecId);
@@ -45,10 +45,9 @@ internal static class AudioLocalization
     public static string BluetoothCodecUnknown(int vendorId, int vendorCodecId) =>
         string.Format(
             CultureInfo.CurrentCulture,
-            L(nameof(AppStrings.Audio_BluetoothCodecUnknownFormat), "Unknown Codec: 0x{0:X4}:0x{1:X4}"),
+            L(nameof(AppStrings.Audio_BluetoothCodecUnknownFormat)),
             vendorId,
             vendorCodecId);
 
-    private static string L(string key, string fallback) =>
-        LocalizationManager.Instance.GetString(key, fallback);
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

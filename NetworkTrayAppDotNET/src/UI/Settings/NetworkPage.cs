@@ -32,8 +32,7 @@ public sealed partial class NetworkSettingsWindow
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
             searchKeywords:
             [
-                L("Settings_Network_FlyoutStyle_SearchKeywords",
-                    "wireless internet connections panel action center")
+                L(nameof(AppStrings.Settings_Network_FlyoutStyle_SearchKeywords))
             ]));
         stack.Children.Add(ComboCard(
             Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Title)),
@@ -52,8 +51,7 @@ public sealed partial class NetworkSettingsWindow
             autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
             searchKeywords:
             [
-                L("Settings_Network_AdapterSettingsStyle_SearchKeywords",
-                    "NIC interface Ethernet Wi-Fi network connections properties")
+                L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
@@ -72,8 +70,7 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Network_ConnectedColor_SearchKeywords",
-                    "online reachable active link uplink")
+                L(nameof(AppStrings.Settings_Network_ConnectedColor_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
             "NoInternet",
@@ -87,8 +84,7 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Network_NoInternetColor_SearchKeywords",
-                    "offline limited connectivity local only captive portal")
+                L(nameof(AppStrings.Settings_Network_NoInternetColor_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
             "Disconnected",
@@ -102,8 +98,7 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Network_DisconnectedColor_SearchKeywords",
-                    "offline unplugged link down disabled adapter NIC")
+                L(nameof(AppStrings.Settings_Network_DisconnectedColor_SearchKeywords))
             ]));
         return stack;
     }

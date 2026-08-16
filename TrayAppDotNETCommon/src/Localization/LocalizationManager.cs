@@ -37,27 +37,26 @@ public sealed class LocalizationManager : INotifyPropertyChanged
 
     public bool IsInitialized => _applicationResourceManager != null;
 
-    public string this[string key] => GetString(key, key);
+    public string this[string key] => GetString(key);
 
-    public string GetString(string key, string fallback = "")
+    public string GetString(string key)
     {
         if (string.IsNullOrEmpty(key)) return string.Empty;
-        if (_applicationResourceManager == null) return fallback;
 
         // Application resources intentionally override shared defaults
-        string? resolved = _applicationResourceManager.GetString(key, _currentCulture)
+        string? resolved = _applicationResourceManager?.GetString(key, _currentCulture)
             ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
-        return resolved ?? fallback;
+        return string.IsNullOrWhiteSpace(resolved) ? key : resolved;
     }
 
     public bool TryGetString(string key, out string value)
     {
         value = string.Empty;
-        if (string.IsNullOrEmpty(key) || _applicationResourceManager == null) return false;
+        if (string.IsNullOrEmpty(key)) return false;
 
-        string? resolved = _applicationResourceManager.GetString(key, _currentCulture)
+        string? resolved = _applicationResourceManager?.GetString(key, _currentCulture)
             ?? CommonStrings.ResourceManager.GetString(key, _currentCulture);
-        if (resolved == null) return false;
+        if (string.IsNullOrWhiteSpace(resolved)) return false;
 
         value = resolved;
         return true;

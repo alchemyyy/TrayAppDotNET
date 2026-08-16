@@ -14,7 +14,7 @@ public sealed class TrayAppDotNETGeneralSettingsSectionOptions
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius ButtonRadius { get; init; }
     public required CornerRadius CardRadius { get; init; }
-    public required Func<string, string, string> Localize { get; init; }
+    public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
     public required Func<string, string, string, string, Task<bool>> ConfirmAsync { get; init; }
     public required Func<string, string, Task> ShowMessage { get; init; }
@@ -68,14 +68,13 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         });
 
         Border startupCard = TrayAppDotNETSettingsCards.MutableCard(
-            L("Settings_General_RunOnStartup_Title", "Run on startup"),
+            L(nameof(CommonStrings.Settings_General_RunOnStartup_Title)),
             RunOnStartupDescription(),
             startupToggle,
             p,
             _options.CardRadius,
             out TextBlock startupDescriptionText,
-            [L("Settings_General_RunOnStartup_SearchKeywords",
-                "launch login logon boot autostart start automatically start with Windows")]);
+            [L(nameof(CommonStrings.Settings_General_RunOnStartup_SearchKeywords))]);
         _startupDescription = startupDescriptionText;
         return startupCard;
     }
@@ -87,7 +86,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     {
         SettingsPalette p = _options.Palette;
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_General_Installation_Header", "Installation"), p));
+            L(nameof(CommonStrings.Settings_General_Installation_Header)), p));
 
         foreach (TrayAppDotNETInstallCardOptions installCard in installCards)
             stack.Children.Add(BuildInstallCard(installCard));
@@ -101,8 +100,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                 p,
                 _options.CardRadius,
                 out TextBlock storeDescription,
-                [L("Settings_General_Installation_SearchKeywords",
-                    "setup install uninstall remove application package store")]);
+                [L(nameof(CommonStrings.Settings_General_Installation_SearchKeywords))]);
             _refreshers.Add(() => storeDescription.Text = storeInstall.Description());
             stack.Children.Add(storeCard);
         }
@@ -120,8 +118,8 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     private Border BuildInstallCard(TrayAppDotNETInstallCardOptions entry)
     {
         SettingsPalette p = _options.Palette;
-        SettingsButton installButton = Button(L("Common_Install", "Install"));
-        SettingsButton uninstallButton = Button(L("Settings_General_Uninstall_Button", "Uninstall"));
+        SettingsButton installButton = Button(L(nameof(CommonStrings.Common_Install)));
+        SettingsButton uninstallButton = Button(L(nameof(CommonStrings.Settings_General_Uninstall_Button)));
         installButton.Margin = new Thickness(0, 0, 8, 0);
         StackPanel buttons = TrayAppDotNETSettingsUI.Horizontal(installButton, uninstallButton);
 
@@ -132,8 +130,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             p,
             _options.CardRadius,
             out TextBlock description,
-            [L("Settings_General_Installation_SearchKeywords",
-                "setup install uninstall remove application program files current user system wide")]);
+            [L(nameof(CommonStrings.Settings_General_Installation_SearchKeywords))]);
 
         _refreshers.Add(() =>
         {
@@ -151,16 +148,16 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         {
             bool ok = await _options.ConfirmAsync(
                 L(entry.Scope == InstallScope.ProgramFiles
-                    ? "Settings_General_InstallSystemWideConfirm_Title"
-                    : "Settings_General_InstallConfirm_Title", "Install app?"),
+                    ? nameof(CommonStrings.Settings_General_InstallSystemWideConfirm_Title)
+                    : nameof(CommonStrings.Settings_General_InstallConfirm_Title)),
                 string.Format(
                     CultureInfo.CurrentCulture,
                     L(entry.Scope == InstallScope.ProgramFiles
-                        ? "Settings_General_InstallSystemWideConfirm_Message_Format"
-                        : "Settings_General_InstallConfirm_Message_Format", "Install to \"{0}\"."),
+                        ? nameof(CommonStrings.Settings_General_InstallSystemWideConfirm_Message_Format)
+                        : nameof(CommonStrings.Settings_General_InstallConfirm_Message_Format)),
                     entry.ExecutablePath),
-                L("Common_Install", "Install"),
-                L("Common_Cancel", "Cancel"));
+                L(nameof(CommonStrings.Common_Install)),
+                L(nameof(CommonStrings.Common_Cancel)));
             if (!ok) return;
 
             installButton.IsEnabled = false;
@@ -170,7 +167,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                 result = await Task.Run(entry.Install);
                 if (result is { Success: false, UserCancelled: false } && !string.IsNullOrEmpty(result.ErrorMessage))
                 {
-                    await _options.ShowMessage(L("Settings_General_InstallFailed_Title", "Install failed"),
+                    await _options.ShowMessage(L(nameof(CommonStrings.Settings_General_InstallFailed_Title)),
                         result.ErrorMessage);
                 }
             }
@@ -196,14 +193,13 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     private async Task PromptRestartFromInstalledAsync(TrayAppDotNETInstallCardOptions entry)
     {
         bool restart = await _options.ConfirmAsync(
-            L("Settings_General_InstallComplete_Title", "Installation complete"),
+            L(nameof(CommonStrings.Settings_General_InstallComplete_Title)),
             string.Format(
                 CultureInfo.CurrentCulture,
-                L("Settings_General_InstallCompleteRestart_Message_Format",
-                    "Installed at \"{0}\".\n\nRestart from the installed copy now?"),
+                L(nameof(CommonStrings.Settings_General_InstallCompleteRestart_Message_Format)),
                 entry.ExecutablePath),
-            L("Settings_General_RestartFromInstalled_Button", "Restart"),
-            L("Settings_General_NotNow_Button", "Not now"));
+            L(nameof(CommonStrings.Settings_General_RestartFromInstalled_Button)),
+            L(nameof(CommonStrings.Settings_General_NotNow_Button)));
         if (!restart) return;
 
         await StartInstalledInstanceAsync(entry.ExecutablePath);
@@ -236,7 +232,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         }
         catch (Exception ex)
         {
-            await _options.ShowMessage(L("Settings_General_RestartFailed_Title", "Restart failed"), ex.Message);
+            await _options.ShowMessage(L(nameof(CommonStrings.Settings_General_RestartFailed_Title)), ex.Message);
         }
     }
 
@@ -249,7 +245,7 @@ public sealed class TrayAppDotNETGeneralSettingsSection
         bool elevated)
     {
         string elevationSuffix = elevated
-            ? L("Settings_General_RequiresAdmin_Suffix", " Requires administrator approval.")
+            ? L(nameof(CommonStrings.Settings_General_RequiresAdmin_Suffix))
             : string.Empty;
 
         switch (info.Status)
@@ -257,10 +253,10 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             case TrayAppDotNETInstallStatus.NotInstalled:
                 description.Text = string.Format(
                     CultureInfo.CurrentCulture,
-                    L("Settings_General_NotInstalled_Format", "Not installed at {0}.{1}"),
+                    L(nameof(CommonStrings.Settings_General_NotInstalled_Format)),
                     installPath,
                     elevationSuffix);
-                installButton.Text = L("Common_Install", "Install");
+                installButton.Text = L(nameof(CommonStrings.Common_Install));
                 installButton.IsVisible = true;
                 uninstallButton.IsVisible = false;
                 break;
@@ -268,43 +264,42 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                 description.Text = info.InstalledVersion is { } version
                     ? string.Format(
                         CultureInfo.CurrentCulture,
-                        L("Settings_General_InstalledWithBuild_Format", "Build {0} installed at {1}."),
+                        L(nameof(CommonStrings.Settings_General_InstalledWithBuild_Format)),
                         version,
                         installPath)
                     : string.Format(
                         CultureInfo.CurrentCulture,
-                        L("Settings_General_Installed_Format", "Installed at {0}."),
+                        L(nameof(CommonStrings.Settings_General_Installed_Format)),
                         installPath);
                 installButton.IsVisible = false;
-                uninstallButton.Text = L("Settings_General_Uninstall_Button", "Uninstall");
+                uninstallButton.Text = L(nameof(CommonStrings.Settings_General_Uninstall_Button));
                 uninstallButton.IsVisible = true;
                 break;
             case TrayAppDotNETInstallStatus.InstalledOutOfDate:
                 description.Text = info.InstalledVersion is { } oldVersion
                     ? string.Format(
                         CultureInfo.CurrentCulture,
-                        L("Settings_General_InstalledOutOfDate_Format",
-                            "Installed build {0}; current build is {1}.{2}"),
+                        L(nameof(CommonStrings.Settings_General_InstalledOutOfDate_Format)),
                         oldVersion,
                         _options.CurrentBuildNumber,
                         elevationSuffix)
                     : string.Format(
                         CultureInfo.CurrentCulture,
-                        L("Settings_General_InstalledOlderBuild_Format", "Older install at {0}.{1}"),
+                        L(nameof(CommonStrings.Settings_General_InstalledOlderBuild_Format)),
                         installPath,
                         elevationSuffix);
-                installButton.Text = L("Settings_General_Update_Button", "Update");
+                installButton.Text = L(nameof(CommonStrings.Settings_General_Update_Button));
                 installButton.IsVisible = true;
-                uninstallButton.Text = L("Settings_General_Uninstall_Button", "Uninstall");
+                uninstallButton.Text = L(nameof(CommonStrings.Settings_General_Uninstall_Button));
                 uninstallButton.IsVisible = true;
                 break;
             case TrayAppDotNETInstallStatus.CurrentlyRunning:
                 description.Text = string.Format(
                     CultureInfo.CurrentCulture,
-                    L("Settings_General_CurrentlyRunning_Format", "Currently running from {0}."),
+                    L(nameof(CommonStrings.Settings_General_CurrentlyRunning_Format)),
                     installPath);
                 installButton.IsVisible = false;
-                uninstallButton.Text = L("Settings_General_Uninstall_Button", "Uninstall");
+                uninstallButton.Text = L(nameof(CommonStrings.Settings_General_Uninstall_Button));
                 uninstallButton.IsVisible = true;
                 break;
         }
@@ -322,17 +317,17 @@ public sealed class TrayAppDotNETGeneralSettingsSection
     {
         string? target = _options.GetCurrentStartupShortcutTarget();
         if (string.IsNullOrEmpty(target))
-            return L("Settings_General_RunOnStartup_Description", "Start the app automatically when you sign in.");
+            return L(nameof(CommonStrings.Settings_General_RunOnStartup_Description));
 
         return string.Format(
             CultureInfo.CurrentCulture,
-            L("Settings_General_RunOnStartup_OnDescriptionFormat", "{0}\n{1}"),
-            L("Settings_General_RunOnStartup_OnHeaderLine", "Startup shortcut target:"),
+            L(nameof(CommonStrings.Settings_General_RunOnStartup_OnDescriptionFormat)),
+            L(nameof(CommonStrings.Settings_General_RunOnStartup_OnHeaderLine)),
             target);
     }
 
     private SettingsButton Button(string text) =>
         TrayAppDotNETSettingsCards.Button(text, _options.Palette, _options.ButtonRadius);
 
-    private string L(string key, string fallback) => _options.Localize(key, fallback);
+    private string L(string key) => _options.L(key);
 }

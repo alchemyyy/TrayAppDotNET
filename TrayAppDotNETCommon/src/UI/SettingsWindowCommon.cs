@@ -265,20 +265,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         return resources == null ? throw new InvalidOperationException("Page resources can only be registered while building a page.") : resources.Own(resource);
     }
 
-    protected static string L(string key, string fallback = "")
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    protected static string L(string key) => LocalizationManager.Instance[key];
 
-    protected static string Loc(string key) => L(key, key);
+    protected static string Loc(string key) => L(key);
 
     protected CornerRadius RadiusTiny => RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.RadiusTiny);
     protected CornerRadius RadiusMedium => RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.RadiusMedium);
@@ -437,7 +426,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         StackPanel footer = new() { Margin = _settingsResources.AxamlSettingsWindow.FooterMargin };
         _settingsSearchBox = new SettingsSearchBox(
             palette,
-            L("SettingsWindow_SearchPlaceholder", "Search settings"));
+            L(nameof(CommonStrings.SettingsWindow_SearchPlaceholder)));
         _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
         footer.Children.Add(_settingsSearchBox);
         Grid.SetRow(footer, 2);
@@ -516,9 +505,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 : GlyphCatalog.CHROME_MAXIMIZE,
             palette);
         SettingsButton close = CaptionButton(GlyphCatalog.CHROME_CLOSE, palette, closeButton: true);
-        SetCaptionButtonTip(minimize, L("SettingsWindow_Caption_Minimize", "Minimize"));
-        SetCaptionButtonTip(maximize, L("SettingsWindow_Caption_Maximize", "Maximize"));
-        SetCaptionButtonTip(close, L("Common_Close", "Close"));
+        SetCaptionButtonTip(minimize, L(nameof(CommonStrings.SettingsWindow_Caption_Minimize)));
+        SetCaptionButtonTip(maximize, L(nameof(CommonStrings.SettingsWindow_Caption_Maximize)));
+        SetCaptionButtonTip(close, L(nameof(CommonStrings.Common_Close)));
         minimize.Click += (_, _) => WindowState = WindowState.Minimized;
         maximize.Click += (_, _) => ToggleMaximize();
         close.Click += (_, _) => Close();
@@ -900,18 +889,18 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         SettingsPalette palette = Palette;
         _confirmTitle = TrayAppDotNETSettingsUI.Text(
-            L("SettingsWindow_ConfirmOverlay_DefaultTitle", "Confirm"),
+            L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_DefaultTitle)),
             palette,
             _settingsResources.AxamlSettingsWindow.ConfirmTitleFontSize,
             FontWeight.SemiBold);
         _confirmTitle.TextWrapping = TextWrapping.Wrap;
         _confirmTitle.Margin = _settingsResources.AxamlSettingsWindow.ConfirmTitleMargin;
         _confirmMessage = TrayAppDotNETSettingsUI.DescriptionText(
-            L("SettingsWindow_ConfirmOverlay_DefaultMessage", string.Empty),
+            L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
             palette,
             _settingsResources.AxamlSettingsWindow.ConfirmMessageMargin);
-        _confirmOk = Button(L("SettingsWindow_ConfirmOverlay_Confirm", "Confirm"), palette);
-        _confirmCancel = Button(L("SettingsWindow_ConfirmOverlay_Cancel", "Cancel"), palette);
+        _confirmOk = Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Confirm)), palette);
+        _confirmCancel = Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)), palette);
         _confirmCancel.Margin = _settingsResources.AxamlSettingsWindow.ConfirmCancelMargin;
         _confirmOk.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
         _confirmCancel.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;

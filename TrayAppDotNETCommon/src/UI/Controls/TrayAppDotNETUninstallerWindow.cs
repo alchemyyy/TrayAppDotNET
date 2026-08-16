@@ -44,7 +44,7 @@ public sealed record TrayAppDotNETUninstallerWindowOptions
     public required WindowIcon? Icon { get; init; }
     public required SettingsPalette Palette { get; init; }
     public required bool EnableRoundedCorners { get; init; }
-    public required Func<string, string, string> Localize { get; init; }
+    public required Func<string, string> L { get; init; }
     public required Action<InstallScope> RetargetStartupShortcut { get; init; }
     public required Func<InstallScope, bool, Process?> RunUninstall { get; init; }
 }
@@ -75,7 +75,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         _options = options;
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETUninstallerWindow));
 
-        Title = Localize("Uninstaller_Title", $"Uninstall {options.ApplicationName}");
+        Title = FormatApplicationName(nameof(CommonStrings.Uninstaller_Title));
         Width = TrayAppDotNETDialogChromeLayout.UninstallerWindowWidth;
         Height = TrayAppDotNETDialogChromeLayout.UninstallerWindowHeight;
         MinWidth = TrayAppDotNETDialogChromeLayout.UninstallerWindowMinWidth;
@@ -171,7 +171,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         resources.Add(() => titleBar.PointerPressed -= OnTitleBarPointerPressed);
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(
-            Localize("Uninstaller_Title", $"Uninstall {Options.ApplicationName}"),
+            FormatApplicationName(nameof(CommonStrings.Uninstaller_Title)),
             Options.Palette,
             13);
         title.VerticalAlignment = VerticalAlignment.Center;
@@ -179,7 +179,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         titleBar.Children.Add(title);
 
         TrayAppDotNETCaptionCloseButton close = new(Options.Palette);
-        TrayAppDotNETToolTip.SetTip(close, Localize("Uninstaller_Caption_Close", "Close"));
+        TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Uninstaller_Caption_Close)));
         TrayAppDotNETToolTip.SuppressWhileEngaged(close);
         close.Click += OnCancelClick;
         resources.Add(() => close.Click -= OnCancelClick);
@@ -197,7 +197,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         TextBlock header = TrayAppDotNETSettingsUI.SectionHeader(
-            Localize("Uninstaller_SectionHeader", $"Uninstall {Options.ApplicationName}"),
+            FormatApplicationName(nameof(CommonStrings.Uninstaller_SectionHeader)),
             Options.Palette);
         body.Children.Add(header);
 
@@ -211,17 +211,15 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         StackPanel choices = new();
         choices.Children.Add(BuildOptionCard(
             _keepSettings!,
-            Localize("Uninstaller_KeepSettings_Title", "Keep my settings"),
-            Localize("Uninstaller_KeepSettings_Description",
-                "Leave settings.xml in place so a future install picks them up."),
+            L(nameof(CommonStrings.Uninstaller_KeepSettings_Title)),
+            L(nameof(CommonStrings.Uninstaller_KeepSettings_Description)),
             resources));
         choices.Children.Add(BuildOptionCard(
             _deleteSettings!,
-            Localize("Uninstaller_DeleteSettings_Title", "Delete my settings"),
+            L(nameof(CommonStrings.Uninstaller_DeleteSettings_Title)),
             string.Format(
                 CultureInfo.CurrentCulture,
-                Localize("Uninstaller_DeleteSettings_Description_Format",
-                    "Also remove \"{0}\" including settings.xml."),
+                L(nameof(CommonStrings.Uninstaller_DeleteSettings_Description_Format)),
                 Options.SettingsDirectory),
             resources));
         Grid.SetRow(choices, 2);
@@ -236,12 +234,12 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
     private StackPanel BuildButtons(UIResourceScope resources)
     {
         SettingsButton uninstall = TrayAppDotNETSettingsUI.Button(
-            Localize(nameof(CommonStrings.Uninstaller_UninstallButton), "Uninstall"),
+            L(nameof(CommonStrings.Uninstaller_UninstallButton)),
             Options.Palette);
         uninstall.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(
-            Localize(nameof(CommonStrings.Uninstaller_Cancel), "Cancel"),
+            L(nameof(CommonStrings.Uninstaller_Cancel)),
             Options.Palette);
         cancel.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
         cancel.Margin = TrayAppDotNETDialogChromeLayout.CancelButtonMargin;
@@ -342,7 +340,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         if (_uninstallButton != null)
         {
             _uninstallButton.IsEnabled = false;
-            _uninstallButton.Text = Localize(nameof(CommonStrings.Uninstaller_UninstallingButton), "Uninstalling...");
+            _uninstallButton.Text = L(nameof(CommonStrings.Uninstaller_UninstallingButton));
         }
 
         _cancelButton?.IsEnabled = false;
@@ -426,15 +424,21 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
     private string UninstallDescription()
     {
-        string fallback = $"This will remove {Options.ApplicationName} installed at \"{{0}}\" and its entry in Windows Settings > Apps. Choose what to do with your settings.";
-        string format = Localize("Uninstaller_Description_Format", fallback);
-        return string.Format(CultureInfo.CurrentCulture, format, Options.InstallDirectory);
+        string format = L(nameof(CommonStrings.Uninstaller_Description_Format));
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            format,
+            Options.InstallDirectory,
+            Options.ApplicationName);
     }
+
+    private string FormatApplicationName(string key) =>
+        string.Format(CultureInfo.CurrentCulture, L(key), Options.ApplicationName);
 
     private CornerRadius Rounded(CornerRadius radius) =>
         Options.EnableRoundedCorners ? radius : TrayAppDotNETDialogChromeLayout.ZeroCornerRadius;
 
-    private string Localize(string key, string fallback) => Options.Localize(key, fallback);
+    private string L(string key) => Options.L(key);
 
     private sealed class UninstallProcessOwner : IDisposable
     {

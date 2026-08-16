@@ -433,8 +433,8 @@ internal sealed class VolumeAvaloniaApp : Application
 
         _lastNotifiedUpdateVersion = info.Version;
         _trayIcon?.ShowBalloon(
-            L(nameof(AppStrings.UpdateNotification_Title), "Update available"),
-            string.Format(L(nameof(AppStrings.UpdateNotification_BodyFormat), "{0} is available."), info.ReleaseName));
+            L(nameof(AppStrings.UpdateNotification_Title)),
+            string.Format(L(nameof(AppStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
     private void OnUpdateBalloonClicked()
@@ -482,7 +482,7 @@ internal sealed class VolumeAvaloniaApp : Application
 
         if (_trackedDevice == null)
         {
-            string missingTooltip = L(nameof(AppStrings.TrayTooltip_NoAudioDevice), "No audio device");
+            string missingTooltip = L(nameof(AppStrings.TrayTooltip_NoAudioDevice));
             _audioManager?.RequestMissingDefaultRecovery("tray-null-default");
             if (_trayIconRenderer != null)
             {
@@ -515,8 +515,8 @@ internal sealed class VolumeAvaloniaApp : Application
 
         int percent = (int)Math.Round(_trackedDevice.Volume * 100);
         string tooltip = _trackedDevice.IsMuted
-            ? string.Format(L(nameof(AppStrings.TrayTooltip_Muted_Format), "{0}: muted"), _trackedDevice.FriendlyName)
-            : string.Format(L(nameof(AppStrings.TrayTooltip_Volume_Format), "{0}: {1}%"), _trackedDevice.FriendlyName, percent);
+            ? string.Format(L(nameof(AppStrings.TrayTooltip_Muted_Format)), _trackedDevice.FriendlyName)
+            : string.Format(L(nameof(AppStrings.TrayTooltip_Volume_Format)), _trackedDevice.FriendlyName, percent);
 
         if (_trayIconRenderer != null)
         {
@@ -932,16 +932,5 @@ internal sealed class VolumeAvaloniaApp : Application
             desktop.Shutdown();
     }
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

@@ -301,8 +301,8 @@ internal sealed class FanAvaloniaApp : Application
 
         _lastNotifiedUpdateVersion = info.Version;
         _trayIcon?.ShowBalloon(
-            L(nameof(AppStrings.UpdateNotification_Title), "Update available"),
-            string.Format(L(nameof(AppStrings.UpdateNotification_BodyFormat), "{0} is available."), info.ReleaseName));
+            L(nameof(AppStrings.UpdateNotification_Title)),
+            string.Format(L(nameof(AppStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
     private void OnUpdateBalloonClicked()
@@ -386,17 +386,17 @@ internal sealed class FanAvaloniaApp : Application
 
     private string BuildTrayTooltip()
     {
-        string header = L(nameof(AppStrings.Tray_Tooltip_Default), Program.ApplicationName);
+        string header = L(nameof(AppStrings.Tray_Tooltip_Default));
         List<string> lines = [header];
 
         bool showCPU = _settings?.ShowCPUTempInTooltip ?? true;
         bool showGPU = _settings?.ShowGPUTempInTooltip ?? true;
 
         if (showCPU && TryGetTempC("CPU") is { } cpuC)
-            lines.Add(string.Format(L(nameof(AppStrings.Tray_Tooltip_CPUTemp_Format), "CPU: {0} C"), cpuC));
+            lines.Add(string.Format(L(nameof(AppStrings.Tray_Tooltip_CPUTemp_Format)), cpuC));
 
         if (showGPU && TryGetTempC("GPU") is { } gpuC)
-            lines.Add(string.Format(L(nameof(AppStrings.Tray_Tooltip_GPUTemp_Format), "GPU: {0} C"), gpuC));
+            lines.Add(string.Format(L(nameof(AppStrings.Tray_Tooltip_GPUTemp_Format)), gpuC));
 
         return string.Join('\n', lines);
     }
@@ -792,16 +792,5 @@ internal sealed class FanAvaloniaApp : Application
             desktop.Shutdown();
     }
 
-    private static string L(string key, string fallback)
-    {
-        try
-        {
-            string value = LocalizationManager.Instance[key];
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
+    private static string L(string key) => LocalizationManager.Instance[key];
 }

@@ -25,8 +25,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_FontSize_SearchKeywords",
-                    "text size zoom scaling menu")
+                Loc(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
@@ -44,8 +43,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: () => RebuildShell(VolumeSettingsPage.Theme),
             searchKeywords:
             [
-                L("Settings_Theme_ThemeStyle_SearchKeywords",
-                    "color scheme appearance Windows night day")
+                Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
             "Text",
@@ -59,8 +57,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_TextColor_SearchKeywords",
-                    "foreground typography font tint")
+                Loc(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
             "Background",
@@ -74,8 +71,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_BackgroundColor_SearchKeywords",
-                    "surface canvas fill tint")
+                Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
@@ -88,8 +84,7 @@ public sealed partial class VolumeSettingsWindow
             afterSave: () => RebuildShell(VolumeSettingsPage.Theme),
             searchKeywords:
             [
-                L("Settings_Theme_RoundedCorners_SearchKeywords",
-                    "border radius square sharp edges")
+                Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
             ]));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_Theme_Animations_Title)),
@@ -110,12 +105,11 @@ public sealed partial class VolumeSettingsWindow
             },
             searchKeywords:
             [
-                L("Settings_Theme_Animations_SearchKeywords",
-                    "motion fade transition effects accessibility")
+                Loc(nameof(AppStrings.Settings_Theme_Animations_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
-            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title), "Tooltip delay"),
-            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description), "Milliseconds to wait before showing a tooltip."),
+            Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title)),
+            Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description)),
             _settings.ToolTipShowDelayMs,
             TimeConstants.ToolTipShowDelayMinMs,
             TimeConstants.ToolTipShowDelayMaxMs,
@@ -129,8 +123,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
             searchKeywords:
             [
-                L("Settings_Theme_ToolTipShowDelay_SearchKeywords",
-                    "hover help popup wait latency")
+                Loc(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
             ]));
 
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(
@@ -163,8 +156,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_SliderIndicator_SearchKeywords",
-                    "thumb handle knob shape glyph")
+                Loc(nameof(AppStrings.Settings_Theme_SliderIndicator_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
@@ -180,8 +172,7 @@ public sealed partial class VolumeSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_StaticIconColor_SearchKeywords",
-                    "notification area taskbar glyph tint")
+                Loc(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Theme_MeterPeak_Header)), p));
@@ -201,8 +192,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_Tooltip)),
             searchKeywords:
             [
-                L("Settings_Theme_MeterPeakColor_SearchKeywords",
-                    "level indicator overlay tint VU")
+                Loc(nameof(AppStrings.Settings_Theme_MeterPeakColor_SearchKeywords))
             ]));
         stack.Children.Add(SingleColorCard(
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Title)),
@@ -221,8 +211,7 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_Tooltip)),
             searchKeywords:
             [
-                L("Settings_Theme_MeterPeakStereoColor_SearchKeywords",
-                    "left right channel difference halo tint")
+                Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_SearchKeywords))
             ]));
 
         return stack;

@@ -30,7 +30,7 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
     public VolumeSettingsWindow(AppSettings settings, Action<string, VolumeInstallScope> showUninstaller)
     {
         _settings = settings;
-        ConfigureSettingsWindow(L(nameof(AppStrings.SettingsWindow_Title), "Settings"), AppTheme.LoadAppIcon());
+        ConfigureSettingsWindow(Loc(nameof(AppStrings.SettingsWindow_Title)), AppTheme.LoadAppIcon());
         InitializeSettingsShell();
     }
 
@@ -43,10 +43,10 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     protected override VolumeSettingsPage DefaultPageKey => VolumeSettingsPage.General;
 
-    protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header), "Settings");
+    protected override string HeaderText => Loc(nameof(AppStrings.SettingsWindow_Header));
 
     protected override string OpenSettingsFolderText =>
-        L(nameof(AppStrings.SettingsWindow_OpenSettingsFolder), "Open settings folder");
+        Loc(nameof(AppStrings.SettingsWindow_OpenSettingsFolder));
 
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
 

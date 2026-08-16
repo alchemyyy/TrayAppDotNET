@@ -106,11 +106,10 @@ public sealed partial class BrightnessSettingsWindow
         if (curve == null) return;
 
         bool ok = await ConfirmAsync(
-            L(nameof(AppStrings.Settings_Environmental_ResetCurves_ConfirmTitle), "Reset curves?"),
-            L(nameof(AppStrings.Settings_Environmental_ResetCurves_ConfirmMessage),
-                "This resets the visible curve mode for the selected profile."),
-            L(nameof(AppStrings.Settings_Environmental_ResetCurves_ConfirmButton), "Reset"),
-            L("Common_Cancel", "Cancel"));
+            L(nameof(AppStrings.Settings_Environmental_ResetCurves_ConfirmTitle)),
+            L(nameof(AppStrings.Settings_Environmental_ResetCurves_ConfirmMessage)),
+            L(nameof(AppStrings.Settings_Environmental_ResetCurves_ConfirmButton)),
+            L(nameof(CommonStrings.Common_Cancel)));
         if (!ok || !IsCurrentEnvironmentalPage(pageGeneration)) return;
 
         if (_settings.EnvironmentalOffsetMode)

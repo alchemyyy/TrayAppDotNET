@@ -38,16 +38,14 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
             p,
             [
-                L("Settings_Hotkeys_OpenFlyout_SearchKeywords",
-                    "popup panel volume mixer global shortcut accelerator")
+                Loc(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_SearchKeywords))
             ]);
         AddHotkeyRow(stack, rows, VolumeHotkeyAction.OpenSettings,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
             p,
             [
-                L("Settings_Hotkeys_OpenSettings_SearchKeywords",
-                    "preferences configuration options global shortcut accelerator")
+                Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_SearchKeywords))
             ]);
 
         searchBox.TextChanged += (_, _) =>

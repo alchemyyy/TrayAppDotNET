@@ -387,10 +387,9 @@ public sealed partial class BrightnessSettingsWindow
         AddPageCleanup(() => RetireEnvironmentalPage(pageState));
 
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Environmental_SectionHeader), "Environmental"), p);
+        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Environmental_SectionHeader)), p);
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(AppStrings.Settings_Environmental_SectionDescription),
-                "Edit per-profile time-of-day curves for brightness and night light."),
+            L(nameof(AppStrings.Settings_Environmental_SectionDescription)),
             p,
             new Thickness(0, 0, 0, 12)));
 

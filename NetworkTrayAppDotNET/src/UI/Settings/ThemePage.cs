@@ -14,7 +14,7 @@ public sealed partial class NetworkSettingsWindow
         StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
 
         TextBlock contextHeader = TrayAppDotNETSettingsUI.TitleText(
-            L("Settings_Theme_ContextMenu_Header", "Context menu"), p);
+            L(nameof(AppStrings.Settings_Theme_ContextMenu_Header)), p);
         contextHeader.FontWeight = FontWeight.SemiBold;
         contextHeader.Margin = new Thickness(0, 0, 0, 8);
         stack.Children.Add(contextHeader);
@@ -28,7 +28,7 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_FontSize_SearchKeywords", "text scale typography zoom")
+                L(nameof(AppStrings.Settings_Theme_FontSize_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
@@ -51,8 +51,7 @@ public sealed partial class NetworkSettingsWindow
             afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
             searchKeywords:
             [
-                L("Settings_Theme_ThemeStyle_SearchKeywords",
-                    "appearance color scheme Windows preference")
+                L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
             "Text",
@@ -66,8 +65,7 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_TextColor_SearchKeywords",
-                    "foreground font lettering contrast")
+                L(nameof(AppStrings.Settings_Theme_TextColor_SearchKeywords))
             ]));
         stack.Children.Add(ColorCard(
             "Background",
@@ -81,12 +79,11 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Theme_BackgroundColor_SearchKeywords",
-                    "canvas surface fill wallpaper")
+                L(nameof(AppStrings.Settings_Theme_BackgroundColor_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_Theme_Flyout_Header", "Flyout"), p));
+            L(nameof(AppStrings.Settings_Theme_Flyout_Header)), p));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),
             Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Description)),
@@ -96,17 +93,15 @@ public sealed partial class NetworkSettingsWindow
             afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
             searchKeywords:
             [
-                L("Settings_Theme_RoundedCorners_SearchKeywords",
-                    "square sharp rectangular radius geometry")
+                L(nameof(AppStrings.Settings_Theme_RoundedCorners_SearchKeywords))
             ]));
         stack.Children.Add(ComboCard(
-            L(nameof(AppStrings.Settings_Theme_Animations_Title), "Animations"),
-            L(nameof(AppStrings.Settings_Theme_Animations_Description),
-                "Controls whether tooltip fades and other UI animations are allowed."),
+            L(nameof(AppStrings.Settings_Theme_Animations_Title)),
+            L(nameof(AppStrings.Settings_Theme_Animations_Description)),
             [
-                (nameof(TrayAppDotNETAnimationMode.System), L(nameof(AppStrings.Settings_Theme_Animations_System), "System")),
-                (nameof(TrayAppDotNETAnimationMode.Disabled), L(nameof(AppStrings.Settings_Theme_Animations_Disabled), "Disabled")),
-                (nameof(TrayAppDotNETAnimationMode.Enabled), L(nameof(AppStrings.Settings_Theme_Animations_Enabled), "Enabled"))
+                (nameof(TrayAppDotNETAnimationMode.System), L(nameof(AppStrings.Settings_Theme_Animations_System))),
+                (nameof(TrayAppDotNETAnimationMode.Disabled), L(nameof(AppStrings.Settings_Theme_Animations_Disabled))),
+                (nameof(TrayAppDotNETAnimationMode.Enabled), L(nameof(AppStrings.Settings_Theme_Animations_Enabled)))
             ],
             _settings.AnimationMode.ToString(),
             tag =>
@@ -123,12 +118,11 @@ public sealed partial class NetworkSettingsWindow
             },
             searchKeywords:
             [
-                L("Settings_Theme_Animations_SearchKeywords",
-                    "motion transitions fade visual effects accessibility reduce motion")
+                L(nameof(AppStrings.Settings_Theme_Animations_SearchKeywords))
             ]));
         stack.Children.Add(IntCard(
-            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title), "Tooltip delay"),
-            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description), "Milliseconds to wait before showing a tooltip."),
+            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title)),
+            L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description)),
             _settings.ToolTipShowDelayMs,
             TimeConstants.ToolTipShowDelayMinMs,
             TimeConstants.ToolTipShowDelayMaxMs,
@@ -142,27 +136,24 @@ public sealed partial class NetworkSettingsWindow
             " ms",
             searchKeywords:
             [
-                L("Settings_Theme_ToolTipShowDelay_SearchKeywords",
-                    "hover popup wait latency timing")
+                L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_SearchKeywords))
             ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L("Settings_Theme_TrayIcon_Header", "Tray icon"), p));
+            L(nameof(AppStrings.Settings_Theme_TrayIcon_Header)), p));
         stack.Children.Add(ColorCard(
             "TrayIcon",
-            L("Settings_Theme_StaticIconColor_Title", "Static tray icon color"),
-            L("Settings_Theme_StaticIconColor_Description",
-                "Override the tray icon color when Tray icon style is set to Static. Each variant falls back to the default when unset."),
-            L("Settings_Theme_StaticIconColor_LightTooltip", "Light theme static tray icon color"),
-            L("Settings_Theme_StaticIconColor_DarkTooltip", "Dark theme static tray icon color"),
+            L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title)),
+            L(nameof(AppStrings.Settings_Theme_StaticIconColor_Description)),
+            L(nameof(AppStrings.Settings_Theme_StaticIconColor_LightTooltip)),
+            L(nameof(AppStrings.Settings_Theme_StaticIconColor_DarkTooltip)),
             _settings.TrayIconColor,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Light,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Dark,
             p,
             searchKeywords:
             [
-                L("Settings_Theme_StaticIconColor_SearchKeywords",
-                    "notification area system tray glyph symbol status")
+                L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ]));
 
         return stack;

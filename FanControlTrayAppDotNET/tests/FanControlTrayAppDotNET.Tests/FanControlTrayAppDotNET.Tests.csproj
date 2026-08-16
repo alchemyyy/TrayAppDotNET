@@ -9,6 +9,8 @@
     <PlatformTarget>x64</PlatformTarget>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <TrayAppDotNETUseRootOutput>false</TrayAppDotNETUseRootOutput>
+    <FanControlLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlLibreHardwareMonitorOutputPath>
+    <FanControlUseVendoredAssemblyReferences Condition="'$(DesignTimeBuild)' == 'true' or '$(BuildingInsideVisualStudio)' == 'true'">true</FanControlUseVendoredAssemblyReferences>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +29,11 @@
           Condition="'$(Configuration)' == 'Release' and '$(TrayAppDotNETAggregateBuild)' != 'true' and ('$(SolutionFileName)' == '' or '$(SolutionFileName)' == '*Undefined*')">SkipPublishAfterBuild=true</AdditionalProperties>
     </ProjectReference>
     <ProjectReference Include="..\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
+                      Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'"
                       AdditionalProperties="DisableIpmiWmi=true;DisableRamSpd=true" />
+    <Reference Include="LibreHardwareMonitorLib" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>

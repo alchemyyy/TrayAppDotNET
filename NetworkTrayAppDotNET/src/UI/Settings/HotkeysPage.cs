@@ -33,13 +33,12 @@ public sealed partial class NetworkSettingsWindow
 
         List<(Control Control, string SearchText)> rows = [];
         AddHotkeyRow(stack, rows, HotkeyAction.OpenFlyout,
-            L("Settings_Hotkeys_OpenFlyout_Title", "Open flyout"),
-            L("Settings_Hotkeys_OpenFlyout_Description", "Show the network flyout above the tray icon."),
+            L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
+            L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
             p,
             searchKeywords:
             [
-                L("Settings_Hotkeys_OpenFlyout_SearchKeywords",
-                    "global key binding keyboard command wireless internet connections")
+                L(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_SearchKeywords))
             ]);
         AddHotkeyRow(stack, rows, HotkeyAction.OpenSettings,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
@@ -47,8 +46,7 @@ public sealed partial class NetworkSettingsWindow
             p,
             searchKeywords:
             [
-                L("Settings_Hotkeys_OpenSettings_SearchKeywords",
-                    "global key binding keyboard command preferences configuration")
+                L(nameof(AppStrings.Settings_Hotkeys_OpenSettings_SearchKeywords))
             ]);
 
         searchBox.TextChanged += (_, _) =>
