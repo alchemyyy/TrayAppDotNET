@@ -69,8 +69,8 @@ public sealed class NightLightHelperTests
     [Fact]
     public void RecyclePolicyWarmsBeforeHardOperationLimit()
     {
-        int warmupThreshold = Constants.NightLightHelperRecycleOperationCount -
-                              Constants.NightLightHelperWarmupLeadOperationCount;
+        const int warmupThreshold = Constants.NightLightHelperRecycleOperationCount -
+                                    Constants.NightLightHelperWarmupLeadOperationCount;
 
         Assert.False(NightLightHelperClient.ShouldStartWarmup(warmupThreshold - 1));
         Assert.True(NightLightHelperClient.ShouldStartWarmup(warmupThreshold));

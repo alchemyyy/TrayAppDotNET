@@ -949,7 +949,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         FlyoutVisualState candidate,
         UIResourceScope resources)
     {
-        bool isIndividualMonitor = !monitor.IsMaster && !monitor.IsNightLight;
+        bool isIndividualMonitor = monitor is { IsMaster: false, IsNightLight: false };
         bool monitorPowerButtonsEnabled = _settings?.ShowFlyoutMonitorPowerButtons ?? false;
         bool showMonitorPowerButton =
             isIndividualMonitor

@@ -1151,7 +1151,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private async Task SetPowerModeAsync(FlyoutPowerMode mode)
     {
         CancellationToken cancellationToken = WindowResources.CancellationToken;
-        bool success = await Task.Run(() => SetActivePowerMode(mode));
+        bool success = await Task.Run(() => SetActivePowerMode(mode), cancellationToken);
         if (_isClosed || cancellationToken.IsCancellationRequested) return;
 
         await Dispatcher.UIThread.InvokeAsync(() =>
@@ -1228,7 +1228,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private async Task SetEnergySaverAsync(bool enabled)
     {
         CancellationToken cancellationToken = WindowResources.CancellationToken;
-        bool success = await Task.Run(() => SetEnergySaverThreshold(enabled));
+        bool success = await Task.Run(() => SetEnergySaverThreshold(enabled), cancellationToken);
         if (_isClosed || cancellationToken.IsCancellationRequested) return;
 
         await Dispatcher.UIThread.InvokeAsync(() =>

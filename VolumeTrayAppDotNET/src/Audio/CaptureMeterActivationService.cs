@@ -20,7 +20,7 @@ internal sealed class CaptureMeterActivationService : IDisposable
     private const int MaxPacketsPerDrain = 64;
     private const string ThreadName = "VolumeTrayApp.CaptureMeterActivation";
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly AutoResetEvent _wakeEvent = new(false);
     private readonly HashSet<string> _requestedDeviceIDs = new(StringComparer.Ordinal);
     private readonly Thread _thread;

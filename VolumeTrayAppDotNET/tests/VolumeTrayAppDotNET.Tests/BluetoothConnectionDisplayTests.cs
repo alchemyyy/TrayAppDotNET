@@ -26,10 +26,7 @@ public sealed class BluetoothConnectionDisplayTests
     public void RememberedBluetoothDevnodeIsNotTreatedAsConnected()
     {
         Guid containerID = Guid.NewGuid();
-        Dictionary<string, Guid> idToContainer = new(StringComparer.Ordinal);
-        idToContainer.Add(
-            @"BTHENUM\DEV_8099E75CA52C\7&123456&0&BLUETOOTHDEVICE_8099E75CA52C",
-            containerID);
+        Dictionary<string, Guid> idToContainer = new(StringComparer.Ordinal) { { @"BTHENUM\DEV_8099E75CA52C\7&123456&0&BLUETOOTHDEVICE_8099E75CA52C", containerID } };
         HashSet<ulong> connectedAddresses = [];
 
         HashSet<Guid> connectedContainers = BluetoothBatteryMonitor.ResolveConnectedContainers(
@@ -45,11 +42,15 @@ public sealed class BluetoothConnectionDisplayTests
         const ulong connectedAddress = 0x8099E75CA52Cul;
         Guid connectedContainerID = Guid.NewGuid();
         Guid disconnectedContainerID = Guid.NewGuid();
-        Dictionary<string, Guid> idToContainer = new(StringComparer.Ordinal);
-        idToContainer.Add(@"BTHENUM\DEV_8099E75CA52C", connectedContainerID);
-        idToContainer.Add(@"BTHENUM\DEV_8099E7B6BC69", disconnectedContainerID);
-        HashSet<ulong> connectedAddresses = [];
-        connectedAddresses.Add(connectedAddress);
+        Dictionary<string, Guid> idToContainer = new(StringComparer.Ordinal)
+        {
+            { @"BTHENUM\DEV_8099E75CA52C", connectedContainerID },
+            { @"BTHENUM\DEV_8099E7B6BC69", disconnectedContainerID }
+        };
+        HashSet<ulong> connectedAddresses =
+        [
+            connectedAddress
+        ];
 
         HashSet<Guid> connectedContainers = BluetoothBatteryMonitor.ResolveConnectedContainers(
             idToContainer,

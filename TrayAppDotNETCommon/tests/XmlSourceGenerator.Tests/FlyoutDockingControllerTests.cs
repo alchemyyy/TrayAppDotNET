@@ -9,12 +9,9 @@ public sealed class FlyoutDockingControllerTests
     [Fact]
     public void ConstructorRestoresOnlyCompleteUndockedState()
     {
-        DockHarness restored = new();
-        restored.Settings.FlyoutUndocked = true;
-        restored.Settings.FlyoutHasSavedPosition = true;
+        DockHarness restored = new() { Settings = { FlyoutUndocked = true, FlyoutHasSavedPosition = true } };
 
-        DockHarness missingPosition = new();
-        missingPosition.Settings.FlyoutUndocked = true;
+        DockHarness missingPosition = new() { Settings = { FlyoutUndocked = true } };
         missingPosition.RecreateController();
 
         restored.RecreateController();
@@ -26,10 +23,7 @@ public sealed class FlyoutDockingControllerTests
     [Fact]
     public void ExplicitUndockPersistsStateAndRestoresResolvedPosition()
     {
-        DockHarness harness = new();
-        harness.Settings.FlyoutHasSavedPosition = true;
-        harness.Settings.FlyoutLeft = 400;
-        harness.Settings.FlyoutTop = 300;
+        DockHarness harness = new() { Settings = { FlyoutHasSavedPosition = true, FlyoutLeft = 400, FlyoutTop = 300 } };
 
         bool changed = harness.Controller.UndockToSavedPosition();
 
@@ -44,11 +38,11 @@ public sealed class FlyoutDockingControllerTests
     [Fact]
     public void DisabledClampingRestoresRawSavedPosition()
     {
-        DockHarness harness = new();
-        harness.Settings.ClampUndockedFlyoutToScreen = false;
-        harness.Settings.FlyoutHasSavedPosition = true;
-        harness.Settings.FlyoutLeft = 400;
-        harness.Settings.FlyoutTop = 300;
+        DockHarness harness = new() { Settings =
+            {
+                ClampUndockedFlyoutToScreen = false, FlyoutHasSavedPosition = true, FlyoutLeft = 400, FlyoutTop = 300
+            }
+        };
 
         harness.Controller.UndockToSavedPosition();
 
@@ -114,8 +108,7 @@ public sealed class FlyoutDockingControllerTests
     [Fact]
     public void DisabledUndockingRejectsExplicitAndDragTransitions()
     {
-        DockHarness harness = new();
-        harness.Settings.AllowFlyoutUndock = false;
+        DockHarness harness = new() { Settings = { AllowFlyoutUndock = false } };
 
         Assert.False(harness.Controller.UndockToSavedPosition());
         Assert.False(harness.Controller.SetUndockedFromDrag());

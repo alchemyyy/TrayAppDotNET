@@ -75,8 +75,8 @@ internal sealed class VolumeAvaloniaApp : Application
         TADNLog.Initialize();
         TADNLog.Log("VolumeAvaloniaApp.OnFrameworkInitializationCompleted");
         LocalizationManager.Instance.Initialize(
-            Strings.ResourceManager,
-            culture => Strings.Culture = culture);
+            AppStrings.ResourceManager,
+            culture => AppStrings.Culture = culture);
         WireCrashHandlers();
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);

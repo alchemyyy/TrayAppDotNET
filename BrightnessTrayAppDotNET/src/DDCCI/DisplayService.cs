@@ -39,18 +39,16 @@ public class DisplayService : IDisplayService, IDisposable
             _helperClients = new Dictionary<string, DDCHelperClient>(StringComparer.OrdinalIgnoreCase);
     }
 
-    private int _operationTimeoutMs = TimeConstants.DisplayServiceOperationTimeoutMs;
-
     /// <inheritdoc />
     public int OperationTimeoutMs
     {
-        get => _operationTimeoutMs;
-        set => _operationTimeoutMs = _useHelperProcess
+        get;
+        set => field = _useHelperProcess
             ? value <= 0
                 ? TimeConstants.DisplayServiceOperationTimeoutMs
                 : Math.Max(TimeConstants.DDCOperationTimeoutSafetyFloorMs, value)
             : value;
-    }
+    } = TimeConstants.DisplayServiceOperationTimeoutMs;
 
     public void Dispose()
     {
@@ -423,15 +421,17 @@ public class DisplayService : IDisplayService, IDisposable
     /// <inheritdoc />
     public void ResetDDCTransport(DDCMonitor monitor)
     {
-        if (!_useHelperProcess || _helperClients == null || _disposed) return;
+        lock (_helperClientsGate)
+        {
+            if (!_useHelperProcess || _helperClients == null || _disposed) return;
+        }
 
         string helperClientKey = BuildHelperClientKey(monitor);
         DDCHelperClient? helperClient = null;
         lock (_helperClientsGate)
         {
             if (_disposed) return;
-            if (_helperClients.TryGetValue(helperClientKey, out helperClient))
-                _helperClients.Remove(helperClientKey);
+            _helperClients.Remove(helperClientKey, out helperClient);
         }
 
         if (helperClient == null) return;
@@ -667,7 +667,10 @@ public class DisplayService : IDisplayService, IDisposable
         CancellationToken ct = default,
         Func<DDCHelperClient, int, CancellationToken, DDCCallOutcome<T>>? helperOp = null)
     {
-        if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
+        lock (_helperClientsGate)
+        {
+            if (_disposed) return DDCCallOutcome<T>.WithError("Display service is disposed.");
+        }
 
         // Pre-check the sequence-level token before launching or touching the helper process.
         if (ct.IsCancellationRequested)

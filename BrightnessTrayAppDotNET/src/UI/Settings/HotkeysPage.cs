@@ -203,26 +203,6 @@ public sealed partial class BrightnessSettingsWindow
             TrayAppDotNETSettingsUI.SelectComboByTag(targetCombo, currentParameter);
         }
 
-        void UpdateAddButtonState()
-        {
-            if (selectedModifiers == 0 || selectedVirtualKey == 0)
-            {
-                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-                addButton.IsEnabled = false;
-                return;
-            }
-
-            bool exists = _settings.Hotkeys.Any(b =>
-                !b.RemovedByUser
-                && b.Matches(action, currentParameter)
-                && b.Modifiers == selectedModifiers
-                && b.VirtualKey == selectedVirtualKey);
-            addButton.Text = exists
-                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
-                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-            addButton.IsEnabled = !exists;
-        }
-
         modifiers.SelectionChanged += (_, _) =>
         {
             selectedModifiers = modifiers.SelectedItem?.Tag is uint mods ? mods : 0;
@@ -382,6 +362,26 @@ public sealed partial class BrightnessSettingsWindow
         stack.Children.Add(card);
         Refresh();
         return;
+
+        void UpdateAddButtonState()
+        {
+            if (selectedModifiers == 0 || selectedVirtualKey == 0)
+            {
+                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
+                addButton.IsEnabled = false;
+                return;
+            }
+
+            bool exists = _settings.Hotkeys.Any(b =>
+                !b.RemovedByUser
+                && b.Matches(action, currentParameter)
+                && b.Modifiers == selectedModifiers
+                && b.VirtualKey == selectedVirtualKey);
+            addButton.Text = exists
+                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
+                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
+            addButton.IsEnabled = !exists;
+        }
 
         void Refresh()
         {

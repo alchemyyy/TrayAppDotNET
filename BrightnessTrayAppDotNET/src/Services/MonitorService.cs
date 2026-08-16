@@ -3345,6 +3345,12 @@ public sealed class MonitorService : IDisposable
 
         InvalidateBrightnessTarget(entry);
 
+        if (_dispatcher.CheckAccess())
+            Apply();
+        else
+            _dispatcher.Post(Apply);
+        return;
+
         void Apply()
         {
             if (_disposed) return;
@@ -3377,11 +3383,6 @@ public sealed class MonitorService : IDisposable
             // mirrors what a Refresh-driven add does so the UI feedback is synchronous with the failure.
             MonitorsRefreshed?.Invoke();
         }
-
-        if (_dispatcher.CheckAccess())
-            Apply();
-        else
-            _dispatcher.Post(Apply);
     }
 
     private void InvokeOnDispatcher(Action action)

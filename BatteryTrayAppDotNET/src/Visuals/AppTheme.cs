@@ -87,9 +87,12 @@ public sealed class AppTheme : CommonAppTheme
     public Color ResolveBatteryFill(BatterySnapshot snapshot, bool isLightTheme)
     {
         if (snapshot.IsCharging) return BatteryChargingFill.For(isLightTheme);
-        if (snapshot is { IsOnExternalPower: false, ChargePercentage: <= 10 }) return BatteryCriticalFill.For(isLightTheme);
-        if (snapshot is { IsOnExternalPower: false, ChargePercentage: <= 20 }) return BatteryLowFill.For(isLightTheme);
-        return Accent.For(isLightTheme);
+        return snapshot switch
+        {
+            { IsOnExternalPower: false, ChargePercentage: <= 10 } => BatteryCriticalFill.For(isLightTheme),
+            { IsOnExternalPower: false, ChargePercentage: <= 20 } => BatteryLowFill.For(isLightTheme),
+            _ => Accent.For(isLightTheme)
+        };
     }
 
     public Color ResolveFlyoutBackground(AppSettings? settings, bool isLightTheme) =>

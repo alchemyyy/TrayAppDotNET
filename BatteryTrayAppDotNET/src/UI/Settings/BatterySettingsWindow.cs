@@ -820,41 +820,6 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
-        void UpdateAddButtonState()
-        {
-            if (selectedModifiers == 0 || selectedVk == 0)
-            {
-                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-                addButton.IsEnabled = false;
-                return;
-            }
-
-            bool exists = _settings.Hotkeys.Any(b =>
-                !b.RemovedByUser
-                && b.Matches(action, string.Empty)
-                && b.Modifiers == selectedModifiers
-                && b.VirtualKey == selectedVk);
-            addButton.Text = exists
-                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
-                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-            addButton.IsEnabled = !exists;
-        }
-
-        void Refresh()
-        {
-            HotkeyApplyResult? applyResult = null;
-            try { applyResult = AppServices.HotkeyService?.Apply(_settings.Hotkeys); }
-            catch (Exception ex) { TADNLog.Log($"BatterySettingsWindow.Hotkeys.Apply: {ex.Message}"); }
-
-            entries.Children.Clear();
-            foreach (HotkeyBinding binding in _settings.Hotkeys
-                         .Where(h => !h.RemovedByUser && h.Matches(action, string.Empty))
-                         .OrderBy(h => h.BindingID))
-                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, p));
-            entries.IsVisible = entries.Children.Count > 0;
-            UpdateAddButtonState();
-        }
-
         modifiers.SelectionChanged += (_, _) =>
         {
             selectedModifiers = modifiers.SelectedItem is { Tag: uint mods } ? mods : 0;
@@ -937,6 +902,42 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         rows.Add((card, title + "\n" + description));
         stack.Children.Add(card);
         Refresh();
+        return;
+
+        void UpdateAddButtonState()
+        {
+            if (selectedModifiers == 0 || selectedVk == 0)
+            {
+                addButton.Text = L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
+                addButton.IsEnabled = false;
+                return;
+            }
+
+            bool exists = _settings.Hotkeys.Any(b =>
+                !b.RemovedByUser
+                && b.Matches(action, string.Empty)
+                && b.Modifiers == selectedModifiers
+                && b.VirtualKey == selectedVk);
+            addButton.Text = exists
+                ? L(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
+                : L(nameof(AppStrings.Settings_Hotkeys_Add_Button));
+            addButton.IsEnabled = !exists;
+        }
+
+        void Refresh()
+        {
+            HotkeyApplyResult? applyResult = null;
+            try { applyResult = AppServices.HotkeyService?.Apply(_settings.Hotkeys); }
+            catch (Exception ex) { TADNLog.Log($"BatterySettingsWindow.Hotkeys.Apply: {ex.Message}"); }
+
+            entries.Children.Clear();
+            foreach (HotkeyBinding binding in _settings.Hotkeys
+                         .Where(h => !h.RemovedByUser && h.Matches(action, string.Empty))
+                         .OrderBy(h => h.BindingID))
+                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, p));
+            entries.IsVisible = entries.Children.Count > 0;
+            UpdateAddButtonState();
+        }
     }
 
     private Border BuildHotkeyEntryCard(

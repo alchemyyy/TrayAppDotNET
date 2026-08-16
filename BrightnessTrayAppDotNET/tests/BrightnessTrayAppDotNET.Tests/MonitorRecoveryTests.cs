@@ -228,7 +228,7 @@ public sealed class MonitorRecoveryTests
         display.SetRead(canonicalDeviceID, ok: true, current: 40, max: 100);
 
         using MonitorService service = CreateService(display, MonitorIdentityStrategy.HardwarePort);
-        await WaitUntil(() => service.Monitors.Count == 1 && service.Monitors[0].IsHardwareFunctional);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];
         Assert.Equal($"port:{canonicalDeviceID}", monitor.ID);
@@ -251,8 +251,7 @@ public sealed class MonitorRecoveryTests
         await WaitUntil(() =>
             service.Monitors.Count == 1
             && ReferenceEquals(service.Monitors[0], monitor)
-            && monitor.ID == $"port:{canonicalDeviceID}"
-            && monitor.DisplayNumber == 7
+            && monitor is { ID: $"port:{canonicalDeviceID}", DisplayNumber: 7 }
             && display.LastReadKey == canonicalDeviceID);
 
         Assert.Same(monitor, service.Monitors[0]);
@@ -1329,8 +1328,8 @@ public sealed class MonitorRecoveryTests
     {
         return new DDCMonitor
         {
-            Handle = (IntPtr)displayNumber,
-            HDC = (IntPtr)(displayNumber + 100),
+            Handle = displayNumber,
+            HDC = displayNumber + 100,
             Name = name,
             DeviceID = deviceID,
             DisplayNumber = displayNumber,
@@ -1457,7 +1456,7 @@ public sealed class MonitorRecoveryTests
         public int GetTransportResetCount(string key)
         {
             lock (_gate)
-                return _transportResetCounts.TryGetValue(key, out int count) ? count : 0;
+                return _transportResetCounts.GetValueOrDefault(key, 0);
         }
 
         public bool HasReadValue(uint value)
@@ -1602,9 +1601,7 @@ public sealed class MonitorRecoveryTests
                     _readFailuresRemaining[key] = failuresRemaining - 1;
                     currentValue = read.Current;
                     maxValue = read.Max;
-                    error = _readFailureErrors.TryGetValue(key, out string? failureError)
-                        ? failureError
-                        : "simulated sequenced read failure";
+                    error = _readFailureErrors.GetValueOrDefault(key, "simulated sequenced read failure");
                     return false;
                 }
 
@@ -1658,9 +1655,7 @@ public sealed class MonitorRecoveryTests
 
                 if (_featureWriteReadBackCodes.Contains(code))
                 {
-                    int writesToDrop = _successfulFeatureWritesToDrop.TryGetValue(code, out int configuredDrops)
-                        ? configuredDrops
-                        : 0;
+                    int writesToDrop = _successfulFeatureWritesToDrop.GetValueOrDefault(code, 0);
                     if (writesToDrop > 0)
                     {
                         _successfulFeatureWritesToDrop[code] = writesToDrop - 1;
@@ -1731,7 +1726,7 @@ public sealed class MonitorRecoveryTests
         }
 
         private int GetTransportResetCountUnderLock(string key) =>
-            _transportResetCounts.TryGetValue(key, out int count) ? count : 0;
+            _transportResetCounts.GetValueOrDefault(key, 0);
 
         private static DDCMonitor Clone(DDCMonitor source)
         {

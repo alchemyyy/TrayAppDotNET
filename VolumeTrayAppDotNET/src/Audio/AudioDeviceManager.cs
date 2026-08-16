@@ -112,7 +112,7 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private string? _notifiedRenderCommunicationsDeviceID;
     private string? _notifiedCaptureDefaultDeviceID;
     private string? _notifiedCaptureCommunicationsDeviceID;
-    private readonly object _bluetoothConnectCallLock = new();
+    private readonly Lock _bluetoothConnectCallLock = new();
     private int _bluetoothDisconnectInFlight;
     private DispatcherTimer? _bluetoothConnectionCountdownTimer;
     private long _lastBluetoothConnectionStatePollMilliseconds;

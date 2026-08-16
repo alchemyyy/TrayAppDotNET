@@ -71,8 +71,8 @@ internal sealed class BatteryAvaloniaApp : Application
         TADNLog.Initialize();
         TADNLog.Log("BatteryAvaloniaApp.OnFrameworkInitializationCompleted");
         LocalizationManager.Instance.Initialize(
-            Strings.ResourceManager,
-            culture => Strings.Culture = culture);
+            AppStrings.ResourceManager,
+            culture => AppStrings.Culture = culture);
         TrayAppDotNETAvalonia.WireCrashHandlers(TADNLog.Shutdown);
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
 
@@ -568,7 +568,7 @@ internal sealed class BatteryAvaloniaApp : Application
         }
     }
 
-    private void OpenBatteryReport()
+    private static void OpenBatteryReport()
     {
         try
         {
@@ -662,7 +662,11 @@ internal sealed class BatteryAvaloniaApp : Application
             if (_trayMenuWindow != null)
             {
                 try { _trayMenuWindow.Close(); }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
+
                 _trayMenuWindow = null;
             }
 
@@ -676,7 +680,11 @@ internal sealed class BatteryAvaloniaApp : Application
             {
                 _batteryFlyout.Closed -= OnBatteryFlyoutClosed;
                 try { _batteryFlyout.Close(); }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
+
                 _batteryFlyout = null;
             }
 
@@ -703,7 +711,11 @@ internal sealed class BatteryAvaloniaApp : Application
             {
                 _settingsWindow.Closed -= OnSettingsWindowClosed;
                 try { _settingsWindow.Close(); }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
+
                 _settingsWindow = null;
             }
 

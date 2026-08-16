@@ -91,8 +91,8 @@ internal sealed class BrightnessAvaloniaApp : Application
         WPFLog.Log("BrightnessAvaloniaApp.OnFrameworkInitializationCompleted");
 
         LocalizationManager.Instance.Initialize(
-            Strings.ResourceManager,
-            culture => Strings.Culture = culture);
+            AppStrings.ResourceManager,
+            culture => AppStrings.Culture = culture);
         WireCrashHandlers();
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
@@ -1067,7 +1067,6 @@ internal sealed class BrightnessAvaloniaApp : Application
         if (pool.Count == 0) return _settings?.LastMasterBrightness ?? 100;
 
         MasterSliderMode mode = _settings?.DynamicIconBrightnessTracking ?? MasterSliderMode.Average;
-        static int EffectiveValue(MonitorInfo monitor) => monitor.EffectiveRoundedBrightness;
         double value = mode switch
         {
             MasterSliderMode.Lowest => pool.Min(EffectiveValue),
@@ -1077,6 +1076,7 @@ internal sealed class BrightnessAvaloniaApp : Application
 
         if (!double.IsFinite(value)) return _settings?.LastMasterBrightness ?? 100;
         return (int)Math.Round(Math.Clamp(value, 0.0, 100.0));
+        static int EffectiveValue(MonitorInfo monitor) => monitor.EffectiveRoundedBrightness;
     }
 
     private void OnUpdateStateChanged()

@@ -140,7 +140,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
             if (_lhmService != null)
             {
-                INotifyCollectionChanged fanCollection = (INotifyCollectionChanged)_lhmService.Fans;
+                INotifyCollectionChanged fanCollection = _lhmService.Fans;
                 fanCollection.CollectionChanged += OnFansChanged;
                 WindowResources.Add(() => fanCollection.CollectionChanged -= OnFansChanged);
                 _lhmService.PollTickCompleted += OnPollTickCompleted;
@@ -202,9 +202,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _layout ?? throw new InvalidOperationException("Fan flyout layout resources have not been loaded.");
 
     private IReadOnlyList<FanFlyoutCell> Cells =>
-        _activeVisualGeneration?.Cells is { } cells
-            ? cells
-            : Array.Empty<FanFlyoutCell>();
+        _activeVisualGeneration?.Cells ?? [];
 
     private StackPanel? CellStack => _activeVisualGeneration?.CellStack;
 
@@ -2203,8 +2201,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         List<TrayMenuEntry> entries =
         [
-            new TrayMenuEntry("Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
-            new TrayMenuEntry("Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
+            new("Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
+            new("Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
         ];
         TrayMenuWindow menu = new(
             entries,

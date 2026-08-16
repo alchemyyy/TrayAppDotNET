@@ -2642,17 +2642,6 @@ public static class TrayAppDotNETSettingsUI
         bool pointerOver = false;
         bool focused = false;
 
-        void Update()
-        {
-            Color color = focused ? focusedOrPressed : pointerOver ? hover : normal;
-            switch (control)
-            {
-                case TextBox textBox:
-                    textBox.Background = Brush(color);
-                    break;
-            }
-        }
-
         control.PointerEntered += (_, _) =>
         {
             pointerOver = true;
@@ -2674,5 +2663,17 @@ public static class TrayAppDotNETSettingsUI
             Update();
         };
         ApplyDisabledOpacity(control, SettingsUILayout.DisabledOpacity);
+        return;
+
+        void Update()
+        {
+            Color color = focused ? focusedOrPressed : pointerOver ? hover : normal;
+            switch (control)
+            {
+                case TextBox textBox:
+                    textBox.Background = Brush(color);
+                    break;
+            }
+        }
     }
 }

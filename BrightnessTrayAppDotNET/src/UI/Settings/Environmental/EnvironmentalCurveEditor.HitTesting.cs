@@ -25,7 +25,7 @@ public sealed partial class EnvironmentalCurveEditor
         {
             EnvironmentalCurvePoint point = points[i];
             Point center = new(ScreenX(point.Time, plot), ScreenY(point.Value, plot));
-            double radius = ThumbSize / 2.0 + ThumbHitPadding;
+            const double radius = ThumbSize / 2.0 + ThumbHitPadding;
             if (Math.Abs(pos.X - center.X) <= radius && Math.Abs(pos.Y - center.Y) <= radius)
             {
                 hit = (series, point);
@@ -72,16 +72,6 @@ public sealed partial class EnvironmentalCurveEditor
         double best = double.PositiveInfinity;
         (Series series, LimitKind kind) bestHit = default;
 
-        void Consider(Series series, LimitKind kind, double value)
-        {
-            double dy = Math.Abs(pos.Y - ScreenY(value, plot));
-            if (dy <= LimitLineHitTolerance && dy < best)
-            {
-                best = dy;
-                bestHit = (series, kind);
-            }
-        }
-
         if (_curveData != null)
         {
             if (_showBrightness)
@@ -105,6 +95,16 @@ public sealed partial class EnvironmentalCurveEditor
 
         hit = bestHit;
         return true;
+
+        void Consider(Series series, LimitKind kind, double value)
+        {
+            double dy = Math.Abs(pos.Y - ScreenY(value, plot));
+            if (dy <= LimitLineHitTolerance && dy < best)
+            {
+                best = dy;
+                bestHit = (series, kind);
+            }
+        }
     }
 
     private List<EnvironmentalCurvePoint>? PickClosestVisibleSeries(double t, double clickY, Rect plot)

@@ -3,38 +3,26 @@ using System.Text;
 
 namespace TrayAppDotNETCommon.UI.Settings;
 
-internal sealed class SettingsSearchDocument
+internal sealed class SettingsSearchDocument(
+    int id,
+    string titleText,
+    string bodyText,
+    string searchKeywords,
+    string subsectionText,
+    string pageText)
 {
-    public readonly int ID;
-    public readonly string TitleText;
-    public readonly string BodyText;
-    public readonly string SearchKeywords;
-    public readonly string SubsectionText;
-    public readonly string PageText;
-    public readonly string PrimaryText;
-    public readonly string ContextText;
+    public readonly int ID = id;
+    public readonly string TitleText = titleText;
+    public readonly string BodyText = bodyText;
+    public readonly string SearchKeywords = searchKeywords;
+    public readonly string SubsectionText = subsectionText;
+    public readonly string PageText = pageText;
+    public readonly string PrimaryText = JoinText(titleText, bodyText);
+    public readonly string ContextText = JoinText(subsectionText, pageText);
 
     public SettingsSearchDocument(int id, string primaryText, string contextText)
         : this(id, primaryText, string.Empty, string.Empty, contextText, string.Empty)
     {
-    }
-
-    public SettingsSearchDocument(
-        int id,
-        string titleText,
-        string bodyText,
-        string searchKeywords,
-        string subsectionText,
-        string pageText)
-    {
-        ID = id;
-        TitleText = titleText;
-        BodyText = bodyText;
-        SearchKeywords = searchKeywords;
-        SubsectionText = subsectionText;
-        PageText = pageText;
-        PrimaryText = JoinText(titleText, bodyText);
-        ContextText = JoinText(subsectionText, pageText);
     }
 
     private static string JoinText(string first, string second)
@@ -102,18 +90,11 @@ internal static class SettingsSearchScorer
         }
     }
 
-    private sealed class QueryToken
+    private sealed class QueryToken(string text, int synonymGroupId, double weight)
     {
-        public readonly string Text;
-        public readonly int SynonymGroupID;
-        public readonly double Weight;
-
-        public QueryToken(string text, int synonymGroupID, double weight)
-        {
-            Text = text;
-            SynonymGroupID = synonymGroupID;
-            Weight = weight;
-        }
+        public readonly string Text = text;
+        public readonly int SynonymGroupID = synonymGroupId;
+        public readonly double Weight = weight;
     }
 
     public static HashSet<int> FindMatches(

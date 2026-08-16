@@ -39,15 +39,6 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         TrayAppDotNETToolTip.SetTip(dark, darkTooltip);
         SettingsButton reset = TrayAppDotNETSettingsCards.Button(resetText, palette, buttonRadius);
 
-        void Update()
-        {
-            light.SetColor(color.LightColor, lightFallback);
-            dark.SetColor(color.DarkColor, darkFallback);
-            bool isLight = resolveEffectiveIsLight();
-            light.IsVisible = isLight;
-            dark.IsVisible = !isLight;
-        }
-
         light.Click += (_, _) =>
         {
             OpenColorPicker(
@@ -99,6 +90,15 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
             palette,
             cardRadius,
             searchKeywords);
+
+        void Update()
+        {
+            light.SetColor(color.LightColor, lightFallback);
+            dark.SetColor(color.DarkColor, darkFallback);
+            bool isLight = resolveEffectiveIsLight();
+            light.IsVisible = isLight;
+            dark.IsVisible = !isLight;
+        }
     }
 
     public void CloseOpenColorPickers()

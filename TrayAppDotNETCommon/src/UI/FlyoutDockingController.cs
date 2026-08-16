@@ -75,10 +75,7 @@ public sealed class FlyoutDockingController
     public static bool ShouldRestoreOnStartup(IFlyoutDockSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        return settings.AllowFlyoutUndock
-               && settings.RestoreFlyoutUndockedOnStartup
-               && settings.FlyoutUndocked
-               && settings.FlyoutHasSavedPosition;
+        return settings is { AllowFlyoutUndock: true, RestoreFlyoutUndockedOnStartup: true, FlyoutUndocked: true, FlyoutHasSavedPosition: true };
     }
 
     /// <summary>Returns the current saved or docked position according to the active state.</summary>

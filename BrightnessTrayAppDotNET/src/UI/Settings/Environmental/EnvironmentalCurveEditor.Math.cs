@@ -12,7 +12,7 @@ public sealed partial class EnvironmentalCurveEditor
 
     private Rect PlotRect()
     {
-        double left = AxisGutterWidth + PlotInsetX;
+        const double left = AxisGutterWidth + PlotInsetX;
         double right = Math.Max(left, Bounds.Width - AxisGutterWidth - PlotInsetX);
         double top = TopInset;
         double bottom = Math.Max(top, Bounds.Height - TimeAxisHeight - PlotInsetYBase);

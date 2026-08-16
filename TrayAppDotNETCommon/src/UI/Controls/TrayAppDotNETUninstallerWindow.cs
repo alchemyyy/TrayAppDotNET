@@ -442,7 +442,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
     private sealed class UninstallProcessOwner : IDisposable
     {
-        private readonly object _gate = new();
+        private readonly Lock _gate = new();
         private readonly int _ownershipGraceMilliseconds;
         private Process? _process;
         private System.Threading.Timer? _disposalTimer;

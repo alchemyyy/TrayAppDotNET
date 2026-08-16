@@ -86,7 +86,6 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     private DeviceState _state;
     private BluetoothCodec? _currentCodec;
     private int? _batteryLevel;
-    private int? _lastKnownBatteryLevel;
     private bool _isBluetoothConnected;
     private long _bluetoothConnectionDeadlineMilliseconds;
     private int _bluetoothConnectionSecondsRemaining;
@@ -291,11 +290,11 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     /// </summary>
     public int? LastKnownBatteryLevel
     {
-        get => _lastKnownBatteryLevel;
+        get;
         internal set
         {
-            if (_lastKnownBatteryLevel == value) return;
-            _lastKnownBatteryLevel = value;
+            if (field == value) return;
+            field = value;
             OnPropertyChanged();
         }
     }

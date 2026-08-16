@@ -496,11 +496,10 @@ internal static class DDCHelperServer
                 DDCHelperClient.PipeEncoding,
                 detectEncodingFromByteOrderMarks: false,
                 leaveOpen: true);
-            using StreamWriter writer = new(pipe, DDCHelperClient.PipeEncoding, bufferSize: 1024, leaveOpen: true)
-            {
-                AutoFlush = true
-            };
-            using DisplayService displayService = new(useHelperProcess: false) { OperationTimeoutMs = 0 };
+            using StreamWriter writer = new(pipe, DDCHelperClient.PipeEncoding, bufferSize: 1024, leaveOpen: true);
+            writer.AutoFlush = true;
+            using DisplayService displayService = new(useHelperProcess: false);
+            displayService.OperationTimeoutMs = 0;
             RunLoop(displayService, reader, writer);
             return true;
         }

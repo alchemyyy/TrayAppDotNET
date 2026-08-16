@@ -26,7 +26,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 {
     // Keep the custom frame available for borderless windows. It stays disabled while BorderOnly supplies
     // native resizing because drawing both frames doubles the border and insets the caption buttons
-    private const bool EnableCustomWindowBorder = false;
+    private readonly bool EnableCustomWindowBorder = false;
     private const int WorkAreaEdgeTolerancePixels = 1;
 
     private ContentControl _content = new();
@@ -1053,7 +1053,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void UpdateWindowCornerRadius()
     {
-        if (Content is not Border windowFrame || windowFrame.Child is not Border contentSurface) return;
+        if (Content is not Border { Child: Border contentSurface } windowFrame) return;
 
         bool useSharpCorners = ShouldUseSharpWindowCorners();
         windowFrame.CornerRadius = useSharpCorners

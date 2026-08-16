@@ -112,7 +112,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             _bluetoothRadioController.Dispose();
         });
         _bluetoothRadioController.Refresh();
-        INotifyCollectionChanged devices = (INotifyCollectionChanged)_audioManager.Devices;
+        INotifyCollectionChanged devices = _audioManager.Devices;
         devices.CollectionChanged += OnDevicesCollectionChanged;
         WindowResources.Add(() => devices.CollectionChanged -= OnDevicesCollectionChanged);
         SyncDeviceVisibilitySubscriptions();
@@ -1220,7 +1220,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     name.Text = device.FriendlyName;
                     break;
                 case nameof(AudioDevice.BluetoothConnectionSecondsRemaining):
-                    if (format != null) format.Text = DeviceFormatLine(device);
+                    format?.Text = DeviceFormatLine(device);
                     break;
                 case nameof(AudioDevice.IsDefault) or nameof(AudioDevice.IsDefaultCommunications)
                     when !IsDefaultDeviceButtonVisible(device):
@@ -3318,7 +3318,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
     }
 
-    private sealed record FlyoutMenuEntry(string Text, bool IsCurrent, Action Click);
+    private sealed record FlyoutMenuEntry(string MenuText, bool IsCurrent, Action Click);
 
     private sealed class FlyoutMenuWindow : Window
     {
@@ -3485,7 +3485,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             marker.HorizontalAlignment = HorizontalAlignment.Center;
             row.Children.Add(marker);
 
-            TextBlock label = Text(entry.Text, palette, fontSize);
+            TextBlock label = Text(entry.MenuText, palette, fontSize);
             label.TextTrimming = TextTrimming.CharacterEllipsis;
             label.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(label, 1);

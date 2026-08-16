@@ -131,8 +131,15 @@ public sealed class BatteryMonitorService : IDisposable
         float? dischargeRate = null;
         if (report.ChargeRateWatts is { } rate)
         {
-            if (rate > 0) chargeRate = rate;
-            else if (rate < 0) dischargeRate = Math.Abs(rate);
+            switch (rate)
+            {
+                case > 0:
+                    chargeRate = rate;
+                    break;
+                case < 0:
+                    dischargeRate = Math.Abs(rate);
+                    break;
+            }
         }
 
         return new BatterySnapshot(

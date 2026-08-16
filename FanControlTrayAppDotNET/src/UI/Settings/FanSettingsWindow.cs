@@ -668,41 +668,6 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
-        void UpdateAddButtonState()
-        {
-            if (selectedModifiers == 0 || selectedVk == 0)
-            {
-                addButton.Text = Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-                addButton.IsEnabled = false;
-                return;
-            }
-
-            bool exists = _settings.Hotkeys.Any(b =>
-                !b.RemovedByUser
-                && b.Matches(action, string.Empty)
-                && b.Modifiers == selectedModifiers
-                && b.VirtualKey == selectedVk);
-            addButton.Text = exists
-                ? Loc(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
-                : Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
-            addButton.IsEnabled = !exists;
-        }
-
-        void Refresh()
-        {
-            FanHotkeyApplyResult? applyResult = null;
-            try { applyResult = AppServices.HotkeyService?.Apply(_settings.Hotkeys); }
-            catch (Exception ex) { TADNLog.Log($"FanSettingsWindow.Hotkeys.Apply: {ex.Message}"); }
-
-            entries.Children.Clear();
-            foreach (FanHotkeyBinding binding in _settings.Hotkeys
-                         .Where(h => !h.RemovedByUser && h.Matches(action, string.Empty))
-                         .OrderBy(h => h.BindingID))
-                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, p));
-            entries.IsVisible = entries.Children.Count > 0;
-            UpdateAddButtonState();
-        }
-
         modifiers.SelectionChanged += (_, _) =>
         {
             selectedModifiers = modifiers.SelectedItem is { Tag: uint mods } ? mods : 0;
@@ -781,6 +746,42 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
         stack.Children.Add(RawCard(grid, p, searchKeywords: searchKeywords));
         Refresh();
+        return;
+
+        void UpdateAddButtonState()
+        {
+            if (selectedModifiers == 0 || selectedVk == 0)
+            {
+                addButton.Text = Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
+                addButton.IsEnabled = false;
+                return;
+            }
+
+            bool exists = _settings.Hotkeys.Any(b =>
+                !b.RemovedByUser
+                && b.Matches(action, string.Empty)
+                && b.Modifiers == selectedModifiers
+                && b.VirtualKey == selectedVk);
+            addButton.Text = exists
+                ? Loc(nameof(AppStrings.Settings_Hotkeys_Exists_Button))
+                : Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button));
+            addButton.IsEnabled = !exists;
+        }
+
+        void Refresh()
+        {
+            FanHotkeyApplyResult? applyResult = null;
+            try { applyResult = AppServices.HotkeyService?.Apply(_settings.Hotkeys); }
+            catch (Exception ex) { TADNLog.Log($"FanSettingsWindow.Hotkeys.Apply: {ex.Message}"); }
+
+            entries.Children.Clear();
+            foreach (FanHotkeyBinding binding in _settings.Hotkeys
+                         .Where(h => !h.RemovedByUser && h.Matches(action, string.Empty))
+                         .OrderBy(h => h.BindingID))
+                entries.Children.Add(BuildHotkeyEntryCard(action, binding, applyResult, Refresh, p));
+            entries.IsVisible = entries.Children.Count > 0;
+            UpdateAddButtonState();
+        }
     }
 
     private Border BuildHotkeyEntryCard(

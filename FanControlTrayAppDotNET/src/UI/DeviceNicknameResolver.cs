@@ -157,7 +157,7 @@ internal sealed class DeviceNicknameResolver
                 {
                     Kind = DeviceNicknameRuleKind.HardwareType,
                     HardwareTypeTarget = hardwareTypeMatch.Groups[HardwareTypeGroupName].Value,
-                    ReplacementString = rule.ReplacementString ?? string.Empty
+                    ReplacementString = rule.ReplacementString
                 });
                 continue;
             }
@@ -169,7 +169,7 @@ internal sealed class DeviceNicknameResolver
                 {
                     Kind = DeviceNicknameRuleKind.DeviceNameRegex,
                     DeviceNameRegex = regex,
-                    ReplacementString = rule.ReplacementString ?? string.Empty
+                    ReplacementString = rule.ReplacementString
                 });
             }
             catch (ArgumentException ex)
@@ -249,9 +249,9 @@ internal sealed class DeviceNicknameResolver
             {
                 case DeviceNicknameRuleKind.DeviceNameRegex:
                 {
-                    if (DeviceNameRegex is not { } regex) return false;
-                    if (!regex.IsMatch(device.DeviceName)) return false;
-                    replacement = regex.Replace(device.DeviceName, ReplacementString);
+                    if (DeviceNameRegex is null) return false;
+                    if (!DeviceNameRegex.IsMatch(device.DeviceName)) return false;
+                    replacement = DeviceNameRegex.Replace(device.DeviceName, ReplacementString);
                     return true;
                 }
                 case DeviceNicknameRuleKind.HardwareType:

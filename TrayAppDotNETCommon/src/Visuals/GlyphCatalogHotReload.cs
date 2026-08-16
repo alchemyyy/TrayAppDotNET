@@ -60,7 +60,6 @@ public sealed class GlyphCatalogHotReloadStore<TResource>
     private readonly string _catalogName;
     private readonly string _sourcePath;
     private readonly Func<TResource> _resourceFactory;
-    private readonly TResource _compiledResources;
     private TResource? _hotReloadedResources;
     private FileSystemWatcher? _watcher;
     private System.Threading.Timer? _reloadTimer;
@@ -73,14 +72,14 @@ public sealed class GlyphCatalogHotReloadStore<TResource>
         _catalogName = catalogName;
         _sourcePath = sourcePath;
         _resourceFactory = resourceFactory;
-        _compiledResources = resourceFactory();
+        Current = resourceFactory();
         StartWatcher();
     }
 
     /// <summary>
     /// Gets the latest successfully loaded dictionary.
     /// </summary>
-    public TResource Current => Volatile.Read(ref _hotReloadedResources) ?? _compiledResources;
+    public TResource Current => Volatile.Read(ref _hotReloadedResources) ?? field;
 
     /// <summary>
     /// Creates a store for an AXAML file adjacent to the calling catalog source file.

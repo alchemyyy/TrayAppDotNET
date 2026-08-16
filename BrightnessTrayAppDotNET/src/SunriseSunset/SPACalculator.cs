@@ -117,19 +117,6 @@ public static class SPACalculator
         CustomZenithTimes blue = Rts.CalculateCustomZenithTimes(
             latitude, spa.Delta, spa.Suntransit, SPAConstants.ZenithBlueHour);
 
-        DateTimeOffset? ToDate(double? hours)
-        {
-            if (hours is null) return null;
-            double v = hours.Value;
-            if (double.IsNaN(v) || double.IsInfinity(v) || v < 0 || v > 24) return null;
-            return TimeUtils.FractionalHourToDate(spa.Year, spa.Month, spa.Day, v, spa.Timezone);
-        }
-
-        DateTimeOffset? ValidSunDate(double hours)
-            => SPACore.IsValidSunTime(hours)
-                ? TimeUtils.FractionalHourToDate(spa.Year, spa.Month, spa.Day, hours, spa.Timezone)
-                : null;
-
         DateTimeOffset? sunriseDate = ValidSunDate(spa.Sunrise);
         DateTimeOffset? sunsetDate = ValidSunDate(spa.Sunset);
 
@@ -146,5 +133,18 @@ public static class SPACalculator
             BlueHour: new HourPeriod(
                 Morning: new TwilightWindow(ToDate(blue.Sunrise), sunriseDate),
                 Evening: new TwilightWindow(sunsetDate, ToDate(blue.Sunset))));
+
+        DateTimeOffset? ToDate(double? hours)
+        {
+            if (hours is null) return null;
+            double v = hours.Value;
+            if (double.IsNaN(v) || double.IsInfinity(v) || v < 0 || v > 24) return null;
+            return TimeUtils.FractionalHourToDate(spa.Year, spa.Month, spa.Day, v, spa.Timezone);
+        }
+
+        DateTimeOffset? ValidSunDate(double hours)
+            => SPACore.IsValidSunTime(hours)
+                ? TimeUtils.FractionalHourToDate(spa.Year, spa.Month, spa.Day, hours, spa.Timezone)
+                : null;
     }
 }

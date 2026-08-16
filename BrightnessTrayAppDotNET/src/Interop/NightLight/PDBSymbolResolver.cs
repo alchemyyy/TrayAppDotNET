@@ -236,10 +236,9 @@ internal static class PDBSymbolResolver
     private static List<CacheEntry> ReadCacheEntries(JsonElement root)
     {
         List<CacheEntry> entries = [];
-        if (root.ValueKind != JsonValueKind.Object) return entries;
-        if (!root.TryGetProperty("Entries", out JsonElement entriesElement)
-            || entriesElement.ValueKind != JsonValueKind.Array)
-            return entries;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("Entries", out JsonElement entriesElement)
+            || entriesElement.ValueKind != JsonValueKind.Array) return entries;
 
         foreach (JsonElement entryElement in entriesElement.EnumerateArray())
         {
