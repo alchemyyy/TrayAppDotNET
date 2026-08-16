@@ -63,26 +63,46 @@ public sealed partial class VolumeSettingsWindow
             _settings.PlayDeviceVolumeChangeSound,
             v => _settings.PlayDeviceVolumeChangeSound = v,
             p,
-            afterSave: RefreshCurrentPage));
+            afterSave: RefreshCurrentPage,
+            searchKeywords:
+            [
+                L("Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords",
+                    "audio feedback speaker ding chime")
+            ]));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Title)),
             Loc(nameof(AppStrings.Settings_General_PlayTrayScrollVolumeChangeSound_Description)),
             _settings.PlayTrayScrollVolumeChangeSound,
             v => _settings.PlayTrayScrollVolumeChangeSound = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords",
+                    "wheel audio feedback chime")
+            ])));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Title)),
             Loc(nameof(AppStrings.Settings_General_PlayAppVolumeChangeSound_Description)),
             _settings.PlayAppVolumeChangeSound,
             v => _settings.PlayAppVolumeChangeSound = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_PlayAppVolumeChangeSound_SearchKeywords",
+                    "mixer application audio feedback preview chime")
+            ]));
         stack.Children.Add(Maybe(_settings.PlayDeviceVolumeChangeSound, BoolCard(
             Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Title)),
             Loc(nameof(AppStrings.Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_Description)),
             _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying,
             v => _settings.SuppressDeviceVolumeChangeSoundWhenAudioPlaying = v,
             p,
-            afterSave: RefreshCurrentPage)));
+            afterSave: RefreshCurrentPage,
+            searchKeywords:
+            [
+                L("Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords",
+                    "silence mute feedback while listening")
+            ])));
         stack.Children.Add(Maybe(
             _settings is { PlayDeviceVolumeChangeSound: true, SuppressDeviceVolumeChangeSoundWhenAudioPlaying: true },
             IntCard(
@@ -92,7 +112,12 @@ public sealed partial class VolumeSettingsWindow
                 AppSettings.DingSuppressionPeakThresholdPercentMin,
                 AppSettings.DingSuppressionPeakThresholdPercentMax,
                 v => _settings.DingSuppressionPeakThresholdPercent = v,
-                p)));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_General_DingSuppressionPeakThreshold_SearchKeywords",
+                        "beep sensitivity cutoff level")
+                ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_General_Other_Header)), p));
         stack.Children.Add(BoolCard(
@@ -100,7 +125,12 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_General_LogarithmicVolumeScale_Description)),
             _settings.UseLogarithmicVolumeScale,
             v => _settings.UseLogarithmicVolumeScale = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_LogarithmicVolumeScale_SearchKeywords",
+                    "audio taper natural slider curve")
+            ]));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Title)),
             Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_Description)),
@@ -109,7 +139,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.WheelVolumeStepPercentMax,
             v => _settings.WheelVolumeStepPercent = v,
             p,
-            Loc(nameof(AppStrings.Common_PercentSuffix))));
+            Loc(nameof(AppStrings.Common_PercentSuffix)),
+            searchKeywords:
+            [
+                L("Settings_General_WheelVolumeStepPercent_SearchKeywords",
+                    "scroll sensitivity increment amount")
+            ]));
 
         return stack;
     }

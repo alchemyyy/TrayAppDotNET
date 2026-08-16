@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI;
@@ -31,6 +32,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private ContentControl _content = new();
     private readonly SettingsWindowCommonResources _settingsResources = new();
     private readonly CommonBindingsResources _commonBindingResources = new();
+    private IReadOnlyList<SettingsPageDescriptor<TPageKey>> _pageDescriptors = [];
     private Dictionary<TPageKey, Func<Control>> _pages = [];
     private Dictionary<TPageKey, SettingsNavItem> _navItems = [];
     private readonly Dictionary<TPageKey, double> _pageScrollOffsets = [];
@@ -176,17 +178,46 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         BringToForeground();
     }
 
-    protected void SelectPage(TPageKey key) => ShowPage(key);
+    protected void SelectPage(TPageKey key) => NavigateToSettingsPage(key);
 
-    protected void RefreshCurrentPage() => ShowPage(CurrentPageKey, force: true);
+    protected void RefreshCurrentPage()
+    {
+        if (_isShowingSettingsSearch && !string.IsNullOrWhiteSpace(_settingsSearchQuery))
+        {
+            RebuildShell(CurrentPageKey);
+            return;
+        }
+
+        ShowPage(CurrentPageKey, force: true);
+    }
 
     protected void RebuildShell(TPageKey selectedPageKey)
     {
-        if (_hasShownPage && _scrollHost != null)
+        if (_hasShownPage && !_isShowingSettingsSearch && _scrollHost != null)
             _pageScrollOffsets[CurrentPageKey] = _scrollHost.VerticalOffset;
 
+        string searchQuery = _settingsSearchQuery;
+        bool restoreSearch = _isShowingSettingsSearch && !string.IsNullOrWhiteSpace(searchQuery);
+        SettingsSearchView? previousSearchView = _settingsSearchView;
+        _isShowingSettingsSearch = false;
+        _settingsSearchView = null;
+        _settingsSearchQuery = string.Empty;
+
         RefreshPalette();
-        BuildAndCommitShell(selectedPageKey);
+        try
+        {
+            BuildAndCommitShell(selectedPageKey);
+        }
+        catch
+        {
+            _isShowingSettingsSearch = restoreSearch;
+            _settingsSearchView = previousSearchView;
+            _settingsSearchQuery = searchQuery;
+            throw;
+        }
+
+        if (restoreSearch)
+            RestoreSettingsSearchAfterShellRebuild(searchQuery);
     }
 
     /// <summary>
@@ -265,7 +296,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         bool value,
         Action<bool> set,
         SettingsPalette palette,
-        Action? afterSave = null) =>
+        Action? afterSave = null,
+        IReadOnlyList<string>? searchKeywords = null) =>
         TrayAppDotNETSettingsCards.BoolCard(
             title,
             description,
@@ -274,7 +306,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             palette,
             RadiusLarge,
             Save,
-            afterSave);
+            afterSave,
+            searchKeywords);
 
     protected Border IntCard(
         string title,
@@ -284,7 +317,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         int max,
         Action<int> set,
         SettingsPalette palette,
-        string suffix = "") =>
+        string suffix = "",
+        IReadOnlyList<string>? searchKeywords = null) =>
         TrayAppDotNETSettingsCards.IntCard(
             title,
             description,
@@ -295,7 +329,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             palette,
             RadiusLarge,
             Save,
-            suffix);
+            suffix,
+            searchKeywords);
 
     protected Border ComboCard(
         string title,
@@ -306,7 +341,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         SettingsPalette palette,
         Action? afterSave = null,
         bool autoSizeToText = false,
-        SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem) =>
+        SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem,
+        IReadOnlyList<string>? searchKeywords = null) =>
         TrayAppDotNETSettingsCards.ComboCard(
             title,
             description,
@@ -318,27 +354,38 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Save,
             afterSave,
             autoSizeToText,
-            autoSizeMode);
+            autoSizeMode,
+            searchKeywords);
 
-    protected Border Card(string title, string description, Control? rightControl, SettingsPalette palette) =>
-        TrayAppDotNETSettingsCards.Card(title, description, rightControl, palette, RadiusLarge);
+    protected Border Card(
+        string title,
+        string description,
+        Control? rightControl,
+        SettingsPalette palette,
+        IReadOnlyList<string>? searchKeywords = null) =>
+        TrayAppDotNETSettingsCards.Card(title, description, rightControl, palette, RadiusLarge, searchKeywords);
 
-    protected Border RawCard(Control content, SettingsPalette palette) =>
-        TrayAppDotNETSettingsCards.RawCard(content, palette, RadiusLarge);
+    protected Border RawCard(
+        Control content,
+        SettingsPalette palette,
+        IReadOnlyList<string>? searchKeywords = null) =>
+        TrayAppDotNETSettingsCards.RawCard(content, palette, RadiusLarge, searchKeywords);
 
     protected Border MutableCard(
         string title,
         string description,
         Control? rightControl,
         SettingsPalette palette,
-        out TextBlock descriptionText) =>
+        out TextBlock descriptionText,
+        IReadOnlyList<string>? searchKeywords = null) =>
         TrayAppDotNETSettingsCards.MutableCard(
             title,
             description,
             rightControl,
             palette,
             RadiusLarge,
-            out descriptionText);
+            out descriptionText,
+            searchKeywords);
 
     protected Task ShowMessage(string title, string message) =>
         ConfirmAsync(title, message, "OK", "OK");
@@ -346,6 +393,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Border BuildRoot()
     {
         SettingsPalette palette = Palette;
+        _pageDescriptors = CreatePageDescriptors();
         _pages.Clear();
         _navItems.Clear();
 
@@ -377,7 +425,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         sidebar.Children.Add(header);
 
         StackPanel nav = new() { Margin = _settingsResources.AxamlSettingsWindow.NavMargin };
-        foreach (SettingsPageDescriptor<TPageKey> page in CreatePageDescriptors())
+        foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
             _pages[page.Key] = page.BuildPage;
             AddNavItem(nav, page.Key, page.Label, palette);
@@ -387,9 +435,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         sidebar.Children.Add(nav);
 
         StackPanel footer = new() { Margin = _settingsResources.AxamlSettingsWindow.FooterMargin };
-        SettingsNavAction folderButton = new(OpenSettingsFolderText, palette, RadiusTiny, RadiusMedium);
-        folderButton.Click += (_, _) => TrayAppDotNETSettingsActions.OpenFolder(SettingsFolderPath);
-        footer.Children.Add(folderButton);
+        _settingsSearchBox = new SettingsSearchBox(
+            palette,
+            L("SettingsWindow_SearchPlaceholder", "Search settings"));
+        _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
+        footer.Children.Add(_settingsSearchBox);
         Grid.SetRow(footer, 2);
         sidebar.Children.Add(footer);
 
@@ -570,7 +620,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private void AddNavItem(StackPanel nav, TPageKey key, string label, SettingsPalette palette)
     {
         SettingsNavItem item = new(label, palette, RadiusTiny, RadiusMedium);
-        item.Click += (_, _) => ShowPage(key);
+        item.Click += (_, _) => NavigateToSettingsPage(key);
         _navItems[key] = item;
         nav.Children.Add(item);
     }
@@ -579,11 +629,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         if (!_pages.TryGetValue(key, out Func<Control>? factory)) return;
         if (!force
+            && !_isShowingSettingsSearch
             && _hasShownPage
             && EqualityComparer<TPageKey>.Default.Equals(CurrentPageKey, key))
             return;
 
-        if (_hasShownPage && _scrollHost != null)
+        if (_hasShownPage && !_isShowingSettingsSearch && _scrollHost != null)
             _pageScrollOffsets[CurrentPageKey] = _scrollHost.VerticalOffset;
 
         TPageKey previousPageKey = CurrentPageKey;
@@ -610,6 +661,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         {
             _content.Content = replacement.Root;
             _pageGeneration = replacement;
+            _settingsSearchView = null;
+            _isShowingSettingsSearch = false;
             foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
                 item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, key);
             _hasShownPage = true;
@@ -633,9 +686,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         CancelPendingConfirm();
 
         ContentControl previousContent = _content;
+        IReadOnlyList<SettingsPageDescriptor<TPageKey>> previousPageDescriptors = _pageDescriptors;
         Dictionary<TPageKey, Func<Control>> previousPages = _pages;
         Dictionary<TPageKey, SettingsNavItem> previousNavItems = _navItems;
         SettingsScrollHost? previousScrollHost = _scrollHost;
+        SettingsSearchBox? previousSettingsSearchBox = _settingsSearchBox;
         Border? previousConfirmOverlay = _confirmOverlay;
         TextBlock? previousConfirmTitle = _confirmTitle;
         TextBlock? previousConfirmMessage = _confirmMessage;
@@ -655,9 +710,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             _content = new ContentControl();
+            _pageDescriptors = [];
             _pages = replacementPages;
             _navItems = replacementNavItems;
             _scrollHost = null;
+            _settingsSearchBox = null;
             _confirmOverlay = null;
             _confirmTitle = null;
             _confirmMessage = null;
@@ -681,6 +738,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             shellResources.Add(replacementPages.Clear);
             if (_scrollHost != null)
                 shellResources.Own(_scrollHost);
+            if (_settingsSearchBox != null)
+                shellResources.Own(_settingsSearchBox);
             replacementShellGeneration = new UIContentGeneration(
                 $"{GetType().Name}.Shell",
                 replacementRoot,
@@ -708,9 +767,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             }
 
             _content = previousContent;
+            _pageDescriptors = previousPageDescriptors;
             _pages = previousPages;
             _navItems = previousNavItems;
             _scrollHost = previousScrollHost;
+            _settingsSearchBox = previousSettingsSearchBox;
             _confirmOverlay = previousConfirmOverlay;
             _confirmTitle = previousConfirmTitle;
             _confirmMessage = previousConfirmMessage;
@@ -936,6 +997,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _openColorPickers.Clear();
 
         RunWindowCloseCleanup(nameof(DetachWndProcHook), DetachWndProcHook);
+        RunWindowCloseCleanup(nameof(DisposeSettingsSearch), DisposeSettingsSearch);
         RunWindowCloseCleanup("ClearWindowContent", () => Content = null);
 
         UIContentGeneration? pageGeneration = Interlocked.Exchange(ref _pageGeneration, null);
@@ -951,6 +1013,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         RunWindowCloseCleanup("ClearPageContent", () => _content.Content = null);
         _pages.Clear();
         _navItems.Clear();
+        _pageDescriptors = [];
         _pageScrollOffsets.Clear();
         _scrollHost = null;
         _confirmOverlay = null;

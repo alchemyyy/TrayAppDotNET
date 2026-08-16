@@ -21,6 +21,8 @@ public sealed partial class BrightnessSettingsWindow
             BuildNumber = BuildInfo.BuildNumber,
             Publisher = Constants.Publisher,
             HelpLink = Constants.HelpLink,
+            OpenSettingsFolderText = OpenSettingsFolderText,
+            SettingsFolderPath = SettingsFolderPath,
             UpdateSettings = _settings,
             UpdateService = static () => AppServices.UpdateCheckService,
             ConfirmAsync = ConfirmAsync,

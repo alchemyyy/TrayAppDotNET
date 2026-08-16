@@ -25,7 +25,12 @@ public sealed partial class BrightnessSettingsWindow
             ContextMenuFontSizeMin,
             ContextMenuFontSizeMax,
             v => _settings.ContextMenuFontSize = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_FontSize_SearchKeywords",
+                    "text scale accessibility")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Theme_Appearance_Header), "Appearance"),
@@ -42,7 +47,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.ThemeMode,
             v => _settings.ThemeMode = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme)));
+            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
+            searchKeywords:
+            [
+                L("Settings_Theme_ThemeStyle_SearchKeywords",
+                    "appearance Windows color scheme")
+            ]));
         stack.Children.Add(VariantColorCard(
             "Text",
             L(nameof(AppStrings.Settings_Theme_TextColor_Title), "Text color"),
@@ -52,7 +62,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TextColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_TextColor_SearchKeywords",
+                    "foreground lettering font palette")
+            ]));
         stack.Children.Add(VariantColorCard(
             "Background",
             L(nameof(AppStrings.Settings_Theme_BackgroundColor_Title), "Background color"),
@@ -62,7 +77,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.BackgroundColor,
             theme.Background.Light,
             theme.Background.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_BackgroundColor_SearchKeywords",
+                    "window surface canvas palette")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Theme_Flyout_Header), "Flyout"),
@@ -73,7 +93,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme)));
+            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
+            searchKeywords:
+            [
+                L("Settings_Theme_RoundedCorners_SearchKeywords",
+                    "square edges window shape")
+            ]));
 
         SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(
             p,
@@ -102,7 +127,12 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Theme_SliderIndicator_Title), "Slider indicator"),
             L(nameof(AppStrings.Settings_Theme_SliderIndicator_Description), "Choose the slider thumb shape used in the flyout."),
             sliderThumbCombo,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_SliderIndicator_SearchKeywords",
+                    "handle knob marker shape")
+            ]));
         stack.Children.Add(VariantColorCard(
             "FooterBackground",
             L(nameof(AppStrings.Settings_Theme_FooterBackgroundColor_Title), "Footer background"),
@@ -112,7 +142,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.FooterBackgroundColor,
             theme.FooterBackground.Light,
             theme.FooterBackground.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_FooterBackgroundColor_SearchKeywords",
+                    "bottom bar surface palette")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Theme_TrayIcon_Header), "Tray icon"),
@@ -128,7 +163,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayIconStyle,
             v => _settings.TrayIconStyle = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme)));
+            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
+            searchKeywords:
+            [
+                L("Settings_Theme_TrayIconStyle_SearchKeywords",
+                    "notification area fixed adaptive glyph")
+            ]));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, StringComboCard(
             L(nameof(AppStrings.Settings_Theme_DynamicIconTracking_Title), "Dynamic icon tracking"),
             L(nameof(AppStrings.Settings_Theme_DynamicIconTracking_Description),
@@ -140,14 +180,24 @@ public sealed partial class BrightnessSettingsWindow
             ],
             _settings.DynamicIconBrightnessTracking,
             v => _settings.DynamicIconBrightnessTracking = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_DynamicIconTracking_SearchKeywords",
+                    "icon level aggregate minimum mean maximum")
+            ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, BoolCard(
             L(nameof(AppStrings.Settings_Theme_TrackEnabledOnly_Title), "Track enabled monitors only"),
             L(nameof(AppStrings.Settings_Theme_TrackEnabledOnly_Description),
                 "Ignore disabled monitors when calculating the dynamic tray icon brightness."),
             _settings.DynamicIconTrackEnabledOnly,
             v => _settings.DynamicIconTrackEnabledOnly = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_TrackEnabledOnly_SearchKeywords",
+                    "ignore disabled screens icon calculation")
+            ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Static, VariantColorCard(
             "TrayIcon",
             L(nameof(AppStrings.Settings_Theme_StaticIconColor_Title), "Static icon color"),
@@ -158,7 +208,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayIconColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_StaticIconColor_SearchKeywords",
+                    "notification area glyph palette")
+            ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, VariantColorCard(
             "TrayIconBright",
             L(nameof(AppStrings.Settings_Theme_BrightColor_Title), "Bright color"),
@@ -169,7 +224,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayIconBrightColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_BrightColor_SearchKeywords",
+                    "high brightness endpoint icon palette")
+            ])));
         stack.Children.Add(Maybe(_settings.TrayIconStyle == TrayIconStyle.Dynamic, VariantColorCard(
             "TrayIconDim",
             L(nameof(AppStrings.Settings_Theme_DimColor_Title), "Dim color"),
@@ -179,7 +239,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayIconDimColor,
             theme.Foreground.Light,
             theme.Foreground.Dark,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_DimColor_SearchKeywords",
+                    "low brightness endpoint icon palette")
+            ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Theme_Environmental_Header), "Environmental curves"),
@@ -193,7 +258,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalBrightnessCurveColor,
             theme.EnvironmentalBrightnessCurve.Light,
             theme.EnvironmentalBrightnessCurve.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_BrightnessCurveColor_SearchKeywords",
+                    "adaptive brightness chart plot line palette")
+            ]));
         stack.Children.Add(VariantColorCard(
             "EnvNightLightCurve",
             L(nameof(AppStrings.Settings_Theme_NightLightCurveColor_Title), "Night-light curve"),
@@ -203,7 +273,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalNightLightCurveColor,
             theme.EnvironmentalNightLightCurve.Light,
             theme.EnvironmentalNightLightCurve.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_NightLightCurveColor_SearchKeywords",
+                    "color temperature chart plot line palette")
+            ]));
         stack.Children.Add(VariantColorCard(
             "EnvCurrentTime",
             L(nameof(AppStrings.Settings_Theme_CurrentTimeMarkerColor_Title), "Current-time marker"),
@@ -213,7 +288,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalCurrentTimeColor,
             theme.EnvironmentalCurrentTime.Light,
             theme.EnvironmentalCurrentTime.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_CurrentTimeMarkerColor_SearchKeywords",
+                    "now indicator chart palette")
+            ]));
         stack.Children.Add(VariantColorCard(
             "EnvTwilightBackdrop",
             L(nameof(AppStrings.Settings_Theme_TwilightBackdropColor_Title), "Twilight backdrop"),
@@ -223,7 +303,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalTwilightBackdropColor,
             theme.EnvironmentalTwilightBackdrop.Light,
             theme.EnvironmentalTwilightBackdrop.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_TwilightBackdropColor_SearchKeywords",
+                    "dawn dusk chart shading palette")
+            ]));
         stack.Children.Add(VariantColorCard(
             "EnvNightBackdrop",
             L(nameof(AppStrings.Settings_Theme_NightBackdropColor_Title), "Night backdrop"),
@@ -233,7 +318,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalNightBackdropColor,
             theme.EnvironmentalNightBackdrop.Light,
             theme.EnvironmentalNightBackdrop.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_NightBackdropColor_SearchKeywords",
+                    "after dark chart shading palette")
+            ]));
         stack.Children.Add(VariantColorCard(
             "EnvGridLine",
             L(nameof(AppStrings.Settings_Theme_GridLineColor_Title), "Grid line"),
@@ -243,7 +333,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.EnvironmentalGridLineColor,
             theme.EnvironmentalGridLine.Light,
             theme.EnvironmentalGridLine.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_GridLineColor_SearchKeywords",
+                    "chart guides graph axes palette")
+            ]));
 
         return stack;
     }

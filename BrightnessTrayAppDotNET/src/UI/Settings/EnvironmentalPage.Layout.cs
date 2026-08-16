@@ -531,12 +531,13 @@ public sealed partial class BrightnessSettingsWindow
     }
 
     private Border CompactEnvironmentalCard(Control content, SettingsPalette p, Thickness padding, Thickness margin) =>
-        new()
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(p.CardBackground),
-            CornerRadius = RadiusLarge,
-            Padding = padding,
-            Margin = margin,
-            Child = content
-        };
+        TrayAppDotNETSettingsCards.RegisterSearchCard(
+            new Border
+            {
+                Background = TrayAppDotNETSettingsUI.Brush(p.CardBackground),
+                CornerRadius = RadiusLarge,
+                Padding = padding,
+                Margin = margin,
+                Child = content
+            });
 }

@@ -35,11 +35,21 @@ public sealed partial class NetworkSettingsWindow
         AddHotkeyRow(stack, rows, HotkeyAction.OpenFlyout,
             L("Settings_Hotkeys_OpenFlyout_Title", "Open flyout"),
             L("Settings_Hotkeys_OpenFlyout_Description", "Show the network flyout above the tray icon."),
-            p);
+            p,
+            searchKeywords:
+            [
+                L("Settings_Hotkeys_OpenFlyout_SearchKeywords",
+                    "global key binding keyboard command wireless internet connections")
+            ]);
         AddHotkeyRow(stack, rows, HotkeyAction.OpenSettings,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
-            p);
+            p,
+            searchKeywords:
+            [
+                L("Settings_Hotkeys_OpenSettings_SearchKeywords",
+                    "global key binding keyboard command preferences configuration")
+            ]);
 
         searchBox.TextChanged += (_, _) =>
         {
@@ -59,7 +69,8 @@ public sealed partial class NetworkSettingsWindow
         HotkeyAction action,
         string title,
         string description,
-        SettingsPalette p)
+        SettingsPalette p,
+        IReadOnlyList<string> searchKeywords)
     {
         StackPanel entries = new() { Spacing = 0 };
         uint selectedModifiers = 0;
@@ -188,8 +199,8 @@ public sealed partial class NetworkSettingsWindow
         Grid.SetColumnSpan(entries, 2);
         grid.Children.Add(entries);
 
-        Border card = RawCard(grid, p);
-        rows.Add((card, title + "\n" + description));
+        Border card = RawCard(grid, p, searchKeywords: searchKeywords);
+        rows.Add((card, title + "\n" + description + "\n" + string.Join("\n", searchKeywords)));
         stack.Children.Add(card);
         Refresh();
     }

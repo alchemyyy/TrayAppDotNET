@@ -1523,4 +1523,265 @@ Night Light: {0}%</value>
   <data name="UpdateNotification_Title" xml:space="preserve">
     <value>BrightnessTrayAppDotNET update available</value>
   </data>
+  <data name="Settings_General_ApplyBrightnessOnStartup_SearchKeywords" xml:space="preserve">
+    <value>launch restore monitor levels</value>
+  </data>
+  <data name="Settings_General_Autosave_SearchKeywords" xml:space="preserve">
+    <value>persist presets automatically</value>
+  </data>
+  <data name="Settings_General_AutoEngageEnvironmentalCurve_SearchKeywords" xml:space="preserve">
+    <value>resume adaptive automatic brightness after manual adjustment</value>
+  </data>
+  <data name="Settings_General_ShowNightLightSlider_SearchKeywords" xml:space="preserve">
+    <value>blue light color temperature warmth control</value>
+  </data>
+  <data name="Settings_General_InvertNightLightSlider_SearchKeywords" xml:space="preserve">
+    <value>reverse warmth direction cooler warmer</value>
+  </data>
+  <data name="Settings_General_TurnOffNightLightAtZero_SearchKeywords" xml:space="preserve">
+    <value>disable blue light minimum</value>
+  </data>
+  <data name="Settings_General_NightLightBackend_SearchKeywords" xml:space="preserve">
+    <value>provider implementation registry gamma symbols</value>
+  </data>
+  <data name="Settings_General_PDBTimeout_SearchKeywords" xml:space="preserve">
+    <value>symbol download network wait</value>
+  </data>
+  <data name="Settings_General_EnvironmentalTick_SearchKeywords" xml:space="preserve">
+    <value>adaptive automation polling refresh frequency</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_SearchKeywords" xml:space="preserve">
+    <value>remember floating detached window</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_SearchKeywords" xml:space="preserve">
+    <value>detach float popup window</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_SearchKeywords" xml:space="preserve">
+    <value>monitor work area bounds floating window</value>
+  </data>
+  <data name="Settings_Flyout_ShowMonitorPowerButtons_SearchKeywords" xml:space="preserve">
+    <value>turn screens off individually</value>
+  </data>
+  <data name="Settings_Flyout_ShowDisplayNumberBadge_SearchKeywords" xml:space="preserve">
+    <value>screen identifier overlay badge</value>
+  </data>
+  <data name="Settings_Flyout_ShowDisplaySettingsButton_SearchKeywords" xml:space="preserve">
+    <value>Windows screen configuration shortcut</value>
+  </data>
+  <data name="Settings_Flyout_ShowPowerButton_SearchKeywords" xml:space="preserve">
+    <value>turn screens off footer</value>
+  </data>
+  <data name="Settings_Flyout_ShowMasterSlider_SearchKeywords" xml:space="preserve">
+    <value>all screens brightness control</value>
+  </data>
+  <data name="Settings_Flyout_ShowIndividualSliders_SearchKeywords" xml:space="preserve">
+    <value>per display brightness controls</value>
+  </data>
+  <data name="Settings_Flyout_ShowEnvironmentalCurvesButton_SearchKeywords" xml:space="preserve">
+    <value>adaptive automatic brightness shortcut</value>
+  </data>
+  <data name="Settings_Flyout_ShowNightLightKelvinLabel_SearchKeywords" xml:space="preserve">
+    <value>color temperature degrees warmth</value>
+  </data>
+  <data name="Settings_Flyout_PowerButtonOnlyEnabled_SearchKeywords" xml:space="preserve">
+    <value>exclude disabled screens shutdown</value>
+  </data>
+  <data name="Settings_Flyout_NumberKeysSwitchProfile_SearchKeywords" xml:space="preserve">
+    <value>keyboard shortcuts presets one two three four</value>
+  </data>
+  <data name="Settings_Flyout_MasterSliderTracking_SearchKeywords" xml:space="preserve">
+    <value>aggregate minimum mean maximum monitors</value>
+  </data>
+  <data name="Settings_Flyout_PreserveSliderOffsets_SearchKeywords" xml:space="preserve">
+    <value>relative brightness differences overflow</value>
+  </data>
+  <data name="Settings_Flyout_MouseWheelStep_SearchKeywords" xml:space="preserve">
+    <value>scroll sensitivity increment</value>
+  </data>
+  <data name="Settings_TrayIcon_MouseWheel_SearchKeywords" xml:space="preserve">
+    <value>scroll notification area icon adjust brightness</value>
+  </data>
+  <data name="Settings_TrayIcon_MouseWheelStep_SearchKeywords" xml:space="preserve">
+    <value>scroll sensitivity increment</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords" xml:space="preserve">
+    <value>trackpad gesture high resolution</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords" xml:space="preserve">
+    <value>trackpad gesture speed raw movement</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowProfileSelectors_SearchKeywords" xml:space="preserve">
+    <value>presets right click menu</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowIndividualPowerSelectors_SearchKeywords" xml:space="preserve">
+    <value>turn screens off individually</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowAllDisplaysPowerSelector_SearchKeywords" xml:space="preserve">
+    <value>turn every screen off</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_SearchKeywords" xml:space="preserve">
+    <value>right click cursor taskbar docked</value>
+  </data>
+  <data name="Settings_TrayIcon_WheelActions_SearchKeywords" xml:space="preserve">
+    <value>modifier gesture scroll adjust brightness night light</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickActions_SearchKeywords" xml:space="preserve">
+    <value>modifier gesture shortcut turn screens on off maximum minimum brightness</value>
+  </data>
+  <data name="Settings_Monitors_BrightnessRate_SearchKeywords" xml:space="preserve">
+    <value>DDC write pacing interval</value>
+  </data>
+  <data name="Settings_Monitors_ValidationDwell_SearchKeywords" xml:space="preserve">
+    <value>verify readback delay</value>
+  </data>
+  <data name="Settings_Monitors_ValidationAttempts_SearchKeywords" xml:space="preserve">
+    <value>verification retries DDC</value>
+  </data>
+  <data name="Settings_Monitors_DDCOperationTimeout_SearchKeywords" xml:space="preserve">
+    <value>monitor control command wait</value>
+  </data>
+  <data name="Settings_Monitors_PowerOffMode_SearchKeywords" xml:space="preserve">
+    <value>DDC VCP sleep standby command</value>
+  </data>
+  <data name="Settings_Monitors_IdentityStrategy_SearchKeywords" xml:space="preserve">
+    <value>stable display matching EDID serial port number</value>
+  </data>
+  <data name="Settings_Monitors_DefaultSort_SearchKeywords" xml:space="preserve">
+    <value>screen order arrangement reverse</value>
+  </data>
+  <data name="Settings_Monitors_DisplayOrder_SearchKeywords" xml:space="preserve">
+    <value>rename screens limits calibration clear saved</value>
+  </data>
+  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
+    <value>text scale accessibility</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
+    <value>appearance Windows color scheme</value>
+  </data>
+  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
+    <value>foreground lettering font palette</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>window surface canvas palette</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>square edges window shape</value>
+  </data>
+  <data name="Settings_Theme_SliderIndicator_SearchKeywords" xml:space="preserve">
+    <value>handle knob marker shape</value>
+  </data>
+  <data name="Settings_Theme_FooterBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>bottom bar surface palette</value>
+  </data>
+  <data name="Settings_Theme_TrayIconStyle_SearchKeywords" xml:space="preserve">
+    <value>notification area fixed adaptive glyph</value>
+  </data>
+  <data name="Settings_Theme_DynamicIconTracking_SearchKeywords" xml:space="preserve">
+    <value>icon level aggregate minimum mean maximum</value>
+  </data>
+  <data name="Settings_Theme_TrackEnabledOnly_SearchKeywords" xml:space="preserve">
+    <value>ignore disabled screens icon calculation</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
+    <value>notification area glyph palette</value>
+  </data>
+  <data name="Settings_Theme_BrightColor_SearchKeywords" xml:space="preserve">
+    <value>high brightness endpoint icon palette</value>
+  </data>
+  <data name="Settings_Theme_DimColor_SearchKeywords" xml:space="preserve">
+    <value>low brightness endpoint icon palette</value>
+  </data>
+  <data name="Settings_Theme_BrightnessCurveColor_SearchKeywords" xml:space="preserve">
+    <value>adaptive brightness chart plot line palette</value>
+  </data>
+  <data name="Settings_Theme_NightLightCurveColor_SearchKeywords" xml:space="preserve">
+    <value>color temperature chart plot line palette</value>
+  </data>
+  <data name="Settings_Theme_CurrentTimeMarkerColor_SearchKeywords" xml:space="preserve">
+    <value>now indicator chart palette</value>
+  </data>
+  <data name="Settings_Theme_TwilightBackdropColor_SearchKeywords" xml:space="preserve">
+    <value>dawn dusk chart shading palette</value>
+  </data>
+  <data name="Settings_Theme_NightBackdropColor_SearchKeywords" xml:space="preserve">
+    <value>after dark chart shading palette</value>
+  </data>
+  <data name="Settings_Theme_GridLineColor_SearchKeywords" xml:space="preserve">
+    <value>chart guides graph axes palette</value>
+  </data>
+  <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
+    <value>master brightness|all-displays brightness|all-monitor brightness
+per-monitor|per-display
+increase master brightness|raise master brightness|turn master brightness up|increment master brightness
+decrease master brightness|lower master brightness|turn master brightness down|decrement master brightness
+full bright|maximum brightness|100% brightness|brightest setting
+full dim|minimum brightness|0% brightness|dimmest setting
+normalize brightnesses|synchronize monitor brightness|sync monitor brightness|match master brightness
+brightness profile|brightness preset|saved brightness profile|saved brightness preset
+profile slot|preset slot
+switch profile|select profile|choose profile|change profile
+autosave|auto-save|save profile changes automatically|persist profile changes automatically
+power off all monitors|turn every monitor off|turn all displays off|switch all screens off
+power off specific monitor|turn off selected monitor|turn off specific display|switch off selected screen
+all displays on|turn on all displays|power on all monitors|switch on all screens
+monitor power buttons|display power buttons|screen power buttons
+sleep|standby
+DDC|DDC/CI|monitor control interface|hardware monitor control
+VCP|VCP code|Virtual Control Panel code|monitor control code
+EDID|Extended Display Identification Data|display identification data
+monitor identity|display identity|monitor matching|display matching|stable monitor identifier|stable display identifier
+display number|monitor number|screen number
+validation attempts|verification attempts|validation retries|verification retries|retry count
+validation dwell|verification dwell|readback delay|verification wait
+DDC operation timeout|DDC timeout|monitor command timeout|maximum DDC wait
+brightness update dwell|brightness dwell|brightness write delay|brightness settling delay
+display sort order|monitor sort order|screen sort order|display ordering
+per-monitor overrides|per-display overrides|monitor-specific overrides|display-specific overrides
+night light|blue-light filter|blue light reduction
+night light strength|blue-light filter strength|blue light reduction amount|night light intensity
+color temperature|Kelvin
+gamma ramp|gamma LUT|gamma lookup table|GPU gamma ramp
+PDB|program database|debug symbols|symbol file
+night-light backend|night light method|night light implementation
+invert night light slider|reverse night light slider|reverse warmth direction
+turn off night light at zero strength|disable night light at zero strength|zero strength disables night light
+environmental curve|sun-based curve|time-of-day curve|scheduled brightness curve|circadian brightness curve
+auto-engage environmental curve|resume environmental curve|re-engage environmental curve
+environmental curve tick interval|curve evaluation interval|curve update cadence|curve refresh interval
+follow the sun|follow sun|sun-relative schedule|solar schedule
+daylight savings|daylight saving time|DST|summer time
+geo location|geolocation|geographic coordinates|latitude and longitude
+approx from IP|approximate from IP|IP geolocation|locate by IP
+latitude|lat
+longitude|lon
+disabled period|curve exclusion period|curve pause interval|automation blackout period
+offset mode|relative mode|additive mode|delta mode
+smoothness|curve smoothing|curve interpolation|interpolation amount
+live preview|24-hour preview|full-day preview|preview sweep|curve simulation
+reset curves|restore curve defaults|revert curves to defaults
+sun overlay|solar overlay|day-night shading|twilight and night bands
+cursor readout|hover readout|curve scrubber|curve value markers
+current-time marker|now line|current-time indicator
+grid line|gridline|chart grid|graph guide
+brightness curve|brightness graph|brightness plot|brightness schedule
+night light curve|color-temperature curve|warmth schedule|night light graph
+twilight backdrop|twilight band|dawn and dusk shading
+night backdrop|nighttime band|astronomical-night shading|after-dark overlay
+mouse wheel|scroll wheel|wheel scrolling
+mouse wheel step|wheel step|percent per wheel notch|scroll amount per notch
+precision touchpad|precision trackpad|trackpad scrolling
+touchpad sensitivity|trackpad sensitivity|touchpad movement per step|trackpad units per percent
+master slider tracking|master brightness tracking|aggregate monitor brightness
+preserve slider offsets|retain relative brightness|keep monitor brightness differences|prevent offset loss
+number keys switch profile|numeric keys switch profile|digit keys select profile
+slider indicator|slider thumb|slider handle|slider knob
+dynamic tray icon|brightness-responsive tray icon|changing tray icon
+static tray icon|fixed tray icon|constant tray icon
+Ctrl|Control key
+right click|secondary click|context click
+left click|primary click
+DDC state corruption|corrupted DDC state|stuck DDC|unresponsive DDC
+Night Light corruption|stuck Night Light|unresponsive Night Light</value>
+    <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
+  </data>
 </root>

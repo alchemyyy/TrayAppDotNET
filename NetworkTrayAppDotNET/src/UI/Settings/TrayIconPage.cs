@@ -29,7 +29,12 @@ public sealed partial class NetworkSettingsWindow
             },
             p,
             autoSizeToText: true,
-            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem));
+            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_MenuPosition_SearchKeywords",
+                    "right click popup taskbar cursor corner")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Header)), p));
@@ -78,6 +83,11 @@ public sealed partial class NetworkSettingsWindow
             },
             p,
             autoSizeToText: true,
-            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem));
+            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_ClickActions_SearchKeywords",
+                    "mouse gesture shortcut command adapter properties interface network connections")
+            ]));
     }
 }

@@ -14,7 +14,12 @@ public sealed partial class VolumeSettingsWindow
             Loc(nameof(AppStrings.Settings_DeviceAppDrawers_DefaultAppDrawerExpanded_Description)),
             _settings.DefaultAppDrawerExpanded,
             v => _settings.DefaultAppDrawerExpanded = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_DeviceAppDrawers_DefaultAppDrawerExpanded_SearchKeywords",
+                    "open unfold reveal mixer applications")
+            ]));
         stack.Children.Add(IntCard(
             Loc(nameof(AppStrings.Settings_General_IconRetryInterval_Title)),
             Loc(nameof(AppStrings.Settings_General_IconRetryInterval_Description)),
@@ -22,7 +27,12 @@ public sealed partial class VolumeSettingsWindow
             TimeConstants.IconRetryIntervalMsMin,
             TimeConstants.IconRetryIntervalMsMax,
             v => _settings.IconRetryIntervalMs = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_IconRetryInterval_SearchKeywords",
+                    "missing blank application artwork fallback")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_PlaybackDrawer_Header)), p));
         stack.Children.Add(IntCard(
@@ -32,7 +42,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.AppDrawerSlidersMaxAppsMin,
             AppSettings.AppDrawerSlidersMaxAppsMax,
             v => _settings.PlaybackAppDrawerSlidersMaxApps = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerMaxApps_Sliders_SearchKeywords",
+                    "mixer list height overflow limit")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(Loc(nameof(AppStrings.Settings_Flyout_RecordingDrawer_Header)), p));
         stack.Children.Add(StringComboCard(
@@ -45,7 +60,12 @@ public sealed partial class VolumeSettingsWindow
             _settings.RecordingAppDrawerDisplayType,
             v => _settings.RecordingAppDrawerDisplayType = v,
             p,
-            afterSave: RefreshCurrentPage));
+            afterSave: RefreshCurrentPage,
+            searchKeywords:
+            [
+                L("Settings_Flyout_RecordingAppDrawerDisplayType_SearchKeywords",
+                    "microphone applications mixer grid presentation")
+            ]));
         stack.Children.Add(Maybe(_settings.RecordingAppDrawerDisplayType == AppDrawerDisplayType.Sliders, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Sliders_Description)),
@@ -53,7 +73,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.AppDrawerSlidersMaxAppsMin,
             AppSettings.AppDrawerSlidersMaxAppsMax,
             v => _settings.RecordingAppDrawerSlidersMaxApps = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerMaxApps_Sliders_SearchKeywords",
+                    "mixer list height overflow limit")
+            ])));
         stack.Children.Add(Maybe(_settings.RecordingAppDrawerDisplayType == AppDrawerDisplayType.Icons, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Icons_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerMaxApps_Icons_Description)),
@@ -61,7 +86,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.AppDrawerIconsMaxRowsMin,
             AppSettings.AppDrawerIconsMaxRowsMax,
             v => _settings.RecordingAppDrawerIconsMaxRows = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerMaxApps_Icons_SearchKeywords",
+                    "grid height overflow limit")
+            ])));
         stack.Children.Add(StringComboCard(
             Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_Title)),
             Loc(nameof(AppStrings.Settings_General_CaptureActivityIndicator_Description)),
@@ -73,7 +103,12 @@ public sealed partial class VolumeSettingsWindow
             ],
             _settings.CaptureActivityIndicator,
             v => _settings.CaptureActivityIndicator = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_CaptureActivityIndicator_SearchKeywords",
+                    "microphone privacy in use live recording")
+            ]));
 
         bool icons = _settings.RecordingAppDrawerDisplayType == AppDrawerDisplayType.Icons;
         stack.Children.Add(Maybe(icons, StringComboCard(
@@ -87,7 +122,12 @@ public sealed partial class VolumeSettingsWindow
             _settings.AppDrawerIconsCenterMode,
             v => _settings.AppDrawerIconsCenterMode = v,
             p,
-            afterSave: RefreshCurrentPage)));
+            afterSave: RefreshCurrentPage,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerIconsCentered_SearchKeywords",
+                    "alignment justify partial trailing row")
+            ])));
         stack.Children.Add(Maybe(_settings.AppDrawerIconsCenterMode == AppDrawerIconsCenterMode.CenteredSoftMax,
             IntCard(
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsCenterSoftMax_Title)),
@@ -96,7 +136,12 @@ public sealed partial class VolumeSettingsWindow
                 AppSettings.AppDrawerIconsCenterSoftMaxMin,
                 AppSettings.AppDrawerIconsCenterSoftMaxMax,
                 v => _settings.AppDrawerIconsCenterSoftMax = v,
-                p)));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Flyout_AppDrawerIconsCenterSoftMax_SearchKeywords",
+                        "alignment anchor target width")
+                ])));
         stack.Children.Add(Maybe(icons, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconScale_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconScale_Description)),
@@ -104,7 +149,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.AppDrawerIconScalePercentMin,
             AppSettings.AppDrawerIconScalePercentMax,
             v => _settings.AppDrawerIconScalePercent = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerIconScale_SearchKeywords",
+                    "size zoom dimensions artwork")
+            ])));
         stack.Children.Add(Maybe(icons, StringComboCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerStackDirection_Description)),
@@ -118,7 +168,12 @@ public sealed partial class VolumeSettingsWindow
             _settings.AppDrawerStackDirection,
             v => _settings.AppDrawerStackDirection = v,
             p,
-            afterSave: RefreshCurrentPage)));
+            afterSave: RefreshCurrentPage,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerStackDirection_SearchKeywords",
+                    "flow order orientation grid")
+            ])));
         bool vertical =
             _settings.AppDrawerStackDirection is AppDrawerStackDirection.LeftRight or AppDrawerStackDirection.RightLeft;
         stack.Children.Add(Maybe(icons && !vertical, IntCard(
@@ -128,7 +183,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.AppDrawerIconsPerRowMin,
             AppSettings.AppDrawerIconsPerRowMax,
             v => _settings.AppDrawerIconsPerRow = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerIconsPerRow_SearchKeywords",
+                    "columns width horizontal grid capacity")
+            ])));
         stack.Children.Add(Maybe(icons && vertical, IntCard(
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerColumn_Title)),
             Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerColumn_Description)),
@@ -136,7 +196,12 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.AppDrawerIconsPerRowMin,
             AppSettings.AppDrawerIconsPerRowMax,
             v => _settings.AppDrawerIconsPerRow = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Flyout_AppDrawerIconsPerColumn_SearchKeywords",
+                    "rows height vertical grid capacity")
+            ])));
 
         return stack;
     }

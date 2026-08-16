@@ -29,6 +29,8 @@ public sealed class TrayAppDotNETAboutPageOptions
     public required int BuildNumber { get; init; }
     public required string Publisher { get; init; }
     public required string HelpLink { get; init; }
+    public required string OpenSettingsFolderText { get; init; }
+    public required string SettingsFolderPath { get; init; }
     public ITrayAppDotNETUpdateSettings? UpdateSettings { get; init; }
     public Func<UpdateCheckService?> UpdateService { get; init; } = static () => null;
     public IReadOnlyList<TrayAppDotNETKnownIssue> KnownIssues { get; init; } = [];
@@ -115,6 +117,10 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         stack.Children.Add(AboutRow(L("Settings_About_GithubLabel", "GitHub"), _options.HelpLink, p,
             _options.HelpLink));
 
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
+            L("Settings_About_Files_Header", "Files"), p));
+        stack.Children.Add(BuildSettingsFolderCard(p));
+
         if (_options.UpdateSettings != null)
             AddUpdatesSection(stack, p);
 
@@ -188,13 +194,17 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             L("Settings_About_CheckForUpdates_Description", "Periodically ask GitHub if a newer release is available."),
             settings.CheckForUpdatesEnabled,
             value => settings.CheckForUpdatesEnabled = value,
-            afterSave: _options.RebuildAboutPage));
+            afterSave: _options.RebuildAboutPage,
+            searchKeywords: [L("Settings_About_Updates_SearchKeywords",
+                "upgrade download release version GitHub new build")]));
         stack.Children.Add(BoolCard(
             L("Settings_About_ShowUpdateNotifications_Title", "Show notification for updates"),
             L("Settings_About_ShowUpdateNotifications_Description",
                 "Raise a tray notification when a new version is detected and the flyout isn't open."),
             settings.ShowUpdateNotificationsEnabled,
-            value => settings.ShowUpdateNotificationsEnabled = value));
+            value => settings.ShowUpdateNotificationsEnabled = value,
+            searchKeywords: [L("Settings_About_UpdateNotifications_SearchKeywords",
+                "alert toast tray message new version")]));
         if (_options.SupportsFlyoutUpdateButton)
         {
             stack.Children.Add(BoolCard(
@@ -202,7 +212,9 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 L("Settings_About_ShowUpdateButton_Description",
                     "Show update affordances in the flyout while a new version is available."),
                 settings.ShowUpdateButtonInFlyout,
-                value => settings.ShowUpdateButtonInFlyout = value));
+                value => settings.ShowUpdateButtonInFlyout = value,
+                searchKeywords: [L("Settings_About_UpdateButton_SearchKeywords",
+                    "upgrade download install release")]));
         }
 
         stack.Children.Add(IntCard(
@@ -213,7 +225,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             1,
             1440,
             minutes => settings.UpdateCheckIntervalMs = minutes * 60_000,
-            L("Settings_About_UpdateInterval_MinutesSuffix", " min")));
+            L("Settings_About_UpdateInterval_MinutesSuffix", " min"),
+            [L("Settings_About_UpdateInterval_SearchKeywords", "frequency schedule timer minutes")]));
         stack.Children.Add(BuildUpdateActionCard(p));
         stack.Children.Add(BuildBackdateCard(p));
     }
@@ -248,7 +261,12 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         grid.Children.Add(buttons);
 
         StartUpdateRefresh(description, check, skip, install);
-        return TrayAppDotNETSettingsCards.RawCard(grid, p, _options.CardRadius);
+        return TrayAppDotNETSettingsCards.RawCard(
+            grid,
+            p,
+            _options.CardRadius,
+            [L("Settings_About_UpdateActions_SearchKeywords",
+                "upgrade download install release version GitHub new build")]);
     }
 
     private Border BuildBackdateCard(SettingsPalette p)
@@ -281,7 +299,11 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         RefreshBackdateUI();
         _ = LoadPreviousReleaseAsync(Volatile.Read(ref _refreshGeneration));
 
-        return TrayAppDotNETSettingsCards.RawCard(grid, p, _options.CardRadius);
+        return TrayAppDotNETSettingsCards.RawCard(
+            grid,
+            p,
+            _options.CardRadius,
+            [L("Settings_About_Backdate_SearchKeywords", "downgrade rollback previous older version release")]);
     }
 
     private async Task LoadPreviousReleaseAsync(long generation)
@@ -663,7 +685,13 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             Math.Max(1, (int)diff.TotalDays));
     }
 
-    private Border BoolCard(string title, string description, bool value, Action<bool> set, Action? afterSave = null) =>
+    private Border BoolCard(
+        string title,
+        string description,
+        bool value,
+        Action<bool> set,
+        Action? afterSave = null,
+        IReadOnlyList<string>? searchKeywords = null) =>
         TrayAppDotNETSettingsCards.BoolCard(
             title,
             description,
@@ -672,10 +700,11 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _options.Palette,
             _options.CardRadius,
             _options.Save,
-            afterSave);
+            afterSave,
+            searchKeywords);
 
     private Border IntCard(string title, string description, int value, int min, int max, Action<int> set,
-        string suffix) =>
+        string suffix, IReadOnlyList<string>? searchKeywords = null) =>
         TrayAppDotNETSettingsCards.IntCard(
             title,
             description,
@@ -686,7 +715,8 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _options.Palette,
             _options.CardRadius,
             _options.Save,
-            suffix);
+            suffix,
+            searchKeywords);
 
     private SettingsButton Button(string text, SettingsPalette palette) =>
         TrayAppDotNETSettingsCards.Button(text, palette, _options.ButtonRadius);
@@ -697,6 +727,21 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         issue.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, p));
         issue.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(description, p));
         return TrayAppDotNETSettingsCards.RawCard(issue, p, _options.CardRadius);
+    }
+
+    private Border BuildSettingsFolderCard(SettingsPalette p)
+    {
+        SettingsButton openFolder = Button(L("Settings_About_OpenSettingsFolder_Button", "Open"), p);
+        openFolder.Click += (_, _) => TrayAppDotNETSettingsActions.OpenFolder(_options.SettingsFolderPath);
+        return TrayAppDotNETSettingsCards.Card(
+            _options.OpenSettingsFolderText,
+            L("Settings_About_OpenSettingsFolder_Description",
+                "Open the folder containing this app's settings and logs."),
+            openFolder,
+            p,
+            _options.CardRadius,
+            [L("Settings_About_OpenSettingsFolder_SearchKeywords",
+                "configuration config files directory logs location browse")]);
     }
 
     private static StackPanel AboutRow(string label, string value, SettingsPalette p, string? openUrl = null)

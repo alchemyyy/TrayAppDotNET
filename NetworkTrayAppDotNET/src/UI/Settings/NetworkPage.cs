@@ -29,7 +29,12 @@ public sealed partial class NetworkSettingsWindow
             },
             p,
             autoSizeToText: true,
-            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem));
+            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords:
+            [
+                L("Settings_Network_FlyoutStyle_SearchKeywords",
+                    "wireless internet connections panel action center")
+            ]));
         stack.Children.Add(ComboCard(
             Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Title)),
             Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Description)),
@@ -44,7 +49,12 @@ public sealed partial class NetworkSettingsWindow
             },
             p,
             autoSizeToText: true,
-            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem));
+            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords:
+            [
+                L("Settings_Network_AdapterSettingsStyle_SearchKeywords",
+                    "NIC interface Ethernet Wi-Fi network connections properties")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             Loc(nameof(AppStrings.Settings_Network_StateColors_Header)), p));
@@ -59,7 +69,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.NetworkConnectedColor,
             (AppServices.Theme ?? AppTheme.Default).NetworkConnectedTrayIconColor.Light,
             (AppServices.Theme ?? AppTheme.Default).NetworkConnectedTrayIconColor.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Network_ConnectedColor_SearchKeywords",
+                    "online reachable active link uplink")
+            ]));
         stack.Children.Add(ColorCard(
             "NoInternet",
             Loc(nameof(AppStrings.Settings_Network_NoInternetColor_Title)),
@@ -69,7 +84,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.NetworkNoInternetColor,
             (AppServices.Theme ?? AppTheme.Default).NetworkNoInternetTrayIconColor.Light,
             (AppServices.Theme ?? AppTheme.Default).NetworkNoInternetTrayIconColor.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Network_NoInternetColor_SearchKeywords",
+                    "offline limited connectivity local only captive portal")
+            ]));
         stack.Children.Add(ColorCard(
             "Disconnected",
             Loc(nameof(AppStrings.Settings_Network_DisconnectedColor_Title)),
@@ -79,7 +99,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.NetworkDisconnectedColor,
             (AppServices.Theme ?? AppTheme.Default).NetworkDisconnectedTrayIconColor.Light,
             (AppServices.Theme ?? AppTheme.Default).NetworkDisconnectedTrayIconColor.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Network_DisconnectedColor_SearchKeywords",
+                    "offline unplugged link down disabled adapter NIC")
+            ]));
         return stack;
     }
 }

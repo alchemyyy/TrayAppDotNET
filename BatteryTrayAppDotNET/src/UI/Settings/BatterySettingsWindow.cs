@@ -398,7 +398,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         TrayAppDotNETToolTip.SetTip(
             card,
             L("Settings_Triggers_Card_ToolTip", "Drag to reorder, or press Ctrl+Up/Ctrl+Down."));
-        return card;
+        return TrayAppDotNETSettingsCards.RegisterSearchCard(card);
     }
 
     private SettingsComboBox BuildNullableTriggerCombo<TEnum>(
@@ -661,7 +661,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     "When the app launches, restore the flyout's docked or undocked state from the previous session. When off, the flyout always opens docked."),
                 _settings.RestoreFlyoutUndockedOnStartup,
                 v => _settings.RestoreFlyoutUndockedOnStartup = v,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Flyout_RestoreUndockState_SearchKeywords",
+                        "remember floating detached window")
+                ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L(nameof(AppStrings.Settings_Flyout_Visibility_Header), "Visibility"), p));
@@ -672,7 +677,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.AllowFlyoutUndock,
                 v => _settings.AllowFlyoutUndock = v,
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Flyout)));
+                afterSave: () => RebuildShell(BatterySettingsPage.Flyout),
+                searchKeywords:
+                [
+                    L("Settings_Flyout_ShowUndockButton_SearchKeywords",
+                        "detach float popup window")
+                ]));
 
             if (_settings.AllowFlyoutUndock)
             {
@@ -682,7 +692,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                         "Keep the undocked flyout fully inside one monitor's work area when it restores or repositions."),
                     _settings.ClampUndockedFlyoutToScreen,
                     v => _settings.ClampUndockedFlyoutToScreen = v,
-                    p));
+                    p,
+                    searchKeywords:
+                    [
+                        L("Settings_Flyout_ClampUndockedToScreen_SearchKeywords",
+                            "monitor work area bounds floating window")
+                    ]));
             }
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
@@ -693,7 +708,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     "Render the flyout title bar at the bottom of the flyout instead of the top."),
                 _settings.FlyoutHeaderAtBottom,
                 v => _settings.FlyoutHeaderAtBottom = v,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Flyout_HeaderAtBottom_SearchKeywords",
+                        "move titlebar footer position")
+                ]));
 
             return stack;
         });
@@ -722,7 +742,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 },
                 p,
                 autoSizeToText: true,
-                autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem));
+                autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+                searchKeywords:
+                [
+                    L("Settings_TrayIcon_MenuPosition_SearchKeywords",
+                        "right click cursor taskbar docked")
+                ]));
 
             return stack;
         });
@@ -1025,7 +1050,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 AppSettings.ContextMenuFontSizeMin,
                 AppSettings.ContextMenuFontSizeMax,
                 v => _settings.ContextMenuFontSize = v,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Theme_FontSize_SearchKeywords",
+                        "text scale accessibility")
+                ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L("Settings_Theme_Appearance_Header", "Appearance"), p));
@@ -1044,7 +1074,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                         _settings.ThemeMode = value;
                 },
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Theme)));
+                afterSave: () => RebuildShell(BatterySettingsPage.Theme),
+                searchKeywords:
+                [
+                    L("Settings_Theme_ThemeStyle_SearchKeywords",
+                        "appearance Windows color scheme")
+                ]));
             stack.Children.Add(VariantColorCard(
                 "Text",
                 L("Settings_Theme_TextColor_Title", "Text color"),
@@ -1054,7 +1089,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.TextColor,
                 theme.Foreground.Light,
                 theme.Foreground.Dark,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Theme_TextColor_SearchKeywords",
+                        "foreground lettering font palette")
+                ]));
             stack.Children.Add(VariantColorCard(
                 "Background",
                 L("Settings_Theme_BackgroundColor_Title", "Background color"),
@@ -1064,7 +1104,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.BackgroundColor,
                 theme.Background.Light,
                 theme.Background.Dark,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Theme_BackgroundColor_SearchKeywords",
+                        "window surface canvas palette")
+                ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L("Settings_Theme_Flyout_Header", "Flyout"), p));
@@ -1078,7 +1123,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.FlyoutBackgroundColor,
                 theme.Background.Light,
                 theme.Background.Dark,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Theme_FlyoutBackgroundColor_SearchKeywords",
+                        "popup panel surface palette")
+                ]));
             stack.Children.Add(VariantColorCard(
                 "FlyoutTitleBarBackground",
                 L(nameof(AppStrings.Settings_Theme_FlyoutTitleBarBackgroundColor_Title), "Titlebar background"),
@@ -1089,7 +1139,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.FlyoutTitleBarBackgroundColor,
                 theme.FooterBackground.Light,
                 theme.FooterBackground.Dark,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords",
+                        "popup header bar palette")
+                ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L("Settings_Theme_Window_Header", "Windows"), p));
@@ -1099,7 +1154,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.EnableRoundedCorners,
                 v => _settings.EnableRoundedCorners = v,
                 p,
-                afterSave: () => RebuildShell(BatterySettingsPage.Theme)));
+                afterSave: () => RebuildShell(BatterySettingsPage.Theme),
+                searchKeywords:
+                [
+                    L("Settings_Theme_RoundedCorners_SearchKeywords",
+                        "square edges window shape")
+                ]));
             stack.Children.Add(ComboCard(
                 L("Settings_Theme_Animations_Title", "Animations"),
                 L("Settings_Theme_Animations_Description", "Controls whether tooltip fades and other UI animations are allowed."),
@@ -1120,7 +1180,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     if (Application.Current != null)
                         TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
                     RebuildShell(BatterySettingsPage.Theme);
-                }));
+                },
+                searchKeywords:
+                [
+                    L("Settings_Theme_Animations_SearchKeywords",
+                        "motion transitions fading effects")
+                ]));
             stack.Children.Add(IntCard(
                 L("Settings_Theme_ToolTipShowDelay_Title", "Tooltip delay"),
                 L("Settings_Theme_ToolTipShowDelay_Description", "Milliseconds to wait before showing a tooltip."),
@@ -1134,7 +1199,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                     TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
                 },
                 p,
-                " ms"));
+                " ms",
+                searchKeywords:
+                [
+                    L("Settings_Theme_ToolTipShowDelay_SearchKeywords",
+                        "hover help wait timing latency")
+                ]));
 
             stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
                 L("Settings_Theme_TrayIcon_Header", "Tray icon"), p));
@@ -1148,7 +1218,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 _settings.TrayIconColor,
                 theme.Foreground.Light,
                 theme.Foreground.Dark,
-                p));
+                p,
+                searchKeywords:
+                [
+                    L("Settings_Theme_StaticIconColor_SearchKeywords",
+                        "notification area glyph palette")
+                ]));
 
             return stack;
         });
@@ -1168,6 +1243,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 BuildNumber = BuildInfo.BuildNumber,
                 Publisher = Constants.Publisher,
                 HelpLink = Constants.HelpLink,
+                OpenSettingsFolderText = OpenSettingsFolderText,
+                SettingsFolderPath = SettingsFolderPath,
                 UpdateSettings = _settings,
                 UpdateService = static () => AppServices.UpdateCheckService,
                 ConfirmAsync = ConfirmAsync,

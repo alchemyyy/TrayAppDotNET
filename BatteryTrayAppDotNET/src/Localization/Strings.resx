@@ -108,4 +108,62 @@
   <data name="Settings_General_RestartFailed_Title" xml:space="preserve">
     <value>Restart failed</value>
   </data>
+  <data name="Settings_Flyout_RestoreUndockState_SearchKeywords" xml:space="preserve">
+    <value>remember floating detached window</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_SearchKeywords" xml:space="preserve">
+    <value>detach float popup window</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_SearchKeywords" xml:space="preserve">
+    <value>monitor work area bounds floating window</value>
+  </data>
+  <data name="Settings_Flyout_HeaderAtBottom_SearchKeywords" xml:space="preserve">
+    <value>move titlebar footer position</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_SearchKeywords" xml:space="preserve">
+    <value>right click cursor taskbar docked</value>
+  </data>
+  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
+    <value>text scale accessibility</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
+    <value>appearance Windows color scheme</value>
+  </data>
+  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
+    <value>foreground lettering font palette</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>window surface canvas palette</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>popup panel surface palette</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>popup header bar palette</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>square edges window shape</value>
+  </data>
+  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
+    <value>motion transitions fading effects</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_SearchKeywords" xml:space="preserve">
+    <value>hover help wait timing latency</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
+    <value>notification area glyph palette</value>
+  </data>
+  <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
+    <value>battery below|battery under|battery less than|charge below|charge under|charge less than
+battery below|low battery|battery low|low charge
+battery above|battery over|battery greater than|charge above|charge over|charge greater than
+battery full|fully charged|full battery|100% charge
+charging started|started charging|charging began|began charging
+charging stopped|stopped charging|charging ended|ended charging
+external power connected|AC power connected|charger plugged in|mains power connected
+external power disconnected|AC power disconnected|charger unplugged|mains power disconnected|on battery power
+triggers|battery trigger|automation rule|condition-action rule|battery event rule
+open power settings|open Windows power settings|open Power and battery settings|open power options</value>
+    <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
+  </data>
 </root>

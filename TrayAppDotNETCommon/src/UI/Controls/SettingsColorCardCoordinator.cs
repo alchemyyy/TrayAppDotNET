@@ -30,7 +30,8 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         TrayAppDotNETColorPickerStrings colorPickerStrings,
         Action save,
         Action refreshPalette,
-        Func<bool> isClosing)
+        Func<bool> isClosing,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         SettingsSwatch light = new(palette) { Tag = "Light", Name = name + "LightSwatch" };
         SettingsSwatch dark = new(palette) { Tag = "Dark", Name = name + "DarkSwatch" };
@@ -91,7 +92,13 @@ public sealed class TrayAppDotNETSettingsColorCardCoordinator
         Update();
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(light, dark, reset);
         row.Tag = "ColorRow";
-        return TrayAppDotNETSettingsCards.Card(title, description, row, palette, cardRadius);
+        return TrayAppDotNETSettingsCards.Card(
+            title,
+            description,
+            row,
+            palette,
+            cardRadius,
+            searchKeywords);
     }
 
     public void CloseOpenColorPickers()

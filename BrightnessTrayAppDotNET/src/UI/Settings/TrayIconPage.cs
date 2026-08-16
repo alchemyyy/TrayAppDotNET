@@ -17,7 +17,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.TrayScrollEnabled,
             v => _settings.TrayScrollEnabled = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon)));
+            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon),
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_MouseWheel_SearchKeywords",
+                    "scroll notification area icon adjust brightness")
+            ]));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, IntCard(
             L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_Title), "Mouse wheel step"),
             L(nameof(AppStrings.Settings_TrayIcon_MouseWheelStep_Description),
@@ -27,7 +32,12 @@ public sealed partial class BrightnessSettingsWindow
             AppSettings.FlyoutScrollWheelStepMax,
             v => _settings.FlyoutScrollWheelStep = v,
             p,
-            "%")));
+            "%",
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_MouseWheelStep_SearchKeywords",
+                    "scroll sensitivity increment")
+            ])));
         stack.Children.Add(Maybe(_settings.TrayScrollEnabled, BoolCard(
             L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Title), "Precision touchpad"),
             L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadScroll_Description),
@@ -35,7 +45,12 @@ public sealed partial class BrightnessSettingsWindow
             _settings.PrecisionTouchpadScrollEnabled,
             v => _settings.PrecisionTouchpadScrollEnabled = v,
             p,
-            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon))));
+            afterSave: () => RebuildShell(BrightnessSettingsPage.TrayIcon),
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords",
+                    "trackpad gesture high resolution")
+            ])));
         stack.Children.Add(Maybe(_settings is { TrayScrollEnabled: true, PrecisionTouchpadScrollEnabled: true }, IntCard(
             L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Title), "Touchpad sensitivity"),
             L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_Description),
@@ -44,7 +59,12 @@ public sealed partial class BrightnessSettingsWindow
             AppSettings.PrecisionTouchpadUnitsPerScrollStepMin,
             AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
             v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
-            p)));
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords",
+                    "trackpad gesture speed raw movement")
+            ])));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_TrayIcon_ContextMenu_Header), "Context menu"),
@@ -55,21 +75,36 @@ public sealed partial class BrightnessSettingsWindow
                 "Display brightness profile entries in the tray right-click menu."),
             _settings.ShowProfileSelectorsInMenu,
             v => _settings.ShowProfileSelectorsInMenu = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_ShowProfileSelectors_SearchKeywords",
+                    "presets right click menu")
+            ]));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_Title), "Show individual power selectors"),
             L(nameof(AppStrings.Settings_TrayIcon_ShowIndividualPowerSelectors_Description),
                 "Display per-monitor power toggles in the tray right-click menu."),
             _settings.ShowMonitorPowerButtons,
             v => _settings.ShowMonitorPowerButtons = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_ShowIndividualPowerSelectors_SearchKeywords",
+                    "turn screens off individually")
+            ]));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_Title), "Show all-displays power selector"),
             L(nameof(AppStrings.Settings_TrayIcon_ShowAllDisplaysPowerSelector_Description),
                 "Display a single entry that powers every display off."),
             _settings.ShowAllDisplaysPowerButton,
             v => _settings.ShowAllDisplaysPowerButton = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_ShowAllDisplaysPowerSelector_SearchKeywords",
+                    "turn every screen off")
+            ]));
         stack.Children.Add(StringComboCard(
             L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Title), "Menu position"),
             L(nameof(AppStrings.Settings_TrayIcon_MenuPosition_Description),
@@ -80,7 +115,12 @@ public sealed partial class BrightnessSettingsWindow
             ],
             _settings.ContextMenuPosition,
             v => _settings.ContextMenuPosition = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_MenuPosition_SearchKeywords",
+                    "right click cursor taskbar docked")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_TrayIcon_ModifiedActions_Header), "Modified actions"),
@@ -133,7 +173,18 @@ public sealed partial class BrightnessSettingsWindow
         Action<TrayWheelTarget> set,
         SettingsPalette p)
     {
-        Border card = StringComboCard(title, string.Empty, TrayWheelOptions(), selected, set, p);
+        Border card = StringComboCard(
+            title,
+            string.Empty,
+            TrayWheelOptions(),
+            selected,
+            set,
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_WheelActions_SearchKeywords",
+                    "modifier gesture scroll adjust brightness night light")
+            ]);
         card.IsEnabled = _settings.TrayScrollEnabled;
         stack.Children.Add(card);
     }
@@ -144,7 +195,18 @@ public sealed partial class BrightnessSettingsWindow
         TrayClickAction selected,
         Action<TrayClickAction> set,
         SettingsPalette p) =>
-        stack.Children.Add(StringComboCard(title, string.Empty, TrayClickOptions(), selected, set, p));
+        stack.Children.Add(StringComboCard(
+            title,
+            string.Empty,
+            TrayClickOptions(),
+            selected,
+            set,
+            p,
+            searchKeywords:
+            [
+                L("Settings_TrayIcon_ClickActions_SearchKeywords",
+                    "modifier gesture shortcut turn screens on off maximum minimum brightness")
+            ]));
 
     private static IReadOnlyList<(TrayClickAction Value, string Text)> TrayClickOptions() =>
     [

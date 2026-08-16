@@ -104,7 +104,9 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
                 "\"GPU preferred\" uses Avalonia's Windows GPU path with software fallback. \"Software\" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required."),
             combo,
             options.Palette,
-            options.CardRadius);
+            options.CardRadius,
+            [L("Settings_General_RenderingBackend_SearchKeywords",
+                "graphics GPU CPU software hardware acceleration renderer")]);
     }
 
     /// <summary>Builds a boolean keep-warm setting card.</summary>
@@ -122,7 +124,9 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             toggle,
             options.Palette,
             options.CardRadius,
-            out _);
+            out _,
+            [L("Settings_General_KeepWarm_SearchKeywords",
+                "preload cache instant fast performance background")]);
     }
 
     /// <summary>Asks whether to restart now after a rendering backend change.</summary>

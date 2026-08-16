@@ -19,24 +19,49 @@ public sealed partial class BrightnessSettingsWindow
             _settings.BrightnessUpdateRateMs,
             TimeConstants.BrightnessUpdateRateMinMs,
             TimeConstants.BrightnessUpdateRateMaxMs,
-            v => _settings.BrightnessUpdateRateMs = v, p, Loc(nameof(AppStrings.Common_MillisecondsSuffix))));
+            v => _settings.BrightnessUpdateRateMs = v, p, Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            searchKeywords:
+            [
+                L("Settings_Monitors_BrightnessRate_SearchKeywords",
+                    "DDC write pacing interval")
+            ]));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Title), "Validation dwell"), "",
             _settings.ValidationDwellMs,
             TimeConstants.ValidationDwellMinMs,
             TimeConstants.ValidationDwellMaxMs,
             v => _settings.ValidationDwellMs = v, p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix))));
+            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            searchKeywords:
+            [
+                L("Settings_Monitors_ValidationDwell_SearchKeywords",
+                    "verify readback delay")
+            ]));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title), "Validation attempts"), "",
-            _settings.ValidationAttempts, 1, 20, v => _settings.ValidationAttempts = v, p));
+            _settings.ValidationAttempts, 1, 20, v => _settings.ValidationAttempts = v, p,
+            searchKeywords:
+            [
+                L("Settings_Monitors_ValidationAttempts_SearchKeywords",
+                    "verification retries DDC")
+            ]));
         stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Title), "DDC operation timeout"), "",
             _settings.DDCOperationTimeoutMs,
             TimeConstants.DDCOperationTimeoutMinMs,
             TimeConstants.DDCOperationTimeoutMaxMs,
             v => _settings.DDCOperationTimeoutMs = v, p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix))));
+            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            searchKeywords:
+            [
+                L("Settings_Monitors_DDCOperationTimeout_SearchKeywords",
+                    "monitor control command wait")
+            ]));
         stack.Children.Add(StringComboCard(L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Title), "Power-off mode"),
             L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Description), "VCP command used by monitor power buttons."),
-            PowerOffOptions(), _settings.PowerOffMode, v => _settings.PowerOffMode = v, p));
+            PowerOffOptions(), _settings.PowerOffMode, v => _settings.PowerOffMode = v, p,
+            searchKeywords:
+            [
+                L("Settings_Monitors_PowerOffMode_SearchKeywords",
+                    "DDC VCP sleep standby command")
+            ]));
         stack.Children.Add(StringComboCard(
             L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Title), "Monitor identity"),
             L(nameof(AppStrings.Settings_Monitors_IdentityStrategy_Description), "Key used for profile monitor entries."),
@@ -48,7 +73,12 @@ public sealed partial class BrightnessSettingsWindow
             ],
             _settings.MonitorIdentityStrategy,
             v => _settings.MonitorIdentityStrategy = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Monitors_IdentityStrategy_SearchKeywords",
+                    "stable display matching EDID serial port number")
+            ]));
         stack.Children.Add(ComboCard(
             L(nameof(AppStrings.Settings_Monitors_DefaultSort_Title), "Default sort"),
             "",
@@ -60,7 +90,12 @@ public sealed partial class BrightnessSettingsWindow
             ],
             ComposeDefaultSortTag(_settings.DefaultDisplaySortMode, _settings.DefaultDisplaySortDirection),
             ApplyDefaultSortTag,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Monitors_DefaultSort_SearchKeywords",
+                    "screen order arrangement reverse")
+            ]));
 
         SettingsButton clear = Button(L(nameof(AppStrings.Settings_Monitors_ClearDisplays_Button), "Clear saved displays"), p);
         clear.Click += async (_, _) =>
@@ -84,7 +119,12 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Monitors_DisplayOrder_Description),
                 "Connected and previously seen displays with saved per-monitor options."),
             clear,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Monitors_DisplayOrder_SearchKeywords",
+                    "rename screens limits calibration clear saved")
+            ]));
 
         foreach (MonitorSettingsRow row in BuildMonitorRows())
             stack.Children.Add(BuildMonitorOverrideCard(row, p));

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using Avalonia.Controls;
 
 namespace TrayAppDotNETCommon.UI.Settings;
@@ -23,12 +22,43 @@ internal sealed class SettingsSearchView
         public readonly IReadOnlyList<ControlState> Controls = controls;
         public bool IsNormallyVisible => Controls.Any(static state => state.IsNormallyVisible);
 
-        public string ReadText()
+        public SettingsSearchDocument ReadDocument(string subsectionText, string pageText)
         {
             List<Control> roots = new(Controls.Count);
             foreach (ControlState state in Controls)
                 roots.Add(state.Control);
-            return SettingsSearchTextExtractor.Read(roots);
+
+            List<string> values = SettingsSearchTextExtractor.ReadValues(roots);
+            string titleText = string.Empty;
+            List<string> searchKeywords = [];
+            foreach (Control root in roots)
+            {
+                if (titleText.Length == 0)
+                    titleText = SettingsSearchMetadata.GetTitleText(root);
+                foreach (string searchKeyword in SettingsSearchMetadata.GetSearchKeywords(root))
+                {
+                    if (!searchKeywords.Contains(searchKeyword, StringComparer.OrdinalIgnoreCase))
+                        searchKeywords.Add(searchKeyword);
+                }
+            }
+
+            if (titleText.Length == 0 && values.Count > 0)
+                titleText = values[0];
+
+            List<string> bodyValues = [];
+            foreach (string value in values)
+            {
+                if (string.Equals(value, titleText, StringComparison.OrdinalIgnoreCase)) continue;
+                bodyValues.Add(value);
+            }
+
+            return new SettingsSearchDocument(
+                ID,
+                titleText,
+                SettingsSearchTextExtractor.JoinValues(bodyValues),
+                SettingsSearchTextExtractor.JoinValues(searchKeywords),
+                subsectionText,
+                pageText);
         }
 
         public bool Apply(HashSet<int> matches)
@@ -103,20 +133,21 @@ internal sealed class SettingsSearchView
     }
 
     private readonly TextBlock _statusText;
-    private readonly string _findingMatchesText;
     private readonly string _noMatchesFormat;
     private readonly List<SearchPage> _pages = [];
     private int _nextEntryID;
 
+    public SettingsSearchSynonymMap SynonymMap { get; }
+
     public SettingsSearchView(
         TextBlock statusText,
-        string findingMatchesText,
         string noMatchesFormat,
-        IReadOnlyList<SettingsSearchPageSource> sources)
+        IReadOnlyList<SettingsSearchPageSource> sources,
+        SettingsSearchSynonymMap? synonymMap = null)
     {
         _statusText = statusText;
-        _findingMatchesText = findingMatchesText;
         _noMatchesFormat = noMatchesFormat;
+        SynonymMap = synonymMap ?? SettingsSearchSynonymMap.Parse();
         foreach (SettingsSearchPageSource source in sources)
             _pages.Add(BuildPage(source));
     }
@@ -128,13 +159,13 @@ internal sealed class SettingsSearchView
         {
             if (!page.Root.IsNormallyVisible) continue;
 
-            string pageContext = JoinContext(page.Label, page.ReadHeader());
+            string pageText = JoinContext(page.Label, page.ReadHeader());
             foreach (SearchSection section in page.Sections)
             {
                 string sectionHeader = section.Header == null
                     ? string.Empty
                     : SettingsSearchTextExtractor.Read([section.Header.Control]);
-                string sectionContext = JoinContext(pageContext, sectionHeader, section.ReadContext());
+                string subsectionText = JoinContext(sectionHeader, section.ReadContext());
 
                 foreach (SearchGroup group in section.Groups)
                 {
@@ -143,18 +174,18 @@ internal sealed class SettingsSearchView
                     foreach (SearchEntry entry in group.Entries)
                     {
                         if (!entry.IsNormallyVisible) continue;
-                        string primaryText = entry.ReadText();
-                        if (!string.IsNullOrWhiteSpace(primaryText))
-                            documents.Add(new SettingsSearchDocument(entry.ID, primaryText, sectionContext));
+                        SettingsSearchDocument document = entry.ReadDocument(subsectionText, pageText);
+                        if (!string.IsNullOrWhiteSpace(document.PrimaryText))
+                            documents.Add(document);
                     }
                 }
 
                 foreach (SearchEntry entry in section.ContentEntries)
                 {
                     if (!entry.IsNormallyVisible) continue;
-                    string primaryText = entry.ReadText();
-                    if (!string.IsNullOrWhiteSpace(primaryText))
-                        documents.Add(new SettingsSearchDocument(entry.ID, primaryText, sectionContext));
+                    SettingsSearchDocument document = entry.ReadDocument(subsectionText, pageText);
+                    if (!string.IsNullOrWhiteSpace(document.PrimaryText))
+                        documents.Add(document);
                 }
             }
         }
@@ -162,7 +193,7 @@ internal sealed class SettingsSearchView
         return documents;
     }
 
-    public void ApplyMatches(HashSet<int> matches, string query, bool isFinal)
+    public void ApplyMatches(HashSet<int> matches, string query)
     {
         bool hasAnyMatch = false;
         foreach (SearchPage page in _pages)
@@ -171,9 +202,7 @@ internal sealed class SettingsSearchView
         _statusText.IsVisible = !hasAnyMatch;
         if (hasAnyMatch) return;
 
-        _statusText.Text = isFinal
-            ? string.Format(CultureInfo.CurrentCulture, _noMatchesFormat, query)
-            : _findingMatchesText;
+        _statusText.Text = string.Format(CultureInfo.CurrentCulture, _noMatchesFormat, query);
     }
 
     private SearchPage BuildPage(SettingsSearchPageSource source)
@@ -267,7 +296,9 @@ internal sealed class SettingsSearchView
 
 internal static class SettingsSearchTextExtractor
 {
-    public static string Read(IEnumerable<Control> roots)
+    public static string Read(IEnumerable<Control> roots) => JoinValues(ReadValues(roots));
+
+    public static List<string> ReadValues(IEnumerable<Control> roots)
     {
         List<Control> orderedRoots = [];
         foreach (Control root in roots)
@@ -305,16 +336,11 @@ internal static class SettingsSearchTextExtractor
             AddChildren(control, pending);
         }
 
-        StringBuilder result = new();
-        foreach (string value in values)
-        {
-            if (result.Length > 0)
-                result.Append(". ");
-            result.Append(value);
-        }
-
-        return result.ToString();
+        return values;
     }
+
+    public static string JoinValues(IEnumerable<string> values) =>
+        string.Join(". ", values.Where(static value => !string.IsNullOrWhiteSpace(value)));
 
     private static void AddValue(string value, HashSet<string> seenValues, List<string> values)
     {

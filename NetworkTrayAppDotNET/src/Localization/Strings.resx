@@ -575,4 +575,71 @@ Target: {1}</value>
   <data name="Uninstaller_Title" xml:space="preserve">
     <value>Uninstall NetworkTrayAppDotNET</value>
   </data>
+  <data name="Settings_Network_FlyoutStyle_SearchKeywords" xml:space="preserve">
+    <value>wireless internet connections panel action center</value>
+  </data>
+  <data name="Settings_Network_AdapterSettingsStyle_SearchKeywords" xml:space="preserve">
+    <value>NIC interface Ethernet Wi-Fi network connections properties</value>
+  </data>
+  <data name="Settings_Network_ConnectedColor_SearchKeywords" xml:space="preserve">
+    <value>online reachable active link uplink</value>
+  </data>
+  <data name="Settings_Network_NoInternetColor_SearchKeywords" xml:space="preserve">
+    <value>offline limited connectivity local only captive portal</value>
+  </data>
+  <data name="Settings_Network_DisconnectedColor_SearchKeywords" xml:space="preserve">
+    <value>offline unplugged link down disabled adapter NIC</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_SearchKeywords" xml:space="preserve">
+    <value>right click popup taskbar cursor corner</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickActions_SearchKeywords" xml:space="preserve">
+    <value>mouse gesture shortcut command adapter properties interface network connections</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_SearchKeywords" xml:space="preserve">
+    <value>global key binding keyboard command wireless internet connections</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_SearchKeywords" xml:space="preserve">
+    <value>global key binding keyboard command preferences configuration</value>
+  </data>
+  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
+    <value>text scale typography zoom</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
+    <value>appearance color scheme Windows preference</value>
+  </data>
+  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
+    <value>foreground font lettering contrast</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>canvas surface fill wallpaper</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>square sharp rectangular radius geometry</value>
+  </data>
+  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
+    <value>motion transitions fade visual effects accessibility reduce motion</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_SearchKeywords" xml:space="preserve">
+    <value>hover popup wait latency timing</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
+    <value>notification area system tray glyph symbol status</value>
+  </data>
+  <!-- One conceptual group per line; equivalent phrases are separated by vertical bars. -->
+  <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
+    <value>network adapter|network interface|NIC|network card|connection adapter
+Ethernet|wired network|wired adapter|Ethernet adapter|wired LAN adapter
+Wi-Fi|WiFi|wireless LAN|WLAN|wireless adapter
+adapter settings|network adapter properties|Network Connections|change adapter options|ncpa.cpl|connection properties
+network flyout|network popup|network connections flyout|network tray panel
+available networks|Wi-Fi network list|wireless network list|network picker
+Quick Settings|Windows Quick Settings|Windows Action Center|Windows control center|quick network settings
+Network &amp; Wi-Fi|Windows network settings|Network and Internet Settings|Windows Wi-Fi settings
+connected color|connected with Internet|Internet connected|online connection|Internet access available|working Internet connection
+no-internet color|connected without Internet|no Internet access|limited connectivity|local-only connection
+disconnected color|no network connection|no interface available|network link down|network cable unplugged|adapter unavailable
+tray icon colors|network state colors|connection-state colors|connectivity indicator colors|tray connectivity colors
+modifier-click actions|modified tray clicks|tray click actions|mouse gestures on network tray icon</value>
+  </data>
 </root>

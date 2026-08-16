@@ -121,7 +121,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
         NullableThemeColor color,
         Color lightFallback,
         Color darkFallback,
-        SettingsPalette palette) =>
+        SettingsPalette palette,
+        IReadOnlyList<string>? searchKeywords = null) =>
         _colorCardCoordinator.ColorCard(
             this,
             name,
@@ -142,7 +143,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
             ColorPickerStrings(),
             Save,
             RefreshPalette,
-            IsSettingsWindowClosing);
+            IsSettingsWindowClosing,
+            searchKeywords);
 
     private bool IsSettingsWindowClosing() => IsClosing;
 

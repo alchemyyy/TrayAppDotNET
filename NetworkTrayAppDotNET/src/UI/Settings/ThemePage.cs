@@ -25,7 +25,11 @@ public sealed partial class NetworkSettingsWindow
             8,
             48,
             v => _settings.ContextMenuFontSize = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_FontSize_SearchKeywords", "text scale typography zoom")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             Loc(nameof(AppStrings.Settings_Theme_Appearance_Header)), p));
@@ -44,7 +48,12 @@ public sealed partial class NetworkSettingsWindow
                     _settings.ThemeMode = value;
             },
             p,
-            afterSave: () => RebuildShell(NetworkSettingsPage.Theme)));
+            afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
+            searchKeywords:
+            [
+                L("Settings_Theme_ThemeStyle_SearchKeywords",
+                    "appearance color scheme Windows preference")
+            ]));
         stack.Children.Add(ColorCard(
             "Text",
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),
@@ -54,7 +63,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.TextColor,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Light,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_TextColor_SearchKeywords",
+                    "foreground font lettering contrast")
+            ]));
         stack.Children.Add(ColorCard(
             "Background",
             Loc(nameof(AppStrings.Settings_Theme_BackgroundColor_Title)),
@@ -64,7 +78,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.BackgroundColor,
             (AppServices.Theme ?? AppTheme.Default).Background.Light,
             (AppServices.Theme ?? AppTheme.Default).Background.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_BackgroundColor_SearchKeywords",
+                    "canvas surface fill wallpaper")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L("Settings_Theme_Flyout_Header", "Flyout"), p));
@@ -74,7 +93,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.EnableRoundedCorners,
             v => _settings.EnableRoundedCorners = v,
             p,
-            afterSave: () => RebuildShell(NetworkSettingsPage.Theme)));
+            afterSave: () => RebuildShell(NetworkSettingsPage.Theme),
+            searchKeywords:
+            [
+                L("Settings_Theme_RoundedCorners_SearchKeywords",
+                    "square sharp rectangular radius geometry")
+            ]));
         stack.Children.Add(ComboCard(
             L(nameof(AppStrings.Settings_Theme_Animations_Title), "Animations"),
             L(nameof(AppStrings.Settings_Theme_Animations_Description),
@@ -96,7 +120,12 @@ public sealed partial class NetworkSettingsWindow
                 if (Application.Current != null)
                     TrayAppDotNETAnimationPolicy.Apply(Application.Current, _settings.AnimationMode);
                 RebuildShell(NetworkSettingsPage.Theme);
-            }));
+            },
+            searchKeywords:
+            [
+                L("Settings_Theme_Animations_SearchKeywords",
+                    "motion transitions fade visual effects accessibility reduce motion")
+            ]));
         stack.Children.Add(IntCard(
             L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Title), "Tooltip delay"),
             L(nameof(AppStrings.Settings_Theme_ToolTipShowDelay_Description), "Milliseconds to wait before showing a tooltip."),
@@ -110,7 +139,12 @@ public sealed partial class NetworkSettingsWindow
                 TrayAppDotNETToolTip.ApplyShowDelayToSubtree(this);
             },
             p,
-            " ms"));
+            " ms",
+            searchKeywords:
+            [
+                L("Settings_Theme_ToolTipShowDelay_SearchKeywords",
+                    "hover popup wait latency timing")
+            ]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L("Settings_Theme_TrayIcon_Header", "Tray icon"), p));
@@ -124,7 +158,12 @@ public sealed partial class NetworkSettingsWindow
             _settings.TrayIconColor,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Light,
             (AppServices.Theme ?? AppTheme.Default).Foreground.Dark,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_Theme_StaticIconColor_SearchKeywords",
+                    "notification area system tray glyph symbol status")
+            ]));
 
         return stack;
     }

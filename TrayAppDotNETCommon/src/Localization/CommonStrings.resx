@@ -84,17 +84,59 @@
   <data name="Settings_About_Backdate_None" xml:space="preserve">
     <value>No previous release is available for this app.</value>
   </data>
+  <data name="Settings_About_Backdate_SearchKeywords" xml:space="preserve">
+    <value>downgrade rollback previous older version release</value>
+  </data>
   <data name="Settings_About_Backdate_Title" xml:space="preserve">
     <value>Backdate app</value>
+  </data>
+  <data name="Settings_About_Files_Header" xml:space="preserve">
+    <value>Files</value>
+  </data>
+  <data name="Settings_About_OpenSettingsFolder_Button" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Settings_About_OpenSettingsFolder_Description" xml:space="preserve">
+    <value>Open the folder containing this app's settings and logs.</value>
+  </data>
+  <data name="Settings_About_OpenSettingsFolder_SearchKeywords" xml:space="preserve">
+    <value>configuration config files directory logs location browse</value>
   </data>
   <data name="Settings_About_SkipUpdate_Button" xml:space="preserve">
     <value>Skip this release</value>
   </data>
+  <data name="Settings_About_UpdateActions_SearchKeywords" xml:space="preserve">
+    <value>upgrade download install release version GitHub new build</value>
+  </data>
+  <data name="Settings_About_UpdateButton_SearchKeywords" xml:space="preserve">
+    <value>upgrade download install release</value>
+  </data>
+  <data name="Settings_About_UpdateInterval_SearchKeywords" xml:space="preserve">
+    <value>frequency schedule timer minutes</value>
+  </data>
+  <data name="Settings_About_UpdateNotifications_SearchKeywords" xml:space="preserve">
+    <value>alert toast tray message new version</value>
+  </data>
   <data name="Settings_About_UpdateStatus_SkippedFormat" xml:space="preserve">
     <value>Release {0} skipped. You'll be notified when a newer release is available.</value>
   </data>
+  <data name="Settings_About_Updates_SearchKeywords" xml:space="preserve">
+    <value>upgrade download release version GitHub new build</value>
+  </data>
+  <data name="Settings_General_Installation_SearchKeywords" xml:space="preserve">
+    <value>setup install uninstall remove application program files current user system wide package store</value>
+  </data>
+  <data name="Settings_General_KeepWarm_SearchKeywords" xml:space="preserve">
+    <value>preload cache instant fast performance background</value>
+  </data>
   <data name="Settings_General_RenderingBackend_Description" xml:space="preserve">
     <value>"GPU preferred" uses Avalonia's Windows GPU path with software fallback. "Software" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required.</value>
+  </data>
+  <data name="Settings_General_RenderingBackend_SearchKeywords" xml:space="preserve">
+    <value>graphics GPU CPU software hardware acceleration renderer</value>
+  </data>
+  <data name="Settings_General_RunOnStartup_SearchKeywords" xml:space="preserve">
+    <value>launch login logon boot autostart start automatically start with Windows</value>
   </data>
   <data name="Settings_Theme_PickerTitle_DarkVariant" xml:space="preserve">
     <value>dark</value>
@@ -107,6 +149,58 @@
   </data>
   <data name="Settings_Theme_Reset" xml:space="preserve">
     <value>Reset</value>
+  </data>
+  <data name="SettingsWindow_SearchNoMatchesFormat" xml:space="preserve">
+    <value>No settings match "{0}".</value>
+  </data>
+  <data name="SettingsWindow_SearchPlaceholder" xml:space="preserve">
+    <value>Search settings</value>
+  </data>
+  <data name="SettingsWindow_SearchResults" xml:space="preserve">
+    <value>Search results</value>
+  </data>
+  <data name="SettingsWindow_SearchSynonymGroups_Common" xml:space="preserve">
+    <value>maximum|max|highest|largest|greatest|upper limit|upper bound
+minimum|lowest|smallest|lower limit|lower bound
+average|mean
+enable|activate
+disable|deactivate
+automatic|automatically|auto
+manual|manually
+reset|reset to defaults|restore defaults|revert to defaults
+opacity|transparency|alpha channel
+color|colour
+notification|alert|toast|tray notification
+hotkey|keyboard shortcut|key binding|shortcut key|global shortcut|system wide shortcut
+run on startup|autostart|start with Windows|launch at sign in|launch at logon|run at login|run at logon
+folder|directory
+icon|glyph|pictogram
+installation|install application|set up application|add application
+uninstall|uninstall application|remove application
+upgrade|software update|app update|upgrade application|new app version
+backdate|downgrade|roll back|rollback|revert to older version
+current user|local user|per user|user only
+GPU rendering|hardware acceleration|graphics acceleration|graphics renderer
+software rendering|CPU rendering|software renderer
+keep flyout warm|keep tray context menu warm|preload|preload window|pre initialize window|prepare in background
+tray flyout|flyout panel
+undock|detach|floating mode|make floating
+dock to tray|anchor to tray|attach to tray
+keep on screen|constrain to work area|clamp to work area
+tray icon|system tray icon|notification area icon
+context menu|right click menu|tray menu
+theme mode|theme style|color scheme
+font size|text size|type size|text scale
+tooltip|tool tip|hover text|hover tip|help tip
+animation|motion effect|transition|fade effect
+text color|foreground color|font color|lettering color
+background color|window background|surface color
+title bar|titlebar|window header
+slider thumb|slider handle|slider knob
+mouse wheel|scroll wheel|wheel scrolling
+touchpad|trackpad
+centered|centred|center aligned|middle aligned</value>
+    <comment>One synonym group per line. Keep vertical bars between equivalent terms.</comment>
   </data>
   <data name="Uninstaller_Cancel" xml:space="preserve">
     <value>Cancel</value>

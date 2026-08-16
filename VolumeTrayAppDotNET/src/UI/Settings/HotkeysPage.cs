@@ -36,11 +36,19 @@ public sealed partial class VolumeSettingsWindow
         AddHotkeyRow(stack, rows, VolumeHotkeyAction.OpenFlyout,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Title)),
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenFlyout_Description)),
-            p);
+            p,
+            [
+                L("Settings_Hotkeys_OpenFlyout_SearchKeywords",
+                    "popup panel volume mixer global shortcut accelerator")
+            ]);
         AddHotkeyRow(stack, rows, VolumeHotkeyAction.OpenSettings,
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Title)),
             Loc(nameof(AppStrings.Settings_Hotkeys_OpenSettings_Description)),
-            p);
+            p,
+            [
+                L("Settings_Hotkeys_OpenSettings_SearchKeywords",
+                    "preferences configuration options global shortcut accelerator")
+            ]);
 
         searchBox.TextChanged += (_, _) =>
         {
@@ -60,7 +68,8 @@ public sealed partial class VolumeSettingsWindow
         VolumeHotkeyAction action,
         string title,
         string description,
-        SettingsPalette p)
+        SettingsPalette p,
+        IReadOnlyList<string> searchKeywords)
     {
         StackPanel entries = new() { Spacing = 0 };
         uint selectedModifiers = 0;
@@ -156,8 +165,8 @@ public sealed partial class VolumeSettingsWindow
         Grid.SetColumnSpan(entries, 2);
         grid.Children.Add(entries);
 
-        Border card = RawCard(grid, p);
-        rows.Add((card, title + "\n" + description));
+        Border card = RawCard(grid, p, searchKeywords: searchKeywords);
+        rows.Add((card, title + "\n" + description + "\n" + string.Join("\n", searchKeywords)));
         stack.Children.Add(card);
         Refresh();
         return;

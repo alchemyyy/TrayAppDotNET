@@ -24,7 +24,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         Action<TEnum> set,
         SettingsPalette palette,
         Action? afterSave = null,
-        bool autoSizeToText = true)
+        bool autoSizeToText = true,
+        IReadOnlyList<string>? searchKeywords = null)
         where TEnum : struct, Enum =>
         ComboCard(
             title,
@@ -39,7 +40,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             palette,
             afterSave,
             autoSizeToText,
-            SettingsComboBoxAutoSizeMode.SelectedItem);
+            SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords);
 
     protected Border PairBoolCard(
         string title,
@@ -53,7 +55,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         SettingsPalette palette,
         bool showLeft = true,
         bool showRight = true,
-        Action? afterSave = null)
+        Action? afterSave = null,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(
@@ -90,7 +93,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         }
 
         TrayAppDotNETToolTip.SetTip(row, $"{leftHeader} / {rightHeader}");
-        return Card(title, description, row, palette);
+        return Card(title, description, row, palette, searchKeywords);
     }
 
     protected Grid PairColumnHeader(string title, SettingsPalette palette)
@@ -129,7 +132,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         Action<string> commitHex,
         Action reset,
         SettingsPalette palette,
-        string? tooltip = null)
+        string? tooltip = null,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         Color currentValue = value;
         SettingsSwatch swatch = new(palette);
@@ -191,7 +195,12 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             RefreshPalette();
         };
 
-        return Card(title, description, TrayAppDotNETSettingsUI.Horizontal(swatch, resetButton), palette);
+        return Card(
+            title,
+            description,
+            TrayAppDotNETSettingsUI.Horizontal(swatch, resetButton),
+            palette,
+            searchKeywords);
     }
 
     protected Border VariantColorCard(
@@ -203,7 +212,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         NullableThemeColor color,
         Color lightFallback,
         Color darkFallback,
-        SettingsPalette palette)
+        SettingsPalette palette,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         SettingsSwatch light = new(palette);
         SettingsSwatch dark = new(palette);
@@ -233,7 +243,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
         StackPanel row = TrayAppDotNETSettingsUI.Horizontal(light, dark, reset);
         row.Tag = name;
-        return Card(title, description, row, palette);
+        return Card(title, description, row, palette, searchKeywords);
     }
 
     protected virtual bool ResolveEffectiveIsLightForBindings() => false;

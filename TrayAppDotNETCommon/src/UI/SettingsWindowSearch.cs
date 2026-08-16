@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 
@@ -9,10 +10,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 {
     private SettingsSearchBox? _settingsSearchBox;
     private SettingsSearchView? _settingsSearchView;
-    private SettingsSemanticSearchEngine? _settingsSearchEngine;
-    private CancellationTokenSource? _settingsSearchCancellation;
     private string _settingsSearchQuery = string.Empty;
-    private long _settingsSearchRevision;
     private bool _isShowingSettingsSearch;
     private bool _suppressSettingsSearchTextChanged;
 
@@ -21,7 +19,6 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         bool wasShowingSearch = _isShowingSettingsSearch;
         SettingsSearchView? previousView = _settingsSearchView;
         string previousQuery = _settingsSearchQuery;
-        CancelSettingsSearchRequest();
         _isShowingSettingsSearch = false;
         _settingsSearchView = null;
         _settingsSearchQuery = string.Empty;
@@ -56,28 +53,15 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         RunSettingsSearch(query);
     }
 
-    private async void RunSettingsSearch(string query)
+    private void RunSettingsSearch(string query)
     {
-        long revision = Interlocked.Increment(ref _settingsSearchRevision);
-        CancellationTokenSource cancellation = new();
-        CancellationTokenSource? previousCancellation = Interlocked.Exchange(
-            ref _settingsSearchCancellation,
-            cancellation);
-        previousCancellation?.Cancel();
-        previousCancellation?.Dispose();
-
-        SettingsSearchView view;
-        IReadOnlyList<SettingsSearchDocument> documents;
-        HashSet<int> lexicalMatches;
         try
         {
-            view = EnsureSettingsSearchView();
-            documents = view.ReadDocuments();
-            lexicalMatches = SettingsSearchScorer.FindMatches(query, documents, null);
-            bool useSemanticSearch = SettingsSearchScorer.ShouldUseSemanticSearch(query);
-            view.ApplyMatches(lexicalMatches, query, isFinal: !useSemanticSearch);
+            SettingsSearchView view = EnsureSettingsSearchView();
+            IReadOnlyList<SettingsSearchDocument> documents = view.ReadDocuments();
+            HashSet<int> matches = SettingsSearchScorer.FindMatches(query, documents, view.SynonymMap);
+            view.ApplyMatches(matches, query);
             _scrollHost?.SetVerticalOffset(0);
-            if (!useSemanticSearch) return;
         }
         catch (Exception exception)
         {
@@ -85,46 +69,6 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 $"{GetType().Name} settings search view failed: " +
                 $"{exception.GetType().Name}: {exception.Message}");
             return;
-        }
-
-        try
-        {
-            SettingsSemanticSearchEngine engine = _settingsSearchEngine ??= new SettingsSemanticSearchEngine();
-            IReadOnlyDictionary<int, float> semanticSimilarities = await engine.ScoreAsync(
-                query,
-                documents,
-                cancellation.Token);
-            if (cancellation.IsCancellationRequested
-                || revision != Volatile.Read(ref _settingsSearchRevision)
-                || !ReferenceEquals(view, _settingsSearchView)
-                || !string.Equals(query, _settingsSearchQuery, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            HashSet<int> matches = SettingsSearchScorer.FindMatches(query, documents, semanticSimilarities);
-            view.ApplyMatches(matches, query, isFinal: true);
-            _scrollHost?.SetVerticalOffset(0);
-        }
-        catch (OperationCanceledException)
-        {
-            // A newer text change owns the results
-        }
-        catch (ObjectDisposedException) when (IsClosing || cancellation.IsCancellationRequested)
-        {
-            // Window teardown owns the embedding session
-        }
-        catch (Exception exception)
-        {
-            if (revision == Volatile.Read(ref _settingsSearchRevision)
-                && ReferenceEquals(view, _settingsSearchView))
-            {
-                view.ApplyMatches(lexicalMatches, query, isFinal: true);
-            }
-
-            TADNLog.Log(
-                $"{GetType().Name} semantic settings search failed: " +
-                $"{exception.GetType().Name}: {exception.Message}");
         }
     }
 
@@ -197,11 +141,16 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             }
 
             OwnDisposablePageControls(root, resources);
+            string commonSynonymGroups = CommonStrings.ResourceManager.GetString(
+                SettingsSearchSynonymMap.CommonResourceKey,
+                LocalizationManager.Instance.CurrentCulture) ?? string.Empty;
             SettingsSearchView view = new(
                 status,
-                L("SettingsWindow_SearchFindingMatches", "Finding semantic matches..."),
                 L("SettingsWindow_SearchNoMatchesFormat", "No settings match \"{0}\"."),
-                sources);
+                sources,
+                SettingsSearchSynonymMap.Parse(
+                    commonSynonymGroups,
+                    L(SettingsSearchSynonymMap.AppResourceKey)));
             UIContentGeneration generation = new($"{GetType().Name}.Search", root, resources);
             return (generation, view);
         }
@@ -218,7 +167,6 @@ public abstract partial class SettingsWindowCommon<TPageKey>
 
     private void ExitSettingsSearch()
     {
-        CancelSettingsSearchRequest();
         if (!_isShowingSettingsSearch) return;
 
         SettingsSearchView? previousView = _settingsSearchView;
@@ -261,19 +209,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         }
     }
 
-    private void CancelSettingsSearchRequest()
-    {
-        Interlocked.Increment(ref _settingsSearchRevision);
-        CancellationTokenSource? cancellation = Interlocked.Exchange(ref _settingsSearchCancellation, null);
-        cancellation?.Cancel();
-        cancellation?.Dispose();
-    }
-
     private void DisposeSettingsSearch()
     {
-        CancelSettingsSearchRequest();
-        SettingsSemanticSearchEngine? engine = Interlocked.Exchange(ref _settingsSearchEngine, null);
-        engine?.Dispose();
         _settingsSearchView = null;
         _settingsSearchBox = null;
         _settingsSearchQuery = string.Empty;

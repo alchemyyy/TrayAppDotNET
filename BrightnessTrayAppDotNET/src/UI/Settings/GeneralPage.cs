@@ -32,14 +32,24 @@ public sealed partial class BrightnessSettingsWindow
                 "Restore the selected profile's saved brightness values when the app starts."),
             _settings.ApplyBrightnessOnStartup,
             v => _settings.ApplyBrightnessOnStartup = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_ApplyBrightnessOnStartup_SearchKeywords",
+                    "launch restore monitor levels")
+            ]));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_Autosave_Title), "Autosave profiles"),
             L(nameof(AppStrings.Settings_General_Autosave_Description),
                 "Save profile changes automatically after brightness or monitor-state edits."),
             _settings.Autosave,
             v => _settings.Autosave = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_Autosave_SearchKeywords",
+                    "persist presets automatically")
+            ]));
         stack.Children.Add(BuildAutoEngageEnvironmentalCurveCard(p));
 
         commonSection.AddInstallationSection(stack,
@@ -85,21 +95,36 @@ public sealed partial class BrightnessSettingsWindow
                 "Include the Windows Night Light strength slider in the flyout."),
             _settings.ShowNightLightSlider,
             v => _settings.ShowNightLightSlider = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_ShowNightLightSlider_SearchKeywords",
+                    "blue light color temperature warmth control")
+            ]));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Title), "Invert night-light slider"),
             L(nameof(AppStrings.Settings_General_InvertNightLightSlider_Description),
                 "Make higher slider positions cooler instead of warmer."),
             _settings.InvertNightLightSlider,
             v => _settings.InvertNightLightSlider = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_InvertNightLightSlider_SearchKeywords",
+                    "reverse warmth direction cooler warmer")
+            ]));
         stack.Children.Add(BoolCard(
             L("Settings_General_TurnOffNightLightAtZero_Title", "Turn off at zero strength"),
             L("Settings_General_TurnOffNightLightAtZero_Description",
                 "Dragging night light to 0 also disables Night Light."),
             _settings.TurnOffNightLightAtZeroStrength,
             v => _settings.TurnOffNightLightAtZeroStrength = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_TurnOffNightLightAtZero_SearchKeywords",
+                    "disable blue light minimum")
+            ]));
         stack.Children.Add(StringComboCard(
             L("Settings_General_NightLightBackend_Title", "Night-light backend"),
             L("Settings_General_NightLightBackend_Description",
@@ -112,7 +137,12 @@ public sealed partial class BrightnessSettingsWindow
             ],
             _settings.NightLightFallbackMode,
             v => _settings.NightLightFallbackMode = v,
-            p));
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_NightLightBackend_SearchKeywords",
+                    "provider implementation registry gamma symbols")
+            ]));
         stack.Children.Add(IntCard(
             L("Settings_General_PDBTimeout_Title", "PDB download timeout"),
             L("Settings_General_PDBTimeout_Description",
@@ -122,7 +152,12 @@ public sealed partial class BrightnessSettingsWindow
             600,
             v => _settings.NightLightPDBDownloadTimeoutSeconds = v,
             p,
-            L(nameof(AppStrings.Common_SecondsSuffix), "s")));
+            L(nameof(AppStrings.Common_SecondsSuffix), "s"),
+            searchKeywords:
+            [
+                L("Settings_General_PDBTimeout_SearchKeywords",
+                    "symbol download network wait")
+            ]));
         stack.Children.Add(IntCard(
             L("Settings_General_EnvironmentalTick_Title", "Environmental tick interval"),
             L("Settings_General_EnvironmentalTick_Description", "Milliseconds between active curve evaluations."),
@@ -131,7 +166,12 @@ public sealed partial class BrightnessSettingsWindow
             600_000,
             v => _settings.EnvironmentalCurveTickIntervalMs = v,
             p,
-            Loc(nameof(AppStrings.Common_MillisecondsSuffix))));
+            Loc(nameof(AppStrings.Common_MillisecondsSuffix)),
+            searchKeywords:
+            [
+                L("Settings_General_EnvironmentalTick_SearchKeywords",
+                    "adaptive automation polling refresh frequency")
+            ]));
 
         stack.Children.Add(
             TrayAppDotNETSettingsUI.SubsectionHeader(L(nameof(AppStrings.Settings_General_Profiles_Header), "Profiles"), p));
@@ -204,7 +244,12 @@ public sealed partial class BrightnessSettingsWindow
             L("Settings_General_AutoEngageEnvironmentalCurve_Description",
                 "Re-engage the environmental brightness curve after it crosses the released master slider value."),
             controls,
-            p);
+            p,
+            searchKeywords:
+            [
+                L("Settings_General_AutoEngageEnvironmentalCurve_SearchKeywords",
+                    "resume adaptive automatic brightness after manual adjustment")
+            ]);
     }
 
     private void RebuildProfileSlots()

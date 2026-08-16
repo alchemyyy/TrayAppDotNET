@@ -833,4 +833,141 @@ Target: {1}</value>
   <data name="Uninstaller_Title" xml:space="preserve">
     <value>Uninstall FanControlTrayAppDotNET</value>
   </data>
+  <data name="Settings_General_DefaultToRPMMode_SearchKeywords" xml:space="preserve">
+    <value>tachometer revolutions rotation speed cooling</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultJumpstart_SearchKeywords" xml:space="preserve">
+    <value>spin up startup boost stalled fan stiction</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultDeltaMax_SearchKeywords" xml:space="preserve">
+    <value>ramp rate smoothing response acceleration cooling</value>
+  </data>
+  <data name="Settings_FanProperties_DefaultCurve_SearchKeywords" xml:space="preserve">
+    <value>temperature profile thermal response automatic cooling</value>
+  </data>
+  <data name="Settings_FanProperties_Reassign_SearchKeywords" xml:space="preserve">
+    <value>swap reorder remap fan headers physical slots controller</value>
+  </data>
+  <data name="Settings_FanProperties_NonFunctioning_SearchKeywords" xml:space="preserve">
+    <value>broken stopped detached missing disabled cooling hardware</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_SearchKeywords" xml:space="preserve">
+    <value>floating window position remember startup</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_SearchKeywords" xml:space="preserve">
+    <value>detach floating window redock separate panel</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_SearchKeywords" xml:space="preserve">
+    <value>monitor work area keep visible constrain window</value>
+  </data>
+  <data name="Settings_Flyout_ShowNonFunctioningFans_SearchKeywords" xml:space="preserve">
+    <value>broken stopped detached missing disabled cooling hardware</value>
+  </data>
+  <data name="Settings_Flyout_ShowMultipleSliderValues_SearchKeywords" xml:space="preserve">
+    <value>manual duty cycle curve setpoint target overlay</value>
+  </data>
+  <data name="Settings_Theme_CardSpacing_SearchKeywords" xml:space="preserve">
+    <value>gap separation density</value>
+  </data>
+  <data name="Settings_Theme_CardHorizontalInset_SearchKeywords" xml:space="preserve">
+    <value>side padding margin width</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarCardSpacing_SearchKeywords" xml:space="preserve">
+    <value>header padding margin gap</value>
+  </data>
+  <data name="Settings_Theme_CardBorders_SearchKeywords" xml:space="preserve">
+    <value>outline stroke frame</value>
+  </data>
+  <data name="Settings_Theme_HoverCardBorders_SearchKeywords" xml:space="preserve">
+    <value>pointer mouseover outline highlight</value>
+  </data>
+  <data name="Settings_Theme_HideGroupedFanCardBorders_SearchKeywords" xml:space="preserve">
+    <value>nested cooling rows outline</value>
+  </data>
+  <data name="Settings_Theme_GroupedFanCardBackground_SearchKeywords" xml:space="preserve">
+    <value>nested cooling rows fill surface</value>
+  </data>
+  <data name="Settings_Theme_SquareFlyoutTitleBarCorners_SearchKeywords" xml:space="preserve">
+    <value>sharp rectangular header radius</value>
+  </data>
+  <data name="Settings_TrayIcon_MouseWheel_SearchKeywords" xml:space="preserve">
+    <value>scroll pointer cooling control</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowCPUTemp_SearchKeywords" xml:space="preserve">
+    <value>processor thermal heat sensor hover</value>
+  </data>
+  <data name="Settings_TrayIcon_ShowGPUTemp_SearchKeywords" xml:space="preserve">
+    <value>graphics card thermal heat sensor hover</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_SearchKeywords" xml:space="preserve">
+    <value>right click popup taskbar cursor corner</value>
+  </data>
+  <data name="Settings_TrayIcon_ClickActions_SearchKeywords" xml:space="preserve">
+    <value>mouse gesture shortcut command notification area</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_SearchKeywords" xml:space="preserve">
+    <value>global key binding keyboard command show cooling controls</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_SearchKeywords" xml:space="preserve">
+    <value>global key binding keyboard command preferences configuration</value>
+  </data>
+  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
+    <value>text scale typography zoom</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
+    <value>appearance color scheme Windows preference</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>square sharp rectangular radius geometry</value>
+  </data>
+  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
+    <value>foreground font lettering contrast</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>canvas surface fill wallpaper</value>
+  </data>
+  <data name="Settings_Theme_FlyoutBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>popup panel surface fill</value>
+  </data>
+  <data name="Settings_Theme_FlyoutTitleBarBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>header caption surface fill</value>
+  </data>
+  <data name="Settings_Theme_FanCardBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>cooling tile row surface fill</value>
+  </data>
+  <data name="Settings_Theme_GroupCardBackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>cooling collection tile surface fill</value>
+  </data>
+  <data name="Settings_Theme_CardBorderColor_SearchKeywords" xml:space="preserve">
+    <value>outline stroke frame</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
+    <value>notification area system tray glyph symbol</value>
+  </data>
+  <data name="Settings_Theme_SliderThumb_SearchKeywords" xml:space="preserve">
+    <value>handle knob grip control</value>
+  </data>
+  <data name="Settings_Theme_CurveSliderThumb_SearchKeywords" xml:space="preserve">
+    <value>automatic profile handle knob grip</value>
+  </data>
+  <!-- One conceptual group per line; equivalent phrases are separated by vertical bars. -->
+  <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
+    <value>RPM|fan RPM|revolutions per minute|tachometer|tach reading|rotational fan speed
+duty cycle|fan duty|fan percentage|fan speed percentage|PWM duty
+jumpstart|fan jump start|spin-up boost|fan startup boost|kick-start fan|fan starting pulse|fan stiction
+max delta|fan ramp rate|fan slew rate|fan speed change limit|fan acceleration limit|smooth fan speed changes
+default curve|fan curve|temperature curve|thermal curve|cooling curve|fan speed profile|temperature-to-speed profile|automatic fan control
+fan reassignment|reassign fan settings|swap fan settings|remap fan channels|move settings between fans|reorder saved fan settings
+fan headers|fan slots|fan channels|controller channels|physical fan positions
+non-functioning fans|non-functioning fan|failed fans|failed fan|dead fan|broken fan|missing fan|detached fan|fan not detected
+multiple slider values|dual slider values|show both fan values|manual and curve values|two fan setpoints|fan target overlay
+CPU temperature|processor temperature|CPU package temperature|processor thermals
+GPU temperature|graphics processor temperature|graphics card temperature|GPU core temperature|graphics thermals
+grouped fan borders|grouped fan cards|fan group cards|fans inside a group
+tray wheel|tray mouse wheel|mouse wheel over tray icon|scroll over tray icon
+undocked flyout|floating flyout|detach flyout|pop out flyout
+keep undocked flyout on screen|keep floating flyout visible|constrain flyout to monitor|clamp flyout to work area
+modifier tray action|tray click action|modified tray click|mouse gesture on tray icon
+slider thumb|slider handle|slider knob|slider grip</value>
+  </data>
 </root>

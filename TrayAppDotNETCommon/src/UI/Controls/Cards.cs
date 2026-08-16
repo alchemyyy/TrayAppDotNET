@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.Settings;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -19,6 +20,14 @@ internal static class SettingsCardsLayout
 
 public static class TrayAppDotNETSettingsCards
 {
+    /// <summary>Marks a custom settings card so stitched search results can filter it independently.</summary>
+    public static Border RegisterSearchCard(Border card, params string[] searchKeywords)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
+        return SettingsSearchMetadata.AddSearchKeywords(card, searchKeywords);
+    }
+
     public static StackPanel PageStack(string title, SettingsPalette palette)
     {
         StackPanel stack = new() { Background = TrayAppDotNETSettingsUI.Brush(palette.Background) };
@@ -41,7 +50,8 @@ public static class TrayAppDotNETSettingsCards
         SettingsPalette palette,
         CornerRadius cardRadius,
         Action save,
-        Action? afterSave = null)
+        Action? afterSave = null,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         SettingsToggle toggle = TrayAppDotNETSettingsUI.Toggle(palette, value, (_, enabled) =>
         {
@@ -49,7 +59,7 @@ public static class TrayAppDotNETSettingsCards
             save();
             afterSave?.Invoke();
         });
-        return Card(title, description, toggle, palette, cardRadius);
+        return Card(title, description, toggle, palette, cardRadius, searchKeywords);
     }
 
     public static Border IntCard(
@@ -62,7 +72,8 @@ public static class TrayAppDotNETSettingsCards
         SettingsPalette palette,
         CornerRadius cardRadius,
         Action save,
-        string suffix = "")
+        string suffix = "",
+        IReadOnlyList<string>? searchKeywords = null)
     {
         SettingsNumberBox input = TrayAppDotNETSettingsUI.NumberBox(
             palette,
@@ -77,7 +88,7 @@ public static class TrayAppDotNETSettingsCards
             set((int)e.NewValue.Value);
             save();
         };
-        return Card(title, description, input, palette, cardRadius);
+        return Card(title, description, input, palette, cardRadius, searchKeywords);
     }
 
     public static Border ComboCard(
@@ -91,7 +102,8 @@ public static class TrayAppDotNETSettingsCards
         Action save,
         Action? afterSave = null,
         bool autoSizeToText = false,
-        SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem)
+        SettingsComboBoxAutoSizeMode autoSizeMode = SettingsComboBoxAutoSizeMode.LongestItem,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         SettingsComboBox combo = TrayAppDotNETSettingsUI.ComboBox(
             palette,
@@ -108,7 +120,7 @@ public static class TrayAppDotNETSettingsCards
             save();
             afterSave?.Invoke();
         };
-        return Card(title, description, combo, palette, cardRadius);
+        return Card(title, description, combo, palette, cardRadius, searchKeywords);
     }
 
     public static Border Card(
@@ -116,7 +128,8 @@ public static class TrayAppDotNETSettingsCards
         string description,
         Control? rightControl,
         SettingsPalette palette,
-        CornerRadius cardRadius)
+        CornerRadius cardRadius,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         StackPanel text = new()
         {
@@ -141,10 +154,15 @@ public static class TrayAppDotNETSettingsCards
             grid.Children.Add(rightControl);
         }
 
-        return RawCard(grid, palette, cardRadius);
+        Border card = RawCard(grid, palette, cardRadius);
+        return SettingsSearchMetadata.MarkCard(card, title, searchKeywords);
     }
 
-    public static Border RawCard(Control content, SettingsPalette palette, CornerRadius cardRadius)
+    public static Border RawCard(
+        Control content,
+        SettingsPalette palette,
+        CornerRadius cardRadius,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         Border card = new()
         {
@@ -155,7 +173,8 @@ public static class TrayAppDotNETSettingsCards
             Child = content
         };
         TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, SettingsCardsLayout.DisabledOpacity);
-        return card;
+        SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
+        return SettingsSearchMetadata.AddSearchKeywords(card, searchKeywords);
     }
 
     public static Border MutableCard(
@@ -164,7 +183,8 @@ public static class TrayAppDotNETSettingsCards
         Control? rightControl,
         SettingsPalette palette,
         CornerRadius cardRadius,
-        out TextBlock descriptionText)
+        out TextBlock descriptionText,
+        IReadOnlyList<string>? searchKeywords = null)
     {
         StackPanel text = new()
         {
@@ -189,6 +209,7 @@ public static class TrayAppDotNETSettingsCards
             grid.Children.Add(rightControl);
         }
 
-        return RawCard(grid, palette, cardRadius);
+        Border card = RawCard(grid, palette, cardRadius);
+        return SettingsSearchMetadata.MarkCard(card, title, searchKeywords);
     }
 }

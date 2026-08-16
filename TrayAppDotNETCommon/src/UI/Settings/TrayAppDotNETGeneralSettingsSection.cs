@@ -73,7 +73,9 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             startupToggle,
             p,
             _options.CardRadius,
-            out TextBlock startupDescriptionText);
+            out TextBlock startupDescriptionText,
+            [L("Settings_General_RunOnStartup_SearchKeywords",
+                "launch login logon boot autostart start automatically start with Windows")]);
         _startupDescription = startupDescriptionText;
         return startupCard;
     }
@@ -98,7 +100,9 @@ public sealed class TrayAppDotNETGeneralSettingsSection
                 null,
                 p,
                 _options.CardRadius,
-                out TextBlock storeDescription);
+                out TextBlock storeDescription,
+                [L("Settings_General_Installation_SearchKeywords",
+                    "setup install uninstall remove application package store")]);
             _refreshers.Add(() => storeDescription.Text = storeInstall.Description());
             stack.Children.Add(storeCard);
         }
@@ -127,7 +131,9 @@ public sealed class TrayAppDotNETGeneralSettingsSection
             buttons,
             p,
             _options.CardRadius,
-            out TextBlock description);
+            out TextBlock description,
+            [L("Settings_General_Installation_SearchKeywords",
+                "setup install uninstall remove application program files current user system wide")]);
 
         _refreshers.Add(() =>
         {

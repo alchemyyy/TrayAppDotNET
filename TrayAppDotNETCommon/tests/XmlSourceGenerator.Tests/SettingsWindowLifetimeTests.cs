@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
@@ -79,6 +81,51 @@ public sealed class SettingsWindowLifetimeTests
     });
 
     [Fact]
+    public void SettingsSearchStitchesFiltersAndRestoresPages() => AvaloniaTestHost.Run(() =>
+    {
+        SearchSettingsWindow window = new();
+        window.Show();
+        Border shellRoot = Assert.IsType<Border>(window.Content);
+        SettingsSearchBox searchBox = Assert.Single(
+            shellRoot.GetVisualDescendants().OfType<SettingsSearchBox>());
+        TextBox searchInput = Assert.Single(searchBox.GetVisualDescendants().OfType<TextBox>());
+
+        searchInput.Focus();
+        window.KeyTextInput("al");
+
+        Assert.True(window.AlphaPageRoot.IsVisible);
+        Assert.True(window.AlphaCard.IsVisible);
+        Assert.False(window.BetaPageRoot.IsVisible);
+        Assert.False(window.BetaCard.IsVisible);
+        Assert.Equal(1, window.PageCleanupCount);
+
+        searchBox.Clear();
+
+        Assert.Equal(SearchPage.Alpha, window.SelectedPage);
+        Assert.True(window.AlphaPageRoot.IsVisible);
+        Assert.Equal(3, window.PageCleanupCount);
+        window.Close();
+    });
+
+    [Fact]
+    public void SettingsSearchUsesLocalizedSynonymGroups() => AvaloniaTestHost.Run(() =>
+    {
+        SearchSettingsWindow window = new();
+        window.Show();
+        Border shellRoot = Assert.IsType<Border>(window.Content);
+        SettingsSearchBox searchBox = Assert.Single(
+            shellRoot.GetVisualDescendants().OfType<SettingsSearchBox>());
+
+        searchBox.SearchText = "highest";
+
+        Assert.True(window.AlphaPageRoot.IsVisible);
+        Assert.True(window.MaximumCard.IsVisible);
+        Assert.False(window.AlphaCard.IsVisible);
+        Assert.False(window.BetaPageRoot.IsVisible);
+        window.Close();
+    });
+
+    [Fact]
     public void SwatchColorUpdateReusesBrush() => AvaloniaTestHost.Run(() =>
     {
         SettingsSwatch swatch = new(CreatePalette(Colors.Black, Colors.White));
@@ -95,6 +142,12 @@ public sealed class SettingsWindowLifetimeTests
     {
         Stable,
         Failing
+    }
+
+    private enum SearchPage
+    {
+        Alpha,
+        Beta
     }
 
     private sealed class TestSettingsWindow : SettingsWindowCommon<TestPage>
@@ -175,6 +228,62 @@ public sealed class SettingsWindowLifetimeTests
 
         protected override void Save()
         {
+        }
+    }
+
+    private sealed class SearchSettingsWindow : SettingsWindowCommon<SearchPage>
+    {
+        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public SearchSettingsWindow()
+        {
+            ConfigureSettingsWindow("Search Test", null);
+            InitializeSettingsShell();
+        }
+
+        public StackPanel AlphaPageRoot { get; private set; } = null!;
+        public StackPanel BetaPageRoot { get; private set; } = null!;
+        public Border AlphaCard { get; private set; } = null!;
+        public Border BetaCard { get; private set; } = null!;
+        public Border MaximumCard { get; private set; } = null!;
+        public int PageCleanupCount { get; private set; }
+        public SearchPage SelectedPage => CurrentPageKey;
+
+        protected override bool EnableRoundedCorners => false;
+        protected override SearchPage DefaultPageKey => SearchPage.Alpha;
+        protected override string HeaderText => "Search Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => TestPalette;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<SearchPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<SearchPage>(SearchPage.Alpha, "Alpha", BuildAlphaPage),
+            new SettingsPageDescriptor<SearchPage>(SearchPage.Beta, "Beta", BuildBetaPage)
+        ];
+
+        protected override void Save()
+        {
+        }
+
+        private StackPanel BuildAlphaPage()
+        {
+            AddPageCleanup(() => PageCleanupCount++);
+            AlphaPageRoot = PageStack("Alpha", Palette);
+            AlphaCard = Card("Alpha option", "Starts the alpha feature.", null, Palette);
+            MaximumCard = Card("Max apps per row", "Limits each row.", null, Palette);
+            AlphaPageRoot.Children.Add(AlphaCard);
+            AlphaPageRoot.Children.Add(MaximumCard);
+            return AlphaPageRoot;
+        }
+
+        private StackPanel BuildBetaPage()
+        {
+            AddPageCleanup(() => PageCleanupCount++);
+            BetaPageRoot = PageStack("Beta", Palette);
+            BetaCard = Card("Beta option", "Starts the beta feature.", null, Palette);
+            BetaPageRoot.Children.Add(BetaCard);
+            return BetaPageRoot;
         }
     }
 

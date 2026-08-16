@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -2357,8 +2358,9 @@ public static class TrayAppDotNETSettingsUI
         };
     }
 
-    public static TextBlock SectionHeader(string text, SettingsPalette palette) =>
-        new()
+    public static TextBlock SectionHeader(string text, SettingsPalette palette)
+    {
+        TextBlock header = new()
         {
             Text = text,
             FontFamily = UIFont,
@@ -2367,9 +2369,12 @@ public static class TrayAppDotNETSettingsUI
             Foreground = Brush(palette.Foreground),
             Margin = SettingsUILayout.SectionHeaderMargin
         };
+        return SettingsSearchMetadata.Mark(header, SettingsSearchRole.PageHeader);
+    }
 
-    public static TextBlock SubsectionHeader(string text, SettingsPalette palette) =>
-        new()
+    public static TextBlock SubsectionHeader(string text, SettingsPalette palette)
+    {
+        TextBlock header = new()
         {
             Text = text,
             FontFamily = UIFont,
@@ -2378,6 +2383,8 @@ public static class TrayAppDotNETSettingsUI
             Foreground = Brush(palette.Foreground),
             Margin = SettingsUILayout.SubsectionHeaderMargin
         };
+        return SettingsSearchMetadata.Mark(header, SettingsSearchRole.SubsectionHeader);
+    }
 
     public static TextBlock TitleText(string text, SettingsPalette palette) =>
         new()
@@ -2442,7 +2449,7 @@ public static class TrayAppDotNETSettingsUI
             Child = grid
         };
         ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
-        return card;
+        return SettingsSearchMetadata.MarkCard(card, title);
     }
 
     public static Border RawCard(Control content, SettingsPalette palette)
@@ -2456,7 +2463,7 @@ public static class TrayAppDotNETSettingsUI
             Child = content
         };
         ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
-        return card;
+        return SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
     }
 
     public static SettingsScrollHost ScrollHost(Control content, SettingsPalette palette, Thickness padding) =>

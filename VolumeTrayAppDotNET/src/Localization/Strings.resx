@@ -186,6 +186,56 @@
   <data name="SettingsWindow_Header" xml:space="preserve">
     <value>Settings</value>
   </data>
+  <!-- One concept group per line; separate equivalent localized terms or phrases with |. -->
+  <data name="SettingsWindow_SearchSynonymGroups_App" xml:space="preserve">
+    <value>maximum|max|highest|largest|greatest|upper limit|upper bound
+minimum|lowest|smallest|lower limit|lower bound
+threshold|cutoff|trigger level
+playback device|playback devices|audio output device|audio output devices|output endpoint|output endpoints|render endpoint|render endpoints
+recording device|recording devices|audio input device|audio input devices|capture endpoint|capture endpoints|input endpoint|input endpoints
+default device|default audio device|default endpoint|primary audio device|primary audio endpoint
+communications device|comms device|communications role device|communications role endpoint
+disabled device|disabled devices|deactivated device|deactivated devices
+disconnected device|disconnected devices|unplugged device|unplugged devices|disconnected endpoint|disconnected endpoints
+not present device|not present devices|ghost device|ghost devices|phantom device|phantom devices|stale endpoint|stale endpoints
+exclusive mode|exclusive control|application exclusive audio
+equalizer|EQ
+listen to this device|input monitoring|microphone monitoring
+communications ducking|audio ducking|communications attenuation
+volume change sound|volume change beep|volume feedback sound|volume feedback tone|audio feedback tone
+logarithmic volume scale|logarithmic volume curve|perceptual volume curve|audio taper
+default format|default audio format|audio endpoint format|Windows mix format
+Bluetooth codec|A2DP codec|Bluetooth audio codec
+peak meter|audio level meter|signal peak meter
+unified peak meter|combined channel meter|single bar meter
+peak meter refresh rate|meter redraw rate|meter frame rate|meter FPS
+peak meter sample rate|meter polling rate|peak sampling frequency
+peak meter change ceiling|meter slew limit|maximum change per redraw|single frame jump limit
+low channel bias|quieter channel weighting|channel weighting multiplier
+flyout|volume flyout|volume control flyout|tray volume flyout
+undocked flyout|detached flyout|floating flyout
+opens docked|stays anchored to the tray|attached to the tray
+restore undock state|restore flyout state|remember flyout state|persist flyout state
+keep undocked flyout on screen|clamp flyout to screen|constrain flyout to work area
+flyout title bar|flyout header
+app drawer|app drawers|application drawer|application drawers|volume mixer drawer|volume mixer drawers
+app slider|app sliders|application volume slider|application volume sliders|mixer slider|mixer sliders|audio fader|audio faders
+intermix|interleave|mix together
+Bluetooth power button|Bluetooth power control|Bluetooth radio control|Bluetooth power toggle
+actively capturing apps|capture activity indicator|microphone in use indicator|recording activity indicator
+volume step|volume increment|volume change amount
+device name max length|device name maximum length|device label character limit|truncate device name
+modified actions|tray action mapping|mouse action mapping|gesture action assignment
+centered|centred|center aligned|centre aligned|middle aligned
+stack direction|flow direction|layout orientation
+device sort|sort order|device ordering|endpoint ordering
+tray icon|system tray icon|notification area icon
+context menu|right click menu|tray menu
+mouse wheel|scroll wheel
+touchpad|trackpad
+tooltip|tool tip|hover tip
+slider thumb|slider handle|slider knob</value>
+  </data>
   <data name="SettingsWindow_OpenSettingsFolder" xml:space="preserve">
     <value>Open settings folder</value>
   </data>
@@ -1429,5 +1479,254 @@ Target: {1}</value>
   </data>
   <data name="Settings_About_BluetoothCodecNotDisplaying_Description" xml:space="preserve">
     <value>This is a Windows Bluetooth limitation. The `Microsoft.Windows.Bluetooth.BthA2dp` ETW provider only emits the `A2dpStreaming` event on AVDTP `SET_CONFIGURATION` or `RECONFIGURE` -- i.e. when audio actually begins streaming, not at the moment a Bluetooth endpoint connects. While the headset is connected but idle, no codec event fires and the suffix remains empty. As soon as something pushes audio to the endpoint, the event fires and the codec text populates. There is no on-demand query path and it is not possible to accurately deduce codecs from sample rates and other parameters.</value>
+  </data>
+  <data name="Settings_DeviceAppDrawers_DefaultAppDrawerExpanded_SearchKeywords" xml:space="preserve">
+    <value>open unfold reveal mixer applications</value>
+  </data>
+  <data name="Settings_Devices_ActivateRecordingDevicesForPeakMeters_SearchKeywords" xml:space="preserve">
+    <value>microphone input level activity visualization monitor</value>
+  </data>
+  <data name="Settings_Devices_SetDefaultCommsToDefault_SearchKeywords" xml:space="preserve">
+    <value>communications role calls headset primary endpoint</value>
+  </data>
+  <data name="Settings_Devices_ShowDefaultCommsEvenIfDisabled_SearchKeywords" xml:space="preserve">
+    <value>calls headset communications role hidden endpoint</value>
+  </data>
+  <data name="Settings_Devices_ShowDefaultEvenIfDisabled_SearchKeywords" xml:space="preserve">
+    <value>primary speaker microphone hidden endpoint</value>
+  </data>
+  <data name="Settings_Devices_ShowDisabled_SearchKeywords" xml:space="preserve">
+    <value>inactive hidden unavailable audio endpoints</value>
+  </data>
+  <data name="Settings_Devices_ShowDisconnectedPlayback_SearchKeywords" xml:space="preserve">
+    <value>unplugged offline unavailable hardware endpoints</value>
+  </data>
+  <data name="Settings_Devices_ShowNotPresent_SearchKeywords" xml:space="preserve">
+    <value>phantom obsolete orphaned stale hardware endpoints</value>
+  </data>
+  <data name="Settings_Devices_ShowPlaybackBatteryButton_SearchKeywords" xml:space="preserve">
+    <value>headset earbuds charge wireless reconnect</value>
+  </data>
+  <data name="Settings_Devices_ShowPlaybackDefaultDeviceButton_SearchKeywords" xml:space="preserve">
+    <value>switch primary speakers microphone output input</value>
+  </data>
+  <data name="Settings_Devices_ShowPlaybackEqualizerAPOButton_SearchKeywords" xml:space="preserve">
+    <value>EQ effects enhancements DSP</value>
+  </data>
+  <data name="Settings_Devices_ShowPlaybackLockButton_SearchKeywords" xml:space="preserve">
+    <value>exclusive control shared mode audio endpoint</value>
+  </data>
+  <data name="Settings_Devices_ShowRecording_SearchKeywords" xml:space="preserve">
+    <value>microphone input capture endpoints</value>
+  </data>
+  <data name="Settings_Devices_ShowRecordingListenButton_SearchKeywords" xml:space="preserve">
+    <value>microphone monitoring sidetone loopback hear input</value>
+  </data>
+  <data name="Settings_Devices_ShowTrayCommunicationsLink_SearchKeywords" xml:space="preserve">
+    <value>control panel calls ducking tab</value>
+  </data>
+  <data name="Settings_Devices_ShowTrayDeviceLinks_SearchKeywords" xml:space="preserve">
+    <value>speakers microphones endpoint properties submenu</value>
+  </data>
+  <data name="Settings_Devices_ShowTrayRecordingLink_SearchKeywords" xml:space="preserve">
+    <value>control panel input microphones tab context menu</value>
+  </data>
+  <data name="Settings_Devices_ShowTraySoundsLink_SearchKeywords" xml:space="preserve">
+    <value>control panel sound scheme alerts events tab</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerIconScale_SearchKeywords" xml:space="preserve">
+    <value>size zoom dimensions artwork</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerIconsCentered_SearchKeywords" xml:space="preserve">
+    <value>alignment justify partial trailing row</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerIconsCenterSoftMax_SearchKeywords" xml:space="preserve">
+    <value>alignment anchor target width</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerIconsPerColumn_SearchKeywords" xml:space="preserve">
+    <value>rows height vertical grid capacity</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerIconsPerRow_SearchKeywords" xml:space="preserve">
+    <value>columns width horizontal grid capacity</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerMaxApps_Icons_SearchKeywords" xml:space="preserve">
+    <value>grid height overflow limit</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerMaxApps_Sliders_SearchKeywords" xml:space="preserve">
+    <value>mixer list height overflow limit</value>
+  </data>
+  <data name="Settings_Flyout_AppDrawerStackDirection_SearchKeywords" xml:space="preserve">
+    <value>flow order orientation grid</value>
+  </data>
+  <data name="Settings_Flyout_BluetoothRadioButtonClickGesture_SearchKeywords" xml:space="preserve">
+    <value>modifier shortcut mouse action power toggle</value>
+  </data>
+  <data name="Settings_Flyout_ClampUndockedToScreen_SearchKeywords" xml:space="preserve">
+    <value>monitor bounds work area keep visible floating window</value>
+  </data>
+  <data name="Settings_Flyout_CommunicationsButtonVisibility_SearchKeywords" xml:space="preserve">
+    <value>phone calls attenuation lower other audio</value>
+  </data>
+  <data name="Settings_Flyout_DeviceLayout_SearchKeywords" xml:space="preserve">
+    <value>mixer applications position order</value>
+  </data>
+  <data name="Settings_Flyout_DeviceSort_SearchKeywords" xml:space="preserve">
+    <value>ordering arrange endpoint priority</value>
+  </data>
+  <data name="Settings_Flyout_DeviceTitlePosition_SearchKeywords" xml:space="preserve">
+    <value>device name controls buttons above below</value>
+  </data>
+  <data name="Settings_Flyout_DisconnectedBluetoothDevices_SearchKeywords" xml:space="preserve">
+    <value>headset earbuds wireless offline unavailable</value>
+  </data>
+  <data name="Settings_Flyout_HeaderAtBottom_SearchKeywords" xml:space="preserve">
+    <value>toolbar titlebar controls position</value>
+  </data>
+  <data name="Settings_Flyout_IntermixRecording_SearchKeywords" xml:space="preserve">
+    <value>microphone speaker ordering grouping</value>
+  </data>
+  <data name="Settings_Flyout_RecordingAppDrawerDisplayType_SearchKeywords" xml:space="preserve">
+    <value>microphone applications mixer grid presentation</value>
+  </data>
+  <data name="Settings_Flyout_RestoreUndockState_SearchKeywords" xml:space="preserve">
+    <value>remember popup panel position launch boot login</value>
+  </data>
+  <data name="Settings_Flyout_ShowBluetoothDevicesOnlyWhenOn_SearchKeywords" xml:space="preserve">
+    <value>wireless radio powered off hide endpoints</value>
+  </data>
+  <data name="Settings_Flyout_ShowBluetoothRadioButton_SearchKeywords" xml:space="preserve">
+    <value>wireless radio toggle switch power</value>
+  </data>
+  <data name="Settings_Flyout_ShowDeviceCodecText_SearchKeywords" xml:space="preserve">
+    <value>A2DP SBC AAC aptX LDAC wireless format</value>
+  </data>
+  <data name="Settings_Flyout_ShowDeviceFormatText_SearchKeywords" xml:space="preserve">
+    <value>sample rate bit depth channels audio quality</value>
+  </data>
+  <data name="Settings_Flyout_ShowRecordingDevices_SearchKeywords" xml:space="preserve">
+    <value>microphone input capture endpoints</value>
+  </data>
+  <data name="Settings_Flyout_ShowUndockButton_SearchKeywords" xml:space="preserve">
+    <value>detach floating window popup panel unpin</value>
+  </data>
+  <data name="Settings_Flyout_SoundSettingsTarget_SearchKeywords" xml:space="preserve">
+    <value>control panel mmsys CPL modern Windows preferences</value>
+  </data>
+  <data name="Settings_Flyout_UseDynamicPlaybackVolumeGlyph_SearchKeywords" xml:space="preserve">
+    <value>speaker icon level loudness mute</value>
+  </data>
+  <data name="Settings_General_CaptureActivityIndicator_SearchKeywords" xml:space="preserve">
+    <value>microphone privacy in use live recording</value>
+  </data>
+  <data name="Settings_General_DingSuppressionPeakThreshold_SearchKeywords" xml:space="preserve">
+    <value>beep sensitivity cutoff level</value>
+  </data>
+  <data name="Settings_General_IconRetryInterval_SearchKeywords" xml:space="preserve">
+    <value>missing blank application artwork fallback</value>
+  </data>
+  <data name="Settings_General_LogarithmicVolumeScale_SearchKeywords" xml:space="preserve">
+    <value>audio taper natural slider curve</value>
+  </data>
+  <data name="Settings_General_PlayAppVolumeChangeSound_SearchKeywords" xml:space="preserve">
+    <value>mixer application audio feedback preview chime</value>
+  </data>
+  <data name="Settings_General_PlayDeviceVolumeChangeSound_SearchKeywords" xml:space="preserve">
+    <value>audio feedback speaker ding chime</value>
+  </data>
+  <data name="Settings_General_PlayTrayScrollVolumeChangeSound_SearchKeywords" xml:space="preserve">
+    <value>wheel audio feedback chime</value>
+  </data>
+  <data name="Settings_General_SuppressDeviceVolumeChangeSoundWhenAudioPlaying_SearchKeywords" xml:space="preserve">
+    <value>silence mute feedback while listening</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepCoarsePercent_SearchKeywords" xml:space="preserve">
+    <value>large fast scroll adjustment increment</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepFinePercent_SearchKeywords" xml:space="preserve">
+    <value>precise small scroll adjustment increment</value>
+  </data>
+  <data name="Settings_General_WheelVolumeStepPercent_SearchKeywords" xml:space="preserve">
+    <value>scroll sensitivity increment amount</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenFlyout_SearchKeywords" xml:space="preserve">
+    <value>popup panel volume mixer global shortcut accelerator</value>
+  </data>
+  <data name="Settings_Hotkeys_OpenSettings_SearchKeywords" xml:space="preserve">
+    <value>preferences configuration options global shortcut accelerator</value>
+  </data>
+  <data name="Settings_Theme_Animations_SearchKeywords" xml:space="preserve">
+    <value>motion fade transition effects accessibility</value>
+  </data>
+  <data name="Settings_Theme_BackgroundColor_SearchKeywords" xml:space="preserve">
+    <value>surface canvas fill tint</value>
+  </data>
+  <data name="Settings_Theme_FontSize_SearchKeywords" xml:space="preserve">
+    <value>text size zoom scaling menu</value>
+  </data>
+  <data name="Settings_Theme_MeterPeakChangeCeiling_SearchKeywords" xml:space="preserve">
+    <value>attack speed jump limit smoothing responsiveness</value>
+  </data>
+  <data name="Settings_Theme_MeterPeakColor_SearchKeywords" xml:space="preserve">
+    <value>level indicator overlay tint VU</value>
+  </data>
+  <data name="Settings_Theme_MeterPeakFps_SearchKeywords" xml:space="preserve">
+    <value>animation smoothness redraw frequency performance</value>
+  </data>
+  <data name="Settings_Theme_MeterPeakSampleRate_SearchKeywords" xml:space="preserve">
+    <value>polling capture frequency CPU performance</value>
+  </data>
+  <data name="Settings_Theme_MeterPeakStereoColor_SearchKeywords" xml:space="preserve">
+    <value>left right channel difference halo tint</value>
+  </data>
+  <data name="Settings_Theme_RoundedCorners_SearchKeywords" xml:space="preserve">
+    <value>border radius square sharp edges</value>
+  </data>
+  <data name="Settings_Theme_SliderIndicator_SearchKeywords" xml:space="preserve">
+    <value>thumb handle knob shape glyph</value>
+  </data>
+  <data name="Settings_Theme_StaticIconColor_SearchKeywords" xml:space="preserve">
+    <value>notification area taskbar glyph tint</value>
+  </data>
+  <data name="Settings_Theme_TextColor_SearchKeywords" xml:space="preserve">
+    <value>foreground typography font tint</value>
+  </data>
+  <data name="Settings_Theme_ThemeStyle_SearchKeywords" xml:space="preserve">
+    <value>color scheme appearance Windows night day</value>
+  </data>
+  <data name="Settings_Theme_ToolTipShowDelay_SearchKeywords" xml:space="preserve">
+    <value>hover help popup wait latency</value>
+  </data>
+  <data name="Settings_Theme_UnifiedMeterBias_SearchKeywords" xml:space="preserve">
+    <value>channel weighting balance stereo smoothing</value>
+  </data>
+  <data name="Settings_Theme_UnifiedPeakMeter_SearchKeywords" xml:space="preserve">
+    <value>mono combine stereo channels level visualization</value>
+  </data>
+  <data name="Settings_TrayIcon_DeviceNameMaxLength_SearchKeywords" xml:space="preserve">
+    <value>truncate ellipsis characters clipping</value>
+  </data>
+  <data name="Settings_TrayIcon_MenuPosition_SearchKeywords" xml:space="preserve">
+    <value>popup cursor taskbar anchor dock Windows 11</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedClickActions_SearchKeywords" xml:space="preserve">
+    <value>mouse gesture shortcut binding assign behavior</value>
+  </data>
+  <data name="Settings_TrayIcon_ModifiedWheelActions_SearchKeywords" xml:space="preserve">
+    <value>scroll gesture binding assign behavior</value>
+  </data>
+  <data name="Settings_TrayIcon_MouseWheel_SearchKeywords" xml:space="preserve">
+    <value>scroll notification area taskbar adjust sound speaker</value>
+  </data>
+  <data name="Settings_TrayIcon_PlaybackDeviceName_SearchKeywords" xml:space="preserve">
+    <value>speaker output endpoint label model context menu</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadScroll_SearchKeywords" xml:space="preserve">
+    <value>trackpad gesture scrolling laptop</value>
+  </data>
+  <data name="Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords" xml:space="preserve">
+    <value>trackpad speed responsiveness movement threshold</value>
+  </data>
+  <data name="Settings_TrayIcon_RecordingDeviceName_SearchKeywords" xml:space="preserve">
+    <value>microphone input capture endpoint label model context menu</value>
   </data>
 </root>
