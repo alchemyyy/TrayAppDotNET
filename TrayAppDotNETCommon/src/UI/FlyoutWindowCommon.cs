@@ -47,6 +47,16 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     /// <summary>Gets the currently active replaceable content generation.</summary>
     protected UIContentGeneration? ActiveContentGeneration => _activeContentGeneration;
 
+    /// <summary>Clears a realized height so height-to-content layout can measure replacement content.</summary>
+    protected void RestoreAutomaticHeightSizing()
+    {
+        if ((SizeToContent & SizeToContent.Height) == 0) return;
+
+        // Avalonia writes the native client height back after showing the window
+        Height = double.NaN;
+        InvalidateMeasure();
+    }
+
     /// <summary>
     /// Publishes a completely built generation, then retires the previous generation.
     /// </summary>

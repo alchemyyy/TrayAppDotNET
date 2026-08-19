@@ -424,6 +424,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void CommitVisualGeneration(FanFlyoutVisualGeneration replacement)
     {
         FanFlyoutVisualGeneration? previous = _activeVisualGeneration;
+        bool updateCardVisibilityChanged = previous == null
+            || previous.HasUpdateCard != replacement.HasUpdateCard;
         object? previousWindowContent = Content;
         bool groupStagePublished = false;
         _isPublishingVisualGeneration = true;
@@ -486,6 +488,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             _isPublishingVisualGeneration = false;
         }
+
+        if (updateCardVisibilityChanged)
+            RestoreAutomaticHeightSizing();
 
         // Irreversible gesture and confirmation cleanup happens only after publication succeeds
         try
@@ -623,8 +628,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         };
 
         generation.CellStack = new StackPanel { Spacing = 0 };
-        bool hasUpdateCard = IsUpdateCardVisible;
-        if (hasUpdateCard)
+        generation.HasUpdateCard = IsUpdateCardVisible;
+        if (generation.HasUpdateCard)
             generation.CellStack.Children.Add(BuildUpdateCard(p, theme, isLight));
 
         foreach (FlyoutVisualSlot slot in BuildVisualSlots(p, theme, isLight, generation))
@@ -644,7 +649,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         empty.Opacity = Layout.EmptyTextOpacity;
         empty.HorizontalAlignment = HorizontalAlignment.Center;
         empty.VerticalAlignment = VerticalAlignment.Center;
-        empty.IsVisible = generation.Cells.Count == 0 && _probeCards.Count == 0 && !hasUpdateCard;
+        empty.IsVisible = generation.Cells.Count == 0 && _probeCards.Count == 0 && !generation.HasUpdateCard;
         holder.Children.Add(empty);
         return holder;
     }
@@ -5901,6 +5906,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         public Canvas DragOverlay { get; set; } = null!;
         public ScrollViewer ScrollViewer { get; set; } = null!;
         public Border RootCard { get; set; } = null!;
+        public bool HasUpdateCard { get; set; }
         public FlyoutUndockButtonController UndockButtonController { get; set; } = null!;
         public TextBlock? NonFunctioningFansButtonGlyph { get; set; }
         public TextBlock? FanDragDebugVisualsButtonGlyph { get; set; }

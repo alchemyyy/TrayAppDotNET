@@ -67,7 +67,39 @@ public sealed class FlyoutFrameTests
             }
         });
 
+    [Theory]
+    [InlineData(SizeToContent.Manual, false)]
+    [InlineData(SizeToContent.Width, false)]
+    [InlineData(SizeToContent.Height, true)]
+    [InlineData(SizeToContent.WidthAndHeight, true)]
+    public void RestoringAutomaticHeightClearsOnlyHeightToContentConstraints(
+        SizeToContent sizeToContent,
+        bool shouldClearHeight) =>
+        AvaloniaTestHost.Run(() =>
+        {
+            TestFlyoutWindow window = new()
+            {
+                SizeToContent = sizeToContent,
+                Height = 240
+            };
+
+            try
+            {
+                window.RestoreHeightSizing();
+
+                if (shouldClearHeight)
+                    Assert.True(double.IsNaN(window.Height));
+                else
+                    Assert.Equal(240, window.Height);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
     private sealed class TestFlyoutWindow : FlyoutWindowCommon
     {
+        public void RestoreHeightSizing() => RestoreAutomaticHeightSizing();
     }
 }
