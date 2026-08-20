@@ -27,6 +27,7 @@ internal sealed class ControlHoverInspectorWindow : Window
     private static readonly Color FrozenColor = Color.FromRgb(255, 194, 92);
     private static readonly Color HeaderBackgroundColor = Color.FromRgb(38, 38, 42);
 
+    private readonly ControlNameScope _controlNames;
     private readonly TextBlock _statusText;
     private readonly TextBlock _targetText;
     private readonly TreeView _treeView;
@@ -35,6 +36,7 @@ internal sealed class ControlHoverInspectorWindow : Window
 
     public ControlHoverInspectorWindow()
     {
+        _controlNames = ControlNameScope.For(this);
         Title = "Avalonia Hover Inspector";
         Width = InspectorWidth;
         Height = InspectorHeight;
@@ -107,13 +109,15 @@ internal sealed class ControlHoverInspectorWindow : Window
             }
         };
 
-        Content = new Border
+        Border root = new()
         {
             Background = new SolidColorBrush(BackgroundColor),
             BorderBrush = new SolidColorBrush(BorderColor),
             BorderThickness = new Thickness(1),
             Child = contentPanel
         };
+        _controlNames.AssignLogicalSubtree(root, this);
+        Content = root;
 
         SetFrozen(false);
         ShowNoControl();
@@ -128,17 +132,23 @@ internal sealed class ControlHoverInspectorWindow : Window
         _targetText.Text = snapshot.TargetLabel;
         _treeView.Items.Clear();
         foreach (ControlHoverInspectorNode root in snapshot.Roots)
-            _treeView.Items.Add(BuildTreeItem(root));
+        {
+            TreeViewItem rootItem = BuildTreeItem(root);
+            _controlNames.AssignLogicalSubtree(rootItem, _treeView);
+            _treeView.Items.Add(rootItem);
+        }
     }
 
     public void ShowNoControl()
     {
         _targetText.Text = "No control is currently under the pointer";
         _treeView.Items.Clear();
-        _treeView.Items.Add(new TreeViewItem
+        TreeViewItem instruction = new()
         {
             Header = "Move the pointer over an Avalonia window to capture a control"
-        });
+        };
+        _controlNames.Assign(instruction, _treeView);
+        _treeView.Items.Add(instruction);
     }
 
     public void SetFrozen(bool isFrozen)

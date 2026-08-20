@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI;
 
 namespace BrightnessTrayAppDotNET.UI.Display;
 
@@ -13,6 +14,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
     private readonly int _pxTop;
     private readonly int _pxWidth;
     private readonly int _pxHeight;
+    private readonly ControlNameScope _controlNames;
 
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
@@ -23,6 +25,7 @@ public sealed class DisplayIdentifierOverlayWindow : Window
 
     public DisplayIdentifierOverlayWindow(int displayNumber, int pxLeft, int pxTop, int pxWidth, int pxHeight)
     {
+        _controlNames = ControlNameScope.For(this);
         _pxLeft = pxLeft;
         _pxTop = pxTop;
         _pxWidth = Math.Max(1, pxWidth);
@@ -44,45 +47,51 @@ public sealed class DisplayIdentifierOverlayWindow : Window
         Focusable = false;
         IsHitTestVisible = false;
 
-        Content = BuildContent(displayNumber);
+        Grid content = BuildContent(displayNumber, _controlNames);
+        _controlNames.AssignLogicalSubtree(content, nameof(DisplayIdentifierOverlayWindow));
+        Content = content;
         Opened += OnOpened;
     }
 
-    private static Grid BuildContent(int displayNumber)
+    private static Grid BuildContent(int displayNumber, ControlNameScope controlNames)
     {
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         bool isLightTheme = AppTheme.ResolveEffectiveIsLightTheme(AppServices.Settings);
 
-        TextBlock number = new()
-        {
-            Text = displayNumber.ToString(CultureInfo.InvariantCulture),
-            FontFamily = new FontFamily("Segoe UI Variable, Segoe UI"),
-            FontSize = 220,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = Brush(theme.DisplayIdentifierForeground.For(isLightTheme)),
-            TextAlignment = TextAlignment.Center,
-            LineHeight = 230,
-            Focusable = false,
-            IsHitTestVisible = false
-        };
-
-        Border card = new()
-        {
-            Background = Brush(theme.DisplayIdentifierBackground.For(isLightTheme)),
-            BorderBrush = Brush(theme.DisplayIdentifierBorder.For(isLightTheme)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(24),
-            Padding = new Thickness(56, 28),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            BoxShadow = new BoxShadows(new BoxShadow
+        TextBlock number = controlNames.Assign(
+            new TextBlock
             {
-                Blur = 24, Color = WithOpacity(theme.DisplayIdentifierShadow.For(isLightTheme), 0.5)
-            }),
-            Child = number,
-            Focusable = false,
-            IsHitTestVisible = false
-        };
+                Text = displayNumber.ToString(CultureInfo.InvariantCulture),
+                FontFamily = new FontFamily("Segoe UI Variable, Segoe UI"),
+                FontSize = 220,
+                FontWeight = FontWeight.SemiBold,
+                Foreground = Brush(theme.DisplayIdentifierForeground.For(isLightTheme)),
+                TextAlignment = TextAlignment.Center,
+                LineHeight = 230,
+                Focusable = false,
+                IsHitTestVisible = false
+            },
+            "DisplayIdentifier");
+
+        Border card = controlNames.Assign(
+            new Border
+            {
+                Background = Brush(theme.DisplayIdentifierBackground.For(isLightTheme)),
+                BorderBrush = Brush(theme.DisplayIdentifierBorder.For(isLightTheme)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(24),
+                Padding = new Thickness(56, 28),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                BoxShadow = new BoxShadows(new BoxShadow
+                {
+                    Blur = 24, Color = WithOpacity(theme.DisplayIdentifierShadow.For(isLightTheme), 0.5)
+                }),
+                Child = number,
+                Focusable = false,
+                IsHitTestVisible = false
+            },
+            "DisplayIdentifier");
 
         Grid root = new() { Background = Brushes.Transparent, Focusable = false, IsHitTestVisible = false };
         root.Children.Add(card);

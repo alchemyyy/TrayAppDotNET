@@ -24,6 +24,7 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     protected FlyoutWindowCommon()
     {
         _windowResources = new UIResourceScope(GetType().Name);
+        ControlNames = ControlNameScope.For(this);
         WindowDecorations = WindowDecorations.None;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         Background = Brushes.Transparent;
@@ -47,6 +48,9 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     /// <summary>Gets the currently active replaceable content generation.</summary>
     protected UIContentGeneration? ActiveContentGeneration => _activeContentGeneration;
 
+    /// <summary>Gets the source-level control naming scope for this flyout instance.</summary>
+    protected ControlNameScope ControlNames { get; }
+
     /// <summary>Clears a realized height so height-to-content layout can measure replacement content.</summary>
     protected void RestoreAutomaticHeightSizing()
     {
@@ -69,6 +73,7 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         UIContentGeneration? previous = _activeContentGeneration;
         try
         {
+            ControlNames.AssignLogicalSubtree(replacement.Root, this);
             Content = replacement.Root;
             _activeContentGeneration = replacement;
         }

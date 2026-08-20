@@ -214,6 +214,7 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Theme_MeterPeakStereoColor_SearchKeywords))
             ]));
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Theme));
         return stack;
     }
 

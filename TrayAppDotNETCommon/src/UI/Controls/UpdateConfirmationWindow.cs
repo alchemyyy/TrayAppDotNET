@@ -122,6 +122,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
                 root,
                 contentResources);
             _contentGeneration = contentGeneration;
+            ControlNameScope.For(this).AssignLogicalSubtree(root, this);
             Content = root;
             _windowResources.Add(() => RetireContent(contentGeneration));
         }

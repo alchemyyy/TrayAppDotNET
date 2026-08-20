@@ -186,6 +186,7 @@ public sealed partial class VolumeSettingsWindow
             _settings.TrayAltDoubleLeftClickAction, v => _settings.TrayAltDoubleLeftClickAction = v, p,
             [Loc(nameof(AppStrings.Settings_TrayIcon_ModifiedClickActions_SearchKeywords))]);
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.TrayIcon));
         return stack;
     }
 

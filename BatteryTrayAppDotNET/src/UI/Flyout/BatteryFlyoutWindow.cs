@@ -282,6 +282,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 Margin = new Thickness(0, 16, 0, 16),
                 Spacing = 10
             };
+            ControlNames.Assign(body, "BatterySummary");
 
             TextBlock title = Text(
                 $"Battery: {FormatChargePercent(snapshot)}",
@@ -318,6 +319,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                     new ColumnDefinition(GridLength.Star)
                 }
             };
+            ControlNames.Assign(details, "BatteryDetails");
 
             AddDetailRow(details, 0, "Power source", snapshot.IsOnExternalPower ? "External" : "Battery", p);
             AddDetailRow(details, 1, "Battery power", FormatPower(snapshot.CurrentBatteryPowerWatts), p);
@@ -355,6 +357,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 flyoutBackground,
                 p.Border,
                 _settings.EnableRoundedCorners);
+            ControlNames.Assign(frame, "FlyoutContent");
             frame.PointerPressed += OnChromePointerPressed;
             frame.PointerMoved += OnChromePointerMoved;
             frame.PointerReleased += OnChromePointerReleased;
@@ -367,6 +370,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 frame.PointerMoved -= OnChromePointerMoved;
                 frame.PointerPressed -= OnChromePointerPressed;
             });
+
+            ControlNames.AssignLogicalSubtree(frame, nameof(BatteryFlyoutWindow));
 
             UIContentGeneration generation = new(
                 $"{nameof(BatteryFlyoutWindow)}.Content",

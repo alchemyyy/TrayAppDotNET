@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using FanControlTrayAppDotNET.UI.Settings;
+using TrayAppDotNETCommon.UI;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
 
@@ -30,6 +31,7 @@ public sealed partial class FanCurveEditorWindow : Window
     private readonly SettingsToggle _preventDecreasingToggle;
     private readonly Border _maxRPMRow;
     private readonly SettingsButton _rescaleCurveButton;
+    private readonly ControlNameScope _controlNames;
     private readonly UIResourceScope _windowResources = new(nameof(FanCurveEditorWindow));
     private FanCurveEditorAxamlProperties? _layout;
     private bool _suppressEvents;
@@ -40,6 +42,7 @@ public sealed partial class FanCurveEditorWindow : Window
 
     public FanCurveEditorWindow()
     {
+        _controlNames = ControlNameScope.For(this);
         _fan = null!;
         _curve = null!;
         _settings = null!;
@@ -64,6 +67,7 @@ public sealed partial class FanCurveEditorWindow : Window
 
     public FanCurveEditorWindow(Fan fan, Curve curve, AppSettings settings)
     {
+        _controlNames = ControlNameScope.For(this);
         _fan = fan;
         _curve = curve;
         _settings = settings;
@@ -86,18 +90,20 @@ public sealed partial class FanCurveEditorWindow : Window
 
             Title = $"Fan Curve: {_curve.CurveName}";
 
-            _editor = new FanCurveEditor
-            {
-                Width = Layout.GraphWidth,
-                Height = Layout.GraphHeight,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Top,
-                EditorLayout = Layout,
-                Palette = FanCurveEditorPalette.FromSettingsPalette(
-                    _palette,
-                    AppServices.Theme ?? AppTheme.Default,
-                    AppTheme.ResolveEffectiveIsLightTheme(settings))
-            };
+            _editor = ControlNames.Assign(
+                new FanCurveEditor
+                {
+                    Width = Layout.GraphWidth,
+                    Height = Layout.GraphHeight,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    EditorLayout = Layout,
+                    Palette = FanCurveEditorPalette.FromSettingsPalette(
+                        _palette,
+                        AppServices.Theme ?? AppTheme.Default,
+                        AppTheme.ResolveEffectiveIsLightTheme(settings))
+                },
+                "Graph");
             _windowResources.Own(_editor);
             _editor.CurveChanged += OnEditorCurveChanged;
             _windowResources.Add(() => _editor.CurveChanged -= OnEditorCurveChanged);
@@ -105,42 +111,57 @@ public sealed partial class FanCurveEditorWindow : Window
             _windowResources.Add(() => _editor.GraphEditStarting -= OnEditorGraphEditStarting);
             _hasPreservedNonMonotonicNodes = _curve.PreventDecreasing;
 
-            _dataSourceSelectionText = DataSourceSelectionText();
-            _dataSourceSelectionBox = DataSourceSelectionBox(_dataSourceSelectionText);
-            _dataSourceList = _windowResources.Own(DataSourceList());
-            _rpmModeToggle = TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged);
-            _maxRPMBox = _windowResources.Own(Number(
+            _dataSourceSelectionText = ControlNames.Assign(DataSourceSelectionText(), "DataSource");
+            _dataSourceSelectionBox = ControlNames.Assign(
+                DataSourceSelectionBox(_dataSourceSelectionText),
+                "DataSource");
+            _dataSourceList = _windowResources.Own(
+                ControlNames.Assign(DataSourceList(), "DataSource"));
+            _rpmModeToggle = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.Toggle(_palette, _curve.RPMMode, OnRPMModeChanged),
+                "RPMMode");
+            _maxRPMBox = _windowResources.Own(ControlNames.Assign(Number(
             _curve.MaxRPM,
             1,
             Math.Max(10000, _curve.MaxRPM),
             "RPM",
-            Layout.MaxRPMNumberBoxMinWidth));
-            _minRPMBox = _windowResources.Own(Number(
+            Layout.MaxRPMNumberBoxMinWidth), "MaxRPM"));
+            _minRPMBox = _windowResources.Own(ControlNames.Assign(Number(
             _curve.MinRPM,
             0,
             Math.Max(10000, _curve.MaxRPM),
             "RPM",
-            Layout.MinRPMNumberBoxMinWidth));
+            Layout.MinRPMNumberBoxMinWidth), "MinRPM"));
             _maxDutyBox = _windowResources.Own(
-                Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.MaxDutyNumberBoxMinWidth));
+                ControlNames.Assign(
+                    Number(_curve.MaxDutyCycle, 1, 100, "%", Layout.MaxDutyNumberBoxMinWidth),
+                    "MaxDuty"));
             _minDutyBox = _windowResources.Own(
-                Number(_curve.MinDutyCycle, 0, 100, "%", Layout.MinDutyNumberBoxMinWidth));
-            _smoothnessBox = _windowResources.Own(Number(
+                ControlNames.Assign(
+                    Number(_curve.MinDutyCycle, 0, 100, "%", Layout.MinDutyNumberBoxMinWidth),
+                    "MinDuty"));
+            _smoothnessBox = _windowResources.Own(ControlNames.Assign(Number(
             _curve.SmoothingFactor,
             SmoothnessMin,
             SmoothnessMax,
             string.Empty,
-            Layout.SmoothnessNumberBoxMinWidth));
-            _preventDecreasingToggle =
-                TrayAppDotNETSettingsUI.Toggle(_palette, _curve.PreventDecreasing, OnPreventDecreasingChanged);
-            _rescaleCurveButton = RescaleCurveButton();
+            Layout.SmoothnessNumberBoxMinWidth), "Smoothness"));
+            _preventDecreasingToggle = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.Toggle(
+                    _palette,
+                    _curve.PreventDecreasing,
+                    OnPreventDecreasingChanged),
+                "Monotonic");
+            _rescaleCurveButton = ControlNames.Assign(RescaleCurveButton(), "RescaleCurve");
             _rescaleCurveButton.Click += (_, _) => ApplyPendingNodeRescale();
 
             PopulateDataSources();
             WireControls();
             _maxRPMRow = BuildMaxRPMRow();
 
-            Content = BuildContent();
+            Border content = BuildContent();
+            ControlNames.AssignLogicalSubtree(content, this);
+            Content = content;
             LoadControlState();
             RefreshEditorBinding();
             // Dispose the editor first so its DataSource publisher root is detached before child controls
@@ -159,7 +180,12 @@ public sealed partial class FanCurveEditorWindow : Window
         base.OnClosed(e);
     }
 
-    private void InitializeComponentState() => _layout = AxamlFanCurveEditor;
+    private void InitializeComponentState()
+    {
+        _layout = AxamlFanCurveEditor;
+    }
+
+    private ControlNameScope ControlNames => _controlNames;
 
     private FanCurveEditorAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Fan curve editor layout resources have not been loaded.");

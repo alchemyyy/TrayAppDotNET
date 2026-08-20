@@ -124,7 +124,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildGeneralPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p);
+        StackPanel stack = ControlNames.Assign(
+            PageStack(L(nameof(AppStrings.Settings_General_SectionHeader)), p),
+            "GeneralPage");
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
@@ -194,7 +196,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildFanPropertiesPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_FanProperties_SectionHeader)), p);
+        StackPanel stack = ControlNames.Assign(
+            PageStack(L(nameof(AppStrings.Settings_FanProperties_SectionHeader)), p),
+            "FanPropertiesPage");
 
         stack.Children.Add(IntCard(
             L(nameof(AppStrings.Settings_FanProperties_DefaultJumpstartDutyCycle_Title)),
@@ -243,6 +247,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             new Thickness(0, 0, 0, 12)));
 
         FanPropertiesPageGeneration pageGeneration = new();
+        ControlNames.Assign(pageGeneration.FanSlotPanel, "FanSlots");
         _fanPropertiesPageGenerations.Add(pageGeneration);
         AddPageCleanup(() => RetireFanPropertiesPage(pageGeneration));
         RebuildFanSlots(pageGeneration);
@@ -254,7 +259,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
                 L(nameof(AppStrings.Settings_FanProperties_Reassign_SearchKeywords))
             ]));
 
-        SettingsButton apply = Button(L(nameof(AppStrings.Settings_FanProperties_ApplyFanSwaps_Button)), p);
+        SettingsButton apply = ControlNames.Assign(
+            Button(L(nameof(AppStrings.Settings_FanProperties_ApplyFanSwaps_Button)), p),
+            "FanSlots");
         apply.HorizontalAlignment = HorizontalAlignment.Right;
         apply.Margin = new Thickness(0, 6, 0, 14);
         apply.IsEnabled = pageGeneration.FanSlots.Count > 1;
@@ -278,7 +285,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             return stack;
         }
 
-        Grid nonFunctioningFanGrid = new();
+        Grid nonFunctioningFanGrid = ControlNames.Assign(new Grid(), "NonFunctioningFans");
         for (int i = 0; i < NonFunctioningFanColumnCount; i++)
             nonFunctioningFanGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
@@ -322,7 +329,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildFlyoutPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader)), p);
+        StackPanel stack = ControlNames.Assign(
+            PageStack(L(nameof(AppStrings.Settings_Flyout_SectionHeader)), p),
+            "FlyoutPage");
 
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_Flyout_RestoreUndockState_Title)),
@@ -415,7 +424,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildTrayIconPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader)), p);
+        StackPanel stack = ControlNames.Assign(
+            PageStack(L(nameof(AppStrings.Settings_TrayIcon_SectionHeader)), p),
+            "TrayIconPage");
 
         stack.Children.Add(BoolCard("Tray wheel", "Allow mouse wheel events over the tray icon.",
             _settings.TrayScrollEnabled, v => _settings.TrayScrollEnabled = v, p,
@@ -475,7 +486,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildHotkeysPage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p);
+        StackPanel stack = ControlNames.Assign(
+            PageStack(Loc(nameof(AppStrings.Settings_Hotkeys_SectionHeader)), p),
+            "HotkeysPage");
         stack.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
             Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p, new Thickness(0, 0, 0, 16)));
 
@@ -501,7 +514,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     private StackPanel BuildThemePage()
     {
         SettingsPalette p = Palette;
-        StackPanel stack = PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p);
+        StackPanel stack = ControlNames.Assign(
+            PageStack(Loc(nameof(AppStrings.Settings_Theme_SectionHeader)), p),
+            "ThemePage");
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
         bool isLight = ResolveEffectiveIsLight();
 
@@ -573,8 +588,12 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             theme.Foreground.Dark, p,
             searchKeywords: [L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))]));
 
-        SettingsComboBox sliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(p, autoSizeToText: true,
-            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem);
+        SettingsComboBox sliderThumbCombo = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.ComboBox(
+                p,
+                autoSizeToText: true,
+                autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem),
+            "SliderThumb");
         foreach (SliderThumbGlyphOption option in _settings.SliderThumbOptions)
             sliderThumbCombo.Items.Add(new SettingsComboBoxItem(option.Name, option.Name, p));
         TrayAppDotNETSettingsUI.SelectComboByTag(sliderThumbCombo, _settings.SliderThumbGlyph);
@@ -592,8 +611,12 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             p,
             searchKeywords: [L(nameof(AppStrings.Settings_Theme_SliderThumb_SearchKeywords))]));
 
-        SettingsComboBox curveSliderThumbCombo = TrayAppDotNETSettingsUI.ComboBox(p, autoSizeToText: true,
-            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem);
+        SettingsComboBox curveSliderThumbCombo = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.ComboBox(
+                p,
+                autoSizeToText: true,
+                autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem),
+            "CurveSliderThumb");
         foreach (SliderThumbGlyphOption option in _settings.SliderThumbOptions.Where(static o => o.IsGlyph))
             curveSliderThumbCombo.Items.Add(new SettingsComboBoxItem(option.Name, option.Name, p));
         TrayAppDotNETSettingsUI.SelectComboByTag(curveSliderThumbCombo, _settings.CurveSliderThumbGlyph);
@@ -640,7 +663,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         }));
         _aboutPageGenerations.Add(aboutPage);
         AddPageCleanup(() => _aboutPageGenerations.Remove(aboutPage));
-        return aboutPage.Build();
+        return ControlNames.Assign(aboutPage.Build(), "AboutPage");
     }
 
     private void AddHotkeyRow(
@@ -651,20 +674,29 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         SettingsPalette p,
         IReadOnlyList<string> searchKeywords)
     {
-        StackPanel entries = new() { Spacing = 0 };
+        string hotkeyParentName = $"{action}Hotkeys";
+        StackPanel entries = ControlNames.Assign(
+            new StackPanel { Spacing = 0 },
+            hotkeyParentName);
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
-        SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, 170);
+        SettingsComboBox modifiers = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.ComboBox(p, 170),
+            hotkeyParentName);
         modifiers.Padding = new Thickness(8, 0, 2, 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
-        TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
+        TextBox keyBox = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.TextBox(p, 60),
+            hotkeyParentName);
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
-        SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
+        SettingsButton addButton = ControlNames.Assign(
+            Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p),
+            hotkeyParentName);
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
@@ -716,7 +748,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             Refresh();
         };
 
-        Grid grid = new();
+        Grid grid = ControlNames.Assign(new Grid(), hotkeyParentName);
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 240 });
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -791,11 +823,16 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         Action refresh,
         SettingsPalette p)
     {
-        TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
+        string hotkeyParentName = $"{action}HotkeyEntry";
+        TextBlock display = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p),
+            hotkeyParentName);
         display.VerticalAlignment = VerticalAlignment.Center;
         display.Margin = new Thickness(12, 6, 0, 6);
 
-        TextBlock status = TrayAppDotNETSettingsUI.Text(string.Empty, p);
+        TextBlock status = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.Text(string.Empty, p),
+            hotkeyParentName);
         status.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         status.VerticalAlignment = VerticalAlignment.Center;
         status.Margin = new Thickness(0, 0, 8, 0);
@@ -812,7 +849,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         }
         else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
-        SettingsButton delete = Button("x", p);
+        SettingsButton delete = ControlNames.Assign(Button("x", p), hotkeyParentName);
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
@@ -824,7 +861,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             refresh();
         };
 
-        Grid grid = new();
+        Grid grid = ControlNames.Assign(new Grid(), hotkeyParentName);
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -834,13 +871,17 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         grid.Children.Add(status);
         grid.Children.Add(delete);
 
-        return new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
-            CornerRadius = RadiusMedium,
-            Margin = new Thickness(0, 0, 0, 4),
-            Child = grid
-        };
+        Border card = ControlNames.Assign(
+            new Border
+            {
+                Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
+                CornerRadius = RadiusMedium,
+                Margin = new Thickness(0, 0, 0, 4),
+                Child = grid
+            },
+            hotkeyParentName);
+        ControlNames.AssignLogicalSubtree(card, hotkeyParentName);
+        return card;
     }
 
     private void RebuildFanSlots(FanPropertiesPageGeneration pageGeneration)
@@ -862,8 +903,12 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         pageGeneration.FanSlotPanel.Children.Clear();
         if (pageGeneration.FanSlots.Count == 0)
         {
-            pageGeneration.FanSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L(nameof(AppStrings.Settings_FanProperties_NoFans)), Palette));
+            TextBlock empty = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.DescriptionText(
+                    L(nameof(AppStrings.Settings_FanProperties_NoFans)),
+                    Palette),
+                "FanSlots");
+            pageGeneration.FanSlotPanel.Children.Add(empty);
             return;
         }
 
@@ -880,7 +925,9 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         int index,
         SettingsPalette p)
     {
-        TextBlock handle = TrayAppDotNETSettingsUI.Text(GlyphCatalog.DRAG_HANDLE.Text, p, 16);
+        TextBlock handle = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.Text(GlyphCatalog.DRAG_HANDLE.Text, p, 16),
+            "FanSlot");
         GlyphApplicator.ApplyTo(handle, GlyphCatalog.DRAG_HANDLE);
         handle.Width = 28;
         handle.VerticalAlignment = VerticalAlignment.Center;
@@ -897,19 +944,22 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);
 
-        Border row = new()
-        {
-            Tag = slot,
-            Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
-            BorderBrush = Brushes.Transparent,
-            BorderThickness = new Thickness(0),
-            CornerRadius = RadiusMedium,
-            Padding = new Thickness(8),
-            Margin = new Thickness(0, 0, 0, 4),
-            Child = grid,
-            Focusable = true,
-            Cursor = TrayAppDotNETCursors.Hand
-        };
+        Border row = ControlNames.Assign(
+            new Border
+            {
+                Tag = slot,
+                Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                CornerRadius = RadiusMedium,
+                Padding = new Thickness(8),
+                Margin = new Thickness(0, 0, 0, 4),
+                Child = grid,
+                Focusable = true,
+                Cursor = TrayAppDotNETCursors.Hand
+            },
+            "FanSlot");
+        ControlNames.AssignLogicalSubtree(row, "FanSlot");
 
         bool pointerOver = false;
         bool pointerPressed = false;

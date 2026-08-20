@@ -29,6 +29,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private readonly AppTheme _theme;
     private readonly AppSettings _settings;
     private readonly bool _isLight;
+    private readonly ControlNameScope _controlNames;
     private readonly EnvironmentalMapPickerCanvas _map;
     private readonly TextBlock _coordinateText;
     private readonly List<(TextBlock Target, Func<Glyph> Resolve)> _glyphBindings = [];
@@ -42,6 +43,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         AppSettings settings,
         bool isLight)
     {
+        _controlNames = ControlNameScope.For(this);
         _palette = palette;
         _theme = theme;
         _settings = settings;
@@ -65,18 +67,24 @@ public sealed class EnvironmentalMapPickerWindow : Window
             e.Handled = true;
         };
 
-        _map = new EnvironmentalMapPickerCanvas(palette, theme.EnvironmentalMapPin.For(isLight))
-        {
-            SelectedCoordinate = new GeoCoordinate(latitude, longitude).ClampToWorld(),
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch
-        };
+        _map = _controlNames.Assign(
+            new EnvironmentalMapPickerCanvas(palette, theme.EnvironmentalMapPin.For(isLight))
+            {
+                SelectedCoordinate = new GeoCoordinate(latitude, longitude).ClampToWorld(),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            },
+            "MapViewport");
         _map.CoordinateChanged += (_, _) => UpdateCoordinateText();
 
-        _coordinateText = TrayAppDotNETSettingsUI.Text("", palette, 13);
+        _coordinateText = _controlNames.Assign(
+            TrayAppDotNETSettingsUI.Text("", palette, 13),
+            "CoordinateHUD");
         _coordinateText.FontFamily = new FontFamily("Consolas, Cascadia Mono, Segoe UI");
 
-        Content = BuildContent();
+        Border content = BuildContent();
+        _controlNames.AssignLogicalSubtree(content, nameof(EnvironmentalMapPickerWindow));
+        Content = content;
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         UpdateCoordinateText();
     }
@@ -104,10 +112,15 @@ public sealed class EnvironmentalMapPickerWindow : Window
         title.Margin = new Thickness(16, 0, 0, 0);
         titleBar.Children.Add(title);
 
-        SettingsButton close = new(GlyphCatalog.CHROME_CLOSE.Text, _palette, transparentBase: true)
-        {
-            Width = CloseButtonWidth, Height = TitleBarHeight, Padding = new Thickness(0), Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
-        };
+        SettingsButton close = _controlNames.Assign(
+            new SettingsButton(GlyphCatalog.CHROME_CLOSE.Text, _palette, transparentBase: true)
+            {
+                Width = CloseButtonWidth,
+                Height = TitleBarHeight,
+                Padding = new Thickness(0),
+                Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont }
+            },
+            "TitleBar");
         BindGlyph(close, static () => GlyphCatalog.CHROME_CLOSE);
         close.Click += (_, _) => Hide();
         TrayAppDotNETToolTip.SetTip(close, L(nameof(CommonStrings.Common_Close)));
@@ -170,10 +183,18 @@ public sealed class EnvironmentalMapPickerWindow : Window
 
     private Border BuildCoordinateHud(SettingsPalette p)
     {
-        SettingsButton apply =
-            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Apply_Button)), p, new CornerRadius(4));
-        SettingsButton abort =
-            TrayAppDotNETSettingsCards.Button(L(nameof(AppStrings.Settings_MapPicker_Abort_Button)), p, new CornerRadius(4));
+        SettingsButton apply = _controlNames.Assign(
+            TrayAppDotNETSettingsCards.Button(
+                L(nameof(AppStrings.Settings_MapPicker_Apply_Button)),
+                p,
+                new CornerRadius(4)),
+            "CoordinateHUD");
+        SettingsButton abort = _controlNames.Assign(
+            TrayAppDotNETSettingsCards.Button(
+                L(nameof(AppStrings.Settings_MapPicker_Abort_Button)),
+                p,
+                new CornerRadius(4)),
+            "CoordinateHUD");
         apply.MinWidth = 64;
         abort.MinWidth = 64;
         apply.Margin = new Thickness(0, 0, 6, 0);
@@ -253,7 +274,9 @@ public sealed class EnvironmentalMapPickerWindow : Window
         int column,
         bool useIconFont = true)
     {
-        SettingsButton button = TrayAppDotNETSettingsCards.Button(text, p, new CornerRadius(4));
+        SettingsButton button = _controlNames.Assign(
+            TrayAppDotNETSettingsCards.Button(text, p, new CornerRadius(4)),
+            $"MapHUD{action}");
         button.Width = HudButtonSize;
         button.Height = HudButtonSize;
         button.Padding = new Thickness(0);

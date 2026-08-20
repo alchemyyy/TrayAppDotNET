@@ -166,6 +166,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             $"{GetType().Name}.Content",
             root,
             contentResources);
+        ControlNameScope.For(this).AssignLogicalSubtree(root, this);
         Content = _contentGeneration.Root;
         Deactivated += OnDeactivated;
         KeyDown += OnKeyDown;

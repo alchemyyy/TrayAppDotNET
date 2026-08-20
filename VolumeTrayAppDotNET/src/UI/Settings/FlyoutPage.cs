@@ -289,6 +289,7 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Theme_MeterPeakChangeCeiling_SearchKeywords))
             ]));
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Flyout));
         return stack;
     }
 }

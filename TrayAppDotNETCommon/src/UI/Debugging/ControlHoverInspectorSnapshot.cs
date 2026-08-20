@@ -101,6 +101,8 @@ internal static class ControlHoverInspectorSnapshotBuilder
         ArgumentNullException.ThrowIfNull(topLevel);
         ArgumentNullException.ThrowIfNull(hitElement);
 
+        ControlNameScope.For(topLevel).AssignVisualTree();
+
         List<ControlHoverInspectorNode> roots = [];
         roots.Add(BuildIdentityNode(topLevel, hitElement));
 
@@ -140,8 +142,25 @@ internal static class ControlHoverInspectorSnapshotBuilder
 
         if (hitElement is StyledElement styledElement)
         {
+            ControlNameScope.TryGetDetails(styledElement, out ControlNameDetails? nameDetails);
             identity.Children.Add(new ControlHoverInspectorNode(
                 $"Name: {(string.IsNullOrWhiteSpace(styledElement.Name) ? "<unnamed>" : styledElement.Name)}"));
+            if (nameDetails != null)
+            {
+                if (string.IsNullOrWhiteSpace(styledElement.Name))
+                    identity.Children.Add(new ControlHoverInspectorNode($"Generated debug name: {nameDetails.Name}"));
+
+                string nameSource = nameDetails.Origin switch
+                {
+                    ControlNameOrigin.Explicit => "explicit source name",
+                    ControlNameOrigin.TopLevel => "generated top-level name",
+                    ControlNameOrigin.Source => "generated during source construction",
+                    ControlNameOrigin.VisualFallback => "generated from the realized visual tree",
+                    _ => nameDetails.Origin.ToString()
+                };
+                identity.Children.Add(new ControlHoverInspectorNode($"Name source: {nameSource}"));
+            }
+
             identity.Children.Add(new ControlHoverInspectorNode(
                 $"Classes: {(styledElement.Classes.Count == 0 ? "<none>" : string.Join(" ", styledElement.Classes))}"));
             identity.Children.Add(new ControlHoverInspectorNode(
@@ -426,8 +445,15 @@ internal static class ControlHoverInspectorSnapshotBuilder
         StringBuilder label = new(element.GetType().Name);
         if (element is not StyledElement styledElement) return label.ToString();
 
-        if (!string.IsNullOrWhiteSpace(styledElement.Name))
-            label.Append('#').Append(styledElement.Name);
+        string? displayName = styledElement.Name;
+        if (string.IsNullOrWhiteSpace(displayName)
+            && ControlNameScope.TryGetDetails(styledElement, out ControlNameDetails? nameDetails))
+        {
+            displayName = nameDetails!.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(displayName))
+            label.Append('#').Append(displayName);
 
         foreach (string className in styledElement.Classes)
             label.Append('.').Append(className);

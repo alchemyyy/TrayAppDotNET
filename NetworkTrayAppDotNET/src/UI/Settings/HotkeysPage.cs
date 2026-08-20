@@ -18,6 +18,7 @@ public sealed partial class NetworkSettingsWindow
             Loc(nameof(AppStrings.Settings_Hotkeys_SectionDescription)), p, new Thickness(0, 0, 0, 16)));
 
         TextBox searchBox = TrayAppDotNETSettingsUI.TextBox(p, 240);
+        ControlNames.Assign(searchBox, nameof(NetworkSettingsPage.Hotkeys));
         StackPanel searchRow = new()
         {
             Orientation = Orientation.Horizontal,
@@ -58,6 +59,7 @@ public sealed partial class NetworkSettingsWindow
                                 || searchText.Contains(query, StringComparison.OrdinalIgnoreCase);
             }
         };
+        ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.Hotkeys));
         return stack;
     }
 
@@ -71,19 +73,23 @@ public sealed partial class NetworkSettingsWindow
         IReadOnlyList<string> searchKeywords)
     {
         StackPanel entries = new() { Spacing = 0 };
+        ControlNames.Assign(entries, $"{action}Bindings");
         uint selectedModifiers = 0;
         uint selectedVk = 0;
 
         SettingsComboBox modifiers = TrayAppDotNETSettingsUI.ComboBox(p, 170);
+        ControlNames.Assign(modifiers, $"{action}Modifiers");
         modifiers.Padding = new Thickness(8, 0, 2, 0);
         foreach (TrayAppDotNETHotkeyModifierOption option in HotkeyModifierOptions)
             modifiers.Items.Add(new SettingsComboBoxItem(option.Modifiers, option.Label, p));
 
         TextBox keyBox = TrayAppDotNETSettingsUI.TextBox(p, 60);
+        ControlNames.Assign(keyBox, $"{action}Key");
         keyBox.IsReadOnly = true;
         keyBox.Cursor = TrayAppDotNETCursors.IBeam;
 
         SettingsButton addButton = Button(Loc(nameof(AppStrings.Settings_Hotkeys_Add_Button)), p);
+        ControlNames.Assign(addButton, $"{action}Add");
         addButton.MinWidth = 70;
         addButton.IsEnabled = false;
 
@@ -212,10 +218,12 @@ public sealed partial class NetworkSettingsWindow
         SettingsPalette p)
     {
         TextBlock display = TrayAppDotNETSettingsUI.Text(FormatHotkey(binding), p);
+        ControlNames.Assign(display, $"{action}Binding");
         display.VerticalAlignment = VerticalAlignment.Center;
         display.Margin = new Thickness(12, 6, 0, 6);
 
         TextBlock status = TrayAppDotNETSettingsUI.Text(string.Empty, p);
+        ControlNames.Assign(status, $"{action}Status");
         status.FontFamily = TrayAppDotNETSettingsUI.IconFont;
         status.VerticalAlignment = VerticalAlignment.Center;
         status.Margin = new Thickness(0, 0, 8, 0);
@@ -233,6 +241,7 @@ public sealed partial class NetworkSettingsWindow
         else if (binding.IsBound) TrayAppDotNETToolTip.SetTip(status, Loc(nameof(AppStrings.Settings_Hotkeys_Status_Registered)));
 
         SettingsButton delete = Button("x", p);
+        ControlNames.Assign(delete, $"{action}Delete");
         delete.Width = 32;
         delete.Height = 29;
         delete.Padding = new Thickness(0);
@@ -262,13 +271,15 @@ public sealed partial class NetworkSettingsWindow
         grid.Children.Add(status);
         grid.Children.Add(delete);
 
-        return new Border
+        Border entryCard = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
             Child = grid
         };
+        ControlNames.AssignLogicalSubtree(entryCard, action.ToString());
+        return entryCard;
     }
 
     private static string FormatHotkey(HotkeyBinding binding)

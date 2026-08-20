@@ -734,20 +734,24 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             bool rounded = _settings?.EnableRoundedCorners ?? true;
 
             Grid rootGrid = new();
+            ControlNames.Assign(rootGrid, "FlyoutContent");
             rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             rootGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
             ScrollViewer rows = BuildRows(palette, candidate, candidateResources);
+            ControlNames.Assign(rows, "DisplayRows");
             Grid.SetRow(rows, 0);
             rootGrid.Children.Add(rows);
 
             Border footer = BuildFooter(palette, rounded, candidateResources);
+            ControlNames.Assign(footer, "FlyoutFooter");
             Grid.SetRow(footer, 1);
             rootGrid.Children.Add(footer);
 
             AddFloatingButtons(rootGrid, palette, candidate, candidateResources);
 
             candidate.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, rounded, candidate);
+            ControlNames.Assign(candidate.ConfirmOverlay, "ConfirmationOverlay");
             candidate.ConfirmOverlay.IsVisible = false;
             Grid.SetRowSpan(candidate.ConfirmOverlay, 2);
             rootGrid.Children.Add(candidate.ConfirmOverlay);
@@ -758,6 +762,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _theme.Border.For(isLight),
                 rounded,
                 contentPadding: Layout.RootInnerPadding);
+            ControlNames.Assign(candidate.RootCard, "FlyoutContent");
             candidate.RootCard.PointerPressed += OnRootPointerPressed;
             candidateResources.Add(() => candidate.RootCard.PointerPressed -= OnRootPointerPressed);
             candidate.RootCard.PointerMoved += OnRootPointerMoved;
@@ -766,6 +771,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             candidateResources.Add(() => candidate.RootCard.PointerReleased -= OnRootPointerReleased);
             candidate.RootCard.PointerCaptureLost += OnRootPointerCaptureLost;
             candidateResources.Add(() => candidate.RootCard.PointerCaptureLost -= OnRootPointerCaptureLost);
+
+            ControlNames.AssignLogicalSubtree(candidate.RootCard, nameof(BrightnessFlyoutWindow));
 
             UIContentGeneration replacement = new(
                 nameof(BrightnessFlyoutWindow),
@@ -1101,6 +1108,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             Child = rowContent,
             Opacity = RowOpacity(monitor)
         };
+        string rowParentName = monitor.IsMaster
+            ? "MasterBrightnessRow"
+            : monitor.IsNightLight
+                ? "NightLightRow"
+                : "MonitorBrightnessRow";
+        ControlNames.Assign(row, rowParentName);
         candidate.ProfilePreviewRows[monitor] = new ProfilePreviewRowVisuals(slider, row, value, curveModeButton);
         return row;
     }

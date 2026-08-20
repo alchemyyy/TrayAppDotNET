@@ -371,29 +371,35 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             SettingsPalette settingsPalette = FanSettingsWindow.CreatePalette(theme, _settings, isLight);
             FlyoutControlPalette flyoutPalette = CreateFlyoutPalette(theme, settingsPalette, isLight);
 
-            DockPanel body = new() { LastChildFill = true };
+            DockPanel body = ControlNames.Assign(
+                new DockPanel { LastChildFill = true },
+                nameof(FanFlyoutWindow));
             Control header = BuildHeader(flyoutPalette, generation);
             DockPanel.SetDock(header, Dock.Top);
             body.Children.Add(header);
             body.Children.Add(BuildCellList(flyoutPalette, theme, isLight, generation));
 
-            Grid rootGrid = new();
+            Grid rootGrid = ControlNames.Assign(new Grid(), nameof(FanFlyoutWindow));
             rootGrid.Children.Add(body);
             generation.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, isLight, generation);
             generation.ConfirmOverlay.IsVisible = false;
             rootGrid.Children.Add(generation.ConfirmOverlay);
-            generation.DragOverlay = new Canvas { IsHitTestVisible = false };
+            generation.DragOverlay = ControlNames.Assign(
+                new Canvas { IsHitTestVisible = false },
+                "DragOverlay");
             rootGrid.Children.Add(generation.DragOverlay);
 
-            FlyoutFrame rootCard = new(
-                rootGrid,
-                theme.ResolveFlyoutBackground(_settings, isLight),
-                theme.Border.For(isLight),
-                _settings.EnableRoundedCorners,
-                framePadding: Layout.RootInnerPadding)
-            {
-                Focusable = true
-            };
+            FlyoutFrame rootCard = ControlNames.Assign(
+                new FlyoutFrame(
+                    rootGrid,
+                    theme.ResolveFlyoutBackground(_settings, isLight),
+                    theme.Border.For(isLight),
+                    _settings.EnableRoundedCorners,
+                    framePadding: Layout.RootInnerPadding)
+                {
+                    Focusable = true
+                },
+                nameof(FanFlyoutWindow));
             generation.RootCard = rootCard;
             rootCard.PointerPressed += OnRootPointerPressed;
             rootCard.PointerMoved += OnRootPointerMoved;
@@ -516,10 +522,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FlyoutControlPalette flyoutControlPalette,
         FanFlyoutVisualGeneration generation)
     {
-        Grid grid = new()
-        {
-            Margin = Layout.HeaderMargin
-        };
+        Grid grid = ControlNames.Assign(
+            new Grid
+            {
+                Margin = Layout.HeaderMargin
+            },
+            "Header");
 
         const int primaryButtonColumnCount = 4;
         const int profileButtonCount = 3;
@@ -577,15 +585,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Border undockButton = undockButtonController.Button;
         Grid.SetColumn(undockButton, undockColumn);
         grid.Children.Add(undockButton);
-        return new Border
-        {
-            Height = Layout.HeaderHeight,
-            Background =
-                TrayAppDotNETFlyoutUI.Brush(
-                    (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(_settings,
-                        AppTheme.ResolveEffectiveIsLightTheme(_settings))),
-            Child = grid
-        };
+        return ControlNames.Assign(
+            new Border
+            {
+                Height = Layout.HeaderHeight,
+                Background =
+                    TrayAppDotNETFlyoutUI.Brush(
+                        (AppServices.Theme ?? AppTheme.Default).ResolveFlyoutTitleBarBackground(
+                            _settings,
+                            AppTheme.ResolveEffectiveIsLightTheme(_settings))),
+                Child = grid
+            },
+            "Header");
     }
 
     private void OpenHeaderCurveEditor()
@@ -620,14 +631,20 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         bool isLight,
         FanFlyoutVisualGeneration generation)
     {
-        Grid holder = new()
-        {
-            ClipToBounds = true,
-            Margin = CellListMargin(Math.Clamp(_settings.FlyoutTitleBarCardSpacing, 0,
-                Layout.MaxSettingSpacing))
-        };
+        Grid holder = ControlNames.Assign(
+            new Grid
+            {
+                ClipToBounds = true,
+                Margin = CellListMargin(Math.Clamp(
+                    _settings.FlyoutTitleBarCardSpacing,
+                    0,
+                    Layout.MaxSettingSpacing))
+            },
+            "CellList");
 
-        generation.CellStack = new StackPanel { Spacing = 0 };
+        generation.CellStack = ControlNames.Assign(
+            new StackPanel { Spacing = 0 },
+            "CellList");
         generation.HasUpdateCard = IsUpdateCardVisible;
         if (generation.HasUpdateCard)
             generation.CellStack.Children.Add(BuildUpdateCard(p, theme, isLight));
@@ -635,13 +652,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         foreach (FlyoutVisualSlot slot in BuildVisualSlots(p, theme, isLight, generation))
             generation.CellStack.Children.Add(slot.Control);
 
-        generation.ScrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Focusable = false,
-            Content = generation.CellStack
-        };
+        generation.ScrollViewer = ControlNames.Assign(
+            new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Focusable = false,
+                Content = generation.CellStack
+            },
+            "CellList");
         holder.Children.Add(generation.ScrollViewer);
 
         TextBlock empty = TrayAppDotNETFlyoutUI.Text("No fans detected", p, Layout.EmptyTextFontSize,
@@ -774,17 +793,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         row.Children.Add(install);
 
         Thickness borderThickness = _settings.EnableCardBorders ? Layout.CardBorderThickness : Layout.ZeroThickness;
-        return TrayAppDotNETFlyoutUI.Card(
-            row,
-            theme.ResolveFanCardBackground(_settings, isLight),
-            theme.ResolveFlyoutCardBorder(_settings, isLight),
-            Rounded(Layout.CardCornerRadius),
-            Layout.CardPadding,
-            CardMargin(
-                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
-            borderThickness);
+        return ControlNames.Assign(
+            TrayAppDotNETFlyoutUI.Card(
+                row,
+                theme.ResolveFanCardBackground(_settings, isLight),
+                theme.ResolveFlyoutCardBorder(_settings, isLight),
+                Rounded(Layout.CardCornerRadius),
+                Layout.CardPadding,
+                CardMargin(
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
+                borderThickness),
+            "UpdateCard");
     }
 
     private Border BuildCell(
@@ -823,7 +844,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 interactive));
         }
 
-        Border card = BuildFanCardSurface(content, cell.HasGroupHeader, theme, isLight);
+        Border card = ControlNames.Assign(
+            BuildFanCardSurface(content, cell.HasGroupHeader, theme, isLight),
+            cell.HasGroupHeader ? "FanGroupCard" : "FanCard");
         card.Tag = cell;
         if (interactive)
         {
@@ -913,17 +936,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         }
 
         Thickness borderThickness = _settings.EnableCardBorders ? Layout.CardBorderThickness : Layout.ZeroThickness;
-        Border card = TrayAppDotNETFlyoutUI.Card(
-            content,
-            theme.ResolveFanCardBackground(_settings, isLight),
-            theme.ResolveFlyoutCardBorder(_settings, isLight),
-            Rounded(Layout.CardCornerRadius),
-            Layout.CardPadding,
-            CardMargin(
-                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
-                Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
-            borderThickness);
+        Border card = ControlNames.Assign(
+            TrayAppDotNETFlyoutUI.Card(
+                content,
+                theme.ResolveFanCardBackground(_settings, isLight),
+                theme.ResolveFlyoutCardBorder(_settings, isLight),
+                Rounded(Layout.CardCornerRadius),
+                Layout.CardPadding,
+                CardMargin(
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardHorizontalInset, 0, Layout.MaxSettingSpacing),
+                    Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing)),
+                borderThickness),
+            "ProbeCard");
         card.Tag = probeCard;
         if (interactive)
             WireProbeDrag(card, probeCard);
@@ -935,18 +960,20 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private Grid BuildProbeHeader(ProbeCard probeCard, FlyoutControlPalette p)//, string deviceName)
     {
-        Grid row = new()
-        {
-            Tag = probeCard,
-            Background = Brushes.Transparent,
-            ColumnDefinitions =
+        Grid row = ControlNames.Assign(
+            new Grid
             {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto)
-            }
-        };
+                Tag = probeCard,
+                Background = Brushes.Transparent,
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Auto)
+                }
+            },
+            "ProbeHeader");
 
         Border probeButton = IconButton(
             GlyphCatalog.PROBE,
@@ -967,7 +994,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         name.Tag = probeCard;
         name.PointerPressed += ProbeNameTextPointerPressed;
         TextBox edit = InlineTextBox(probeCard.DisplayName, p);
-        edit.Name = "ProbeNameEdit";
+        ControlNames.Assign(edit, "ProbeNameEdit");
         edit.IsVisible = false;
         edit.KeyDown += ProbeNameEditKeyDown;
         edit.LostFocus += ProbeNameEditLostFocus;
@@ -1062,15 +1089,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         bool registerVisual)
     {
         DataSource? source = DataSource.Find(probe.DataSourceKey);
-        Grid row = new()
-        {
-            Margin = Layout.ProbeRowMargin,
-            ColumnDefinitions =
+        Grid row = ControlNames.Assign(
+            new Grid
             {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(new GridLength(Layout.ProbeRowValueMinWidth))
-            }
-        };
+                Margin = Layout.ProbeRowMargin,
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(new GridLength(Layout.ProbeRowValueMinWidth))
+                }
+            },
+            "ProbeRow");
 
         StackPanel labelRow = new()
         {
@@ -1115,16 +1144,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         bool grouped,
         bool interactive = true)
     {
-        Grid row = new()
-        {
-            Tag = fan,
-            Background = Brushes.Transparent,
-            Margin =
-                grouped
-                    ? FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0, Layout.MaxSettingSpacing))
-                    : Layout.ZeroThickness,
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
-        };
+        Grid row = ControlNames.Assign(
+            new Grid
+            {
+                Tag = fan,
+                Background = Brushes.Transparent,
+                Margin =
+                    grouped
+                        ? FanRowGroupedMargin(Math.Clamp(
+                            _settings.FlyoutCardSpacing,
+                            0,
+                            Layout.MaxSettingSpacing))
+                        : Layout.ZeroThickness,
+                RowDefinitions =
+                {
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto)
+                }
+            },
+            "FanRow");
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -1149,7 +1187,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         name.Tag = fan;
         name.PointerPressed += FanNameTextPointerPressed;
         TextBox edit = InlineTextBox(fan.DisplayName, p);
-        edit.Name = "FanNameEdit";
+        ControlNames.Assign(edit, "FanNameEdit");
         edit.IsVisible = false;
         edit.KeyDown += FanNameEditKeyDown;
         edit.LostFocus += FanNameEditLostFocus;
@@ -1302,7 +1340,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             };
             valueDisplay.PointerPressed += FanValueTextPointerPressed;
             TextBox valueEdit = InlineTextBox(FanSliderValueText(fan, curveSliderValue, sliderRange), p);
-            valueEdit.Name = "FanDisplayedValueEdit";
+            ControlNames.Assign(valueEdit, "FanDisplayedValueEdit");
             valueEdit.IsVisible = false;
             valueEdit.KeyDown += FanValueEditKeyDown;
             valueEdit.LostFocus += FanValueEditLostFocus;
@@ -1334,19 +1372,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         UIResourceScope resources,
         bool registerVisual)
     {
-        Grid row = new()
-        {
-            Tag = cell,
-            Background = Brushes.Transparent,
-            ColumnDefinitions =
+        Grid row = ControlNames.Assign(
+            new Grid
             {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto)
+                Tag = cell,
+                Background = Brushes.Transparent,
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Star),
+                    new ColumnDefinition(GridLength.Auto),
+                    new ColumnDefinition(GridLength.Auto)
+                },
+                RowDefinitions =
+                {
+                    new RowDefinition(GridLength.Auto),
+                    new RowDefinition(GridLength.Auto)
+                }
             },
-            RowDefinitions = { new RowDefinition(GridLength.Auto), new RowDefinition(GridLength.Auto) }
-        };
+            "GroupHeader");
 
         Border groupIcon = IconButton(GlyphCatalog.GROUP, p, _ => { }, Layout.GroupIconWidth,
             Layout.GroupIconHeight, Layout.GroupIconFontSize, margin: Layout.FanButtonUngroupedMargin,
@@ -1373,7 +1417,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         name.Tag = cell;
         name.PointerPressed += GroupNameTextPointerPressed;
         TextBox edit = InlineTextBox(cell.GroupName ?? string.Empty, p);
-        edit.Name = "GroupNameEdit";
+        ControlNames.Assign(edit, "GroupNameEdit");
         edit.IsVisible = false;
         edit.KeyDown += GroupNameEditKeyDown;
         edit.LostFocus += GroupNameEditLostFocus;
@@ -1521,23 +1565,25 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         UIResourceScope resources,
         FanFlyoutVisualGeneration? generation)
     {
-        FlyoutSlider slider = new()
-        {
-            Minimum = range.Minimum,
-            Maximum = range.Maximum,
-            Value = ClampSliderValue(value, range),
-            WheelStep = wheelStep,
-            KeyboardStep = wheelStep,
-            LargeKeyboardStep = wheelStep * 5,
-            HitTestVerticalPadding = Layout.SliderHitTestVerticalPadding,
-            TrackColor = p.SliderTrack,
-            ProgressColor = p.SliderProgress,
-            ThumbColor = p.SliderThumb,
-            IndicatorColor = p.IconForeground,
-            Thumb = thumb,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        FlyoutSlider slider = ControlNames.Assign(
+            new FlyoutSlider
+            {
+                Minimum = range.Minimum,
+                Maximum = range.Maximum,
+                Value = ClampSliderValue(value, range),
+                WheelStep = wheelStep,
+                KeyboardStep = wheelStep,
+                LargeKeyboardStep = wheelStep * 5,
+                HitTestVerticalPadding = Layout.SliderHitTestVerticalPadding,
+                TrackColor = p.SliderTrack,
+                ProgressColor = p.SliderProgress,
+                ThumbColor = p.SliderThumb,
+                IndicatorColor = p.IconForeground,
+                Thumb = thumb,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            },
+            "FanSpeed");
         resources.Own(slider);
         if (generation != null)
         {
@@ -2172,6 +2218,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         Border button = IconButton(glyph, p, _ => click(), Layout.HeaderButtonWidth,
             Layout.HeaderButtonHeight, fontSize ?? Layout.HeaderButtonFontSize, tooltip: tooltip);
+        ControlNames.Assign(button, tooltip);
         configureButton?.Invoke(button);
         TextBlock? text = button.Child as TextBlock;
         Grid.SetColumn(button, column);
@@ -2189,6 +2236,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.HeaderButtonHeight,
             Layout.HeaderButtonFontSize,
             tooltip: "Add item");
+        ControlNames.Assign(button, "AddItem");
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
@@ -2294,8 +2342,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Grid content = new() { IsHitTestVisible = false };
         content.Children.Add(label);
         content.Children.Add(underline);
-        Border button = TrayAppDotNETFlyoutUI.IconButton(string.Empty, p, _ => SelectFanProfile(profileNumber - 1),
-            Layout.ProfileButtonWidth, Layout.ProfileButtonHeight, 0, tooltip: $"Profile {profileNumber}");
+        Border button = ControlNames.Assign(
+            TrayAppDotNETFlyoutUI.IconButton(
+                string.Empty,
+                p,
+                _ => SelectFanProfile(profileNumber - 1),
+                Layout.ProfileButtonWidth,
+                Layout.ProfileButtonHeight,
+                0,
+                tooltip: $"Profile {profileNumber}"),
+            $"Profile{profileNumber}");
         button.Child = content;
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
@@ -2344,18 +2400,29 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         bool isLight,
         FanFlyoutVisualGeneration generation)
     {
-        generation.ConfirmTitle = TrayAppDotNETSettingsUI.Text(
-            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultTitle)), p,
-            Layout.ConfirmTitleFontSize, FontWeight.SemiBold);
+        generation.ConfirmTitle = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.Text(
+                L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultTitle)),
+                p,
+                Layout.ConfirmTitleFontSize,
+                FontWeight.SemiBold),
+            "ConfirmOverlay");
         generation.ConfirmTitle.TextWrapping = TextWrapping.Wrap;
         generation.ConfirmTitle.Margin = Layout.ConfirmTitleMargin;
-        generation.ConfirmMessage = TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
-            p,
-            Layout.ConfirmMessageMargin);
-        generation.ConfirmOK = TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)), p);
-        generation.ConfirmCancel =
-            TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)), p);
+        generation.ConfirmMessage = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.DescriptionText(
+                L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
+                p,
+                Layout.ConfirmMessageMargin),
+            "ConfirmOverlay");
+        generation.ConfirmOK = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)), p),
+            "ConfirmOverlay");
+        generation.ConfirmCancel = ControlNames.Assign(
+            TrayAppDotNETSettingsUI.Button(
+                L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)),
+                p),
+            "ConfirmOverlay");
         generation.ConfirmCancel.Margin = Layout.ConfirmCancelMargin;
         generation.ConfirmOK.Click += (_, _) => CompleteConfirm(true);
         generation.ConfirmCancel.Click += (_, _) => CompleteConfirm(false);
@@ -2383,14 +2450,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Children = { generation.ConfirmTitle, generation.ConfirmMessage, buttons }
             }
         };
-        return new Border
-        {
-            Background =
-                TrayAppDotNETSettingsUI.Brush(
-                    (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight)),
-            CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
-            Child = dialog
-        };
+        return ControlNames.Assign(
+            new Border
+            {
+                Background =
+                    TrayAppDotNETSettingsUI.Brush(
+                        (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(isLight)),
+                CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
+                Child = dialog
+            },
+            "ConfirmOverlay");
     }
 
     private async Task DeleteGroupAsync(FanFlyoutCell cell)
@@ -2955,21 +3024,24 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         _dragGhostHeight = MeasureDragGhostHeight(ghostContent, ghostWidth, Math.Max(1, ghostSource.Bounds.Height));
         _dragPointerOffsetY = Math.Clamp(_dragPointerOffsetRatio * _dragGhostHeight, 0.0, _dragGhostHeight);
         _dragGhostStyle = initialStyle;
-        _dragGhost = new Border
-        {
-            Width = ghostWidth,
-            Height = _dragGhostHeight,
-            Opacity = Layout.FullOpacity,
-            BoxShadow = new BoxShadows(new BoxShadow
+        _dragGhost = ControlNames.Assign(
+            new Border
             {
-                OffsetY = Layout.DragGhostShadowOffsetY,
-                Blur = Layout.DragGhostShadowBlur,
-                Color = (AppServices.Theme ?? AppTheme.Default).FlyoutShadow.For(
-                    AppTheme.ResolveEffectiveIsLightTheme(_settings))
-            }),
-            Child = ghostContent,
-            IsHitTestVisible = false
-        };
+                Width = ghostWidth,
+                Height = _dragGhostHeight,
+                Opacity = Layout.FullOpacity,
+                BoxShadow = new BoxShadows(new BoxShadow
+                {
+                    OffsetY = Layout.DragGhostShadowOffsetY,
+                    Blur = Layout.DragGhostShadowBlur,
+                    Color = (AppServices.Theme ?? AppTheme.Default).FlyoutShadow.For(
+                        AppTheme.ResolveEffectiveIsLightTheme(_settings))
+                }),
+                Child = ghostContent,
+                IsHitTestVisible = false
+            },
+            "DragGhost");
+        ControlNames.AssignLogicalSubtree(_dragGhost, "DragOverlay");
         dragOverlay.Children.Add(_dragGhost);
         ApplyDragGhostSurface(initialStyle);
         SetDragSourceOpacity(Layout.DragSourceOpacity);
@@ -2986,6 +3058,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         try
         {
             replacementContent = CreateDragGhostContent(style, source, replacementResources);
+            ControlNames.AssignLogicalSubtree(replacementContent, "DragGhost");
         }
         catch
         {
@@ -3053,14 +3126,18 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private Border? CreateGroupedFanDropPlaceholder()
     {
         if (_draggedFan == null) return null;
-        return new Border
-        {
-            Height = Layout.FanButtonHeight,
-            Margin = FanRowGroupedMargin(Math.Clamp(_settings.FlyoutCardSpacing, 0,
-                Layout.MaxSettingSpacing)),
-            Background = Brushes.Transparent,
-            IsHitTestVisible = false
-        };
+        return ControlNames.Assign(
+            new Border
+            {
+                Height = Layout.FanButtonHeight,
+                Margin = FanRowGroupedMargin(Math.Clamp(
+                    _settings.FlyoutCardSpacing,
+                    0,
+                    Layout.MaxSettingSpacing)),
+                Background = Brushes.Transparent,
+                IsHitTestVisible = false
+            },
+            "GroupDropPreview");
     }
 
     private FanDragGhostStyle ResolveDragGhostStyle(FanDragPlacement placement)
@@ -3813,14 +3890,16 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         Canvas? dragOverlay = DragOverlay;
         if (dragOverlay == null) return;
-        Border line = new()
-        {
-            Width = width,
-            Height = height,
-            Background = brush,
-            Opacity = opacity,
-            IsHitTestVisible = false
-        };
+        Border line = ControlNames.Assign(
+            new Border
+            {
+                Width = width,
+                Height = height,
+                Background = brush,
+                Opacity = opacity,
+                IsHitTestVisible = false
+            },
+            "DragDebugLine");
         Canvas.SetLeft(line, left);
         Canvas.SetTop(line, top - height / 2.0);
         dragOverlay.Children.Add(line);

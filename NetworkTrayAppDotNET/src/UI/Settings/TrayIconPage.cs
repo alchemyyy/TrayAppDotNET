@@ -56,6 +56,7 @@ public sealed partial class NetworkSettingsWindow
         AddTrayClickActionCard(stack, Loc(nameof(AppStrings.Settings_TrayIcon_AltDoubleLeftClick_Title)),
             _settings.TrayAltDoubleLeftClickAction,
             v => _settings.TrayAltDoubleLeftClickAction = v, p);
+        ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.TrayIcon));
         return stack;
     }
 

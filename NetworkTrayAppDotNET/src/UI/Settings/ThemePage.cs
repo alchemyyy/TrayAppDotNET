@@ -156,6 +156,7 @@ public sealed partial class NetworkSettingsWindow
                 L(nameof(AppStrings.Settings_Theme_StaticIconColor_SearchKeywords))
             ]));
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.Theme));
         return stack;
     }
 }

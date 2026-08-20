@@ -49,6 +49,7 @@ public sealed partial class NetworkSettingsWindow
                 StoreInstallDescription));
         CreateRenderingSettingsSection(p).AddCards(stack);
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.General));
         return stack;
     }
 

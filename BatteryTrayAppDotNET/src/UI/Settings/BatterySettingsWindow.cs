@@ -76,13 +76,20 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     protected override IReadOnlyList<SettingsPageDescriptor<BatterySettingsPage>> CreatePageDescriptors() =>
     [
-        new(BatterySettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)), BuildGeneralPage),
-        new(BatterySettingsPage.Triggers, L(nameof(AppStrings.Settings_Common_Page_Triggers)), BuildTriggersPage),
-        new(BatterySettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout)), BuildFlyoutPage),
-        new(BatterySettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)), BuildTrayIconPage),
-        new(BatterySettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)), BuildHotkeysPage),
-        new(BatterySettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)), BuildThemePage),
-        new(BatterySettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)), BuildAboutPage)
+        new(BatterySettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)),
+            () => NameSettingsPage(BatterySettingsPage.General, BuildGeneralPage())),
+        new(BatterySettingsPage.Triggers, L(nameof(AppStrings.Settings_Common_Page_Triggers)),
+            () => NameSettingsPage(BatterySettingsPage.Triggers, BuildTriggersPage())),
+        new(BatterySettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout)),
+            () => NameSettingsPage(BatterySettingsPage.Flyout, BuildFlyoutPage())),
+        new(BatterySettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
+            () => NameSettingsPage(BatterySettingsPage.TrayIcon, BuildTrayIconPage())),
+        new(BatterySettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
+            () => NameSettingsPage(BatterySettingsPage.Hotkeys, BuildHotkeysPage())),
+        new(BatterySettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)),
+            () => NameSettingsPage(BatterySettingsPage.Theme, BuildThemePage())),
+        new(BatterySettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)),
+            () => NameSettingsPage(BatterySettingsPage.About, BuildAboutPage()))
     ];
 
     protected override void Save()
@@ -113,6 +120,12 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     };
 
     private static Control BuildSettingsPage(Func<Control> buildPage) => buildPage();
+
+    private Control NameSettingsPage(BatterySettingsPage page, Control control)
+    {
+        ControlNames.AssignLogicalSubtree(control, page.ToString());
+        return control;
+    }
 
     private StackPanel BuildGeneralPage() =>
         (StackPanel)BuildSettingsPage(() =>
@@ -237,8 +250,11 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
         if (_settings.Triggers.Count == 0)
         {
-            _triggerPanel.Children.Add(RawCard(TrayAppDotNETSettingsUI.DescriptionText(
-                L(nameof(AppStrings.Settings_Triggers_Empty)), Palette), Palette));
+            Border emptyCard = RawCard(
+                TrayAppDotNETSettingsUI.DescriptionText(L(nameof(AppStrings.Settings_Triggers_Empty)), Palette),
+                Palette);
+            ControlNames.AssignLogicalSubtree(emptyCard, "TriggerCard");
+            _triggerPanel.Children.Add(emptyCard);
             return;
         }
 
@@ -305,6 +321,7 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
             Focusable = true,
             Cursor = TrayAppDotNETCursors.Hand
         };
+        ControlNames.Assign(card, "TriggerCard");
 
         bool pointerOver = false;
         bool pointerPressed = false;
@@ -397,7 +414,9 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         TrayAppDotNETToolTip.SetTip(
             card,
             L(nameof(AppStrings.Settings_Triggers_Card_ToolTip)));
-        return TrayAppDotNETSettingsCards.RegisterSearchCard(card);
+        Border registeredCard = TrayAppDotNETSettingsCards.RegisterSearchCard(card);
+        ControlNames.AssignLogicalSubtree(registeredCard, "TriggerCard");
+        return registeredCard;
     }
 
     private SettingsComboBox BuildNullableTriggerCombo<TEnum>(
@@ -1007,13 +1026,15 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
         grid.Children.Add(status);
         grid.Children.Add(delete);
 
-        return new Border
+        Border card = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
             Child = grid
         };
+        ControlNames.AssignLogicalSubtree(card, "HotkeyBinding");
+        return card;
     }
 
     private static string FormatHotkey(HotkeyBinding binding)

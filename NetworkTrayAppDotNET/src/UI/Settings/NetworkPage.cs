@@ -100,6 +100,7 @@ public sealed partial class NetworkSettingsWindow
             [
                 L(nameof(AppStrings.Settings_Network_DisconnectedColor_SearchKeywords))
             ]));
+        ControlNames.AssignLogicalSubtree(stack, nameof(NetworkSettingsPage.Network));
         return stack;
     }
 }

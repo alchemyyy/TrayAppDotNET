@@ -47,6 +47,7 @@ public sealed partial class FanPropertiesWindow : Window
     private readonly SettingsButton _editCurveButton;
     private readonly SettingsButton _pinButton;
     private readonly SettingsButton _closeButton;
+    private readonly ControlNameScope _controlNames;
     private readonly List<FanCurveEditorWindow> _curveEditorWindows = [];
     private readonly Dictionary<FanCurveEditorWindow, UIResourceScope> _curveEditorSubscriptionResources = [];
     private readonly UIResourceScope _windowResources = new(nameof(FanPropertiesWindow));
@@ -55,6 +56,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     public FanPropertiesWindow()
     {
+        _controlNames = ControlNameScope.For(this);
         _fan = null!;
         _settings = null!;
         _titleText = null!;
@@ -83,6 +85,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     public FanPropertiesWindow(Fan fan, AppSettings settings)
     {
+        _controlNames = ControlNameScope.For(this);
         _fan = fan;
         _settings = settings;
 
@@ -97,45 +100,80 @@ public sealed partial class FanPropertiesWindow : Window
                 AppTheme.ResolveEffectiveIsLightTheme(_settings));
             bool rounded = _settings.EnableRoundedCorners;
 
-            _titleText = TrayAppDotNETSettingsUI.Text("Fan Properties", palette, Layout.TitleFontSize,
-                FontWeight.SemiBold);
-            _fanIDText = ValueText(palette);
-            _sensorControllerText = ValueText(palette);
-            _nameBox = TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth);
+            _titleText = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.Text(
+                    "Fan Properties",
+                    palette,
+                    Layout.TitleFontSize,
+                    FontWeight.SemiBold),
+                "TitleBar");
+            _fanIDText = ControlNames.Assign(ValueText(palette), "FanID");
+            _sensorControllerText = ControlNames.Assign(ValueText(palette), "SensorController");
+            _nameBox = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.TextBox(palette, Layout.TextBoxWidth),
+                "FanName");
             _groupCombo = _windowResources.Own(
-                TrayAppDotNETSettingsUI.ComboBox(palette, Layout.TextBoxWidth, autoSizeToText: true));
+                ControlNames.Assign(
+                    TrayAppDotNETSettingsUI.ComboBox(
+                        palette,
+                        Layout.TextBoxWidth,
+                        autoSizeToText: true),
+                    "FanGroup"));
             _curveCombo = _windowResources.Own(
-                TrayAppDotNETSettingsUI.ComboBox(palette, Layout.CurveComboWidth, autoSizeToText: true));
+                ControlNames.Assign(
+                    TrayAppDotNETSettingsUI.ComboBox(
+                        palette,
+                        Layout.CurveComboWidth,
+                        autoSizeToText: true),
+                    "FanCurve"));
             _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
-            _curveModeRadio = CompactRadio("Curve", palette);
-            _manualModeRadio = CompactRadio("Manual", palette);
-            _detachedModeRadio = CompactRadio("Detached", palette);
+            _curveModeRadio = ControlNames.Assign(CompactRadio("Curve", palette), "FanMode");
+            _manualModeRadio = ControlNames.Assign(CompactRadio("Manual", palette), "FanMode");
+            _detachedModeRadio = ControlNames.Assign(CompactRadio("Detached", palette), "FanMode");
             _jumpstartBox = _windowResources.Own(
-                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+                ControlNames.Assign(
+                    Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
+                    "Jumpstart"));
             _clampHighBox = _windowResources.Own(
-                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+                ControlNames.Assign(
+                    Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
+                    "ClampHigh"));
             _clampLowBox = _windowResources.Own(
-                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+                ControlNames.Assign(
+                    Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
+                    "ClampLow"));
             _warnLowBox = _windowResources.Own(
-                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+                ControlNames.Assign(
+                    Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
+                    "WarnLow"));
             _warnHighBox = _windowResources.Own(
-                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix));
+                ControlNames.Assign(
+                    Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleSuffix),
+                    "WarnHigh"));
             _deltaMaxBox = _windowResources.Own(
-                Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleRateSuffix));
+                ControlNames.Assign(
+                    Number(palette, DutyCycleMinimum, DutyCycleMaximum, DutyCycleRateSuffix),
+                    "DeltaMax"));
             _offsetBox = _windowResources.Own(
-                Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix));
-            _editCurveButton = TrayAppDotNETSettingsUI.Button("Edit curve", palette);
+                ControlNames.Assign(
+                    Number(palette, -DutyCycleMaximum, DutyCycleMaximum, DutyCycleSuffix),
+                    "Offset"));
+            _editCurveButton = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.Button("Edit curve", palette),
+                "FanCurve");
 
-            _pinButton = CaptionButton(GlyphCatalog.PIN, palette);
-            _closeButton = CaptionButton(GlyphCatalog.EXIT, palette);
+            _pinButton = ControlNames.Assign(CaptionButton(GlyphCatalog.PIN, palette), "TitleBar");
+            _closeButton = ControlNames.Assign(CaptionButton(GlyphCatalog.EXIT, palette), "TitleBar");
             _pinButton.Click += (_, _) => IsPinned = !IsPinned;
             _closeButton.Click += (_, _) => RequestClose();
 
-            Grid titleBar = BuildTitleBar(palette, _pinButton, _closeButton);
-            Grid body = BuildBody(palette);
-            Grid footer = BuildFooter(palette);
+            Grid titleBar = ControlNames.Assign(
+                BuildTitleBar(palette, _pinButton, _closeButton),
+                "Chrome");
+            Grid body = ControlNames.Assign(BuildBody(palette), "Chrome");
+            Grid footer = ControlNames.Assign(BuildFooter(palette), "Chrome");
 
-            Grid chrome = new();
+            Grid chrome = ControlNames.Assign(new Grid(), nameof(FanPropertiesWindow));
             chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.TitleBarHeight)));
             chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
             chrome.RowDefinitions.Add(new RowDefinition(new GridLength(Layout.FooterHeight)));
@@ -145,14 +183,18 @@ public sealed partial class FanPropertiesWindow : Window
             Grid.SetRow(footer, 2);
             chrome.Children.Add(footer);
 
-            Content = new Border
-            {
-                Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
-                BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-                BorderThickness = Layout.RootBorderThickness,
-                CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
-                Child = chrome
-            };
+            Border root = ControlNames.Assign(
+                new Border
+                {
+                    Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
+                    BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+                    BorderThickness = Layout.RootBorderThickness,
+                    CornerRadius = rounded ? Layout.RootCornerRadius : Layout.ZeroCornerRadius,
+                    Child = chrome
+                },
+                nameof(FanPropertiesWindow));
+            ControlNames.AssignLogicalSubtree(root, this);
+            Content = root;
 
             LoadFromFan();
             _fan.PropertyChanged += OnFanPropertyChanged;
@@ -170,7 +212,12 @@ public sealed partial class FanPropertiesWindow : Window
         }
     }
 
-    private void InitializeComponentState() => _layout = AxamlFanProperties;
+    private void InitializeComponentState()
+    {
+        _layout = AxamlFanProperties;
+    }
+
+    private ControlNameScope ControlNames => _controlNames;
 
     /// <summary>
     /// Reapplies glyph metadata to the persistent caption buttons.

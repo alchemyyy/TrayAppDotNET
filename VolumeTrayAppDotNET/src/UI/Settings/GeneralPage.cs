@@ -139,6 +139,7 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_General_WheelVolumeStepPercent_SearchKeywords))
             ]));
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.General));
         return stack;
     }
 

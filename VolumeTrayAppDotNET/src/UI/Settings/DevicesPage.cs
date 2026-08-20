@@ -171,6 +171,7 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Devices_ShowRecordingListenButton_SearchKeywords))
             ]));
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.Devices));
         return stack;
     }
 }

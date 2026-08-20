@@ -64,6 +64,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected TPageKey CurrentPageKey { get; private set; } = default!;
     protected bool IsClosing { get; private set; }
 
+    /// <summary>Gets the source-level control naming scope for this settings-window instance.</summary>
+    protected ControlNameScope ControlNames { get; }
+
     protected SettingsPalette Palette => _palette ??= ResolvePalette();
     protected abstract bool EnableRoundedCorners { get; }
     protected abstract TPageKey DefaultPageKey { get; }
@@ -81,6 +84,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected SettingsWindowCommon()
     {
         _windowResources = new UIResourceScope(GetType().Name);
+        ControlNames = ControlNameScope.For(this);
         Resources.MergedDictionaries.Add(_settingsResources);
         Resources.MergedDictionaries.Add(_commonBindingResources);
         _wndProcHook = WndProcHook;
@@ -729,6 +733,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 shellResources.Own(_scrollHost);
             if (_settingsSearchBox != null)
                 shellResources.Own(_settingsSearchBox);
+            ControlNames.AssignLogicalSubtree(replacementRoot, this);
             replacementShellGeneration = new UIContentGeneration(
                 $"{GetType().Name}.Shell",
                 replacementRoot,
@@ -785,6 +790,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             Control root = factory();
+            ControlNames.AssignLogicalSubtree(root, this);
             OwnDisposablePageControls(root, resources);
             return new UIContentGeneration($"{GetType().Name}.Page.{key}", root, resources);
         }

@@ -465,13 +465,15 @@ public sealed partial class BrightnessSettingsWindow
         grid.Children.Add(status);
         grid.Children.Add(delete);
 
-        return new Border
+        Border card = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(p.ControlBackground),
             CornerRadius = RadiusMedium,
             Margin = new Thickness(0, 0, 0, 4),
             Child = grid
         };
+        ControlNames.AssignLogicalSubtree(card, "HotkeyBinding");
+        return card;
     }
 
     private IEnumerable<string> ExistingMonitorOffParameters() =>

@@ -50,6 +50,8 @@ public sealed partial class NetworkSettingsWindow
                     : null;
             }
         });
-        return aboutPage.Build();
+        StackPanel page = aboutPage.Build();
+        ControlNames.AssignLogicalSubtree(page, nameof(NetworkSettingsPage.About));
+        return page;
     }
 }

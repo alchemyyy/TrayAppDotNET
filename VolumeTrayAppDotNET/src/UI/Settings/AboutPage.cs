@@ -38,6 +38,8 @@ public sealed partial class VolumeSettingsWindow
                 ]
             }));
         AddPageCleanup(aboutPage.StopUpdateRefresh);
-        return aboutPage.Build();
+        StackPanel page = aboutPage.Build();
+        ControlNames.AssignLogicalSubtree(page, nameof(VolumeSettingsPage.About));
+        return page;
     }
 }

@@ -242,8 +242,12 @@ public sealed partial class BrightnessSettingsWindow
         _profileSlots.Clear();
         if (_profileManager == null)
         {
-            _profileSlotPanel.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
-                L(nameof(AppStrings.Settings_General_ProfileManagerUnavailable)), Palette));
+            TextBlock unavailable = ControlNames.Assign(
+                TrayAppDotNETSettingsUI.DescriptionText(
+                    L(nameof(AppStrings.Settings_General_ProfileManagerUnavailable)),
+                    Palette),
+                "ProfileSlots");
+            _profileSlotPanel.Children.Add(unavailable);
             return;
         }
 
@@ -298,6 +302,7 @@ public sealed partial class BrightnessSettingsWindow
         buttons.Margin = new Thickness(12, 0, 0, 0);
         Grid.SetColumn(buttons, 3);
         row.Children.Add(buttons);
+        ControlNames.AssignLogicalSubtree(row, "ProfileSlot");
         return row;
     }
 

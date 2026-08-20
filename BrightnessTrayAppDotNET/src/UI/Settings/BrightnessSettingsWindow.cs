@@ -127,7 +127,12 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 
     private bool ResolveEffectiveIsLight() => AppTheme.ResolveEffectiveIsLightTheme(_settings);
 
-    private static Control BuildSettingsPage(BrightnessSettingsPage _, Func<Control> buildPage) => buildPage();
+    private Control BuildSettingsPage(BrightnessSettingsPage page, Func<Control> buildPage)
+    {
+        Control control = buildPage();
+        ControlNames.AssignLogicalSubtree(control, page.ToString());
+        return control;
+    }
 
     protected override void OnSettingsWindowClosed()
     {

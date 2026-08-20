@@ -148,6 +148,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 SettingsSearchSynonymMap.Parse(
                     commonSynonymGroups,
                     L(SettingsSearchSynonymMap.AppResourceKey)));
+            ControlNames.AssignLogicalSubtree(root, this);
             UIContentGeneration generation = new($"{GetType().Name}.Search", root, resources);
             return (generation, view);
         }

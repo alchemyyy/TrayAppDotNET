@@ -190,6 +190,7 @@ public sealed partial class VolumeSettingsWindow
                 Loc(nameof(AppStrings.Settings_Flyout_AppDrawerIconsPerColumn_SearchKeywords))
             ])));
 
+        ControlNames.AssignLogicalSubtree(stack, nameof(VolumeSettingsPage.DeviceAppDrawers));
         return stack;
     }
 }

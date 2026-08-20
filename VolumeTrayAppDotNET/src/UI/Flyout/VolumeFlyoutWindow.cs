@@ -499,7 +499,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 isBluetoothRadioEnabled);
             Dictionary<AudioDevice, List<AudioAppGroup>> visibleGroupsByDevice =
                 ResolveVisibleGroupsByDevice(devices);
-            StackPanel cellStack = new() { Spacing = 0 };
+            StackPanel cellStack = ControlNames.Assign(new StackPanel { Spacing = 0 }, "Devices");
             for (int index = 0; index < devices.Count; index++)
             {
                 AudioDevice device = devices[index];
@@ -511,7 +511,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     isLast: index == devices.Count - 1));
             }
 
-            Grid body = new() { ClipToBounds = true };
+            Grid body = ControlNames.Assign(new Grid { ClipToBounds = true }, "VolumeFlyout");
             ScrollViewer scroll = new()
             {
                 MaxHeight = ResolveMaxContentHeight(),
@@ -520,6 +520,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Focusable = false,
                 Content = cellStack
             };
+            ControlNames.Assign(scroll, "Devices");
             candidate.CellsScrollViewer = scroll;
             body.Children.Add(scroll);
 
@@ -527,6 +528,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 L(nameof(AppStrings.Flyout_NoAudioDevices)),
                 flyoutPalette,
                 Layout.EmptyDevicesFontSize);
+            ControlNames.Assign(empty, "Devices");
             empty.Opacity = Layout.EmptyDevicesOpacity;
             empty.Foreground = Brush(flyoutPalette.SecondaryForeground);
             empty.HorizontalAlignment = HorizontalAlignment.Center;
@@ -535,7 +537,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             empty.IsVisible = devices.Count == 0;
             body.Children.Add(empty);
 
-            DockPanel root = new() { LastChildFill = true };
+            DockPanel root = ControlNames.Assign(new DockPanel { LastChildFill = true }, "VolumeFlyout");
             Control header = BuildHeader(flyoutPalette);
             DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
             root.Children.Add(header);
@@ -547,6 +549,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 flyoutPalette.Border,
                 _settings.EnableRoundedCorners,
                 contentMargin: Layout.ChromeInnerMargin);
+            ControlNames.Assign(frame, "VolumeFlyout");
             frame.PointerPressed += OnChromePointerPressed;
             frame.PointerMoved += OnChromePointerMoved;
             frame.PointerReleased += OnChromePointerReleased;
@@ -561,6 +564,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
             // Retire interaction and drag state before controls release pointer capture
             resources.Add(candidate.Dispose);
+            ControlNames.AssignLogicalSubtree(frame, this);
             candidate.Generation = new UIContentGeneration(
                 "VolumeFlyoutWindow.Content",
                 frame,
@@ -680,29 +684,38 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
     private Grid BuildHeader(FlyoutPalette p)
     {
-        Grid grid = new() { MinHeight = Layout.HeaderMinHeight, Background = Brush(p.Background) };
+        Grid grid = ControlNames.Assign(new Grid
+        {
+            MinHeight = Layout.HeaderMinHeight,
+            Background = Brush(p.Background)
+        }, "FlyoutHeader");
         bool bottomHeader = _settings.FlyoutHeaderAtBottom;
 
-        StackPanel left = new()
+        StackPanel left = ControlNames.Assign(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = HeaderVerticalAlignment(),
             Margin = bottomHeader ? CenteredHeaderMargin(Layout.HeaderLeftMarginBottom) : Layout.HeaderLeftMarginTop
-        };
+        }, grid);
 
         Border settingsButton = HeaderIconButton(GlyphCatalog.SETTINGS, p, _openSettings,
             L(nameof(AppStrings.Flyout_Settings_Tooltip)));
+        ControlNames.Assign(settingsButton, "OpenSettings");
         SuppressNextAutoHideWhenPressed(settingsButton);
         left.Children.Add(settingsButton);
-        left.Children.Add(HeaderIconButton(GlyphCatalog.SOUND_SETTINGS, p,
+        Border soundSettingsButton = HeaderIconButton(GlyphCatalog.SOUND_SETTINGS, p,
             () => DeviceShellLinks.OpenSoundSettings(_settings.SoundSettingsTarget),
-            L(nameof(AppStrings.Flyout_SoundSettings_Tooltip))));
-        left.Children.Add(HeaderIconButton(
+            L(nameof(AppStrings.Flyout_SoundSettings_Tooltip)));
+        ControlNames.Assign(soundSettingsButton, "OpenSoundSettings");
+        left.Children.Add(soundSettingsButton);
+        Border disabledDevicesButton = HeaderIconButton(
             DisabledDevicesGlyph,
             p,
             ToggleDisabledDevices,
-            L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip))));
+            L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip)));
+        ControlNames.Assign(disabledDevicesButton, "DisabledDevices");
+        left.Children.Add(disabledDevicesButton);
 
         if (_settings.ShowBluetoothRadioButtonInFlyoutHeader)
         {
@@ -715,6 +728,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 BluetoothRadioTooltip(bluetoothRadioState, _settings.FlyoutBluetoothRadioButtonClickGesture),
                 enabled: !_isBluetoothRadioToggleInFlight
                          && bluetoothRadioState != BluetoothRadioPowerState.Unavailable);
+            ControlNames.Assign(bluetoothRadioButton, "BluetoothRadio");
             bluetoothRadioButton.Opacity = bluetoothRadioState == BluetoothRadioPowerState.On
                 ? 1.0
                 : Layout.HeaderInactiveIconOpacity;
@@ -728,6 +742,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 p,
                 e => ToggleCommunicationsDucking(e.KeyModifiers),
                 L(nameof(AppStrings.Flyout_Communications_Tooltip)));
+            ControlNames.Assign(communications, "CommunicationsDucking");
             communications.Opacity = CommunicationsDucking.IsActive()
                 ? 1.0
                 : Layout.HeaderInactiveIconOpacity;
@@ -739,6 +754,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (IsUpdateButtonVisible)
         {
             Border update = TextButton(L(nameof(AppStrings.Flyout_Update_ButtonText)), p, ShowUpdateConfirmation);
+            ControlNames.Assign(update, "Update");
             SuppressNextAutoHideWhenPressed(update);
             update.Width = Layout.HeaderUpdateWidth;
             update.Height = Layout.HeaderUpdateHeight;
@@ -757,6 +773,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         }
 
         Border undock = BuildUndockButton(p);
+        ControlNames.Assign(undock, "Undock");
         undock.IsVisible = _settings.AllowFlyoutUndock;
         undock.HorizontalAlignment = HorizontalAlignment.Right;
         undock.VerticalAlignment = HeaderVerticalAlignment();
@@ -2481,6 +2498,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             VerticalAlignment = VerticalAlignment.Center,
             ZIndex = Layout.DeviceNameEditorZIndex
         };
+        ControlNames.Assign(editor, host);
         UIResourceScope interactionResources = new(
             "VolumeFlyoutWindow.DeviceNameEdit",
             exception => TADNLog.Log($"Volume device-name editor cleanup failed: {exception.Message}"));
@@ -3340,6 +3358,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             _maxHeight = maxHeight;
             _layout = layout;
+            ControlNameScope controlNames = ControlNameScope.For(this);
             WindowDecorations = WindowDecorations.None;
             TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
             Background = Brushes.Transparent;
@@ -3348,7 +3367,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Topmost = true;
             SizeToContent = SizeToContent.WidthAndHeight;
 
-            StackPanel items = new() { Spacing = 0 };
+            StackPanel items = controlNames.Assign(new StackPanel { Spacing = 0 }, "MenuItems");
             foreach (FlyoutMenuEntry entry in entries)
                 items.Children.Add(new FlyoutMenuRow(entry, palette, layout, fontSize, rounded, Close));
 
@@ -3356,10 +3375,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 items,
                 MenuSettingsPalette(palette),
                 layout.MenuScrollHostPadding);
+            controlNames.Assign(scroll, "MenuScrollViewer");
             resources.Own(scroll);
             scroll.MaxHeight = maxHeight;
 
-            Content = new Border
+            Border menuChrome = new()
             {
                 Background = Brush(palette.Background),
                 BorderBrush = Brush(palette.Border),
@@ -3372,6 +3392,9 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 }),
                 Child = scroll
             };
+            controlNames.Assign(menuChrome, "MenuChrome");
+            controlNames.AssignLogicalSubtree(menuChrome, this);
+            Content = menuChrome;
 
             Deactivated += (_, _) =>
             {
