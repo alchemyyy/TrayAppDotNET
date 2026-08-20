@@ -696,6 +696,12 @@ public sealed class SettingsButton : Border
 
     public TextBlock Label => _label;
 
+    /// <summary>Gets or sets whether this button closes its containing settings window.</summary>
+    public bool IsSettingsWindowCloseButton { get; set; }
+
+    /// <summary>Gets or sets whether this button minimizes its containing settings window.</summary>
+    public bool IsSettingsWindowMinimizeButton { get; set; }
+
     public string Text
     {
         get => _label.Text ?? string.Empty;

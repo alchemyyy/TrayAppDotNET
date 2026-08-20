@@ -510,7 +510,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top
         };
-        SettingsButton minimize = CaptionButton(GlyphCatalog.CHROME_MINIMIZE, palette);
+        SettingsButton minimize = CaptionButton(
+            GlyphCatalog.CHROME_MINIMIZE,
+            palette,
+            minimizeButton: true);
         SettingsButton maximize = CaptionButton(
             WindowState == WindowState.Maximized
                 ? GlyphCatalog.CHROME_RESTORE
@@ -531,7 +534,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         return titleBar;
     }
 
-    private SettingsButton CaptionButton(Glyph glyph, SettingsPalette palette, bool closeButton = false)
+    private SettingsButton CaptionButton(
+        Glyph glyph,
+        SettingsPalette palette,
+        bool closeButton = false,
+        bool minimizeButton = false)
     {
         SettingsButton button = new(glyph, palette, transparentBase: true)
         {
@@ -539,6 +546,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Height = _settingsResources.AxamlSettingsWindow.TitleBarHeight,
             CornerRadius = _settingsResources.AxamlSettingsWindow.ZeroCornerRadius,
             Padding = _settingsResources.AxamlSettingsWindow.ZeroThickness,
+            IsSettingsWindowCloseButton = closeButton,
+            IsSettingsWindowMinimizeButton = minimizeButton,
             Label =
             {
                 FontSize = _settingsResources.AxamlSettingsWindow.CaptionButtonGlyphFontSize

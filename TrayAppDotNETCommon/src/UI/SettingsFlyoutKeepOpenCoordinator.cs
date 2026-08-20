@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.UI.Controls;
 
 namespace TrayAppDotNETCommon.UI;
 
@@ -64,6 +65,14 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
             resources.Add(() => settingsWindow.Deactivated -= OnSettingsWindowDeactivated);
             settingsWindow.PropertyChanged += OnSettingsWindowPropertyChanged;
             resources.Add(() => settingsWindow.PropertyChanged -= OnSettingsWindowPropertyChanged);
+            settingsWindow.AddHandler(
+                InputElement.PointerPressedEvent,
+                OnSettingsWindowPointerPressed,
+                RoutingStrategies.Tunnel,
+                handledEventsToo: true);
+            resources.Add(() => settingsWindow.RemoveHandler(
+                InputElement.PointerPressedEvent,
+                OnSettingsWindowPointerPressed));
             settingsWindow.Closed += OnSettingsWindowClosed;
             resources.Add(() => settingsWindow.Closed -= OnSettingsWindowClosed);
             _settingsWindowResources = resources;
@@ -201,16 +210,24 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
 
     private void OnSettingsWindowActivated(object? sender, EventArgs e)
     {
-        if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
+        Window? settingsWindow = _attachedSettingsWindow;
+        if (_disposed || settingsWindow == null || !ReferenceEquals(sender, settingsWindow)) return;
 
-        _isHandlingSettingsActivation = true;
-        try
+        FlyoutWindowCommon? flyout = _attachedFlyoutWindow ?? _flyoutWindowProvider?.Invoke();
+        bool suppressHiddenFlyoutRestore = flyout is not { IsVisible: true }
+                                           && IsLeftMouseButtonDown()
+                                           && IsPointerOnSettingsDismissButton(settingsWindow);
+        if (!suppressHiddenFlyoutRestore)
         {
-            HoldOpen();
-        }
-        finally
-        {
-            _isHandlingSettingsActivation = false;
+            _isHandlingSettingsActivation = true;
+            try
+            {
+                HoldOpen();
+            }
+            finally
+            {
+                _isHandlingSettingsActivation = false;
+            }
         }
 
         (_attachedFlyoutWindow ?? _flyoutWindowProvider?.Invoke())?.ClearNextAutoHideSuppression();
@@ -220,6 +237,16 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
     {
         if (_disposed || !ReferenceEquals(sender, _attachedSettingsWindow)) return;
         QueueFocusGroupEvaluation();
+    }
+
+    private void OnSettingsWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        Window? settingsWindow = _attachedSettingsWindow;
+        if (_disposed || settingsWindow == null || !ReferenceEquals(sender, settingsWindow)) return;
+        if (!e.GetCurrentPoint(settingsWindow).Properties.IsLeftButtonPressed) return;
+        if (IsSettingsDismissButton(e.Source as StyledElement)) return;
+
+        HoldOpen();
     }
 
     private void OnSettingsWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -584,4 +611,33 @@ public sealed class SettingsFlyoutKeepOpenCoordinator : IDisposable
     private static bool IsLeftMouseButtonDown() =>
         OperatingSystem.IsWindows()
         && (User32.GetAsyncKeyState(User32.VK_LBUTTON) & unchecked((short)0x8000)) != 0;
+
+    private static bool IsPointerOnSettingsDismissButton(Window settingsWindow)
+    {
+        if (!OperatingSystem.IsWindows() || !User32.GetCursorPos(out User32.POINT cursorPosition)) return false;
+
+        Point clientPosition = settingsWindow.PointToClient(
+            new PixelPoint(cursorPosition.X, cursorPosition.Y));
+        IInputElement? hitElement = settingsWindow.InputHitTest(clientPosition, enabledElementsOnly: false);
+        return IsSettingsDismissButton(hitElement as StyledElement);
+    }
+
+    private static bool IsSettingsDismissButton(StyledElement? hitElement)
+    {
+        StyledElement? currentElement = hitElement;
+        while (currentElement != null)
+        {
+            if (currentElement is SettingsButton
+                {
+                    IsSettingsWindowCloseButton: true
+                } or SettingsButton
+                {
+                    IsSettingsWindowMinimizeButton: true
+                })
+                return true;
+            currentElement = currentElement.Parent;
+        }
+
+        return false;
+    }
 }

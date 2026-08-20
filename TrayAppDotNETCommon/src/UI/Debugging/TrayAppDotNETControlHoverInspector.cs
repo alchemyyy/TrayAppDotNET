@@ -55,7 +55,7 @@ internal static class ControlHoverInspectorActivation
 {
     public static bool IsEnabled(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return true;
+        if (string.IsNullOrWhiteSpace(value)) return false;
 
         return value.Trim().ToUpperInvariant() switch
         {

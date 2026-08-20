@@ -10,22 +10,23 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 public sealed class ControlHoverInspectorTests
 {
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
     [InlineData("1")]
     [InlineData("true")]
     [InlineData("YES")]
     [InlineData(" on ")]
     [InlineData("enabled")]
-    public void InspectorIsEnabledUnlessExplicitlyDisabled(string? value) =>
+    public void ExplicitEnvironmentValuesEnableInspector(string value) =>
         Assert.True(ControlHoverInspectorActivation.IsEnabled(value));
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
     [InlineData("0")]
     [InlineData("false")]
     [InlineData("NO")]
     [InlineData(" off ")]
-    public void ExplicitFalseEnvironmentValuesDisableInspector(string value) =>
+    public void MissingOrFalseEnvironmentValuesDisableInspector(string? value) =>
         Assert.False(ControlHoverInspectorActivation.IsEnabled(value));
 
     [Fact]
