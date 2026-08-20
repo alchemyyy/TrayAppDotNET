@@ -609,12 +609,35 @@ public sealed class UpdateCheckService : IDisposable
         catch (OperationCanceledException) { }
     }
 
-    private Task<UpdateInfo?> FetchLatestAsync(CancellationToken token) =>
-        FetchReleaseManifestAsync(
-            _options.VersionsManifestUrl,
-            pinnedTagName: null,
-            returnNullWhenMissing: false,
-            token);
+    private async Task<UpdateInfo?> FetchLatestAsync(CancellationToken token)
+    {
+        try
+        {
+            UpdateInfo? manifestRelease = await FetchReleaseManifestAsync(
+                    _options.VersionsManifestUrl,
+                    pinnedTagName: null,
+                    returnNullWhenMissing: false,
+                    token)
+                .ConfigureAwait(false);
+            if (manifestRelease != null) return manifestRelease;
+
+            TADNLog.Log(
+                $"UpdateCheckService.FetchLatestAsync: latest aggregate manifest did not contain "
+                + $"a release artifact for {_options.ApplicationName}; using release-list fallback.");
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.FetchLatestAsync: latest aggregate manifest lookup failed: "
+                + $"{exception.Message}; using release-list fallback.");
+        }
+
+        return await FetchLatestReleaseFallbackAsync(token).ConfigureAwait(false);
+    }
 
     private async Task<UpdateInfo?> FetchPreviousReleaseAsync(CancellationToken token)
     {
@@ -743,20 +766,12 @@ public sealed class UpdateCheckService : IDisposable
             return null;
         }
 
-        Uri assetUrl = string.IsNullOrWhiteSpace(pinnedTagName)
-            ? GitHubReleaseUrls.LatestAppReleaseAssetUrl(
-                _options.RepositoryOwner,
-                _options.RepositoryName,
-                _options.ApplicationName,
-                version)
-            : GitHubReleaseUrls.ReleaseAssetUrl(
-                _options.RepositoryOwner,
-                _options.RepositoryName,
-                tagName,
-                expectedAssetName);
-        string releaseName = string.IsNullOrWhiteSpace(manifest.Release.Name)
-            ? $"{_options.ApplicationName} {version}"
-            : manifest.Release.Name;
+        Uri assetUrl = GitHubReleaseUrls.ReleaseAssetUrl(
+            _options.RepositoryOwner,
+            _options.RepositoryName,
+            tagName,
+            expectedAssetName);
+        string releaseName = $"{_options.ApplicationName} {version}";
         return new UpdateInfo(
             version,
             tagName,
@@ -768,15 +783,33 @@ public sealed class UpdateCheckService : IDisposable
             ParsePositiveLong(appArtifact.Size));
     }
 
+    private async Task<UpdateInfo?> FetchLatestReleaseFallbackAsync(CancellationToken token)
+    {
+        for (int page = 1; page <= GitHubFallbackReleaseMaxPages; page++)
+        {
+            (UpdateInfo? latestRelease, int releaseCount) = await FetchAppReleasePageAsync(
+                    page,
+                    maximumVersionExclusive: null,
+                    preferredVersion: null,
+                    token)
+                .ConfigureAwait(false);
+            if (latestRelease != null) return latestRelease;
+            if (releaseCount < GitHubFallbackReleasesPerPage) return null;
+        }
+
+        return null;
+    }
+
     private async Task<UpdateInfo?> FetchPreviousReleaseFallbackAsync(
         int expectedPreviousVersion,
         CancellationToken token)
     {
         for (int page = 1; page <= GitHubFallbackReleaseMaxPages; page++)
         {
-            (UpdateInfo? previousRelease, int releaseCount) = await FetchPreviousReleasePageAsync(
+            (UpdateInfo? previousRelease, int releaseCount) = await FetchAppReleasePageAsync(
                     page,
-                    expectedPreviousVersion,
+                    maximumVersionExclusive: _options.CurrentBuild,
+                    preferredVersion: expectedPreviousVersion,
                     token)
                 .ConfigureAwait(false);
             if (previousRelease != null) return previousRelease;
@@ -786,9 +819,10 @@ public sealed class UpdateCheckService : IDisposable
         return null;
     }
 
-    private async Task<(UpdateInfo? PreviousRelease, int ReleaseCount)> FetchPreviousReleasePageAsync(
+    private async Task<(UpdateInfo? Release, int ReleaseCount)> FetchAppReleasePageAsync(
         int page,
-        int expectedPreviousVersion,
+        int? maximumVersionExclusive,
+        int? preferredVersion,
         CancellationToken token)
     {
         Uri requestUrl = GitHubReleaseUrls.ReleasesApiUrl(
@@ -818,7 +852,7 @@ public sealed class UpdateCheckService : IDisposable
         if (releases.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("GitHub releases response was not a JSON array.");
 
-        UpdateInfo? bestPreviousRelease = null;
+        UpdateInfo? bestRelease = null;
         foreach (JsonElement release in releases.EnumerateArray())
         {
             if (GetJSONBoolean(release, "draft") || GetJSONBoolean(release, "prerelease")) continue;
@@ -833,15 +867,16 @@ public sealed class UpdateCheckService : IDisposable
             {
                 string assetName = GetJSONString(asset, "name");
                 int version = ParseAppReleaseAssetVersion(assetName);
-                if (version <= 0 || version >= _options.CurrentBuild) continue;
-                if (bestPreviousRelease != null && version <= bestPreviousRelease.Version) continue;
+                if (version <= 0) continue;
+                if (maximumVersionExclusive.HasValue && version >= maximumVersionExclusive.Value) continue;
+                if (bestRelease != null && version <= bestRelease.Version) continue;
 
                 Uri assetUrl = GitHubReleaseUrls.ReleaseAssetUrl(
                     _options.RepositoryOwner,
                     _options.RepositoryName,
                     tagName,
                     assetName);
-                bestPreviousRelease = new UpdateInfo(
+                bestRelease = new UpdateInfo(
                     version,
                     tagName,
                     $"{_options.ApplicationName} {version}",
@@ -850,12 +885,12 @@ public sealed class UpdateCheckService : IDisposable
                     assetName,
                     ParseSHA256Digest(GetJSONString(asset, "digest")),
                     GetJSONPositiveInt64(asset, "size"));
-                if (version == expectedPreviousVersion)
-                    return (bestPreviousRelease, releases.GetArrayLength());
+                if (preferredVersion.HasValue && version == preferredVersion.Value)
+                    return (bestRelease, releases.GetArrayLength());
             }
         }
 
-        return (bestPreviousRelease, releases.GetArrayLength());
+        return (bestRelease, releases.GetArrayLength());
     }
 
     private int ParseAppReleaseAssetVersion(string assetName)

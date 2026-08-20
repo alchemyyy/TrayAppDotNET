@@ -32,6 +32,65 @@ public sealed class UpdateCheckServiceTests
     }
 
     [Fact]
+    public async Task CheckNowAsync_UsesTheAppVersionAndPinsTheAssetToTheManifestRelease()
+    {
+        const int aggregateVersion = 110;
+        const int appVersion = 200;
+        using AggregateManifestMessageHandler messageHandler = new(aggregateVersion, appVersion, includeApp: true);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.NotNull(update);
+        Assert.Equal(appVersion, update.Version);
+        Assert.Equal($"TrayAppDotNET_{aggregateVersion}", update.TagName);
+        Assert.Equal($"{ApplicationName} {appVersion}", update.ReleaseName);
+        Assert.Equal(
+            $"https://github.com/test-owner/test-repository/releases/download/TrayAppDotNET_{aggregateVersion}/"
+            + $"{ApplicationName}_{appVersion}.zip",
+            update.AssetUrl);
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_DoesNotOfferTheAggregateVersionWhenTheAppIsCurrent()
+    {
+        const int aggregateVersion = 999;
+        using AggregateManifestMessageHandler messageHandler = new(
+            aggregateVersion,
+            CurrentBuild,
+            includeApp: true);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.Null(update);
+        Assert.Equal(UpdateCheckResult.Success, service.LastResult);
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_FindsTheLatestAppReleaseWhenTheAggregateManifestOmitsIt()
+    {
+        const int aggregateVersion = 110;
+        const int appVersion = 200;
+        using AggregateManifestMessageHandler messageHandler = new(aggregateVersion, appVersion, includeApp: false);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.NotNull(update);
+        Assert.Equal(appVersion, update.Version);
+        Assert.Equal($"TrayAppDotNET_{aggregateVersion - 1}", update.TagName);
+        Assert.Equal($"{ApplicationName} {appVersion}", update.ReleaseName);
+        Assert.Equal("App release notes", update.Changelog);
+        Assert.Equal(
+            [
+                "https://updates.test/versions.xml",
+                "https://api.github.com/repos/test-owner/test-repository/releases?per_page=10&page=1"
+            ],
+            messageHandler.RequestUrls);
+    }
+
+    [Fact]
     public async Task SkipReleaseAsync_PersistsAndClearsTheAvailableRelease()
     {
         int skippedUpdateVersion = 0;
@@ -215,6 +274,84 @@ public sealed class UpdateCheckServiceTests
                 RequestMessage = request
             };
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class AggregateManifestMessageHandler(
+        int aggregateVersion,
+        int appVersion,
+        bool includeApp) : HttpMessageHandler
+    {
+        public List<string> RequestUrls { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Uri requestUri = request.RequestUri
+                ?? throw new InvalidOperationException("The test request did not have a URL.");
+            RequestUrls.Add(requestUri.AbsoluteUri);
+
+            HttpResponseMessage response = requestUri.Host switch
+            {
+                "updates.test" => ManifestResponse(request),
+                "api.github.com" => ReleasesResponse(request),
+                _ => throw new InvalidOperationException($"Unexpected test request: {requestUri}")
+            };
+            return Task.FromResult(response);
+        }
+
+        private HttpResponseMessage ManifestResponse(HttpRequestMessage request)
+        {
+            string appArtifact = includeApp
+                ? $"""
+                      <artifact profile="release" kind="app" appId="{ApplicationName}" version="{appVersion}"
+                                fileName="{ApplicationName}_{appVersion}.zip" sha256="" size="0" />
+                  """
+                : string.Empty;
+            string manifest = $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <versions>
+                  <release tag="TrayAppDotNET_{aggregateVersion}" name="TrayAppDotNET {aggregateVersion}" />
+                  <artifacts>
+                    <artifact profile="release" kind="aggregate" appId="TrayAppDotNET" version="{aggregateVersion}"
+                              fileName="TrayAppDotNET_{aggregateVersion}.zip" sha256="" size="0" />
+                {appArtifact}
+                  </artifacts>
+                </versions>
+                """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(manifest, Encoding.UTF8, "application/xml"),
+                RequestMessage = request
+            };
+        }
+
+        private HttpResponseMessage ReleasesResponse(HttpRequestMessage request)
+        {
+            string releases = $$"""
+                [
+                  {
+                    "tag_name": "TrayAppDotNET_{{aggregateVersion - 1}}",
+                    "body": "App release notes",
+                    "draft": false,
+                    "prerelease": false,
+                    "assets": [
+                      {
+                        "name": "{{ApplicationName}}_{{appVersion}}.zip",
+                        "size": 123,
+                        "digest": "sha256:{{new string('a', 64)}}"
+                      }
+                    ]
+                  }
+                ]
+                """;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(releases, Encoding.UTF8, "application/json"),
+                RequestMessage = request
+            };
         }
     }
 
