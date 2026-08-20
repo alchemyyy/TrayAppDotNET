@@ -2,7 +2,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Media;
+using Avalonia.Styling;
+using Avalonia.VisualTree;
 
 namespace TrayAppDotNETCommon.UI.Debugging;
 
@@ -27,7 +30,6 @@ internal sealed class ControlHoverInspectorWindow : Window
     private static readonly Color FrozenColor = Color.FromRgb(255, 194, 92);
     private static readonly Color HeaderBackgroundColor = Color.FromRgb(38, 38, 42);
 
-    private readonly ControlNameScope _controlNames;
     private readonly TextBlock _statusText;
     private readonly TextBlock _targetText;
     private readonly TreeView _treeView;
@@ -36,7 +38,7 @@ internal sealed class ControlHoverInspectorWindow : Window
 
     public ControlHoverInspectorWindow()
     {
-        _controlNames = ControlNameScope.For(this);
+        ControlNameScope controlNames = ControlNameScope.For(this);
         Title = "Avalonia Hover Inspector";
         Width = InspectorWidth;
         Height = InspectorHeight;
@@ -94,8 +96,18 @@ internal sealed class ControlHoverInspectorWindow : Window
             FontFamily = new FontFamily("Consolas"),
             FontSize = TreeFontSize,
             FontWeight = FontWeight.Normal,
-            Margin = new Thickness(7, 5, 7, 7)
+            Margin = new Thickness(7, 5, 7, 7),
+            ItemTemplate = new FuncTreeDataTemplate<ControlHoverInspectorNode>(
+                static (node, _) => new ControlHoverInspectorTreeRow(node),
+                static node => node.Children)
         };
+        Style treeItemStyle = new(selector => selector.OfType<TreeViewItem>());
+        treeItemStyle.Setters.Add(new Setter(TreeViewItem.FontSizeProperty, TreeFontSize));
+        treeItemStyle.Setters.Add(new Setter(TreeViewItem.FontWeightProperty, FontWeight.Normal));
+        treeItemStyle.Setters.Add(new Setter(TreeViewItem.MarginProperty, new Thickness(0)));
+        treeItemStyle.Setters.Add(new Setter(TreeViewItem.MinHeightProperty, TreeRowHeight));
+        treeItemStyle.Setters.Add(new Setter(TreeViewItem.PaddingProperty, new Thickness(0)));
+        _treeView.Styles.Add(treeItemStyle);
         ScrollViewer.SetHorizontalScrollBarVisibility(_treeView, ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_treeView, ScrollBarVisibility.Auto);
 
@@ -116,7 +128,7 @@ internal sealed class ControlHoverInspectorWindow : Window
             BorderThickness = new Thickness(1),
             Child = contentPanel
         };
-        _controlNames.AssignLogicalSubtree(root, this);
+        controlNames.AssignLogicalSubtree(root, this);
         Content = root;
 
         SetFrozen(false);
@@ -130,25 +142,16 @@ internal sealed class ControlHoverInspectorWindow : Window
         ArgumentNullException.ThrowIfNull(snapshot);
 
         _targetText.Text = snapshot.TargetLabel;
-        _treeView.Items.Clear();
-        foreach (ControlHoverInspectorNode root in snapshot.Roots)
-        {
-            TreeViewItem rootItem = BuildTreeItem(root);
-            _controlNames.AssignLogicalSubtree(rootItem, _treeView);
-            _treeView.Items.Add(rootItem);
-        }
+        _treeView.ItemsSource = snapshot.Roots;
     }
 
     public void ShowNoControl()
     {
         _targetText.Text = "No control is currently under the pointer";
-        _treeView.Items.Clear();
-        TreeViewItem instruction = new()
+        _treeView.ItemsSource = new ControlHoverInspectorNode[]
         {
-            Header = "Move the pointer over an Avalonia window to capture a control"
+            new("Move the pointer over an Avalonia window to capture a control")
         };
-        _controlNames.Assign(instruction, _treeView);
-        _treeView.Items.Add(instruction);
     }
 
     public void SetFrozen(bool isFrozen)
@@ -158,41 +161,6 @@ internal sealed class ControlHoverInspectorWindow : Window
         _statusText.Foreground = new SolidColorBrush(isFrozen ? FrozenColor : LiveColor);
         Title = isFrozen ? "Avalonia Hover Inspector [FROZEN]" : "Avalonia Hover Inspector";
     }
-
-    private static TreeViewItem BuildTreeItem(ControlHoverInspectorNode node)
-    {
-        TreeViewItem rootItem = CreateTreeItem(node);
-        Stack<(ControlHoverInspectorNode Node, TreeViewItem Item)> pending = [];
-        pending.Push((node, rootItem));
-
-        while (pending.Count > 0)
-        {
-            (ControlHoverInspectorNode currentNode, TreeViewItem currentItem) = pending.Pop();
-            List<(ControlHoverInspectorNode Node, TreeViewItem Item)> children = [];
-            foreach (ControlHoverInspectorNode childNode in currentNode.Children)
-            {
-                TreeViewItem childItem = CreateTreeItem(childNode);
-                currentItem.Items.Add(childItem);
-                children.Add((childNode, childItem));
-            }
-
-            for (int index = children.Count - 1; index >= 0; index--)
-                pending.Push(children[index]);
-        }
-
-        return rootItem;
-    }
-
-    private static TreeViewItem CreateTreeItem(ControlHoverInspectorNode node) => new()
-    {
-        Header = node.Text,
-        IsExpanded = node.IsExpanded,
-        FontSize = TreeFontSize,
-        FontWeight = FontWeight.Normal,
-        Margin = new Thickness(0),
-        MinHeight = TreeRowHeight,
-        Padding = new Thickness(0)
-    };
 
     private void OnOpened(object? sender, EventArgs eventArgs)
     {
@@ -208,6 +176,33 @@ internal sealed class ControlHoverInspectorWindow : Window
             workArea.Y + WorkAreaMarginPixels,
             workArea.Bottom - inspectorHeightPixels - WorkAreaMarginPixels);
         Position = new PixelPoint(horizontalPosition, verticalPosition);
+    }
+
+    private sealed class ControlHoverInspectorTreeRow : TextBlock
+    {
+        private readonly bool _isInitiallyExpanded;
+
+        public ControlHoverInspectorTreeRow(ControlHoverInspectorNode node)
+        {
+            Text = node.Text;
+            FontSize = TreeFontSize;
+            FontWeight = FontWeight.Normal;
+            Margin = new Thickness(0);
+            _isInitiallyExpanded = node.IsExpanded;
+        }
+
+        protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs eventArgs)
+        {
+            base.OnAttachedToVisualTree(eventArgs);
+
+            for (Visual? visual = this; visual != null; visual = visual.GetVisualParent())
+            {
+                if (visual is not TreeViewItem treeViewItem) continue;
+
+                treeViewItem.IsExpanded = _isInitiallyExpanded;
+                break;
+            }
+        }
     }
 }
 #endif

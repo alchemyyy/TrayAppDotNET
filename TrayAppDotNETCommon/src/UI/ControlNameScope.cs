@@ -14,6 +14,7 @@ namespace TrayAppDotNETCommon.UI;
 public sealed class ControlNameScope
 {
     private const int MaximumParentTokenLength = 48;
+    private const int MaximumReportedIssueCount = 256;
     private const string GeneratedIndexFormat = "D4";
 
     private static readonly ConditionalWeakTable<TopLevel, ControlNameScope> Scopes = new();
@@ -22,8 +23,6 @@ public sealed class ControlNameScope
     private readonly Lock _nameLock = new();
     private readonly TopLevel _topLevel;
     private readonly string _topLevelToken;
-    private readonly Dictionary<string, WeakReference<StyledElement>> _claimedNames =
-        new(StringComparer.Ordinal);
     private readonly HashSet<string> _reportedIssues = new(StringComparer.Ordinal);
     private int _nextIndex;
 
@@ -125,6 +124,8 @@ public sealed class ControlNameScope
             string parentToken = parent == null ? rootParentToken : ResolveParentToken(parent);
             AssignControl(control, parentToken, ControlNameOrigin.Source);
         }
+
+        Audit(controls);
     }
 
     private static List<(Control Control, Control? Parent)> CollectLogicalControls(Control root)
@@ -196,11 +197,7 @@ public sealed class ControlNameScope
     private void AssignControl(Control control, string parentToken, ControlNameOrigin origin)
     {
         if (NameDetails.TryGetValue(control, out _))
-        {
-            if (!string.IsNullOrWhiteSpace(control.Name))
-                ClaimExistingName(control, control.Name);
             return;
-        }
 
         if (!string.IsNullOrWhiteSpace(control.Name))
         {
@@ -209,26 +206,16 @@ public sealed class ControlNameScope
         }
 
         string controlType = SanitizeToken(ControlTypeName(control.GetType()), "Control");
+        // The monotonic index guarantees generated uniqueness without retaining retired controls
         int index = Interlocked.Increment(ref _nextIndex);
         string generatedName =
             $"{controlType}_{parentToken}_{index.ToString(GeneratedIndexFormat, CultureInfo.InvariantCulture)}";
 
         bool assignedAvaloniaName;
         ControlNameOrigin requestedOrigin = origin;
-        lock (_nameLock)
-        {
-            while (IsClaimedByAnotherControl(generatedName, control))
-            {
-                index = Interlocked.Increment(ref _nextIndex);
-                generatedName =
-                    $"{controlType}_{parentToken}_{index.ToString(GeneratedIndexFormat, CultureInfo.InvariantCulture)}";
-            }
-
-            assignedAvaloniaName = TrySetName(control, generatedName);
-            if (!assignedAvaloniaName)
-                origin = ControlNameOrigin.VisualFallback;
-            _claimedNames[generatedName] = new WeakReference<StyledElement>(control);
-        }
+        assignedAvaloniaName = TrySetName(control, generatedName);
+        if (!assignedAvaloniaName)
+            origin = ControlNameOrigin.VisualFallback;
 
         if (!assignedAvaloniaName && requestedOrigin == ControlNameOrigin.Source)
         {
@@ -249,51 +236,10 @@ public sealed class ControlNameScope
 
         if (NameDetails.TryGetValue(element, out ControlNameDetails? existingDetails)
             && string.Equals(existingDetails.Name, name, StringComparison.Ordinal))
-        {
-            ClaimExistingName(element, name);
             return;
-        }
 
         string token = SanitizeToken(name, _topLevelToken);
         RegisterDetails(element, new ControlNameDetails(name, token, 0, ControlNameOrigin.Explicit));
-        ClaimExistingName(element, name);
-    }
-
-    private void ClaimExistingName(StyledElement element, string name)
-    {
-        bool duplicateAttachedControl = false;
-        lock (_nameLock)
-        {
-            if (IsClaimedByAnotherControl(name, element))
-            {
-                WeakReference<StyledElement> existingReference = _claimedNames[name];
-                if (existingReference.TryGetTarget(out StyledElement? existingElement)
-                    && existingElement is Visual existingVisual
-                    && element is Visual visual
-                    && ReferenceEquals(TopLevel.GetTopLevel(existingVisual), _topLevel)
-                    && ReferenceEquals(TopLevel.GetTopLevel(visual), _topLevel))
-                {
-                    duplicateAttachedControl = true;
-                }
-            }
-
-            if (!duplicateAttachedControl)
-                _claimedNames[name] = new WeakReference<StyledElement>(element);
-        }
-
-        if (duplicateAttachedControl)
-        {
-            ReportIssue(
-                $"Duplicate control name '{name}' in {_topLevel.GetType().Name}: " +
-                $"{element.GetType().Name} conflicts with another attached control.");
-        }
-    }
-
-    private bool IsClaimedByAnotherControl(string name, StyledElement element)
-    {
-        if (!_claimedNames.TryGetValue(name, out WeakReference<StyledElement>? reference)) return false;
-        if (!reference.TryGetTarget(out StyledElement? target)) return false;
-        return !ReferenceEquals(target, element);
     }
 
     private string ResolveParentToken(StyledElement parent)
@@ -347,6 +293,7 @@ public sealed class ControlNameScope
     {
         lock (_nameLock)
         {
+            if (_reportedIssues.Count >= MaximumReportedIssueCount) return;
             if (!_reportedIssues.Add(issue)) return;
         }
 

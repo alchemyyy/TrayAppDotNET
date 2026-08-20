@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using TrayAppDotNETCommon.UI;
 using Xunit;
@@ -38,6 +39,27 @@ public sealed class ControlNameScopeTests
         Assert.Equal("Border_DeviceList_0001", card.Name);
         Assert.Equal("TextBlock_Border0001_0002", value.Name);
     });
+
+    [Fact]
+    public void TransientGeneratedNamesAreNotRetainedByScope() => AvaloniaTestHost.Run(() =>
+    {
+        Window window = new();
+        ControlNameScope scope = ControlNameScope.For(window);
+        WeakReference<string> generatedName = CreateTransientGeneratedName(scope);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert.False(generatedName.TryGetTarget(out _));
+    });
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference<string> CreateTransientGeneratedName(ControlNameScope scope)
+    {
+        Border control = scope.Assign(new Border(), "TransientControl");
+        return new WeakReference<string>(control.Name!);
+    }
 #else
     [Fact]
     public void NamingIsDisabledInReleaseBuilds() => AvaloniaTestHost.Run(() =>
