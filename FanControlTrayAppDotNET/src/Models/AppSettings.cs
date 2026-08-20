@@ -98,6 +98,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Dynamic;
     public NullableThemeColor TrayIconColor { get; set; } = new();
     public bool EnableRoundedCorners { get; set; } = true;
+    public bool UseWindows11SettingsNavigation { get; set; }
     public bool SquareFlyoutTitleBarCorners { get; set; }
     public bool EnableCardBorders { get; set; }
     public bool EnableHoveredCardBorders { get; set; }

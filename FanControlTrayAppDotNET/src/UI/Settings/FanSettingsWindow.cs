@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI.Settings;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
+using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyApplyResult = TrayAppDotNETCommon.Services.HotkeyApplyResult;
 using FanHotkeyBinding = TrayAppDotNETCommon.Models.HotkeyBinding;
@@ -54,6 +55,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
 
+    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
+
     protected override FanSettingsPage DefaultPageKey => FanSettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
@@ -77,19 +80,26 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
     protected override IReadOnlyList<SettingsPageDescriptor<FanSettingsPage>> CreatePageDescriptors() =>
     [
         new(FanSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
-            BuildGeneralPage),
+            BuildGeneralPage,
+            CommonSettingsNavigationGlyphs.General),
         new(FanSettingsPage.FanProperties, L(nameof(AppStrings.Settings_Common_Page_FanProperties)),
-            BuildFanPropertiesPage),
+            BuildFanPropertiesPage,
+            GlyphCatalog.FAN),
         new(FanSettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout)),
-            BuildFlyoutPage),
+            BuildFlyoutPage,
+            CommonSettingsNavigationGlyphs.Flyout),
         new(FanSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
-            BuildTrayIconPage),
+            BuildTrayIconPage,
+            CommonSettingsNavigationGlyphs.TrayIcon),
         new(FanSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
-            BuildHotkeysPage),
+            BuildHotkeysPage,
+            CommonSettingsNavigationGlyphs.Hotkeys),
         new(FanSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
-            BuildThemePage),
+            BuildThemePage,
+            CommonSettingsNavigationGlyphs.Theme),
         new(FanSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
-            BuildAboutPage)
+            BuildAboutPage,
+            CommonSettingsNavigationGlyphs.About)
     ];
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)
@@ -538,6 +548,17 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
+            ]));
+        stack.Children.Add(BoolCard(
+            L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
+            L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
+            _settings.UseWindows11SettingsNavigation,
+            value => _settings.UseWindows11SettingsNavigation = value,
+            p,
+            afterSave: () => RebuildShell(FanSettingsPage.Theme),
+            searchKeywords:
+            [
+                L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
             ]));
         stack.Children.Add(BoolCard(
             Loc(nameof(AppStrings.Settings_Theme_RoundedCorners_Title)),

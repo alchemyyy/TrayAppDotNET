@@ -45,6 +45,17 @@ public sealed partial class VolumeSettingsWindow
             [
                 Loc(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
             ]));
+        stack.Children.Add(BoolCard(
+            Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
+            Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
+            _settings.UseWindows11SettingsNavigation,
+            value => _settings.UseWindows11SettingsNavigation = value,
+            p,
+            afterSave: () => RebuildShell(VolumeSettingsPage.Theme),
+            searchKeywords:
+            [
+                Loc(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
+            ]));
         stack.Children.Add(VariantColorCard(
             "Text",
             Loc(nameof(AppStrings.Settings_Theme_TextColor_Title)),

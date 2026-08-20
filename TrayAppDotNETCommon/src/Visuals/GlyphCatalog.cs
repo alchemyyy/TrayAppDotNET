@@ -42,6 +42,16 @@ public abstract class GlyphCatalog
     protected internal static Glyph SLIDER_THUMB_SQUARE => Glyph("SliderThumbSquare");
     protected internal static Glyph SLIDER_THUMB_HEART => Glyph("SliderThumbHeart");
 
+    protected internal static Glyph SETTINGS_NAV_GENERAL => Glyph("SettingsNavGeneral");
+    protected internal static Glyph SETTINGS_NAV_FLYOUT => Glyph("SettingsNavFlyout");
+    protected internal static Glyph SETTINGS_NAV_TRAY_ICON => Glyph("SettingsNavTrayIcon");
+    protected internal static Glyph SETTINGS_NAV_MONITOR_OPTIONS => Glyph("SettingsNavMonitorOptions");
+    protected internal static Glyph SETTINGS_NAV_HOTKEYS => Glyph("SettingsNavHotkeys");
+    protected internal static Glyph SETTINGS_NAV_THEME => Glyph("SettingsNavTheme");
+    protected internal static Glyph SETTINGS_NAV_TRIGGERS => Glyph("SettingsNavTriggers");
+    protected internal static Glyph SETTINGS_NAV_DEVICES => Glyph("SettingsNavDevices");
+    protected internal static Glyph SETTINGS_NAV_DEVICE_APP_DRAWERS => Glyph("SettingsNavDeviceAppDrawers");
+
     private static Glyph Glyph(string name)
     {
 #if DEBUG
@@ -50,4 +60,19 @@ public abstract class GlyphCatalog
         return Resources.Value.Glyph(name);
 #endif
     }
+}
+
+/// <summary>Standard page glyphs for Windows 11-style settings navigation.</summary>
+public static class SettingsNavigationGlyphs
+{
+    public static Glyph General => GlyphCatalog.SETTINGS_NAV_GENERAL;
+    public static Glyph Flyout => GlyphCatalog.SETTINGS_NAV_FLYOUT;
+    public static Glyph TrayIcon => GlyphCatalog.SETTINGS_NAV_TRAY_ICON;
+    public static Glyph MonitorOptions => GlyphCatalog.SETTINGS_NAV_MONITOR_OPTIONS;
+    public static Glyph Hotkeys => GlyphCatalog.SETTINGS_NAV_HOTKEYS;
+    public static Glyph Theme => GlyphCatalog.SETTINGS_NAV_THEME;
+    public static Glyph About => GlyphCatalog.INFO;
+    public static Glyph Triggers => GlyphCatalog.SETTINGS_NAV_TRIGGERS;
+    public static Glyph Devices => GlyphCatalog.SETTINGS_NAV_DEVICES;
+    public static Glyph DeviceAppDrawers => GlyphCatalog.SETTINGS_NAV_DEVICE_APP_DRAWERS;
 }

@@ -22,8 +22,8 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_Theme_FontSize_Title)),
             L(nameof(AppStrings.Settings_Theme_FontSize_Description)),
             _settings.ContextMenuFontSize,
-            ContextMenuFontSizeMin,
-            ContextMenuFontSizeMax,
+            AXAMLSettingsUI.ContextMenuFontSizeMin,
+            AXAMLSettingsUI.ContextMenuFontSizeMax,
             v => _settings.ContextMenuFontSize = v,
             p,
             searchKeywords:
@@ -49,6 +49,17 @@ public sealed partial class BrightnessSettingsWindow
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
+            ]));
+        stack.Children.Add(BoolCard(
+            L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
+            L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
+            _settings.UseWindows11SettingsNavigation,
+            value => _settings.UseWindows11SettingsNavigation = value,
+            p,
+            afterSave: () => RebuildShell(BrightnessSettingsPage.Theme),
+            searchKeywords:
+            [
+                L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
             ]));
         stack.Children.Add(VariantColorCard(
             "Text",

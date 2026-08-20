@@ -13,7 +13,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
         GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
             "Fan",
-            static () => new GlyphCatalogResources());
+            static () => []);
 #else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
 #endif

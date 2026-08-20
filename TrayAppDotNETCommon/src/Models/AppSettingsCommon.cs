@@ -103,6 +103,12 @@ public abstract class AppSettingsCommon(
         set => SetField(ref field, value);
     } = true;
 
+    public bool UseWindows11SettingsNavigation
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public TrayAppDotNETAnimationMode AnimationMode
     {
         get;

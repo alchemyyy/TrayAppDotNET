@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
+using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
 
@@ -11,7 +12,6 @@ public enum NetworkSettingsPage
 {
     General,
     TrayIcon,
-    Network,
     Hotkeys,
     Theme,
     About
@@ -45,6 +45,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
 
+    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
+
     protected override NetworkSettingsPage DefaultPageKey => NetworkSettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
@@ -59,12 +61,16 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override IReadOnlyList<SettingsPageDescriptor<NetworkSettingsPage>> CreatePageDescriptors() =>
     [
-        new(NetworkSettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)), BuildGeneralPage),
-        new(NetworkSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)), BuildTrayIconPage),
-        new(NetworkSettingsPage.Network, L(nameof(AppStrings.Settings_Common_Page_Network)), BuildNetworkPage),
-        new(NetworkSettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)), BuildHotkeysPage),
-        new(NetworkSettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)), BuildThemePage),
-        new(NetworkSettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)), BuildAboutPage)
+        new(NetworkSettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)), BuildGeneralPage,
+            CommonSettingsNavigationGlyphs.General),
+        new(NetworkSettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)), BuildTrayIconPage,
+            CommonSettingsNavigationGlyphs.TrayIcon),
+        new(NetworkSettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)), BuildHotkeysPage,
+            CommonSettingsNavigationGlyphs.Hotkeys),
+        new(NetworkSettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)), BuildThemePage,
+            CommonSettingsNavigationGlyphs.Theme),
+        new(NetworkSettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)), BuildAboutPage,
+            CommonSettingsNavigationGlyphs.About)
     ];
 
     protected override void OnSettingsWindowClosed()

@@ -3,6 +3,7 @@ using Avalonia.Media;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
+using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
 
@@ -20,14 +21,15 @@ public enum BrightnessSettingsPage
 
 public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<BrightnessSettingsPage>
 {
-    private const int ContextMenuFontSizeMin = 8;
-    private const int ContextMenuFontSizeMax = 48;
-
+    private readonly BrightnessSettingsUIResources _brightnessSettingsUIResources = [];
     private readonly AppSettings _settings;
     private readonly Action<string, BrightnessInstallScope> _showUninstaller;
     private readonly ProfileManager? _profileManager;
     private readonly MonitorService? _monitorService;
     private readonly MonitorBrightnessRangeProvider? _brightnessRangeProvider;
+
+    private BrightnessSettingsUIResources.BrightnessSettingsUIAxamlProperties AXAMLSettingsUI =>
+        _brightnessSettingsUIResources.AxamlBrightnessSettingsUI;
 
     public BrightnessSettingsWindow()
         : this(new AppSettings(), static (_, _) => { })
@@ -58,6 +60,8 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
 
+    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
+
     protected override BrightnessSettingsPage DefaultPageKey => BrightnessSettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
@@ -81,22 +85,36 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
     protected override IReadOnlyList<SettingsPageDescriptor<BrightnessSettingsPage>> CreatePageDescriptors() =>
     [
         new(BrightnessSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
-            () => BuildSettingsPage(BrightnessSettingsPage.General, BuildGeneralPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.General, BuildGeneralPage),
+            CommonSettingsNavigationGlyphs.General),
         new(BrightnessSettingsPage.Flyout, Loc(nameof(AppStrings.Settings_Common_Page_Flyout)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Flyout, BuildFlyoutPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.Flyout, BuildFlyoutPage),
+            CommonSettingsNavigationGlyphs.Flyout),
         new(BrightnessSettingsPage.TrayIcon, Loc(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
-            () => BuildSettingsPage(BrightnessSettingsPage.TrayIcon, BuildTrayIconPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.TrayIcon, BuildTrayIconPage),
+            CommonSettingsNavigationGlyphs.TrayIcon),
         new(BrightnessSettingsPage.Monitors, Loc(nameof(AppStrings.Settings_Common_Page_Monitors)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Monitors, BuildMonitorsPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.Monitors, BuildMonitorsPage),
+            CommonSettingsNavigationGlyphs.MonitorOptions),
         new(BrightnessSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Hotkeys, BuildHotkeysPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.Hotkeys, BuildHotkeysPage),
+            CommonSettingsNavigationGlyphs.Hotkeys,
+            NavigationIconTransform: AXAMLSettingsUI.HotkeysNavigationIconTransform),
         new(BrightnessSettingsPage.Environmental, L(nameof(AppStrings.Settings_Common_Page_Environmental)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Environmental, BuildEnvironmentalPage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.Environmental, BuildEnvironmentalPage),
+            NavigationIconFactory: BuildEnvironmentalNavigationIcon,
+            NavigationIconScale: AXAMLSettingsUI.EnvironmentalNavigationIconScale,
+            NavigationIconTransform: AXAMLSettingsUI.EnvironmentalNavigationIconTransform),
         new(BrightnessSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
-            () => BuildSettingsPage(BrightnessSettingsPage.Theme, BuildThemePage)),
+            () => BuildSettingsPage(BrightnessSettingsPage.Theme, BuildThemePage),
+            CommonSettingsNavigationGlyphs.Theme),
         new(BrightnessSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
-            () => BuildSettingsPage(BrightnessSettingsPage.About, BuildAboutPage))
+            () => BuildSettingsPage(BrightnessSettingsPage.About, BuildAboutPage),
+            CommonSettingsNavigationGlyphs.About)
     ];
+
+    private static EnvironmentalCurveGlyphIcon BuildEnvironmentalNavigationIcon(Color color) =>
+        new EnvironmentalCurveGlyphIcon { IconColor = color };
 
     internal static SettingsPalette CreatePalette(AppTheme? theme, AppSettings settings, bool isLight)
     {

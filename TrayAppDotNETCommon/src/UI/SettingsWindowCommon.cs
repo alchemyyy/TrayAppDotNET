@@ -14,7 +14,11 @@ namespace TrayAppDotNETCommon.UI;
 public sealed record SettingsPageDescriptor<TPageKey>(
     TPageKey Key,
     string Label,
-    Func<Control> BuildPage)
+    Func<Control> BuildPage,
+    Glyph? NavigationGlyph = null,
+    Func<Color, Control>? NavigationIconFactory = null,
+    double NavigationIconScale = 1.0,
+    ITransform? NavigationIconTransform = null)
     where TPageKey : notnull;
 
 /// <summary>
@@ -80,6 +84,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     protected virtual double SidebarWidth => _settingsResources.AxamlSettingsWindow.DefaultSidebarWidth;
+    protected virtual bool UseWindows11SettingsNavigation => false;
 
     protected SettingsWindowCommon()
     {
@@ -248,6 +253,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         if (!ReferenceEquals(_palette, resolved))
             _palette.UpdateFrom(resolved);
+
+        foreach (SettingsNavItem navigationItem in _navItems.Values)
+            navigationItem.RefreshPalette();
     }
 
     /// <summary>Adds cleanup owned by the settings page currently being constructed.</summary>
@@ -421,7 +429,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
             _pages[page.Key] = page.BuildPage;
-            AddNavItem(nav, page.Key, page.Label, palette);
+            AddNavItem(nav, page, palette);
         }
 
         Grid.SetRow(nav, 1);
@@ -610,12 +618,28 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Activate();
     }
 
-    private void AddNavItem(StackPanel nav, TPageKey key, string label, SettingsPalette palette)
+    private void AddNavItem(
+        StackPanel navigationPanel,
+        SettingsPageDescriptor<TPageKey> page,
+        SettingsPalette palette)
     {
-        SettingsNavItem item = new(label, palette, RadiusTiny, RadiusMedium);
-        item.Click += (_, _) => NavigateToSettingsPage(key);
-        _navItems[key] = item;
-        nav.Children.Add(item);
+        bool useWindows11Style = UseWindows11SettingsNavigation;
+        Control? customNavigationIcon = useWindows11Style
+            ? page.NavigationIconFactory?.Invoke(palette.Foreground)
+            : null;
+        SettingsNavItem item = new(
+            page.Label,
+            palette,
+            RadiusTiny,
+            RadiusMedium,
+            useWindows11Style,
+            page.NavigationGlyph,
+            customNavigationIcon,
+            page.NavigationIconScale,
+            page.NavigationIconTransform);
+        item.Click += (_, _) => NavigateToSettingsPage(page.Key);
+        _navItems[page.Key] = item;
+        navigationPanel.Children.Add(item);
     }
 
     private void ShowPage(TPageKey key, bool force = false)

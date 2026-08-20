@@ -13,6 +13,14 @@
     <CornerRadius x:Key="SettingsUI.NavItemRadius">4</CornerRadius>
     <Thickness x:Key="SettingsUI.NavItemPadding">12,10</Thickness>
     <Thickness x:Key="SettingsUI.NavItemInnerMargin">0,2</Thickness>
+    <Color x:Key="SettingsUI.Windows11NavIndicatorColor">#A6A5A1</Color>
+    <Thickness x:Key="SettingsUI.Windows11NavItemPadding">0,10</Thickness>
+    <Thickness x:Key="SettingsUI.Windows11NavContentMargin">12,0,16,0</Thickness>
+    <sys:Double x:Key="SettingsUI.Windows11NavIconSize">20</sys:Double>
+    <sys:Double x:Key="SettingsUI.Windows11NavIconFontSize">16</sys:Double>
+    <sys:Double x:Key="SettingsUI.Windows11NavIconColumnWidth">20</sys:Double>
+    <Thickness x:Key="SettingsUI.Windows11NavIconMargin">0,0,0,-4</Thickness>
+    <Thickness x:Key="SettingsUI.Windows11NavLabelMargin">12,0,0,0</Thickness>
 
     <CornerRadius x:Key="SettingsUI.ButtonRadius">4</CornerRadius>
     <sys:Double x:Key="SettingsUI.ButtonMinHeight">32</sys:Double>
