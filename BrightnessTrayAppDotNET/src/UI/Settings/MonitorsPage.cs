@@ -24,7 +24,8 @@ public sealed partial class BrightnessSettingsWindow
             [
                 L(nameof(AppStrings.Settings_Monitors_BrightnessRate_SearchKeywords))
             ]));
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Title)), "",
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Title)),
+            L(nameof(AppStrings.Settings_Monitors_ValidationDwell_Description)),
             _settings.ValidationDwellMs,
             TimeConstants.ValidationDwellMinMs,
             TimeConstants.ValidationDwellMaxMs,
@@ -34,13 +35,15 @@ public sealed partial class BrightnessSettingsWindow
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationDwell_SearchKeywords))
             ]));
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title)), "",
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Title)),
+            L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_Description)),
             _settings.ValidationAttempts, 1, 20, v => _settings.ValidationAttempts = v, p,
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_Monitors_ValidationAttempts_SearchKeywords))
             ]));
-        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Title)), "",
+        stack.Children.Add(IntCard(L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Title)),
+            L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_Description)),
             _settings.DDCOperationTimeoutMs,
             TimeConstants.DDCOperationTimeoutMinMs,
             TimeConstants.DDCOperationTimeoutMaxMs,
