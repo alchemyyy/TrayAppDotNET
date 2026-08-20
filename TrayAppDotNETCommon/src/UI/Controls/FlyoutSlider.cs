@@ -376,7 +376,7 @@ public sealed class FlyoutSlider : Control, IDisposable
 
         double thumbWidth = Math.Max(1, Thumb.Width);
         double thumbHeight = Math.Max(1, Thumb.Height);
-        double trackY = Math.Round((height - FlyoutSliderLayout.TrackHeight) / 2.0) + 0.5;
+        double trackY = CalculateCenteredTop(height, FlyoutSliderLayout.TrackHeight);
         double progressWidth = ProgressValueOverride.HasValue
             ? ValuePosition(width, ProgressValueOverride.Value)
             : ValuePosition(width, Value);
@@ -668,9 +668,13 @@ public sealed class FlyoutSlider : Control, IDisposable
     private Rect ThumbRect(double width, double height, double thumbWidth, double thumbHeight, double value) =>
         new(
             ThumbLeft(width, thumbWidth, value),
-            Math.Round((height - thumbHeight) / 2.0),
+            CalculateCenteredTop(height, thumbHeight),
             thumbWidth,
             thumbHeight);
+
+    /// <summary>Returns an exact centered position without introducing a shape-specific pixel offset.</summary>
+    internal static double CalculateCenteredTop(double containerHeight, double contentHeight) =>
+        (containerHeight - contentHeight) / 2.0;
 
     /// <summary>Compensates for the rounded cap without drawing beyond the volume extent.</summary>
     internal static double CalculatePeakWidth(double peakExtent, float peak, double radius)
