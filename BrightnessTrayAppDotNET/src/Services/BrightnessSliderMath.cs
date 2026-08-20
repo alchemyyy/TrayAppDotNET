@@ -53,4 +53,27 @@ internal static class BrightnessSliderMath
             _ => values.Average()
         };
     }
+
+    /// <summary>
+    /// Recomputes the master and every enrolled monitor's master-relative offset as the initial asynchronous
+    /// monitor set is published. This prevents the first row from inheriting an offset against a persisted master
+    /// fallback before the remaining profile-restored rows have arrived.
+    /// </summary>
+    public static double RebaseInitialEnrollmentOffsets(
+        IEnumerable<MonitorInfo> monitors,
+        MasterSliderMode mode,
+        double fallback,
+        bool preserveMasterSliderOffsets)
+    {
+        List<MonitorInfo> enrolledMonitors = [.. monitors];
+        double masterBrightness = ComputeMasterPercent(enrolledMonitors, mode, fallback);
+
+        foreach (MonitorInfo monitor in enrolledMonitors)
+        {
+            double source = preserveMasterSliderOffsets ? monitor.VirtualBrightness : monitor.LastUserBrightness;
+            monitor.Offset = source - masterBrightness;
+        }
+
+        return masterBrightness;
+    }
 }

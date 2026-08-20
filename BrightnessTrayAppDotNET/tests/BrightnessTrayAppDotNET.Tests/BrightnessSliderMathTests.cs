@@ -30,4 +30,47 @@ public sealed class BrightnessSliderMathTests
 
         Assert.Equal(99, master);
     }
+
+    [Fact]
+    public void InitialEnrollmentRebasesFirstMonitorAgainstRestoredProfileMaster()
+    {
+        MonitorInfo monitor = new();
+        monitor.InitializeBrightnessFromHardware(20);
+        monitor.Brightness = 84;
+        MonitorInfo[] monitors = [monitor];
+
+        double master = BrightnessSliderMath.RebaseInitialEnrollmentOffsets(
+            monitors,
+            MasterSliderMode.Average,
+            fallback: 17,
+            preserveMasterSliderOffsets: false);
+
+        Assert.Equal(84, master);
+        Assert.Equal(0, monitor.Offset);
+    }
+
+    [Fact]
+    public void InitialEnrollmentRebasesPreviouslyPublishedOffsetsAsRowsArrive()
+    {
+        MonitorInfo first = new() { Brightness = 60 };
+        MonitorInfo second = new() { Brightness = 84 };
+        List<MonitorInfo> monitors = [];
+        monitors.Add(first);
+
+        _ = BrightnessSliderMath.RebaseInitialEnrollmentOffsets(
+            monitors,
+            MasterSliderMode.Average,
+            fallback: 17,
+            preserveMasterSliderOffsets: false);
+        monitors.Add(second);
+        double master = BrightnessSliderMath.RebaseInitialEnrollmentOffsets(
+            monitors,
+            MasterSliderMode.Average,
+            fallback: 60,
+            preserveMasterSliderOffsets: false);
+
+        Assert.Equal(72, master);
+        Assert.Equal(-12, first.Offset);
+        Assert.Equal(12, second.Offset);
+    }
 }

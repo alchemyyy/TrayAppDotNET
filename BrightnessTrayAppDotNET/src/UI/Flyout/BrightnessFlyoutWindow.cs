@@ -2011,8 +2011,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _suppressPropagation = true;
         try
         {
-            UpdateMasterFromEnabledIndividuals();
-            CaptureOffsetsFromMaster();
+            RebaseInitialMonitorEnrollment();
         }
         finally
         {
@@ -2043,8 +2042,18 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 finally { hardwareWriteSuspension?.Dispose(); }
             }
 
-            InitializeOffsetFromMaster(monitor);
-            UpdateMasterFromEnabledIndividuals();
+            if (_awaitingInitialAsyncMonitorEnrollment)
+            {
+                // MonitorService publishes cold-start rows one at a time before MonitorsRefreshed. Rebase the
+                // complete partial set after each profile restore so the curve subscriber never observes the first
+                // row offset against persisted LastMasterBrightness.
+                RebaseInitialMonitorEnrollment();
+            }
+            else
+            {
+                InitializeOffsetFromMaster(monitor);
+                UpdateMasterFromEnabledIndividuals();
+            }
         }
         finally
         {
@@ -2393,6 +2402,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private double ComputeMasterFromEnabledIndividuals() =>
         BrightnessSliderMath.ComputeMasterPercent(Monitors, CurrentMasterSliderMode, MasterMonitor.Brightness);
+
+    private void RebaseInitialMonitorEnrollment()
+    {
+        double masterBrightness = BrightnessSliderMath.RebaseInitialEnrollmentOffsets(
+            Monitors,
+            CurrentMasterSliderMode,
+            MasterMonitor.Brightness,
+            _settings?.PreserveMasterSliderOffsets == true);
+        MasterMonitor.Brightness = masterBrightness;
+        UpdateVisibleMonitorSliderValue(MasterMonitor, masterBrightness);
+    }
 
     private void CaptureOffsetsFromMaster()
     {
