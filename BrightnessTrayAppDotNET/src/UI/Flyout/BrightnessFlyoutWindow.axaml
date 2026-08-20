@@ -60,7 +60,7 @@
         <sys:Double x:Key="Flyout.RowPowerButtonFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.SliderValueFontSize">20</sys:Double>
         <sys:Double x:Key="Flyout.SliderValueMinWidth">32</sys:Double>
-        <Thickness x:Key="Flyout.SliderValueMargin">8,-4,0,0</Thickness>
+        <Thickness x:Key="Flyout.SliderValueMargin">8,-2,0,0</Thickness>
         <Thickness x:Key="Flyout.RowMargin">0,0,0,4</Thickness>
 
         <CornerRadius x:Key="Flyout.FooterCornerRadius">0,0,7,7</CornerRadius>

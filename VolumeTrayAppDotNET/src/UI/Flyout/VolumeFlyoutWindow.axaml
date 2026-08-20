@@ -90,7 +90,7 @@
 
         <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">14</sys:Double>
         <sys:Double x:Key="Flyout.PercentHostMinWidth">32</sys:Double>
-        <Thickness x:Key="Flyout.PercentHostMargin">10,0,0,0</Thickness>
+        <Thickness x:Key="Flyout.PercentHostMargin">10,-2,0,0</Thickness>
         <sys:Double x:Key="Flyout.PercentFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.PercentEditorMinWidth">42</sys:Double>
         <Thickness x:Key="Flyout.PercentEditorBorderThickness">1</Thickness>
