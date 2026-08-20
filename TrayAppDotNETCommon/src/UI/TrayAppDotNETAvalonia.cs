@@ -166,6 +166,9 @@ public static class TrayAppDotNETAvalonia
 
         if (app.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop) return;
 
+#if DEBUG
+        Debugging.TrayAppDotNETControlHoverInspector.Attach(desktop);
+#endif
         desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         desktop.ShutdownRequested += (_, _) => shutdownServices();
     }
