@@ -31,4 +31,14 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbStar" Text="&#xE734;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbSquare" Text="&#xE73B;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbHeart" Text="&#xEB51;" Font="SegoeFluentIcons" />
+
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavGeneral" Text="&#xE71D;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavFlyout" Text="&#xE8A7;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavTrayIcon" Text="&#xE957;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavMonitorOptions" Text="&#xE7F4;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavHotkeys" Text="&#xE92E;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavTheme" Text="&#xE790;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavTriggers" Text="&#xE19F;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavDevices" Text="&#xEDB5;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavDeviceAppDrawers" Text="&#xE81E;" Font="SegoeFluentIcons" />
 </ResourceDictionary>

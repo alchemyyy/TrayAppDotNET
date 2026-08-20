@@ -444,6 +444,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public NullableThemeColor TrayIconDimColor { get; set; } = new();
     public NullableThemeColor FooterBackgroundColor { get; set; } = new();
     public bool EnableRoundedCorners { get; set; } = true;
+    public bool UseWindows11SettingsNavigation { get; set; }
 
     // Environmental curve colors: curve strokes, current-time marker, twilight / night backdrop bands, grid line color.
     // Backdrops carry a separate Alpha because the system color picker is RGB-only.

@@ -150,6 +150,15 @@
   <data name="Settings_Theme_Reset" xml:space="preserve">
     <value>Reset</value>
   </data>
+  <data name="Settings_Theme_Windows11Navigation_Description" xml:space="preserve">
+    <value>Show page glyphs and use a Windows 11-style layout for the settings menu.</value>
+  </data>
+  <data name="Settings_Theme_Windows11Navigation_SearchKeywords" xml:space="preserve">
+    <value>settings navigation sidebar menu Windows 11 icons glyphs selection indicator</value>
+  </data>
+  <data name="Settings_Theme_Windows11Navigation_Title" xml:space="preserve">
+    <value>Windows 11-style settings menu</value>
+  </data>
   <data name="SettingsWindow_SearchNoMatchesFormat" xml:space="preserve">
     <value>No settings match "{0}".</value>
   </data>

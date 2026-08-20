@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
@@ -12,6 +13,49 @@ public sealed partial class NetworkSettingsWindow
 
         TrayAppDotNETGeneralSettingsSection commonSection = CreateGeneralSettingsSection(p);
         stack.Children.Add(commonSection.BuildStartupCard());
+        stack.Children.Add(ComboCard(
+            Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Title)),
+            Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Description)),
+            [
+                ("Windows10", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Windows10))),
+                ("Windows11", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Windows11))),
+                ("QuickSettings", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_QuickSettings))),
+                ("AvailableNetworks", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_AvailableNetworks))),
+                ("Settings", Loc(nameof(AppStrings.Settings_Network_FlyoutStyle_Settings)))
+            ],
+            _settings.FlyoutStyle.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out FlyoutStyle value))
+                    _settings.FlyoutStyle = value;
+            },
+            p,
+            autoSizeToText: true,
+            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords:
+            [
+                L(nameof(AppStrings.Settings_Network_FlyoutStyle_SearchKeywords))
+            ]));
+        stack.Children.Add(ComboCard(
+            Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Title)),
+            Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Description)),
+            [
+                ("Explorer", Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_Explorer))),
+                ("ControlPanel", Loc(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_ControlPanel)))
+            ],
+            _settings.AdapterSettingsStyle.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out AdapterSettingsStyle value))
+                    _settings.AdapterSettingsStyle = value;
+            },
+            p,
+            autoSizeToText: true,
+            autoSizeMode: SettingsComboBoxAutoSizeMode.SelectedItem,
+            searchKeywords:
+            [
+                L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_SearchKeywords))
+            ]));
         commonSection.AddInstallationSection(
             stack,
             [

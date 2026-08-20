@@ -1,5 +1,6 @@
 using Avalonia.Media;
 using VolumeInstallScope = TrayAppDotNETCommon.Models.InstallScope;
+using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
 namespace VolumeTrayAppDotNET.UI.Settings;
 
@@ -41,6 +42,8 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
 
+    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
+
     protected override VolumeSettingsPage DefaultPageKey => VolumeSettingsPage.General;
 
     protected override string HeaderText => Loc(nameof(AppStrings.SettingsWindow_Header));
@@ -76,21 +79,29 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
     protected override IReadOnlyList<SettingsPageDescriptor<VolumeSettingsPage>> CreatePageDescriptors() =>
     [
         new(VolumeSettingsPage.General, Loc(nameof(AppStrings.Settings_Common_Page_General)),
-            BuildGeneralPage),
+            BuildGeneralPage,
+            CommonSettingsNavigationGlyphs.General),
         new(VolumeSettingsPage.Flyout, Loc(nameof(AppStrings.Settings_Common_Page_Flyout)),
-            BuildFlyoutPage),
+            BuildFlyoutPage,
+            CommonSettingsNavigationGlyphs.Flyout),
         new(VolumeSettingsPage.Devices, Loc(nameof(AppStrings.Settings_Common_Page_Devices)),
-            BuildDevicesPage),
+            BuildDevicesPage,
+            CommonSettingsNavigationGlyphs.Devices),
         new(VolumeSettingsPage.DeviceAppDrawers, Loc(nameof(AppStrings.Settings_Common_Page_DeviceAppDrawers)),
-            BuildDeviceAppDrawersPage),
+            BuildDeviceAppDrawersPage,
+            CommonSettingsNavigationGlyphs.DeviceAppDrawers),
         new(VolumeSettingsPage.TrayIcon, Loc(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
-            BuildTrayIconPage),
+            BuildTrayIconPage,
+            CommonSettingsNavigationGlyphs.TrayIcon),
         new(VolumeSettingsPage.Hotkeys, Loc(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
-            BuildHotkeysPage),
+            BuildHotkeysPage,
+            CommonSettingsNavigationGlyphs.Hotkeys),
         new(VolumeSettingsPage.Theme, Loc(nameof(AppStrings.Settings_Common_Page_Theme)),
-            BuildThemePage),
+            BuildThemePage,
+            CommonSettingsNavigationGlyphs.Theme),
         new(VolumeSettingsPage.About, Loc(nameof(AppStrings.Settings_Common_Page_About)),
-            BuildAboutPage)
+            BuildAboutPage,
+            CommonSettingsNavigationGlyphs.About)
     ];
 
     private bool ResolveEffectiveIsLight() => _settings.ThemeMode switch

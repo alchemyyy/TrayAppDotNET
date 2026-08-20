@@ -1,9 +1,10 @@
 using SkiaSharp;
+using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 
 namespace BrightnessTrayAppDotNET.Visuals;
 
-internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon
+internal sealed class EnvironmentalCurveGlyphIcon : SkiaFlyoutGlyphIcon, ISettingsNavigationIcon
 {
     private const int MaskDesignCanvasSize = 64;
     private const double SquareScale = 0.5;

@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using BatteryTrayAppDotNET.Models;
 using TrayAppDotNETCommon.UI.Settings;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
+using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 using BatteryInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
@@ -62,6 +63,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
 
+    protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
+
     protected override BatterySettingsPage DefaultPageKey => BatterySettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));
@@ -77,19 +80,26 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
     protected override IReadOnlyList<SettingsPageDescriptor<BatterySettingsPage>> CreatePageDescriptors() =>
     [
         new(BatterySettingsPage.General, L(nameof(AppStrings.Settings_Common_Page_General)),
-            () => NameSettingsPage(BatterySettingsPage.General, BuildGeneralPage())),
+            () => NameSettingsPage(BatterySettingsPage.General, BuildGeneralPage()),
+            CommonSettingsNavigationGlyphs.General),
         new(BatterySettingsPage.Triggers, L(nameof(AppStrings.Settings_Common_Page_Triggers)),
-            () => NameSettingsPage(BatterySettingsPage.Triggers, BuildTriggersPage())),
+            () => NameSettingsPage(BatterySettingsPage.Triggers, BuildTriggersPage()),
+            CommonSettingsNavigationGlyphs.Triggers),
         new(BatterySettingsPage.Flyout, L(nameof(AppStrings.Settings_Common_Page_Flyout)),
-            () => NameSettingsPage(BatterySettingsPage.Flyout, BuildFlyoutPage())),
+            () => NameSettingsPage(BatterySettingsPage.Flyout, BuildFlyoutPage()),
+            CommonSettingsNavigationGlyphs.Flyout),
         new(BatterySettingsPage.TrayIcon, L(nameof(AppStrings.Settings_Common_Page_TrayIcon)),
-            () => NameSettingsPage(BatterySettingsPage.TrayIcon, BuildTrayIconPage())),
+            () => NameSettingsPage(BatterySettingsPage.TrayIcon, BuildTrayIconPage()),
+            CommonSettingsNavigationGlyphs.TrayIcon),
         new(BatterySettingsPage.Hotkeys, L(nameof(AppStrings.Settings_Common_Page_Hotkeys)),
-            () => NameSettingsPage(BatterySettingsPage.Hotkeys, BuildHotkeysPage())),
+            () => NameSettingsPage(BatterySettingsPage.Hotkeys, BuildHotkeysPage()),
+            CommonSettingsNavigationGlyphs.Hotkeys),
         new(BatterySettingsPage.Theme, L(nameof(AppStrings.Settings_Common_Page_Theme)),
-            () => NameSettingsPage(BatterySettingsPage.Theme, BuildThemePage())),
+            () => NameSettingsPage(BatterySettingsPage.Theme, BuildThemePage()),
+            CommonSettingsNavigationGlyphs.Theme),
         new(BatterySettingsPage.About, L(nameof(AppStrings.Settings_Common_Page_About)),
-            () => NameSettingsPage(BatterySettingsPage.About, BuildAboutPage()))
+            () => NameSettingsPage(BatterySettingsPage.About, BuildAboutPage()),
+            CommonSettingsNavigationGlyphs.About)
     ];
 
     protected override void Save()
@@ -1087,6 +1097,17 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
                 searchKeywords:
                 [
                     L(nameof(AppStrings.Settings_Theme_ThemeStyle_SearchKeywords))
+                ]));
+            stack.Children.Add(BoolCard(
+                L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Title)),
+                L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_Description)),
+                _settings.UseWindows11SettingsNavigation,
+                value => _settings.UseWindows11SettingsNavigation = value,
+                p,
+                afterSave: () => RebuildShell(BatterySettingsPage.Theme),
+                searchKeywords:
+                [
+                    L(nameof(CommonStrings.Settings_Theme_Windows11Navigation_SearchKeywords))
                 ]));
             stack.Children.Add(VariantColorCard(
                 "Text",

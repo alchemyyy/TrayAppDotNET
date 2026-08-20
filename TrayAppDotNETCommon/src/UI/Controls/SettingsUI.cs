@@ -28,6 +28,14 @@ internal static class SettingsUILayout
     public static CornerRadius NavItemRadius => AXAMLResources.AxamlSettingsUI.NavItemRadius;
     public static Thickness NavItemPadding => AXAMLResources.AxamlSettingsUI.NavItemPadding;
     public static Thickness NavItemInnerMargin => AXAMLResources.AxamlSettingsUI.NavItemInnerMargin;
+    public static Color Windows11NavIndicatorColor => AXAMLResources.AxamlSettingsUI.Windows11NavIndicatorColor;
+    public static Thickness Windows11NavItemPadding => AXAMLResources.AxamlSettingsUI.Windows11NavItemPadding;
+    public static Thickness Windows11NavContentMargin => AXAMLResources.AxamlSettingsUI.Windows11NavContentMargin;
+    public static double Windows11NavIconSize => AXAMLResources.AxamlSettingsUI.Windows11NavIconSize;
+    public static double Windows11NavIconFontSize => AXAMLResources.AxamlSettingsUI.Windows11NavIconFontSize;
+    public static double Windows11NavIconColumnWidth => AXAMLResources.AxamlSettingsUI.Windows11NavIconColumnWidth;
+    public static Thickness Windows11NavIconMargin => AXAMLResources.AxamlSettingsUI.Windows11NavIconMargin;
+    public static Thickness Windows11NavLabelMargin => AXAMLResources.AxamlSettingsUI.Windows11NavLabelMargin;
     public static CornerRadius ButtonRadius => AXAMLResources.AxamlSettingsUI.ButtonRadius;
     public static double ButtonMinHeight => AXAMLResources.AxamlSettingsUI.ButtonMinHeight;
     public static Thickness ButtonPadding => AXAMLResources.AxamlSettingsUI.ButtonPadding;
@@ -300,11 +308,19 @@ public sealed class SettingsPalette
     }
 }
 
+/// <summary>Allows a custom settings-navigation icon to follow live palette changes.</summary>
+public interface ISettingsNavigationIcon
+{
+    Color IconColor { get; set; }
+}
+
 public sealed class SettingsNavItem : Border
 {
     private readonly SettingsPalette _palette;
     private readonly Border _outer;
     private readonly Border _indicator;
+    private readonly IBrush _selectedIndicatorBrush;
+    private readonly ISettingsNavigationIcon? _customNavigationIcon;
     private bool _isPointerOver;
     private bool _isSelected;
 
@@ -312,7 +328,12 @@ public sealed class SettingsNavItem : Border
         string text,
         SettingsPalette palette,
         CornerRadius? indicatorRadius = null,
-        CornerRadius? itemRadius = null)
+        CornerRadius? itemRadius = null,
+        bool useWindows11Style = false,
+        Glyph? navigationGlyph = null,
+        Control? customNavigationIcon = null,
+        double navigationIconScale = 1.0,
+        ITransform? navigationIconTransform = null)
     {
         _palette = palette;
         Background = Brushes.Transparent;
@@ -328,26 +349,41 @@ public sealed class SettingsNavItem : Border
             CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorRadius,
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = SettingsUILayout.NavIndicatorMargin
+            VerticalAlignment = VerticalAlignment.Center
         };
+        _selectedIndicatorBrush = useWindows11Style
+            ? TrayAppDotNETSettingsUI.Brush(SettingsUILayout.Windows11NavIndicatorColor)
+            : TrayAppDotNETSettingsUI.Brush(_palette.Foreground);
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
         label.VerticalAlignment = VerticalAlignment.Center;
         label.HorizontalAlignment = HorizontalAlignment.Left;
 
-        Grid row = new();
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        row.Children.Add(_indicator);
-        Grid.SetColumn(label, 1);
-        row.Children.Add(label);
+        Grid row;
+        Thickness itemPadding;
+        if (useWindows11Style)
+        {
+            Control? navigationIcon = customNavigationIcon ?? CreateNavigationGlyph(navigationGlyph, palette);
+            _customNavigationIcon = navigationIcon as ISettingsNavigationIcon;
+            row = CreateWindows11Content(
+                label,
+                navigationIcon,
+                navigationIconScale,
+                navigationIconTransform);
+            itemPadding = SettingsUILayout.Windows11NavItemPadding;
+        }
+        else
+        {
+            _indicator.Margin = SettingsUILayout.NavIndicatorMargin;
+            row = CreateClassicContent(label);
+            itemPadding = SettingsUILayout.NavItemPadding;
+        }
 
         _outer = new Border
         {
             Background = Brushes.Transparent,
             CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
-            Padding = SettingsUILayout.NavItemPadding,
+            Padding = itemPadding,
             Margin = SettingsUILayout.NavItemInnerMargin,
             Child = row
         };
@@ -396,13 +432,79 @@ public sealed class SettingsNavItem : Border
         }
     }
 
+    /// <summary>Refreshes custom icon colors that cannot bind to the shared palette brush.</summary>
+    internal void RefreshPalette()
+    {
+        if (_customNavigationIcon != null)
+            _customNavigationIcon.IconColor = _palette.Foreground;
+
+        UpdateVisual();
+    }
+
     private void UpdateVisual()
     {
         _outer.Background =
             TrayAppDotNETSettingsUI.Brush(_isSelected || _isPointerOver ? _palette.Hover : Colors.Transparent);
         _indicator.Background = _isSelected
-            ? TrayAppDotNETSettingsUI.Brush(_palette.Foreground)
+            ? _selectedIndicatorBrush
             : Brushes.Transparent;
+    }
+
+    private Grid CreateClassicContent(TextBlock label)
+    {
+        Grid row = new();
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        row.Children.Add(_indicator);
+        Grid.SetColumn(label, 1);
+        row.Children.Add(label);
+        return row;
+    }
+
+    private Grid CreateWindows11Content(
+        TextBlock label,
+        Control? navigationIcon,
+        double navigationIconScale,
+        ITransform? navigationIconTransform)
+    {
+        Grid row = new();
+        row.Children.Add(_indicator);
+
+        Grid content = new() { Margin = SettingsUILayout.Windows11NavContentMargin };
+        content.ColumnDefinitions.Add(new ColumnDefinition(
+            new GridLength(SettingsUILayout.Windows11NavIconColumnWidth)));
+        content.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+
+        if (navigationIcon != null)
+        {
+            double navigationIconSize = SettingsUILayout.Windows11NavIconSize * navigationIconScale;
+            navigationIcon.Width = navigationIconSize;
+            navigationIcon.Height = navigationIconSize;
+            navigationIcon.HorizontalAlignment = HorizontalAlignment.Center;
+            navigationIcon.VerticalAlignment = VerticalAlignment.Center;
+            navigationIcon.Margin = SettingsUILayout.Windows11NavIconMargin;
+            navigationIcon.RenderTransform = navigationIconTransform;
+            content.Children.Add(navigationIcon);
+        }
+
+        label.Margin = SettingsUILayout.Windows11NavLabelMargin;
+        Grid.SetColumn(label, 1);
+        content.Children.Add(label);
+        row.Children.Add(content);
+        return row;
+    }
+
+    private static TextBlock? CreateNavigationGlyph(Glyph? glyph, SettingsPalette palette)
+    {
+        if (glyph == null) return null;
+
+        TextBlock icon = TrayAppDotNETSettingsUI.Text(
+            string.Empty,
+            palette,
+            SettingsUILayout.Windows11NavIconFontSize);
+        icon.TextAlignment = TextAlignment.Center;
+        GlyphApplicator.ApplyTo(icon, glyph);
+        return icon;
     }
 }
 
