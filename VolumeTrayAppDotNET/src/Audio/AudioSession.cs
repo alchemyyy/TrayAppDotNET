@@ -13,6 +13,14 @@ using ISimpleAudioVolume = VolumeTrayAppDotNET.Interop.ISimpleAudioVolume;
 
 namespace VolumeTrayAppDotNET.Audio;
 
+internal enum AudioSessionReconciliationResult
+{
+    Current,
+    Expired,
+    DeviceInvalidated,
+    Failed
+}
+
 /// <summary>
 /// Managed wrapper around a single audio session (one app's stream into a device).
 /// Owns the COM proxies, subscribes to <see cref="IAudioSessionEvents"/> for live volume / state /
@@ -37,6 +45,10 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     // S_OK literal for IsSystemSoundsSession() (returns S_OK for the system-sounds session,
     // S_FALSE otherwise). Local to avoid a dependency on AudioHResults from this file.
     private const int Ok = 0;
+
+    // AUDCLNT_E_DEVICE_INVALIDATED. Core Audio returns this when a retained session control still
+    // points at the old default endpoint after automatic stream routing moved the app elsewhere.
+    private const int AudioClientDeviceInvalidated = unchecked((int)0x88890004);
 
     // Apartment-state contract for the COM RCWs below:
     //  - Activated on the WPF UI-thread STA via the parent device's IMMDevice.
@@ -132,7 +144,10 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
             _volume = clamped;
             OnPropertyChanged();
 
-            _volumeWrite.Write(clamped, (v, ctx) => _simpleVolume.SetMasterVolume(v, ref ctx));
+            _volumeWrite.Write(
+                clamped,
+                (volume, eventContext) => _simpleVolume.SetMasterVolume(volume, ref eventContext),
+                OnControlWriteFailed);
         }
     }
 
@@ -148,7 +163,11 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
                 Guid ctx = AudioEventContext.Value;
                 _simpleVolume.SetMute(value, ref ctx);
             }
-            catch { return; }
+            catch (Exception exception)
+            {
+                OnControlWriteFailed(exception);
+                return;
+            }
 
             _isMuted = value;
             OnPropertyChanged();
@@ -278,6 +297,91 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         // against a torn-down session.
         ScheduleAsyncMetadata(pid);
     }
+
+    /// <summary>
+    /// Revalidates a long-lived session control after endpoint routing changes. GetProcessId is
+    /// intentionally first: Core Audio documents it as the call that detects a disconnected
+    /// default-device session and transfers state when the session switched streams.
+    /// </summary>
+    internal AudioSessionReconciliationResult ReconcileWithCoreAudio()
+    {
+        if (_disposed || _disconnected) return AudioSessionReconciliationResult.DeviceInvalidated;
+
+        AudioSessionState currentState;
+        float currentVolume;
+        bool currentMute;
+        try
+        {
+            _control2.GetProcessId(out _);
+            _control.GetState(out currentState);
+            _simpleVolume.GetMasterVolume(out currentVolume);
+            _simpleVolume.GetMute(out currentMute);
+        }
+        catch (Exception exception) when (IsDeviceInvalidated(exception))
+        {
+            _disconnected = true;
+            return AudioSessionReconciliationResult.DeviceInvalidated;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"AudioSession.ReconcileWithCoreAudio failed for pid={ProcessID}: " +
+                $"{exception.GetType().Name} hr=0x{exception.HResult:X8}: {exception.Message}");
+            return AudioSessionReconciliationResult.Failed;
+        }
+
+        if (!float.IsNaN(currentVolume) && !float.IsInfinity(currentVolume))
+        {
+            float clampedVolume = Math.Clamp(currentVolume, 0f, 1f);
+            if (Math.Abs(clampedVolume - _volume) >= VolumeEqualityEpsilon)
+            {
+                _volume = clampedVolume;
+                OnPropertyChanged(nameof(Volume));
+            }
+        }
+
+        if (currentMute != _isMuted)
+        {
+            _isMuted = currentMute;
+            OnPropertyChanged(nameof(IsMuted));
+        }
+
+        if (currentState != State)
+        {
+            State = currentState;
+            if (currentState == AudioSessionState.Active) TryReresolveProcessMetadata();
+            else PinMeterToSilenceNow();
+        }
+
+        return currentState == AudioSessionState.Expired
+            ? AudioSessionReconciliationResult.Expired
+            : AudioSessionReconciliationResult.Current;
+    }
+
+    private void OnControlWriteFailed(Exception exception)
+    {
+        if (!IsDeviceInvalidated(exception) || _disposed || _disconnected) return;
+
+        try
+        {
+            _dispatcher.InvokeAsync(() =>
+            {
+                if (_disposed || _disconnected) return;
+                _disconnected = true;
+                _lastDisconnectReason = AudioSessionDisconnectReason.DeviceRemoval;
+                Disconnected?.Invoke(this);
+            });
+        }
+        catch (Exception dispatchException)
+        {
+            TADNLog.Log(
+                $"AudioSession.OnControlWriteFailed dispatcher post failed for pid={ProcessID}: " +
+                dispatchException.Message);
+        }
+    }
+
+    private static bool IsDeviceInvalidated(Exception exception) =>
+        exception.HResult == AudioClientDeviceInvalidated;
 
     /// <summary>
     /// Spawns the heavy metadata resolution (icon extraction + process FileVersionInfo) off the

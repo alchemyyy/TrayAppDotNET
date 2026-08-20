@@ -112,6 +112,8 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
     private string? _notifiedRenderCommunicationsDeviceID;
     private string? _notifiedCaptureDefaultDeviceID;
     private string? _notifiedCaptureCommunicationsDeviceID;
+    private bool _renderSessionReconciliationPending;
+    private bool _captureSessionReconciliationPending;
     private readonly Lock _bluetoothConnectCallLock = new();
     private int _bluetoothDisconnectInFlight;
     private DispatcherTimer? _bluetoothConnectionCountdownTimer;
@@ -1262,6 +1264,16 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
         NoteExternalDeviceTopologyChanged();
         _batteryMonitor.Refresh();
         RememberDefaultNotification(flow, role, id);
+        switch (flow)
+        {
+            case EDataFlow.eRender:
+                _renderSessionReconciliationPending = true;
+                break;
+            case EDataFlow.eCapture:
+                _captureSessionReconciliationPending = true;
+                break;
+        }
+
         ScheduleUpdateAllDefaults();
     }
 
@@ -1467,12 +1479,63 @@ internal sealed partial class AudioDeviceManager : INotifyPropertyChanged, IDisp
 
             if (ctx.HasReplacement) return;
 
-            try { await _dispatcher.InvokeAsync(() => { if (!_disposed) UpdateAllDefaults(); }); }
+            try
+            {
+                await _dispatcher.InvokeAsync(() =>
+                {
+                    if (_disposed) return;
+                    UpdateAllDefaults();
+                    ReconcilePendingSessions();
+                });
+            }
             catch
             {
                 /* dispatcher shut down - nothing to refresh */
             }
         });
+    }
+
+    /// <summary>
+    /// Refreshes every active endpoint's retained session controls. The flyout calls this before
+    /// rebuilding so a migration that completed after the default-change burst cannot stay stale
+    /// until another Core Audio callback happens.
+    /// </summary>
+    internal void ReconcileSessions()
+    {
+        if (_disposed) return;
+        if (!_dispatcher.CheckAccess())
+        {
+            try { _dispatcher.Post(ReconcileSessions, DispatcherPriority.Background); }
+            catch
+            {
+                /* dispatcher shut down - nothing to reconcile */
+            }
+
+            return;
+        }
+
+        ReconcileSessions(EDataFlow.eRender);
+        ReconcileSessions(EDataFlow.eCapture);
+    }
+
+    private void ReconcilePendingSessions()
+    {
+        bool reconcileRender = _renderSessionReconciliationPending;
+        bool reconcileCapture = _captureSessionReconciliationPending;
+        _renderSessionReconciliationPending = false;
+        _captureSessionReconciliationPending = false;
+
+        if (reconcileRender) ReconcileSessions(EDataFlow.eRender);
+        if (reconcileCapture) ReconcileSessions(EDataFlow.eCapture);
+    }
+
+    private void ReconcileSessions(EDataFlow flow)
+    {
+        foreach (AudioDevice device in _devices)
+        {
+            if (device.DataFlow != flow || !device.IsActive) continue;
+            device.ReconcileSessions();
+        }
     }
 
     internal void RequestMissingDefaultRecovery(string reason)

@@ -14,12 +14,11 @@ internal sealed class VolumeThrottle(AsyncThrottler<string> throttler, string ke
 {
     /// <summary>
     /// Queue a clamped float write. <paramref name="writer"/> runs on a threadpool worker and
-    /// performs the actual COM call (with the shared event-context GUID already set). Exceptions
-    /// inside the writer are swallowed - typically the endpoint or session was torn down between
-    /// the user's drag and the deferred write, and the next OnNotify / OnState event will
-    /// reconcile the cached value.
+    /// performs the actual COM call (with the shared event-context GUID already set).
+    /// <paramref name="writeFailed"/> can retire a session whose endpoint was invalidated between
+    /// the user's drag and the deferred write. Other callers can omit it for best-effort writes.
     /// </summary>
-    public void Write(float value, Action<float, Guid> writer)
+    public void Write(float value, Action<float, Guid> writer, Action<Exception>? writeFailed = null)
     {
         float captured = value;
         _ = throttler.RunAsync(key, _ =>
@@ -29,10 +28,10 @@ internal sealed class VolumeThrottle(AsyncThrottler<string> throttler, string ke
                 Guid ctx = AudioEventContext.Value;
                 writer(captured, ctx);
             }
-            catch
+            catch (Exception exception)
             {
-                // Endpoint may have been torn down between the user's drag and the deferred write.
-                // The next OnNotify / OnState event will reconcile the cached value.
+                // Endpoint may have been torn down between the user's drag and the deferred write
+                writeFailed?.Invoke(exception);
             }
 
             return Task.CompletedTask;

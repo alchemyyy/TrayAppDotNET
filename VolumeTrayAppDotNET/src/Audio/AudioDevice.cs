@@ -10,6 +10,7 @@ using IAudioEndpointVolume = VolumeTrayAppDotNET.Interop.IAudioEndpointVolume;
 using IAudioEndpointVolumeCallback = VolumeTrayAppDotNET.Interop.IAudioEndpointVolumeCallback;
 using IAudioMeterInformation = VolumeTrayAppDotNET.Interop.IAudioMeterInformation;
 using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
+using IAudioSessionControl2 = VolumeTrayAppDotNET.Interop.IAudioSessionControl2;
 using IAudioSessionEnumerator = VolumeTrayAppDotNET.Interop.IAudioSessionEnumerator;
 using IAudioSessionManager2 = VolumeTrayAppDotNET.Interop.IAudioSessionManager2;
 using IAudioSessionNotification = VolumeTrayAppDotNET.Interop.IAudioSessionNotification;
@@ -1609,9 +1610,60 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// Revalidates retained controls and enumerates the endpoint again. Core Audio can deliver
+    /// default-device and session-disconnect notifications in either order; this closes the gap
+    /// where a missed disconnect leaves an active-looking slider bound to the previous endpoint.
+    /// </summary>
+    internal void ReconcileSessions()
+    {
+        if (_disposed || _sessionManager == null) return;
+
+        List<AudioSession> sessions = [];
+        foreach (AudioAppGroup group in _groups)
+        {
+            foreach (AudioSession session in group.Sessions)
+                sessions.Add(session);
+        }
+
+        foreach (AudioSession session in sessions)
+        {
+            AudioSessionReconciliationResult result = session.ReconcileWithCoreAudio();
+            switch (result)
+            {
+                case AudioSessionReconciliationResult.Expired:
+                    RemoveSession(session);
+                    break;
+                case AudioSessionReconciliationResult.DeviceInvalidated:
+                    TADNLog.LogDebug(
+                        $"AudioDevice.ReconcileSessions: retiring invalidated session " +
+                        $"pid={session.ProcessID} device='{FriendlyName}'");
+                    RemoveSession(session);
+                    break;
+                case AudioSessionReconciliationResult.Current:
+                case AudioSessionReconciliationResult.Failed:
+                    break;
+            }
+        }
+
+        // Registration stays active while this snapshot is taken, so sessions created during the
+        // pass arrive through OnSessionCreated and the SessionInstanceID dictionary deduplicates them
+        EnumerateExistingSessions();
+        RecomputeEndpointMeterSilenceState();
+    }
+
     private void AddSession(IAudioSessionControl ctrl)
     {
         if (_disposed)
+        {
+            Safe.Release(ctrl);
+            return;
+        }
+
+        // Reconciliation enumerates while create-session notifications remain registered. Query
+        // the cheap identity first so existing controls do not spin up duplicate metadata tasks
+        string preflightKey = TryReadSessionInstanceID(ctrl);
+        if (preflightKey.Length > 0 && _sessionsBySessionInstanceID.ContainsKey(preflightKey))
         {
             Safe.Release(ctrl);
             return;
@@ -1628,6 +1680,14 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         }
 
         if (_disposed)
+        {
+            Safe.Dispose(session);
+            return;
+        }
+
+        // An enumerator can retain a control after its last stream expired. No future state event is
+        // guaranteed for a session that was already Expired when we subscribed, so never publish it
+        if (session.State == AudioSessionState.Expired)
         {
             Safe.Dispose(session);
             return;
@@ -1681,6 +1741,20 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         // A newly-added Active session wakes the endpoint meter; capture flips off MICROPHONE_SLEEP
         // and render stops pinning without waiting for the state-change echo.
         RecomputeEndpointMeterSilenceState();
+    }
+
+    private static string TryReadSessionInstanceID(IAudioSessionControl control)
+    {
+        try
+        {
+            IAudioSessionControl2 control2 = (IAudioSessionControl2)control;
+            control2.GetSessionInstanceIdentifier(out string sessionInstanceID);
+            return sessionInstanceID ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private void OnSessionDisconnected(AudioSession session)

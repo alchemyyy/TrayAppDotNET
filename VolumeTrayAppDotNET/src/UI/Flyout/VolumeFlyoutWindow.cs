@@ -176,6 +176,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _lastTrayIcon = trayIcon;
         ShowActivated = activate;
         _bluetoothRadioController?.Refresh();
+        _audioManager.ReconcileSessions();
         ApplyWorkAreaMaxHeight();
         Rebuild();
         if (!IsVisible)
