@@ -55,9 +55,10 @@ internal static class BrightnessSliderMath
     }
 
     /// <summary>
-    /// Recomputes the master and every enrolled monitor's master-relative offset as the initial asynchronous
-    /// monitor set is published. This prevents the first row from inheriting an offset against a persisted master
-    /// fallback before the remaining profile-restored rows have arrived.
+    /// Recomputes the master and curve-owned monitors' master-relative offsets as the initial asynchronous
+    /// monitor set is published. Manual overrides remain isolated from both the baseline and offset rebasing.
+    /// This prevents the first row from inheriting an offset against a persisted master fallback before the
+    /// remaining profile-restored rows have arrived.
     /// </summary>
     public static double RebaseInitialEnrollmentOffsets(
         IEnumerable<MonitorInfo> monitors,
@@ -66,9 +67,16 @@ internal static class BrightnessSliderMath
         bool preserveMasterSliderOffsets)
     {
         List<MonitorInfo> enrolledMonitors = [.. monitors];
-        double masterBrightness = ComputeMasterPercent(enrolledMonitors, mode, fallback);
-
+        List<MonitorInfo> baselineMonitors = [];
         foreach (MonitorInfo monitor in enrolledMonitors)
+        {
+            if (monitor.IsCurveReleased) continue;
+            baselineMonitors.Add(monitor);
+        }
+
+        double masterBrightness = ComputeMasterPercent(baselineMonitors, mode, fallback);
+
+        foreach (MonitorInfo monitor in baselineMonitors)
         {
             double source = preserveMasterSliderOffsets ? monitor.VirtualBrightness : monitor.LastUserBrightness;
             monitor.Offset = source - masterBrightness;

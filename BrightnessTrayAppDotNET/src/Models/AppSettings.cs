@@ -169,6 +169,13 @@ public class CurveStopwatchEntry
     [XmlAttribute]
     public bool IsEnabled { get; set; }
 
+    /// <summary>
+    /// Whether the slider is currently owned by a manual absolute-curve override.
+    /// This is independent of <see cref="IsEnabled"/> because the stopwatch is optional.
+    /// </summary>
+    [XmlAttribute]
+    public bool IsCurveReleased { get; set; }
+
     [XmlAttribute]
     public DateTime EngagedAtUtc { get; set; }
 

@@ -93,6 +93,10 @@ public static class SliderStateMachine
             ? current
             : inDisabledPeriod ? SliderState.CurveSleeping : SliderState.CurveActive;
 
+    /// <summary>Restores curve control without discarding an explicitly persisted manual release.</summary>
+    public static SliderState OnCurveRestored(SliderState current, bool inDisabledPeriod) =>
+        current == SliderState.CurveReleased ? current : OnCurveEngaged(current, inDisabledPeriod);
+
     /// <summary>Curve flag flipped off. Curve-tagged states fall back to Enabled; Disabled/Failed stick.</summary>
     public static SliderState OnCurveDisengaged(SliderState current) =>
         current is SliderState.Failed or SliderState.Disabled ? current : SliderState.Enabled;

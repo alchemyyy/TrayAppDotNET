@@ -163,8 +163,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
             _profileManager.EnsureProfileCount(Math.Max(1, _theme.ProfileButtons.ButtonCount));
             RestoreInitialProfileState();
-            if (Monitors.Count > 0) MasterMonitor.Brightness = ComputeMasterFromEnabledIndividuals();
-            CaptureOffsetsFromMaster();
+            RestorePersistedCurveReleaseStates();
+            if (Monitors.Count > 0)
+                RebaseInitialMonitorEnrollment();
+            else
+                CaptureOffsetsFromMaster();
 
             MasterMonitor.PropertyChanged += OnMonitorPropertyChanged;
             _externalResources.Add(() => MasterMonitor.PropertyChanged -= OnMonitorPropertyChanged);
@@ -213,7 +216,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             });
 
             CheckAndUpdateUnsavedChanges();
-            if (_isBrightnessCurveEnabled || _isNightLightCurveEnabled) OnCurveToggleStateChanged();
+            if (_isBrightnessCurveEnabled || _isNightLightCurveEnabled)
+                OnCurveToggleStateChanged(preserveManualOverrides: true);
             RestoreCurveStopwatchesFromSettings();
 
             KeyDown += OnWindowKeyDown;
@@ -2037,7 +2041,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 IDisposable? hardwareWriteSuspension = _isBrightnessCurveEnabled
                     ? _monitorService.SuspendHardwareWrites()
                     : null;
-                try { _profileManager.ApplyCurrentProfile([monitor], includeBrightness: true); }
+                try
+                {
+                    _profileManager.ApplyCurrentProfile([monitor], includeBrightness: true);
+                    RestorePersistedCurveReleaseState(monitor);
+                }
                 finally { hardwareWriteSuspension?.Dispose(); }
             }
 
@@ -2177,6 +2185,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                     strength => NightLightMonitor.Brightness = FlipIfNightLightInverted(strength));
             }
 
+            SynchronizePersistedCurveReleaseStates();
             UpdateMasterFromEnabledIndividuals();
         }
         finally
@@ -2413,11 +2422,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         UpdateVisibleMonitorSliderValue(MasterMonitor, masterBrightness);
     }
 
-    private void CaptureOffsetsFromMaster()
+    private void CaptureOffsetsFromMaster(bool skipManualOverrides = false)
     {
         bool preserve = _settings?.PreserveMasterSliderOffsets == true;
         foreach (MonitorInfo monitor in Monitors)
         {
+            if (skipManualOverrides && monitor.IsCurveReleased) continue;
             double source = preserve ? monitor.VirtualBrightness : monitor.LastUserBrightness;
             monitor.Offset = source - MasterMonitor.LastUserBrightness;
         }
@@ -2682,6 +2692,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void HandleManualCurveOverrideRelease(MonitorInfo monitor, bool replayCurrentSliderValue)
     {
+        PersistCurveReleaseState(monitor, released: true);
         if (replayCurrentSliderValue)
         {
             _deferredManualCurveOverrideResync.Remove(monitor);
@@ -2712,13 +2723,15 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         BrightnessUpdated?.Invoke();
     }
 
-    private void OnCurveToggleStateChanged()
+    private void OnCurveToggleStateChanged(bool preserveManualOverrides = false)
     {
-        if (IsBrightnessCurveEnabled) _curveService.EngageBrightnessCurveStates();
-        if (IsNightLightCurveEnabled) _curveService.EngageNightLightCurveStates();
+        if (IsBrightnessCurveEnabled) _curveService.EngageBrightnessCurveStates(preserveManualOverrides);
+        if (IsNightLightCurveEnabled) _curveService.EngageNightLightCurveStates(preserveManualOverrides);
         if (!IsBrightnessCurveEnabled) _curveService.DisengageBrightnessCurveStates();
         if (!IsNightLightCurveEnabled) _curveService.DisengageNightLightCurveStates();
-        if (IsBrightnessCurveEnabled) CaptureOffsetsFromMaster();
+        if (!preserveManualOverrides) SynchronizePersistedCurveReleaseStates();
+        if (IsBrightnessCurveEnabled)
+            CaptureOffsetsFromMaster(skipManualOverrides: preserveManualOverrides);
         UpdateAllCurveStopwatchVisibility(saveIfDisabled: true);
         if (_previewDateHardwareActive)
         {
@@ -2950,6 +2963,61 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return entry;
     }
 
+    private void RestorePersistedCurveReleaseStates()
+    {
+        RestorePersistedCurveReleaseState(MasterMonitor);
+        foreach (MonitorInfo monitor in Monitors)
+            RestorePersistedCurveReleaseState(monitor);
+        RestorePersistedCurveReleaseState(NightLightMonitor);
+    }
+
+    private void RestorePersistedCurveReleaseState(MonitorInfo monitor)
+    {
+        if (!IsCurveAbsoluteMode || !IsCurveEnabledForStopwatch(monitor)) return;
+
+        CurveStopwatchEntry? entry = FindCurveStopwatchEntry(monitor);
+        if (!ShouldRestorePersistedCurveRelease(entry, DateTime.UtcNow)) return;
+
+        SliderState engaged = SliderStateMachine.OnCurveEngaged(monitor.SliderState, _isInCurveDisabledPeriod);
+        monitor.SliderState = SliderStateMachine.OnUserRelease(engaged);
+        if (monitor.IsCurveReleased)
+            WPFLog.Log($"BrightnessFlyoutWindow: restored manual curve override '{CurveStopwatchKeyFor(monitor)}'");
+    }
+
+    internal static bool ShouldRestorePersistedCurveRelease(CurveStopwatchEntry? entry, DateTime utcNow)
+    {
+        if (entry == null) return false;
+        if (!entry.IsEnabled) return entry.IsCurveReleased;
+        return entry.ReenableAtUtc > utcNow;
+    }
+
+    private void PersistCurveReleaseState(MonitorInfo monitor, bool released)
+    {
+        if (!SetPersistedCurveReleaseState(monitor, released)) return;
+        WPFLog.Log(
+            $"BrightnessFlyoutWindow: persisted manual curve override '{CurveStopwatchKeyFor(monitor)}'={released}");
+        _settings?.Save();
+    }
+
+    private bool SetPersistedCurveReleaseState(MonitorInfo monitor, bool released)
+    {
+        CurveStopwatchEntry? entry = released
+            ? GetOrCreateCurveStopwatchEntry(monitor)
+            : FindCurveStopwatchEntry(monitor);
+        if (entry == null || entry.IsCurveReleased == released) return false;
+        entry.IsCurveReleased = released;
+        return true;
+    }
+
+    private void SynchronizePersistedCurveReleaseStates()
+    {
+        bool changed = SetPersistedCurveReleaseState(MasterMonitor, MasterMonitor.IsCurveReleased);
+        foreach (MonitorInfo monitor in Monitors)
+            changed |= SetPersistedCurveReleaseState(monitor, monitor.IsCurveReleased);
+        changed |= SetPersistedCurveReleaseState(NightLightMonitor, NightLightMonitor.IsCurveReleased);
+        if (changed) _settings?.Save();
+    }
+
     private void RestoreCurveStopwatchesFromSettings()
     {
         RestoreCurveStopwatchForMonitor(MasterMonitor, saveExpired: true);
@@ -2997,6 +3065,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             if (saveExpired)
             {
                 entry.IsEnabled = false;
+                entry.IsCurveReleased = false;
                 entry.EngagedAtUtc = default;
                 entry.ReenableAtUtc = default;
                 _settings?.Save();
@@ -3009,6 +3078,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             SliderState engaged = SliderStateMachine.OnCurveEngaged(monitor.SliderState, _isInCurveDisabledPeriod);
             monitor.SliderState = SliderStateMachine.OnUserRelease(engaged);
+        }
+
+        if (!entry.IsCurveReleased)
+        {
+            entry.IsCurveReleased = true;
+            _settings?.Save();
         }
 
         monitor.CurveStopwatchEngagedAtUtc = entry.EngagedAtUtc;
@@ -3181,11 +3256,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void ReengageCurveReleasedMonitor(MonitorInfo monitor)
     {
+        bool wasReleased = monitor.SliderState == SliderState.CurveReleased;
         SliderState next = SliderStateMachine.OnUserReengage(monitor.SliderState, _isInCurveDisabledPeriod);
         if (next is SliderState.CurveActive or SliderState.CurveSleeping
             && monitor.SliderState is not (SliderState.CurveActive or SliderState.CurveSleeping))
             monitor.SeedCurveTargetBrightnessFromSlider();
         monitor.SliderState = next;
+        if (wasReleased && next != SliderState.CurveReleased)
+            PersistCurveReleaseState(monitor, released: false);
     }
 
     private void ToggleCurveStopwatch(MonitorInfo monitor)

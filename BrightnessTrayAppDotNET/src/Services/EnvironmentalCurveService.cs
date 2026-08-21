@@ -408,29 +408,38 @@ public sealed class EnvironmentalCurveService : IDisposable
 
     /// <summary>
     /// Curve-toggle-ON transition: pushes every brightness-curve row into CurveActive / CurveSleeping
-    /// given the live disabled-period flag. Clears stale CurveReleased from a prior session so the
-    /// freshly-enabled curve drives every eligible row (the table the user signed off on).
+    /// given the live disabled-period flag. A normal user toggle clears CurveReleased; startup may preserve
+    /// releases that were explicitly persisted before the previous process exited.
     /// Disabled / Failed are preserved by <see cref="SliderStateMachine.OnCurveEngaged"/>.
     /// Caller-driven event - DO NOT use this in the per-tick path; <see cref="HarmonizeBrightnessCurveStates"/>
     /// is the per-tick variant that respects in-flight CurveReleased.
     /// </summary>
-    public void EngageBrightnessCurveStates()
+    public void EngageBrightnessCurveStates(bool preserveManualOverrides = false)
     {
         if (_disposed) return;
         bool inDisabled = _isInDisabledPeriod;
-        SetCurveStateWithSeed(_masterMonitor,
-            SliderStateMachine.OnCurveEngaged(_masterMonitor.SliderState, inDisabled));
+        SliderState masterState = preserveManualOverrides
+            ? SliderStateMachine.OnCurveRestored(_masterMonitor.SliderState, inDisabled)
+            : SliderStateMachine.OnCurveEngaged(_masterMonitor.SliderState, inDisabled);
+        SetCurveStateWithSeed(_masterMonitor, masterState);
         foreach (MonitorInfo monitor in _monitors)
-            SetCurveStateWithSeed(monitor, SliderStateMachine.OnCurveEngaged(monitor.SliderState, inDisabled));
+        {
+            SliderState monitorState = preserveManualOverrides
+                ? SliderStateMachine.OnCurveRestored(monitor.SliderState, inDisabled)
+                : SliderStateMachine.OnCurveEngaged(monitor.SliderState, inDisabled);
+            SetCurveStateWithSeed(monitor, monitorState);
+        }
     }
 
     /// <summary>Symmetric counterpart to <see cref="EngageBrightnessCurveStates"/> for the night-light row.</summary>
-    public void EngageNightLightCurveStates()
+    public void EngageNightLightCurveStates(bool preserveManualOverrides = false)
     {
         if (_disposed) return;
         bool inDisabled = _isInDisabledPeriod;
-        SetCurveStateWithSeed(_nightLightMonitor,
-            SliderStateMachine.OnCurveEngaged(_nightLightMonitor.SliderState, inDisabled));
+        SliderState nightLightState = preserveManualOverrides
+            ? SliderStateMachine.OnCurveRestored(_nightLightMonitor.SliderState, inDisabled)
+            : SliderStateMachine.OnCurveEngaged(_nightLightMonitor.SliderState, inDisabled);
+        SetCurveStateWithSeed(_nightLightMonitor, nightLightState);
     }
 
     /// <summary>

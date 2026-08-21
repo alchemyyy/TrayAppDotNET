@@ -73,4 +73,29 @@ public sealed class BrightnessSliderMathTests
         Assert.Equal(-12, first.Offset);
         Assert.Equal(12, second.Offset);
     }
+
+    [Fact]
+    public void InitialEnrollmentExcludesPersistedManualCurveOverrideFromBaseline()
+    {
+        MonitorInfo released = new()
+        {
+            Brightness = 0,
+            Offset = 7,
+            SliderState = SliderState.CurveReleased
+        };
+        MonitorInfo firstCurveOwned = new() { Brightness = 30 };
+        MonitorInfo secondCurveOwned = new() { Brightness = 30 };
+        MonitorInfo[] monitors = [released, firstCurveOwned, secondCurveOwned];
+
+        double master = BrightnessSliderMath.RebaseInitialEnrollmentOffsets(
+            monitors,
+            MasterSliderMode.Average,
+            fallback: 17,
+            preserveMasterSliderOffsets: false);
+
+        Assert.Equal(30, master);
+        Assert.Equal(7, released.Offset);
+        Assert.Equal(0, firstCurveOwned.Offset);
+        Assert.Equal(0, secondCurveOwned.Offset);
+    }
 }
