@@ -4,12 +4,15 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- Window and picker geometry -->
     <sys:Double x:Key="ColorPicker.WindowWidth">408</sys:Double>
     <sys:Double x:Key="ColorPicker.WindowMinWidth">200</sys:Double>
     <sys:Double x:Key="ColorPicker.PickerPlaneWidth">160</sys:Double>
     <sys:Double x:Key="ColorPicker.PrimarySliderWidth">32</sys:Double>
     <sys:Double x:Key="ColorPicker.ChannelSliderWidth">22</sys:Double>
     <sys:Double x:Key="ColorPicker.ChannelBandHeight">120</sys:Double>
+
+    <!-- Window chrome and body -->
     <sys:Double x:Key="ColorPicker.TitleBarHeight">32</sys:Double>
     <Thickness x:Key="ColorPicker.RootBorderThickness">1</Thickness>
     <CornerRadius x:Key="ColorPicker.RootCornerRadius">8</CornerRadius>
@@ -19,8 +22,10 @@
     <sys:Double x:Key="ColorPicker.BodyGapHeight">16</sys:Double>
     <sys:Double x:Key="ColorPicker.FooterGapHeight">6</sys:Double>
     <Thickness x:Key="ColorPicker.FooterMargin">0,-34,0,0</Thickness>
-    <sys:Double x:Key="ColorPicker.ButtonGapWidth">8</sys:Double>
+    <sys:Double x:Key="ColorPicker.ActionButtonGapWidth">8</sys:Double>
     <Thickness x:Key="ColorPicker.ActionButtonPadding">20,8</Thickness>
+
+    <!-- Picker columns -->
     <sys:Double x:Key="ColorPicker.PrimaryColumnGapWidth">16</sys:Double>
     <sys:Double x:Key="ColorPicker.SecondaryColumnGapWidth">8</sys:Double>
     <sys:Double x:Key="ColorPicker.ChannelColumnGapWidth">14</sys:Double>
@@ -30,8 +35,5 @@
     <Thickness x:Key="ColorPicker.ChannelValueMargin">0,0,0,4</Thickness>
     <sys:Double x:Key="ColorPicker.HexBoxWidth">94</sys:Double>
     <sys:Double x:Key="ColorPicker.HexRowGapWidth">8</sys:Double>
-    <sys:Double x:Key="ColorPicker.CloseButtonWidth">46</sys:Double>
-    <sys:Double x:Key="ColorPicker.CloseButtonHeight">32</sys:Double>
-    <sys:Double x:Key="ColorPicker.CloseButtonFontSize">10</sys:Double>
 
 </ResourceDictionary>

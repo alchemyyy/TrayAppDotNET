@@ -4,17 +4,20 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals">
 
+    <!-- Application commands -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Info" Text="&#xE946;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIcons" />
 
+    <!-- Window caption buttons -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeMinimize" Text="&#xE921;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeMaximize" Text="&#xE922;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeRestore" Text="&#xE923;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeClose" Text="&#xE8BB;" Font="SegoeFluentIcons" />
 
+    <!-- Navigation controls -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUp" Text="&#xE70E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDown" Text="&#xE70D;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronLeft" Text="&#xE76B;" Font="SegoeFluentIcons" />
@@ -23,15 +26,18 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUpBig" Text="&#xE96E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Calendar" Text="&#xE787;" Font="SegoeFluentIcons" />
 
+    <!-- Flyout docking -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Undock" Text="&#xE75B;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Redock" Text="&#xE75A;" Font="SegoeFluentIconsThenMDL2Assets" />
 
+    <!-- Slider thumb choices -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbCircle" Text="&#xE91F;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbDiamond" Text="&#xEA3B;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbStar" Text="&#xE734;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbSquare" Text="&#xE73B;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SliderThumbHeart" Text="&#xEB51;" Font="SegoeFluentIcons" />
 
+    <!-- Settings navigation -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavGeneral" Text="&#xE71D;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavFlyout" Text="&#xE8A7;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SettingsNavTrayIcon" Text="&#xE957;" Font="SegoeFluentIcons" />

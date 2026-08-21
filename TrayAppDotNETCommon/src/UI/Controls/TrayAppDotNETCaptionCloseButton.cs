@@ -11,17 +11,18 @@ namespace TrayAppDotNETCommon.UI.Controls;
 /// </summary>
 public sealed class TrayAppDotNETCaptionCloseButton : Border
 {
-    private const double DefaultWidth = 46;
-    private const double DefaultHeight = 32;
-    private const double DefaultGlyphFontSize = 10;
-
     private readonly SettingsPalette _palette;
     private readonly TextBlock _glyph;
     private bool _isPointerOver;
     private bool _isPressed;
 
     public TrayAppDotNETCaptionCloseButton(SettingsPalette palette)
-        : this(palette, GlyphCatalog.CHROME_CLOSE, DefaultWidth, DefaultHeight, DefaultGlyphFontSize)
+        : this(
+            palette,
+            GlyphCatalog.CHROME_CLOSE,
+            SettingsUILayout.CaptionButtonWidth,
+            SettingsUILayout.CaptionButtonHeight,
+            SettingsUILayout.CaptionButtonGlyphFontSize)
     {
     }
 

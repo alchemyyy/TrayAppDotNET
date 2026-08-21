@@ -4,15 +4,18 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
 
+    <!-- Sun states -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.EclipsedSun" Text="&#xEC8A;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.HalfSun" Text="&#xE793;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircleSmall" Text="&#xE915;" Font="SegoeFluentIcons" />
 
+    <!-- Night-light states -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentSun" Text="&#xF08C;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentMoonOld" Text="&#xE708;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentMoon" Text="&#xEC46;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CrescentMoonBold" Text="&#xF0CE;" Font="SegoeFluentIcons" />
 
+    <!-- Circle and square markers -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.EmptyCircle0" Text="&#xEDAF;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.EmptyCircle3" Text="&#xEA3A;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircle0" Text="&#xED67;" Font="SegoeFluentIcons" />
@@ -23,8 +26,10 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledCircleLarge" Text="&#xE91F;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.FilledSquare" Text="&#xE978;" Font="SegoeFluentIcons" />
 
+    <!-- Brightness controls -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Lightbulb" Text="&#xEA80;" Font="SegoeFluentIcons" />
 
+    <!-- Common UI controls -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChromeClose" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUp" Text="&#xE70E;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDown" Text="&#xE70D;" Font="SegoeFluentIconsThenMDL2Assets" />
@@ -55,6 +60,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ProfileSave" Text="&#xE74E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ProfileIndicator" Text="&#xE915;" Font="SegoeFluentIcons" />
 
+    <!-- Environmental map controls -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.MapCenter" Text="&#xE73E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.MapPin" Text="&#xECAF;" Font="SegoeFluentIconsThenMDL2Assets" />
 </ResourceDictionary>

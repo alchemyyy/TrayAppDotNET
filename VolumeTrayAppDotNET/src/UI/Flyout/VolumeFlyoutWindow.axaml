@@ -8,6 +8,7 @@
     FontFamily="Segoe UI">
 
     <ui:FlyoutWindowCommon.Resources>
+        <!-- Window geometry and docking -->
         <sys:Double x:Key="Flyout.WindowWidth">350</sys:Double>
         <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
         <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
@@ -22,10 +23,12 @@
         <sys:Int32 x:Key="Flyout.FallbackWorkAreaHeight">1080</sys:Int32>
         <sys:Double x:Key="Flyout.IconGlyphLineHeightPadding">6</sys:Double>
 
+        <!-- Root frame -->
         <Thickness x:Key="Flyout.ChromeInnerMargin">1</Thickness>
         <CornerRadius x:Key="Flyout.ZeroCornerRadius">0</CornerRadius>
         <Thickness x:Key="Flyout.ZeroThickness">0</Thickness>
 
+        <!-- Header icon buttons -->
         <sys:Double x:Key="Flyout.HeaderMinHeight">36</sys:Double>
         <Thickness x:Key="Flyout.HeaderLeftMarginTop">3,6,0,0</Thickness>
         <Thickness x:Key="Flyout.HeaderLeftMarginBottom">3,0,0,6</Thickness>
@@ -33,26 +36,35 @@
         <sys:Double x:Key="Flyout.HeaderIconButtonHeight">32</sys:Double>
         <Thickness x:Key="Flyout.HeaderIconButtonMargin">0,-3,0,1</Thickness>
         <CornerRadius x:Key="Flyout.HeaderIconButtonCornerRadius">4</CornerRadius>
-        <sys:Double x:Key="Flyout.HeaderIconFontSize">20</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderIconLineHeight">26</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderIconButtonFontSize">20</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderIconButtonGlyphLineHeight">26</sys:Double>
         <sys:Double x:Key="Flyout.HeaderInactiveIconOpacity">0.4</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderUndockFontSize">20.5</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderUndockLineHeight">27</sys:Double>
-        <Thickness x:Key="Flyout.HeaderUpdateMarginTop">0,5,42,0</Thickness>
-        <Thickness x:Key="Flyout.HeaderUpdateMarginBottom">0,0,50,5</Thickness>
-        <sys:Double x:Key="Flyout.HeaderUpdateWidth">80</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderUpdateHeight">28</sys:Double>
-        <Thickness x:Key="Flyout.HeaderUpdateBorderThickness">1</Thickness>
-        <CornerRadius x:Key="Flyout.HeaderUpdateCornerRadius">4</CornerRadius>
-        <sys:Double x:Key="Flyout.HeaderUpdateLabelFontSize">13</sys:Double>
-        <sys:Int32 x:Key="Flyout.HeaderUpdateZIndex">2</sys:Int32>
-        <Thickness x:Key="Flyout.HeaderUndockMarginTop">0,3,7,1</Thickness>
-        <Thickness x:Key="Flyout.HeaderUndockMarginBottom">0,0,7,6</Thickness>
 
-        <Thickness x:Key="Flyout.EmptyDevicesMargin">0,18</Thickness>
-        <sys:Double x:Key="Flyout.EmptyDevicesFontSize">13</sys:Double>
-        <sys:Double x:Key="Flyout.EmptyDevicesOpacity">0.7</sys:Double>
+        <!-- Update button -->
+        <Thickness x:Key="Flyout.UpdateButtonMarginTop">0,5,42,0</Thickness>
+        <Thickness x:Key="Flyout.UpdateButtonMarginBottom">0,0,50,5</Thickness>
+        <sys:Double x:Key="Flyout.UpdateButtonWidth">80</sys:Double>
+        <sys:Double x:Key="Flyout.UpdateButtonHeight">28</sys:Double>
+        <Thickness x:Key="Flyout.UpdateButtonBorderThickness">1</Thickness>
+        <CornerRadius x:Key="Flyout.UpdateButtonCornerRadius">4</CornerRadius>
+        <sys:Double x:Key="Flyout.UpdateButtonFontSize">13</sys:Double>
+        <sys:Int32 x:Key="Flyout.UpdateButtonZIndex">2</sys:Int32>
 
+        <!-- Undock button -->
+        <sys:Double x:Key="Flyout.UndockButtonWidth">40</sys:Double>
+        <sys:Double x:Key="Flyout.UndockButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.UndockButtonFontSize">20.5</sys:Double>
+        <sys:Double x:Key="Flyout.UndockButtonGlyphLineHeight">27</sys:Double>
+        <CornerRadius x:Key="Flyout.UndockButtonCornerRadius">4</CornerRadius>
+        <Thickness x:Key="Flyout.UndockButtonMarginTop">0,3,7,1</Thickness>
+        <Thickness x:Key="Flyout.UndockButtonMarginBottom">0,0,7,6</Thickness>
+
+        <!-- Empty device state -->
+        <Thickness x:Key="Flyout.EmptyStateMargin">0,18</Thickness>
+        <sys:Double x:Key="Flyout.EmptyStateFontSize">13</sys:Double>
+        <sys:Double x:Key="Flyout.EmptyStateOpacity">0.7</sys:Double>
+
+        <!-- Device cards -->
         <Thickness x:Key="Flyout.DeviceCellOuterMargin">-1,0</Thickness>
         <Thickness x:Key="Flyout.DeviceCellContentPadding">0,8,0,0</Thickness>
         <Thickness x:Key="Flyout.DeviceAppBandGridPadding">13,1,11,2</Thickness>
@@ -68,6 +80,7 @@
         <CornerRadius x:Key="Flyout.DeviceCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="Flyout.FooterBottomCornerRadius">0,0,8,8</CornerRadius>
 
+        <!-- Application rows -->
         <sys:Double x:Key="Flyout.AppIconImageSize">22</sys:Double>
         <sys:Double x:Key="Flyout.AppIconGlyphSize">20</sys:Double>
         <sys:Double x:Key="Flyout.AppIconGridSlotSize">36</sys:Double>
@@ -80,6 +93,7 @@
         <Thickness x:Key="Flyout.AppSliderRowMargin">0,0,0,-2</Thickness>
         <Thickness x:Key="Flyout.AppSliderIconMargin">0,0,10,0</Thickness>
 
+        <!-- Device titles -->
         <Thickness x:Key="Flyout.DeviceTitleRowMarginAbove">-1,-4,0,8</Thickness>
         <Thickness x:Key="Flyout.DeviceTitleRowMarginInline">-1,-7,0,2</Thickness>
         <TranslateTransform x:Key="Flyout.DeviceTitleNameNoFormatTransform" Y="2" />
@@ -88,14 +102,16 @@
         <sys:Double x:Key="Flyout.DeviceFormatOpacity">0.45</sys:Double>
         <sys:Double x:Key="Flyout.DeviceFormatCanvasTop">9</sys:Double>
 
+        <!-- Slider values and inline editor -->
         <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">14</sys:Double>
-        <sys:Double x:Key="Flyout.PercentHostMinWidth">32</sys:Double>
-        <Thickness x:Key="Flyout.PercentHostMargin">10,-2,0,0</Thickness>
-        <sys:Double x:Key="Flyout.PercentFontSize">18</sys:Double>
-        <sys:Double x:Key="Flyout.PercentEditorMinWidth">42</sys:Double>
-        <Thickness x:Key="Flyout.PercentEditorBorderThickness">1</Thickness>
-        <Thickness x:Key="Flyout.PercentEditorPadding">2,0</Thickness>
+        <sys:Double x:Key="Flyout.SliderValueMinWidth">32</sys:Double>
+        <Thickness x:Key="Flyout.SliderValueMargin">10,-2,0,0</Thickness>
+        <sys:Double x:Key="Flyout.SliderValueFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.SliderValueEditorMinWidth">42</sys:Double>
+        <Thickness x:Key="Flyout.SliderValueEditorBorderThickness">1</Thickness>
+        <Thickness x:Key="Flyout.SliderValueEditorPadding">2,0</Thickness>
 
+        <!-- Device action buttons -->
         <sys:Double x:Key="Flyout.DeviceMuteSlotWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.DeviceMuteSlotHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.DeviceMuteButtonWidth">33</sys:Double>
@@ -116,10 +132,12 @@
         <Thickness x:Key="Flyout.EqualizerBadgeMargin">0,0,-2,-1</Thickness>
         <sys:Double x:Key="Flyout.DeviceStateFontSize">18</sys:Double>
 
+        <!-- Text buttons -->
         <sys:Double x:Key="Flyout.TextButtonFontSize">13</sys:Double>
         <Thickness x:Key="Flyout.TextButtonBorderThickness">1</Thickness>
         <CornerRadius x:Key="Flyout.TextButtonCornerRadius">4</CornerRadius>
 
+        <!-- Format menu -->
         <sys:Double x:Key="Flyout.FormatMenuItemHeight">34</sys:Double>
         <sys:Int32 x:Key="Flyout.FormatMenuMaxVisibleItems">8</sys:Int32>
         <sys:Double x:Key="Flyout.FormatMenuPaddingReserve">8</sys:Double>
@@ -135,11 +153,12 @@
         <sys:Double x:Key="Flyout.MenuMarkerColumnWidth">16</sys:Double>
         <sys:Double x:Key="Flyout.MenuMarkerFontSize">8</sys:Double>
 
-        <sys:Double x:Key="Flyout.DeviceNameEditorFontSize">14</sys:Double>
-        <Thickness x:Key="Flyout.DeviceNameEditorBorderThickness">1</Thickness>
-        <Thickness x:Key="Flyout.DeviceNameEditorPadding">4,0</Thickness>
-        <sys:Double x:Key="Flyout.DeviceNameEditorMinHeight">24</sys:Double>
-        <sys:Int32 x:Key="Flyout.DeviceNameEditorZIndex">10</sys:Int32>
+        <!-- Inline name editor -->
+        <sys:Double x:Key="Flyout.InlineEditorFontSize">14</sys:Double>
+        <Thickness x:Key="Flyout.InlineEditorBorderThickness">1</Thickness>
+        <Thickness x:Key="Flyout.InlineEditorPadding">4,0</Thickness>
+        <sys:Double x:Key="Flyout.InlineEditorMinHeight">24</sys:Double>
+        <sys:Int32 x:Key="Flyout.InlineEditorZIndex">10</sys:Int32>
     </ui:FlyoutWindowCommon.Resources>
 
 </ui:FlyoutWindowCommon>

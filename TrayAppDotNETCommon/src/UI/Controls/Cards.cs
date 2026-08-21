@@ -15,7 +15,7 @@ internal static class SettingsCardsLayout
     public static Thickness RightControlMargin => AXAMLResources.AxamlSettingsCards.RightControlMargin;
     public static Thickness CardPadding => AXAMLResources.AxamlSettingsCards.CardPadding;
     public static Thickness CardMargin => AXAMLResources.AxamlSettingsCards.CardMargin;
-    public static double DisabledOpacity => AXAMLResources.AxamlSettingsCards.DisabledOpacity;
+    public static double ControlDisabledOpacity => AXAMLResources.AxamlSettingsCards.ControlDisabledOpacity;
 }
 
 public static class TrayAppDotNETSettingsCards
@@ -172,7 +172,7 @@ public static class TrayAppDotNETSettingsCards
             Margin = SettingsCardsLayout.CardMargin,
             Child = content
         };
-        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, SettingsCardsLayout.DisabledOpacity);
+        TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, SettingsCardsLayout.ControlDisabledOpacity);
         SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
         return SettingsSearchMetadata.AddSearchKeywords(card, searchKeywords);
     }

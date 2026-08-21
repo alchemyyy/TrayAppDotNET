@@ -23,9 +23,10 @@ internal static class SettingsUILayout
     public static Thickness NavActionMargin => AXAMLResources.AxamlSettingsUI.NavActionMargin;
     public static double NavIndicatorWidth => AXAMLResources.AxamlSettingsUI.NavIndicatorWidth;
     public static double NavIndicatorHeight => AXAMLResources.AxamlSettingsUI.NavIndicatorHeight;
-    public static CornerRadius NavIndicatorRadius => AXAMLResources.AxamlSettingsUI.NavIndicatorRadius;
+    public static CornerRadius NavIndicatorCornerRadius =>
+        AXAMLResources.AxamlSettingsUI.NavIndicatorCornerRadius;
     public static Thickness NavIndicatorMargin => AXAMLResources.AxamlSettingsUI.NavIndicatorMargin;
-    public static CornerRadius NavItemRadius => AXAMLResources.AxamlSettingsUI.NavItemRadius;
+    public static CornerRadius NavItemCornerRadius => AXAMLResources.AxamlSettingsUI.NavItemCornerRadius;
     public static Thickness NavItemPadding => AXAMLResources.AxamlSettingsUI.NavItemPadding;
     public static Thickness NavItemInnerMargin => AXAMLResources.AxamlSettingsUI.NavItemInnerMargin;
     public static Color Windows11NavIndicatorColor => AXAMLResources.AxamlSettingsUI.Windows11NavIndicatorColor;
@@ -36,7 +37,7 @@ internal static class SettingsUILayout
     public static double Windows11NavIconColumnWidth => AXAMLResources.AxamlSettingsUI.Windows11NavIconColumnWidth;
     public static Thickness Windows11NavIconMargin => AXAMLResources.AxamlSettingsUI.Windows11NavIconMargin;
     public static Thickness Windows11NavLabelMargin => AXAMLResources.AxamlSettingsUI.Windows11NavLabelMargin;
-    public static CornerRadius ButtonRadius => AXAMLResources.AxamlSettingsUI.ButtonRadius;
+    public static CornerRadius ButtonCornerRadius => AXAMLResources.AxamlSettingsUI.ButtonCornerRadius;
     public static double ButtonMinHeight => AXAMLResources.AxamlSettingsUI.ButtonMinHeight;
     public static Thickness ButtonPadding => AXAMLResources.AxamlSettingsUI.ButtonPadding;
     public static double EnabledOpacity => AXAMLResources.AxamlSettingsUI.EnabledOpacity;
@@ -44,18 +45,18 @@ internal static class SettingsUILayout
     public static double ControlDisabledOpacity => AXAMLResources.AxamlSettingsUI.ControlDisabledOpacity;
     public static double ToggleWidth => AXAMLResources.AxamlSettingsUI.ToggleWidth;
     public static double ToggleHeight => AXAMLResources.AxamlSettingsUI.ToggleHeight;
-    public static CornerRadius ToggleTrackRadius => AXAMLResources.AxamlSettingsUI.ToggleTrackRadius;
+    public static CornerRadius ToggleTrackCornerRadius => AXAMLResources.AxamlSettingsUI.ToggleTrackCornerRadius;
     public static Thickness ToggleBorderThickness => AXAMLResources.AxamlSettingsUI.ToggleBorderThickness;
     public static double ToggleThumbWidth => AXAMLResources.AxamlSettingsUI.ToggleThumbWidth;
     public static double ToggleThumbHeight => AXAMLResources.AxamlSettingsUI.ToggleThumbHeight;
     public static double ToggleThumbHoverSize => AXAMLResources.AxamlSettingsUI.ToggleThumbHoverSize;
     public static double ToggleThumbCheckedSize => AXAMLResources.AxamlSettingsUI.ToggleThumbCheckedSize;
-    public static CornerRadius ToggleThumbRadius => AXAMLResources.AxamlSettingsUI.ToggleThumbRadius;
+    public static CornerRadius ToggleThumbCornerRadius => AXAMLResources.AxamlSettingsUI.ToggleThumbCornerRadius;
     public static Thickness ToggleThumbUncheckedMargin => AXAMLResources.AxamlSettingsUI.ToggleThumbUncheckedMargin;
     public static Thickness ToggleThumbCheckedMargin => AXAMLResources.AxamlSettingsUI.ToggleThumbCheckedMargin;
     public static double SwatchWidth => AXAMLResources.AxamlSettingsUI.SwatchWidth;
     public static double SwatchHeight => AXAMLResources.AxamlSettingsUI.SwatchHeight;
-    public static CornerRadius SwatchRadius => AXAMLResources.AxamlSettingsUI.SwatchRadius;
+    public static CornerRadius SwatchCornerRadius => AXAMLResources.AxamlSettingsUI.SwatchCornerRadius;
     public static Thickness SwatchBorderThickness => AXAMLResources.AxamlSettingsUI.SwatchBorderThickness;
     public static Thickness SwatchMargin => AXAMLResources.AxamlSettingsUI.SwatchMargin;
     public static double SwatchFallbackOpacity => AXAMLResources.AxamlSettingsUI.SwatchFallbackOpacity;
@@ -67,10 +68,11 @@ internal static class SettingsUILayout
     public static Thickness ComboItemPadding => AXAMLResources.AxamlSettingsUI.ComboItemPadding;
     public static double ComboIndicatorWidth => AXAMLResources.AxamlSettingsUI.ComboIndicatorWidth;
     public static double ComboIndicatorHeight => AXAMLResources.AxamlSettingsUI.ComboIndicatorHeight;
-    public static CornerRadius ComboIndicatorRadius => AXAMLResources.AxamlSettingsUI.ComboIndicatorRadius;
+    public static CornerRadius ComboIndicatorCornerRadius =>
+        AXAMLResources.AxamlSettingsUI.ComboIndicatorCornerRadius;
     public static double ComboIndicatorColumnWidth => AXAMLResources.AxamlSettingsUI.ComboIndicatorColumnWidth;
     public static double ComboIndicatorGapWidth => AXAMLResources.AxamlSettingsUI.ComboIndicatorGapWidth;
-    public static CornerRadius ComboItemRadius => AXAMLResources.AxamlSettingsUI.ComboItemRadius;
+    public static CornerRadius ComboItemCornerRadius => AXAMLResources.AxamlSettingsUI.ComboItemCornerRadius;
     public static Thickness ComboItemInnerPadding => AXAMLResources.AxamlSettingsUI.ComboItemInnerPadding;
     public static double ComboArrowColumnWidth => AXAMLResources.AxamlSettingsUI.ComboArrowColumnWidth;
     public static double ComboDefaultMinWidth => AXAMLResources.AxamlSettingsUI.ComboDefaultMinWidth;
@@ -79,10 +81,10 @@ internal static class SettingsUILayout
     public static Thickness ComboContentPadding => AXAMLResources.AxamlSettingsUI.ComboContentPadding;
     public static double ComboHeight => AXAMLResources.AxamlSettingsUI.ComboHeight;
     public static Thickness ComboBorderThickness => AXAMLResources.AxamlSettingsUI.ComboBorderThickness;
-    public static CornerRadius ComboRadius => AXAMLResources.AxamlSettingsUI.ComboRadius;
+    public static CornerRadius ComboCornerRadius => AXAMLResources.AxamlSettingsUI.ComboCornerRadius;
     public static Thickness ComboPopupScrollPadding => AXAMLResources.AxamlSettingsUI.ComboPopupScrollPadding;
     public static Thickness ComboPopupBorderThickness => AXAMLResources.AxamlSettingsUI.ComboPopupBorderThickness;
-    public static CornerRadius ComboPopupRadius => AXAMLResources.AxamlSettingsUI.ComboPopupRadius;
+    public static CornerRadius ComboPopupCornerRadius => AXAMLResources.AxamlSettingsUI.ComboPopupCornerRadius;
     public static Thickness ComboPopupPadding => AXAMLResources.AxamlSettingsUI.ComboPopupPadding;
     public static Thickness ComboPopupMargin => AXAMLResources.AxamlSettingsUI.ComboPopupMargin;
     public static double NumberBoxHeight => AXAMLResources.AxamlSettingsUI.NumberBoxHeight;
@@ -91,13 +93,14 @@ internal static class SettingsUILayout
     public static double NumberTextFontSize => AXAMLResources.AxamlSettingsUI.NumberTextFontSize;
     public static Thickness NumberTextPadding => AXAMLResources.AxamlSettingsUI.NumberTextPadding;
     public static Thickness NumberSuffixMargin => AXAMLResources.AxamlSettingsUI.NumberSuffixMargin;
-    public static CornerRadius NumberValueRadius => AXAMLResources.AxamlSettingsUI.NumberValueRadius;
+    public static CornerRadius NumberValueCornerRadius => AXAMLResources.AxamlSettingsUI.NumberValueCornerRadius;
     public static double NumberSuffixPlaceholderOpacity =>
         AXAMLResources.AxamlSettingsUI.NumberSuffixPlaceholderOpacity;
     public static double NumberSuffixFontSize => AXAMLResources.AxamlSettingsUI.NumberSuffixFontSize;
     public static double NumberValueFontSize => AXAMLResources.AxamlSettingsUI.NumberValueFontSize;
     public static double NumberAutoWidthReserve => AXAMLResources.AxamlSettingsUI.NumberAutoWidthReserve;
-    public static CornerRadius SpinnerButtonRadius => AXAMLResources.AxamlSettingsUI.SpinnerButtonRadius;
+    public static CornerRadius SpinnerButtonCornerRadius =>
+        AXAMLResources.AxamlSettingsUI.SpinnerButtonCornerRadius;
     public static double SpinnerGlyphFontSize => AXAMLResources.AxamlSettingsUI.SpinnerGlyphFontSize;
     public static double SectionHeaderFontSize => AXAMLResources.AxamlSettingsUI.SectionHeaderFontSize;
     public static Thickness SectionHeaderMargin => AXAMLResources.AxamlSettingsUI.SectionHeaderMargin;
@@ -107,15 +110,17 @@ internal static class SettingsUILayout
     public static double DescriptionFontSize => AXAMLResources.AxamlSettingsUI.DescriptionFontSize;
     public static double DescriptionOpacity => AXAMLResources.AxamlSettingsUI.DescriptionOpacity;
     public static Thickness DescriptionMargin => AXAMLResources.AxamlSettingsUI.DescriptionMargin;
-    public static Thickness CardRightControlMargin => AXAMLResources.AxamlSettingsUI.CardRightControlMargin;
-    public static CornerRadius CardRadius => AXAMLResources.AxamlSettingsUI.CardRadius;
+    public static Thickness RightControlMargin => AXAMLResources.AxamlSettingsUI.RightControlMargin;
+    public static CornerRadius CardCornerRadius => AXAMLResources.AxamlSettingsUI.CardCornerRadius;
     public static Thickness CardPadding => AXAMLResources.AxamlSettingsUI.CardPadding;
     public static Thickness CardMargin => AXAMLResources.AxamlSettingsUI.CardMargin;
     public static double TextBoxHeight => AXAMLResources.AxamlSettingsUI.TextBoxHeight;
     public static double TextBoxFontSize => AXAMLResources.AxamlSettingsUI.TextBoxFontSize;
     public static Thickness TextBoxBorderThickness => AXAMLResources.AxamlSettingsUI.TextBoxBorderThickness;
     public static Thickness TextBoxPadding => AXAMLResources.AxamlSettingsUI.TextBoxPadding;
-    public static double CaptionGlyphFontSize => AXAMLResources.AxamlSettingsUI.CaptionGlyphFontSize;
+    public static double CaptionButtonWidth => AXAMLResources.AxamlSettingsUI.CaptionButtonWidth;
+    public static double CaptionButtonHeight => AXAMLResources.AxamlSettingsUI.CaptionButtonHeight;
+    public static double CaptionButtonGlyphFontSize => AXAMLResources.AxamlSettingsUI.CaptionButtonGlyphFontSize;
 }
 
 /// <summary>
@@ -346,7 +351,7 @@ public sealed class SettingsNavItem : Border
         {
             Width = SettingsUILayout.NavIndicatorWidth,
             Height = SettingsUILayout.NavIndicatorHeight,
-            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorRadius,
+            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorCornerRadius,
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center
@@ -382,7 +387,7 @@ public sealed class SettingsNavItem : Border
         _outer = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
+            CornerRadius = itemRadius ?? SettingsUILayout.NavItemCornerRadius,
             Padding = itemPadding,
             Margin = SettingsUILayout.NavItemInnerMargin,
             Child = row
@@ -532,7 +537,7 @@ public sealed class SettingsNavAction : Border
         {
             Width = SettingsUILayout.NavIndicatorWidth,
             Height = SettingsUILayout.NavIndicatorHeight,
-            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorRadius,
+            CornerRadius = indicatorRadius ?? SettingsUILayout.NavIndicatorCornerRadius,
             Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
@@ -553,7 +558,7 @@ public sealed class SettingsNavAction : Border
         _outer = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = itemRadius ?? SettingsUILayout.NavItemRadius,
+            CornerRadius = itemRadius ?? SettingsUILayout.NavItemCornerRadius,
             Padding = SettingsUILayout.NavItemPadding,
             Child = row
         };
@@ -627,7 +632,7 @@ public sealed class SettingsButton : Border
         _label.VerticalAlignment = VerticalAlignment.Center;
 
         Background = transparentBase ? Brushes.Transparent : TrayAppDotNETSettingsUI.Brush(palette.ControlBackground);
-        CornerRadius = SettingsUILayout.ButtonRadius;
+        CornerRadius = SettingsUILayout.ButtonCornerRadius;
         MinHeight = SettingsUILayout.ButtonMinHeight;
         Padding = SettingsUILayout.ButtonPadding;
         Cursor = TrayAppDotNETCursors.Hand;
@@ -732,7 +737,7 @@ public sealed class SettingsButton : Border
         {
             Width = SettingsUILayout.NavIndicatorWidth,
             Height = SettingsUILayout.NavIndicatorHeight,
-            CornerRadius = SettingsUILayout.NavIndicatorRadius,
+            CornerRadius = SettingsUILayout.NavIndicatorCornerRadius,
             Background = Brushes.Transparent,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = SettingsUILayout.NavIndicatorMargin
@@ -769,7 +774,7 @@ public sealed class SettingsToggle : Border
         {
             Width = SettingsUILayout.ToggleWidth,
             Height = SettingsUILayout.ToggleHeight,
-            CornerRadius = SettingsUILayout.ToggleTrackRadius,
+            CornerRadius = SettingsUILayout.ToggleTrackCornerRadius,
             BorderThickness = SettingsUILayout.ToggleBorderThickness,
             IsHitTestVisible = false
         };
@@ -777,7 +782,7 @@ public sealed class SettingsToggle : Border
         {
             Width = SettingsUILayout.ToggleThumbWidth,
             Height = SettingsUILayout.ToggleThumbHeight,
-            CornerRadius = SettingsUILayout.ToggleThumbRadius,
+            CornerRadius = SettingsUILayout.ToggleThumbCornerRadius,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = SettingsUILayout.ToggleThumbUncheckedMargin,
@@ -879,7 +884,7 @@ public sealed class SettingsSwatch : Border
         _palette = palette;
         Width = SettingsUILayout.SwatchWidth;
         Height = SettingsUILayout.SwatchHeight;
-        CornerRadius = SettingsUILayout.SwatchRadius;
+        CornerRadius = SettingsUILayout.SwatchCornerRadius;
         Background = _colorBrush;
         BorderThickness = SettingsUILayout.SwatchBorderThickness;
         BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
@@ -1261,7 +1266,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         {
             Width = SettingsUILayout.ComboIndicatorWidth,
             Height = SettingsUILayout.ComboIndicatorHeight,
-            CornerRadius = SettingsUILayout.ComboIndicatorRadius,
+            CornerRadius = SettingsUILayout.ComboIndicatorCornerRadius,
             Background = Brushes.Transparent,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -1280,7 +1285,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         _inner = new Border
         {
             Background = Brushes.Transparent,
-            CornerRadius = SettingsUILayout.ComboItemRadius,
+            CornerRadius = SettingsUILayout.ComboItemCornerRadius,
             Padding = SettingsUILayout.ComboItemInnerPadding,
             Child = row
         };
@@ -1457,7 +1462,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             BorderBrush = Brushes.Transparent,
             BorderThickness = SettingsUILayout.ComboBorderThickness,
-            CornerRadius = SettingsUILayout.ComboRadius,
+            CornerRadius = SettingsUILayout.ComboCornerRadius,
             Child = row
         };
         Children.Add(_surface);
@@ -1476,7 +1481,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
             BorderThickness = SettingsUILayout.ComboPopupBorderThickness,
-            CornerRadius = SettingsUILayout.ComboPopupRadius,
+            CornerRadius = SettingsUILayout.ComboPopupCornerRadius,
             Padding = SettingsUILayout.ComboPopupPadding,
             Margin = SettingsUILayout.ComboPopupMargin,
             Child = _popupScrollHost
@@ -1938,7 +1943,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         _valueBorder = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
-            CornerRadius = SettingsUILayout.NumberValueRadius,
+            CornerRadius = SettingsUILayout.NumberValueCornerRadius,
             Height = SettingsUILayout.NumberBoxHeight,
             Child = valueGrid
         };
@@ -2380,7 +2385,7 @@ internal sealed class SettingsSpinnerButton : Border
     {
         _palette = palette;
         Background = Brushes.Transparent;
-        CornerRadius = SettingsUILayout.SpinnerButtonRadius;
+        CornerRadius = SettingsUILayout.SpinnerButtonCornerRadius;
         Cursor = TrayAppDotNETCursors.Hand;
         Focusable = false;
         _glyph = new TextBlock
@@ -2543,7 +2548,7 @@ public static class TrayAppDotNETSettingsUI
         if (rightControl != null)
         {
             rightControl.VerticalAlignment = VerticalAlignment.Center;
-            rightControl.Margin = SettingsUILayout.CardRightControlMargin;
+            rightControl.Margin = SettingsUILayout.RightControlMargin;
             Grid.SetColumn(rightControl, 1);
             grid.Children.Add(rightControl);
         }
@@ -2551,7 +2556,7 @@ public static class TrayAppDotNETSettingsUI
         Border card = new()
         {
             Background = Brush(palette.CardBackground),
-            CornerRadius = SettingsUILayout.CardRadius,
+            CornerRadius = SettingsUILayout.CardCornerRadius,
             Padding = SettingsUILayout.CardPadding,
             Margin = SettingsUILayout.CardMargin,
             Child = grid
@@ -2565,7 +2570,7 @@ public static class TrayAppDotNETSettingsUI
         Border card = new()
         {
             Background = Brush(palette.CardBackground),
-            CornerRadius = SettingsUILayout.CardRadius,
+            CornerRadius = SettingsUILayout.CardCornerRadius,
             Padding = SettingsUILayout.CardPadding,
             Margin = SettingsUILayout.CardMargin,
             Child = content
@@ -2719,7 +2724,7 @@ public static class TrayAppDotNETSettingsUI
         {
             Text = glyph,
             FontFamily = IconFont,
-            FontSize = SettingsUILayout.CaptionGlyphFontSize,
+            FontSize = SettingsUILayout.CaptionButtonGlyphFontSize,
             Foreground = Brush(palette.Foreground),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center

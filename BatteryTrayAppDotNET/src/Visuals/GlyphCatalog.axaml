@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
 
+    <!-- Application commands -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Settings" Text="&#xE713;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Exit" Text="&#xE8BB;" Font="SegoeFluentIconsThenMDL2Assets" />
@@ -11,6 +12,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Undock" Text="&#xE75B;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Redock" Text="&#xE75A;" Font="SegoeFluentIconsThenMDL2Assets" />
 
+    <!-- Battery levels -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Battery0" Text="&#xEBA0;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Battery1" Text="&#xEBA1;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Battery2" Text="&#xEBA2;" Font="SegoeFluentIconsThenMDL2Assets" />
@@ -23,6 +25,7 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Battery9" Text="&#xEBA9;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Battery10" Text="&#xEBAA;" Font="SegoeFluentIconsThenMDL2Assets" />
 
+    <!-- Charging battery levels -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.BatteryCharging0" Text="&#xEBAB;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.BatteryCharging1" Text="&#xEBAC;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.BatteryCharging2" Text="&#xEBAD;" Font="SegoeFluentIconsThenMDL2Assets" />

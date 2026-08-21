@@ -24,7 +24,7 @@ public sealed class AsyncThrottlerTests
             throttler.DrainAsync(cancellationTokenSource.Token));
 
         releasePayload.TrySetResult();
-        await payloadCompletion.WaitAsync(TimeSpan.FromSeconds(1), cancellationTokenSource.Token);
+        await payloadCompletion.WaitAsync(TimeSpan.FromSeconds(1));
     }
 
     [Fact]

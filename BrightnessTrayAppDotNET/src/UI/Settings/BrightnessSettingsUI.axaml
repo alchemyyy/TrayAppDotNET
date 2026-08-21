@@ -4,8 +4,11 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- Context menu bounds -->
     <sys:Int32 x:Key="BrightnessSettingsUI.ContextMenuFontSizeMin">8</sys:Int32>
     <sys:Int32 x:Key="BrightnessSettingsUI.ContextMenuFontSizeMax">48</sys:Int32>
+
+    <!-- Navigation glyph adjustments -->
     <sys:Double x:Key="BrightnessSettingsUI.EnvironmentalNavigationIconScale">1.05</sys:Double>
     <TranslateTransform x:Key="BrightnessSettingsUI.EnvironmentalNavigationIconTransform" Y="-1" />
     <TranslateTransform x:Key="BrightnessSettingsUI.HotkeysNavigationIconTransform" Y="1" />

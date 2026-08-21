@@ -757,7 +757,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _theme.Border.For(isLight),
                 rounded,
                 contentPadding: Layout.RootInnerPadding);
-            ControlNames.Assign(candidate.RootCard, "FlyoutContent");
+            ControlNames.Assign(candidate.RootCard, "FlyoutFrame");
             candidate.RootCard.PointerPressed += OnRootPointerPressed;
             candidateResources.Add(() => candidate.RootCard.PointerPressed -= OnRootPointerPressed);
             candidate.RootCard.PointerMoved += OnRootPointerMoved;
@@ -918,9 +918,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         else if (Monitors.Count == 0)
         {
             TextBlock empty = TrayAppDotNETFlyoutUI.Text(L(nameof(AppStrings.Flyout_NoDisplays)), palette,
-                Layout.EmptyDisplaysFontSize, color: palette.SecondaryForeground);
+                Layout.EmptyStateFontSize, color: palette.SecondaryForeground);
+            ControlNames.Assign(empty, "EmptyState");
             empty.HorizontalAlignment = HorizontalAlignment.Center;
-            rows.Children.Add(new Border { Padding = Layout.EmptyDisplaysPadding, Child = empty });
+            rows.Children.Add(new Border { Padding = Layout.EmptyStatePadding, Child = empty });
         }
 
         if (_settings?.ShowMasterSlider ?? true)
@@ -1169,6 +1170,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             palette,
             () => SettingsRequested?.Invoke(),
             L(nameof(AppStrings.Tray_Settings)));
+        ControlNames.Assign(settingsButton, "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
         actions.Children.Add(settingsButton);
         Grid.SetColumn(actions, 2);
@@ -1212,13 +1214,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             Border indicator = new()
             {
-                Width = Layout.ProfileIndicatorWidth,
-                Height = Layout.ProfileIndicatorHeight,
-                CornerRadius = Layout.ProfileIndicatorCornerRadius,
+                Width = Layout.ProfileSelectionIndicatorWidth,
+                Height = Layout.ProfileSelectionIndicatorHeight,
+                CornerRadius = Layout.ProfileSelectionIndicatorCornerRadius,
                 Background = TrayAppDotNETFlyoutUI.Brush(palette.Foreground),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = Layout.ProfileIndicatorMargin
+                Margin = Layout.ProfileSelectionIndicatorMargin
             };
             content.Children.Add(indicator);
         }
@@ -1448,11 +1450,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             update.HorizontalAlignment = HorizontalAlignment.Right;
             update.VerticalAlignment = VerticalAlignment.Top;
             update.Margin = Layout.UpdateButtonMargin;
+            ControlNames.Assign(update, "UpdateButton");
             Grid.SetRow(update, 0);
             rootGrid.Children.Add(update);
         }
 
         candidate.UndockButton = BuildUndockButton(palette, candidate, resources);
+        ControlNames.Assign(candidate.UndockButton, "UndockButton");
         candidate.UndockButton.HorizontalAlignment = HorizontalAlignment.Right;
         candidate.UndockButton.VerticalAlignment = VerticalAlignment.Top;
         candidate.UndockButton.Margin = Layout.UndockButtonMargin;
@@ -1532,9 +1536,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         FlyoutUndockButtonController controller = resources.Own(
             new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
         {
-            Width = Layout.HeaderButtonSize,
-            Height = Layout.HeaderButtonSize,
-            FontSize = Layout.HeaderButtonFontSize,
+            Width = Layout.UndockButtonWidth,
+            Height = Layout.UndockButtonHeight,
+            FontSize = Layout.UndockButtonFontSize,
             FontWeight = FontWeight.Normal,
             IsVisible = _settings?.AllowFlyoutUndock ?? true,
             Owner = this,

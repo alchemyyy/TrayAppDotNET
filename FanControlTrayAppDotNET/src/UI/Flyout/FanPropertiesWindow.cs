@@ -123,7 +123,7 @@ public sealed partial class FanPropertiesWindow : Window
                 ControlNames.Assign(
                     TrayAppDotNETSettingsUI.ComboBox(
                         palette,
-                        Layout.CurveComboWidth,
+                        Layout.CurveComboBoxWidth,
                         autoSizeToText: true),
                     "FanCurve"));
             _curveCombo.SelectionChanged += (_, _) => RefreshPropertyUnitControls();
@@ -384,7 +384,7 @@ public sealed partial class FanPropertiesWindow : Window
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = _settings.EnableRoundedCorners ? Layout.InnerCornerRadius : Layout.ZeroCornerRadius
         });
-        _curveCombo.Margin = Layout.CurveComboMargin;
+        _curveCombo.Margin = Layout.CurveComboBoxMargin;
         Grid.SetRow(_curveCombo, 1);
         right.Children.Add(_curveCombo);
         _editCurveButton.Margin = Layout.EditCurveButtonMargin;
@@ -402,7 +402,7 @@ public sealed partial class FanPropertiesWindow : Window
         Grid footer = new() { Margin = Layout.FooterMargin };
         SettingsButton reset = TrayAppDotNETSettingsUI.Button("Reset to defaults", p);
         SettingsButton save = TrayAppDotNETSettingsUI.Button("Save", p);
-        reset.Margin = Layout.ResetMargin;
+        reset.Margin = Layout.ResetButtonMargin;
         reset.Click += (_, _) => ResetToDefaults();
         save.Click += (_, _) => SaveFromControls();
 
@@ -836,8 +836,8 @@ public sealed partial class FanPropertiesWindow : Window
             ThumbSize = Layout.RPMModeToggleThumbSize,
             ThumbHoverSize = Layout.RPMModeToggleThumbHoverSize,
             ThumbCheckedSize = Layout.RPMModeToggleThumbCheckedSize,
-            TrackCornerRadius = Layout.RPMModeToggleTrackRadius,
-            ThumbCornerRadius = Layout.RPMModeToggleThumbRadius,
+            TrackCornerRadius = Layout.RPMModeToggleTrackCornerRadius,
+            ThumbCornerRadius = Layout.RPMModeToggleThumbCornerRadius,
             BorderThickness = Layout.RPMModeToggleBorderThickness,
             ThumbUncheckedMargin = Layout.RPMModeToggleThumbUncheckedMargin,
             ThumbCheckedMargin = Layout.RPMModeToggleThumbCheckedMargin,
@@ -991,8 +991,8 @@ public sealed partial class FanPropertiesWindow : Window
             Content = text,
             GroupName = "FanMode",
             Foreground = TrayAppDotNETSettingsUI.Brush(p.Foreground),
-            FontSize = Layout.RadioFontSize,
-            Margin = Layout.RadioMargin,
+            FontSize = Layout.RadioButtonFontSize,
+            Margin = Layout.RadioButtonMargin,
             VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -1027,7 +1027,7 @@ public sealed partial class FanPropertiesWindow : Window
             Height = Layout.CaptionButtonHeight,
             CornerRadius = Layout.ZeroCornerRadius,
             Padding = Layout.CaptionButtonPadding,
-            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.CaptionButtonFontSize }
+            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.CaptionButtonGlyphFontSize }
         };
         GlyphApplicator.ApplyTo(button.Label, glyph);
         return button;

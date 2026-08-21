@@ -3,6 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <!-- Outer and inner flyout chrome -->
     <Thickness x:Key="FlyoutFrame.ZeroThickness">0</Thickness>
     <CornerRadius x:Key="FlyoutFrame.ZeroCornerRadius">0</CornerRadius>
     <Thickness x:Key="FlyoutFrame.BorderThickness">1</Thickness>

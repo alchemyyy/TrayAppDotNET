@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- Window geometry -->
     <sys:Double x:Key="SettingsWindow.StandardWindowWidth">960</sys:Double>
     <sys:Double x:Key="SettingsWindow.StandardWindowHeight">670</sys:Double>
     <sys:Double x:Key="SettingsWindow.StandardWindowMinWidth">720</sys:Double>
@@ -15,19 +16,27 @@
     <sys:Double x:Key="SettingsWindow.TitleBarHeight">32</sys:Double>
     <sys:Double x:Key="SettingsWindow.TitleBarDragZoneHeight">72</sys:Double>
     <sys:Double x:Key="SettingsWindow.DefaultSidebarWidth">230</sys:Double>
+
+    <!-- Title bar controls -->
     <sys:Double x:Key="SettingsWindow.HeaderFontSize">22</sys:Double>
     <sys:Double x:Key="SettingsWindow.CaptionButtonWidth">46</sys:Double>
+    <sys:Double x:Key="SettingsWindow.CaptionButtonHeight">32</sys:Double>
     <sys:Double x:Key="SettingsWindow.CaptionButtonGlyphFontSize">10</sys:Double>
+
+    <!-- Confirmation dialog -->
     <sys:Double x:Key="SettingsWindow.ConfirmTitleFontSize">16</sys:Double>
     <sys:Double x:Key="SettingsWindow.ConfirmButtonMinWidth">96</sys:Double>
     <sys:Double x:Key="SettingsWindow.ConfirmDialogMinWidth">360</sys:Double>
     <sys:Double x:Key="SettingsWindow.ConfirmDialogMaxWidth">460</sys:Double>
+
+    <!-- Work area fallback -->
     <sys:Double x:Key="SettingsWindow.PixelMinSize">1</sys:Double>
     <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaX">0</sys:Int32>
     <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaY">0</sys:Int32>
     <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaWidth">1920</sys:Int32>
     <sys:Int32 x:Key="SettingsWindow.FallbackWorkAreaHeight">1080</sys:Int32>
 
+    <!-- Window corner radii -->
     <CornerRadius x:Key="SettingsWindow.ZeroCornerRadius">0</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.RadiusTiny">1.5</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.RadiusMedium">4</CornerRadius>
@@ -35,6 +44,7 @@
     <CornerRadius x:Key="SettingsWindow.OuterCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.InnerCornerRadius">7</CornerRadius>
 
+    <!-- Window layout -->
     <Thickness x:Key="SettingsWindow.ZeroThickness">0</Thickness>
     <Thickness x:Key="SettingsWindow.HeaderMargin">24,8,20,20</Thickness>
     <Thickness x:Key="SettingsWindow.NavMargin">8,0</Thickness>

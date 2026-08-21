@@ -299,7 +299,7 @@ public sealed partial class FanCurveEditorWindow : Window
         };
         content.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         content.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        content.Children.Add(DataSourceSelectedRow());
+        content.Children.Add(DataSourceSelectionRow());
         _dataSourceList.Margin = Layout.DataSourceListMargin;
         _dataSourceList.Width = double.NaN;
         _dataSourceList.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -314,7 +314,7 @@ public sealed partial class FanCurveEditorWindow : Window
     /// <summary>
     /// Builds the data-source label and selected value row.
     /// </summary>
-    private Grid DataSourceSelectedRow()
+    private Grid DataSourceSelectionRow()
     {
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(Layout.RowLabelWidth)));
@@ -324,7 +324,7 @@ public sealed partial class FanCurveEditorWindow : Window
         title.VerticalAlignment = VerticalAlignment.Center;
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         row.Children.Add(title);
-        _dataSourceSelectionBox.Margin = Layout.DataSourceSelectedMargin;
+        _dataSourceSelectionBox.Margin = Layout.DataSourceSelectionBoxMargin;
         Grid.SetColumn(_dataSourceSelectionBox, 1);
         row.Children.Add(_dataSourceSelectionBox);
         return row;
@@ -335,7 +335,7 @@ public sealed partial class FanCurveEditorWindow : Window
     /// </summary>
     private TextBlock DataSourceSelectionText()
     {
-        TextBlock text = TrayAppDotNETSettingsUI.Text(string.Empty, _palette, Layout.DataSourceSelectedFontSize);
+        TextBlock text = TrayAppDotNETSettingsUI.Text(string.Empty, _palette, Layout.DataSourceSelectionFontSize);
         text.TextTrimming = TextTrimming.CharacterEllipsis;
         text.VerticalAlignment = VerticalAlignment.Center;
         return text;
@@ -348,13 +348,13 @@ public sealed partial class FanCurveEditorWindow : Window
     {
         Border box = new()
         {
-            Height = Layout.DataSourceSelectedHeight,
+            Height = Layout.DataSourceSelectionBoxHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Background = TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground),
             CornerRadius = _settings.EnableRoundedCorners
-                ? Layout.DataSourceSelectedCornerRadius
+                ? Layout.DataSourceSelectionBoxCornerRadius
                 : Layout.ZeroCornerRadius,
-            Padding = Layout.DataSourceSelectedPadding,
+            Padding = Layout.DataSourceSelectionBoxPadding,
             Child = text
         };
         box.PointerPressed += (_, e) =>

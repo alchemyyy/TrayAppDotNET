@@ -1806,7 +1806,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             LabelMargin = Layout.TruncateToggleLabelMargin,
             Margin = Layout.TruncateToggleMargin,
             EnabledOpacity = Layout.FullOpacity,
-            DisabledOpacity = Layout.DisabledToggleOpacity
+            DisabledOpacity = Layout.ControlDisabledOpacity
         };
 
     /// <summary>
@@ -1845,7 +1845,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Height = Layout.ActionButtonHeight,
             MinHeight = Layout.ActionButtonHeight,
             Padding = Layout.ZeroThickness,
-            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.GearFontSize }
+            Label = { FontFamily = TrayAppDotNETSettingsUI.IconFont, FontSize = Layout.ActionButtonGlyphFontSize }
         };
         GlyphApplicator.ApplyTo(button.Label, GlyphCatalog.SETTINGS);
         ApplyGearButtonTransformVisual(button, transformIsActive);
@@ -1859,7 +1859,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         button.IsEnabled = true;
         button.Opacity = Layout.FullOpacity;
-        button.Label.Opacity = transformIsActive ? Layout.FullOpacity : Layout.TransformInactiveGearOpacity;
+        button.Label.Opacity = transformIsActive
+            ? Layout.FullOpacity
+            : Layout.TransformActionButtonInactiveGlyphOpacity;
         button.Label.Foreground = TrayAppDotNETSettingsUI.Brush(
             transformIsActive ? _palette.Foreground : _palette.SecondaryForeground);
     }
@@ -1991,7 +1993,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private TextBlock EmptyText(string text)
     {
-        TextBlock block = TrayAppDotNETSettingsUI.Text(text, _palette, Layout.EmptyFontSize);
+        TextBlock block = TrayAppDotNETSettingsUI.Text(text, _palette, Layout.EmptyStateFontSize);
         block.Foreground = TrayAppDotNETSettingsUI.Brush(_palette.SecondaryForeground);
         block.HorizontalAlignment = HorizontalAlignment.Center;
         block.VerticalAlignment = VerticalAlignment.Center;

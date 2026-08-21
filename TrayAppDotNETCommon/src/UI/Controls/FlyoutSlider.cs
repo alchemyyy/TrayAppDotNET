@@ -15,7 +15,7 @@ internal static class FlyoutSliderLayout
     private static FlyoutSliderResources AXAMLResources => Resources.Value;
 
     public static double TrackHeight => AXAMLResources.AxamlFlyoutSlider.TrackHeight;
-    public static CornerRadius CapsuleRadius => AXAMLResources.AxamlFlyoutSlider.CapsuleRadius;
+    public static CornerRadius CapsuleCornerRadius => AXAMLResources.AxamlFlyoutSlider.CapsuleCornerRadius;
     public static double DefaultMaximum => AXAMLResources.AxamlFlyoutSlider.DefaultMaximum;
     public static double SecondaryOpacity => AXAMLResources.AxamlFlyoutSlider.SecondaryOpacity;
     public static double WheelStep => AXAMLResources.AxamlFlyoutSlider.WheelStep;
@@ -741,7 +741,7 @@ public sealed class FlyoutSlider : Control, IDisposable
             context.DrawRectangle(
                 new SolidColorBrush(color),
                 null,
-                new RoundedRect(thumbBounds, FlyoutSliderLayout.CapsuleRadius));
+                new RoundedRect(thumbBounds, FlyoutSliderLayout.CapsuleCornerRadius));
             return;
         }
 

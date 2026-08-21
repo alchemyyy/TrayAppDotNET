@@ -368,13 +368,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
             DockPanel body = ControlNames.Assign(
                 new DockPanel { LastChildFill = true },
-                nameof(FanFlyoutWindow));
+                "FlyoutContent");
             Control header = BuildHeader(flyoutPalette, generation);
             DockPanel.SetDock(header, Dock.Top);
             body.Children.Add(header);
             body.Children.Add(BuildCellList(flyoutPalette, theme, isLight, generation));
 
-            Grid rootGrid = ControlNames.Assign(new Grid(), nameof(FanFlyoutWindow));
+            Grid rootGrid = ControlNames.Assign(new Grid(), "FlyoutContent");
             rootGrid.Children.Add(body);
             generation.ConfirmOverlay = BuildConfirmOverlay(settingsPalette, isLight, generation);
             generation.ConfirmOverlay.IsVisible = false;
@@ -394,7 +394,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 {
                     Focusable = true
                 },
-                nameof(FanFlyoutWindow));
+                "FlyoutFrame");
             generation.RootCard = rootCard;
             rootCard.PointerPressed += OnRootPointerPressed;
             rootCard.PointerMoved += OnRootPointerMoved;
@@ -522,7 +522,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 Margin = Layout.HeaderMargin
             },
-            "Header");
+            "FlyoutHeader");
 
         const int primaryButtonColumnCount = 4;
         const int profileButtonCount = 3;
@@ -549,9 +549,17 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             flyoutControlPalette,
             () => _openSettings(null),
             L(nameof(AppStrings.Tray_Settings)),
+            controlName: "SettingsButton",
             configureButton: SuppressNextAutoHideWhenPressed);
-        AddHeaderButton(grid, 1, GlyphCatalog.CURVE_WINDOW, flyoutControlPalette, OpenHeaderCurveEditor,
-            "Fan curve editor", fontSize: Layout.HeaderManagerButtonFontSize,
+        AddHeaderButton(
+            grid,
+            1,
+            GlyphCatalog.CURVE_WINDOW,
+            flyoutControlPalette,
+            OpenHeaderCurveEditor,
+            "Fan curve editor",
+            controlName: "CurveEditorButton",
+            fontSize: Layout.HeaderManagerIconButtonFontSize,
             configureButton: SuppressNextAutoHideWhenPressed);
         generation.NonFunctioningFansButtonGlyph = AddHeaderButton(
             grid,
@@ -559,7 +567,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             NonFunctioningFansGlyph,
             flyoutControlPalette,
             ToggleNonFunctioningFans,
-            "Show/hide non-functioning fans");
+            "Show/hide non-functioning fans",
+            controlName: "NonFunctioningFansButton");
         AddItemButton(grid, 3, flyoutControlPalette);
 #if DEBUG
         generation.FanDragDebugVisualsButtonGlyph = AddHeaderButton(
@@ -568,7 +577,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             FanDragDebugVisualsGlyph,
             flyoutControlPalette,
             ToggleFanDragDebugVisuals,
-            "Toggle fan drag debug visuals");
+            "Toggle fan drag debug visuals",
+            controlName: "DragDebugButton");
 #endif
 
         AddProfileButton(grid, firstProfileColumn, 1, flyoutControlPalette);
@@ -578,6 +588,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FlyoutUndockButtonController undockButtonController =
             BuildUndockButton(flyoutControlPalette, generation);
         Border undockButton = undockButtonController.Button;
+        ControlNames.Assign(undockButton, "UndockButton");
         Grid.SetColumn(undockButton, undockColumn);
         grid.Children.Add(undockButton);
         return ControlNames.Assign(
@@ -591,7 +602,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                             AppTheme.ResolveEffectiveIsLightTheme(_settings))),
                 Child = grid
             },
-            "Header");
+            "FlyoutHeader");
     }
 
     private void OpenHeaderCurveEditor()
@@ -658,11 +669,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             "CellList");
         holder.Children.Add(generation.ScrollViewer);
 
-        TextBlock empty = TrayAppDotNETFlyoutUI.Text("No fans detected", p, Layout.EmptyTextFontSize,
+        TextBlock empty = TrayAppDotNETFlyoutUI.Text("No fans detected", p, Layout.EmptyStateFontSize,
             color: p.SecondaryForeground);
-        empty.Opacity = Layout.EmptyTextOpacity;
+        empty.Opacity = Layout.EmptyStateOpacity;
         empty.HorizontalAlignment = HorizontalAlignment.Center;
         empty.VerticalAlignment = VerticalAlignment.Center;
+        ControlNames.Assign(empty, "EmptyState");
         empty.IsVisible = generation.Cells.Count == 0 && _probeCards.Count == 0 && !generation.HasUpdateCard;
         holder.Children.Add(empty);
         return holder;
@@ -780,8 +792,9 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             L(nameof(AppStrings.Settings_About_InstallUpdate_Available)),
             p,
             ShowUpdateConfirmation,
-            Layout.FanSubtitleFontSize,
-            Layout.UpdateInstallButtonPadding);
+            Layout.UpdateButtonFontSize,
+            Layout.UpdateButtonPadding);
+        ControlNames.Assign(install, "UpdateButton");
         install.VerticalAlignment = VerticalAlignment.Center;
         install.Margin = Layout.TelemetryMargin;
         Grid.SetColumn(install, 2);
@@ -1316,11 +1329,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             {
                 Width = fan.FanDisplayedValueSlotWidth,
                 Height = Layout.SliderRowHeight,
-                Margin = Layout.ValueGridMargin,
+                Margin = Layout.SliderValueMargin,
                 VerticalAlignment = VerticalAlignment.Center
             };
             valueText = TrayAppDotNETFlyoutUI.Text(FanSliderValueText(fan, curveSliderValue, sliderRange), p,
-                Layout.ValueFontSize);
+                Layout.SliderValueFontSize);
             valueText.HorizontalAlignment = HorizontalAlignment.Right;
             valueText.VerticalAlignment = VerticalAlignment.Center;
             ApplyFanRelinquishedControlVisual(fan, name, valueText, slider);
@@ -1517,11 +1530,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         {
             Width = cell.GroupDisplayedValueSlotWidth,
             Height = Layout.SliderRowHeight,
-            Margin = Layout.GroupValueGridMargin,
+            Margin = Layout.GroupSliderValueMargin,
             VerticalAlignment = VerticalAlignment.Center
         };
         valueText = TrayAppDotNETFlyoutUI.Text(GroupSliderValueText(cell, groupCurveSliderValue, sliderRange), p,
-            Layout.ValueFontSize);
+            Layout.SliderValueFontSize);
         valueText.HorizontalAlignment = HorizontalAlignment.Right;
         valueText.VerticalAlignment = VerticalAlignment.Center;
         ApplyGroupRelinquishedControlVisual(cell, name, valueText, slider);
@@ -2208,12 +2221,13 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FlyoutControlPalette p,
         Action click,
         string tooltip,
+        string? controlName = null,
         double? fontSize = null,
         Action<Border>? configureButton = null)
     {
-        Border button = IconButton(glyph, p, _ => click(), Layout.HeaderButtonWidth,
-            Layout.HeaderButtonHeight, fontSize ?? Layout.HeaderButtonFontSize, tooltip: tooltip);
-        ControlNames.Assign(button, tooltip);
+        Border button = IconButton(glyph, p, _ => click(), Layout.HeaderIconButtonWidth,
+            Layout.HeaderIconButtonHeight, fontSize ?? Layout.HeaderIconButtonFontSize, tooltip: tooltip);
+        ControlNames.Assign(button, controlName ?? tooltip);
         configureButton?.Invoke(button);
         TextBlock? text = button.Child as TextBlock;
         Grid.SetColumn(button, column);
@@ -2227,11 +2241,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             GlyphCatalog.ADD,
             p,
             ShowAddItemMenu,
-            Layout.HeaderButtonWidth,
-            Layout.HeaderButtonHeight,
-            Layout.HeaderButtonFontSize,
+            Layout.HeaderIconButtonWidth,
+            Layout.HeaderIconButtonHeight,
+            Layout.HeaderIconButtonFontSize,
             tooltip: "Add item");
-        ControlNames.Assign(button, "AddItem");
+        ControlNames.Assign(button, "AddItemButton");
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
     }
@@ -2326,12 +2340,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Border underline = new()
         {
             Background = TrayAppDotNETFlyoutUI.Brush(p.Foreground),
-            Height = Layout.ProfileUnderlineHeight,
-            Width = Layout.ProfileUnderlineWidth,
-            CornerRadius = Layout.ProfileUnderlineCornerRadius,
+            Height = Layout.ProfileSelectionIndicatorHeight,
+            Width = Layout.ProfileSelectionIndicatorWidth,
+            CornerRadius = Layout.ProfileSelectionIndicatorCornerRadius,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = Layout.ProfileUnderlineMargin,
+            Margin = Layout.ProfileSelectionIndicatorMargin,
             IsVisible = _settings.SelectedFanProfileIndex == profileNumber - 1
         };
         Grid content = new() { IsHitTestVisible = false };
@@ -2346,7 +2360,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Layout.ProfileButtonHeight,
                 0,
                 tooltip: $"Profile {profileNumber}"),
-            $"Profile{profileNumber}");
+            $"ProfileButton{profileNumber}");
         button.Child = content;
         Grid.SetColumn(button, column);
         grid.Children.Add(button);
@@ -2359,11 +2373,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         FlyoutUndockButtonController controller = generation.Resources.Own(
             new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
             {
-                Width = Layout.HeaderButtonWidth,
-                Height = Layout.HeaderButtonHeight,
-                FontSize = Layout.UndockFontSize,
+                Width = Layout.UndockButtonWidth,
+                Height = Layout.UndockButtonHeight,
+                FontSize = Layout.UndockButtonFontSize,
                 FontWeight = FontWeight.Normal,
-                CornerRadius = Rounded(Layout.HeaderButtonCornerRadius),
+                CornerRadius = Rounded(Layout.UndockButtonCornerRadius),
                 IsEnabled = _settings.AllowFlyoutUndock,
                 IsVisible = _settings.AllowFlyoutUndock,
                 Owner = this,
@@ -2401,7 +2415,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 p,
                 Layout.ConfirmTitleFontSize,
                 FontWeight.SemiBold),
-            "ConfirmOverlay");
+            "ConfirmationOverlay");
         generation.ConfirmTitle.TextWrapping = TextWrapping.Wrap;
         generation.ConfirmTitle.Margin = Layout.ConfirmTitleMargin;
         generation.ConfirmMessage = ControlNames.Assign(
@@ -2409,15 +2423,15 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
                 p,
                 Layout.ConfirmMessageMargin),
-            "ConfirmOverlay");
+            "ConfirmationOverlay");
         generation.ConfirmOK = ControlNames.Assign(
             TrayAppDotNETSettingsUI.Button(L(nameof(AppStrings.Flyout_DeleteGroup_Confirm)), p),
-            "ConfirmOverlay");
+            "ConfirmationOverlay");
         generation.ConfirmCancel = ControlNames.Assign(
             TrayAppDotNETSettingsUI.Button(
                 L(nameof(AppStrings.SettingsWindow_ConfirmOverlay_Cancel)),
                 p),
-            "ConfirmOverlay");
+            "ConfirmationOverlay");
         generation.ConfirmCancel.Margin = Layout.ConfirmCancelMargin;
         generation.ConfirmOK.Click += (_, _) => CompleteConfirm(true);
         generation.ConfirmCancel.Click += (_, _) => CompleteConfirm(false);
@@ -2454,7 +2468,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 CornerRadius = FlyoutFrame.ResolveCornerRadius(_settings.EnableRoundedCorners),
                 Child = dialog
             },
-            "ConfirmOverlay");
+            "ConfirmationOverlay");
     }
 
     private async Task DeleteGroupAsync(FanFlyoutCell cell)

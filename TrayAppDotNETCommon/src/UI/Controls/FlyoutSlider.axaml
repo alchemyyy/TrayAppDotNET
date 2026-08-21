@@ -4,18 +4,23 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- Slider track and input behavior -->
     <sys:Double x:Key="FlyoutSlider.TrackHeight">4</sys:Double>
-    <CornerRadius x:Key="FlyoutSlider.CapsuleRadius">999</CornerRadius>
+    <CornerRadius x:Key="FlyoutSlider.CapsuleCornerRadius">999</CornerRadius>
     <sys:Double x:Key="FlyoutSlider.DefaultMaximum">100</sys:Double>
     <sys:Double x:Key="FlyoutSlider.SecondaryOpacity">0.33</sys:Double>
     <sys:Double x:Key="FlyoutSlider.WheelStep">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.KeyboardStep">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.LargeKeyboardStep">10</sys:Double>
+
+    <!-- Preview and indicator visuals -->
     <sys:Double x:Key="FlyoutSlider.ThumbOpacity">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.PreviewOpacity">0.33</sys:Double>
     <sys:Double x:Key="FlyoutSlider.IndicatorOpacity">1</sys:Double>
     <sys:Double x:Key="FlyoutSlider.IndicatorWidth">12</sys:Double>
     <sys:Double x:Key="FlyoutSlider.IndicatorFontSize">12</sys:Double>
+
+    <!-- Default thumb and measure size -->
     <sys:Double x:Key="FlyoutSlider.DefaultThumbWidth">10</sys:Double>
     <sys:Double x:Key="FlyoutSlider.DefaultThumbHeight">22</sys:Double>
     <sys:Double x:Key="FlyoutSlider.DefaultMeasureWidth">180</sys:Double>

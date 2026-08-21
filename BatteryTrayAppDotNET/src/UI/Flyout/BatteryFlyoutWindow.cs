@@ -21,21 +21,22 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private const double DragThreshold = 4;
     private const double SnapTolerancePercent = 0.02;
     private const int PixelMinSize = 1;
-    private const double TitleBarHeight = 40;
-    private const double TitleBarActionButtonWidth = 40;
-    private const double TitleBarActionButtonHeight = 32;
-    private const double TitleBarActionIconFontSize = 18;
-    private const double TitleBarPowerIconFontSize = TitleBarActionIconFontSize - 4;
-    private const double TitleBarUndockButtonSize = 32;
-    private const double TitleBarUndockIconFontSize = 20;
-    private const double TitleBarUndockLineHeight = 26;
+    private const double HeaderHeight = 40;
+    private const double HeaderIconButtonWidth = 40;
+    private const double HeaderIconButtonHeight = 32;
+    private const double HeaderIconButtonFontSize = 18;
+    private const double HeaderPowerIconButtonFontSize = HeaderIconButtonFontSize - 4;
+    private const double UndockButtonWidth = 32;
+    private const double UndockButtonHeight = 32;
+    private const double UndockButtonFontSize = 20;
+    private const double UndockButtonGlyphLineHeight = 26;
     private const int PowerCfgTimeoutMs = 5_000;
-    private const double FlyoutWidth = 350;
+    private const double WindowWidth = 350;
     private const double BatteryTitleFontSize = 19;
     private const double BatteryTitleTopOffset = -4;
-    private const double BatteryContentWidth = FlyoutWidth - 26;
+    private const double BatteryContentWidth = WindowWidth - 26;
     private const double BatteryBarHorizontalInset = 19;
-    private const double BatteryBarWidth = FlyoutWidth - 2 * BatteryBarHorizontalInset;
+    private const double BatteryBarWidth = WindowWidth - 2 * BatteryBarHorizontalInset;
     private const double BatteryBarHeight = 14;
     private const string UltimatePowerSchemeGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
     private const string UltimatePowerSchemeName = "Ultimate Performance";
@@ -46,11 +47,12 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private const int EnergySaverNeverThreshold = 0;
     private const int EnergySaverAlwaysThreshold = 100;
 
-    private static readonly Thickness TitleBarPadding = new(12, 4, 12, 4);
-    private static readonly Thickness FloatingUndockMargin = new(0, 8, 8, 0);
-    private static readonly CornerRadius TitleBarTopCornerRadius = new(7, 7, 0, 0);
-    private static readonly CornerRadius TitleBarBottomCornerRadius = new(0, 0, 7, 7);
-    private static readonly CornerRadius TitleBarButtonCornerRadius = new(4);
+    private static readonly Thickness HeaderPadding = new(12, 4, 12, 4);
+    private static readonly Thickness UndockButtonFloatingMargin = new(0, 8, 8, 0);
+    private static readonly CornerRadius HeaderTopCornerRadius = new(7, 7, 0, 0);
+    private static readonly CornerRadius HeaderBottomCornerRadius = new(0, 0, 7, 7);
+    private static readonly CornerRadius HeaderIconButtonCornerRadius = new(4);
+    private static readonly CornerRadius UndockButtonCornerRadius = new(4);
     private enum FlyoutPowerMode
     {
         Ultimate,
@@ -92,7 +94,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             StateChanged = OnDockStateChanged
         });
 
-        Width = FlyoutWidth;
+        Width = WindowWidth;
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
         WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
@@ -267,7 +269,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             SettingsPalette p = BatterySettingsPalette.Create(theme, _settings, isLight);
             FlyoutControlPalette fp = ToFlyoutPalette(p, theme, isLight);
             Color flyoutBackground = theme.ResolveFlyoutBackground(_settings, isLight);
-            Color titleBarBackground = theme.ResolveFlyoutTitleBarBackground(_settings, isLight);
+            Color headerBackground = theme.ResolveFlyoutTitleBarBackground(_settings, isLight);
             BatterySnapshot snapshot = _batteryMonitor.Snapshot;
 
             StackPanel body = new()
@@ -277,7 +279,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 Margin = new Thickness(0, 16, 0, 16),
                 Spacing = 10
             };
-            ControlNames.Assign(body, "BatterySummary");
+            ControlNames.Assign(body, "FlyoutBody");
 
             TextBlock title = Text(
                 $"Battery: {FormatChargePercent(snapshot)}",
@@ -331,16 +333,16 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
             DockPanel root = new() { LastChildFill = true };
             (Border header, FlyoutUndockButtonController? undockButtonController) =
-                BuildHeader(fp, titleBarBackground, resources);
+                BuildHeader(fp, headerBackground, resources);
             DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
             root.Children.Add(header);
             root.Children.Add(body);
 
-            Grid content = new();
+            Grid content = ControlNames.Assign(new Grid(), "FlyoutContent");
             content.Children.Add(root);
             if (_settings is { FlyoutHeaderAtBottom: true, AllowFlyoutUndock: true })
             {
-                undockButtonController = BuildUndockButton(fp, resources, FloatingUndockMargin);
+                undockButtonController = BuildUndockButton(fp, resources, UndockButtonFloatingMargin);
                 Border floatingUndock = undockButtonController.Button;
                 floatingUndock.HorizontalAlignment = HorizontalAlignment.Right;
                 floatingUndock.VerticalAlignment = VerticalAlignment.Top;
@@ -352,7 +354,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
                 flyoutBackground,
                 p.Border,
                 _settings.EnableRoundedCorners);
-            ControlNames.Assign(frame, "FlyoutContent");
+            ControlNames.Assign(frame, "FlyoutFrame");
             frame.PointerPressed += OnChromePointerPressed;
             frame.PointerMoved += OnChromePointerMoved;
             frame.PointerReleased += OnChromePointerReleased;
@@ -438,7 +440,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     private (Border Header, FlyoutUndockButtonController? UndockButtonController) BuildHeader(
         FlyoutControlPalette p,
-        Color titleBarBackground,
+        Color headerBackground,
         UIResourceScope resources)
     {
         bool bottomHeader = _settings.FlyoutHeaderAtBottom;
@@ -447,14 +449,14 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
         if (bottomHeader)
         {
-            StackPanel actions = BuildTitleBarActions(p, settingsLast: true);
+            StackPanel actions = BuildHeaderActions(p, settingsLast: true);
             actions.HorizontalAlignment = HorizontalAlignment.Right;
             actions.VerticalAlignment = VerticalAlignment.Center;
             grid.Children.Add(actions);
         }
         else
         {
-            StackPanel left = BuildTitleBarActions(p, settingsLast: false);
+            StackPanel left = BuildHeaderActions(p, settingsLast: false);
             left.HorizontalAlignment = HorizontalAlignment.Left;
             left.VerticalAlignment = VerticalAlignment.Center;
             grid.Children.Add(left);
@@ -471,31 +473,33 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
         Border header = new()
         {
-            Height = TitleBarHeight,
-            Background = Brush(titleBarBackground),
-            CornerRadius = Rounded(bottomHeader ? TitleBarBottomCornerRadius : TitleBarTopCornerRadius),
-            Padding = TitleBarPadding,
+            Height = HeaderHeight,
+            Background = Brush(headerBackground),
+            CornerRadius = Rounded(bottomHeader ? HeaderBottomCornerRadius : HeaderTopCornerRadius),
+            Padding = HeaderPadding,
             Child = grid
         };
-        return (header, undockButtonController);
+        return (ControlNames.Assign(header, "FlyoutHeader"), undockButtonController);
     }
 
-    private StackPanel BuildTitleBarActions(FlyoutControlPalette p, bool settingsLast)
+    private StackPanel BuildHeaderActions(FlyoutControlPalette p, bool settingsLast)
     {
-        Border settingsButton = BuildTitleBarIconButton(
+        Border settingsButton = BuildHeaderIconButton(
             GlyphCatalog.SETTINGS,
             p,
-            TitleBarActionIconFontSize,
+            HeaderIconButtonFontSize,
             _openSettings,
             L(nameof(AppStrings.Flyout_Settings_Tooltip)));
+        ControlNames.Assign(settingsButton, "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
 
-        Border powerButton = BuildTitleBarIconButton(
+        Border powerButton = BuildHeaderIconButton(
             GlyphCatalog.POWER,
             p,
-            TitleBarPowerIconFontSize,
+            HeaderPowerIconButtonFontSize,
             OpenModernPowerSettings,
             L(nameof(AppStrings.Flyout_PowerSettings_Tooltip)));
+        ControlNames.Assign(powerButton, "PowerSettingsButton");
 
         StackPanel actions = new()
         {
@@ -517,7 +521,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         return actions;
     }
 
-    private Border BuildTitleBarIconButton(
+    private Border BuildHeaderIconButton(
         Glyph glyph,
         FlyoutControlPalette p,
         double fontSize,
@@ -541,9 +545,9 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
         Border button = new()
         {
-            Width = TitleBarActionButtonWidth,
-            Height = TitleBarActionButtonHeight,
-            CornerRadius = Rounded(TitleBarButtonCornerRadius),
+            Width = HeaderIconButtonWidth,
+            Height = HeaderIconButtonHeight,
+            CornerRadius = Rounded(HeaderIconButtonCornerRadius),
             Background = Brushes.Transparent,
             ClipToBounds = false,
             Child = text,
@@ -574,22 +578,23 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             InteractionCompleted = _ => FlushPendingRebuild(),
             UndockTooltip = () => L(nameof(AppStrings.Flyout_Undock_Tooltip)),
             RedockTooltip = () => L(nameof(AppStrings.Flyout_Redock_Tooltip)),
-            Width = TitleBarUndockButtonSize,
-            Height = TitleBarUndockButtonSize,
-            FontSize = TitleBarUndockIconFontSize,
+            Width = UndockButtonWidth,
+            Height = UndockButtonHeight,
+            FontSize = UndockButtonFontSize,
             FontWeight = FontWeight.Normal,
             DragThreshold = DragThreshold,
             IsVisible = _settings.AllowFlyoutUndock,
             Margin = margin ?? new Thickness(0),
-            CornerRadius = Rounded(TitleBarButtonCornerRadius)
+            CornerRadius = Rounded(UndockButtonCornerRadius)
         }) { Glyph =
             {
                 FontFamily = TrayAppDotNETSettingsUI.IconFont,
                 FontWeight = FontWeight.Normal,
                 Foreground = Brush(p.IconForeground),
-                LineHeight = TitleBarUndockLineHeight
+                LineHeight = UndockButtonGlyphLineHeight
             }
         };
+        ControlNames.Assign(controller.Button, "UndockButton");
         UseDefaultGlyphRendering(controller.Glyph);
         resources.Add(() =>
         {

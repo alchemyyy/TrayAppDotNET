@@ -4,10 +4,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- Page heading -->
     <Thickness x:Key="AboutPage.AppNameMargin">0,0,0,4</Thickness>
     <Thickness x:Key="AboutPage.TaglineMargin">0,0,0,24</Thickness>
     <sys:Double x:Key="AboutPage.TaglineOpacity">0.7</sys:Double>
     <Thickness x:Key="AboutPage.UpdateCheckButtonMargin">0,0,8,0</Thickness>
+
+    <!-- About rows -->
     <sys:Double x:Key="AboutPage.AboutRowLabelFontSize">14</sys:Double>
     <sys:Double x:Key="AboutPage.AboutRowLabelWidth">80</sys:Double>
     <Thickness x:Key="AboutPage.AboutRowMargin">0,0,0,6</Thickness>

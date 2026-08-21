@@ -543,7 +543,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         SettingsButton button = new(glyph, palette, transparentBase: true)
         {
             Width = _settingsResources.AxamlSettingsWindow.CaptionButtonWidth,
-            Height = _settingsResources.AxamlSettingsWindow.TitleBarHeight,
+            Height = _settingsResources.AxamlSettingsWindow.CaptionButtonHeight,
             CornerRadius = _settingsResources.AxamlSettingsWindow.ZeroCornerRadius,
             Padding = _settingsResources.AxamlSettingsWindow.ZeroThickness,
             IsSettingsWindowCloseButton = closeButton,

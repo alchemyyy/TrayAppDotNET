@@ -31,7 +31,7 @@ internal static class ColorPickerLayout
     public static double BodyGapHeight => AXAMLResources.AxamlColorPicker.BodyGapHeight;
     public static double FooterGapHeight => AXAMLResources.AxamlColorPicker.FooterGapHeight;
     public static Thickness FooterMargin => AXAMLResources.AxamlColorPicker.FooterMargin;
-    public static double ButtonGapWidth => AXAMLResources.AxamlColorPicker.ButtonGapWidth;
+    public static double ActionButtonGapWidth => AXAMLResources.AxamlColorPicker.ActionButtonGapWidth;
     public static Thickness ActionButtonPadding => AXAMLResources.AxamlColorPicker.ActionButtonPadding;
     public static double PrimaryColumnGapWidth => AXAMLResources.AxamlColorPicker.PrimaryColumnGapWidth;
     public static double SecondaryColumnGapWidth => AXAMLResources.AxamlColorPicker.SecondaryColumnGapWidth;
@@ -42,9 +42,6 @@ internal static class ColorPickerLayout
     public static Thickness ChannelValueMargin => AXAMLResources.AxamlColorPicker.ChannelValueMargin;
     public static double HexBoxWidth => AXAMLResources.AxamlColorPicker.HexBoxWidth;
     public static double HexRowGapWidth => AXAMLResources.AxamlColorPicker.HexRowGapWidth;
-    public static double CloseButtonWidth => AXAMLResources.AxamlColorPicker.CloseButtonWidth;
-    public static double CloseButtonHeight => AXAMLResources.AxamlColorPicker.CloseButtonHeight;
-    public static double CloseButtonFontSize => AXAMLResources.AxamlColorPicker.CloseButtonFontSize;
 }
 
 public sealed record TrayAppDotNETColorPickerStrings(
@@ -340,7 +337,7 @@ public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 
         Grid buttons = new() { VerticalAlignment = VerticalAlignment.Center };
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        buttons.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ButtonGapWidth)));
+        buttons.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(ColorPickerLayout.ActionButtonGapWidth)));
         buttons.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
         SettingsButton defaultButton = TrayAppDotNETSettingsUI.Button(_strings.DefaultButton, _palette);

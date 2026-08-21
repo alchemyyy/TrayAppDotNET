@@ -30,9 +30,9 @@ internal static class TrayAppDotNETDialogChromeLayout
     public static Thickness OptionRadioMargin => AXAMLResources.AxamlDialogChrome.OptionRadioMargin;
     public static Thickness OptionCardPadding => AXAMLResources.AxamlDialogChrome.OptionCardPadding;
     public static Thickness OptionCardMargin => AXAMLResources.AxamlDialogChrome.OptionCardMargin;
-    public static Thickness ButtonPadding => AXAMLResources.AxamlDialogChrome.ButtonPadding;
+    public static Thickness ActionButtonPadding => AXAMLResources.AxamlDialogChrome.ActionButtonPadding;
     public static Thickness CancelButtonMargin => AXAMLResources.AxamlDialogChrome.CancelButtonMargin;
-    public static Thickness ButtonsMargin => AXAMLResources.AxamlDialogChrome.ButtonsMargin;
+    public static Thickness ActionButtonsMargin => AXAMLResources.AxamlDialogChrome.ActionButtonsMargin;
 }
 
 public sealed record TrayAppDotNETUninstallerWindowOptions
@@ -237,12 +237,12 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         SettingsButton uninstall = TrayAppDotNETSettingsUI.Button(
             L(nameof(CommonStrings.Uninstaller_UninstallButton)),
             Options.Palette);
-        uninstall.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
+        uninstall.Padding = TrayAppDotNETDialogChromeLayout.ActionButtonPadding;
 
         SettingsButton cancel = TrayAppDotNETSettingsUI.Button(
             L(nameof(CommonStrings.Uninstaller_Cancel)),
             Options.Palette);
-        cancel.Padding = TrayAppDotNETDialogChromeLayout.ButtonPadding;
+        cancel.Padding = TrayAppDotNETDialogChromeLayout.ActionButtonPadding;
         cancel.Margin = TrayAppDotNETDialogChromeLayout.CancelButtonMargin;
 
         _uninstallButton = uninstall;
@@ -257,7 +257,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
             Orientation = Orientation.Horizontal,
             Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = TrayAppDotNETDialogChromeLayout.ButtonsMargin,
+            Margin = TrayAppDotNETDialogChromeLayout.ActionButtonsMargin,
             Children = { cancel, uninstall }
         };
     }

@@ -492,7 +492,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 isBluetoothRadioEnabled);
             Dictionary<AudioDevice, List<AudioAppGroup>> visibleGroupsByDevice =
                 ResolveVisibleGroupsByDevice(devices);
-            StackPanel cellStack = ControlNames.Assign(new StackPanel { Spacing = 0 }, "Devices");
+            StackPanel cellStack = ControlNames.Assign(new StackPanel { Spacing = 0 }, "DeviceCards");
             for (int index = 0; index < devices.Count; index++)
             {
                 AudioDevice device = devices[index];
@@ -504,7 +504,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     isLast: index == devices.Count - 1));
             }
 
-            Grid body = ControlNames.Assign(new Grid { ClipToBounds = true }, "VolumeFlyout");
+            Grid body = ControlNames.Assign(new Grid { ClipToBounds = true }, "FlyoutBody");
             ScrollViewer scroll = new()
             {
                 MaxHeight = ResolveMaxContentHeight(),
@@ -513,24 +513,24 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 Focusable = false,
                 Content = cellStack
             };
-            ControlNames.Assign(scroll, "Devices");
+            ControlNames.Assign(scroll, "DeviceCards");
             candidate.CellsScrollViewer = scroll;
             body.Children.Add(scroll);
 
             TextBlock empty = Text(
                 L(nameof(AppStrings.Flyout_NoAudioDevices)),
                 flyoutPalette,
-                Layout.EmptyDevicesFontSize);
-            ControlNames.Assign(empty, "Devices");
-            empty.Opacity = Layout.EmptyDevicesOpacity;
+                Layout.EmptyStateFontSize);
+            ControlNames.Assign(empty, "EmptyState");
+            empty.Opacity = Layout.EmptyStateOpacity;
             empty.Foreground = Brush(flyoutPalette.SecondaryForeground);
             empty.HorizontalAlignment = HorizontalAlignment.Center;
             empty.VerticalAlignment = VerticalAlignment.Center;
-            empty.Margin = Layout.EmptyDevicesMargin;
+            empty.Margin = Layout.EmptyStateMargin;
             empty.IsVisible = devices.Count == 0;
             body.Children.Add(empty);
 
-            DockPanel root = ControlNames.Assign(new DockPanel { LastChildFill = true }, "VolumeFlyout");
+            DockPanel root = ControlNames.Assign(new DockPanel { LastChildFill = true }, "FlyoutContent");
             Control header = BuildHeader(flyoutPalette);
             DockPanel.SetDock(header, _settings.FlyoutHeaderAtBottom ? Dock.Bottom : Dock.Top);
             root.Children.Add(header);
@@ -542,7 +542,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 flyoutPalette.Border,
                 _settings.EnableRoundedCorners,
                 contentMargin: Layout.ChromeInnerMargin);
-            ControlNames.Assign(frame, "VolumeFlyout");
+            ControlNames.Assign(frame, "FlyoutFrame");
             frame.PointerPressed += OnChromePointerPressed;
             frame.PointerMoved += OnChromePointerMoved;
             frame.PointerReleased += OnChromePointerReleased;
@@ -694,20 +694,20 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         Border settingsButton = HeaderIconButton(GlyphCatalog.SETTINGS, p, _openSettings,
             L(nameof(AppStrings.Flyout_Settings_Tooltip)));
-        ControlNames.Assign(settingsButton, "OpenSettings");
+        ControlNames.Assign(settingsButton, "SettingsButton");
         SuppressNextAutoHideWhenPressed(settingsButton);
         left.Children.Add(settingsButton);
         Border soundSettingsButton = HeaderIconButton(GlyphCatalog.SOUND_SETTINGS, p,
             () => DeviceShellLinks.OpenSoundSettings(_settings.SoundSettingsTarget),
             L(nameof(AppStrings.Flyout_SoundSettings_Tooltip)));
-        ControlNames.Assign(soundSettingsButton, "OpenSoundSettings");
+        ControlNames.Assign(soundSettingsButton, "SoundSettingsButton");
         left.Children.Add(soundSettingsButton);
         Border disabledDevicesButton = HeaderIconButton(
             DisabledDevicesGlyph,
             p,
             ToggleDisabledDevices,
             L(nameof(AppStrings.Flyout_DisabledDevices_Tooltip)));
-        ControlNames.Assign(disabledDevicesButton, "DisabledDevices");
+        ControlNames.Assign(disabledDevicesButton, "DisabledDevicesButton");
         left.Children.Add(disabledDevicesButton);
 
         if (_settings.ShowBluetoothRadioButtonInFlyoutHeader)
@@ -721,7 +721,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 BluetoothRadioTooltip(bluetoothRadioState, _settings.FlyoutBluetoothRadioButtonClickGesture),
                 enabled: !_isBluetoothRadioToggleInFlight
                          && bluetoothRadioState != BluetoothRadioPowerState.Unavailable);
-            ControlNames.Assign(bluetoothRadioButton, "BluetoothRadio");
+            ControlNames.Assign(bluetoothRadioButton, "BluetoothRadioButton");
             bluetoothRadioButton.Opacity = bluetoothRadioState == BluetoothRadioPowerState.On
                 ? 1.0
                 : Layout.HeaderInactiveIconOpacity;
@@ -735,7 +735,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 p,
                 e => ToggleCommunicationsDucking(e.KeyModifiers),
                 L(nameof(AppStrings.Flyout_Communications_Tooltip)));
-            ControlNames.Assign(communications, "CommunicationsDucking");
+            ControlNames.Assign(communications, "CommunicationsDuckingButton");
             communications.Opacity = CommunicationsDucking.IsActive()
                 ? 1.0
                 : Layout.HeaderInactiveIconOpacity;
@@ -747,32 +747,32 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (IsUpdateButtonVisible)
         {
             Border update = TextButton(L(nameof(AppStrings.Flyout_Update_ButtonText)), p, ShowUpdateConfirmation);
-            ControlNames.Assign(update, "Update");
+            ControlNames.Assign(update, "UpdateButton");
             SuppressNextAutoHideWhenPressed(update);
-            update.Width = Layout.HeaderUpdateWidth;
-            update.Height = Layout.HeaderUpdateHeight;
-            update.BorderThickness = Layout.HeaderUpdateBorderThickness;
-            update.CornerRadius = Rounded(Layout.HeaderUpdateCornerRadius);
+            update.Width = Layout.UpdateButtonWidth;
+            update.Height = Layout.UpdateButtonHeight;
+            update.BorderThickness = Layout.UpdateButtonBorderThickness;
+            update.CornerRadius = Rounded(Layout.UpdateButtonCornerRadius);
             if (update.Child is TextBlock updateLabel)
-                updateLabel.FontSize = Layout.HeaderUpdateLabelFontSize;
+                updateLabel.FontSize = Layout.UpdateButtonFontSize;
             update.HorizontalAlignment = HorizontalAlignment.Right;
             update.VerticalAlignment = HeaderVerticalAlignment();
             update.Margin = bottomHeader
-                ? CenteredHeaderMargin(Layout.HeaderUpdateMarginBottom)
-                : Layout.HeaderUpdateMarginTop;
+                ? CenteredHeaderMargin(Layout.UpdateButtonMarginBottom)
+                : Layout.UpdateButtonMarginTop;
             TrayAppDotNETToolTip.SetTip(update, L(nameof(AppStrings.Flyout_Update_Tooltip)));
-            update.SetValue(ZIndexProperty, Layout.HeaderUpdateZIndex);
+            update.SetValue(ZIndexProperty, Layout.UpdateButtonZIndex);
             grid.Children.Add(update);
         }
 
         Border undock = BuildUndockButton(p);
-        ControlNames.Assign(undock, "Undock");
+        ControlNames.Assign(undock, "UndockButton");
         undock.IsVisible = _settings.AllowFlyoutUndock;
         undock.HorizontalAlignment = HorizontalAlignment.Right;
         undock.VerticalAlignment = HeaderVerticalAlignment();
         undock.Margin = bottomHeader
-            ? CenteredHeaderMargin(Layout.HeaderUndockMarginBottom)
-            : Layout.HeaderUndockMarginTop;
+            ? CenteredHeaderMargin(Layout.UndockButtonMarginBottom)
+            : Layout.UndockButtonMarginTop;
         grid.Children.Add(undock);
 
         return grid;
@@ -1415,12 +1415,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         Grid host = new()
         {
-            MinWidth = Layout.PercentHostMinWidth,
+            MinWidth = Layout.SliderValueMinWidth,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = Layout.PercentHostMargin
+            Margin = Layout.SliderValueMargin
         };
 
-        TextBlock label = Text(ScalarText(scalar), p, Layout.PercentFontSize);
+        TextBlock label = Text(ScalarText(scalar), p, Layout.SliderValueFontSize);
         label.Background = Brushes.Transparent;
         label.TextAlignment = TextAlignment.Right;
         label.VerticalAlignment = VerticalAlignment.Center;
@@ -1429,14 +1429,14 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         TextBox editor = new()
         {
             IsVisible = false,
-            MinWidth = Layout.PercentEditorMinWidth,
-            FontSize = Layout.PercentFontSize,
+            MinWidth = Layout.SliderValueEditorMinWidth,
+            FontSize = Layout.SliderValueFontSize,
             Background = Brush(p.Background),
             Foreground = Brush(p.Foreground),
             CaretBrush = Brush(p.Foreground),
             BorderBrush = Brush(p.Border),
-            BorderThickness = Layout.PercentEditorBorderThickness,
-            Padding = Layout.PercentEditorPadding,
+            BorderThickness = Layout.SliderValueEditorBorderThickness,
+            Padding = Layout.SliderValueEditorPadding,
             VerticalAlignment = VerticalAlignment.Center,
             TextAlignment = TextAlignment.Right
         };
@@ -1982,7 +1982,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             click,
             Layout.HeaderIconButtonWidth,
             Layout.HeaderIconButtonHeight,
-            Layout.HeaderIconFontSize,
+            Layout.HeaderIconButtonFontSize,
             enabled,
             _settings.FlyoutHeaderAtBottom
                 ? CenteredHeaderMargin(Layout.HeaderIconButtonMargin)
@@ -1992,7 +1992,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             tooltip);
         button.CornerRadius = Rounded(Layout.HeaderIconButtonCornerRadius);
         if (button.Child is TextBlock text)
-            text.LineHeight = Layout.HeaderIconLineHeight;
+            text.LineHeight = Layout.HeaderIconButtonGlyphLineHeight;
         return button;
     }
 
@@ -2014,11 +2014,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         FlyoutUndockButtonController controller = content.Resources.Own(
             new FlyoutUndockButtonController(new FlyoutUndockButtonOptions
             {
-                Width = Layout.HeaderIconButtonWidth,
-                Height = Layout.HeaderIconButtonHeight,
-                FontSize = Layout.HeaderUndockFontSize,
+                Width = Layout.UndockButtonWidth,
+                Height = Layout.UndockButtonHeight,
+                FontSize = Layout.UndockButtonFontSize,
                 FontWeight = FontWeight.Normal,
-                CornerRadius = Rounded(Layout.HeaderIconButtonCornerRadius),
+                CornerRadius = Rounded(Layout.UndockButtonCornerRadius),
                 IsVisible = _settings.AllowFlyoutUndock,
                 Owner = this,
                 Docking = Docking,
@@ -2040,7 +2040,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                 DragThreshold = Layout.DragThreshold
             }));
         controller.Glyph.Foreground = Brush(p.IconForeground);
-        controller.Glyph.LineHeight = Layout.HeaderUndockLineHeight;
+        controller.Glyph.LineHeight = Layout.UndockButtonGlyphLineHeight;
         content.UndockButtonController = controller;
         return controller.Button;
     }
@@ -2480,16 +2480,16 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         TextBox editor = new()
         {
             Text = device.FriendlyName,
-            FontSize = Layout.DeviceNameEditorFontSize,
+            FontSize = Layout.InlineEditorFontSize,
             Foreground = Brush(p.Foreground),
             Background = Brush(p.ControlBackground),
             BorderBrush = Brush(p.Border),
-            BorderThickness = Layout.DeviceNameEditorBorderThickness,
-            Padding = Layout.DeviceNameEditorPadding,
-            MinHeight = Layout.DeviceNameEditorMinHeight,
+            BorderThickness = Layout.InlineEditorBorderThickness,
+            Padding = Layout.InlineEditorPadding,
+            MinHeight = Layout.InlineEditorMinHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center,
-            ZIndex = Layout.DeviceNameEditorZIndex
+            ZIndex = Layout.InlineEditorZIndex
         };
         ControlNames.Assign(editor, host);
         UIResourceScope interactionResources = new(

@@ -18,12 +18,13 @@ internal static class UpdateConfirmationLayout
 
     public static double WindowWidth => AXAMLResources.AxamlUpdateConfirmation.WindowWidth;
     public static double WindowMinWidth => AXAMLResources.AxamlUpdateConfirmation.WindowMinWidth;
-    public static int MaxVisibleChangelogLines => AXAMLResources.AxamlUpdateConfirmation.MaxVisibleChangelogLines;
-    public static double ChangelogLineHeight => AXAMLResources.AxamlUpdateConfirmation.ChangelogLineHeight;
     public static Thickness RootBorderThickness => AXAMLResources.AxamlUpdateConfirmation.RootBorderThickness;
     public static CornerRadius RootCornerRadius => AXAMLResources.AxamlUpdateConfirmation.RootCornerRadius;
     public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlUpdateConfirmation.ZeroCornerRadius;
     public static double TitleBarHeight => AXAMLResources.AxamlUpdateConfirmation.TitleBarHeight;
+    public static Thickness TitleMargin => AXAMLResources.AxamlUpdateConfirmation.TitleMargin;
+    public static int MaxVisibleChangelogLines => AXAMLResources.AxamlUpdateConfirmation.MaxVisibleChangelogLines;
+    public static double ChangelogLineHeight => AXAMLResources.AxamlUpdateConfirmation.ChangelogLineHeight;
     public static Thickness BodyMargin => AXAMLResources.AxamlUpdateConfirmation.BodyMargin;
     public static Thickness DescriptionMargin => AXAMLResources.AxamlUpdateConfirmation.DescriptionMargin;
     public static Thickness ChangelogBorderThickness =>
@@ -32,10 +33,9 @@ internal static class UpdateConfirmationLayout
     public static Thickness ChangelogPadding => AXAMLResources.AxamlUpdateConfirmation.ChangelogPadding;
     public static Thickness ChangelogScrollPadding => AXAMLResources.AxamlUpdateConfirmation.ChangelogScrollPadding;
     public static double ChangelogMaxHeightExtra => AXAMLResources.AxamlUpdateConfirmation.ChangelogMaxHeightExtra;
-    public static Thickness ButtonPadding => AXAMLResources.AxamlUpdateConfirmation.ButtonPadding;
+    public static Thickness ActionButtonPadding => AXAMLResources.AxamlUpdateConfirmation.ActionButtonPadding;
     public static Thickness CancelButtonMargin => AXAMLResources.AxamlUpdateConfirmation.CancelButtonMargin;
-    public static Thickness ButtonsMargin => AXAMLResources.AxamlUpdateConfirmation.ButtonsMargin;
-    public static Thickness TitleMargin => AXAMLResources.AxamlUpdateConfirmation.TitleMargin;
+    public static Thickness ActionButtonsMargin => AXAMLResources.AxamlUpdateConfirmation.ActionButtonsMargin;
 }
 
 public enum TrayAppDotNETUpdatePromptResult
@@ -199,7 +199,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         }
 
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
-        install.Padding = UpdateConfirmationLayout.ButtonPadding;
+        install.Padding = UpdateConfirmationLayout.ActionButtonPadding;
         install.Click += OnConfirmClick;
         resources.Add(() => install.Click -= OnConfirmClick);
 
@@ -211,7 +211,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         if (!string.IsNullOrWhiteSpace(alternateText))
         {
             SettingsButton alternate = TrayAppDotNETSettingsUI.Button(alternateText, palette);
-            alternate.Padding = UpdateConfirmationLayout.ButtonPadding;
+            alternate.Padding = UpdateConfirmationLayout.ActionButtonPadding;
             alternate.Margin = UpdateConfirmationLayout.CancelButtonMargin;
             alternate.Click += OnAlternateClick;
             resources.Add(() => alternate.Click -= OnAlternateClick);
@@ -221,7 +221,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         if (!string.IsNullOrWhiteSpace(cancelText))
         {
             SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
-            cancel.Padding = UpdateConfirmationLayout.ButtonPadding;
+            cancel.Padding = UpdateConfirmationLayout.ActionButtonPadding;
             cancel.Margin = UpdateConfirmationLayout.CancelButtonMargin;
             cancel.Click += OnCancelClick;
             resources.Add(() => cancel.Click -= OnCancelClick);
@@ -230,7 +230,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         buttons.Children.Add(install);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
-        buttons.Margin = UpdateConfirmationLayout.ButtonsMargin;
+        buttons.Margin = UpdateConfirmationLayout.ActionButtonsMargin;
         Grid.SetRow(buttons, 3);
         body.Children.Add(buttons);
 

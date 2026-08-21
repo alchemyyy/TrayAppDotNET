@@ -33,10 +33,10 @@ internal static class SearchableListBoxLayout
     public static double ItemFontSize => AXAMLResources.AxamlSearchableListBox.ItemFontSize;
     public static Thickness ItemPadding => AXAMLResources.AxamlSearchableListBox.ItemPadding;
     public static Thickness ItemMargin => AXAMLResources.AxamlSearchableListBox.ItemMargin;
-    public static CornerRadius ItemRadius => AXAMLResources.AxamlSearchableListBox.ItemRadius;
+    public static CornerRadius ItemCornerRadius => AXAMLResources.AxamlSearchableListBox.ItemCornerRadius;
     public static Thickness ScrollHostPadding => AXAMLResources.AxamlSearchableListBox.ScrollHostPadding;
     public static Thickness ListBorderThickness => AXAMLResources.AxamlSearchableListBox.ListBorderThickness;
-    public static CornerRadius ListRadius => AXAMLResources.AxamlSearchableListBox.ListRadius;
+    public static CornerRadius ListCornerRadius => AXAMLResources.AxamlSearchableListBox.ListCornerRadius;
     public static double EmptyOpacity => AXAMLResources.AxamlSearchableListBox.EmptyOpacity;
 }
 
@@ -63,7 +63,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
     private double _itemFontSize = SearchableListBoxLayout.ItemFontSize;
     private Thickness _itemPadding = SearchableListBoxLayout.ItemPadding;
     private Thickness _itemMargin = SearchableListBoxLayout.ItemMargin;
-    private CornerRadius _itemCornerRadius = SearchableListBoxLayout.ItemRadius;
+    private CornerRadius _itemCornerRadius = SearchableListBoxLayout.ItemCornerRadius;
     private Thickness _listContentMargin;
     private long _rowGenerationID;
     private int _disposed;
@@ -138,7 +138,7 @@ public sealed class SettingsSearchableListBox : Grid, IDisposable
             Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
             BorderThickness = SearchableListBoxLayout.ListBorderThickness,
-            CornerRadius = SearchableListBoxLayout.ListRadius,
+            CornerRadius = SearchableListBoxLayout.ListCornerRadius,
             ClipToBounds = true,
             Child = _scrollHost
         };

@@ -8,6 +8,7 @@
     FontFamily="Segoe UI">
 
     <ui:FlyoutWindowCommon.Resources>
+        <!-- Window geometry and docking -->
         <sys:Double x:Key="Flyout.WindowWidth">350</sys:Double>
         <sys:Double x:Key="Flyout.EdgePadding">8</sys:Double>
         <sys:Double x:Key="Flyout.DragThreshold">4</sys:Double>
@@ -23,36 +24,50 @@
         <sys:Double x:Key="Flyout.FanPropertiesGap">2</sys:Double>
         <sys:Double x:Key="Flyout.MaxSettingSpacing">48</sys:Double>
 
+        <!-- Root frame -->
         <Thickness x:Key="Flyout.ZeroThickness">0</Thickness>
         <CornerRadius x:Key="Flyout.ZeroCornerRadius">0</CornerRadius>
         <Thickness x:Key="Flyout.RootInnerPadding">1</Thickness>
 
+        <!-- Header controls -->
         <sys:Double x:Key="Flyout.HeaderHeight">38</sys:Double>
         <Thickness x:Key="Flyout.HeaderMargin">4,0,4,0</Thickness>
         <sys:Double x:Key="Flyout.HeaderWideColumnWidth">37</sys:Double>
         <sys:Double x:Key="Flyout.HeaderNarrowColumnWidth">32</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderButtonWidth">37</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderButtonHeight">32</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderButtonFontSize">18</sys:Double>
-        <sys:Double x:Key="Flyout.HeaderManagerButtonFontSize">17</sys:Double>
-        <Thickness x:Key="Flyout.UpdateInstallButtonPadding">8,4</Thickness>
+        <sys:Double x:Key="Flyout.HeaderIconButtonWidth">37</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderIconButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderIconButtonFontSize">18</sys:Double>
+        <sys:Double x:Key="Flyout.HeaderManagerIconButtonFontSize">17</sys:Double>
+        <CornerRadius x:Key="Flyout.HeaderIconButtonCornerRadius">4</CornerRadius>
+
+        <!-- Profile buttons -->
         <sys:Double x:Key="Flyout.ProfileLabelFontSize">14</sys:Double>
-        <sys:Double x:Key="Flyout.ProfileUnderlineWidth">16</sys:Double>
-        <sys:Double x:Key="Flyout.ProfileUnderlineHeight">2</sys:Double>
-        <CornerRadius x:Key="Flyout.ProfileUnderlineCornerRadius">1</CornerRadius>
-        <Thickness x:Key="Flyout.ProfileUnderlineMargin">0,0,0,3</Thickness>
+        <sys:Double x:Key="Flyout.ProfileSelectionIndicatorWidth">16</sys:Double>
+        <sys:Double x:Key="Flyout.ProfileSelectionIndicatorHeight">2</sys:Double>
+        <CornerRadius x:Key="Flyout.ProfileSelectionIndicatorCornerRadius">1</CornerRadius>
+        <Thickness x:Key="Flyout.ProfileSelectionIndicatorMargin">0,0,0,3</Thickness>
         <sys:Double x:Key="Flyout.ProfileButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.ProfileButtonHeight">32</sys:Double>
-        <sys:Double x:Key="Flyout.UndockFontSize">18</sys:Double>
-        <CornerRadius x:Key="Flyout.HeaderButtonCornerRadius">4</CornerRadius>
 
-        <sys:Double x:Key="Flyout.EmptyTextFontSize">13</sys:Double>
-        <sys:Double x:Key="Flyout.EmptyTextOpacity">0.7</sys:Double>
+        <!-- Undock button -->
+        <sys:Double x:Key="Flyout.UndockButtonWidth">37</sys:Double>
+        <sys:Double x:Key="Flyout.UndockButtonHeight">32</sys:Double>
+        <sys:Double x:Key="Flyout.UndockButtonFontSize">18</sys:Double>
+        <CornerRadius x:Key="Flyout.UndockButtonCornerRadius">4</CornerRadius>
+
+        <!-- Empty state and fan cards -->
+        <sys:Double x:Key="Flyout.EmptyStateFontSize">13</sys:Double>
+        <sys:Double x:Key="Flyout.EmptyStateOpacity">0.7</sys:Double>
         <Thickness x:Key="Flyout.CardBorderThickness">1.5</Thickness>
         <CornerRadius x:Key="Flyout.CardCornerRadius">8</CornerRadius>
         <Thickness x:Key="Flyout.CardPadding">8,6,8,4</Thickness>
         <Thickness x:Key="Flyout.FanRowGroupedMarginBase">4,0,4,0</Thickness>
 
+        <!-- Update card action -->
+        <sys:Double x:Key="Flyout.UpdateButtonFontSize">10</sys:Double>
+        <Thickness x:Key="Flyout.UpdateButtonPadding">8,4</Thickness>
+
+        <!-- Fan rows -->
         <sys:Double x:Key="Flyout.FanButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.FanButtonHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.FanButtonFontSize">18</sys:Double>
@@ -77,10 +92,11 @@
         <Thickness x:Key="Flyout.ModeButtonUngroupedMargin">-4,-2,12,0</Thickness>
         <sys:Double x:Key="Flyout.SliderRowHeight">24</sys:Double>
         <Thickness x:Key="Flyout.SliderRowMargin">-5,2,3,0</Thickness>
-        <Thickness x:Key="Flyout.ValueGridMargin">4,-4,0,0</Thickness>
-        <sys:Double x:Key="Flyout.ValueFontSize">18</sys:Double>
+        <Thickness x:Key="Flyout.SliderValueMargin">4,-4,0,0</Thickness>
+        <sys:Double x:Key="Flyout.SliderValueFontSize">18</sys:Double>
         <sys:Double x:Key="Flyout.SliderHitTestVerticalPadding">10</sys:Double>
 
+        <!-- Fan group rows -->
         <sys:Double x:Key="Flyout.GroupIconWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.GroupIconHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.GroupIconFontSize">18</sys:Double>
@@ -94,8 +110,9 @@
         <sys:Double x:Key="Flyout.GroupDeleteFontSize">11</sys:Double>
         <Thickness x:Key="Flyout.GroupModeMargin">-4,-3,12,0</Thickness>
         <Thickness x:Key="Flyout.GroupSliderRowMargin">-5,2,4.5,0</Thickness>
-        <Thickness x:Key="Flyout.GroupValueGridMargin">8,-4,0,0</Thickness>
+        <Thickness x:Key="Flyout.GroupSliderValueMargin">8,-4,0,0</Thickness>
 
+        <!-- Probe rows -->
         <sys:Double x:Key="Flyout.ProbeButtonWidth">32</sys:Double>
         <sys:Double x:Key="Flyout.ProbeButtonHeight">32</sys:Double>
         <sys:Double x:Key="Flyout.ProbeButtonFontSize">16</sys:Double>
@@ -111,6 +128,7 @@
         <sys:Double x:Key="Flyout.ProbeEmptyFontSize">11</sys:Double>
         <sys:Double x:Key="Flyout.ProbeEmptyOpacity">0.7</sys:Double>
 
+        <!-- Confirmation dialog -->
         <sys:Double x:Key="Flyout.ConfirmTitleFontSize">14</sys:Double>
         <Thickness x:Key="Flyout.ConfirmTitleMargin">0,0,0,8</Thickness>
         <Thickness x:Key="Flyout.ConfirmMessageMargin">0,0,0,14</Thickness>
@@ -121,6 +139,7 @@
         <sys:Double x:Key="Flyout.ConfirmMinWidth">260</sys:Double>
         <sys:Double x:Key="Flyout.ConfirmMaxWidth">300</sys:Double>
 
+        <!-- Drag-and-drop feedback -->
         <sys:Double x:Key="Flyout.FullOpacity">1</sys:Double>
         <sys:Double x:Key="Flyout.RelinquishedControlOpacity">0.42</sys:Double>
         <sys:Double x:Key="Flyout.InactiveSliderValueOpacity">0.2</sys:Double>
@@ -135,6 +154,7 @@
         <sys:Double x:Key="Flyout.DragDebugPointerHeight">2</sys:Double>
         <sys:Double x:Key="Flyout.DragDebugPointerOpacity">0.95</sys:Double>
 
+        <!-- Inline editors -->
         <sys:Double x:Key="Flyout.InlineEditorFontSize">14</sys:Double>
         <Thickness x:Key="Flyout.InlineEditorBorderThickness">0</Thickness>
         <Thickness x:Key="Flyout.InlineEditorPadding">2,0</Thickness>

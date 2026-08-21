@@ -64,14 +64,14 @@ public sealed class FanFlyoutCell : INotifyPropertyChanged, IDisposable
     public string GroupFanDisplayedValueSuffix => GroupRPMMode ? " RPM" : "%";
 
     public static int GroupFanDisplayedValueSlotWidth =>
-        Resources.Value.AxamlFanFlyoutCell.GroupDisplayedValueWidth;
+        Resources.Value.AxamlFanFlyoutCell.GroupFanDisplayedValueSlotWidth;
 
     public static int GroupFanSliderMaximum =>
-        Resources.Value.AxamlFanFlyoutCell.GroupSliderMaximumValue;
+        Resources.Value.AxamlFanFlyoutCell.GroupFanSliderMaximum;
 
     public int GroupDisplayedValueSlotWidth =>
         GroupRPMMode
-            ? Resources.Value.AxamlFanFlyoutCell.GroupRPMDisplayedValueWidth
+            ? Resources.Value.AxamlFanFlyoutCell.GroupRPMDisplayedValueSlotWidth
             : GroupFanDisplayedValueSlotWidth;
 
     public int GroupSliderMaximum => GroupRPMMode ? ResolveGroupRPMMaximum() : GroupFanSliderMaximum;

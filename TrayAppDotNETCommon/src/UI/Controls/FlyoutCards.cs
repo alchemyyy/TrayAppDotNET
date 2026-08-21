@@ -16,10 +16,10 @@ internal static class FlyoutCardsLayout
     private static FlyoutCardsResources AXAMLResources => Resources.Value;
 
     public static Thickness ZeroThickness => AXAMLResources.AxamlFlyoutCards.ZeroThickness;
-    public static CornerRadius IconButtonRadius => AXAMLResources.AxamlFlyoutCards.IconButtonRadius;
+    public static CornerRadius IconButtonCornerRadius => AXAMLResources.AxamlFlyoutCards.IconButtonCornerRadius;
     public static double TextButtonFontSize => AXAMLResources.AxamlFlyoutCards.TextButtonFontSize;
     public static Thickness TextButtonBorderThickness => AXAMLResources.AxamlFlyoutCards.TextButtonBorderThickness;
-    public static CornerRadius TextButtonRadius => AXAMLResources.AxamlFlyoutCards.TextButtonRadius;
+    public static CornerRadius TextButtonCornerRadius => AXAMLResources.AxamlFlyoutCards.TextButtonCornerRadius;
     public static Thickness TextButtonPadding => AXAMLResources.AxamlFlyoutCards.TextButtonPadding;
     public static double SlotCoverOpacity => AXAMLResources.AxamlFlyoutCards.SlotCoverOpacity;
 }
@@ -155,7 +155,7 @@ public static class TrayAppDotNETFlyoutUI
             Width = width,
             Height = height,
             Margin = margin ?? FlyoutCardsLayout.ZeroThickness,
-            CornerRadius = FlyoutCardsLayout.IconButtonRadius,
+            CornerRadius = FlyoutCardsLayout.IconButtonCornerRadius,
             Background = Brushes.Transparent,
             Child = content,
             Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
@@ -202,7 +202,7 @@ public static class TrayAppDotNETFlyoutUI
             Width = width,
             Height = height,
             Margin = margin ?? FlyoutCardsLayout.ZeroThickness,
-            CornerRadius = FlyoutCardsLayout.IconButtonRadius,
+            CornerRadius = FlyoutCardsLayout.IconButtonCornerRadius,
             Background = Brushes.Transparent,
             Child = content,
             Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow,
@@ -240,7 +240,7 @@ public static class TrayAppDotNETFlyoutUI
             Background = Brush(palette.ControlBackground),
             BorderBrush = Brush(palette.Border),
             BorderThickness = FlyoutCardsLayout.TextButtonBorderThickness,
-            CornerRadius = FlyoutCardsLayout.TextButtonRadius,
+            CornerRadius = FlyoutCardsLayout.TextButtonCornerRadius,
             Padding = padding ?? FlyoutCardsLayout.TextButtonPadding,
             Child = label,
             Cursor = TrayAppDotNETCursors.Hand

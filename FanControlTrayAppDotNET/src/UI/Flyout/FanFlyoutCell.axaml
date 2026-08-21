@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
-    <sys:Int32 x:Key="FanFlyoutCell.GroupDisplayedValueWidth">44</sys:Int32>
-    <sys:Int32 x:Key="FanFlyoutCell.GroupRPMDisplayedValueWidth">84</sys:Int32>
-    <sys:Int32 x:Key="FanFlyoutCell.GroupSliderMaximumValue">100</sys:Int32>
+    <!-- Group slider values -->
+    <sys:Int32 x:Key="FanFlyoutCell.GroupFanDisplayedValueSlotWidth">44</sys:Int32>
+    <sys:Int32 x:Key="FanFlyoutCell.GroupRPMDisplayedValueSlotWidth">84</sys:Int32>
+    <sys:Int32 x:Key="FanFlyoutCell.GroupFanSliderMaximum">100</sys:Int32>
 </ResourceDictionary>

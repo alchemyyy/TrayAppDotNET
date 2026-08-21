@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
+    <!-- Window geometry and chrome -->
     <sys:Double x:Key="DialogChrome.UninstallerWindowWidth">520</sys:Double>
     <sys:Double x:Key="DialogChrome.UninstallerWindowHeight">360</sys:Double>
     <sys:Double x:Key="DialogChrome.UninstallerWindowMinWidth">420</sys:Double>
@@ -13,13 +14,15 @@
     <CornerRadius x:Key="DialogChrome.RootCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="DialogChrome.CardCornerRadius">6</CornerRadius>
     <CornerRadius x:Key="DialogChrome.ZeroCornerRadius">0</CornerRadius>
+
+    <!-- Dialog content -->
     <Thickness x:Key="DialogChrome.TitleMargin">16,0,0,0</Thickness>
     <Thickness x:Key="DialogChrome.BodyMargin">28,8,28,20</Thickness>
     <Thickness x:Key="DialogChrome.DescriptionMargin">0,0,0,16</Thickness>
     <Thickness x:Key="DialogChrome.OptionRadioMargin">0,0,12,0</Thickness>
     <Thickness x:Key="DialogChrome.OptionCardPadding">16,12</Thickness>
     <Thickness x:Key="DialogChrome.OptionCardMargin">0,0,0,6</Thickness>
-    <Thickness x:Key="DialogChrome.ButtonPadding">20,8</Thickness>
+    <Thickness x:Key="DialogChrome.ActionButtonPadding">20,8</Thickness>
     <Thickness x:Key="DialogChrome.CancelButtonMargin">0,0,8,0</Thickness>
-    <Thickness x:Key="DialogChrome.ButtonsMargin">0,20,0,0</Thickness>
+    <Thickness x:Key="DialogChrome.ActionButtonsMargin">0,20,0,0</Thickness>
 </ResourceDictionary>

@@ -4,8 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
 
+    <!-- Network status -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Warning" Text="&#xE7BA;" Font="SegoeFluentIconsThenMDL2Assets" />
 
+    <!-- Connection types and signal levels -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkEthernet" Text="&#xE839;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi0" Text="&#xE871;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.NetworkWifi1" Text="&#xE872;" Font="SegoeFluentIcons" />
