@@ -354,12 +354,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         RebuildVisual();
-        if (!IsVisible)
-        {
-            Opacity = 0;
-            Position = OffscreenPosition();
-            base.Show();
-        }
+        ShowHiddenForPositioning();
 
         long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
@@ -378,7 +373,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (!IsWindowAlive) return;
         if (ActiveContentGeneration == null) RebuildVisual();
-        base.Show();
+        ShowHiddenForPositioning();
         AppServices.DisplayEventManager?.RunSingleGatedScan();
         long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
@@ -387,6 +382,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
+            Opacity = 1;
             Activate();
         }, DispatcherPriority.Loaded);
     }
@@ -398,7 +394,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ShowActivated = false;
         try
         {
-            if (!IsVisible) base.Show();
+            ShowHiddenForPositioning();
         }
         finally
         {
@@ -413,6 +409,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             UpdateLayout();
             ApplyWorkAreaMaxHeight();
             PositionNearTray();
+            Opacity = 1;
         }, DispatcherPriority.Loaded);
     }
 
@@ -444,8 +441,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     }
 
     public void PositionNearTray() => Position = _dockingController.ResolvePosition();
-
-    private PixelPoint OffscreenPosition() => new(Layout.OffscreenPosition, Layout.OffscreenPosition);
 
     private PixelRect FallbackWorkArea() => new(
         Layout.FallbackWorkAreaX,

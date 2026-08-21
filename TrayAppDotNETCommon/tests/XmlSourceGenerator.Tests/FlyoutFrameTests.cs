@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.UI.WarmWindows;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
@@ -60,6 +61,41 @@ public sealed class FlyoutFrameTests
                 Assert.False(window.CanResize);
                 Assert.True(window.Topmost);
                 Assert.Equal(SizeToContent.Height, window.SizeToContent);
+                Assert.Equal(WindowStartupLocation.Manual, window.WindowStartupLocation);
+                Assert.Equal(0, window.Opacity);
+                Assert.Equal(
+                    new PixelPoint(
+                        TrayAppDotNETWarmWindowDefaults.OffscreenPosition,
+                        TrayAppDotNETWarmWindowDefaults.OffscreenPosition),
+                    window.Position);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public void HiddenShowResetsAnOpaqueWindowBeforeCreatingItsNativeSurface() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            TestFlyoutWindow window = new()
+            {
+                Opacity = 1,
+                Position = new PixelPoint(0, 0)
+            };
+
+            try
+            {
+                window.ShowHidden();
+
+                Assert.True(window.IsVisible);
+                Assert.Equal(0, window.Opacity);
+                Assert.Equal(
+                    new PixelPoint(
+                        TrayAppDotNETWarmWindowDefaults.OffscreenPosition,
+                        TrayAppDotNETWarmWindowDefaults.OffscreenPosition),
+                    window.Position);
             }
             finally
             {
@@ -100,6 +136,8 @@ public sealed class FlyoutFrameTests
 
     private sealed class TestFlyoutWindow : FlyoutWindowCommon
     {
+        public void ShowHidden() => ShowHiddenForPositioning();
+
         public void RestoreHeightSizing() => RestoreAutomaticHeightSizing();
     }
 }

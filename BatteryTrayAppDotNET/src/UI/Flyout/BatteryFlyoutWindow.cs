@@ -18,7 +18,6 @@ namespace BatteryTrayAppDotNET.UI.Flyout;
 public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 {
     private const int EdgePadding = 8;
-    private const int OffscreenPosition = -32000;
     private const double DragThreshold = 4;
     private const double SnapTolerancePercent = 0.02;
     private const int PixelMinSize = 1;
@@ -116,21 +115,17 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         ApplyWorkAreaMaxHeight();
         Rebuild();
 
-        if (!IsVisible)
-        {
-            Opacity = 1;
-            Position = new PixelPoint(OffscreenPosition, OffscreenPosition);
-            Show();
-        }
+        ShowHiddenForPositioning();
 
         CancellationToken cancellationToken = WindowResources.CancellationToken;
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (_isClosed || cancellationToken.IsCancellationRequested) return;
+                if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible) return;
                 UpdateLayout();
                 ApplyWorkAreaMaxHeight();
                 PositionNearTray();
+                Opacity = 1;
                 if (activate) Activate();
             },
             DispatcherPriority.Loaded);

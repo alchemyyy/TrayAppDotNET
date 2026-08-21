@@ -269,12 +269,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         ExecuteFanRebuild(reposition: false);
-        if (!IsVisible)
-        {
-            Opacity = 0;
-            Position = OffscreenPosition();
-            Show();
-        }
+        ShowHiddenForPositioning();
 
         FanFlyoutVisualGeneration? generation = _activeVisualGeneration;
         Dispatcher.UIThread.Post(() =>
@@ -5754,8 +5749,6 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         Position = _dockingController.ResolvePosition();
         PositionFanPropertiesWindows();
     }
-
-    private PixelPoint OffscreenPosition() => new(Layout.OffscreenPosition, Layout.OffscreenPosition);
 
     private PixelRect FallbackWorkArea() => new(
         Layout.FallbackWorkAreaX,

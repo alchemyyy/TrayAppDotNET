@@ -179,12 +179,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         _audioManager.ReconcileSessions();
         ApplyWorkAreaMaxHeight();
         Rebuild();
-        if (!IsVisible)
-        {
-            Opacity = 0;
-            Position = OffscreenPosition();
-            Show();
-        }
+        ShowHiddenForPositioning();
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -298,8 +293,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     }
 
     private void PositionNearTray() => Position = Docking.ResolvePosition();
-
-    private PixelPoint OffscreenPosition() => new(Layout.OffscreenPosition, Layout.OffscreenPosition);
 
     private PixelRect FallbackWorkArea() => new(
         Layout.FallbackWorkAreaX,

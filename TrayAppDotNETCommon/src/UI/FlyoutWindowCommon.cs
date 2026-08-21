@@ -10,6 +10,10 @@ namespace TrayAppDotNETCommon.UI;
 
 public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 {
+    private static readonly PixelPoint HiddenPosition = new(
+        TrayAppDotNETWarmWindowDefaults.OffscreenPosition,
+        TrayAppDotNETWarmWindowDefaults.OffscreenPosition);
+
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _activeContentGeneration;
 
@@ -32,6 +36,9 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         CanResize = false;
         Topmost = true;
         SizeToContent = SizeToContent.Height;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Opacity = 0;
+        Position = HiddenPosition;
         Deactivated += OnDeactivated;
         _windowResources.Add(() => Deactivated -= OnDeactivated);
     }
@@ -50,6 +57,16 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 
     /// <summary>Gets the source-level control naming scope for this flyout instance.</summary>
     protected ControlNameScope ControlNames { get; }
+
+    /// <summary>Shows the flyout transparently offscreen until its measured position is ready.</summary>
+    protected void ShowHiddenForPositioning()
+    {
+        if (IsVisible) return;
+
+        Opacity = 0;
+        Position = HiddenPosition;
+        Show();
+    }
 
     /// <summary>Clears a realized height so height-to-content layout can measure replacement content.</summary>
     protected void RestoreAutomaticHeightSizing()
