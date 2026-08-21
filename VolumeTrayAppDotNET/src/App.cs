@@ -137,6 +137,7 @@ internal sealed class VolumeAvaloniaApp : Application
 
     private void ConfigureSettings(AppSettings settings)
     {
+        settings.PropertyChanged += OnSettingsPropertyChanged;
         settings.Changed += OnSettingsChanged;
         AppServices.Settings = settings;
         TrayAppDotNETAnimationPolicy.Apply(this, settings.AnimationMode);
@@ -247,13 +248,13 @@ internal sealed class VolumeAvaloniaApp : Application
     {
         if (e.PropertyName == nameof(AudioDeviceManager.DefaultDevice))
             AttachToTrackedDevice(_audioManager?.DefaultDevice);
-        InvalidateTrayMenuDeviceSnapshot();
+        InvalidateTrayMenuSnapshot();
     }
 
     private void OnDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         SyncTrayMenuDeviceSubscriptions();
-        InvalidateTrayMenuDeviceSnapshot();
+        InvalidateTrayMenuSnapshot();
     }
 
     private void SyncTrayMenuDeviceSubscriptions()
@@ -288,7 +289,18 @@ internal sealed class VolumeAvaloniaApp : Application
             or nameof(AudioDevice.IsDefault)
             or nameof(AudioDevice.IsDefaultCommunications))
         {
-            InvalidateTrayMenuDeviceSnapshot();
+            InvalidateTrayMenuSnapshot();
+        }
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(AppSettings.ShowTrayMenuRecordingLink)
+            or nameof(AppSettings.ShowTrayMenuSoundsLink)
+            or nameof(AppSettings.ShowTrayMenuCommunicationsLink)
+            or nameof(AppSettings.ShowTrayMenuDeviceLinks))
+        {
+            InvalidateTrayMenuSnapshot();
         }
     }
 
@@ -299,13 +311,13 @@ internal sealed class VolumeAvaloniaApp : Application
         _trayMenuTrackedDevices.Clear();
     }
 
-    /// <summary>Evicts menus whose immutable entries capture a superseded device snapshot.</summary>
-    private void InvalidateTrayMenuDeviceSnapshot()
+    /// <summary>Evicts menus whose immutable entries capture superseded device or settings state.</summary>
+    private void InvalidateTrayMenuSnapshot()
     {
         if (_shuttingDown) return;
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(InvalidateTrayMenuDeviceSnapshot, DispatcherPriority.Background);
+            Dispatcher.UIThread.Post(InvalidateTrayMenuSnapshot, DispatcherPriority.Background);
             return;
         }
 
@@ -818,6 +830,7 @@ internal sealed class VolumeAvaloniaApp : Application
 
             if (_settings != null)
             {
+                _settings.PropertyChanged -= OnSettingsPropertyChanged;
                 _settings.Changed -= OnSettingsChanged;
                 _settings.Save();
             }
