@@ -327,7 +327,7 @@ public static class TrayAppDotNETAvalonia
 
         return new UpdateCheckOptions
         {
-            VersionsManifestUrl = GitHubReleaseUrls.LatestVersionsManifestUrl(owner, repositoryName),
+            VersionsManifestUrl = GitHubReleaseUrls.LatestVersionsManifestUrl(),
             VersionsManifestCachePath = Path.Combine(
                 sharedSettingsDirectory,
                 GitHubReleaseUrls.VersionsManifestFileName),

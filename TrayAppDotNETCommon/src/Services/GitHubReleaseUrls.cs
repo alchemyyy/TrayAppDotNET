@@ -3,10 +3,10 @@ namespace TrayAppDotNETCommon.Services;
 public static class GitHubReleaseUrls
 {
     public const string VersionsManifestFileName = "versions.xml";
+    public const string VersionsManifestEndpoint = "https://version.trayapp.net/versions.xml";
     public const string ReleaseProfile = "release";
 
-    public static Uri LatestVersionsManifestUrl(string owner, string repositoryName) =>
-        LatestReleaseAssetUrl(owner, repositoryName, VersionsManifestFileName);
+    public static Uri LatestVersionsManifestUrl() => new(VersionsManifestEndpoint);
 
     public static string ReleaseAssetName(string applicationName, int version)
     {

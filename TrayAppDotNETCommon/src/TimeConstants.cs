@@ -41,9 +41,8 @@ public abstract class TimeConstants
     protected internal const int LogShutdownTimerWaitMs = 1_000;
 
     // Auto-update
-    // Default cadence the background UpdateCheckService polls GitHub at. 1 hour is a low-traffic compromise:
-    // recent enough to surface a fresh release the same workday, infrequent enough to stay well clear of
-    // GitHub's unauthenticated 60/hr rate limit even across the per-IP shared quota.
+    // Default cadence the background UpdateCheckService polls the version endpoint at. One hour surfaces a fresh
+    // release the same workday without generating unnecessary traffic.
     protected internal const int UpdateCheckIntervalDefaultMs = 3_600_000;
     protected internal const int UpdateCheckIntervalMinMs = 60_000;
     protected internal const int UpdateCheckIntervalMaxMs = 86_400_000;

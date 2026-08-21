@@ -125,6 +125,29 @@ public sealed class UpdateCheckServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CheckNowAsync_UsesTheArtifactReleaseTagFromTheVersionEndpoint()
+    {
+        const int aggregateVersion = 110;
+        const int appVersion = 200;
+        const string appReleaseTag = "TrayAppDotNET_108";
+        using AggregateManifestMessageHandler messageHandler = new(
+            aggregateVersion,
+            appVersion,
+            includeApp: true,
+            appReleaseTag: appReleaseTag);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+
+        Assert.NotNull(update);
+        Assert.Equal(appReleaseTag, update.TagName);
+        Assert.Equal(
+            $"https://github.com/test-owner/test-repository/releases/download/{appReleaseTag}/"
+            + $"{ApplicationName}_{appVersion}.zip",
+            update.AssetUrl);
+    }
+
+    [Fact]
     public async Task CheckNowAsync_DoesNotOfferTheAggregateVersionWhenTheAppIsCurrent()
     {
         const int aggregateVersion = 999;
@@ -141,7 +164,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CheckNowAsync_FindsTheLatestAppReleaseWhenTheAggregateManifestOmitsIt()
+    public async Task CheckNowAsync_DoesNotFallBackToGitHubWhenTheVersionEndpointOmitsTheApp()
     {
         const int aggregateVersion = 110;
         const int appVersion = 200;
@@ -150,17 +173,8 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         UpdateInfo? update = await service.CheckNowAsync();
 
-        Assert.NotNull(update);
-        Assert.Equal(appVersion, update.Version);
-        Assert.Equal($"TrayAppDotNET_{aggregateVersion - 1}", update.TagName);
-        Assert.Equal($"{ApplicationName} {appVersion}", update.ReleaseName);
-        Assert.Equal("App release notes", update.Changelog);
-        Assert.Equal(
-            [
-                "https://updates.test/versions.xml",
-                "https://api.github.com/repos/test-owner/test-repository/releases?per_page=10&page=1"
-            ],
-            messageHandler.RequestUrls);
+        Assert.Null(update);
+        Assert.Equal(["https://updates.test/versions.xml"], messageHandler.RequestUrls);
     }
 
     [Fact]
@@ -372,7 +386,8 @@ public sealed class UpdateCheckServiceTests : IDisposable
     private sealed class AggregateManifestMessageHandler(
         int aggregateVersion,
         int appVersion,
-        bool includeApp) : HttpMessageHandler
+        bool includeApp,
+        string appReleaseTag = "") : HttpMessageHandler
     {
         public List<string> RequestUrls { get; } = [];
 
@@ -396,10 +411,13 @@ public sealed class UpdateCheckServiceTests : IDisposable
 
         private HttpResponseMessage ManifestResponse(HttpRequestMessage request)
         {
+            string releaseTagAttribute = string.IsNullOrWhiteSpace(appReleaseTag)
+                ? string.Empty
+                : $" releaseTag=\"{appReleaseTag}\"";
             string appArtifact = includeApp
                 ? $"""
                       <artifact profile="release" kind="app" appId="{ApplicationName}" version="{appVersion}"
-                                fileName="{ApplicationName}_{appVersion}.zip" sha256="" size="0" />
+                                fileName="{ApplicationName}_{appVersion}.zip"{releaseTagAttribute} sha256="" size="0" />
                   """
                 : string.Empty;
             string manifest = $"""

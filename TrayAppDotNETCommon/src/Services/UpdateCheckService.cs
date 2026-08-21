@@ -69,6 +69,9 @@ internal sealed class VersionsArtifact
 
     [XmlAttribute("size")]
     public string Size { get; set; } = string.Empty;
+
+    [XmlAttribute("releaseTag")]
+    public string ReleaseTag { get; set; } = string.Empty;
 }
 
 public enum UpdateCheckResult
@@ -660,33 +663,20 @@ public sealed class UpdateCheckService : IDisposable
             if (cachedRelease != null) return cachedRelease;
         }
 
-        try
-        {
-            UpdateInfo? manifestRelease = await FetchReleaseManifestAsync(
-                    _options.VersionsManifestUrl,
-                    pinnedTagName: null,
-                    returnNullWhenMissing: false,
-                    cacheLatestManifest: true,
-                    token)
-                .ConfigureAwait(false);
-            if (manifestRelease != null) return manifestRelease;
-
-            TADNLog.Log(
-                $"UpdateCheckService.FetchLatestAsync: latest aggregate manifest did not contain "
-                + $"a release artifact for {_options.ApplicationName}; using release-list fallback.");
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
+        UpdateInfo? manifestRelease = await FetchReleaseManifestAsync(
+                _options.VersionsManifestUrl,
+                pinnedTagName: null,
+                returnNullWhenMissing: false,
+                cacheLatestManifest: true,
+                token)
+            .ConfigureAwait(false);
+        if (manifestRelease == null)
         {
             TADNLog.Log(
-                $"UpdateCheckService.FetchLatestAsync: latest aggregate manifest lookup failed: "
-                + $"{exception.Message}; using release-list fallback.");
+                $"UpdateCheckService.FetchLatestAsync: version endpoint did not contain "
+                + $"a release artifact for {_options.ApplicationName}.");
         }
-
-        return await FetchLatestReleaseFallbackAsync(token).ConfigureAwait(false);
+        return manifestRelease;
     }
 
     private async Task<UpdateInfo?> TryReadCachedLatestManifestAsync(
@@ -842,8 +832,8 @@ public sealed class UpdateCheckService : IDisposable
 
     private UpdateInfo? CreateUpdateInfoFromManifest(VersionsManifest manifest, string? pinnedTagName)
     {
-        string tagName = string.IsNullOrWhiteSpace(pinnedTagName) ? manifest.Release.Tag : pinnedTagName;
-        if (string.IsNullOrWhiteSpace(tagName)) return null;
+        string manifestTagName = string.IsNullOrWhiteSpace(pinnedTagName) ? manifest.Release.Tag : pinnedTagName;
+        if (string.IsNullOrWhiteSpace(manifestTagName)) return null;
         if (!string.IsNullOrWhiteSpace(pinnedTagName)
             && !string.IsNullOrWhiteSpace(manifest.Release.Tag)
             && !string.Equals(pinnedTagName, manifest.Release.Tag, StringComparison.OrdinalIgnoreCase))
@@ -860,6 +850,13 @@ public sealed class UpdateCheckService : IDisposable
         int version = ParsePositiveInt(appArtifact.Version);
         if (version <= 0) return null;
 
+        string assetTagName = manifestTagName;
+        if (string.IsNullOrWhiteSpace(pinnedTagName)
+            && !string.IsNullOrWhiteSpace(appArtifact.ReleaseTag))
+        {
+            assetTagName = appArtifact.ReleaseTag;
+        }
+
         string expectedAssetName = GitHubReleaseUrls.ReleaseAssetName(_options.ApplicationName, version);
         string manifestAssetName = string.IsNullOrWhiteSpace(appArtifact.FileName)
             ? expectedAssetName
@@ -875,12 +872,12 @@ public sealed class UpdateCheckService : IDisposable
         Uri assetUrl = GitHubReleaseUrls.ReleaseAssetUrl(
             _options.RepositoryOwner,
             _options.RepositoryName,
-            tagName,
+            assetTagName,
             expectedAssetName);
         string releaseName = $"{_options.ApplicationName} {version}";
         return new UpdateInfo(
             version,
-            tagName,
+            assetTagName,
             releaseName,
             "",
             assetUrl.ToString(),
@@ -921,23 +918,6 @@ public sealed class UpdateCheckService : IDisposable
         {
             TryDeleteFile(temporaryPath);
         }
-    }
-
-    private async Task<UpdateInfo?> FetchLatestReleaseFallbackAsync(CancellationToken token)
-    {
-        for (int page = 1; page <= GitHubFallbackReleaseMaxPages; page++)
-        {
-            (UpdateInfo? latestRelease, int releaseCount) = await FetchAppReleasePageAsync(
-                    page,
-                    maximumVersionExclusive: null,
-                    preferredVersion: null,
-                    token)
-                .ConfigureAwait(false);
-            if (latestRelease != null) return latestRelease;
-            if (releaseCount < GitHubFallbackReleasesPerPage) return null;
-        }
-
-        return null;
     }
 
     private async Task<UpdateInfo?> FetchPreviousReleaseFallbackAsync(
