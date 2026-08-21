@@ -81,6 +81,9 @@ public enum UpdateCheckResult
 public sealed class UpdateCheckOptions
 {
     public required Uri VersionsManifestUrl { get; init; }
+
+    /// <summary>Path shared by sibling apps for the latest aggregate release manifest.</summary>
+    public required string VersionsManifestCachePath { get; init; }
     public required string RepositoryOwner { get; init; }
     public required string RepositoryName { get; init; }
     public required string ApplicationName { get; init; }
@@ -113,6 +116,8 @@ public sealed class UpdateCheckOptions
     public TimeSpan AssetDownloadInitialBackoff { get; init; } =
         TimeSpan.FromMilliseconds(TimeConstants.UpdateAssetDownloadInitialBackoffMs);
 
+    internal Func<DateTime> GetCurrentUTCTime { get; init; } = static () => DateTime.UtcNow;
+
     private static string? ResolveCurrentExecutablePath()
     {
         using Process currentProcess = Process.GetCurrentProcess();
@@ -125,8 +130,9 @@ public sealed class UpdateCheckService : IDisposable
     private const int HttpUnauthorized = 401;
     private const int HttpForbidden = 403;
     private const int HttpNotFound = 404;
-    private const int PollFlagIdle = 0;
-    private const int PollFlagBusy = 1;
+    private const int PollStateIdle = 0;
+    private const int PollStateScheduled = 1;
+    private const int PollStateManual = 2;
     private const int UpdateScriptTargetWaitSeconds = 60;
     private const int UpdateScriptTerminateAttempts = 20;
     private const int UpdateScriptStepDelaySeconds = 1;
@@ -154,7 +160,7 @@ public sealed class UpdateCheckService : IDisposable
     private CancellationTokenSource? _loopCts;
     private Task? _loopTask;
     private TaskCompletionSource? _manualKick;
-    private int _pollInFlight;
+    private int _pollState;
     private TaskCompletionSource? _pollDone;
     private UpdateInfo? _available;
     private DateTime? _lastCheckTimeUtc;
@@ -163,6 +169,7 @@ public sealed class UpdateCheckService : IDisposable
     private UpdateInfo? _latestRelease;
     private UpdateInfo? _previousRelease;
     private bool _isPreviousReleaseResolved;
+    private long _cachedManifestWriteTimeUTCTicks;
     private bool _disposed;
 
     public UpdateCheckService(UpdateCheckOptions options)
@@ -232,18 +239,32 @@ public sealed class UpdateCheckService : IDisposable
     {
         if (_disposed) return _available;
 
-        if (Interlocked.CompareExchange(ref _pollInFlight, PollFlagBusy, PollFlagIdle) != PollFlagIdle)
+        while (true)
         {
+            int activePollState = Interlocked.CompareExchange(
+                ref _pollState,
+                PollStateManual,
+                PollStateIdle);
+            if (activePollState == PollStateIdle) break;
+
             TaskCompletionSource? running = Volatile.Read(ref _pollDone);
             Volatile.Read(ref _manualKick)?.TrySetResult();
-            if (running != null && !await WaitForRunningPollAsync(running.Task).ConfigureAwait(false))
+            if (running == null)
+            {
+                await Task.Yield();
+                continue;
+            }
+
+            if (!await WaitForRunningPollAsync(running.Task).ConfigureAwait(false))
             {
                 await MarkCheckFailedAsync(
                     "UpdateCheckService.CheckNowAsync: timed out waiting for in-flight update check.")
                     .ConfigureAwait(false);
+                return _available;
             }
 
-            return _available;
+            // A concurrent manual request already performed the required uncached check
+            if (activePollState == PollStateManual) return _available;
         }
 
         Volatile.Read(ref _manualKick)?.TrySetResult();
@@ -253,7 +274,7 @@ public sealed class UpdateCheckService : IDisposable
         try
         {
             using CancellationTokenSource timeoutCts = new(_options.ManualCheckTimeout);
-            await PollOnceAsync(timeoutCts.Token).ConfigureAwait(false);
+            await PollOnceAsync(timeoutCts.Token, bypassLatestManifestCache: true).ConfigureAwait(false);
             if (timeoutCts.IsCancellationRequested)
             {
                 await MarkCheckFailedAsync(
@@ -265,7 +286,7 @@ public sealed class UpdateCheckService : IDisposable
         {
             Volatile.Write(ref _pollDone, null);
             pollDone.TrySetResult();
-            Interlocked.Exchange(ref _pollInFlight, PollFlagIdle);
+            Interlocked.Exchange(ref _pollState, PollStateIdle);
         }
 
         return _available;
@@ -492,16 +513,22 @@ public sealed class UpdateCheckService : IDisposable
         {
             if (_options.IsEnabled())
             {
-                if (Interlocked.CompareExchange(ref _pollInFlight, PollFlagBusy, PollFlagIdle) == PollFlagIdle)
+                if (Interlocked.CompareExchange(
+                        ref _pollState,
+                        PollStateScheduled,
+                        PollStateIdle) == PollStateIdle)
                 {
                     TaskCompletionSource pollDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
                     Volatile.Write(ref _pollDone, pollDone);
-                    try { await PollOnceAsync(token).ConfigureAwait(false); }
+                    try
+                    {
+                        await PollOnceAsync(token, bypassLatestManifestCache: false).ConfigureAwait(false);
+                    }
                     finally
                     {
                         Volatile.Write(ref _pollDone, null);
                         pollDone.TrySetResult();
-                        Interlocked.Exchange(ref _pollInFlight, PollFlagIdle);
+                        Interlocked.Exchange(ref _pollState, PollStateIdle);
                     }
                 }
             }
@@ -523,10 +550,21 @@ public sealed class UpdateCheckService : IDisposable
         }
     }
 
-    private TimeSpan NextPollInterval()
+    internal TimeSpan NextPollInterval()
     {
         TimeSpan normal = NormalizedInterval(_options.PollInterval());
-        if (_lastResult != UpdateCheckResult.Failed) return normal;
+        long cacheWriteTimeUTCTicks = Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, 0);
+        if (_lastResult != UpdateCheckResult.Failed)
+        {
+            if (cacheWriteTimeUTCTicks <= 0) return normal;
+
+            DateTime cacheWriteTimeUTC = new(cacheWriteTimeUTCTicks, DateTimeKind.Utc);
+            TimeSpan cacheAge = _options.GetCurrentUTCTime() - cacheWriteTimeUTC;
+            if (cacheAge <= TimeSpan.Zero) return normal;
+
+            // Keep the writer's original cadence instead of extending the cache lifetime per reader
+            return cacheAge >= normal ? TimeSpan.Zero : normal - cacheAge;
+        }
 
         TimeSpan retry = NormalizedInterval(_options.FailureRetryInterval);
         return retry < normal ? retry : normal;
@@ -538,20 +576,21 @@ public sealed class UpdateCheckService : IDisposable
         return requested > _options.MaxPollInterval ? _options.MaxPollInterval : requested;
     }
 
-    private async Task PollOnceAsync(CancellationToken token)
+    internal async Task PollOnceAsync(CancellationToken token, bool bypassLatestManifestCache)
     {
+        Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, 0);
         await SetCheckingAsync(true).ConfigureAwait(false);
         UpdateCheckResult result = UpdateCheckResult.Failed;
         try
         {
-            UpdateInfo? info = await FetchLatestAsync(token).ConfigureAwait(false);
+            UpdateInfo? info = await FetchLatestAsync(token, bypassLatestManifestCache).ConfigureAwait(false);
             UpdateInfo? newer = info != null && info.Version > _options.CurrentBuild ? info : null;
             await InvokeIfRunningAsync(() =>
             {
                 int skippedUpdateVersion = _options.GetSkippedUpdateVersion();
                 _latestRelease = info;
                 _available = newer?.Version == skippedUpdateVersion ? null : newer;
-                _lastCheckTimeUtc = DateTime.UtcNow;
+                _lastCheckTimeUtc = _options.GetCurrentUTCTime();
                 _lastResult = UpdateCheckResult.Success;
             }).ConfigureAwait(false);
             result = UpdateCheckResult.Success;
@@ -565,7 +604,7 @@ public sealed class UpdateCheckService : IDisposable
             TADNLog.Log($"UpdateCheckService.PollOnceAsync: {ex.Message}");
             await InvokeIfRunningAsync(() =>
             {
-                _lastCheckTimeUtc = DateTime.UtcNow;
+                _lastCheckTimeUtc = _options.GetCurrentUTCTime();
                 _lastResult = UpdateCheckResult.Failed;
             }).ConfigureAwait(false);
         }
@@ -596,7 +635,7 @@ public sealed class UpdateCheckService : IDisposable
         TADNLog.Log(message);
         await InvokeIfRunningAsync(() =>
         {
-            _lastCheckTimeUtc = DateTime.UtcNow;
+            _lastCheckTimeUtc = _options.GetCurrentUTCTime();
             _lastResult = UpdateCheckResult.Failed;
             StateChanged?.Invoke();
         }).ConfigureAwait(false);
@@ -609,14 +648,25 @@ public sealed class UpdateCheckService : IDisposable
         catch (OperationCanceledException) { }
     }
 
-    private async Task<UpdateInfo?> FetchLatestAsync(CancellationToken token)
+    private async Task<UpdateInfo?> FetchLatestAsync(
+        CancellationToken token,
+        bool bypassLatestManifestCache = false)
     {
+        if (!bypassLatestManifestCache)
+        {
+            TimeSpan pollInterval = NormalizedInterval(_options.PollInterval());
+            UpdateInfo? cachedRelease = await TryReadCachedLatestManifestAsync(pollInterval, token)
+                .ConfigureAwait(false);
+            if (cachedRelease != null) return cachedRelease;
+        }
+
         try
         {
             UpdateInfo? manifestRelease = await FetchReleaseManifestAsync(
                     _options.VersionsManifestUrl,
                     pinnedTagName: null,
                     returnNullWhenMissing: false,
+                    cacheLatestManifest: true,
                     token)
                 .ConfigureAwait(false);
             if (manifestRelease != null) return manifestRelease;
@@ -637,6 +687,46 @@ public sealed class UpdateCheckService : IDisposable
         }
 
         return await FetchLatestReleaseFallbackAsync(token).ConfigureAwait(false);
+    }
+
+    private async Task<UpdateInfo?> TryReadCachedLatestManifestAsync(
+        TimeSpan pollInterval,
+        CancellationToken token)
+    {
+        string cachePath = _options.VersionsManifestCachePath;
+        try
+        {
+            if (!File.Exists(cachePath)) return null;
+
+            DateTime cacheWriteTimeUTC = File.GetLastWriteTimeUtc(cachePath);
+            TimeSpan cacheAge = _options.GetCurrentUTCTime() - cacheWriteTimeUTC;
+            if (cacheAge < TimeSpan.Zero || cacheAge >= pollInterval) return null;
+
+            byte[] manifestBytes = await File.ReadAllBytesAsync(cachePath, token).ConfigureAwait(false);
+            VersionsManifest manifest = ReadVersionsManifest(manifestBytes);
+            UpdateInfo? cachedRelease = CreateUpdateInfoFromManifest(manifest, pinnedTagName: null);
+            if (cachedRelease == null)
+            {
+                TADNLog.Log(
+                    $"UpdateCheckService.TryReadCachedLatestManifestAsync: cached aggregate manifest did not "
+                    + $"contain a release artifact for {_options.ApplicationName}; refreshing it.");
+                return null;
+            }
+
+            Interlocked.Exchange(ref _cachedManifestWriteTimeUTCTicks, cacheWriteTimeUTC.Ticks);
+            return cachedRelease;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.TryReadCachedLatestManifestAsync: could not use {cachePath}: "
+                + exception.Message);
+            return null;
+        }
     }
 
     private async Task<UpdateInfo?> FetchPreviousReleaseAsync(CancellationToken token)
@@ -699,6 +789,7 @@ public sealed class UpdateCheckService : IDisposable
                     manifestUrl,
                     tagName,
                     returnNullWhenMissing: true,
+                    cacheLatestManifest: false,
                     token)
                 .ConfigureAwait(false);
         }
@@ -718,6 +809,7 @@ public sealed class UpdateCheckService : IDisposable
         Uri manifestUrl,
         string? pinnedTagName,
         bool returnNullWhenMissing,
+        bool cacheLatestManifest,
         CancellationToken token)
     {
         using HttpRequestMessage request = new(HttpMethod.Get, manifestUrl);
@@ -734,8 +826,22 @@ public sealed class UpdateCheckService : IDisposable
                 response.StatusCode);
         }
 
-        await using Stream stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        VersionsManifest manifest = TrayXmlSerializer.Read<VersionsManifest>(stream);
+        byte[] manifestBytes = await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+        VersionsManifest manifest = ReadVersionsManifest(manifestBytes);
+        if (cacheLatestManifest)
+            await TryWriteLatestManifestCacheAsync(manifestBytes, token).ConfigureAwait(false);
+
+        return CreateUpdateInfoFromManifest(manifest, pinnedTagName);
+    }
+
+    private static VersionsManifest ReadVersionsManifest(byte[] manifestBytes)
+    {
+        using MemoryStream stream = new(manifestBytes, writable: false);
+        return TrayXmlSerializer.Read<VersionsManifest>(stream);
+    }
+
+    private UpdateInfo? CreateUpdateInfoFromManifest(VersionsManifest manifest, string? pinnedTagName)
+    {
         string tagName = string.IsNullOrWhiteSpace(pinnedTagName) ? manifest.Release.Tag : pinnedTagName;
         if (string.IsNullOrWhiteSpace(tagName)) return null;
         if (!string.IsNullOrWhiteSpace(pinnedTagName)
@@ -781,6 +887,40 @@ public sealed class UpdateCheckService : IDisposable
             expectedAssetName,
             appArtifact.Sha256,
             ParsePositiveLong(appArtifact.Size));
+    }
+
+    private async Task TryWriteLatestManifestCacheAsync(byte[] manifestBytes, CancellationToken token)
+    {
+        string cachePath = _options.VersionsManifestCachePath;
+        string? cacheDirectory = Path.GetDirectoryName(cachePath);
+        string? temporaryPath = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(cacheDirectory))
+                throw new InvalidOperationException($"Cache path has no parent directory: {cachePath}");
+
+            Directory.CreateDirectory(cacheDirectory);
+            temporaryPath = cachePath + "." + Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture) + ".tmp";
+            await File.WriteAllBytesAsync(temporaryPath, manifestBytes, token).ConfigureAwait(false);
+
+            // Publish only a complete XML file because sibling apps can read it concurrently
+            File.Move(temporaryPath, cachePath, overwrite: true);
+            temporaryPath = null;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"UpdateCheckService.TryWriteLatestManifestCacheAsync: could not write {cachePath}: "
+                + exception.Message);
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
     }
 
     private async Task<UpdateInfo?> FetchLatestReleaseFallbackAsync(CancellationToken token)
@@ -1429,6 +1569,7 @@ public sealed class UpdateCheckService : IDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(options.VersionsManifestUrl);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.VersionsManifestCachePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.RepositoryOwner);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.RepositoryName);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ApplicationName);
@@ -1439,6 +1580,7 @@ public sealed class UpdateCheckService : IDisposable
         ArgumentNullException.ThrowIfNull(options.GetSkippedUpdateVersion);
         ArgumentNullException.ThrowIfNull(options.PersistSkippedUpdateVersion);
         ArgumentNullException.ThrowIfNull(options.InvokeOnUIThread);
+        ArgumentNullException.ThrowIfNull(options.GetCurrentUTCTime);
 
         if (options.CurrentBuild < 0)
             throw new ArgumentOutOfRangeException(nameof(options.CurrentBuild));

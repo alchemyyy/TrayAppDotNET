@@ -5,12 +5,18 @@ using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
-public sealed class UpdateCheckServiceTests
+public sealed class UpdateCheckServiceTests : IDisposable
 {
     private const string ApplicationName = "TestTrayApp";
     private const string LatestReleaseTag = "TrayAppDotNET_110";
     private const string PreviousReleaseTag = "TrayAppDotNET_109";
     private const int CurrentBuild = 100;
+    private readonly string _testDirectory = Path.Combine(
+        Path.GetTempPath(),
+        nameof(UpdateCheckServiceTests),
+        Guid.NewGuid().ToString("N"));
+
+    private string CachePath => Path.Combine(_testDirectory, GitHubReleaseUrls.VersionsManifestFileName);
 
     [Fact]
     public async Task CheckNowAsync_IgnoresOnlyThePersistedSkippedRelease()
@@ -29,6 +35,73 @@ public sealed class UpdateCheckServiceTests
         Assert.NotNull(nextUpdate);
         Assert.Equal(201, nextUpdate.Version);
         Assert.Equal(200, service.SkippedUpdateVersion);
+        Assert.Equal(2, messageHandler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ScheduledCheck_UsesFreshSharedManifestAndWaitsOnlyUntilItExpires()
+    {
+        const int cachedVersion = 200;
+        DateTime currentTimeUTC = new(2026, 8, 20, 12, 0, 0, DateTimeKind.Utc);
+        TimeSpan pollInterval = TimeSpan.FromHours(1);
+        WriteCachedManifest(cachedVersion, currentTimeUTC - TimeSpan.FromMinutes(45));
+        using ManifestMessageHandler messageHandler = new(999);
+        using UpdateCheckService service = CreateService(
+            messageHandler,
+            static () => 0,
+            static _ => { },
+            pollInterval: () => pollInterval,
+            getCurrentUTCTime: () => currentTimeUTC);
+
+        await service.PollOnceAsync(CancellationToken.None, bypassLatestManifestCache: false);
+        UpdateInfo? update = service.AvailableUpdate;
+        TimeSpan nextPollInterval = service.NextPollInterval();
+
+        Assert.NotNull(update);
+        Assert.Equal(cachedVersion, update.Version);
+        Assert.Equal(0, messageHandler.RequestCount);
+        Assert.Equal(TimeSpan.FromMinutes(15), nextPollInterval);
+    }
+
+    [Fact]
+    public async Task ScheduledCheck_RefreshesStaleSharedManifestAndCachesTheResponse()
+    {
+        const int cachedVersion = 150;
+        const int receivedVersion = 200;
+        DateTime staleWriteTimeUTC = DateTime.UtcNow - TimeSpan.FromHours(2);
+        WriteCachedManifest(cachedVersion, staleWriteTimeUTC);
+        using ManifestMessageHandler messageHandler = new(receivedVersion);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        await service.PollOnceAsync(CancellationToken.None, bypassLatestManifestCache: false);
+        UpdateInfo? update = service.AvailableUpdate;
+        string cachedManifest = await File.ReadAllTextAsync(CachePath);
+
+        Assert.NotNull(update);
+        Assert.Equal(receivedVersion, update.Version);
+        Assert.Equal(1, messageHandler.RequestCount);
+        Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
+        Assert.True(File.GetLastWriteTimeUtc(CachePath) > staleWriteTimeUTC);
+        Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
+    }
+
+    [Fact]
+    public async Task CheckNowAsync_BypassesFreshSharedManifestAndCachesTheResponse()
+    {
+        const int cachedVersion = 150;
+        const int receivedVersion = 200;
+        WriteCachedManifest(cachedVersion, DateTime.UtcNow);
+        using ManifestMessageHandler messageHandler = new(receivedVersion);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+
+        UpdateInfo? update = await service.CheckNowAsync();
+        string cachedManifest = await File.ReadAllTextAsync(CachePath);
+
+        Assert.NotNull(update);
+        Assert.Equal(receivedVersion, update.Version);
+        Assert.Equal(1, messageHandler.RequestCount);
+        Assert.Contains($"version=\"{receivedVersion}\"", cachedManifest);
+        Assert.Equal(TimeSpan.FromHours(1), service.NextPollInterval());
     }
 
     [Fact]
@@ -219,15 +292,18 @@ public sealed class UpdateCheckServiceTests
         Assert.Equal(expectUpdate, availableUpdate != null);
     }
 
-    private static UpdateCheckService CreateService(
+    private UpdateCheckService CreateService(
         HttpMessageHandler messageHandler,
         Func<int> getSkippedUpdateVersion,
         Action<int> persistSkippedUpdateVersion,
-        int currentBuild = CurrentBuild) =>
+        int currentBuild = CurrentBuild,
+        Func<TimeSpan>? pollInterval = null,
+        Func<DateTime>? getCurrentUTCTime = null) =>
         new(
             new UpdateCheckOptions
             {
                 VersionsManifestUrl = new Uri("https://updates.test/versions.xml"),
+                VersionsManifestCachePath = CachePath,
                 RepositoryOwner = "test-owner",
                 RepositoryName = "test-repository",
                 ApplicationName = ApplicationName,
@@ -235,39 +311,55 @@ public sealed class UpdateCheckServiceTests
                 UserAgent = ApplicationName + "-Updater",
                 StagingDirectory = Path.GetTempPath,
                 IsEnabled = static () => true,
-                PollInterval = static () => TimeSpan.FromHours(1),
+                PollInterval = pollInterval ?? (static () => TimeSpan.FromHours(1)),
                 GetSkippedUpdateVersion = getSkippedUpdateVersion,
                 PersistSkippedUpdateVersion = persistSkippedUpdateVersion,
                 InvokeOnUIThread = static action =>
                 {
                     action();
                     return Task.CompletedTask;
-                }
+                },
+                GetCurrentUTCTime = getCurrentUTCTime ?? (static () => DateTime.UtcNow)
             },
             messageHandler);
 
+    private void WriteCachedManifest(int version, DateTime writeTimeUTC)
+    {
+        Directory.CreateDirectory(_testDirectory);
+        File.WriteAllText(CachePath, CreateManifest(version), Encoding.UTF8);
+        File.SetLastWriteTimeUtc(CachePath, writeTimeUTC);
+    }
+
+    private static string CreateManifest(int version) =>
+        $"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <versions>
+          <release tag="v{version}" name="Release {version}" />
+          <artifacts>
+            <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
+                      fileName="{ApplicationName}_{version}.zip" sha256="" size="0" />
+          </artifacts>
+        </versions>
+        """;
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_testDirectory)) Directory.Delete(_testDirectory, recursive: true);
+    }
+
     private sealed class ManifestMessageHandler(params int[] versions) : HttpMessageHandler
     {
-        private int _requestIndex;
+        public int RequestCount { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            int index = Math.Min(_requestIndex, versions.Length - 1);
-            _requestIndex++;
+            int index = Math.Min(RequestCount, versions.Length - 1);
+            RequestCount++;
             int version = versions[index];
-            string manifest = $"""
-                <?xml version="1.0" encoding="utf-8"?>
-                <versions>
-                  <release tag="v{version}" name="Release {version}" />
-                  <artifacts>
-                    <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
-                              fileName="{ApplicationName}_{version}.zip" sha256="" size="0" />
-                  </artifacts>
-                </versions>
-                """;
+            string manifest = CreateManifest(version);
             HttpResponseMessage response = new(HttpStatusCode.OK)
             {
                 Content = new StringContent(manifest, Encoding.UTF8, "application/xml"),

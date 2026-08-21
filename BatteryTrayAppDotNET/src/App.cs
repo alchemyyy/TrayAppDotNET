@@ -191,7 +191,8 @@ internal sealed class BatteryAvaloniaApp : Application
                     repositoryName: "TrayAppDotNET",
                     applicationName: Program.ApplicationName,
                     currentBuild: BuildInfo.BuildNumber,
-                    saveSettings: _settings.Save);
+                    saveSettings: _settings.Save,
+                    sharedSettingsDirectory: Program.LocalAppDataRoot);
                 _updateCheckService.StateChanged += OnUpdateStateChanged;
                 _updateCheckService.Start();
                 AppServices.UpdateCheckService = _updateCheckService;

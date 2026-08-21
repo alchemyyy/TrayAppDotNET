@@ -253,6 +253,7 @@ public static class TrayAppDotNETAvalonia
         string applicationName,
         int currentBuild,
         Action saveSettings,
+        string sharedSettingsDirectory,
         string owner = "alchemyyy",
         Func<Action, Task>? invokeOnUIThread = null) =>
         new(CreateGitHubUpdateOptions(
@@ -261,6 +262,7 @@ public static class TrayAppDotNETAvalonia
             applicationName,
             currentBuild,
             saveSettings,
+            sharedSettingsDirectory,
             owner,
             invokeOnUIThread));
 
@@ -312,6 +314,7 @@ public static class TrayAppDotNETAvalonia
         string applicationName,
         int currentBuild,
         Action saveSettings,
+        string sharedSettingsDirectory,
         string owner = "alchemyyy",
         Func<Action, Task>? invokeOnUIThread = null)
     {
@@ -319,11 +322,15 @@ public static class TrayAppDotNETAvalonia
         ArgumentException.ThrowIfNullOrWhiteSpace(repositoryName);
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationName);
         ArgumentNullException.ThrowIfNull(saveSettings);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sharedSettingsDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
 
         return new UpdateCheckOptions
         {
             VersionsManifestUrl = GitHubReleaseUrls.LatestVersionsManifestUrl(owner, repositoryName),
+            VersionsManifestCachePath = Path.Combine(
+                sharedSettingsDirectory,
+                GitHubReleaseUrls.VersionsManifestFileName),
             RepositoryOwner = owner,
             RepositoryName = repositoryName,
             ApplicationName = applicationName,
