@@ -78,6 +78,7 @@ public sealed partial class VolumeSettingsWindow
             AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
             v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
             p,
+            Loc(nameof(AppStrings.Common_PercentSuffix)),
             searchKeywords:
             [
                 Loc(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))

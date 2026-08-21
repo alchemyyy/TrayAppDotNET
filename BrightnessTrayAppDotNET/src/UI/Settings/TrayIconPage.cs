@@ -53,6 +53,7 @@ public sealed partial class BrightnessSettingsWindow
             AppSettings.PrecisionTouchpadUnitsPerScrollStepMax,
             v => _settings.PrecisionTouchpadUnitsPerScrollStep = v,
             p,
+            L(nameof(AppStrings.Common_PercentSuffix)),
             searchKeywords:
             [
                 L(nameof(AppStrings.Settings_TrayIcon_PrecisionTouchpadUnitsPerScrollStep_SearchKeywords))
