@@ -229,6 +229,12 @@ centered|centred|center aligned|middle aligned</value>
   <data name="Settings_About_BuildLabel" xml:space="preserve">
     <value>Build</value>
   </data>
+  <data name="Settings_About_CommitHashLabel" xml:space="preserve">
+    <value>Commit hash</value>
+  </data>
+  <data name="Settings_About_CommitHashUnavailable" xml:space="preserve">
+    <value>Unavailable</value>
+  </data>
   <data name="Settings_About_CheckForUpdates_Button" xml:space="preserve">
     <value>Check for updates</value>
   </data>

@@ -27,6 +27,7 @@ public sealed class TrayAppDotNETAboutPageOptions
     public required string ApplicationName { get; init; }
     public required string Tagline { get; init; }
     public required int BuildNumber { get; init; }
+    public required string CommitHash { get; init; }
     public required string Publisher { get; init; }
     public required string HelpLink { get; init; }
     public required string OpenSettingsFolderText { get; init; }
@@ -61,6 +62,7 @@ public sealed class TrayAppDotNETAboutPageOptions
 
 public sealed class TrayAppDotNETAboutPage : IDisposable
 {
+    private const string DevelopmentBuildLabel = "dev";
     private static readonly TrayAppDotNETAboutPageResources LayoutResources = new();
 
     private readonly TrayAppDotNETAboutPageOptions _options;
@@ -111,8 +113,23 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         tagline.Opacity = layout.TaglineOpacity;
         stack.Children.Add(tagline);
 
-        stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_BuildLabel)),
-            _options.BuildNumber.ToString(CultureInfo.InvariantCulture), p));
+        string buildDisplayValue = _options.BuildNumber == 0
+            ? DevelopmentBuildLabel
+            : _options.BuildNumber.ToString(CultureInfo.InvariantCulture);
+        stack.Children.Add(AboutRow(
+            L(nameof(CommonStrings.Settings_About_BuildLabel)),
+            buildDisplayValue,
+            p));
+        if (_options.BuildNumber == 0)
+        {
+            string commitHash = string.IsNullOrWhiteSpace(_options.CommitHash)
+                ? L(nameof(CommonStrings.Settings_About_CommitHashUnavailable))
+                : _options.CommitHash;
+            stack.Children.Add(AboutRow(
+                L(nameof(CommonStrings.Settings_About_CommitHashLabel)),
+                commitHash,
+                p));
+        }
         stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_RuntimeLabel)),
             RuntimeInformation.FrameworkDescription, p));
         stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_AuthorLabel)), _options.Publisher, p));

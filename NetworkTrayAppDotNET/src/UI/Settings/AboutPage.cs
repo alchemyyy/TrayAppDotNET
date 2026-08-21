@@ -18,6 +18,7 @@ public sealed partial class NetworkSettingsWindow
                 ApplicationName = Constants.ApplicationName,
                 Tagline = L(nameof(AppStrings.Settings_About_Tagline)),
                 BuildNumber = BuildInfo.BuildNumber,
+                CommitHash = BuildInfo.CommitHash,
                 Publisher = Constants.Publisher,
                 HelpLink = Constants.HelpLink,
                 OpenSettingsFolderText = OpenSettingsFolderText,
