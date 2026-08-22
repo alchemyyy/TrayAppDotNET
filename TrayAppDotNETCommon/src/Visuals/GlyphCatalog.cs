@@ -65,6 +65,7 @@ public abstract class GlyphCatalog
 /// <summary>Standard page glyphs for Windows 11-style settings navigation.</summary>
 public static class SettingsNavigationGlyphs
 {
+    public static Glyph Settings => GlyphCatalog.SETTINGS;
     public static Glyph General => GlyphCatalog.SETTINGS_NAV_GENERAL;
     public static Glyph Flyout => GlyphCatalog.SETTINGS_NAV_FLYOUT;
     public static Glyph TrayIcon => GlyphCatalog.SETTINGS_NAV_TRAY_ICON;

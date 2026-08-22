@@ -1,0 +1,52 @@
+<ResourceDictionary
+    x:Class="TaskManagerTrayAppDotNET.UI.TaskManagerWindowResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+  <!-- Main window -->
+  <sys:Double x:Key="TaskManagerWindow.Width">1480</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.Height">860</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.MinWidth">900</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.MinHeight">600</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.SidebarWidth">250</sys:Double>
+
+  <!-- Details page -->
+  <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.SearchWidth">430</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.TitleFontSize">20</sys:Double>
+  <Thickness x:Key="TaskManagerDetails.RunPanelPadding">12</Thickness>
+  <CornerRadius x:Key="TaskManagerDetails.PanelCornerRadius">6</CornerRadius>
+  <Thickness x:Key="TaskManagerDetails.HeaderMargin">24,4,20,0</Thickness>
+  <Thickness x:Key="TaskManagerDetails.SearchMargin">24,10,20,0</Thickness>
+  <Thickness x:Key="TaskManagerDetails.RunPanelMargin">24,10,20,0</Thickness>
+  <Thickness x:Key="TaskManagerDetails.TableMargin">0,10,0,0</Thickness>
+  <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
+
+  <!-- Painted process table -->
+  <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>
+  <sys:Double x:Key="ProcessTable.RowHeight">23</sys:Double>
+  <sys:Double x:Key="ProcessTable.CellPadding">7</sys:Double>
+  <sys:Double x:Key="ProcessTable.FontSize">13</sys:Double>
+  <sys:Double x:Key="ProcessTable.HeaderFontSize">13</sys:Double>
+  <sys:Double x:Key="ProcessTable.SortCaretFontSize">10</sys:Double>
+  <sys:Double x:Key="ProcessTable.SortCaretRightMargin">6</sys:Double>
+  <sys:Double x:Key="ProcessTable.ProcessIconSize">10</sys:Double>
+  <sys:Double x:Key="ProcessTable.ProcessIconGap">8</sys:Double>
+  <sys:Double x:Key="ProcessTable.NameColumnWidth">280</sys:Double>
+  <sys:Double x:Key="ProcessTable.PIDColumnWidth">82</sys:Double>
+  <sys:Double x:Key="ProcessTable.StatusColumnWidth">106</sys:Double>
+  <sys:Double x:Key="ProcessTable.UserNameColumnWidth">140</sys:Double>
+  <sys:Double x:Key="ProcessTable.CPUColumnWidth">68</sys:Double>
+  <sys:Double x:Key="ProcessTable.PrivateMemoryColumnWidth">136</sys:Double>
+  <sys:Double x:Key="ProcessTable.WorkingSetColumnWidth">136</sys:Double>
+  <sys:Double x:Key="ProcessTable.CommandLineColumnWidth">520</sys:Double>
+  <sys:Double x:Key="ProcessTable.ScrollBarTrackThickness">16</sys:Double>
+  <sys:Double x:Key="ProcessTable.ScrollBarIdleThumbThickness">4</sys:Double>
+  <sys:Double x:Key="ProcessTable.ScrollBarHoverThumbThickness">9</sys:Double>
+  <sys:Double x:Key="ProcessTable.ScrollBarThumbEndMargin">3</sys:Double>
+  <sys:Double x:Key="ProcessTable.ScrollBarMinimumThumbLength">28</sys:Double>
+  <sys:Double x:Key="ProcessTable.ResizeGripDotSize">2</sys:Double>
+  <sys:Double x:Key="ProcessTable.ResizeGripDotStep">4</sys:Double>
+</ResourceDictionary>

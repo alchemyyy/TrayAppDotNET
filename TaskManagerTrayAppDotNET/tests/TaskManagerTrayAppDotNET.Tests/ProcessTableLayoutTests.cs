@@ -1,0 +1,70 @@
+using Avalonia;
+using TaskManagerTrayAppDotNET.UI;
+using Xunit;
+
+namespace TaskManagerTrayAppDotNET.Tests;
+
+public sealed class ProcessTableLayoutTests
+{
+    private static readonly ProcessTableMetrics Metrics = new(
+        HeaderHeight: 32,
+        RowHeight: 26,
+        CellPadding: 7,
+        FontSize: 13,
+        HeaderFontSize: 13,
+        ProcessIconSize: 10,
+        ProcessIconGap: 8);
+
+    [Theory]
+    [InlineData(0, -1)]
+    [InlineData(31.9, -1)]
+    [InlineData(32, 0)]
+    [InlineData(57.9, 0)]
+    [InlineData(58, 1)]
+    [InlineData(291.9, 9)]
+    [InlineData(292, -1)]
+    public void HitTestRowMapsContentCoordinates(double y, int expectedRow)
+    {
+        int row = ProcessTableLayout.HitTestRow(y, rowCount: 10, Metrics);
+
+        Assert.Equal(expectedRow, row);
+    }
+
+    [Fact]
+    public void GetContentHeightIncludesOneHeaderAndAllRows()
+    {
+        double height = ProcessTableLayout.GetContentHeight(100, Metrics);
+
+        Assert.Equal(32 + 100 * 26, height);
+    }
+
+    [Fact]
+    public void VisibleRangeIncludesOneOverscanRowOnEachSide()
+    {
+        Rect viewport = new(0, 292, 800, 52);
+
+        ProcessTableLayout.GetVisibleRowRange(
+            viewport,
+            rowCount: 100,
+            Metrics,
+            out int firstRow,
+            out int lastRowExclusive);
+
+        Assert.Equal(9, firstRow);
+        Assert.Equal(13, lastRowExclusive);
+    }
+
+    [Fact]
+    public void HitTestColumnRejectsUnusedTrailingWidth()
+    {
+        ProcessTableColumn[] columns =
+        [
+            new(ProcessTableColumnKind.Name, "Name", 0, 100, ProcessTableColumnAlignment.Left),
+            new(ProcessTableColumnKind.ProcessID, "PID", 100, 50, ProcessTableColumnAlignment.Right)
+        ];
+
+        Assert.Equal(0, ProcessTableLayout.HitTestColumn(99.9, columns));
+        Assert.Equal(1, ProcessTableLayout.HitTestColumn(100, columns));
+        Assert.Equal(-1, ProcessTableLayout.HitTestColumn(150, columns));
+    }
+}

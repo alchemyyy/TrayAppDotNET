@@ -967,6 +967,20 @@ public sealed class SettingsSwatch : Border
         BorderBrush = TrayAppDotNETSettingsUI.Brush(_isPointerOver ? _palette.Accent : _palette.Border);
 }
 
+/// <summary>Dimensions and colors for a TADN-painted scrollbar.</summary>
+public readonly record struct SettingsScrollBarStyle(
+    double TrackThickness,
+    double IdleThumbThickness,
+    double HoverThumbThickness,
+    double ThumbEndMargin,
+    double MinimumThumbLength,
+    Color TrackColor,
+    Color IdleThumbColor,
+    Color HoverThumbColor,
+    Color DragThumbColor,
+    Color ArrowColor,
+    bool ShowButtonsOnHover);
+
 public sealed class SettingsScrollHost : Grid, IDisposable
 {
     private readonly Border _contentHost;
@@ -1004,6 +1018,18 @@ public sealed class SettingsScrollHost : Grid, IDisposable
     public double VerticalOffset => _scrollViewer.Offset.Y;
 
     public double ViewportHeight => _scrollViewer.Viewport.Height;
+
+    /// <summary>Enables outer page scrolling or constrains content that owns its own scroll viewport.</summary>
+    public void SetContentScrollingEnabled(bool isEnabled)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _scrollViewer.VerticalScrollBarVisibility = isEnabled
+            ? ScrollBarVisibility.Hidden
+            : ScrollBarVisibility.Disabled;
+        _scrollBar.IsVisible = isEnabled;
+        if (!isEnabled)
+            _scrollViewer.Offset = default;
+    }
 
     /// <summary>Replaces the scrollable content without rebuilding the scroll host.</summary>
     public void SetContent(Control content)
@@ -1051,32 +1077,195 @@ public sealed class SettingsScrollHost : Grid, IDisposable
 
 }
 
+/// <summary>Two-axis scroll viewport with reserved tracks and TADN-painted scrollbars.</summary>
+public sealed class SettingsScrollViewport : Grid, IDisposable
+{
+    private readonly Border _contentHost;
+    private readonly ScrollViewer _scrollViewer;
+    private readonly SettingsScrollBar _verticalScrollBar;
+    private readonly SettingsScrollBar _horizontalScrollBar;
+    private readonly Border _cornerHost;
+    private int _disposed;
+
+    public SettingsScrollViewport(
+        Control content,
+        Thickness padding,
+        Color background,
+        SettingsScrollBarStyle scrollBarStyle,
+        Control? cornerContent = null)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        if (scrollBarStyle.TrackThickness <= 0)
+            throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), "Track thickness must be positive.");
+
+        IBrush backgroundBrush = TrayAppDotNETSettingsUI.Brush(background);
+        Background = backgroundBrush;
+        ClipToBounds = true;
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        _contentHost = new Border
+        {
+            Background = backgroundBrush,
+            Padding = padding,
+            Child = content
+        };
+        _scrollViewer = new ScrollViewer
+        {
+            Background = backgroundBrush,
+            Content = _contentHost,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
+        };
+        Children.Add(_scrollViewer);
+
+        _verticalScrollBar = new SettingsScrollBar(
+            Orientation.Vertical,
+            scrollBarStyle,
+            TrayAppDotNETCursors.Arrow);
+        _verticalScrollBar.Attach(_scrollViewer);
+        Grid.SetColumn(_verticalScrollBar, 1);
+        Children.Add(_verticalScrollBar);
+
+        _horizontalScrollBar = new SettingsScrollBar(
+            Orientation.Horizontal,
+            scrollBarStyle,
+            TrayAppDotNETCursors.Arrow);
+        _horizontalScrollBar.Attach(_scrollViewer);
+        Grid.SetRow(_horizontalScrollBar, 1);
+        Children.Add(_horizontalScrollBar);
+
+        _cornerHost = new Border
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(scrollBarStyle.TrackColor),
+            Child = cornerContent
+        };
+        _cornerHost.PointerEntered += OnCornerPointerEntered;
+        _cornerHost.PointerExited += OnCornerPointerExited;
+        Grid.SetColumn(_cornerHost, 1);
+        Grid.SetRow(_cornerHost, 1);
+        Children.Add(_cornerHost);
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
+    {
+        bool useHorizontal =
+            (eventArgs.KeyModifiers & KeyModifiers.Shift) != 0 ||
+            Math.Abs(eventArgs.Delta.X) > Math.Abs(eventArgs.Delta.Y);
+        double verticalMaximum = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double horizontalMaximum = Math.Max(0, _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width);
+        if (useHorizontal && horizontalMaximum > 0)
+        {
+            double delta = eventArgs.Delta.X != 0 ? eventArgs.Delta.X : eventArgs.Delta.Y;
+            double next = Math.Clamp(
+                _scrollViewer.Offset.X - delta * SettingsUILayout.ScrollWheelStep,
+                0,
+                horizontalMaximum);
+            _scrollViewer.Offset = new Vector(next, _scrollViewer.Offset.Y);
+            eventArgs.Handled = true;
+            return;
+        }
+
+        if (verticalMaximum > 0)
+        {
+            double next = Math.Clamp(
+                _scrollViewer.Offset.Y - eventArgs.Delta.Y * SettingsUILayout.ScrollWheelStep,
+                0,
+                verticalMaximum);
+            _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, next);
+            eventArgs.Handled = true;
+            return;
+        }
+
+        base.OnPointerWheelChanged(eventArgs);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        _verticalScrollBar.Dispose();
+        _horizontalScrollBar.Dispose();
+        _cornerHost.PointerEntered -= OnCornerPointerEntered;
+        _cornerHost.PointerExited -= OnCornerPointerExited;
+        _cornerHost.Child = null;
+        _contentHost.Child = null;
+        _scrollViewer.Content = null;
+        Children.Clear();
+    }
+
+    private void OnCornerPointerEntered(object? sender, PointerEventArgs eventArgs)
+    {
+        _verticalScrollBar.SetExternalExpansion(true);
+        _horizontalScrollBar.SetExternalExpansion(true);
+    }
+
+    private void OnCornerPointerExited(object? sender, PointerEventArgs eventArgs)
+    {
+        _verticalScrollBar.SetExternalExpansion(false);
+        _horizontalScrollBar.SetExternalExpansion(false);
+    }
+}
+
 internal sealed class SettingsScrollBar : Control, IDisposable
 {
-    private readonly SettingsPalette _palette;
+    private readonly Orientation _orientation;
+    private readonly SettingsScrollBarStyle _style;
+    private readonly IBrush _trackBrush;
+    private readonly IBrush _idleThumbBrush;
+    private readonly IBrush _hoverThumbBrush;
+    private readonly IBrush _dragThumbBrush;
+    private readonly Pen _arrowPen;
     private ScrollViewer? _viewer;
     private bool _isPointerOver;
     private bool _isDragging;
+    private bool _isExternallyExpanded;
     private double _dragOffset;
     private IPointer? _capturedPointer;
     private int _disposed;
 
     public SettingsScrollBar(SettingsPalette palette)
+        : this(
+            Orientation.Vertical,
+            CreateDefaultStyle(palette),
+            TrayAppDotNETCursors.Hand)
     {
-        _palette = palette;
-        Width = SettingsUILayout.ScrollBarTotalWidth;
-        Cursor = TrayAppDotNETCursors.Hand;
+    }
+
+    public SettingsScrollBar(
+        Orientation orientation,
+        SettingsScrollBarStyle style,
+        Cursor cursor)
+    {
+        if (style.TrackThickness <= 0)
+            throw new ArgumentOutOfRangeException(nameof(style), "Track thickness must be positive.");
+        if (style.IdleThumbThickness <= 0 || style.HoverThumbThickness <= 0)
+            throw new ArgumentOutOfRangeException(nameof(style), "Thumb thicknesses must be positive.");
+
+        _orientation = orientation;
+        _style = style;
+        _trackBrush = TrayAppDotNETSettingsUI.Brush(style.TrackColor);
+        _idleThumbBrush = TrayAppDotNETSettingsUI.Brush(style.IdleThumbColor);
+        _hoverThumbBrush = TrayAppDotNETSettingsUI.Brush(style.HoverThumbColor);
+        _dragThumbBrush = TrayAppDotNETSettingsUI.Brush(style.DragThumbColor);
+        _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), 1);
+        UpdateTrackThickness();
+        Cursor = cursor;
         Focusable = false;
         IsHitTestVisible = true;
 
         PointerEntered += (_, _) =>
         {
             _isPointerOver = true;
+            UpdateTrackThickness();
             InvalidateVisual();
         };
         PointerExited += (_, _) =>
         {
             _isPointerOver = false;
+            UpdateTrackThickness();
             InvalidateVisual();
         };
     }
@@ -1093,21 +1282,33 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         viewer.PropertyChanged += OnViewerPropertyChanged;
     }
 
+    public void SetExternalExpansion(bool isExpanded)
+    {
+        if (_isExternallyExpanded == isExpanded) return;
+
+        _isExternallyExpanded = isExpanded;
+        UpdateTrackThickness();
+        InvalidateVisual();
+    }
+
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.FillRectangle(Brushes.Transparent, new Rect(0, 0, Bounds.Width, Bounds.Height));
+        context.FillRectangle(_trackBrush, new Rect(0, 0, Bounds.Width, Bounds.Height));
         if (_viewer == null) return;
 
         double maxOffset = MaxOffset;
-        if (maxOffset <= 0 || Bounds.Height <= 0) return;
+        if (maxOffset <= 0 || TrackLength <= 0) return;
 
         Rect thumb = ThumbRect();
-        double opacity = _isDragging ? 1.0 : _isPointerOver ? 0.85 : 0.55;
-        Color color = Color.FromArgb((byte)Math.Round(255 * opacity), _palette.SliderProgress.R,
-            _palette.SliderProgress.G, _palette.SliderProgress.B);
-        double radius = IsExpanded ? 7 : 3;
-        context.FillRectangle(new SolidColorBrush(color), thumb, (float)radius);
+        IBrush thumbBrush = _isDragging
+            ? _dragThumbBrush
+            : _isPointerOver
+                ? _hoverThumbBrush
+                : _idleThumbBrush;
+        double radius = ThumbThickness / 2;
+        context.FillRectangle(thumbBrush, thumb, (float)radius);
+        DrawHoverButtons(context);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -1126,9 +1327,27 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         }
 
         Point position = e.GetPosition(this);
+        double pointerAxis = Axis(position);
+        double buttonLength = ButtonLength;
+        if (buttonLength > 0 && pointerAxis < buttonLength)
+        {
+            ScrollLine(-1);
+            e.Handled = true;
+            return;
+        }
+        if (buttonLength > 0 && pointerAxis >= TrackLength - buttonLength)
+        {
+            ScrollLine(1);
+            e.Handled = true;
+            return;
+        }
+
         Rect thumb = ThumbRect();
         _isDragging = true;
-        _dragOffset = thumb.Contains(position) ? position.Y - thumb.Y : thumb.Height / 2;
+        UpdateTrackThickness();
+        _dragOffset = thumb.Contains(position)
+            ? pointerAxis - ThumbStart(thumb)
+            : ThumbLength(thumb) / 2;
         _capturedPointer = e.Pointer;
         try
         {
@@ -1140,7 +1359,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
             _isDragging = false;
             throw;
         }
-        SetOffsetFromPointer(position.Y);
+        SetOffsetFromPointer(pointerAxis);
         InvalidateVisual();
         e.Handled = true;
     }
@@ -1149,7 +1368,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     {
         if (_isDragging)
         {
-            SetOffsetFromPointer(e.GetPosition(this).Y);
+            SetOffsetFromPointer(Axis(e.GetPosition(this)));
             e.Handled = true;
             return;
         }
@@ -1164,6 +1383,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
             _isDragging = false;
             _capturedPointer = null;
             e.Pointer.Capture(null);
+            UpdateTrackThickness();
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -1176,50 +1396,181 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     {
         _capturedPointer = null;
         _isDragging = false;
+        UpdateTrackThickness();
         InvalidateVisual();
         base.OnPointerCaptureLost(e);
     }
 
-    private bool IsExpanded => _isPointerOver || _isDragging;
+    private bool IsExpanded => _isPointerOver || _isDragging || _isExternallyExpanded;
 
-    private double TrackWidth => IsExpanded
-        ? SettingsUILayout.ScrollBarTotalWidth
-        : SettingsUILayout.ScrollBarCollapsedTrackWidth;
+    private double TrackThickness => IsExpanded
+        ? _style.TrackThickness
+        : Math.Max(
+            _style.IdleThumbThickness,
+            _style.TrackThickness - _style.HoverThumbThickness + _style.IdleThumbThickness);
 
-    private double MaxOffset => _viewer == null ? 0 : Math.Max(0, _viewer.Extent.Height - _viewer.Viewport.Height);
+    private double ThumbThickness => Math.Min(
+        _style.TrackThickness,
+        IsExpanded ? _style.HoverThumbThickness : _style.IdleThumbThickness);
+
+    private double TrackLength => _orientation == Orientation.Vertical ? Bounds.Height : Bounds.Width;
+
+    private double ButtonLength => _style.ShowButtonsOnHover ? _style.TrackThickness : 0;
+
+    private double MaxOffset
+    {
+        get
+        {
+            if (_viewer == null) return 0;
+            return _orientation == Orientation.Vertical
+                ? Math.Max(0, _viewer.Extent.Height - _viewer.Viewport.Height)
+                : Math.Max(0, _viewer.Extent.Width - _viewer.Viewport.Width);
+        }
+    }
 
     private Rect ThumbRect()
     {
         if (_viewer == null) return default;
 
-        double height = Math.Max(0, Bounds.Height);
-        double viewport = Math.Max(0, _viewer.Viewport.Height);
-        double extent = Math.Max(viewport, _viewer.Extent.Height);
-        double thumbHeight = extent <= 0
+        double trackLength = Math.Max(0, TrackLength);
+        double viewport = _orientation == Orientation.Vertical
+            ? Math.Max(0, _viewer.Viewport.Height)
+            : Math.Max(0, _viewer.Viewport.Width);
+        double extent = _orientation == Orientation.Vertical
+            ? Math.Max(viewport, _viewer.Extent.Height)
+            : Math.Max(viewport, _viewer.Extent.Width);
+        double buttonLength = ButtonLength;
+        double scrollingTrackLength = Math.Max(0, trackLength - buttonLength * 2);
+        double thumbLength = extent <= 0
             ? 0
-            : Math.Min(height, Math.Max(SettingsUILayout.ScrollBarMinThumbHeight, height * viewport / extent));
-        double available = Math.Max(0, height - thumbHeight);
-        double top = MaxOffset <= 0 ? 0 : Math.Clamp(_viewer.Offset.Y / MaxOffset * available, 0, available);
-        double width = Math.Max(2, TrackWidth - SettingsUILayout.ScrollBarThumbMargin * 2);
-        double left = SettingsUILayout.ScrollBarTotalWidth - TrackWidth + SettingsUILayout.ScrollBarThumbMargin;
-        return new Rect(left, top, width, thumbHeight);
+            : Math.Min(
+                scrollingTrackLength,
+                Math.Max(_style.MinimumThumbLength, scrollingTrackLength * viewport / extent));
+        double available = Math.Max(0, scrollingTrackLength - thumbLength);
+        double axisOffset = MaxOffset <= 0
+            ? 0
+            : Math.Clamp(CurrentOffset / MaxOffset * available, 0, available);
+        double crossOffset = Math.Clamp(
+            TrackThickness - ThumbThickness - _style.ThumbEndMargin,
+            0,
+            Math.Max(0, TrackThickness - ThumbThickness));
+        return _orientation == Orientation.Vertical
+            ? new Rect(crossOffset, buttonLength + axisOffset, ThumbThickness, thumbLength)
+            : new Rect(buttonLength + axisOffset, crossOffset, thumbLength, ThumbThickness);
     }
 
-    private void SetOffsetFromPointer(double pointerY)
+    private void SetOffsetFromPointer(double pointerAxis)
     {
         if (_viewer == null) return;
 
         Rect thumb = ThumbRect();
-        double available = Math.Max(0, Bounds.Height - thumb.Height);
+        double buttonLength = ButtonLength;
+        double available = Math.Max(0, TrackLength - buttonLength * 2 - ThumbLength(thumb));
         if (available <= 0)
         {
-            _viewer.Offset = new Vector(_viewer.Offset.X, 0);
+            SetCurrentOffset(0);
             return;
         }
 
-        double top = Math.Clamp(pointerY - _dragOffset, 0, available);
-        double next = top / available * MaxOffset;
-        _viewer.Offset = new Vector(_viewer.Offset.X, next);
+        double start = Math.Clamp(pointerAxis - _dragOffset - buttonLength, 0, available);
+        SetCurrentOffset(start / available * MaxOffset);
+    }
+
+    private double CurrentOffset => _viewer == null
+        ? 0
+        : _orientation == Orientation.Vertical
+            ? _viewer.Offset.Y
+            : _viewer.Offset.X;
+
+    private void SetCurrentOffset(double offset)
+    {
+        if (_viewer == null) return;
+        _viewer.Offset = _orientation == Orientation.Vertical
+            ? new Vector(_viewer.Offset.X, offset)
+            : new Vector(offset, _viewer.Offset.Y);
+    }
+
+    private void ScrollLine(int direction) =>
+        SetCurrentOffset(Math.Clamp(
+            CurrentOffset + direction * SettingsUILayout.ScrollWheelStep,
+            0,
+            MaxOffset));
+
+    private double Axis(Point point) => _orientation == Orientation.Vertical ? point.Y : point.X;
+
+    private double ThumbStart(Rect thumb) => _orientation == Orientation.Vertical ? thumb.Y : thumb.X;
+
+    private double ThumbLength(Rect thumb) => _orientation == Orientation.Vertical ? thumb.Height : thumb.Width;
+
+    private void DrawHoverButtons(DrawingContext context)
+    {
+        if (!IsExpanded || !_style.ShowButtonsOnHover) return;
+
+        double buttonLength = ButtonLength;
+        if (buttonLength <= 0) return;
+
+        double center = TrackThickness / 2;
+        const double arrowRadius = 2.5;
+        if (_orientation == Orientation.Vertical)
+        {
+            DrawChevron(context, center, center, arrowRadius, -1, isVertical: true);
+            DrawChevron(context, center, TrackLength - center, arrowRadius, 1, isVertical: true);
+            return;
+        }
+
+        DrawChevron(context, center, center, arrowRadius, -1, isVertical: false);
+        DrawChevron(context, TrackLength - center, center, arrowRadius, 1, isVertical: false);
+    }
+
+    private void DrawChevron(
+        DrawingContext context,
+        double centerX,
+        double centerY,
+        double radius,
+        int direction,
+        bool isVertical)
+    {
+        if (isVertical)
+        {
+            double tipY = centerY + direction * radius;
+            double baseY = centerY - direction * radius;
+            context.DrawLine(_arrowPen, new Point(centerX - radius, baseY), new Point(centerX, tipY));
+            context.DrawLine(_arrowPen, new Point(centerX, tipY), new Point(centerX + radius, baseY));
+            return;
+        }
+
+        double tipX = centerX + direction * radius;
+        double baseX = centerX - direction * radius;
+        context.DrawLine(_arrowPen, new Point(baseX, centerY - radius), new Point(tipX, centerY));
+        context.DrawLine(_arrowPen, new Point(tipX, centerY), new Point(baseX, centerY + radius));
+    }
+
+    private static SettingsScrollBarStyle CreateDefaultStyle(SettingsPalette palette)
+    {
+        Color sliderColor = palette.SliderProgress;
+        return new SettingsScrollBarStyle(
+            SettingsUILayout.ScrollBarTotalWidth,
+            SettingsUILayout.ScrollBarCollapsedTrackWidth - SettingsUILayout.ScrollBarThumbMargin * 2,
+            SettingsUILayout.ScrollBarTotalWidth - SettingsUILayout.ScrollBarThumbMargin * 2,
+            SettingsUILayout.ScrollBarThumbMargin,
+            SettingsUILayout.ScrollBarMinThumbHeight,
+            Colors.Transparent,
+            Color.FromArgb(140, sliderColor.R, sliderColor.G, sliderColor.B),
+            Color.FromArgb(217, sliderColor.R, sliderColor.G, sliderColor.B),
+            sliderColor,
+            sliderColor,
+            ShowButtonsOnHover: false);
+    }
+
+    private void UpdateTrackThickness()
+    {
+        if (_orientation == Orientation.Vertical)
+        {
+            Width = TrackThickness;
+            return;
+        }
+
+        Height = TrackThickness;
     }
 
     public void Dispose()
@@ -1228,6 +1579,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
 
         IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
         _isDragging = false;
+        _isExternallyExpanded = false;
         if (capturedPointer != null)
         {
             try { capturedPointer.Capture(null); }

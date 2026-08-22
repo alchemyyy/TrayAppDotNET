@@ -1,0 +1,56 @@
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)..\TrayAppDotNET.Parent.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\TrayAppDotNET.Parent.props')" />
+
+  <PropertyGroup>
+    <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' == 'TaskManagerTrayAppDotNET'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
+    <Configurations>Debug;Prerelease;Release</Configurations>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+  </PropertyGroup>
+
+  <Target Name="EmbedBuildInfo" BeforeTargets="GenerateAssemblyInfo"
+          Condition="'$(MSBuildProjectName)' == 'TaskManagerTrayAppDotNET'">
+    <PropertyGroup>
+      <_BuildNumberFromFile Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_BuildNumberFromFile>
+      <BuildNumber Condition="'$(BuildNumber)' == '' and '$(_BuildNumberFromFile)' != ''">$(_BuildNumberFromFile)</BuildNumber>
+      <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+      <_BuildCommitHash>$(TrayAppDotNETCommitHash)</_BuildCommitHash>
+      <_BuildCommitHash Condition="'$(_BuildCommitHash)' == ''">$(SourceRevisionId)</_BuildCommitHash>
+      <BuildInfoNamespace>$(RootNamespace)</BuildInfoNamespace>
+      <_BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</_BuildInfoFile>
+    </PropertyGroup>
+
+    <Exec Command="git rev-parse HEAD"
+          WorkingDirectory="$(TrayAppDotNETRoot)"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          StandardOutputImportance="Low"
+          StandardErrorImportance="Low"
+          Condition="'$(_BuildCommitHash)' == ''">
+      <Output TaskParameter="ConsoleOutput" ItemName="_BuildCommitHashOutput" />
+    </Exec>
+    <PropertyGroup>
+      <_BuildCommitHash Condition="'$(_BuildCommitHash)' == ''">@(_BuildCommitHashOutput)</_BuildCommitHash>
+      <_BuildCommitHash Condition="'$(_BuildCommitHash)' != '' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(_BuildCommitHash)', '^(?:[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$')) != 'true'"></_BuildCommitHash>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <ItemGroup>
+      <_BuildInfoLines Include="// &lt;auto-generated/&gt;" />
+      <_BuildInfoLines Include="namespace $(BuildInfoNamespace)%3B" />
+      <_BuildInfoLines Include="internal static class BuildInfo" />
+      <_BuildInfoLines Include="{" />
+      <_BuildInfoLines Include="    public const int BuildNumber = $(BuildNumber)%3B" />
+      <_BuildInfoLines Include="    public const string CommitHash = &quot;$(_BuildCommitHash)&quot;%3B" />
+      <_BuildInfoLines Include="}" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_BuildInfoFile)" Lines="@(_BuildInfoLines)" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(_BuildInfoFile)" />
+      <FileWrites Include="$(_BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+</Project>

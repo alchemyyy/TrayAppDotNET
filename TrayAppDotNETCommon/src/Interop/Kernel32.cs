@@ -7,6 +7,8 @@ namespace TrayAppDotNETCommon.Interop;
 // three-copy drift the pre-refactor layout shipped with.
 public static class Kernel32
 {
+    public const uint PROCESS_TERMINATE = 0x0001;
+
     // PROCESS_QUERY_LIMITED_INFORMATION is the cheapest right that still resolves a PID to its
     // image path and lets us query AUMID / GetPackageId. Works against UWP and other restricted
     // processes that PROCESS_QUERY_INFORMATION would be refused on.
@@ -20,6 +22,10 @@ public static class Kernel32
         uint dwDesiredAccess,
         [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle,
         uint dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);

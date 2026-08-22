@@ -1,0 +1,19 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Prerelease" />
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="../TrayAppDotNETCommon/src/TrayAppDotNETCommon.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="../TrayAppDotNETCommon/generators/XmlSourceGenerator/TrayAppDotNETCommon.XmlSourceGenerator.csproj" />
+  <Project Path="../TrayAppDotNETCommon/generators/AxamlPropertyLinker/TrayAppDotNETCommon.AxamlPropertyLinker.csproj" />
+  <Project Path="src/TaskManagerTrayAppDotNET.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="tests/TaskManagerTrayAppDotNET.Tests/TaskManagerTrayAppDotNET.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
+</Solution>

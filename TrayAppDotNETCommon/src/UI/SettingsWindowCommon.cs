@@ -84,7 +84,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     protected virtual double SidebarWidth => _settingsResources.AxamlSettingsWindow.DefaultSidebarWidth;
+    protected virtual Thickness ContentPadding => _settingsResources.AxamlSettingsWindow.ScrollHostMargin;
     protected virtual bool UseWindows11SettingsNavigation => false;
+    protected virtual bool ShowSettingsSearchBox => true;
+    protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
+    protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
 
     protected SettingsWindowCommon()
     {
@@ -426,28 +430,31 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         sidebar.Children.Add(header);
 
         StackPanel nav = new() { Margin = _settingsResources.AxamlSettingsWindow.NavMargin };
+        StackPanel footer = new() { Margin = _settingsResources.AxamlSettingsWindow.FooterMargin };
         foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
             _pages[page.Key] = page.BuildPage;
-            AddNavItem(nav, page, palette);
+            AddNavItem(IsFooterNavigationPage(page.Key) ? footer : nav, page, palette);
         }
 
         Grid.SetRow(nav, 1);
         sidebar.Children.Add(nav);
 
-        StackPanel footer = new() { Margin = _settingsResources.AxamlSettingsWindow.FooterMargin };
-        _settingsSearchBox = new SettingsSearchBox(
-            palette,
-            L(nameof(CommonStrings.SettingsWindow_SearchPlaceholder)));
-        _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
-        footer.Children.Add(_settingsSearchBox);
+        if (ShowSettingsSearchBox)
+        {
+            _settingsSearchBox = new SettingsSearchBox(
+                palette,
+                L(nameof(CommonStrings.SettingsWindow_SearchPlaceholder)));
+            _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
+            footer.Children.Add(_settingsSearchBox);
+        }
         Grid.SetRow(footer, 2);
         sidebar.Children.Add(footer);
 
         _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
             _content,
             palette,
-            _settingsResources.AxamlSettingsWindow.ScrollHostMargin);
+            ContentPadding);
         Grid.SetColumn(_scrollHost, 1);
         body.Children.Add(_scrollHost);
 
@@ -686,6 +693,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             _content.Content = replacement.Root;
+            _scrollHost?.SetContentScrollingEnabled(!PageOwnsScrolling(key));
             _pageGeneration = replacement;
             _settingsSearchView = null;
             _isShowingSettingsSearch = false;
@@ -755,6 +763,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
             replacementPageGeneration = BuildPageGeneration(selectedPageKey, selectedPageFactory);
             _content.Content = replacementPageGeneration.Root;
+            _scrollHost?.SetContentScrollingEnabled(!PageOwnsScrolling(selectedPageKey));
             foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
                 item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, selectedPageKey);
             _hasShownPage = true;
