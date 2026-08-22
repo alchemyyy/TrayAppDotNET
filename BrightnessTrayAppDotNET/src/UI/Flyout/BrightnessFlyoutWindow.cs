@@ -240,9 +240,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
     }
 
+    /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
     private void InitializeComponentState()
     {
         _layout = AxamlFlyout;
+        Width = Layout.WindowWidth;
 
         RebuildVisual();
     }

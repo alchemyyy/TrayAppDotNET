@@ -4,7 +4,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:TrayAppDotNETCommon.UI;assembly=TrayAppDotNETCommon"
-    Width="{DynamicResource Flyout.WindowWidth}"
     FontFamily="Segoe UI">
 
     <ui:FlyoutWindowCommon.Resources>

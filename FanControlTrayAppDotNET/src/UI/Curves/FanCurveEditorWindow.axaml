@@ -4,10 +4,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     Title="Fan Curve"
-    Width="{DynamicResource FanCurveEditor.WindowWidth}"
-    Height="{DynamicResource FanCurveEditor.WindowHeight}"
-    MinWidth="{DynamicResource FanCurveEditor.WindowMinWidth}"
-    MinHeight="{DynamicResource FanCurveEditor.WindowMinHeight}"
     CanResize="False"
     WindowStartupLocation="CenterOwner"
     Background="Transparent">

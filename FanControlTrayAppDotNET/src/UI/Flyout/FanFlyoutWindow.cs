@@ -191,9 +191,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded() => RequestFanRebuild();
 
+    /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
     private void InitializeComponentState()
     {
         _layout = AxamlFlyout;
+        Width = Layout.WindowWidth;
 
         RebuildVisual();
     }

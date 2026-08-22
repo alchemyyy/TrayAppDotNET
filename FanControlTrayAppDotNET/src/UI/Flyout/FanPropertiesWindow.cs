@@ -215,9 +215,16 @@ public sealed partial class FanPropertiesWindow : Window
         }
     }
 
+    /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
     private void InitializeComponentState()
     {
         _layout = AxamlFanProperties;
+        Width = Layout.WindowWidth;
+        Height = Layout.WindowHeight;
+        MinWidth = Layout.WindowWidth;
+        MinHeight = Layout.WindowHeight;
+        MaxWidth = Layout.WindowWidth;
+        MaxHeight = Layout.WindowHeight;
     }
 
     private ControlNameScope ControlNames => _controlNames;

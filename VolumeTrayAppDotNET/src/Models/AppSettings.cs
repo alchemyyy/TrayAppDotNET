@@ -21,8 +21,8 @@ namespace VolumeTrayAppDotNET.Models;
 ///   it). Per-property events still exist for <see cref="MeterPeakFpsChanged"/> /
 ///   <see cref="MeterPeakSampleRateChanged"/> and <see cref="ActivateRecordingDevicesForPeakMetersChanged"/>
 ///   which feed AudioDeviceManager runtime logic.
-///   Hex setters and Temporary*Color setters call <see cref="RaiseChanged"/> so DynamicResource consumers
-///   re-resolve; derived projections need notifications on every input.
+///   Hex setters and Temporary*Color setters call <see cref="RaiseChanged"/> so subscribed UI consumers
+///   refresh; derived projections need notifications on every input.
 ///   Explicit "save now" paths call <see cref="Save()"/> directly to bypass the debounce.
 ///   Implements the common settings-notification base so UI bindings react to setter writes; the legacy
 ///   Changed event still fires for non-binding consumers.

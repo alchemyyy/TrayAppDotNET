@@ -145,9 +145,11 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded() => QueueRebuild();
 
+    /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
     private void InitializeComponentState()
     {
         _layout = AxamlFlyout;
+        Width = Layout.WindowWidth;
 
         if (_settings != null && _audioManager != null)
             Rebuild();

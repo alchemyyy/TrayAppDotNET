@@ -195,9 +195,14 @@ public sealed partial class FanCurveEditorWindow : Window
             isLight);
     });
 
+    /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
     private void InitializeComponentState()
     {
         _layout = AxamlFanCurveEditor;
+        Width = Layout.WindowWidth;
+        Height = Layout.WindowHeight;
+        MinWidth = Layout.WindowMinWidth;
+        MinHeight = Layout.WindowMinHeight;
     }
 
     private ControlNameScope ControlNames => _controlNames;
