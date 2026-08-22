@@ -9,8 +9,10 @@
     <PlatformTarget>x64</PlatformTarget>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <TrayAppDotNETUseRootOutput>false</TrayAppDotNETUseRootOutput>
+    <FanControlNCalcAotOutputPath>$(MSBuildProjectDirectory)\..\..\vendor\NCalc\src\NCalc.AOT\bin\x64\$(Configuration)\net10.0\</FanControlNCalcAotOutputPath>
     <FanControlLibreHardwareMonitorOutputPath>$(MSBuildProjectDirectory)\..\..\vendor\LibreHardwareMonitor\bin\$(Configuration)\x64\net10.0\</FanControlLibreHardwareMonitorOutputPath>
     <FanControlUseVendoredAssemblyReferences Condition="'$(DesignTimeBuild)' == 'true' or '$(BuildingInsideVisualStudio)' == 'true'">true</FanControlUseVendoredAssemblyReferences>
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,8 +33,28 @@
     <ProjectReference Include="..\..\vendor\LibreHardwareMonitor\LibreHardwareMonitorLib\LibreHardwareMonitorLib.csproj"
                       Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'"
                       AdditionalProperties="DisableIpmiWmi=true;DisableRamSpd=true" />
+    <!-- NCalc is private in the app graph, but tests execute app code that loads it. -->
+    <ProjectReference Include="..\..\vendor\NCalc\src\NCalc.AOT\NCalc.AOT.csproj"
+                      Condition="'$(FanControlUseVendoredAssemblyReferences)' != 'true'">
+      <SetConfiguration>Configuration=$(Configuration)</SetConfiguration>
+      <SetPlatform>Platform=x64</SetPlatform>
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <AdditionalProperties>TreatWarningsAsErrors=false;$(TrayAppDotNETPrereleaseProjectProperties)</AdditionalProperties>
+      <GlobalPropertiesToRemove>BuildOnlyRefs;PublishAot;PublishSingleFile;SelfContained;PublishTrimmed;RuntimeIdentifier;RuntimeIdentifiers;OutputPath;OutDir;PublishDir</GlobalPropertiesToRemove>
+      <Private>true</Private>
+      <PrivateAssets>all</PrivateAssets>
+      <Visible>false</Visible>
+    </ProjectReference>
     <Reference Include="LibreHardwareMonitorLib" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
       <HintPath>$(FanControlLibreHardwareMonitorOutputPath)LibreHardwareMonitorLib.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="NCalc.AOT" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlNCalcAotOutputPath)NCalc.AOT.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Parlot" Condition="'$(FanControlUseVendoredAssemblyReferences)' == 'true'">
+      <HintPath>$(FanControlNCalcAotOutputPath)Parlot.dll</HintPath>
       <Private>true</Private>
     </Reference>
   </ItemGroup>

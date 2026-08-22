@@ -15,14 +15,20 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 
-    public ThemeColor FlyoutBackground { get; set; } = new("CECECE", "323232");
-    public ThemeColor FlyoutTitleBarBackground { get; set; } = new("E8E8E8", "202020");
-    public ThemeColor FanCardBackground { get; set; } = new("FFFFFF", "1a1a1a");
-    public ThemeColor GroupCardBackground { get; set; } = new("FFFFFF", "1a1a1a");
-    public ThemeColor FlyoutCardBorder { get; set; } = new("4E4E4E", "3A3A3A");
-    public ThemeColor CurveEditorGridLine { get; set; } = new("939393");
-    public ThemeColor CurveEditorEffectiveCurve { get; set; } = new("EBC051");
-    public ThemeColor CurveEditorDisabledBand { get; set; } = new("2AFFFFFF");
+    public ThemeColor FlyoutBackground { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutBackground));
+    public ThemeColor FlyoutTitleBarBackground { get; set; } =
+        AppThemeColorCatalog.Color(nameof(FlyoutTitleBarBackground));
+    public ThemeColor FanCardBackground { get; set; } =
+        AppThemeColorCatalog.Color(nameof(FanCardBackground));
+    public ThemeColor GroupCardBackground { get; set; } =
+        AppThemeColorCatalog.Color(nameof(GroupCardBackground));
+    public ThemeColor FlyoutCardBorder { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutCardBorder));
+    public ThemeColor CurveEditorGridLine { get; set; } =
+        AppThemeColorCatalog.Color(nameof(CurveEditorGridLine));
+    public ThemeColor CurveEditorEffectiveCurve { get; set; } =
+        AppThemeColorCatalog.Color(nameof(CurveEditorEffectiveCurve));
+    public ThemeColor CurveEditorDisabledBand { get; set; } =
+        AppThemeColorCatalog.Color(nameof(CurveEditorDisabledBand));
 
     public static string GetDefaultPath()
     {

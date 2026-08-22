@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Visuals;
 using Xunit;
@@ -6,6 +7,121 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class AppThemeDefaultsTests
 {
+    [Fact]
+    public void EverySharedThemeColorHasAnAxamlDefault()
+    {
+        AppThemeResources resources = new();
+        string[] propertyNames =
+        [
+            .. typeof(AppTheme).GetProperties()
+                .Where(static property => property.DeclaringType == typeof(AppTheme)
+                                          && property.PropertyType == typeof(ThemeColor))
+                .Select(static property => property.Name)
+        ];
+
+        Assert.NotEmpty(propertyNames);
+        foreach (string propertyName in propertyNames)
+            Assert.IsType<ThemeColor>(resources[$"AppTheme.{propertyName}"]);
+
+        Assert.Equal(
+            resources.SingleColor(nameof(AppTheme.TextSelectionHighlightAlpha)).A,
+            AppTheme.TextSelectionHighlightAlpha);
+    }
+
+    [Fact]
+    public void ThemeColorReloadPreservesExistingResourceReferences()
+    {
+        ThemeColor existingColor = new("112233", "445566");
+        ResourceDictionary currentResources = new()
+        {
+            ["AppTheme.Existing"] = existingColor,
+            ["AppTheme.Removed"] = new ThemeColor("000000")
+        };
+        ResourceDictionary candidateResources = new()
+        {
+            ["AppTheme.Existing"] = new ThemeColor("AABBCC", "DDEEFF"),
+            ["AppTheme.Added"] = new ThemeColor("123456")
+        };
+
+        AppThemeResourceReader.SynchronizeColors(currentResources, candidateResources);
+
+        Assert.Same(existingColor, currentResources["AppTheme.Existing"]);
+        Assert.Equal("#AABBCC", existingColor.LightHex);
+        Assert.Equal("#DDEEFF", existingColor.DarkHex);
+        Assert.True(currentResources.ContainsKey("AppTheme.Removed"));
+        Assert.IsType<ThemeColor>(currentResources["AppTheme.Added"]);
+    }
+
+    [Fact]
+    public void ColorReloadReplacesSingleColorResources()
+    {
+        ResourceDictionary currentResources = new()
+        {
+            ["VolumeAppTheme.MeterPeakColorDefault"] = Colors.White
+        };
+        ResourceDictionary candidateResources = new()
+        {
+            ["VolumeAppTheme.MeterPeakColorDefault"] = Colors.Red
+        };
+
+        AppThemeResourceReader.SynchronizeColors(currentResources, candidateResources);
+
+        Assert.Equal(Colors.Red, currentResources["VolumeAppTheme.MeterPeakColorDefault"]);
+    }
+
+#if DEBUG
+    [Fact]
+    public void AxamlReloadUpdatesExistingThemeColorsAndNotifiesConsumers() => AvaloniaTestHost.Run(() =>
+    {
+        string temporaryDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "TrayAppDotNET.ThemeHotReloadTests",
+            Guid.NewGuid().ToString("N"));
+        string sourcePath = Path.Combine(temporaryDirectory, "AppTheme.axaml");
+        string callerFilePath = Path.Combine(temporaryDirectory, "AppThemeCatalog.cs");
+        AppThemeHotReloadStore<AppThemeResources> store =
+            AppThemeHotReloadStore<AppThemeResources>.Create(
+                "Test",
+                static () => new AppThemeResources(),
+                callerFilePath: callerFilePath);
+        ThemeColor existingBackground = store.Current.Color(nameof(AppTheme.Background));
+        int notificationCount = 0;
+        Action onResourcesReloaded = () => notificationCount++;
+
+        Directory.CreateDirectory(temporaryDirectory);
+        File.WriteAllText(
+            sourcePath,
+            """
+            <ResourceDictionary
+                x:Class="TrayAppDotNETCommon.Visuals.AppThemeResources"
+                xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals">
+                <visuals:ThemeColor
+                    x:Key="AppTheme.Background"
+                    LightHex="#123456"
+                    DarkHex="#ABCDEF" />
+            </ResourceDictionary>
+            """);
+
+        AppThemeHotReload.ResourcesReloaded += onResourcesReloaded;
+        try
+        {
+            store.ReloadNow();
+
+            Assert.Same(existingBackground, store.Current.Color(nameof(AppTheme.Background)));
+            Assert.Equal("#123456", existingBackground.LightHex);
+            Assert.Equal("#ABCDEF", existingBackground.DarkHex);
+            Assert.Equal(1, notificationCount);
+        }
+        finally
+        {
+            AppThemeHotReload.ResourcesReloaded -= onResourcesReloaded;
+            Directory.Delete(temporaryDirectory, recursive: true);
+        }
+    });
+#endif
+
     [Fact]
     public void BackgroundUsesNeutralLightAndDarkDefaults()
     {

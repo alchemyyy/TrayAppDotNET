@@ -83,6 +83,38 @@ public class ThemeColor
         : $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 }
 
+internal static class AppThemeColorCatalog
+{
+#if DEBUG
+    private static readonly AppThemeHotReloadStore<AppThemeResources> Resources =
+        AppThemeHotReloadStore<AppThemeResources>.Create(
+            "Common",
+            static () => new AppThemeResources());
+#else
+    private static readonly Lazy<AppThemeResources> Resources = new(static () => new AppThemeResources());
+#endif
+
+    /// <summary>Gets a common theme color from the active resource dictionary.</summary>
+    public static ThemeColor Color(string name)
+    {
+#if DEBUG
+        return Resources.Current.Color(name);
+#else
+        return Resources.Value.Color(name);
+#endif
+    }
+
+    /// <summary>Gets a single common color from the active resource dictionary.</summary>
+    public static Color SingleColor(string name)
+    {
+#if DEBUG
+        return Resources.Current.SingleColor(name);
+#else
+        return Resources.Value.SingleColor(name);
+#endif
+    }
+}
+
 /// <summary>
 /// Shared theme defaults, XML persistence, and system light/dark detection.
 /// </summary>
@@ -101,7 +133,8 @@ public class AppTheme : IDisposable
     public static readonly Color ColorPickerHueCyan = Color.FromArgb(0xFF, 0x00, 0xFF, 0xFF);
     public static readonly Color ColorPickerHueLime = Color.FromArgb(0xFF, 0x00, 0xFF, 0x00);
     public static readonly Color ColorPickerHueYellow = Color.FromArgb(0xFF, 0xFF, 0xFF, 0x00);
-    public const byte TextSelectionHighlightAlpha = 0x66;
+    public static byte TextSelectionHighlightAlpha =>
+        AppThemeColorCatalog.SingleColor(nameof(TextSelectionHighlightAlpha)).A;
 
     public static Color ResolveTextSelectionHighlight(Color accent) =>
         Color.FromArgb(TextSelectionHighlightAlpha, accent.R, accent.G, accent.B);
@@ -117,37 +150,44 @@ public class AppTheme : IDisposable
     [XmlAttribute]
     public int Version { get; set; } = 1;
 
-    public ThemeColor Background { get; set; } = new("F3F3F3", "202020");
-    public ThemeColor Foreground { get; set; } = new("000000", "FFFFFF");
-    public ThemeColor Border { get; set; } = new("E0E0E0", "454545");
-    public ThemeColor Separator { get; set; } = new("E5E5E5", "3A3A3A");
-    public ThemeColor Hover { get; set; } = new("E9E9E9", "292929");
-    public ThemeColor Pressed { get; set; } = new("DFDFDF", "2A2A2A");
-    public ThemeColor ControlBackground { get; set; } = new("FFFFFF", "3C3C3C");
-    public ThemeColor ControlBorder { get; set; } = new("808080", "444444");
-    public ThemeColor DisabledForeground { get; set; } = new("808080");
-    public ThemeColor Accent { get; set; } = new("222222", "DDDDDD");
-    public ThemeColor Acrylic { get; set; } = new("D0F3F3F3", "D0202020");
-    public ThemeColor SecondaryForeground { get; set; } = new("222222", "DDDDDD");
-    public ThemeColor FooterBackground { get; set; } = new("E8E8E8", "1A1A1A");
-    public ThemeColor SliderTrack { get; set; } = new("C0C0C0", "3A3A3A");
-    public ThemeColor SliderProgress { get; set; } = new("606060", "6A6A6A");
-    public ThemeColor SliderThumb { get; set; } = new("404040", "F0F0F0");
-    public ThemeColor ButtonHover { get; set; } = new("D5D5D5", "3A3A3A");
-    public ThemeColor ButtonPressed { get; set; } = new("CACACA", "4A4A4A");
-    public ThemeColor IconForeground { get; set; } = new("222222", "DDDDDD");
-    public ThemeColor CardBackground { get; set; } = new("FBFBFB", "2B2B2B");
-    public ThemeColor TextBoxFocused { get; set; } = new("F5F5F5", "363636");
-    public ThemeColor SearchListItemSelected { get; set; } = new("DFDFDF", "454545");
-    public ThemeColor SearchListItemHover { get; set; } = new("E9E9E9", "292929");
-    public ThemeColor ToggleSwitchOnTrack { get; set; } = new("5B5B5B");
-    public ThemeColor ToggleSwitchOnThumb { get; set; } = new("FFFFFF");
-    public ThemeColor CloseButtonHover { get; set; } = new("C42B1C");
-    public ThemeColor CloseButtonPressed { get; set; } = new("A42B1C");
-    public ThemeColor CloseButtonGlyphActive { get; set; } = new("FFFFFF");
-    public ThemeColor FlyoutOverlayBackdrop { get; set; } = new("A0000000");
-    public ThemeColor FlyoutShadow { get; set; } = new("99000000");
-    public ThemeColor MenuShadow { get; set; } = new("80000000");
+    public ThemeColor Background { get; set; } = AppThemeColorCatalog.Color(nameof(Background));
+    public ThemeColor Foreground { get; set; } = AppThemeColorCatalog.Color(nameof(Foreground));
+    public ThemeColor Border { get; set; } = AppThemeColorCatalog.Color(nameof(Border));
+    public ThemeColor Separator { get; set; } = AppThemeColorCatalog.Color(nameof(Separator));
+    public ThemeColor Hover { get; set; } = AppThemeColorCatalog.Color(nameof(Hover));
+    public ThemeColor Pressed { get; set; } = AppThemeColorCatalog.Color(nameof(Pressed));
+    public ThemeColor ControlBackground { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBackground));
+    public ThemeColor ControlBorder { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBorder));
+    public ThemeColor DisabledForeground { get; set; } = AppThemeColorCatalog.Color(nameof(DisabledForeground));
+    public ThemeColor Accent { get; set; } = AppThemeColorCatalog.Color(nameof(Accent));
+    public ThemeColor Acrylic { get; set; } = AppThemeColorCatalog.Color(nameof(Acrylic));
+    public ThemeColor SecondaryForeground { get; set; } =
+        AppThemeColorCatalog.Color(nameof(SecondaryForeground));
+    public ThemeColor FooterBackground { get; set; } = AppThemeColorCatalog.Color(nameof(FooterBackground));
+    public ThemeColor SliderTrack { get; set; } = AppThemeColorCatalog.Color(nameof(SliderTrack));
+    public ThemeColor SliderProgress { get; set; } = AppThemeColorCatalog.Color(nameof(SliderProgress));
+    public ThemeColor SliderThumb { get; set; } = AppThemeColorCatalog.Color(nameof(SliderThumb));
+    public ThemeColor ButtonHover { get; set; } = AppThemeColorCatalog.Color(nameof(ButtonHover));
+    public ThemeColor ButtonPressed { get; set; } = AppThemeColorCatalog.Color(nameof(ButtonPressed));
+    public ThemeColor IconForeground { get; set; } = AppThemeColorCatalog.Color(nameof(IconForeground));
+    public ThemeColor CardBackground { get; set; } = AppThemeColorCatalog.Color(nameof(CardBackground));
+    public ThemeColor TextBoxFocused { get; set; } = AppThemeColorCatalog.Color(nameof(TextBoxFocused));
+    public ThemeColor SearchListItemSelected { get; set; } =
+        AppThemeColorCatalog.Color(nameof(SearchListItemSelected));
+    public ThemeColor SearchListItemHover { get; set; } =
+        AppThemeColorCatalog.Color(nameof(SearchListItemHover));
+    public ThemeColor ToggleSwitchOnTrack { get; set; } =
+        AppThemeColorCatalog.Color(nameof(ToggleSwitchOnTrack));
+    public ThemeColor ToggleSwitchOnThumb { get; set; } =
+        AppThemeColorCatalog.Color(nameof(ToggleSwitchOnThumb));
+    public ThemeColor CloseButtonHover { get; set; } = AppThemeColorCatalog.Color(nameof(CloseButtonHover));
+    public ThemeColor CloseButtonPressed { get; set; } = AppThemeColorCatalog.Color(nameof(CloseButtonPressed));
+    public ThemeColor CloseButtonGlyphActive { get; set; } =
+        AppThemeColorCatalog.Color(nameof(CloseButtonGlyphActive));
+    public ThemeColor FlyoutOverlayBackdrop { get; set; } =
+        AppThemeColorCatalog.Color(nameof(FlyoutOverlayBackdrop));
+    public ThemeColor FlyoutShadow { get; set; } = AppThemeColorCatalog.Color(nameof(FlyoutShadow));
+    public ThemeColor MenuShadow { get; set; } = AppThemeColorCatalog.Color(nameof(MenuShadow));
 
     public string GlyphSettings { get; set; } = GlyphCatalog.SETTINGS.Text;
     public string GlyphPower { get; set; } = GlyphCatalog.POWER.Text;

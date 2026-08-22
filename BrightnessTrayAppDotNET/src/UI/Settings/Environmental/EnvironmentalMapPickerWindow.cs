@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
@@ -33,6 +34,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
     private readonly EnvironmentalMapPickerCanvas _map;
     private readonly TextBlock _coordinateText;
     private readonly List<(TextBlock Target, Func<Glyph> Resolve)> _glyphBindings = [];
+    private Border _mapHud = null!;
     private bool _isRetiring;
 
     public EnvironmentalMapPickerWindow(
@@ -85,6 +87,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         Border content = BuildContent();
         _controlNames.AssignLogicalSubtree(content, nameof(EnvironmentalMapPickerWindow));
         Content = content;
+        _settings.Changed += OnSettingsChanged;
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         UpdateCoordinateText();
     }
@@ -176,7 +179,8 @@ public sealed class EnvironmentalMapPickerWindow : Window
             Margin = new Thickness(12)
         };
         hud.Children.Add(BuildCoordinateHud(_palette));
-        hud.Children.Add(BuildMapHud(_palette));
+        _mapHud = BuildMapHud(_palette);
+        hud.Children.Add(_mapHud);
         viewport.Children.Add(hud);
         return viewport;
     }
@@ -315,6 +319,17 @@ public sealed class EnvironmentalMapPickerWindow : Window
         }
     }
 
+    private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_isRetiring) return;
+
+        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+        _palette.UpdateFrom(BrightnessSettingsWindow.CreatePalette(AppServices.Theme, _settings, isLight));
+        _map.SetPinColor(_theme.EnvironmentalMapPin.For(isLight));
+        _mapHud.Background = TrayAppDotNETSettingsUI.Brush(
+            _theme.ResolveEnvironmentalMapHudBackdrop(_settings, isLight));
+    });
+
     private void ApplyMapHudAction(string action)
     {
         switch (action)
@@ -378,6 +393,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         Closing -= OnClosing;
+        _settings.Changed -= OnSettingsChanged;
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
         _glyphBindings.Clear();
         Applied = null;

@@ -337,8 +337,8 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     // MeterPeakStereoColor paints on top to max(L, R). With a translucent stereo color the
     // mismatch between channels reads as a halo extending past the solid base bar; for mono
     // streams (or when L==R) the two bars coincide.
-    public const string MeterPeakColorDefaultHex = AppTheme.MeterPeakColorDefaultHex;
-    public const string MeterPeakStereoColorDefaultHex = AppTheme.MeterPeakStereoColorDefaultHex;
+    public static string MeterPeakColorDefaultHex => AppTheme.MeterPeakColorDefaultHex;
+    public static string MeterPeakStereoColorDefaultHex => AppTheme.MeterPeakStereoColorDefaultHex;
 
     public const int MeterPeakFpsDefault = 180;
     public const int MeterPeakFpsMin = 1;
@@ -475,19 +475,29 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         }
     } = IconLRULimitDefault;
 
+    private string _meterPeakColorHex = string.Empty;
+    private bool _useDefaultMeterPeakColor = true;
+
     public string MeterPeakColorHex
     {
-        get;
+        get => _useDefaultMeterPeakColor ? MeterPeakColorDefaultHex : _meterPeakColorHex;
         set
         {
             string normalized = string.IsNullOrWhiteSpace(value) ? MeterPeakColorDefaultHex : value;
-            if (field == normalized) return;
-            field = normalized;
+            bool useDefault = IsDefaultColorHex(
+                normalized,
+                MeterPeakColorDefaultHex,
+                AppTheme.LegacyMeterPeakColorDefaultHex);
+            string storedValue = useDefault ? string.Empty : normalized;
+            if (_useDefaultMeterPeakColor == useDefault && _meterPeakColorHex == storedValue) return;
+
+            _useDefaultMeterPeakColor = useDefault;
+            _meterPeakColorHex = storedValue;
             OnPropertyChanged();
             // Fire Changed so EffectiveMeterPeakColor consumers re-resolve after programmatic writes.
             RaiseChanged();
         }
-    } = MeterPeakColorDefaultHex;
+    }
 
     [XmlIgnore]
     public Color? TemporaryMeterPeakColor
@@ -505,19 +515,29 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     public Color EffectiveMeterPeakColor =>
         TemporaryMeterPeakColor ?? ColorMath.TryParseHexOrNull(MeterPeakColorHex) ?? AppTheme.MeterPeakColorDefault;
 
+    private string _meterPeakStereoColorHex = string.Empty;
+    private bool _useDefaultMeterPeakStereoColor = true;
+
     public string MeterPeakStereoColorHex
     {
-        get;
+        get => _useDefaultMeterPeakStereoColor ? MeterPeakStereoColorDefaultHex : _meterPeakStereoColorHex;
         set
         {
             string normalized = string.IsNullOrWhiteSpace(value) ? MeterPeakStereoColorDefaultHex : value;
-            if (field == normalized) return;
-            field = normalized;
+            bool useDefault = IsDefaultColorHex(
+                normalized,
+                MeterPeakStereoColorDefaultHex,
+                AppTheme.LegacyMeterPeakStereoColorDefaultHex);
+            string storedValue = useDefault ? string.Empty : normalized;
+            if (_useDefaultMeterPeakStereoColor == useDefault && _meterPeakStereoColorHex == storedValue) return;
+
+            _useDefaultMeterPeakStereoColor = useDefault;
+            _meterPeakStereoColorHex = storedValue;
             OnPropertyChanged();
             // See MeterPeakColorHex setter: derived EffectiveMeterPeakStereoColor needs notification.
             RaiseChanged();
         }
-    } = MeterPeakStereoColorDefaultHex;
+    }
 
     [XmlIgnore]
     public Color? TemporaryMeterPeakStereoColor
@@ -532,14 +552,14 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
         }
     }
 
-    // Parsed once so a future tweak to MeterPeakStereoColorDefaultHex doesn't leave a stale fallback.
-    private static readonly Color MeterPeakStereoColorFallback =
-        ColorMath.TryParseHexOrNull(MeterPeakStereoColorDefaultHex) ?? AppTheme.MeterPeakStereoColorDefault;
-
     public Color EffectiveMeterPeakStereoColor =>
         TemporaryMeterPeakStereoColor
         ?? ColorMath.TryParseHexOrNull(MeterPeakStereoColorHex)
-        ?? MeterPeakStereoColorFallback;
+        ?? AppTheme.MeterPeakStereoColorDefault;
+
+    private static bool IsDefaultColorHex(string value, string currentDefault, string legacyDefault) =>
+        value.Equals(currentDefault, StringComparison.OrdinalIgnoreCase)
+        || value.Equals(legacyDefault, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Raised when MeterPeakFps changes so AudioDeviceManager can retune its render interval.</summary>
     public event Action? MeterPeakFpsChanged;

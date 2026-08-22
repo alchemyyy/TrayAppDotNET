@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI;
 
@@ -109,6 +110,8 @@ public sealed partial class FanCurveEditorWindow : Window
             _windowResources.Add(() => _editor.CurveChanged -= OnEditorCurveChanged);
             _editor.GraphEditStarting += OnEditorGraphEditStarting;
             _windowResources.Add(() => _editor.GraphEditStarting -= OnEditorGraphEditStarting);
+            _settings.Changed += OnSettingsChanged;
+            _windowResources.Add(() => _settings.Changed -= OnSettingsChanged);
             _hasPreservedNonMonotonicNodes = _curve.PreventDecreasing;
 
             _dataSourceSelectionText = ControlNames.Assign(DataSourceSelectionText(), "DataSource");
@@ -179,6 +182,18 @@ public sealed partial class FanCurveEditorWindow : Window
         _windowResources.Dispose();
         base.OnClosed(e);
     }
+
+    private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_windowResources.IsDisposed) return;
+
+        bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
+        _palette.UpdateFrom(FanSettingsWindow.CreatePalette(AppServices.Theme, _settings, isLight));
+        _editor.Palette = FanCurveEditorPalette.FromSettingsPalette(
+            _palette,
+            AppServices.Theme ?? AppTheme.Default,
+            isLight);
+    });
 
     private void InitializeComponentState()
     {

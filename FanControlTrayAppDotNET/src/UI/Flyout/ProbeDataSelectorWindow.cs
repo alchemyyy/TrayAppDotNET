@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI;
@@ -123,6 +124,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             }
 
             RebuildContent(ProbeSelectorTab.Home);
+            _settings.Changed += OnSettingsChanged;
+            _windowResources.Add(() => _settings.Changed -= OnSettingsChanged);
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             _windowResources.Add(() =>
                 GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
@@ -150,6 +153,17 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         RebuildContent();
     }
+
+    private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_windowResources.IsDisposed || _activeVisualGeneration == null) return;
+
+        _palette.UpdateFrom(FanSettingsWindow.CreatePalette(
+            AppServices.Theme,
+            _settings,
+            AppTheme.ResolveEffectiveIsLightTheme(_settings)));
+        RebuildContent();
+    });
 
     private ProbeSelectorAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Probe selector layout resources have not been loaded.");

@@ -1,0 +1,15 @@
+<ResourceDictionary
+    x:Class="FanControlTrayAppDotNET.Visuals.AppThemeResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:ThemeColor x:Key="FanAppTheme.FlyoutBackground" LightHex="#CECECE" DarkHex="#323232" />
+    <visuals:ThemeColor x:Key="FanAppTheme.FlyoutTitleBarBackground" LightHex="#E8E8E8" DarkHex="#202020" />
+    <visuals:ThemeColor x:Key="FanAppTheme.FanCardBackground" LightHex="#FFFFFF" DarkHex="#1A1A1A" />
+    <visuals:ThemeColor x:Key="FanAppTheme.GroupCardBackground" LightHex="#FFFFFF" DarkHex="#1A1A1A" />
+    <visuals:ThemeColor x:Key="FanAppTheme.FlyoutCardBorder" LightHex="#4E4E4E" DarkHex="#3A3A3A" />
+    <visuals:ThemeColor x:Key="FanAppTheme.CurveEditorGridLine" LightHex="#939393" DarkHex="#939393" />
+    <visuals:ThemeColor x:Key="FanAppTheme.CurveEditorEffectiveCurve" LightHex="#EBC051" DarkHex="#EBC051" />
+    <visuals:ThemeColor x:Key="FanAppTheme.CurveEditorDisabledBand" LightHex="#2AFFFFFF" DarkHex="#2AFFFFFF" />
+</ResourceDictionary>

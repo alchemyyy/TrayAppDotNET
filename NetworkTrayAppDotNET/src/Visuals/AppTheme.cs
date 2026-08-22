@@ -12,9 +12,12 @@ public sealed class AppTheme : TrayAppDotNETCommon.Visuals.AppTheme
 {
     public new static AppTheme Default { get; } = new();
 
-    public ThemeColor NetworkConnectedTrayIconColor { get; set; } = new("000000", "FFFFFF");
-    public ThemeColor NetworkNoInternetTrayIconColor { get; set; } = new("996600", "FFB900");
-    public ThemeColor NetworkDisconnectedTrayIconColor { get; set; } = new("666666", "808080");
+    public ThemeColor NetworkConnectedTrayIconColor { get; set; } =
+        AppThemeColorCatalog.Color(nameof(NetworkConnectedTrayIconColor));
+    public ThemeColor NetworkNoInternetTrayIconColor { get; set; } =
+        AppThemeColorCatalog.Color(nameof(NetworkNoInternetTrayIconColor));
+    public ThemeColor NetworkDisconnectedTrayIconColor { get; set; } =
+        AppThemeColorCatalog.Color(nameof(NetworkDisconnectedTrayIconColor));
 
     public string GlyphNetworkEthernet { get; set; } = GlyphCatalog.NETWORK_ETHERNET.Text;
     public string GlyphNetworkWifi0 { get; set; } = GlyphCatalog.NETWORK_WIFI_0.Text;

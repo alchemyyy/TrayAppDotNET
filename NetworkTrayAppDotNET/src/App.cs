@@ -14,6 +14,7 @@ using NetworkTrayAppDotNET.Services;
 using NetworkTrayAppDotNET.UI;
 using NetworkTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI.WarmWindows;
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using CommonUser32 = TrayAppDotNETCommon.Interop.User32;
 
@@ -86,6 +87,7 @@ internal sealed class NetworkAvaloniaApp : Application
         }
 
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+        AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -355,6 +357,8 @@ internal sealed class NetworkAvaloniaApp : Application
         _networkIconRenderer?.InvalidateCache();
         RequestTrayRefresh();
     }
+
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
 
     private void RequestTrayRefresh()
     {
@@ -653,6 +657,7 @@ internal sealed class NetworkAvaloniaApp : Application
         if (_shuttingDown) return;
         _shuttingDown = true;
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
+        AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
 
         try
         {

@@ -26,6 +26,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     private readonly Fan _fan;
     private readonly AppSettings _settings;
+    private readonly SettingsPalette _palette;
     private FanPropertiesAxamlProperties? _layout;
     private readonly TextBlock _titleText;
     private readonly TextBlock _fanIDText;
@@ -59,6 +60,7 @@ public sealed partial class FanPropertiesWindow : Window
         _controlNames = ControlNameScope.For(this);
         _fan = null!;
         _settings = null!;
+        _palette = null!;
         _titleText = null!;
         _fanIDText = null!;
         _sensorControllerText = null!;
@@ -94,10 +96,11 @@ public sealed partial class FanPropertiesWindow : Window
             InitializeComponent();
             InitializeComponentState();
 
-            SettingsPalette palette = FanSettingsWindow.CreatePalette(
+            _palette = FanSettingsWindow.CreatePalette(
                 AppServices.Theme,
                 _settings,
                 AppTheme.ResolveEffectiveIsLightTheme(_settings));
+            SettingsPalette palette = _palette;
             bool rounded = _settings.EnableRoundedCorners;
 
             _titleText = ControlNames.Assign(
@@ -744,6 +747,8 @@ public sealed partial class FanPropertiesWindow : Window
     private void OnSettingsChanged()
     {
         if (_windowResources.IsDisposed) return;
+
+        _palette.UpdateFrom(Palette());
         if (Content is Border root)
             root.CornerRadius = _settings.EnableRoundedCorners ? Layout.RootCornerRadius : Layout.ZeroCornerRadius;
     }

@@ -1,0 +1,10 @@
+<ResourceDictionary
+    x:Class="VolumeTrayAppDotNET.Visuals.AppThemeResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="VolumeAppTheme.MeterPeakColorDefault">#FFFFFFFF</Color>
+    <Color x:Key="VolumeAppTheme.MeterPeakStereoColorDefault">#80FFFFFF</Color>
+    <Color x:Key="VolumeAppTheme.LegacyMeterPeakColorDefault">#FFFFFFFF</Color>
+    <Color x:Key="VolumeAppTheme.LegacyMeterPeakStereoColorDefault">#80FFFFFF</Color>
+</ResourceDictionary>

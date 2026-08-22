@@ -1,0 +1,21 @@
+<ResourceDictionary
+    x:Class="BrightnessTrayAppDotNET.Visuals.AppThemeResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.DisplayIdentifierBackground" LightHex="#E6202020" DarkHex="#E6202020" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.DisplayIdentifierBorder" LightHex="#33FFFFFF" DarkHex="#33FFFFFF" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.DisplayIdentifierShadow" LightHex="#000000" DarkHex="#000000" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.DisplayIdentifierForeground" LightHex="#FFFFFF" DarkHex="#FFFFFF" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalBrightnessCurve" LightHex="#7B949B" DarkHex="#DCF3FA" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalNightLightCurve" LightHex="#FDCB43" DarkHex="#FEDB7C" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalCurrentTime" LightHex="#4E4E4E" DarkHex="#FFFFFF" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalTwilightBackdrop" LightHex="#40FF8C00" DarkHex="#40FF8C00" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalNightBackdrop" LightHex="#404C5A78" DarkHex="#404C5A78" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalGridLine" LightHex="#929292" DarkHex="#939393" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.CurveDisabledBandOverlay" LightHex="#08FFFFFF" DarkHex="#08FFFFFF" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalPreviewTint" LightHex="#10FFFFFF" DarkHex="#10FFFFFF" />
+    <visuals:ThemeColor x:Key="BrightnessAppTheme.EnvironmentalMapPin" LightHex="#E03A3A" DarkHex="#E03A3A" />
+    <Color x:Key="BrightnessAppTheme.EnvironmentalMapHudBackdropAlpha">#E8000000</Color>
+</ResourceDictionary>

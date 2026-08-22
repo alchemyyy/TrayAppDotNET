@@ -6,6 +6,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Debugging;
 
@@ -22,22 +23,36 @@ internal sealed class ControlHoverInspectorWindow : Window
     private const int FallbackWorkAreaWidthPixels = 1920;
     private const int FallbackWorkAreaHeightPixels = 1080;
 
-    private static readonly Color BackgroundColor = Color.FromRgb(28, 28, 30);
-    private static readonly Color BorderColor = Color.FromRgb(92, 92, 96);
-    private static readonly Color ForegroundColor = Color.FromRgb(235, 235, 240);
-    private static readonly Color SecondaryForegroundColor = Color.FromRgb(185, 185, 192);
-    private static readonly Color LiveColor = Color.FromRgb(105, 210, 140);
-    private static readonly Color FrozenColor = Color.FromRgb(255, 194, 92);
-    private static readonly Color HeaderBackgroundColor = Color.FromRgb(38, 38, 42);
+    private const string BackgroundResourceName = "DebugInspectorBackground";
+    private const string BorderResourceName = "DebugInspectorBorder";
+    private const string ForegroundResourceName = "DebugInspectorForeground";
+    private const string SecondaryForegroundResourceName = "DebugInspectorSecondaryForeground";
+    private const string LiveResourceName = "DebugInspectorLive";
+    private const string FrozenResourceName = "DebugInspectorFrozen";
+    private const string HeaderBackgroundResourceName = "DebugInspectorHeaderBackground";
 
     private readonly TextBlock _statusText;
     private readonly TextBlock _targetText;
     private readonly TreeView _treeView;
+    private readonly SolidColorBrush _backgroundBrush;
+    private readonly SolidColorBrush _borderBrush;
+    private readonly SolidColorBrush _foregroundBrush;
+    private readonly SolidColorBrush _secondaryForegroundBrush;
+    private readonly SolidColorBrush _statusBrush;
+    private readonly SolidColorBrush _headerBackgroundBrush;
+    private bool _isFrozen;
 
     internal string? StatusText => _statusText.Text;
 
     public ControlHoverInspectorWindow()
     {
+        _backgroundBrush = new(ResolveColor(BackgroundResourceName));
+        _borderBrush = new(ResolveColor(BorderResourceName));
+        _foregroundBrush = new(ResolveColor(ForegroundResourceName));
+        _secondaryForegroundBrush = new(ResolveColor(SecondaryForegroundResourceName));
+        _statusBrush = new(ResolveColor(LiveResourceName));
+        _headerBackgroundBrush = new(ResolveColor(HeaderBackgroundResourceName));
+
         ControlNameScope controlNames = ControlNameScope.For(this);
         Title = "Avalonia Hover Inspector";
         Width = InspectorWidth;
@@ -51,19 +66,20 @@ internal sealed class ControlHoverInspectorWindow : Window
         Focusable = true;
         Topmost = true;
         CanResize = true;
-        Background = new SolidColorBrush(BackgroundColor);
+        Background = _backgroundBrush;
         Opacity = 0.97;
 
         _statusText = new TextBlock
         {
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
-            FontWeight = FontWeight.Normal
+            FontWeight = FontWeight.Normal,
+            Foreground = _statusBrush
         };
 
         _targetText = new TextBlock
         {
-            Foreground = new SolidColorBrush(SecondaryForegroundColor),
+            Foreground = _secondaryForegroundBrush,
             FontFamily = new FontFamily("Consolas"),
             FontSize = 12,
             TextTrimming = TextTrimming.CharacterEllipsis
@@ -81,8 +97,8 @@ internal sealed class ControlHoverInspectorWindow : Window
 
         Border headerBorder = new()
         {
-            Background = new SolidColorBrush(HeaderBackgroundColor),
-            BorderBrush = new SolidColorBrush(BorderColor),
+            Background = _headerBackgroundBrush,
+            BorderBrush = _borderBrush,
             BorderThickness = new Thickness(0, 0, 0, 1),
             Padding = new Thickness(12, 9),
             Child = header
@@ -91,8 +107,8 @@ internal sealed class ControlHoverInspectorWindow : Window
 
         _treeView = new TreeView
         {
-            Background = new SolidColorBrush(BackgroundColor),
-            Foreground = new SolidColorBrush(ForegroundColor),
+            Background = _backgroundBrush,
+            Foreground = _foregroundBrush,
             FontFamily = new FontFamily("Consolas"),
             FontSize = TreeFontSize,
             FontWeight = FontWeight.Normal,
@@ -123,8 +139,8 @@ internal sealed class ControlHoverInspectorWindow : Window
 
         Border root = new()
         {
-            Background = new SolidColorBrush(BackgroundColor),
-            BorderBrush = new SolidColorBrush(BorderColor),
+            Background = _backgroundBrush,
+            BorderBrush = _borderBrush,
             BorderThickness = new Thickness(1),
             Child = contentPanel
         };
@@ -134,6 +150,7 @@ internal sealed class ControlHoverInspectorWindow : Window
         SetFrozen(false);
         ShowNoControl();
 
+        AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
         Opened += OnOpened;
     }
 
@@ -156,10 +173,23 @@ internal sealed class ControlHoverInspectorWindow : Window
 
     public void SetFrozen(bool isFrozen)
     {
+        _isFrozen = isFrozen;
         string state = isFrozen ? "FROZEN" : "LIVE";
         _statusText.Text = $"{state} | {ControlHoverInspectorShortcut.Hint}";
-        _statusText.Foreground = new SolidColorBrush(isFrozen ? FrozenColor : LiveColor);
+        _statusBrush.Color = ResolveColor(isFrozen ? FrozenResourceName : LiveResourceName);
         Title = isFrozen ? "Avalonia Hover Inspector [FROZEN]" : "Avalonia Hover Inspector";
+    }
+
+    private static Color ResolveColor(string resourceName) => AppThemeColorCatalog.SingleColor(resourceName);
+
+    private void OnAppThemeResourcesReloaded()
+    {
+        _backgroundBrush.Color = ResolveColor(BackgroundResourceName);
+        _borderBrush.Color = ResolveColor(BorderResourceName);
+        _foregroundBrush.Color = ResolveColor(ForegroundResourceName);
+        _secondaryForegroundBrush.Color = ResolveColor(SecondaryForegroundResourceName);
+        _headerBackgroundBrush.Color = ResolveColor(HeaderBackgroundResourceName);
+        _statusBrush.Color = ResolveColor(_isFrozen ? FrozenResourceName : LiveResourceName);
     }
 
     private void OnOpened(object? sender, EventArgs eventArgs)
@@ -176,6 +206,13 @@ internal sealed class ControlHoverInspectorWindow : Window
             workArea.Y + WorkAreaMarginPixels,
             workArea.Bottom - inspectorHeightPixels - WorkAreaMarginPixels);
         Position = new PixelPoint(horizontalPosition, verticalPosition);
+    }
+
+    protected override void OnClosed(EventArgs eventArgs)
+    {
+        Opened -= OnOpened;
+        AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
+        base.OnClosed(eventArgs);
     }
 
     private sealed class ControlHoverInspectorTreeRow : TextBlock

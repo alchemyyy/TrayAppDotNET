@@ -39,7 +39,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
     private static readonly MercatorMapProjection Projection = MercatorMapProjection.FromMapSize(MapWidth, MapHeight);
 
     private readonly SettingsPalette _palette;
-    private readonly Color _pinColor;
+    private Color _pinColor;
     private readonly AnimationGenerationTracker _autoPanFrames = new();
     private GeoCoordinate _selectedCoordinate = GeoCoordinate.Zero;
     private MapViewportTransform _viewport = MapViewportTransform.Identity;
@@ -78,6 +78,15 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
     {
         get => _selectedCoordinate;
         set => SetSelectedCoordinate(value, centerOnPin: true);
+    }
+
+    /// <summary>Updates the map-pin color without replacing the current viewport.</summary>
+    public void SetPinColor(Color color)
+    {
+        if (_pinColor == color) return;
+
+        _pinColor = color;
+        InvalidateVisual();
     }
 
     public override void Render(DrawingContext context)

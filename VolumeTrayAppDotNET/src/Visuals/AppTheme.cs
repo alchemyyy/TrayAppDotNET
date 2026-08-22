@@ -11,10 +11,15 @@ public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 
-    public const string MeterPeakColorDefaultHex = "#FFFFFFFF";
-    public const string MeterPeakStereoColorDefaultHex = "#80FFFFFF";
-    public static readonly Color MeterPeakColorDefault = Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF);
-    public static readonly Color MeterPeakStereoColorDefault = Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF);
+    public static Color MeterPeakColorDefault => AppThemeColorCatalog.Color(nameof(MeterPeakColorDefault));
+    public static Color MeterPeakStereoColorDefault =>
+        AppThemeColorCatalog.Color(nameof(MeterPeakStereoColorDefault));
+    public static string MeterPeakColorDefaultHex => ToArgbHex(MeterPeakColorDefault);
+    public static string MeterPeakStereoColorDefaultHex => ToArgbHex(MeterPeakStereoColorDefault);
+    internal static string LegacyMeterPeakColorDefaultHex =>
+        ToArgbHex(AppThemeColorCatalog.Color("LegacyMeterPeakColorDefault"));
+    internal static string LegacyMeterPeakStereoColorDefaultHex =>
+        ToArgbHex(AppThemeColorCatalog.Color("LegacyMeterPeakStereoColorDefault"));
 
     public static WindowIcon? LoadAppIcon()
     {
@@ -83,4 +88,6 @@ public sealed class AppTheme : CommonAppTheme
             _ => systemIsLight
         };
     }
+
+    private static string ToArgbHex(Color color) => $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
 }

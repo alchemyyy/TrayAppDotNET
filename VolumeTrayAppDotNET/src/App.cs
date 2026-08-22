@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using HotAvalonia;
 #endif
 using TrayAppDotNETCommon.UI.WarmWindows;
+using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Localization;
@@ -91,6 +92,7 @@ internal sealed class VolumeAvaloniaApp : Application
         }
 
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+        AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -489,6 +491,8 @@ internal sealed class VolumeAvaloniaApp : Application
         RequestTrayRefresh();
     }
 
+    private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+
     private void RequestTrayRefresh()
     {
         if (_trayIcon == null) return;
@@ -806,6 +810,7 @@ internal sealed class VolumeAvaloniaApp : Application
         if (_shuttingDown) return;
         _shuttingDown = true;
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
+        AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
 
         try
         {

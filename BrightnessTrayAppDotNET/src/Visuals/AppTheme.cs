@@ -33,23 +33,46 @@ public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 
-    public ThemeColor DisplayIdentifierBackground { get; set; } = new("E6202020");
-    public ThemeColor DisplayIdentifierBorder { get; set; } = new("33FFFFFF");
-    public ThemeColor DisplayIdentifierShadow { get; set; } = new("000000");
-    public ThemeColor DisplayIdentifierForeground { get; set; } = new("FFFFFF");
+    public ThemeColor DisplayIdentifierBackground { get; set; } =
+        AppThemeColorCatalog.Color(nameof(DisplayIdentifierBackground));
+    public ThemeColor DisplayIdentifierBorder { get; set; } =
+        AppThemeColorCatalog.Color(nameof(DisplayIdentifierBorder));
+    public ThemeColor DisplayIdentifierShadow { get; set; } =
+        AppThemeColorCatalog.Color(nameof(DisplayIdentifierShadow));
+    public ThemeColor DisplayIdentifierForeground { get; set; } =
+        AppThemeColorCatalog.Color(nameof(DisplayIdentifierForeground));
+    public ThemeColor EnvironmentalBrightnessCurve { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalBrightnessCurve));
+    public ThemeColor EnvironmentalNightLightCurve { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalNightLightCurve));
+    public ThemeColor EnvironmentalCurrentTime { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalCurrentTime));
+    public ThemeColor EnvironmentalTwilightBackdrop { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalTwilightBackdrop));
+    public ThemeColor EnvironmentalNightBackdrop { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalNightBackdrop));
+    public ThemeColor EnvironmentalGridLine { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalGridLine));
+    public ThemeColor CurveDisabledBandOverlay { get; set; } =
+        AppThemeColorCatalog.Color(nameof(CurveDisabledBandOverlay));
+    public ThemeColor EnvironmentalPreviewTint { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalPreviewTint));
+    public ThemeColor EnvironmentalMapPin { get; set; } =
+        AppThemeColorCatalog.Color(nameof(EnvironmentalMapPin));
 
-    public ThemeColor EnvironmentalBrightnessCurve { get; set; } = new("7B949B", "DCF3FA");
-    public ThemeColor EnvironmentalNightLightCurve { get; set; } = new("FDCB43", "fedb7c");
-    public ThemeColor EnvironmentalCurrentTime { get; set; } = new("4E4E4E", "ffffff");
-    public ThemeColor EnvironmentalTwilightBackdrop { get; set; } = new("40FF8C00");
-    public ThemeColor EnvironmentalNightBackdrop { get; set; } = new("404C5A78");
-    public ThemeColor EnvironmentalGridLine { get; set; } = new("929292", "939393");
-    public ThemeColor CurveDisabledBandOverlay { get; set; } = new("08FFFFFF");
-    public ThemeColor EnvironmentalPreviewTint { get; set; } = new("10FFFFFF");
-    public ThemeColor EnvironmentalMapPin { get; set; } = new("E03A3A");
+    private int? _environmentalMapHudBackdropAlphaOverride;
 
     [XmlAttribute]
-    public int EnvironmentalMapHudBackdropAlpha { get; set; } = 232;
+    public int EnvironmentalMapHudBackdropAlpha
+    {
+        get => _environmentalMapHudBackdropAlphaOverride
+               ?? AppThemeColorCatalog.SingleColor(nameof(EnvironmentalMapHudBackdropAlpha)).A;
+        set
+        {
+            int defaultAlpha = AppThemeColorCatalog.SingleColor(nameof(EnvironmentalMapHudBackdropAlpha)).A;
+            _environmentalMapHudBackdropAlphaOverride = value == defaultAlpha ? null : value;
+        }
+    }
 
     public string GlyphMonitor { get; set; } = GlyphCatalog.MONITOR.Text;
     public string GlyphDisplaySettings { get; set; } = GlyphCatalog.DISPLAY_SETTINGS.Text;

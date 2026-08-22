@@ -1,0 +1,10 @@
+<ResourceDictionary
+    x:Class="BatteryTrayAppDotNET.Visuals.AppThemeResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <visuals:ThemeColor x:Key="BatteryAppTheme.BatteryChargingFill" LightHex="#107C10" DarkHex="#107C10" />
+    <visuals:ThemeColor x:Key="BatteryAppTheme.BatteryCriticalFill" LightHex="#E81123" DarkHex="#E81123" />
+    <visuals:ThemeColor x:Key="BatteryAppTheme.BatteryLowFill" LightHex="#FFB900" DarkHex="#FFB900" />
+</ResourceDictionary>

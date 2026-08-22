@@ -12,9 +12,11 @@ public sealed class AppTheme : CommonAppTheme
 {
     public new static AppTheme Default { get; } = new();
 
-    public ThemeColor BatteryChargingFill { get; set; } = new("107C10");
-    public ThemeColor BatteryCriticalFill { get; set; } = new("E81123");
-    public ThemeColor BatteryLowFill { get; set; } = new("FFB900");
+    public ThemeColor BatteryChargingFill { get; set; } =
+        AppThemeColorCatalog.Color(nameof(BatteryChargingFill));
+    public ThemeColor BatteryCriticalFill { get; set; } =
+        AppThemeColorCatalog.Color(nameof(BatteryCriticalFill));
+    public ThemeColor BatteryLowFill { get; set; } = AppThemeColorCatalog.Color(nameof(BatteryLowFill));
 
     public static WindowIcon? LoadAppIcon()
     {
