@@ -16,6 +16,10 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+#if DEBUG
+        DebugProvenanceGenerator.Initialize(context);
+#endif
+
         IncrementalValuesProvider<AxamlClassModel?> axamlFiles = context.AdditionalTextsProvider
             .Where(static text => text.Path.EndsWith(".axaml", StringComparison.OrdinalIgnoreCase))
             .Select(static (text, cancellationToken) => ParseAdditionalText(text, cancellationToken));

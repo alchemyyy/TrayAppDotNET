@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.Debugging;
 
 namespace TrayAppDotNETCommon.Visuals;
 
@@ -22,6 +23,8 @@ public static class GlyphApplicator
 
         if (glyph.FontWeight.HasValue)
             textBlock.FontWeight = glyph.FontWeight.Value;
+
+        DebugUIProvenance.RecordGlyphApplication(textBlock, glyph);
 
         if (!HasRenderTransformMetadata(glyph)) return;
 

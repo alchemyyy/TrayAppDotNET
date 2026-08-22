@@ -111,7 +111,7 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         </Window>
         """;
 
-    private const string SampleSource =
+    internal const string SampleSource =
         """
         using System.Collections.Generic;
 
@@ -229,6 +229,44 @@ public sealed class AxamlPropertyLinkerGeneratorTests
                 }
             }
         }
+
+        namespace TrayAppDotNETCommon.UI.Debugging
+        {
+            public enum AXAMLProvenanceKind
+            {
+                ResourceDefinition,
+                PropertyAssignment,
+                ResourceReference,
+                Style,
+                StyleSetter,
+                ControlTheme,
+                Template,
+                Binding
+            }
+
+            public readonly record struct AXAMLProvenanceEntry(
+                AXAMLProvenanceKind Kind,
+                string SourcePath,
+                int Line,
+                int Column,
+                string OwnerTypeName,
+                string ElementTypeName,
+                string ElementPath,
+                string? ControlName,
+                string? PropertyName,
+                string? ResourceKey,
+                string? ValueExpression,
+                string? Selector);
+
+            public static class DebugUIProvenance
+            {
+                public static void RegisterAXAML(
+                    System.Reflection.Assembly assembly,
+                    IReadOnlyList<AXAMLProvenanceEntry> entries)
+                {
+                }
+            }
+        }
         """;
 }
 
@@ -251,10 +289,16 @@ internal sealed class AxamlGeneratorHost
         return new AxamlGeneratedAssembly(assembly, result.RunResult);
     }
 
-    public static AxamlGeneratorResult RunGenerator(string source, IReadOnlyList<AxamlTestFile> axamlFiles)
+    public static AxamlGeneratorResult RunGenerator(
+        string source,
+        IReadOnlyList<AxamlTestFile> axamlFiles,
+        bool isDebug = false,
+        string projectDirectory = "")
     {
         string assemblyName = $"AxamlPropertyLinkerTest_{Guid.NewGuid():N}";
-        CSharpParseOptions parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
+        CSharpParseOptions parseOptions = new CSharpParseOptions(
+            LanguageVersion.Preview,
+            preprocessorSymbols: isDebug ? ["DEBUG"] : []);
         CSharpCompilation compilation = CSharpCompilation.Create(
             assemblyName,
             [CSharpSyntaxTree.ParseText(source, parseOptions)],
@@ -272,7 +316,7 @@ internal sealed class AxamlGeneratorHost
             [new AxamlPropertyLinkerGenerator().AsSourceGenerator()],
             additionalTexts,
             parseOptions,
-            new TestAnalyzerConfigOptionsProvider("Samples"));
+            new TestAnalyzerConfigOptionsProvider("Samples", projectDirectory));
         driver = driver.RunGeneratorsAndUpdateCompilation(
             compilation,
             out Compilation outputCompilation,
@@ -329,14 +373,18 @@ internal sealed class StringAdditionalText(string path, string text) : Additiona
     public override SourceText GetText(CancellationToken cancellationToken = default) => _text;
 }
 
-internal sealed class TestAnalyzerConfigOptionsProvider(string rootNamespace) : AnalyzerConfigOptionsProvider
+internal sealed class TestAnalyzerConfigOptionsProvider(
+    string rootNamespace,
+    string projectDirectory) : AnalyzerConfigOptionsProvider
 {
     public override AnalyzerConfigOptions GlobalOptions
     {
         get;
     } = new TestAnalyzerConfigOptions(new Dictionary<string, string>
     {
-        ["build_property.RootNamespace"] = rootNamespace, ["build_property.MSBuildProjectName"] = rootNamespace
+        ["build_property.RootNamespace"] = rootNamespace,
+        ["build_property.MSBuildProjectName"] = rootNamespace,
+        ["build_property.ProjectDir"] = projectDirectory
     });
 
     public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => TestAnalyzerConfigOptions.Empty;

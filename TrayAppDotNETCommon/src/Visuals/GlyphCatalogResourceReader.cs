@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using TrayAppDotNETCommon.UI.Debugging;
 
 namespace TrayAppDotNETCommon.Visuals;
 
@@ -16,7 +17,11 @@ public static class GlyphCatalogResourceReader
         string key = normalizedPrefix + name;
         object? value = resources[key];
         if (value is GlyphDefinition definition)
-            return definition.ToGlyph();
+        {
+            Glyph glyph = definition.ToGlyph();
+            DebugUIProvenance.RegisterGlyphResource(glyph, key);
+            return glyph;
+        }
 
         throw new InvalidOperationException($"Glyph resource '{key}' is missing or not a GlyphDefinition.");
     }

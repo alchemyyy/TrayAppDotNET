@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI.Debugging;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -38,6 +39,7 @@ public sealed class FlyoutButtonState
 
         _button.IsEnabled = enabled;
         _button.Cursor = enabled ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
+        DebugUIProvenance.RecordBuilder(_button);
 
         _button.PointerEntered += OnPointerEntered;
         _button.PointerExited += OnPointerExited;
@@ -63,6 +65,7 @@ public sealed class FlyoutButtonState
             _button.IsEnabled = value;
             _button.Cursor = value ? TrayAppDotNETCursors.Hand : TrayAppDotNETCursors.Arrow;
             Refresh();
+            DebugUIProvenance.RecordBuilder(_button);
         }
     }
 
@@ -85,6 +88,7 @@ public sealed class FlyoutButtonState
                 : _isPointerOver
                     ? _hoverBrush()
                     : _normalBrush();
+        DebugUIProvenance.RecordBuilder(_button);
     }
 
     private void OnPointerEntered(object? sender, PointerEventArgs e)

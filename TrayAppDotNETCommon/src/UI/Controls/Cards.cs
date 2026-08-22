@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -32,6 +33,7 @@ public static class TrayAppDotNETSettingsCards
     {
         StackPanel stack = new() { Background = TrayAppDotNETSettingsUI.Brush(palette.Background) };
         stack.Children.Add(TrayAppDotNETSettingsUI.SectionHeader(title, palette));
+        DebugUIProvenance.RecordBuilder(stack);
         return stack;
     }
 
@@ -39,6 +41,7 @@ public static class TrayAppDotNETSettingsCards
     {
         SettingsButton button = TrayAppDotNETSettingsUI.Button(text, palette);
         button.CornerRadius = cornerRadius;
+        DebugUIProvenance.RecordBuilder(button);
         return button;
     }
 
@@ -140,6 +143,7 @@ public static class TrayAppDotNETSettingsCards
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, palette));
         if (!string.IsNullOrEmpty(description))
             text.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(description, palette));
+        DebugUIProvenance.RecordBuilder(text);
 
         Grid grid = new();
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
@@ -151,6 +155,7 @@ public static class TrayAppDotNETSettingsCards
             rightControl.VerticalAlignment = VerticalAlignment.Center;
             rightControl.Margin = SettingsCardsLayout.RightControlMargin;
             Grid.SetColumn(rightControl, 1);
+            DebugUIProvenance.RecordBuilder(rightControl);
             grid.Children.Add(rightControl);
         }
 
@@ -174,6 +179,7 @@ public static class TrayAppDotNETSettingsCards
         };
         TrayAppDotNETSettingsUI.ApplyDisabledOpacity(card, SettingsCardsLayout.ControlDisabledOpacity);
         SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
+        DebugUIProvenance.RecordBuilder(card);
         return SettingsSearchMetadata.AddSearchKeywords(card, searchKeywords);
     }
 
@@ -195,7 +201,9 @@ public static class TrayAppDotNETSettingsCards
         text.Children.Add(TrayAppDotNETSettingsUI.TitleText(title, palette));
         descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
         descriptionText.IsVisible = !string.IsNullOrEmpty(description);
+        DebugUIProvenance.RecordBuilder(descriptionText);
         text.Children.Add(descriptionText);
+        DebugUIProvenance.RecordBuilder(text);
 
         Grid grid = new();
         grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star) { MinWidth = 0 });
@@ -206,6 +214,7 @@ public static class TrayAppDotNETSettingsCards
             rightControl.VerticalAlignment = VerticalAlignment.Center;
             rightControl.Margin = SettingsCardsLayout.RightControlMargin;
             Grid.SetColumn(rightControl, 1);
+            DebugUIProvenance.RecordBuilder(rightControl);
             grid.Children.Add(rightControl);
         }
 

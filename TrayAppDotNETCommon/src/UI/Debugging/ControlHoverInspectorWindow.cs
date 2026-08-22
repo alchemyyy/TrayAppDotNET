@@ -1,4 +1,5 @@
 #if DEBUG
+using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -34,6 +35,7 @@ internal sealed class ControlHoverInspectorWindow : Window
     private readonly TextBlock _statusText;
     private readonly TextBlock _targetText;
     private readonly TreeView _treeView;
+    private readonly ObservableCollection<ControlHoverInspectorNode> _treeRoots = [];
     private readonly SolidColorBrush _backgroundBrush;
     private readonly SolidColorBrush _borderBrush;
     private readonly SolidColorBrush _foregroundBrush;
@@ -43,6 +45,10 @@ internal sealed class ControlHoverInspectorWindow : Window
     private bool _isFrozen;
 
     internal string? StatusText => _statusText.Text;
+
+    internal object? RootItemsSource => _treeView.ItemsSource;
+
+    internal int DisplayedRootCount => _treeRoots.Count;
 
     public ControlHoverInspectorWindow()
     {
@@ -113,6 +119,7 @@ internal sealed class ControlHoverInspectorWindow : Window
             FontSize = TreeFontSize,
             FontWeight = FontWeight.Normal,
             Margin = new Thickness(7, 5, 7, 7),
+            ItemsSource = _treeRoots,
             ItemTemplate = new FuncTreeDataTemplate<ControlHoverInspectorNode>(
                 static (node, _) => new ControlHoverInspectorTreeRow(node),
                 static node => node.Children)
@@ -159,16 +166,32 @@ internal sealed class ControlHoverInspectorWindow : Window
         ArgumentNullException.ThrowIfNull(snapshot);
 
         _targetText.Text = snapshot.TargetLabel;
-        _treeView.ItemsSource = snapshot.Roots;
+        ReplaceRoots(snapshot.Roots);
+    }
+
+    public void ShowPendingCapture(ControlHoverInspectorCapture capture)
+    {
+        ArgumentNullException.ThrowIfNull(capture);
+
+        _targetText.Text = capture.TargetLabel;
+        List<ControlHoverInspectorNode> roots =
+        [
+            capture.IdentityNode,
+            new ControlHoverInspectorNode("Loading property and provenance data...")
+        ];
+        if (capture.AncestryNode != null)
+            roots.Add(capture.AncestryNode);
+
+        ReplaceRoots(roots);
     }
 
     public void ShowNoControl()
     {
         _targetText.Text = "No control is currently under the pointer";
-        _treeView.ItemsSource = new ControlHoverInspectorNode[]
-        {
-            new("Move the pointer over an Avalonia window to capture a control")
-        };
+        ReplaceRoots(
+        [
+            new ControlHoverInspectorNode("Move the pointer over an Avalonia window to capture a control")
+        ]);
     }
 
     public void SetFrozen(bool isFrozen)
@@ -181,6 +204,13 @@ internal sealed class ControlHoverInspectorWindow : Window
     }
 
     private static Color ResolveColor(string resourceName) => AppThemeColorCatalog.SingleColor(resourceName);
+
+    private void ReplaceRoots(IReadOnlyList<ControlHoverInspectorNode> roots)
+    {
+        _treeRoots.Clear();
+        foreach (ControlHoverInspectorNode root in roots)
+            _treeRoots.Add(root);
+    }
 
     private void OnAppThemeResourcesReloaded()
     {
@@ -212,6 +242,8 @@ internal sealed class ControlHoverInspectorWindow : Window
     {
         Opened -= OnOpened;
         AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
+        _treeRoots.Clear();
+        _treeView.ItemsSource = null;
         base.OnClosed(eventArgs);
     }
 

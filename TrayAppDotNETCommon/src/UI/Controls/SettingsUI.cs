@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
 
@@ -356,6 +357,7 @@ public sealed class SettingsNavItem : Border
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center
         };
+        DebugUIProvenance.RecordBuilder(_indicator);
         _selectedIndicatorBrush = useWindows11Style
             ? TrayAppDotNETSettingsUI.Brush(SettingsUILayout.Windows11NavIndicatorColor)
             : TrayAppDotNETSettingsUI.Brush(_palette.Foreground);
@@ -380,6 +382,7 @@ public sealed class SettingsNavItem : Border
         else
         {
             _indicator.Margin = SettingsUILayout.NavIndicatorMargin;
+            DebugUIProvenance.RecordBuilder(_indicator);
             row = CreateClassicContent(label);
             itemPadding = SettingsUILayout.NavItemPadding;
         }
@@ -422,6 +425,10 @@ public sealed class SettingsNavItem : Border
                 e.Handled = true;
             }
         };
+
+        DebugUIProvenance.RecordBuilder(this);
+        DebugUIProvenance.RecordBuilder(label);
+        DebugUIProvenance.RecordBuilder(_outer);
     }
 
     public event EventHandler? Click;
@@ -453,6 +460,8 @@ public sealed class SettingsNavItem : Border
         _indicator.Background = _isSelected
             ? _selectedIndicatorBrush
             : Brushes.Transparent;
+        DebugUIProvenance.RecordBuilder(_outer);
+        DebugUIProvenance.RecordBuilder(_indicator);
     }
 
     private Grid CreateClassicContent(TextBlock label)
@@ -600,6 +609,11 @@ public sealed class SettingsNavAction : Border
             Click?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         };
+
+        DebugUIProvenance.RecordBuilder(this);
+        DebugUIProvenance.RecordBuilder(label);
+        DebugUIProvenance.RecordBuilder(indicator);
+        DebugUIProvenance.RecordBuilder(_outer);
     }
 
     public event EventHandler? Click;
@@ -612,6 +626,7 @@ public sealed class SettingsNavAction : Border
                 ? _palette.Hover
                 : Colors.Transparent;
         _outer.Background = TrayAppDotNETSettingsUI.Brush(background);
+        DebugUIProvenance.RecordBuilder(_outer);
     }
 }
 
@@ -686,6 +701,9 @@ public sealed class SettingsButton : Border
                 e.Handled = true;
             }
         };
+
+        DebugUIProvenance.RecordBuilder(this);
+        DebugUIProvenance.RecordBuilder(_label);
     }
 
     /// <summary>
@@ -726,6 +744,7 @@ public sealed class SettingsButton : Border
                 ? Brushes.Transparent
                 : TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground);
         }
+        DebugUIProvenance.RecordBuilder(this);
     }
 
     private static Grid CreateNavContent(TextBlock label)
@@ -827,6 +846,10 @@ public sealed class SettingsToggle : Border
         };
 
         UpdateVisual();
+        DebugUIProvenance.RecordBuilder(this);
+        DebugUIProvenance.RecordBuilder(grid);
+        DebugUIProvenance.RecordBuilder(_track);
+        DebugUIProvenance.RecordBuilder(_thumb);
     }
 
     public event EventHandler<bool>? CheckedChanged;
@@ -860,6 +883,9 @@ public sealed class SettingsToggle : Border
                 : SettingsUILayout.ToggleThumbCheckedSize;
             _thumb.HorizontalAlignment = HorizontalAlignment.Right;
             _thumb.Margin = SettingsUILayout.ToggleThumbCheckedMargin;
+            DebugUIProvenance.RecordBuilder(this);
+            DebugUIProvenance.RecordBuilder(_track);
+            DebugUIProvenance.RecordBuilder(_thumb);
             return;
         }
 
@@ -870,6 +896,9 @@ public sealed class SettingsToggle : Border
         _thumb.Height = _isPointerOver ? SettingsUILayout.ToggleThumbHoverSize : SettingsUILayout.ToggleThumbHeight;
         _thumb.HorizontalAlignment = HorizontalAlignment.Left;
         _thumb.Margin = SettingsUILayout.ToggleThumbUncheckedMargin;
+        DebugUIProvenance.RecordBuilder(this);
+        DebugUIProvenance.RecordBuilder(_track);
+        DebugUIProvenance.RecordBuilder(_thumb);
     }
 }
 
@@ -920,6 +949,8 @@ public sealed class SettingsSwatch : Border
                 e.Handled = true;
             }
         };
+
+        DebugUIProvenance.RecordBuilder(this);
     }
 
     public event EventHandler? Click;
@@ -928,6 +959,8 @@ public sealed class SettingsSwatch : Border
     {
         _colorBrush.Color = color ?? fallback;
         Opacity = color.HasValue ? SettingsUILayout.EnabledOpacity : SettingsUILayout.SwatchFallbackOpacity;
+        DebugUIProvenance.RecordBuilder(_colorBrush);
+        DebugUIProvenance.RecordBuilder(this);
     }
 
     private void UpdateBorder() =>
@@ -2427,6 +2460,9 @@ internal sealed class SettingsSpinnerButton : Border
             Click?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         };
+
+        DebugUIProvenance.RecordBuilder(this);
+        DebugUIProvenance.RecordBuilder(_glyph);
     }
 
     /// <summary>
@@ -2444,6 +2480,7 @@ internal sealed class SettingsSpinnerButton : Border
     {
         Background = TrayAppDotNETSettingsUI.Brush(
             _isPressed ? _palette.Pressed : _isPointerOver ? _palette.Hover : Colors.Transparent);
+        DebugUIProvenance.RecordBuilder(this);
     }
 }
 
@@ -2482,6 +2519,7 @@ public static class TrayAppDotNETSettingsUI
             Foreground = Brush(palette.Foreground),
             Margin = SettingsUILayout.SectionHeaderMargin
         };
+        DebugUIProvenance.RecordBuilder(header);
         return SettingsSearchMetadata.Mark(header, SettingsSearchRole.PageHeader);
     }
 
@@ -2496,6 +2534,7 @@ public static class TrayAppDotNETSettingsUI
             Foreground = Brush(palette.Foreground),
             Margin = SettingsUILayout.SubsectionHeaderMargin
         };
+        DebugUIProvenance.RecordBuilder(header);
         return SettingsSearchMetadata.Mark(header, SettingsSearchRole.SubsectionHeader);
     }
 
@@ -2525,6 +2564,7 @@ public static class TrayAppDotNETSettingsUI
     {
         StackPanel stack = new() { Background = Brush(palette.Background) };
         stack.Children.Add(SectionHeader(title, palette));
+        DebugUIProvenance.RecordBuilder(stack);
         return stack;
     }
 
@@ -2562,6 +2602,7 @@ public static class TrayAppDotNETSettingsUI
             Child = grid
         };
         ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
+        DebugUIProvenance.RecordBuilder(card);
         return SettingsSearchMetadata.MarkCard(card, title);
     }
 
@@ -2576,6 +2617,7 @@ public static class TrayAppDotNETSettingsUI
             Child = content
         };
         ApplyDisabledOpacity(card, SettingsUILayout.ControlDisabledOpacity);
+        DebugUIProvenance.RecordBuilder(card);
         return SettingsSearchMetadata.Mark(card, SettingsSearchRole.Card);
     }
 
@@ -2660,6 +2702,7 @@ public static class TrayAppDotNETSettingsUI
             palette.ControlBackground,
             palette.Hover,
             palette.TextBoxFocused);
+        DebugUIProvenance.RecordBuilder(textBox);
         return textBox;
     }
 
@@ -2697,6 +2740,7 @@ public static class TrayAppDotNETSettingsUI
         textBox.Resources["TextControlPlaceholderForegroundDisabled"] = disabled;
         textBox.Resources["TextControlSelectionHighlightColor"] = AppTheme.ResolveTextSelectionHighlight(palette.Accent);
         textBox.Resources["TextControlSelectionHighlightForeground"] = foreground;
+        DebugUIProvenance.RecordBuilder(textBox);
     }
 
     public static SettingsNumberBox NumberBox(
@@ -2716,6 +2760,7 @@ public static class TrayAppDotNETSettingsUI
         };
         foreach (Control control in controls)
             panel.Children.Add(control);
+        DebugUIProvenance.RecordBuilder(panel);
         return panel;
     }
 
@@ -2748,6 +2793,7 @@ public static class TrayAppDotNETSettingsUI
                 control.Opacity = control.IsEnabled ? SettingsUILayout.EnabledOpacity : disabledOpacity;
         };
         control.Opacity = control.IsEnabled ? SettingsUILayout.EnabledOpacity : disabledOpacity;
+        DebugUIProvenance.RecordBuilder(control);
     }
 
     private static void AttachSurfaceStates(Control control, Color normal, Color hover, Color focusedOrPressed)
@@ -2785,6 +2831,7 @@ public static class TrayAppDotNETSettingsUI
             {
                 case TextBox textBox:
                     textBox.Background = Brush(color);
+                    DebugUIProvenance.RecordBuilder(textBox);
                     break;
             }
         }

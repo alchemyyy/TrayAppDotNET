@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -83,6 +84,7 @@ public static class TrayAppDotNETFlyoutUI
             IsHitTestVisible = false
         };
         ApplyGlyphTextRendering(icon);
+        DebugUIProvenance.RecordBuilder(icon);
         return icon;
     }
 
@@ -111,6 +113,7 @@ public static class TrayAppDotNETFlyoutUI
         TextOptions.SetTextRenderingMode(text, TextRenderingMode.Antialias);
         TextOptions.SetTextHintingMode(text, TextHintingMode.Light);
         TextOptions.SetBaselinePixelAlignment(text, BaselinePixelAlignment.Unaligned);
+        DebugUIProvenance.RecordBuilder(text);
     }
 
     public static Border Card(
@@ -173,6 +176,7 @@ public static class TrayAppDotNETFlyoutUI
             enabled,
             rightClick);
 
+        DebugUIProvenance.RecordBuilder(button);
         return button;
     }
 
@@ -220,6 +224,7 @@ public static class TrayAppDotNETFlyoutUI
             enabled,
             rightClick);
 
+        DebugUIProvenance.RecordBuilder(button);
         return button;
     }
 
@@ -234,6 +239,7 @@ public static class TrayAppDotNETFlyoutUI
         TextBlock label = Text(text, palette, effectiveFontSize, FontWeight.SemiBold);
         label.HorizontalAlignment = HorizontalAlignment.Center;
         label.VerticalAlignment = VerticalAlignment.Center;
+        DebugUIProvenance.RecordBuilder(label);
 
         Border button = new()
         {
@@ -253,6 +259,7 @@ public static class TrayAppDotNETFlyoutUI
             () => Brush(palette.Hover),
             () => Brush(palette.Pressed),
             _ => click());
+        DebugUIProvenance.RecordBuilder(button);
         return button;
     }
 
