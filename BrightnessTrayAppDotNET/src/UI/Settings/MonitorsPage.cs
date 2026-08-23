@@ -53,6 +53,16 @@ public sealed partial class BrightnessSettingsWindow
             [
                 L(nameof(AppStrings.Settings_Monitors_DDCOperationTimeout_SearchKeywords))
             ]));
+        stack.Children.Add(BoolCard(
+            L(nameof(AppStrings.Settings_Monitors_AllowBlindDDCWrites_Title)),
+            L(nameof(AppStrings.Settings_Monitors_AllowBlindDDCWrites_Description)),
+            _settings.AllowBlindDDCWritesDuringDegradedState,
+            value => _settings.AllowBlindDDCWritesDuringDegradedState = value,
+            p,
+            searchKeywords:
+            [
+                L(nameof(AppStrings.Settings_Monitors_AllowBlindDDCWrites_SearchKeywords))
+            ]));
         stack.Children.Add(StringComboCard(L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Title)),
             L(nameof(AppStrings.Settings_Monitors_PowerOffMode_Description)),
             PowerOffOptions(), _settings.PowerOffMode, v => _settings.PowerOffMode = v, p,

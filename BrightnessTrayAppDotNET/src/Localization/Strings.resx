@@ -129,7 +129,7 @@ Ctrl+click: sync all displays to the brightest individual</value>
     <value>Toggle control by All Displays</value>
   </data>
   <data name="Flyout_MonitorIconToggle_ReadDegradedTooltip" xml:space="preserve">
-    <value>Display is failing to report. Writing brightness may still work. Ctrl+click to power it off.</value>
+    <value>Ctrl+Click to Attempt Hard Power-Off</value>
   </data>
   <data name="Flyout_NightLightRowName" xml:space="preserve">
     <value>Night Light</value>
@@ -972,6 +972,15 @@ Target: {1}</value>
   </data>
   <data name="Settings_Monitors_BrightnessRate_Title" xml:space="preserve">
     <value>Brightness update dwell</value>
+  </data>
+  <data name="Settings_Monitors_AllowBlindDDCWrites_Description" xml:space="preserve">
+    <value>When a monitor still accepts DDC writes but no longer returns reliable replies, keep brightness controls available and allow Ctrl+Click hard power-off from its degraded-state glyph. These writes are best effort and cannot be verified; disable this if the monitor behaves unpredictably.</value>
+  </data>
+  <data name="Settings_Monitors_AllowBlindDDCWrites_SearchKeywords" xml:space="preserve">
+    <value>blind DDC write degraded monitor read failure best effort hard power off</value>
+  </data>
+  <data name="Settings_Monitors_AllowBlindDDCWrites_Title" xml:space="preserve">
+    <value>Allow blind DDC writes during degraded state</value>
   </data>
   <data name="Settings_Monitors_Cancel_Button" xml:space="preserve">
     <value>Cancel</value>

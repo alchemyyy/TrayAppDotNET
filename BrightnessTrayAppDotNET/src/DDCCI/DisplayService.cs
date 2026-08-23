@@ -370,8 +370,9 @@ public class DisplayService : IDisplayService, IDisposable
             {
                 if (!Dxva2.GetVCPFeatureAndVCPFeatureReply(handle, code, IntPtr.Zero, out uint c, out uint m))
                 {
+                    int errorCode = Marshal.GetLastWin32Error();
                     return DDCCallOutcome<(uint, uint)>.Fail(
-                        $"GetVCPFeatureAndVCPFeatureReply failed (Win32: {Marshal.GetLastWin32Error()})");
+                        DDCNativeError.Format("GetVCPFeatureAndVCPFeatureReply", errorCode));
                 }
 
                 return DDCCallOutcome<(uint, uint)>.Ok((c, m));
@@ -399,8 +400,9 @@ public class DisplayService : IDisplayService, IDisposable
             {
                 if (!Dxva2.SetVCPFeature(handle, code, value))
                 {
+                    int errorCode = Marshal.GetLastWin32Error();
                     return DDCCallOutcome<bool>.Fail(
-                        $"SetVCPFeature failed (Win32: {Marshal.GetLastWin32Error()})");
+                        DDCNativeError.Format("SetVCPFeature", errorCode));
                 }
 
                 return DDCCallOutcome<bool>.Ok(true);

@@ -52,6 +52,7 @@
         TranslateY="-1" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CheckMark" Text="&#xE73E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Monitor" Text="&#xE7F4;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.DisconnectDisplay" Text="&#xEA14;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.SyncBadge" Text="&#xEDAB;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Power" Text="&#xE7E8;" Font="SegoeFluentIconsThenMDL2Assets" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.DisplaySettings" Text="&#xE7F8;" Font="SegoeFluentIcons" />

@@ -1049,7 +1049,9 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Layout.RowActionButtonSize,
                 Layout.RowActionButtonSize,
                 Layout.RowPowerButtonFontSize,
-                enabled: monitor.IsHardwareFunctional,
+                enabled: monitor.IsHardwareFunctional
+                         && (!monitor.IsReadDegraded
+                             || _settings?.AllowBlindDDCWritesDuringDegradedState == true),
                 margin: Layout.RowPowerButtonMargin,
                 tooltip: L(nameof(AppStrings.Flyout_TurnOffDisplay)));
             Grid.SetColumn(power, 3);
@@ -2482,9 +2484,21 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             return;
         }
 
-        bool isWarningState = monitor is { IsMaster: false, WasEverDDCCapable: true, SupportsPowerControl: true }
-                              && (monitor.IsFailed || monitor.IsReadDegraded);
-        if (isWarningState && IsControlDown())
+        bool canAttemptFailedHardPowerOff = monitor is
+        {
+            IsMaster: false,
+            WasEverDDCCapable: true,
+            SupportsPowerControl: true,
+            IsFailed: true
+        };
+        bool canAttemptDegradedHardPowerOff = monitor is
+        {
+            IsMaster: false,
+            WasEverDDCCapable: true,
+            SupportsPowerControl: true,
+            IsReadDegraded: true
+        } && _settings?.AllowBlindDDCWritesDuringDegradedState == true;
+        if ((canAttemptFailedHardPowerOff || canAttemptDegradedHardPowerOff) && IsControlDown())
         {
             if (_settings is { HasAcknowledgedHardPowerOffWarning: false })
             {
@@ -3584,7 +3598,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private string RowGlyph(MonitorInfo monitor)
     {
         if (monitor.IsNightLight) return GlyphCatalog.LIGHTBULB.Text;
-        if (monitor.IsFailed || monitor.IsReadDegraded) return GlyphCatalog.WARNING.Text;
+        if (monitor.IsReadDegraded) return GlyphCatalog.DISCONNECT_DISPLAY.Text;
+        if (monitor.IsFailed) return GlyphCatalog.WARNING.Text;
         if (monitor.IsMaster) return monitor.IconGlyph;
         return _theme.GlyphMonitor;
     }
@@ -3611,11 +3626,20 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         return value.ToString(CultureInfo.InvariantCulture);
     }
 
-    private static string RowIconTooltip(MonitorInfo monitor)
+    private string RowIconTooltip(MonitorInfo monitor)
     {
         if (monitor.IsMaster) return L(nameof(AppStrings.Flyout_SyncAllDisplays));
         if (monitor.IsNightLight) return L(nameof(AppStrings.Flyout_ToggleNightLight));
-        if (monitor.IsFailed || monitor.IsReadDegraded)
+        if (monitor.IsReadDegraded)
+        {
+            string detail = monitor.LastDDCError ?? L(nameof(AppStrings.Flyout_DDCCIWarning));
+            if (_settings?.AllowBlindDDCWritesDuringDegradedState != true) return detail;
+
+            return detail + Environment.NewLine
+                          + L(nameof(AppStrings.Flyout_MonitorIconToggle_ReadDegradedTooltip));
+        }
+
+        if (monitor.IsFailed)
             return monitor.LastDDCError ?? L(nameof(AppStrings.Flyout_DDCCIWarning));
         return monitor.IsParticipatingInMaster
             ? L(nameof(AppStrings.Flyout_DisableFromMaster))
@@ -3654,11 +3678,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         TrayAppDotNETToolTip.SetTip(button, CurveModeTooltip(monitor));
     }
 
-    private static bool CanEditSlider(MonitorInfo monitor)
+    private bool CanEditSlider(MonitorInfo monitor)
     {
         if (monitor.IsNightLight)
             return NightLightProvider.IsSupported() && NightLightProvider.IsEnabled();
         if (monitor.IsMaster) return true;
+        if (monitor.IsReadDegraded && _settings?.AllowBlindDDCWritesDuringDegradedState != true) return false;
         return monitor.IsHardwareFunctional && monitor.SliderState != SliderState.Disabled;
     }
 

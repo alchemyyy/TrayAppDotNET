@@ -377,6 +377,18 @@ public class MonitorInfo : INotifyPropertyChanged
             : (int)Math.Round(_brightness);
 
     /// <summary>
+    /// Best available 0-100 intent for a blind recovery SET. A Failed row no longer exposes its curve target through
+    /// <see cref="EffectiveRoundedBrightness"/>, so preserve the pre-failure CurveActive ownership decision here.
+    /// Sleeping, released, disabled, and manual rows intentionally use the slider value.
+    /// </summary>
+    internal int RecoveryProbeBrightness =>
+        _sliderState == SliderState.Failed
+        && _preFailureSliderState == SliderState.CurveActive
+        && _hasCurveTargetBrightness
+            ? (int)Math.Round(_curveTargetBrightness)
+            : (int)Math.Round(_brightness);
+
+    /// <summary>
     /// Whether the monitor is powered on.
     /// Managed by <see cref="Services.MonitorService.SetPowerStateAsync"/> after matching power read-back, or after a
     /// transport-accepted write whose reply becomes unavailable because hard-off removed the monitor from the DDC bus.
@@ -734,7 +746,7 @@ public class MonitorInfo : INotifyPropertyChanged
     /// Asymmetric DDC compatibility state: reads failed but the monitor accepted a write transport request.
     /// Transport acceptance cannot prove application without a reply, so the slider remains available only as
     /// explicit best-effort behavior. Every normal write still attempts read-back and unconfirmed values are not
-    /// persisted. The UI shows an informational glyph and routes power-off to Ctrl+click instead of plain click.
+    /// persisted. The UI shows a disconnected-display glyph and routes power-off to Ctrl+click instead of plain click.
     /// Cleared by <c>MonitorService.PromoteRecovered</c> when reads return.
     /// </summary>
     public bool IsReadDegraded

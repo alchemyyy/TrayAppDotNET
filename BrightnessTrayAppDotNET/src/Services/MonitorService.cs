@@ -204,6 +204,18 @@ public sealed class MonitorService : IDisposable
         // on the DDC side.
         _display.OperationTimeoutMs = _settings.DDCOperationTimeoutMs;
 
+        // Turning blind writes off must invalidate work that was queued while the option was still enabled. A native
+        // SET already in progress cannot be recalled, but no pending or verification-stage target may continue.
+        if (!_settings.AllowBlindDDCWritesDuringDegradedState)
+        {
+            foreach (MonitorInfo degradedMonitor in Monitors.Where(static monitor => monitor.IsReadDegraded))
+            {
+                if (!_entries.TryGetValue(degradedMonitor.ID, out MonitorEntry? degradedEntry)) continue;
+                InvalidateBrightnessTarget(degradedEntry);
+                DropQueuedBrightnessWrites(degradedMonitor.ID);
+            }
+        }
+
         // Identity-strategy change invalidates every MonitorInfo.ID - do a full re-enumerate so each monitor gets
         // re-keyed under the new strategy.
         // Existing entries will appear "removed" (old id isn't in the new set) and new entries "added" via the normal
@@ -1155,7 +1167,9 @@ public sealed class MonitorService : IDisposable
             else
             {
                 RememberRecoveryIdentity(id, ddc);
-                WPFLog.Log($"MonitorService: '{ddc.Name}' added as disabled (no DDC/CI response)");
+                WPFLog.Log(
+                    $"MonitorService: '{ddc.Name}' added as disabled (no DDC/CI response: "
+                    + $"{error ?? "unknown error"})");
             }
 
             // Subscribe regardless -
@@ -1801,7 +1815,10 @@ public sealed class MonitorService : IDisposable
         bool canProbe = false;
         bool wasReadDegraded = false;
         bool shouldAttemptWriteTransportProbe = false;
+        bool mayAttemptChecksumRecoveryWrite = false;
+        bool mayAttemptBlindRecoveryWrite = false;
         int writeTransportProbePercent = 0;
+        int blindRecoveryWritePercent = 0;
         uint lastKnownBrightnessMax = 100;
         string EDIDKey = string.Empty;
         string EDIDSerial = string.Empty;
@@ -1847,9 +1864,20 @@ public sealed class MonitorService : IDisposable
             // which already includes norm/bounds projection; never fall back to an unprojected slider percentage.
             int? lastConfirmedBusBrightness = knownDisplay?.LastBusBrightness;
             writeTransportProbePercent = lastConfirmedBusBrightness ?? 0;
+            blindRecoveryWritePercent = Math.Clamp(info.RecoveryProbeBrightness, 0, 100);
             lastKnownBrightnessMax = info.LastKnownBrightnessMax;
             shouldAttemptWriteTransportProbe = lastConfirmedBusBrightness.HasValue
                                                && ShouldAttemptReadDegradedWriteTransportProbe(info);
+            // A previously confirmed bus value is also a safe checksum-resynchronization SET. Unlike the generic
+            // read-degraded probe, this is allowed for curve-owned rows because a successful confirming GET promotes
+            // the row and immediately replays the current curve target. User-disabled rows remain untouched.
+            mayAttemptChecksumRecoveryWrite = lastConfirmedBusBrightness.HasValue
+                                              && !info.WasDisabledBeforeFailure;
+            // This is the explicit opt-in escape hatch for displays whose GET path is permanently broken while SET
+            // remains usable. Restrict it to previously proven DDC rows and preserve user-disabled intent.
+            mayAttemptBlindRecoveryWrite = _settings.AllowBlindDDCWritesDuringDegradedState
+                                           && info.WasEverDDCCapable
+                                           && !info.WasDisabledBeforeFailure;
             identityStrategy = _activeStrategy;
             monitorOverridesByEDID = BuildMonitorOverrideEntryMap();
             canProbe = true;
@@ -1901,18 +1929,44 @@ public sealed class MonitorService : IDisposable
             // pipelines, marginal cables, or driver bugs in the read ioctl frequently still accept writes.
             // If the write transport is accepted, retain the explicit best-effort compatibility state rather than
             // claiming application; the immediate post-write read below is the only route to confirmation.
-            bool writeTransportAccepted = shouldAttemptWriteTransportProbe
+            bool isChecksumRecovery = DDCNativeError.IsInvalidMessageChecksum(capturedReadError);
+            bool shouldUseConfirmedProbe = shouldAttemptWriteTransportProbe
+                                           || (isChecksumRecovery && mayAttemptChecksumRecoveryWrite);
+            bool shouldUseBlindProbe = !shouldUseConfirmedProbe && mayAttemptBlindRecoveryWrite;
+            bool shouldWriteProbe = shouldUseConfirmedProbe || shouldUseBlindProbe;
+            int selectedProbePercent = shouldUseBlindProbe
+                ? blindRecoveryWritePercent
+                : writeTransportProbePercent;
+            string? writeProbeError = null;
+            bool writeTransportAccepted = shouldWriteProbe
                                           && TryDDCWriteTransportProbe(
-                                              writeTransportProbePercent,
+                                              selectedProbePercent,
                                               lastKnownBrightnessMax,
                                               ddc,
-                                              out _);
+                                              out writeProbeError);
+            if (shouldUseBlindProbe)
+            {
+                WPFLog.Log(
+                    $"MonitorService: blind recovery write probe for '{ddc.Name}' "
+                    + $"target={selectedProbePercent} result={writeTransportAccepted}"
+                    + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
+            }
+            else if (isChecksumRecovery && shouldWriteProbe)
+            {
+                WPFLog.Log(
+                    $"MonitorService: checksum recovery write probe for '{ddc.Name}' "
+                    + $"target={selectedProbePercent} result={writeTransportAccepted}"
+                    + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
+            }
             if (writeTransportAccepted)
             {
                 // Transport acceptance is not proof that the brightness changed. Make one post-write read attempt
                 // even though the preceding acquisition reads failed. If replies resumed, publish full recovery and
-                // send the manual target through the normal verified pipeline; otherwise enter the explicit
+                // send the owning manual or curve target through the normal verified pipeline; otherwise enter the
                 // best-effort compatibility state without claiming the probe landed.
+                if (isChecksumRecovery)
+                    Thread.Sleep(TimeConstants.MonitorChecksumRecoveryPostWriteDelayMs);
+
                 if (TryReadBrightness(
                         ddc,
                         out uint postWriteCurrent,
@@ -2048,12 +2102,15 @@ public sealed class MonitorService : IDisposable
     }
 
     /// <summary>
-    /// Sends the row's last confirmed bus brightness as a transport probe after read retries fail.
+    /// Sends a brightness SET as a transport probe after read retries fail.
     /// Transport success distinguishes a completely unavailable DDC path from the explicit read-degraded
     /// compatibility state, but does not prove that the monitor applied the value. The caller immediately attempts
     /// post-write read-back, and normal writes continue to verify without persisting unconfirmed values.
-    /// This is only attempted for manual rows that already have an explicit user/profile value; acquisition
-    /// never sends an arbitrary probe brightness and never probes write-side DDC for curve or disabled rows.
+    /// The generic read-degraded path only attempts this for manual rows with an explicit user/profile value.
+    /// Checksum recovery may also use it for a curve-owned row when a read-back-confirmed bus value exists; that
+    /// value is safe to reassert, and successful recovery immediately replays the current curve target.
+    /// When blind degraded-state writes are enabled, a previously DDC-capable row may instead send its current
+    /// brightness intent without a confirmed value. User-disabled rows are never write-probed.
     /// Uses <see cref="MonitorInfo.LastKnownBrightnessMax"/> because the Failed -> ReadDegraded transition
     /// removes the MonitorEntry before this runs, and we can't read capabilities while reads are failing.
     /// Goes through WithDDCLock to coordinate with any in-flight user write on the same panel.
@@ -2137,7 +2194,7 @@ public sealed class MonitorService : IDisposable
 
     /// <summary>
     /// Sends the per-monitor "hard power off" VCP write to a stuck monitor identified by EDID serial.
-    /// Used by the warning-glyph click in the flyout:
+    /// Used by the degraded-display Ctrl+click action in the flyout:
     /// when DDC/CI is wedged, this is the least invasive thing the app can do for the user -
     /// if writes still get through (often they do even when reads fail with checksum errors,
     /// because writes have no reply to corrupt),
@@ -2162,7 +2219,7 @@ public sealed class MonitorService : IDisposable
         }
 
         // Live re-enumeration (rather than reusing a cached DDCMonitor)
-        // because the warning-glyph click is the canonical "things have shifted, don't trust the cache" trigger -
+        // because the degraded-display click is the canonical "things have shifted, don't trust the cache" trigger -
         // display numbers and HMONITOR handles can have shuffled since the last refresh.
         if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> live, out string? enumError))
         {
@@ -2431,6 +2488,7 @@ public sealed class MonitorService : IDisposable
     {
         if (_disposed || _draining) return;
         if (!monitor.SupportsPowerControl) return;
+        if (monitor.IsReadDegraded && !_settings.AllowBlindDDCWritesDuringDegradedState) return;
 
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? entry)) return;
         DDCMonitor ddc = Volatile.Read(ref entry.DDC);
@@ -2821,6 +2879,7 @@ public sealed class MonitorService : IDisposable
         if (_disposed || _draining) return false;
         if (monitor == null) return false;
         if (monitor.SuppressDDCRecoveryForPowerIntent) return false;
+        if (monitor.IsReadDegraded && !_settings.AllowBlindDDCWritesDuringDegradedState) return false;
         if (!_entries.TryGetValue(monitor.ID, out MonitorEntry? resolvedEntry)) return false;
 
         // Apply the per-monitor norm curve first: the slider stays on the linear 0..100 range

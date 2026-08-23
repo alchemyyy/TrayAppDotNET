@@ -308,6 +308,13 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     /// </summary>
     public int DDCOperationTimeoutMs { get; set; } = TimeConstants.DDCOperationTimeoutDefaultMs;
 
+    /// <summary>
+    /// Allows best-effort DDC SET requests after a monitor stops returning readable replies. This also permits a
+    /// current-target write probe to establish the read-degraded state when no read-back-confirmed value is available.
+    /// Accepted values remain unverified and are never persisted as confirmed hardware state.
+    /// </summary>
+    public bool AllowBlindDDCWritesDuringDegradedState { get; set; } = true;
+
     public MasterSliderMode MasterSliderMode { get; set; } = MasterSliderMode.Average;
     public bool ShowFlyoutMonitorPowerButtons { get; set; }
     public bool ShowFlyoutMonitorNumberBadge { get; set; }
@@ -345,7 +352,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool FlyoutUndocked { get; set; }
 
     /// <summary>
-    /// Sticky one-shot acknowledgement for the warning-triangle hard power-off click.
+    /// Sticky one-shot acknowledgement for the degraded-display hard power-off click.
     /// False until the user confirms the destructive-action overlay the first time;
     /// after that, subsequent warning-glyph clicks fire the 0x05 power-off without prompting.
     /// </summary>

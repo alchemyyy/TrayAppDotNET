@@ -157,13 +157,180 @@ public sealed class MonitorRecoveryTests
     }
 
     [Fact]
+    public async Task ChecksumRecoveryWriteResynchronizesCurveControlledMonitor()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-CHECKSUM";
+        const int CurveTarget = 42;
+        string storePath = Path.Combine(
+            Path.GetTempPath(),
+            "BrightnessTrayAppDotNET.Tests",
+            $"{Guid.NewGuid():N}.displays.json");
+        KnownDisplaysStore store = new(storePath);
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(deviceID: DeviceID, displayNumber: 35, serial: "HDMI-CHECKSUM"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true,
+            knownDisplays: store);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.CurveTargetBrightness = CurveTarget;
+        service.EnqueueDirectBrightness(monitor, CurveTarget);
+        await WaitUntil(() => store.Find(monitor.EDIDKey)?.LastBusBrightness == CurveTarget);
+
+        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
+        display.SetRead(
+            DeviceID,
+            ok: false,
+            error: "GetVCPFeatureAndVCPFeatureReply failed (Win32: -1071241845, 0xC026258B)");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        int writesBeforeRecovery = display.SetVcpCalls;
+
+        // LG firmware can clear the corrupted reply queue after accepting a same-value brightness SET.
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+        bool recovered = service.TryRecoverMonitor(monitor.ID);
+
+        Assert.True(recovered);
+        Assert.True(display.SetVcpCalls > writesBeforeRecovery);
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.False(monitor.IsReadDegraded);
+        Assert.Equal(SliderState.CurveActive, monitor.SliderState);
+        Assert.Equal((uint)CurveTarget, display.GetLastSetValueForCode(VCPConstants.Brightness));
+        Assert.Null(monitor.LastDDCError);
+    }
+
+    [Fact]
+    public async Task GenericCurveReadFailureDoesNotSendRecoveryWriteWhenBlindWritesAreDisabled()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-GENERIC-FAILURE";
+        string storePath = Path.Combine(
+            Path.GetTempPath(),
+            "BrightnessTrayAppDotNET.Tests",
+            $"{Guid.NewGuid():N}.displays.json");
+        KnownDisplaysStore store = new(storePath);
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(
+            deviceID: DeviceID,
+            displayNumber: 36,
+            serial: "HDMI-GENERIC-FAILURE"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true,
+            knownDisplays: store,
+            configureSettings: settings => settings.AllowBlindDDCWritesDuringDegradedState = false);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.CurveTargetBrightness = 42;
+        service.EnqueueDirectBrightness(monitor, 42);
+        await WaitUntil(() => store.Find(monitor.EDIDKey)?.LastBusBrightness == 42);
+
+        display.SetRead(DeviceID, ok: false, error: "generic read failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        int writesBeforeRecovery = display.SetVcpCalls;
+
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.Equal(writesBeforeRecovery, display.SetVcpCalls);
+    }
+
+    [Fact]
+    public async Task BlindWriteOptionPromotesGenericCurveFailureWithoutConfirmedBusValue()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-BLIND-RECOVERY";
+        const int CurveTarget = 37;
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(
+            deviceID: DeviceID,
+            displayNumber: 37,
+            serial: "HDMI-BLIND-RECOVERY"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            brightnessCurveEnabled: true,
+            configureSettings: settings => settings.AllowBlindDDCWritesDuringDegradedState = true);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.CurveTargetBrightness = CurveTarget;
+        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
+        display.SetRead(DeviceID, ok: false, error: "generic read failure");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        int writesBeforeRecovery = display.SetVcpCalls;
+
+        bool recovered = service.TryRecoverMonitor(monitor.ID);
+
+        Assert.False(recovered);
+        Assert.True(display.SetVcpCalls > writesBeforeRecovery);
+        Assert.True(monitor.IsHardwareFunctional);
+        Assert.True(monitor.IsReadDegraded);
+        Assert.Equal((uint)CurveTarget, display.GetLastSetValueForCode(VCPConstants.Brightness));
+    }
+
+    [Fact]
+    public async Task DisabledBlindWritesRejectBrightnessChangesWhileReadDegraded()
+    {
+        const string DeviceID = "DISPLAY\\HDMI-BLIND-DISABLED";
+        FakeDisplayService display = new();
+        display.SetMonitors(CreateMonitor(
+            deviceID: DeviceID,
+            displayNumber: 38,
+            serial: "HDMI-BLIND-DISABLED"));
+        display.SetRead(DeviceID, ok: true, current: 60, max: 100);
+        display.ConfigureWriteReadBack(applySuccessfulWrites: true);
+
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            validationAttempts: 1,
+            configureSettings: settings => settings.AllowBlindDDCWritesDuringDegradedState = false);
+        await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
+
+        MonitorInfo monitor = service.Monitors[0];
+        monitor.Brightness = 42;
+        await WaitUntil(() => display.HasReadValue(42));
+
+        display.ConfigureWriteReadBack(applySuccessfulWrites: false);
+        display.SetRead(DeviceID, ok: false, error: "reads wedged");
+        service.Refresh();
+        await WaitUntil(() => monitor.IsFailed);
+        Assert.False(service.TryRecoverMonitor(monitor.ID));
+        Assert.True(monitor.IsReadDegraded);
+        int writesBeforeChange = display.SetVcpCalls;
+
+        monitor.Brightness = 43;
+        await Task.Delay(100);
+
+        Assert.Equal(writesBeforeChange, display.SetVcpCalls);
+    }
+
+    [Fact]
     public async Task ReadDegradedTransportProbeRequiresConfirmedBusValue()
     {
         FakeDisplayService display = new();
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-S", displayNumber: 19, serial: "SERIAL-S"));
         display.SetRead("DISPLAY\\PORT-S", ok: true, current: 60, max: 100);
 
-        using MonitorService service = CreateService(display, MonitorIdentityStrategy.EDIDSerial);
+        using MonitorService service = CreateService(
+            display,
+            MonitorIdentityStrategy.EDIDSerial,
+            configureSettings: settings => settings.AllowBlindDDCWritesDuringDegradedState = false);
         await WaitUntil(() => service.Monitors is [{ IsHardwareFunctional: true }]);
 
         MonitorInfo monitor = service.Monitors[0];

@@ -35,6 +35,9 @@ public abstract class TimeConstants : CommonTimeConstants
     // Explicit per-attempt sleep before retries 2/3/4 (attempt 1 fires immediately after the
     // settle window above). All well above the DDC/CI spec's Tg floor of 40 ms.
     public static readonly int[] MonitorReadRetryBackoffSequenceMs = [80, 160, 480];
+    // Some monitor MCUs clear a corrupted DDC reply queue only after accepting a SET. Leave a quiet window
+    // before the confirming GET so the recovery transaction cannot consume the stale reply immediately.
+    public const int MonitorChecksumRecoveryPostWriteDelayMs = 250;
     public const int MonitorStartupSweep1stDelayMs = 2_000;
     public const int MonitorStartupSweep2ndDelayMs = 5_000;
 

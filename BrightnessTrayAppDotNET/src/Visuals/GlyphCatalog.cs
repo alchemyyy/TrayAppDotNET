@@ -53,6 +53,7 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public static Glyph UNLOCK => Glyph("Unlock");
     public static Glyph CHECK_MARK => Glyph("CheckMark");
     public static Glyph MONITOR => Glyph("Monitor");
+    public static Glyph DISCONNECT_DISPLAY => Glyph("DisconnectDisplay");
     public static Glyph SYNC_BADGE => Glyph("SyncBadge");
     public new static Glyph POWER => Glyph("Power");
     public static Glyph DISPLAY_SETTINGS => Glyph("DisplaySettings");
