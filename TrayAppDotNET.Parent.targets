@@ -4,10 +4,11 @@
     <CopyRetryDelayMilliseconds Condition="'$(CopyRetryDelayMilliseconds)' == ''">500</CopyRetryDelayMilliseconds>
     <OverwriteReadOnlyFiles Condition="'$(OverwriteReadOnlyFiles)' == ''">true</OverwriteReadOnlyFiles>
     <ErrorOnDuplicatePublishOutputFiles Condition="'$(ErrorOnDuplicatePublishOutputFiles)' == ''">false</ErrorOnDuplicatePublishOutputFiles>
-    <TrayAppDotNETUnlockScript Condition="'$(TrayAppDotNETUnlockScript)' == ''">$(TrayAppDotNETRoot).tadn_build_tools\unlock_trayappdotnet_build_outputs.ps1</TrayAppDotNETUnlockScript>
+    <TrayAppDotNETUnlockScript Condition="'$(TrayAppDotNETUnlockScript)' == ''">$(TrayAppDotNETRoot).tadn_tools\unlock_trayappdotnet_build_outputs.ps1</TrayAppDotNETUnlockScript>
     <TrayAppDotNETUnlockMaxAttempts Condition="'$(TrayAppDotNETUnlockMaxAttempts)' == ''">4</TrayAppDotNETUnlockMaxAttempts>
     <TrayAppDotNETUnlockRetryDelayMilliseconds Condition="'$(TrayAppDotNETUnlockRetryDelayMilliseconds)' == ''">500</TrayAppDotNETUnlockRetryDelayMilliseconds>
     <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETUnlockProcessNames)' == ''">BatteryTrayAppDotNET;BrightnessTrayAppDotNET;FanControlTrayAppDotNET;NetworkTrayAppDotNET;TaskManagerTrayAppDotNET;VolumeTrayAppDotNET</TrayAppDotNETUnlockProcessNames>
+    <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETAdditionalUnlockProcessNames)' != ''">$(TrayAppDotNETUnlockProcessNames);$(TrayAppDotNETAdditionalUnlockProcessNames)</TrayAppDotNETUnlockProcessNames>
   </PropertyGroup>
 
   <!-- Prerelease is optimized JIT-compiled IL with an entirely loose-file output.

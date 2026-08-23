@@ -29,7 +29,7 @@
     <NativeKillHelperExecutable>$(NativeKillHelperBuildDirectory)\out\$(NativeKillHelperFileName)</NativeKillHelperExecutable>
     <NativeKillHelperConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</NativeKillHelperConfiguration>
     <NativeKillHelperConfiguration Condition="'$(NativeKillHelperConfiguration)' == ''">Release</NativeKillHelperConfiguration>
-    <TrayAppDotNETUnlockProcessNames>$(TrayAppDotNETUnlockProcessNames);TaskManagerTrayAppDotNET.KillHelper</TrayAppDotNETUnlockProcessNames>
+    <TrayAppDotNETAdditionalUnlockProcessNames>TaskManagerTrayAppDotNET.KillHelper</TrayAppDotNETAdditionalUnlockProcessNames>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
