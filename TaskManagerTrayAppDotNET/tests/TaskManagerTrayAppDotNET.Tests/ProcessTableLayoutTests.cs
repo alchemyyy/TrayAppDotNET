@@ -67,4 +67,35 @@ public sealed class ProcessTableLayoutTests
         Assert.Equal(1, ProcessTableLayout.HitTestColumn(100, columns));
         Assert.Equal(-1, ProcessTableLayout.HitTestColumn(150, columns));
     }
+
+    [Fact]
+    public void HitTestColumnDividerUsesOneSharedBoundaryTarget()
+    {
+        ProcessTableColumn[] columns = CreateColumns();
+
+        Assert.Equal(0, ProcessTableLayout.HitTestColumnDivider(96, columns, 4));
+        Assert.Equal(0, ProcessTableLayout.HitTestColumnDivider(104, columns, 4));
+        Assert.Equal(-1, ProcessTableLayout.HitTestColumnDivider(105, columns, 4));
+        Assert.Equal(2, ProcessTableLayout.HitTestColumnDivider(228, columns, 4));
+    }
+
+    [Fact]
+    public void ReorderInsertionGeometryExcludesTheDraggedColumn()
+    {
+        ProcessTableColumn[] columns = CreateColumns();
+
+        Assert.Equal(0, ProcessTableLayout.GetReorderInsertionIndex(0, columns, 1));
+        Assert.Equal(1, ProcessTableLayout.GetReorderInsertionIndex(110, columns, 2));
+        Assert.Equal(2, ProcessTableLayout.GetReorderInsertionIndex(200, columns, 1));
+        Assert.Equal(150, ProcessTableLayout.GetReorderInsertionX(columns, 0, 1));
+        Assert.Equal(0, ProcessTableLayout.GetReorderInsertionX(columns, 2, 0));
+        Assert.Equal(225, ProcessTableLayout.GetReorderInsertionX(columns, 1, 2));
+    }
+
+    private static ProcessTableColumn[] CreateColumns() =>
+    [
+        new(ProcessTableColumnKind.Name, "Name", 0, 100, ProcessTableColumnAlignment.Left),
+        new(ProcessTableColumnKind.ProcessID, "PID", 100, 50, ProcessTableColumnAlignment.Right),
+        new(ProcessTableColumnKind.CPU, "CPU", 150, 75, ProcessTableColumnAlignment.Right)
+    ];
 }

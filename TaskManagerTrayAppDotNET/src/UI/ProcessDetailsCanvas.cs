@@ -17,6 +17,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private const double DefaultViewportHeight = 900;
     private const int DynamicRefreshBatchSize = 16;
     private const double DynamicRefreshBudgetMilliseconds = 1.25;
+    private const double ColumnResizeHitRadius = 4;
+    private const double HeaderDragThreshold = 4;
+    private const double ColumnInteractionLineThickness = 2;
     private const string UnavailableText = "Unavailable";
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
@@ -29,7 +32,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly ProcessIconService _processIconService;
     private readonly ProcessDataSchema _schema;
     private readonly ProcessTableMetrics _metrics;
-    private readonly ProcessTableColumn[] _columns;
     private readonly bool _hasDynamicColumns;
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
@@ -37,7 +39,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly List<SharedCellDrawing> _sharedCellBuffer = new(8);
     private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly ProcessRowIndexComparer _rowComparer;
-    private readonly FormattedText[] _headerTexts;
     private readonly FormattedText _ascendingCaretText;
     private readonly FormattedText _descendingCaretText;
     private readonly IBrush _backgroundBrush;
@@ -45,8 +46,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly IBrush _secondaryForegroundBrush;
     private readonly IBrush _accentBrush;
     private readonly Pen _gridPen;
+    private readonly Pen _columnInteractionPen;
     private readonly double _sortCaretRightMargin;
     private readonly Action _refreshWarmDynamicDrawings;
+    private List<ProcessColumnSetting> _columnSettings;
+    private ProcessTableColumn[] _columns;
+    private FormattedText[] _headerTexts;
     private int[] _visibleRowIndexes = [];
     private int[] _warmProcessIDs = [];
     private int _rowCount;
@@ -60,7 +65,16 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private Rect _effectiveViewport;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
     private ProcessInstanceKey? _selectedProcess;
+    private IPointer? _capturedHeaderPointer;
+    private HeaderInteractionMode _headerInteraction;
+    private Point _headerPressPosition;
+    private int _interactionColumnIndex = -1;
+    private int _reorderInsertionIndex = -1;
     private int _hoveredVisibleIndex = -1;
+    private double _resizeInitialWidth;
+    private double _resizePreviewWidth;
+    private double _headerDragX;
+    private double _headerPointerOffsetX;
     private double _pointerViewportY;
     private bool _sortDescending;
     private bool _pointerInside;
@@ -92,7 +106,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             resources.AxamlProcessTable.HeaderFontSize,
             resources.AxamlProcessTable.ProcessIconSize,
             resources.AxamlProcessTable.ProcessIconGap);
-        _columns = CreateColumns(columnSettings);
+        _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
+        _columns = CreateColumns(_columnSettings);
         _hasDynamicColumns = ContainsLifetime(_columns, ProcessTableColumnLifetime.Dynamic);
         _rowComparer = new ProcessRowIndexComparer(_snapshot, _schema);
         _sortCaretRightMargin = resources.AxamlProcessTable.SortCaretRightMargin;
@@ -103,16 +118,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
         _gridPen = new Pen(TrayAppDotNETSettingsUI.Brush(palette.Border), 1);
+        _columnInteractionPen = new Pen(_accentBrush, ColumnInteractionLineThickness);
 
-        _headerTexts = new FormattedText[_columns.Length];
-        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
-        {
-            _headerTexts[columnIndex] = CreateText(
-                _columns[columnIndex].Title,
-                _metrics.HeaderFontSize,
-                _foregroundBrush,
-                FontWeight.Normal);
-        }
+        _headerTexts = CreateHeaderTexts(_columns);
 
         _ascendingCaretText = CreateGlyphText(
             "\uE96D",
@@ -132,6 +140,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public event Action<double?>? HoverRowTopChanged;
     public event Action<double?>? SelectionRowTopChanged;
     public event Action? ColumnsRequested;
+    public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
 
     public int? SelectedProcessID => _selectedProcess?.ProcessID;
 
@@ -211,16 +220,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         DrawColumnGrid(context, viewport);
         DrawHeader(context, stickyHeaderTop);
+        DrawHeaderInteraction(context, viewport, stickyHeaderTop);
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs eventArgs)
     {
         base.OnPointerPressed(eventArgs);
+        if (_headerInteraction != HeaderInteractionMode.None) return;
+
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
         Point position = eventArgs.GetPosition(this);
-        double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
-        bool isHeader = position.Y >= stickyHeaderTop
-                        && position.Y < stickyHeaderTop + _metrics.HeaderHeight;
+        bool isHeader = IsHeaderPosition(position.Y);
         if (pointerPoint.Properties.IsRightButtonPressed && isHeader)
         {
             ColumnsRequested?.Invoke();
@@ -231,8 +241,33 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (!pointerPoint.Properties.IsLeftButtonPressed) return;
         if (isHeader)
         {
-            SortFromHeader(position.X);
-            eventArgs.Handled = true;
+            int dividerColumnIndex = ProcessTableLayout.HitTestColumnDivider(
+                position.X,
+                _columns,
+                ColumnResizeHitRadius);
+            if (dividerColumnIndex >= 0)
+            {
+                BeginHeaderInteraction(
+                    eventArgs.Pointer,
+                    HeaderInteractionMode.Resizing,
+                    dividerColumnIndex,
+                    position);
+                Cursor = TrayAppDotNETCursors.SizeWestEast;
+                eventArgs.Handled = true;
+                return;
+            }
+
+            int columnIndex = ProcessTableLayout.HitTestColumn(position.X, _columns);
+            if (columnIndex >= 0)
+            {
+                BeginHeaderInteraction(
+                    eventArgs.Pointer,
+                    HeaderInteractionMode.PendingReorder,
+                    columnIndex,
+                    position);
+                eventArgs.Handled = true;
+            }
+
             return;
         }
 
@@ -246,9 +281,68 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         base.OnPointerMoved(eventArgs);
         Point position = eventArgs.GetPosition(this);
+        if (_headerInteraction != HeaderInteractionMode.None
+            && ReferenceEquals(_capturedHeaderPointer, eventArgs.Pointer))
+        {
+            MoveHeaderInteraction(position);
+            eventArgs.Handled = true;
+            return;
+        }
+
         _pointerInside = true;
         _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
+        UpdateHeaderCursor(position);
         UpdateHoveredRow(position.Y);
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs eventArgs)
+    {
+        base.OnPointerReleased(eventArgs);
+        if (_headerInteraction == HeaderInteractionMode.None
+            || !ReferenceEquals(_capturedHeaderPointer, eventArgs.Pointer))
+        {
+            return;
+        }
+
+        Point position = eventArgs.GetPosition(this);
+        HeaderInteractionMode completedInteraction = _headerInteraction;
+        int columnIndex = _interactionColumnIndex;
+        int insertionIndex = _reorderInsertionIndex;
+        double width = _resizePreviewWidth;
+        bool sortColumn = completedInteraction == HeaderInteractionMode.PendingReorder
+                          && IsHeaderPosition(position.Y)
+                          && ProcessTableLayout.HitTestColumn(position.X, _columns) == columnIndex;
+        ResetHeaderInteraction();
+
+        switch (completedInteraction)
+        {
+            case HeaderInteractionMode.PendingReorder when sortColumn:
+                SortFromHeader(position.X);
+                break;
+            case HeaderInteractionMode.Resizing:
+                CommitColumnResize(columnIndex, width);
+                break;
+            case HeaderInteractionMode.Reordering:
+                CommitColumnReorder(columnIndex, insertionIndex);
+                break;
+        }
+
+        _pointerInside = new Rect(Bounds.Size).Contains(position);
+        _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
+        UpdateHeaderCursor(position);
+        UpdateHoverFromPointer();
+        eventArgs.Handled = true;
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs eventArgs)
+    {
+        base.OnPointerCaptureLost(eventArgs);
+        if (!ReferenceEquals(_capturedHeaderPointer, eventArgs.Pointer)) return;
+
+        _capturedHeaderPointer = null;
+        ClearHeaderInteractionState();
+        Cursor = TrayAppDotNETCursors.Arrow;
+        InvalidateVisual();
     }
 
     protected override void OnPointerExited(PointerEventArgs eventArgs)
@@ -256,6 +350,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         base.OnPointerExited(eventArgs);
         _pointerInside = false;
         SetHoveredVisibleIndex(-1);
+        if (_headerInteraction == HeaderInteractionMode.None)
+            Cursor = TrayAppDotNETCursors.Arrow;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs eventArgs)
+    {
+        base.OnKeyDown(eventArgs);
+        if (eventArgs.Key != Key.Escape || _headerInteraction == HeaderInteractionMode.None) return;
+
+        ResetHeaderInteraction();
+        eventArgs.Handled = true;
     }
 
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs eventArgs)
@@ -265,6 +370,130 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         PublishWarmProcesses();
         ScheduleWarmDynamicRefresh();
         InvalidateVisual();
+    }
+
+    private bool IsHeaderPosition(double positionY)
+    {
+        double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
+        return positionY >= stickyHeaderTop
+               && positionY < stickyHeaderTop + _metrics.HeaderHeight;
+    }
+
+    private void BeginHeaderInteraction(
+        IPointer pointer,
+        HeaderInteractionMode interaction,
+        int columnIndex,
+        Point position)
+    {
+        _capturedHeaderPointer = pointer;
+        _headerInteraction = interaction;
+        _interactionColumnIndex = columnIndex;
+        _headerPressPosition = position;
+        _headerDragX = position.X;
+        _headerPointerOffsetX = position.X - _columns[columnIndex].Left;
+        _resizeInitialWidth = _columns[columnIndex].Width;
+        _resizePreviewWidth = _resizeInitialWidth;
+        _reorderInsertionIndex = columnIndex;
+        SetHoveredVisibleIndex(-1);
+        Focus();
+
+        try
+        {
+            pointer.Capture(this);
+        }
+        catch (Exception exception)
+        {
+            _capturedHeaderPointer = null;
+            ClearHeaderInteractionState();
+            Cursor = TrayAppDotNETCursors.Arrow;
+            TADNLog.Log($"ProcessDetailsCanvas header pointer capture failed: {exception.Message}");
+        }
+    }
+
+    private void MoveHeaderInteraction(Point position)
+    {
+        switch (_headerInteraction)
+        {
+            case HeaderInteractionMode.PendingReorder:
+            {
+                double horizontalDistance = Math.Abs(position.X - _headerPressPosition.X);
+                double verticalDistance = Math.Abs(position.Y - _headerPressPosition.Y);
+                if (horizontalDistance < HeaderDragThreshold
+                    && verticalDistance < HeaderDragThreshold)
+                {
+                    return;
+                }
+
+                _headerInteraction = HeaderInteractionMode.Reordering;
+                Cursor = TrayAppDotNETCursors.SizeAll;
+                goto case HeaderInteractionMode.Reordering;
+            }
+            case HeaderInteractionMode.Resizing:
+            {
+                double nextWidth = Math.Max(
+                    ProcessColumnSettings.MinimumWidth,
+                    _resizeInitialWidth + position.X - _headerPressPosition.X);
+                if (Math.Abs(nextWidth - _resizePreviewWidth) < 0.01) return;
+
+                _resizePreviewWidth = nextWidth;
+                InvalidateVisual();
+                return;
+            }
+            case HeaderInteractionMode.Reordering:
+            {
+                int nextInsertionIndex = ProcessTableLayout.GetReorderInsertionIndex(
+                    position.X,
+                    _columns,
+                    _interactionColumnIndex);
+                bool changed = nextInsertionIndex != _reorderInsertionIndex
+                               || Math.Abs(position.X - _headerDragX) >= 0.01;
+                _reorderInsertionIndex = nextInsertionIndex;
+                _headerDragX = position.X;
+                if (changed) InvalidateVisual();
+                return;
+            }
+        }
+    }
+
+    private void UpdateHeaderCursor(Point position)
+    {
+        Cursor = IsHeaderPosition(position.Y)
+                 && ProcessTableLayout.HitTestColumnDivider(
+                     position.X,
+                     _columns,
+                     ColumnResizeHitRadius) >= 0
+            ? TrayAppDotNETCursors.SizeWestEast
+            : TrayAppDotNETCursors.Arrow;
+    }
+
+    private void ResetHeaderInteraction()
+    {
+        IPointer? pointer = _capturedHeaderPointer;
+        _capturedHeaderPointer = null;
+        ClearHeaderInteractionState();
+        Cursor = TrayAppDotNETCursors.Arrow;
+        if (pointer != null)
+        {
+            try
+            {
+                pointer.Capture(null);
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"ProcessDetailsCanvas header pointer release failed: {exception.Message}");
+            }
+        }
+
+        InvalidateVisual();
+    }
+
+    private void ClearHeaderInteractionState()
+    {
+        _headerInteraction = HeaderInteractionMode.None;
+        _interactionColumnIndex = -1;
+        _reorderInsertionIndex = -1;
+        _resizeInitialWidth = 0;
+        _resizePreviewWidth = 0;
     }
 
     private void OnIconsChanged()
@@ -386,6 +615,72 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 new Point(column.Left, top),
                 new Point(column.Left, top + _metrics.HeaderHeight));
         }
+    }
+
+    private void DrawHeaderInteraction(DrawingContext context, Rect viewport, double headerTop)
+    {
+        if ((uint)_interactionColumnIndex >= (uint)_columns.Length) return;
+
+        switch (_headerInteraction)
+        {
+            case HeaderInteractionMode.Resizing:
+            {
+                double dividerX = _columns[_interactionColumnIndex].Left + _resizePreviewWidth;
+                if (dividerX >= viewport.Left && dividerX <= viewport.Right)
+                {
+                    context.DrawLine(
+                        _columnInteractionPen,
+                        new Point(dividerX, headerTop),
+                        new Point(dividerX, viewport.Bottom));
+                }
+
+                return;
+            }
+            case HeaderInteractionMode.Reordering:
+            {
+                if (_reorderInsertionIndex != _interactionColumnIndex)
+                {
+                    double insertionX = ProcessTableLayout.GetReorderInsertionX(
+                        _columns,
+                        _interactionColumnIndex,
+                        _reorderInsertionIndex);
+                    if (double.IsFinite(insertionX)
+                        && insertionX >= viewport.Left
+                        && insertionX <= viewport.Right)
+                    {
+                        context.DrawLine(
+                            _columnInteractionPen,
+                            new Point(insertionX, headerTop),
+                            new Point(insertionX, viewport.Bottom));
+                    }
+                }
+
+                DrawDraggedHeader(context, viewport, headerTop);
+                return;
+            }
+        }
+    }
+
+    private void DrawDraggedHeader(DrawingContext context, Rect viewport, double headerTop)
+    {
+        ProcessTableColumn column = _columns[_interactionColumnIndex];
+        double minimumLeft = viewport.Left;
+        double maximumLeft = Math.Max(minimumLeft, viewport.Right - column.Width);
+        double left = Math.Clamp(_headerDragX - _headerPointerOffsetX, minimumLeft, maximumLeft);
+        Rect bounds = new(left, headerTop, column.Width, _metrics.HeaderHeight);
+        context.FillRectangle(_backgroundBrush, bounds);
+        context.DrawRectangle(null, _columnInteractionPen, bounds);
+
+        FormattedText headerText = _headerTexts[_interactionColumnIndex];
+        double textLeft = left + _metrics.CellPadding;
+        Rect textClip = new(
+            textLeft,
+            headerTop,
+            Math.Max(0, column.Width - _metrics.CellPadding * 2),
+            _metrics.HeaderHeight);
+        double textTop = headerTop + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
+        using (context.PushClip(textClip))
+            context.DrawText(headerText, new Point(textLeft, textTop));
     }
 
     private void UpdateRetainedDrawings()
@@ -800,6 +1095,57 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             false);
     }
 
+    private void CommitColumnResize(int columnIndex, double width)
+    {
+        if ((uint)columnIndex >= (uint)_columns.Length || !double.IsFinite(width)) return;
+        if (Math.Abs(_columns[columnIndex].Width - width) < 0.01) return;
+
+        List<ProcessColumnSetting> nextSettings = ProcessColumnSettings.WithWidth(
+            _columnSettings,
+            _columns[columnIndex].Kind,
+            width);
+        ApplyColumnLayout(nextSettings);
+    }
+
+    private void CommitColumnReorder(int columnIndex, int insertionIndex)
+    {
+        if ((uint)columnIndex >= (uint)_columns.Length
+            || (uint)insertionIndex >= (uint)_columns.Length
+            || columnIndex == insertionIndex)
+        {
+            return;
+        }
+
+        List<ProcessColumnSetting> nextSettings = ProcessColumnSettings.MoveVisible(
+            _columnSettings,
+            _columns[columnIndex].Kind,
+            insertionIndex);
+        ApplyColumnLayout(nextSettings);
+    }
+
+    private void ApplyColumnLayout(List<ProcessColumnSetting> settings)
+    {
+        List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(settings);
+        ProcessTableColumn[] columns = CreateColumns(normalized);
+        if (columns.Length != _columns.Length)
+        {
+            TADNLog.Log("ProcessDetailsCanvas rejected a width/order update that changed column visibility.");
+            return;
+        }
+
+        _columnSettings = normalized;
+        _columns = columns;
+        _headerTexts = CreateHeaderTexts(columns);
+
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            ReleaseRenderCache(cache);
+        _sharedCellDrawings.Clear();
+        UpdateRetainedDrawings();
+        InvalidateMeasure();
+        InvalidateVisual();
+        ColumnLayoutChanged?.Invoke(normalized);
+    }
+
     private void SortFromHeader(double x)
     {
         int columnIndex = ProcessTableLayout.HitTestColumn(x, _columns);
@@ -1012,11 +1358,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private static ProcessTableColumn[] CreateColumns(IReadOnlyList<ProcessColumnSetting> source)
     {
-        List<ProcessColumnSetting> settings = ProcessColumnSettings.Normalize(source);
-        List<ProcessTableColumn> columns = new(settings.Count);
+        List<ProcessTableColumn> columns = new(source.Count);
         double left = 0;
-        foreach (ProcessColumnSetting setting in settings)
+        for (int settingIndex = 0; settingIndex < source.Count; settingIndex++)
         {
+            ProcessColumnSetting setting = source[settingIndex];
             if (!setting.Visible) continue;
 
             ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
@@ -1030,6 +1376,21 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         return columns.ToArray();
+    }
+
+    private FormattedText[] CreateHeaderTexts(ProcessTableColumn[] columns)
+    {
+        FormattedText[] headerTexts = new FormattedText[columns.Length];
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        {
+            headerTexts[columnIndex] = CreateText(
+                columns[columnIndex].Title,
+                _metrics.HeaderFontSize,
+                _foregroundBrush,
+                FontWeight.Normal);
+        }
+
+        return headerTexts;
     }
 
     private static bool ContainsLifetime(
@@ -1105,6 +1466,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         if (_disposed) return;
 
+        if (_capturedHeaderPointer != null) ResetHeaderInteraction();
         _disposed = true;
         _processIconService.IconsChanged -= OnIconsChanged;
         EffectiveViewportChanged -= OnEffectiveViewportChanged;
@@ -1112,6 +1474,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         HoverRowTopChanged = null;
         SelectionRowTopChanged = null;
         ColumnsRequested = null;
+        ColumnLayoutChanged = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
         _renderCaches.Clear();
@@ -1119,6 +1482,14 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _sharedCellBuffer.Clear();
         _staleProcessKeys.Clear();
         _snapshot.Reset();
+    }
+
+    private enum HeaderInteractionMode : byte
+    {
+        None,
+        PendingReorder,
+        Resizing,
+        Reordering
     }
 
     private readonly record struct ProcessSharedCellKey(ProcessTableColumnKind Column, string Value);

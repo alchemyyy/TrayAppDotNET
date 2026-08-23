@@ -34,6 +34,25 @@ public sealed class AppSettings : AppSettingsCommon
         base.OnTrayXmlDeserialized();
     }
 
+    /// <summary>Persists an already-applied width or order change without rebuilding the app shell.</summary>
+    internal void UpdateDetailsColumnLayout(List<ProcessColumnSetting> columns)
+    {
+        ArgumentNullException.ThrowIfNull(columns);
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            DetailsColumns = columns;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
     protected override void RequestSave()
     {
         if (!Autosave) return;

@@ -65,6 +65,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.HoverRowTopChanged += OnHoverRowTopChanged;
         _processCanvas.SelectionRowTopChanged += OnSelectionRowTopChanged;
         _processCanvas.ColumnsRequested += OnColumnsRequested;
+        _processCanvas.ColumnLayoutChanged += OnColumnLayoutChanged;
 
         _runTaskButton = TrayAppDotNETSettingsUI.Button("Run new task", palette);
         _runTaskButton.Click += OnRunTaskClick;
@@ -229,6 +230,9 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnColumnsRequested() => ShowColumnChooser();
 
+    private void OnColumnLayoutChanged(List<ProcessColumnSetting> settings) =>
+        _settings.UpdateDetailsColumnLayout(settings);
+
     private void OnColumnsClick(object? sender, EventArgs eventArgs) => ShowColumnChooser();
 
     private void ShowColumnChooser()
@@ -334,6 +338,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.HoverRowTopChanged -= OnHoverRowTopChanged;
         _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;
         _processCanvas.ColumnsRequested -= OnColumnsRequested;
+        _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
         _searchBox.TextChanged -= OnSearchTextChanged;
         _runInput.KeyDown -= OnRunInputKeyDown;
         _runTaskButton.Click -= OnRunTaskClick;

@@ -88,6 +88,67 @@ public sealed class ProcessColumnSettingsTests
         Assert.Single(normalized, static setting => setting.Visible);
     }
 
+    [Fact]
+    public void WithWidthChangesOnlyTheRequestedColumn()
+    {
+        List<ProcessColumnSetting> source =
+        [
+            Setting(ProcessTableColumnKind.Name, true, 280),
+            Setting(ProcessTableColumnKind.CPU, true, 68)
+        ];
+
+        List<ProcessColumnSetting> resized = ProcessColumnSettings.WithWidth(
+            source,
+            ProcessTableColumnKind.Name,
+            360);
+
+        Assert.Equal(360, resized.Single(static setting => setting.Column == ProcessTableColumnKind.Name).Width);
+        Assert.Equal(68, resized.Single(static setting => setting.Column == ProcessTableColumnKind.CPU).Width);
+        Assert.Equal(280, source[0].Width);
+    }
+
+    [Fact]
+    public void MoveVisibleReordersVisibleColumnsWithoutMovingHiddenSlots()
+    {
+        List<ProcessColumnSetting> source =
+        [
+            Setting(ProcessTableColumnKind.Name, true, 280),
+            Setting(ProcessTableColumnKind.CommandLine, false, 520),
+            Setting(ProcessTableColumnKind.ProcessID, true, 82),
+            Setting(ProcessTableColumnKind.CPU, true, 68)
+        ];
+
+        List<ProcessColumnSetting> reordered = ProcessColumnSettings.MoveVisible(
+            source,
+            ProcessTableColumnKind.CPU,
+            0);
+
+        Assert.Equal(ProcessTableColumnKind.CPU, reordered[0].Column);
+        Assert.Equal(ProcessTableColumnKind.CommandLine, reordered[1].Column);
+        Assert.False(reordered[1].Visible);
+        Assert.Equal(ProcessTableColumnKind.Name, reordered[2].Column);
+        Assert.Equal(ProcessTableColumnKind.ProcessID, reordered[3].Column);
+    }
+
+    [Fact]
+    public void AppliedLayoutDoesNotRaiseAGlobalSettingsRefresh()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int changedCount = 0;
+        settings.Changed += () => changedCount++;
+        List<ProcessColumnSetting> resized = ProcessColumnSettings.WithWidth(
+            settings.DetailsColumns,
+            ProcessTableColumnKind.Name,
+            360);
+
+        settings.UpdateDetailsColumnLayout(resized);
+
+        Assert.Equal(0, changedCount);
+        Assert.Equal(
+            360,
+            settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Name).Width);
+    }
+
     private static ProcessColumnSetting Setting(
         ProcessTableColumnKind column,
         bool visible,

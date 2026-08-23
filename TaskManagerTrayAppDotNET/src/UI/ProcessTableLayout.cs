@@ -282,15 +282,99 @@ internal static class ProcessTableLayout
 
     public static int HitTestColumn(double x, ProcessTableColumn[] columns)
     {
-        if (x < 0) return -1;
+        if (!double.IsFinite(x) || x < 0) return -1;
 
-        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        int lowerBound = 0;
+        int upperBound = columns.Length - 1;
+        while (lowerBound <= upperBound)
         {
+            int columnIndex = lowerBound + (upperBound - lowerBound) / 2;
             ProcessTableColumn column = columns[columnIndex];
-            if (x >= column.Left && x < column.Right) return columnIndex;
+            if (x < column.Left)
+            {
+                upperBound = columnIndex - 1;
+                continue;
+            }
+            if (x >= column.Right)
+            {
+                lowerBound = columnIndex + 1;
+                continue;
+            }
+
+            return columnIndex;
         }
 
         return -1;
+    }
+
+    public static int HitTestColumnDivider(
+        double x,
+        ProcessTableColumn[] columns,
+        double hitRadius)
+    {
+        if (!double.IsFinite(x)
+            || !double.IsFinite(hitRadius)
+            || x < 0
+            || hitRadius < 0)
+        {
+            return -1;
+        }
+
+        int columnIndex = HitTestColumn(x, columns);
+        if (columnIndex >= 0)
+        {
+            ProcessTableColumn column = columns[columnIndex];
+            if (columnIndex > 0 && Math.Abs(x - column.Left) <= hitRadius)
+                return columnIndex - 1;
+            return Math.Abs(x - column.Right) <= hitRadius ? columnIndex : -1;
+        }
+
+        int lastColumnIndex = columns.Length - 1;
+        return lastColumnIndex >= 0
+               && Math.Abs(x - columns[lastColumnIndex].Right) <= hitRadius
+            ? lastColumnIndex
+            : -1;
+    }
+
+    /// <summary>Returns the final visible index after removing and reinserting the source column.</summary>
+    public static int GetReorderInsertionIndex(
+        double x,
+        ProcessTableColumn[] columns,
+        int sourceColumnIndex)
+    {
+        if (!double.IsFinite(x) || (uint)sourceColumnIndex >= (uint)columns.Length) return -1;
+
+        int insertionIndex = 0;
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        {
+            if (columnIndex == sourceColumnIndex) continue;
+            ProcessTableColumn column = columns[columnIndex];
+            if (x < column.Left + column.Width / 2) break;
+            insertionIndex++;
+        }
+
+        return Math.Clamp(insertionIndex, 0, columns.Length - 1);
+    }
+
+    /// <summary>Returns the current-layout divider that represents a pending insertion.</summary>
+    public static double GetReorderInsertionX(
+        ProcessTableColumn[] columns,
+        int sourceColumnIndex,
+        int insertionIndex)
+    {
+        if ((uint)sourceColumnIndex >= (uint)columns.Length
+            || (uint)insertionIndex >= (uint)columns.Length)
+        {
+            return double.NaN;
+        }
+
+        if (insertionIndex <= sourceColumnIndex)
+            return columns[insertionIndex].Left;
+
+        int rightNeighborIndex = insertionIndex + 1;
+        return rightNeighborIndex < columns.Length
+            ? columns[rightNeighborIndex].Left
+            : columns[^1].Right;
     }
 
     public static void GetVisibleRowRange(
