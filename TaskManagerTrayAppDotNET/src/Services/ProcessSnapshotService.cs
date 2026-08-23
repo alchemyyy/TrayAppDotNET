@@ -1,35 +1,107 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using Avalonia.Threading;
+using TaskManagerTrayAppDotNET.UI;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
-/// <summary>
-/// Samples processes on one dedicated background thread and publishes into a fixed-capacity double buffer.
-/// </summary>
+/// <summary>Samples only the active Details schema and publishes compact right-sized snapshots.</summary>
 internal sealed class ProcessSnapshotService : IDisposable
 {
     public const int MaximumProcessCount = 8_192;
-    private const int HistoryCapacity = MaximumProcessCount * 2;
     private const int RefreshIntervalMilliseconds = 1_000;
     private const int ShutdownJoinTimeoutMilliseconds = 2_000;
+    private const int InitialProcessPathCapacity = 1_024;
+    private const int MaximumProcessPathCapacity = 32_767;
+    private const uint ProcessQueryInformation = 0x0400;
+    private const uint ProcessVMRead = 0x0010;
 
-    private static readonly ProcessRowComparer RowComparer = new();
+    private static readonly ulong ProcessorColumnsMask = ColumnMask(ProcessTableColumnKind.CPU)
+                                                        | ColumnMask(ProcessTableColumnKind.CPUTime);
+    private static readonly ulong ThreadColumnsMask = ColumnMask(ProcessTableColumnKind.Status)
+                                                     | ColumnMask(ProcessTableColumnKind.Threads);
+    private static readonly ulong MemoryColumnsMask = ColumnMask(ProcessTableColumnKind.WorkingSet)
+                                                     | ColumnMask(ProcessTableColumnKind.PeakWorkingSet)
+                                                     | ColumnMask(ProcessTableColumnKind.WorkingSetDelta)
+                                                     | ColumnMask(ProcessTableColumnKind.ActivePrivateWorkingSet)
+                                                     | ColumnMask(ProcessTableColumnKind.PrivateMemory)
+                                                     | ColumnMask(ProcessTableColumnKind.SharedWorkingSet)
+                                                     | ColumnMask(ProcessTableColumnKind.CommitSize)
+                                                     | ColumnMask(ProcessTableColumnKind.PagedPool)
+                                                     | ColumnMask(ProcessTableColumnKind.NonPagedPool)
+                                                     | ColumnMask(ProcessTableColumnKind.PageFaults)
+                                                     | ColumnMask(ProcessTableColumnKind.PageFaultDelta);
+    private static readonly ulong IOColumnsMask = ColumnMask(ProcessTableColumnKind.IOReads)
+                                                 | ColumnMask(ProcessTableColumnKind.IOWrites)
+                                                 | ColumnMask(ProcessTableColumnKind.IOOther)
+                                                 | ColumnMask(ProcessTableColumnKind.IOReadBytes)
+                                                 | ColumnMask(ProcessTableColumnKind.IOWriteBytes)
+                                                 | ColumnMask(ProcessTableColumnKind.IOOtherBytes);
+    private static readonly ulong GPUColumnsMask = ColumnMask(ProcessTableColumnKind.GPU)
+                                                  | ColumnMask(ProcessTableColumnKind.GPUEngine)
+                                                  | ColumnMask(ProcessTableColumnKind.DedicatedGPUMemory)
+                                                  | ColumnMask(ProcessTableColumnKind.SharedGPUMemory);
+    private static readonly ulong NPUColumnsMask = ColumnMask(ProcessTableColumnKind.NPU)
+                                                  | ColumnMask(ProcessTableColumnKind.NPUEngine)
+                                                  | ColumnMask(ProcessTableColumnKind.DedicatedNPUMemory)
+                                                  | ColumnMask(ProcessTableColumnKind.SharedNPUMemory);
+    private static readonly ulong ProcessHandleStaticColumnsMask =
+        ColumnMask(ProcessTableColumnKind.Name)
+        | ColumnMask(ProcessTableColumnKind.UserName)
+        | ColumnMask(ProcessTableColumnKind.ImagePath)
+        | ColumnMask(ProcessTableColumnKind.CommandLine)
+        | ColumnMask(ProcessTableColumnKind.Platform)
+        | ColumnMask(ProcessTableColumnKind.Elevated)
+        | ColumnMask(ProcessTableColumnKind.Description)
+        | ColumnMask(ProcessTableColumnKind.DataExecutionPrevention)
+        | ColumnMask(ProcessTableColumnKind.PackageName)
+        | ColumnMask(ProcessTableColumnKind.Architecture)
+        | ColumnMask(ProcessTableColumnKind.HardwareStackProtection)
+        | ColumnMask(ProcessTableColumnKind.ExtendedControlFlowGuard)
+        | ColumnMask(ProcessTableColumnKind.Isolation);
+    private static readonly ulong ProcessHandleDynamicColumnsMask =
+        ColumnMask(ProcessTableColumnKind.UserObjects)
+        | ColumnMask(ProcessTableColumnKind.GDIObjects)
+        | ColumnMask(ProcessTableColumnKind.UACVirtualization)
+        | ColumnMask(ProcessTableColumnKind.IOPriority)
+        | ColumnMask(ProcessTableColumnKind.PowerThrottling)
+        | ColumnMask(ProcessTableColumnKind.DPIAwareness);
+
     private readonly Lock _publishGate = new();
+    private readonly Lock _samplingPolicyGate = new();
     private readonly AutoResetEvent _refreshWake = new(false);
     private readonly Thread _samplingThread;
+    private readonly SystemProcessSnapshot _systemProcessSnapshot = new();
     private readonly Action _notifySnapshotAvailable;
-    private readonly Dictionary<int, ProcessHistoryEntry> _history = new(HistoryCapacity);
-    private readonly int[] _staleProcessIDs = new int[HistoryCapacity];
-    private ProcessSnapshotRow[] _publishedRows = new ProcessSnapshotRow[MaximumProcessCount];
-    private ProcessSnapshotRow[] _stagingRows = new ProcessSnapshotRow[MaximumProcessCount];
-    private int _publishedCount;
+    private readonly Dictionary<int, ProcessHistoryEntry> _history = new(1_024);
+    private readonly Dictionary<string, ProcessImageIdentity> _imageIdentities =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SharedUserName> _sharedUserNames =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, SystemProcessData> _systemProcessData = new(1_024);
+    private readonly List<int> _staleProcessIDs = new(256);
+    private readonly StringBuilder _processPathBuffer = new(InitialProcessPathCapacity);
+    private readonly StringBuilder _applicationUserModelIDBuffer = new(IconExtraction.MAX_AUMID_LEN);
+    private AcceleratorPerformanceSampler? _acceleratorSampler;
+    private EnterpriseContextReader? _enterpriseContextReader;
+    private ProcessSnapshotBuffer _publishedBuffer = new();
+    private ProcessSnapshotBuffer _stagingBuffer = new();
+    private ProcessDataSchema _activeSchema = ProcessDataSchema.Create([]);
+    private int[] _warmProcessIDs = [];
+    private int[] _sampleWarmProcessIDs = [];
+    private int _warmProcessCount;
     private long _publishedVersion;
-    private long _lastSampleTimestamp;
+    private ulong _historySchemaMask = ulong.MaxValue;
+    private ulong _acceleratorSamplerMask;
+    private double _nominalProcessorCycleCapacity;
     private int _historyGeneration;
     private int _notificationPending;
     private int _started;
     private int _disposed;
+    private bool _sampleEveryProcess;
+    private bool _acceleratorSamplesEveryProcess;
     private bool _capacityWarningLogged;
 
     public ProcessSnapshotService()
@@ -39,19 +111,64 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             IsBackground = true,
             Name = Constants.ApplicationName + ".ProcessSampler",
-            // Sampling must never outrank UI input or process actions under contention
             Priority = ThreadPriority.BelowNormal
         };
     }
 
     public event Action? SnapshotAvailable;
 
+    /// <summary>Replaces the active storage schema; hidden columns are discarded on the next sample.</summary>
+    public void SetActiveSchema(ProcessDataSchema schema)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        bool changed;
+        lock (_samplingPolicyGate)
+        {
+            changed = _activeSchema.VisibleMask != schema.VisibleMask;
+            _activeSchema = schema;
+            if (changed)
+            {
+                _warmProcessCount = 0;
+                _sampleEveryProcess = false;
+            }
+        }
+
+        if (changed) RequestRefresh();
+    }
+
+    /// <summary>Publishes the viewport's warm process set without allocating per scroll.</summary>
+    public void SetWarmProcesses(
+        ulong schemaMask,
+        int[] processIDs,
+        int count,
+        bool sampleEveryProcess)
+    {
+        ArgumentNullException.ThrowIfNull(processIDs);
+        if ((uint)count > (uint)processIDs.Length || count > MaximumProcessCount)
+            throw new ArgumentOutOfRangeException(nameof(count));
+
+        bool wakeSampler;
+        lock (_samplingPolicyGate)
+        {
+            if (_activeSchema.VisibleMask != schemaMask) return;
+
+            EnsurePolicyCapacity(ref _warmProcessIDs, count);
+            wakeSampler = sampleEveryProcess && !_sampleEveryProcess;
+            Array.Copy(processIDs, _warmProcessIDs, count);
+            _warmProcessCount = count;
+            _sampleEveryProcess = sampleEveryProcess;
+        }
+
+        if (wakeSampler) RequestRefresh();
+    }
+
     /// <summary>Starts the pre-created sampling thread once.</summary>
     public void Start()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (Interlocked.Exchange(ref _started, 1) != 0) return;
-
         _samplingThread.Start();
     }
 
@@ -62,19 +179,19 @@ internal sealed class ProcessSnapshotService : IDisposable
         _refreshWake.Set();
     }
 
-    /// <summary>Copies the latest immutable published buffer into caller-owned preallocated storage.</summary>
-    public int CopyLatest(ProcessSnapshotRow[] destination, out long version)
+    /// <summary>Copies the latest compatible published snapshot into caller-owned storage.</summary>
+    public int CopyLatest(
+        ProcessSnapshotBuffer destination,
+        ulong expectedSchemaMask,
+        out long version)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        if (destination.Length < MaximumProcessCount)
-            throw new ArgumentException("The process snapshot destination is smaller than the fixed capacity.", nameof(destination));
-
         lock (_publishGate)
         {
-            int count = _publishedCount;
-            Array.Copy(_publishedRows, destination, count);
             version = _publishedVersion;
-            return count;
+            if (_publishedBuffer.Schema?.VisibleMask != expectedSchemaMask) return 0;
+            destination.CopyFrom(_publishedBuffer);
+            return destination.Count;
         }
     }
 
@@ -99,15 +216,92 @@ internal sealed class ProcessSnapshotService : IDisposable
     private void RefreshCore()
     {
         long sampleTimestamp = Stopwatch.GetTimestamp();
-        long previousTimestamp = _lastSampleTimestamp;
-        _lastSampleTimestamp = sampleTimestamp;
-        double elapsedSeconds = previousTimestamp == 0
-            ? 0
-            : (sampleTimestamp - previousTimestamp) / (double)Stopwatch.Frequency;
+        CopySamplingPolicy(
+            out ProcessDataSchema schema,
+            out int warmProcessCount,
+            out bool sampleEveryProcess);
+        bool schemaChanged = _historySchemaMask != schema.VisibleMask;
+        if (schemaChanged)
+            ResetHistoryForSchema(schema.VisibleMask);
 
+        ConfigureOptionalCollectors(schema);
+        _enterpriseContextReader?.BeginSample();
+        _acceleratorSamplesEveryProcess = schemaChanged || sampleEveryProcess;
+        _acceleratorSampler?.Sample(
+            _sampleWarmProcessIDs,
+            warmProcessCount,
+            _acceleratorSamplesEveryProcess);
+
+        bool hasSystemSnapshot = _systemProcessSnapshot.TryCapture(
+            _systemProcessData,
+            schema.IsVisible(ProcessTableColumnKind.JobObjectID));
         int generation = NextHistoryGeneration();
-        Array.Clear(_stagingRows);
+        int count = hasSystemSnapshot
+            ? RefreshFromSystemSnapshot(
+                schema,
+                warmProcessCount,
+                sampleEveryProcess,
+                sampleTimestamp,
+                generation)
+            : RefreshFromProcessObjects(
+                schema,
+                warmProcessCount,
+                sampleEveryProcess,
+                sampleTimestamp,
+                generation);
+
+        _stagingBuffer.CompleteWrite(count);
+        RemoveStaleHistory(generation);
+        Publish();
+    }
+
+    private int RefreshFromSystemSnapshot(
+        ProcessDataSchema schema,
+        int warmProcessCount,
+        bool sampleEveryProcess,
+        long sampleTimestamp,
+        int generation)
+    {
+        int requestedCapacity = Math.Min(_systemProcessData.Count, MaximumProcessCount);
+        _stagingBuffer.BeginWrite(schema, requestedCapacity);
+        int count = 0;
+        foreach (KeyValuePair<int, SystemProcessData> pair in _systemProcessData)
+        {
+            if (count >= MaximumProcessCount)
+            {
+                LogCapacityWarningOnce(_systemProcessData.Count);
+                break;
+            }
+
+            if (SampleAndStoreProcess(
+                    null,
+                    pair.Key,
+                    true,
+                    pair.Value,
+                    schema,
+                    warmProcessCount,
+                    sampleEveryProcess,
+                    sampleTimestamp,
+                    generation,
+                    count))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private int RefreshFromProcessObjects(
+        ProcessDataSchema schema,
+        int warmProcessCount,
+        bool sampleEveryProcess,
+        long sampleTimestamp,
+        int generation)
+    {
         Process[] processes = Process.GetProcesses();
+        int requestedCapacity = Math.Min(processes.Length, MaximumProcessCount);
+        _stagingBuffer.BeginWrite(schema, requestedCapacity);
         int count = 0;
         int processedProcessCount = 0;
         try
@@ -119,44 +313,728 @@ internal sealed class ProcessSnapshotService : IDisposable
                 if (count >= MaximumProcessCount)
                 {
                     LogCapacityWarningOnce(processes.Length);
-                    continue;
+                    break;
                 }
 
                 int processID = ReadProcessID(process);
                 if (processID < 0) continue;
-
-                bool hadHistory = _history.TryGetValue(processID, out ProcessHistoryEntry history);
-                string processName = hadHistory ? history.Name : ReadProcessName(process, processID);
-                long totalProcessorTicks = ReadTotalProcessorTicks(process);
-                double cpuPercent = CalculateCPUPercent(history, hadHistory, totalProcessorTicks, elapsedSeconds);
-                ProcessOwnerKind owner = ReadOwner(process);
-
-                _stagingRows[count] = new ProcessSnapshotRow
+                if (SampleAndStoreProcess(
+                        process,
+                        processID,
+                        false,
+                        default,
+                        schema,
+                        warmProcessCount,
+                        sampleEveryProcess,
+                        sampleTimestamp,
+                        generation,
+                        count))
                 {
-                    ProcessID = processID,
-                    Name = processName,
-                    State = ProcessExecutionState.Running,
-                    Owner = owner,
-                    CPUPercent = cpuPercent,
-                    PrivateMemoryBytes = ReadPrivateMemoryBytes(process),
-                    WorkingSetBytes = ReadWorkingSetBytes(process),
-                    CommandLine = null
-                };
-                count++;
-
-                _history[processID] = new ProcessHistoryEntry(processName, totalProcessorTicks, generation);
+                    count++;
+                }
             }
         }
         finally
         {
-            // Dispose entries not reached when an unexpected sampler failure interrupts the loop
             for (int processIndex = processedProcessCount; processIndex < processes.Length; processIndex++)
                 processes[processIndex].Dispose();
         }
 
-        RemoveStaleHistory(generation);
-        Array.Sort(_stagingRows, 0, count, RowComparer);
-        Publish(count);
+        return count;
+    }
+
+    private bool SampleAndStoreProcess(
+        Process? process,
+        int processID,
+        bool hasSystemProcessData,
+        SystemProcessData systemProcessData,
+        ProcessDataSchema schema,
+        int warmProcessCount,
+        bool sampleEveryProcess,
+        long sampleTimestamp,
+        int generation,
+        int rowIndex)
+    {
+        if (processID < 0) return false;
+
+        bool isWarm = sampleEveryProcess
+                      || Array.BinarySearch(
+                          _sampleWarmProcessIDs,
+                          0,
+                          warmProcessCount,
+                          processID) >= 0;
+        bool historyMatches = _history.TryGetValue(processID, out ProcessHistoryEntry? existingHistory)
+                              && (!hasSystemProcessData
+                                  || existingHistory.StaticData.InstanceKey.CreationTimeTicks
+                                  == systemProcessData.CreationTimeTicks);
+        bool sampleDynamicValues = !historyMatches || isWarm;
+        bool requiresProcessHandle = !hasSystemProcessData
+                                     || (!historyMatches
+                                         && HasAnyColumn(
+                                             schema.VisibleMask,
+                                             ProcessHandleStaticColumnsMask))
+                                     || (sampleDynamicValues
+                                         && HasAnyColumn(
+                                             schema.VisibleMask,
+                                             ProcessHandleDynamicColumnsMask));
+        IntPtr processHandle = requiresProcessHandle ? OpenQueryHandle(processID) : IntPtr.Zero;
+        try
+        {
+            ProcessHistoryEntry history = ResolveHistory(
+                process,
+                processHandle,
+                processID,
+                sampleTimestamp,
+                hasSystemProcessData,
+                systemProcessData,
+                schema,
+                generation);
+            if (!history.HasDynamicSample || isWarm)
+            {
+                SampleDynamicValues(
+                    process,
+                    processHandle,
+                    history,
+                    hasSystemProcessData,
+                    systemProcessData,
+                    sampleTimestamp,
+                    schema,
+                    isWarm);
+            }
+
+            history.LastSeenGeneration = generation;
+            _stagingBuffer.SetRow(
+                rowIndex,
+                history.StaticData,
+                history.DynamicNumericValues,
+                history.DynamicTextValues);
+            return true;
+        }
+        finally
+        {
+            if (processHandle != IntPtr.Zero) Kernel32.CloseHandle(processHandle);
+        }
+    }
+
+    private void CopySamplingPolicy(
+        out ProcessDataSchema schema,
+        out int warmProcessCount,
+        out bool sampleEveryProcess)
+    {
+        lock (_samplingPolicyGate)
+        {
+            schema = _activeSchema;
+            warmProcessCount = _warmProcessCount;
+            sampleEveryProcess = _sampleEveryProcess;
+            EnsurePolicyCapacity(ref _sampleWarmProcessIDs, warmProcessCount);
+            Array.Copy(_warmProcessIDs, _sampleWarmProcessIDs, warmProcessCount);
+        }
+
+        Array.Sort(_sampleWarmProcessIDs, 0, warmProcessCount);
+    }
+
+    private void ConfigureOptionalCollectors(ProcessDataSchema schema)
+    {
+        ulong acceleratorMask = schema.VisibleMask & (GPUColumnsMask | NPUColumnsMask);
+        if (_acceleratorSamplerMask != acceleratorMask)
+        {
+            _acceleratorSampler?.Dispose();
+            _acceleratorSampler = null;
+            _acceleratorSamplerMask = acceleratorMask;
+            if (acceleratorMask != 0)
+            {
+                bool needsGPU = HasAnyColumn(acceleratorMask, GPUColumnsMask);
+                bool needsNPU = HasAnyColumn(acceleratorMask, NPUColumnsMask);
+                bool needsUtilization = schema.IsVisible(ProcessTableColumnKind.GPU)
+                                        || schema.IsVisible(ProcessTableColumnKind.NPU);
+                bool needsDedicatedMemory = schema.IsVisible(ProcessTableColumnKind.DedicatedGPUMemory)
+                                            || schema.IsVisible(ProcessTableColumnKind.DedicatedNPUMemory);
+                bool needsSharedMemory = schema.IsVisible(ProcessTableColumnKind.SharedGPUMemory)
+                                         || schema.IsVisible(ProcessTableColumnKind.SharedNPUMemory);
+                _acceleratorSampler = new AcceleratorPerformanceSampler(
+                    needsGPU,
+                    needsNPU,
+                    needsUtilization,
+                    schema.IsVisible(ProcessTableColumnKind.GPUEngine),
+                    schema.IsVisible(ProcessTableColumnKind.NPUEngine),
+                    needsDedicatedMemory,
+                    needsSharedMemory);
+            }
+        }
+
+        bool needsEnterpriseContext = schema.IsVisible(ProcessTableColumnKind.EnterpriseContext);
+        if (needsEnterpriseContext && _enterpriseContextReader == null)
+            _enterpriseContextReader = new EnterpriseContextReader();
+        else if (!needsEnterpriseContext && _enterpriseContextReader != null)
+        {
+            _enterpriseContextReader.Dispose();
+            _enterpriseContextReader = null;
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.CPUUtility))
+        {
+            if (_nominalProcessorCycleCapacity <= 0)
+                _nominalProcessorCycleCapacity = NativeProcessInfo.ReadNominalProcessorCycleCapacity();
+        }
+        else
+        {
+            _nominalProcessorCycleCapacity = 0;
+        }
+    }
+
+    private ProcessHistoryEntry ResolveHistory(
+        Process? process,
+        IntPtr processHandle,
+        int processID,
+        long sampleTimestamp,
+        bool hasSystemProcessData,
+        SystemProcessData systemProcessData,
+        ProcessDataSchema schema,
+        int generation)
+    {
+        bool hadHistory = _history.TryGetValue(processID, out ProcessHistoryEntry? history);
+        long fallbackCreationTime = hadHistory
+            ? history!.StaticData.InstanceKey.CreationTimeTicks
+            : sampleTimestamp;
+        long creationTime = hasSystemProcessData
+            ? systemProcessData.CreationTimeTicks
+            : processHandle == IntPtr.Zero
+                ? fallbackCreationTime
+                : NativeProcessInfo.ReadCreationTimeTicks(processHandle, fallbackCreationTime);
+        if (hadHistory && history!.StaticData.InstanceKey.CreationTimeTicks == creationTime)
+        {
+            history.LastSeenGeneration = generation;
+            return history;
+        }
+
+        if (hadHistory)
+        {
+            ReleaseImageIdentity(history!.StaticData.Image);
+            ReleaseUserName(history.StaticData.UserName);
+            _history.Remove(processID);
+        }
+
+        ProcessStaticData staticData = CreateStaticData(
+            process,
+            processHandle,
+            processID,
+            creationTime,
+            hasSystemProcessData,
+            systemProcessData,
+            schema);
+        history = new ProcessHistoryEntry
+        {
+            StaticData = staticData,
+            DynamicNumericValues = schema.DynamicNumericCount == 0
+                ? []
+                : new long[schema.DynamicNumericCount],
+            DynamicTextValues = schema.DynamicTextCount == 0
+                ? []
+                : new string?[schema.DynamicTextCount],
+            LastSeenGeneration = generation
+        };
+        _history.Add(processID, history);
+        return history;
+    }
+
+    private ProcessStaticData CreateStaticData(
+        Process? process,
+        IntPtr processHandle,
+        int processID,
+        long creationTime,
+        bool hasSystemProcessData,
+        SystemProcessData systemProcessData,
+        ProcessDataSchema schema)
+    {
+        bool needsIcon = schema.IsVisible(ProcessTableColumnKind.Name);
+        bool needsProcessName = needsIcon;
+        string processName = !needsProcessName
+            ? string.Empty
+            : hasSystemProcessData
+                ? NormalizeProcessName(_systemProcessSnapshot.ReadImageName(systemProcessData), processID)
+                : process == null
+                    ? NormalizeProcessName(string.Empty, processID)
+                    : ReadProcessName(process, processID);
+        bool needsImagePath = needsIcon
+                              || schema.IsVisible(ProcessTableColumnKind.ImagePath)
+                              || schema.IsVisible(ProcessTableColumnKind.Description);
+        string imagePath = processHandle == IntPtr.Zero || !needsImagePath
+            ? string.Empty
+            : ReadExecutablePath(processHandle);
+        ProcessImageIdentity image = AcquireImageIdentity(
+            processName,
+            imagePath,
+            processHandle,
+            needsIcon,
+            schema.IsVisible(ProcessTableColumnKind.Description));
+        bool needsUserName = schema.IsVisible(ProcessTableColumnKind.UserName);
+        string userName = !needsUserName
+            ? string.Empty
+            : processHandle == IntPtr.Zero
+                ? NativeProcessInfo.Unavailable
+                : NativeProcessInfo.ReadUserName(processHandle);
+        long[] numericValues = schema.StaticNumericCount == 0
+            ? []
+            : new long[schema.StaticNumericCount];
+        string?[] textValues = schema.StaticTextCount == 0
+            ? []
+            : new string?[schema.StaticTextCount];
+
+        if (schema.IsVisible(ProcessTableColumnKind.SessionID))
+        {
+            int sessionID = hasSystemProcessData
+                ? systemProcessData.SessionID
+                : process == null ? -1 : ReadSessionID(process);
+            SetStaticNumeric(schema, numericValues, ProcessTableColumnKind.SessionID, sessionID);
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.CommandLine))
+        {
+            string commandLine = processHandle == IntPtr.Zero
+                ? string.Empty
+                : NativeProcessInfo.ReadCommandLine(processHandle);
+            SetStaticText(schema, textValues, ProcessTableColumnKind.CommandLine, commandLine);
+        }
+        SetStaticCode(
+            schema,
+            numericValues,
+            ProcessTableColumnKind.OperatingSystemContext,
+            ProcessDisplayCode.Windows);
+
+        bool needsArchitecture = schema.IsVisible(ProcessTableColumnKind.Platform)
+                                 || schema.IsVisible(ProcessTableColumnKind.Architecture);
+        ProcessDisplayCode architecture = needsArchitecture && processHandle != IntPtr.Zero
+            ? NativeProcessInfo.ReadArchitecture(processHandle)
+            : ProcessDisplayCode.Unavailable;
+        SetStaticCode(
+            schema,
+            numericValues,
+            ProcessTableColumnKind.Platform,
+            NativeProcessInfo.GetPlatform(architecture));
+        if (schema.IsVisible(ProcessTableColumnKind.Elevated))
+        {
+            SetStaticCode(
+                schema,
+                numericValues,
+                ProcessTableColumnKind.Elevated,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadElevation(processHandle));
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.DataExecutionPrevention))
+        {
+            SetStaticCode(
+                schema,
+                numericValues,
+                ProcessTableColumnKind.DataExecutionPrevention,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadDataExecutionPrevention(processHandle));
+        }
+
+        bool needsPackageName = schema.IsVisible(ProcessTableColumnKind.PackageName)
+                                || schema.IsVisible(ProcessTableColumnKind.Isolation);
+        string packageName = needsPackageName && processHandle != IntPtr.Zero
+            ? NativeProcessInfo.ReadPackageName(processHandle)
+            : string.Empty;
+        SetStaticText(schema, textValues, ProcessTableColumnKind.PackageName, packageName);
+        SetStaticCode(schema, numericValues, ProcessTableColumnKind.Architecture, architecture);
+
+        if (schema.IsVisible(ProcessTableColumnKind.HardwareStackProtection))
+        {
+            SetStaticCode(
+                schema,
+                numericValues,
+                ProcessTableColumnKind.HardwareStackProtection,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadHardwareStackProtection(processHandle));
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.ExtendedControlFlowGuard))
+        {
+            SetStaticCode(
+                schema,
+                numericValues,
+                ProcessTableColumnKind.ExtendedControlFlowGuard,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadExtendedControlFlowGuard(processHandle));
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.Isolation))
+        {
+            SetStaticCode(
+                schema,
+                numericValues,
+                ProcessTableColumnKind.Isolation,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadIsolation(processHandle, packageName.Length > 0));
+        }
+
+        return new ProcessStaticData
+        {
+            InstanceKey = new ProcessInstanceKey(processID, creationTime),
+            Image = image,
+            UserName = needsUserName ? AcquireUserName(userName) : string.Empty,
+            NumericValues = numericValues,
+            TextValues = textValues
+        };
+    }
+
+    private void SampleDynamicValues(
+        Process? process,
+        IntPtr processHandle,
+        ProcessHistoryEntry history,
+        bool hasSystemProcessData,
+        SystemProcessData systemProcessData,
+        long sampleTimestamp,
+        ProcessDataSchema schema,
+        bool isWarm)
+    {
+        ulong activeMask = schema.VisibleMask;
+        if (HasAnyColumn(activeMask, ProcessorColumnsMask))
+        {
+            long totalProcessorTicks = hasSystemProcessData
+                ? systemProcessData.TotalProcessorTicks
+                : ReadTotalProcessorTicks(process);
+            double cpuPercent = CalculateCPUPercent(history, totalProcessorTicks, sampleTimestamp);
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.CPU, cpuPercent);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.CPUTime, totalProcessorTicks);
+            history.TotalProcessorTicks = totalProcessorTicks;
+            history.LastProcessorSampleTimestamp = sampleTimestamp;
+            history.HasProcessorSample = true;
+        }
+
+        bool needsCycleCount = schema.IsVisible(ProcessTableColumnKind.Cycle)
+                               || schema.IsVisible(ProcessTableColumnKind.CPUUtility);
+        if (needsCycleCount)
+        {
+            ulong cycles = hasSystemProcessData
+                ? systemProcessData.CycleCount
+                : processHandle == IntPtr.Zero ? 0 : NativeProcessInfo.ReadCycleCount(processHandle);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.Cycle, unchecked((long)cycles));
+            if (schema.IsVisible(ProcessTableColumnKind.CPUUtility))
+            {
+                double utility = CalculateCPUUtility(
+                    history,
+                    cycles,
+                    sampleTimestamp,
+                    _nominalProcessorCycleCapacity);
+                SetDynamicDouble(schema, history, ProcessTableColumnKind.CPUUtility, utility);
+            }
+
+            history.CycleCount = cycles;
+            history.LastCycleSampleTimestamp = sampleTimestamp;
+            history.HasCycleSample = true;
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.JobObjectID))
+        {
+            long jobObjectID = hasSystemProcessData && _systemProcessSnapshot.HasJobObjectIDs
+                ? systemProcessData.JobObjectID
+                : -1;
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.JobObjectID, jobObjectID);
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.EnterpriseContext))
+        {
+            string enterpriseContext = _enterpriseContextReader?.Read(history.StaticData.ProcessID)
+                                       ?? EnterpriseContextReader.NotApplicable;
+            SetDynamicText(schema, history, ProcessTableColumnKind.EnterpriseContext, enterpriseContext);
+        }
+
+        if (HasAnyColumn(activeMask, MemoryColumnsMask))
+        {
+            NativeProcessInfo.ProcessMemoryCounters memory = hasSystemProcessData
+                ? new NativeProcessInfo.ProcessMemoryCounters(
+                    systemProcessData.WorkingSetBytes,
+                    systemProcessData.PeakWorkingSetBytes,
+                    systemProcessData.PrivateWorkingSetBytes,
+                    Math.Max(0, systemProcessData.WorkingSetBytes - systemProcessData.PrivateWorkingSetBytes),
+                    systemProcessData.CommitSizeBytes,
+                    systemProcessData.PagedPoolBytes,
+                    systemProcessData.NonPagedPoolBytes,
+                    systemProcessData.PageFaultCount)
+                : ReadMemoryCounters(process, processHandle);
+            bool hasRecentMemorySample = history.HasMemorySample
+                                         && sampleTimestamp >= history.LastMemorySampleTimestamp
+                                         && sampleTimestamp - history.LastMemorySampleTimestamp
+                                         <= Stopwatch.Frequency * 3;
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.WorkingSet, memory.WorkingSetBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.PeakWorkingSet, memory.PeakWorkingSetBytes);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.WorkingSetDelta,
+                hasRecentMemorySample ? memory.WorkingSetBytes - history.WorkingSetBytes : 0);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.ActivePrivateWorkingSet,
+                memory.PrivateWorkingSetBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.PrivateMemory, memory.PrivateWorkingSetBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.SharedWorkingSet, memory.SharedWorkingSetBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.CommitSize, memory.CommitSizeBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.PagedPool, memory.PagedPoolBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.NonPagedPool, memory.NonPagedPoolBytes);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.PageFaults, memory.PageFaultCount);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.PageFaultDelta,
+                hasRecentMemorySample ? memory.PageFaultCount - history.PageFaultCount : 0);
+            history.WorkingSetBytes = memory.WorkingSetBytes;
+            history.PageFaultCount = memory.PageFaultCount;
+            history.LastMemorySampleTimestamp = sampleTimestamp;
+            history.HasMemorySample = true;
+        }
+
+        if (HasAnyColumn(activeMask, ThreadColumnsMask))
+        {
+            ProcessExecutionState state;
+            int threadCount;
+            if (hasSystemProcessData)
+            {
+                state = _systemProcessSnapshot.ReadExecutionState(systemProcessData);
+                threadCount = systemProcessData.ThreadCount;
+            }
+            else
+            {
+                ReadThreadState(process, out state, out threadCount);
+            }
+
+            SetDynamicCode(
+                schema,
+                history,
+                ProcessTableColumnKind.Status,
+                state == ProcessExecutionState.Suspended
+                    ? ProcessDisplayCode.Suspended
+                    : ProcessDisplayCode.Running);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.Threads, threadCount);
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.BasePriority))
+        {
+            int value = hasSystemProcessData ? systemProcessData.BasePriority : ReadBasePriority(process);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.BasePriority, value);
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.Handles))
+        {
+            int value = hasSystemProcessData ? systemProcessData.HandleCount : ReadHandleCount(process);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.Handles, value);
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.UserObjects))
+        {
+            int value = processHandle == IntPtr.Zero ? 0 : NativeProcessInfo.ReadUserObjectCount(processHandle);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.UserObjects, value);
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.GDIObjects))
+        {
+            int value = processHandle == IntPtr.Zero ? 0 : NativeProcessInfo.ReadGDIObjectCount(processHandle);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.GDIObjects, value);
+        }
+
+        if (HasAnyColumn(activeMask, IOColumnsMask))
+        {
+            NativeProcessInfo.ProcessIOCounters io = hasSystemProcessData
+                ? new NativeProcessInfo.ProcessIOCounters(
+                    systemProcessData.IOReadOperations,
+                    systemProcessData.IOWriteOperations,
+                    systemProcessData.IOOtherOperations,
+                    systemProcessData.IOReadBytes,
+                    systemProcessData.IOWriteBytes,
+                    systemProcessData.IOOtherBytes)
+                : processHandle == IntPtr.Zero
+                    ? default
+                    : NativeProcessInfo.ReadIOCounters(processHandle);
+            SetDynamicUnsigned(schema, history, ProcessTableColumnKind.IOReads, io.ReadOperations);
+            SetDynamicUnsigned(schema, history, ProcessTableColumnKind.IOWrites, io.WriteOperations);
+            SetDynamicUnsigned(schema, history, ProcessTableColumnKind.IOOther, io.OtherOperations);
+            SetDynamicUnsigned(schema, history, ProcessTableColumnKind.IOReadBytes, io.ReadBytes);
+            SetDynamicUnsigned(schema, history, ProcessTableColumnKind.IOWriteBytes, io.WriteBytes);
+            SetDynamicUnsigned(schema, history, ProcessTableColumnKind.IOOtherBytes, io.OtherBytes);
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.UACVirtualization))
+        {
+            SetDynamicCode(
+                schema,
+                history,
+                ProcessTableColumnKind.UACVirtualization,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadUACVirtualization(processHandle));
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.IOPriority))
+        {
+            SetDynamicCode(
+                schema,
+                history,
+                ProcessTableColumnKind.IOPriority,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadIOPriority(processHandle));
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.PowerThrottling))
+        {
+            SetDynamicCode(
+                schema,
+                history,
+                ProcessTableColumnKind.PowerThrottling,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadPowerThrottling(processHandle));
+        }
+        if (schema.IsVisible(ProcessTableColumnKind.DPIAwareness))
+        {
+            SetDynamicCode(
+                schema,
+                history,
+                ProcessTableColumnKind.DPIAwareness,
+                processHandle == IntPtr.Zero
+                    ? ProcessDisplayCode.Unavailable
+                    : NativeProcessInfo.ReadDPIAwareness(processHandle));
+        }
+
+        if (HasAnyColumn(activeMask, GPUColumnsMask))
+        {
+            ProcessAcceleratorSample acceleratorSample = default;
+            bool hasSample = _acceleratorSampler?.TryGetSample(
+                history.StaticData.ProcessID,
+                out acceleratorSample) == true;
+            bool hasCurrentProcessSample = hasSample || _acceleratorSamplesEveryProcess || isWarm;
+            double utilization = _acceleratorSampler?.HasUtilizationData == true
+                                 && hasCurrentProcessSample
+                ? acceleratorSample.GPUUtilization
+                : -1;
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.GPU, utilization);
+            SetDynamicText(
+                schema,
+                history,
+                ProcessTableColumnKind.GPUEngine,
+                _acceleratorSampler?.HasUtilizationData == true && hasCurrentProcessSample
+                    ? acceleratorSample.GPUEngine ?? string.Empty
+                    : NativeProcessInfo.Unavailable);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.DedicatedGPUMemory,
+                _acceleratorSampler?.HasDedicatedMemoryData == true && hasCurrentProcessSample
+                    ? acceleratorSample.DedicatedGPUMemory
+                    : -1);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.SharedGPUMemory,
+                _acceleratorSampler?.HasSharedMemoryData == true && hasCurrentProcessSample
+                    ? acceleratorSample.SharedGPUMemory
+                    : -1);
+        }
+        if (HasAnyColumn(activeMask, NPUColumnsMask))
+        {
+            ProcessAcceleratorSample acceleratorSample = default;
+            bool hasSample = _acceleratorSampler?.TryGetSample(
+                history.StaticData.ProcessID,
+                out acceleratorSample) == true;
+            bool hasCurrentProcessSample = hasSample || _acceleratorSamplesEveryProcess || isWarm;
+            double utilization = _acceleratorSampler?.HasUtilizationData == true
+                                 && hasCurrentProcessSample
+                ? acceleratorSample.NPUUtilization
+                : -1;
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.NPU, utilization);
+            SetDynamicText(
+                schema,
+                history,
+                ProcessTableColumnKind.NPUEngine,
+                _acceleratorSampler?.HasUtilizationData == true && hasCurrentProcessSample
+                    ? acceleratorSample.NPUEngine ?? string.Empty
+                    : NativeProcessInfo.Unavailable);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.DedicatedNPUMemory,
+                _acceleratorSampler?.HasDedicatedMemoryData == true && hasCurrentProcessSample
+                    ? acceleratorSample.DedicatedNPUMemory
+                    : -1);
+            SetDynamicNumeric(
+                schema,
+                history,
+                ProcessTableColumnKind.SharedNPUMemory,
+                _acceleratorSampler?.HasSharedMemoryData == true && hasCurrentProcessSample
+                    ? acceleratorSample.SharedNPUMemory
+                    : -1);
+        }
+
+        history.HasDynamicSample = true;
+    }
+
+    private ProcessImageIdentity AcquireImageIdentity(
+        string processName,
+        string imagePath,
+        IntPtr processHandle,
+        bool needsIcon,
+        bool needsDescription)
+    {
+        string key = imagePath.Length > 0 ? imagePath : string.Concat("\0", processName);
+        if (_imageIdentities.TryGetValue(key, out ProcessImageIdentity? existing))
+        {
+            existing.ReferenceCount++;
+            return existing;
+        }
+
+        string description = needsDescription ? ReadDescription(imagePath) : string.Empty;
+        ProcessIconSource iconSource = processHandle == IntPtr.Zero || !needsIcon
+            ? default
+            : ReadIconSource(processHandle, imagePath);
+        ProcessImageIdentity identity = new(key, processName, imagePath, description, iconSource);
+        _imageIdentities.Add(key, identity);
+        return identity;
+    }
+
+    private void ReleaseImageIdentity(ProcessImageIdentity identity)
+    {
+        identity.ReferenceCount--;
+        if (identity.ReferenceCount > 0) return;
+        _imageIdentities.Remove(identity.Key);
+    }
+
+    private string AcquireUserName(string userName)
+    {
+        if (_sharedUserNames.TryGetValue(userName, out SharedUserName? existing))
+        {
+            existing.ReferenceCount++;
+            return existing.Value;
+        }
+
+        _sharedUserNames.Add(userName, new SharedUserName(userName));
+        return userName;
+    }
+
+    private void ReleaseUserName(string userName)
+    {
+        if (!_sharedUserNames.TryGetValue(userName, out SharedUserName? existing)) return;
+
+        existing.ReferenceCount--;
+        if (existing.ReferenceCount <= 0)
+            _sharedUserNames.Remove(userName);
+    }
+
+    private static string ReadDescription(string imagePath)
+    {
+        if (imagePath.Length == 0) return string.Empty;
+
+        try
+        {
+            FileVersionInfo version = FileVersionInfo.GetVersionInfo(imagePath);
+            return version.FileDescription ?? string.Empty;
+        }
+        catch (Exception exception) when (exception is FileNotFoundException
+                                          or UnauthorizedAccessException
+                                          or Win32Exception
+                                          or NotSupportedException)
+        {
+            return string.Empty;
+        }
     }
 
     private int NextHistoryGeneration()
@@ -168,9 +1046,30 @@ internal sealed class ProcessSnapshotService : IDisposable
             return next;
         }
 
-        _history.Clear();
+        ResetHistoryForSchema(_historySchemaMask);
         _historyGeneration = 1;
         return 1;
+    }
+
+    private void ResetHistoryForSchema(ulong schemaMask)
+    {
+        _history.Clear();
+        _imageIdentities.Clear();
+        _sharedUserNames.Clear();
+        _historySchemaMask = schemaMask;
+    }
+
+    private static IntPtr OpenQueryHandle(int processID)
+    {
+        if (processID <= 0) return IntPtr.Zero;
+
+        IntPtr handle = Kernel32.OpenProcess(
+            Kernel32.PROCESS_QUERY_LIMITED_INFORMATION | ProcessQueryInformation | ProcessVMRead,
+            false,
+            (uint)processID);
+        return handle != IntPtr.Zero
+            ? handle
+            : Kernel32.OpenProcess(Kernel32.PROCESS_QUERY_LIMITED_INFORMATION, false, (uint)processID);
     }
 
     private static int ReadProcessID(Process process)
@@ -189,20 +1088,91 @@ internal sealed class ProcessSnapshotService : IDisposable
     {
         try
         {
-            string name = process.ProcessName;
-            if (string.IsNullOrWhiteSpace(name)) return "Process " + processID;
-            if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return name;
-            if (name[0] is '[' or '<') return name;
-            return string.Concat(name, ".exe");
+            return NormalizeProcessName(process.ProcessName, processID);
         }
         catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
         {
-            return "Process " + processID;
+            return NormalizeProcessName(string.Empty, processID);
         }
     }
 
-    private static long ReadTotalProcessorTicks(Process process)
+    private static string NormalizeProcessName(string name, int processID)
     {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return processID switch
+            {
+                0 => "System Idle Process",
+                4 => "System",
+                _ => "Process " + processID
+            };
+        }
+
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return name;
+        if (name[0] is '[' or '<') return name;
+        return name switch
+        {
+            "Registry" or "Memory Compression" or "Secure System" or "System" => name,
+            _ => string.Concat(name, ".exe")
+        };
+    }
+
+    private ProcessIconSource ReadIconSource(IntPtr processHandle, string imagePath)
+    {
+        string? applicationUserModelID = ReadApplicationUserModelID(processHandle);
+        return new ProcessIconSource(imagePath.Length == 0 ? null : imagePath, applicationUserModelID);
+    }
+
+    private string ReadExecutablePath(IntPtr processHandle)
+    {
+        while (true)
+        {
+            _processPathBuffer.Clear();
+            uint characterCount = (uint)_processPathBuffer.Capacity;
+            if (Kernel32.QueryFullProcessImageNameW(processHandle, 0, _processPathBuffer, ref characterCount))
+                return _processPathBuffer.ToString(0, (int)characterCount);
+
+            int error = Marshal.GetLastPInvokeError();
+            if (error != NativeErrors.ERROR_INSUFFICIENT_BUFFER
+                || _processPathBuffer.Capacity >= MaximumProcessPathCapacity)
+            {
+                return string.Empty;
+            }
+
+            int nextCapacity = Math.Min(_processPathBuffer.Capacity * 2, MaximumProcessPathCapacity);
+            _processPathBuffer.EnsureCapacity(nextCapacity);
+        }
+    }
+
+    private string? ReadApplicationUserModelID(IntPtr processHandle)
+    {
+        _applicationUserModelIDBuffer.Clear();
+        int characterCount = _applicationUserModelIDBuffer.Capacity;
+        int result = IconExtraction.GetApplicationUserModelId(
+            processHandle,
+            ref characterCount,
+            _applicationUserModelIDBuffer);
+        return result == NativeErrors.S_OK && _applicationUserModelIDBuffer.Length > 0
+            ? _applicationUserModelIDBuffer.ToString()
+            : null;
+    }
+
+    private static int ReadSessionID(Process process)
+    {
+        try
+        {
+            return process.SessionId;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        {
+            return -1;
+        }
+    }
+
+    private static long ReadTotalProcessorTicks(Process? process)
+    {
+        if (process == null) return 0;
+
         try
         {
             return process.TotalProcessorTime.Ticks;
@@ -211,6 +1181,31 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             return 0;
         }
+    }
+
+    private static NativeProcessInfo.ProcessMemoryCounters ReadMemoryCounters(
+        Process? process,
+        IntPtr processHandle)
+    {
+        if (processHandle != IntPtr.Zero
+            && NativeProcessInfo.TryReadMemoryCounters(processHandle, out NativeProcessInfo.ProcessMemoryCounters counters))
+        {
+            return counters;
+        }
+
+        if (process == null) return default;
+
+        long workingSet = ReadWorkingSetBytes(process);
+        long privateBytes = ReadPrivateMemoryBytes(process);
+        return new NativeProcessInfo.ProcessMemoryCounters(
+            workingSet,
+            ReadPeakWorkingSetBytes(process),
+            Math.Min(workingSet, privateBytes),
+            Math.Max(0, workingSet - privateBytes),
+            privateBytes,
+            0,
+            0,
+            0);
     }
 
     private static long ReadPrivateMemoryBytes(Process process)
@@ -237,56 +1232,152 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
     }
 
-    private static ProcessOwnerKind ReadOwner(Process process)
+    private static long ReadPeakWorkingSetBytes(Process process)
     {
         try
         {
-            return process.SessionId == 0
-                ? ProcessOwnerKind.System
-                : ProcessOwnerKind.CurrentUser;
+            return Math.Max(0, process.PeakWorkingSet64);
         }
         catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
         {
-            return ProcessOwnerKind.Unavailable;
+            return 0;
+        }
+    }
+
+    private static int ReadHandleCount(Process? process)
+    {
+        if (process == null) return 0;
+
+        try
+        {
+            return Math.Max(0, process.HandleCount);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        {
+            return 0;
+        }
+    }
+
+    private static int ReadBasePriority(Process? process)
+    {
+        if (process == null) return 0;
+
+        try
+        {
+            return process.BasePriority;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        {
+            return 0;
+        }
+    }
+
+    private static void ReadThreadState(
+        Process? process,
+        out ProcessExecutionState state,
+        out int threadCount)
+    {
+        state = ProcessExecutionState.Running;
+        threadCount = 0;
+        if (process == null) return;
+
+        try
+        {
+            ProcessThreadCollection threads = process.Threads;
+            threadCount = threads.Count;
+            if (threadCount == 0) return;
+
+            bool allSuspended = true;
+            for (int threadIndex = 0; threadIndex < threadCount; threadIndex++)
+            {
+                using ProcessThread thread = threads[threadIndex];
+                if (thread.ThreadState == System.Diagnostics.ThreadState.Wait
+                    && thread.WaitReason == ThreadWaitReason.Suspended)
+                {
+                    continue;
+                }
+
+                allSuspended = false;
+            }
+
+            state = allSuspended ? ProcessExecutionState.Suspended : ProcessExecutionState.Running;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+                                          or Win32Exception
+                                          or NotSupportedException
+                                          or PlatformNotSupportedException)
+        {
+            state = ProcessExecutionState.Running;
         }
     }
 
     private static double CalculateCPUPercent(
         ProcessHistoryEntry history,
-        bool hadHistory,
         long totalProcessorTicks,
-        double elapsedSeconds)
+        long sampleTimestamp)
     {
-        if (!hadHistory || elapsedSeconds <= 0 || totalProcessorTicks < history.TotalProcessorTicks) return 0;
+        if (!history.HasProcessorSample
+            || sampleTimestamp <= history.LastProcessorSampleTimestamp
+            || totalProcessorTicks < history.TotalProcessorTicks)
+        {
+            return 0;
+        }
 
+        double elapsedSeconds = (sampleTimestamp - history.LastProcessorSampleTimestamp)
+                                / (double)Stopwatch.Frequency;
         long processorTickDelta = totalProcessorTicks - history.TotalProcessorTicks;
         double processorSeconds = processorTickDelta / (double)TimeSpan.TicksPerSecond;
         double normalized = processorSeconds / elapsedSeconds / Environment.ProcessorCount * 100;
         return Math.Clamp(normalized, 0, 100);
     }
 
-    private void RemoveStaleHistory(int generation)
+    private static double CalculateCPUUtility(
+        ProcessHistoryEntry history,
+        ulong cycleCount,
+        long sampleTimestamp,
+        double nominalProcessorCycleCapacity)
     {
-        int staleCount = 0;
-        foreach (KeyValuePair<int, ProcessHistoryEntry> pair in _history)
+        if (nominalProcessorCycleCapacity <= 0) return -1;
+        if (!history.HasCycleSample
+            || sampleTimestamp <= history.LastCycleSampleTimestamp
+            || cycleCount < history.CycleCount)
         {
-            if (pair.Value.LastSeenGeneration == generation) continue;
-            _staleProcessIDs[staleCount] = pair.Key;
-            staleCount++;
+            return 0;
         }
 
-        for (int staleIndex = 0; staleIndex < staleCount; staleIndex++)
-            _history.Remove(_staleProcessIDs[staleIndex]);
+        double elapsedSeconds = (sampleTimestamp - history.LastCycleSampleTimestamp)
+                                / (double)Stopwatch.Frequency;
+        double cycleDelta = cycleCount - history.CycleCount;
+        double utility = cycleDelta / elapsedSeconds / nominalProcessorCycleCapacity * 100;
+        return Math.Clamp(utility, 0, 1_000);
     }
 
-    private void Publish(int count)
+    private void RemoveStaleHistory(int generation)
+    {
+        _staleProcessIDs.Clear();
+        foreach (KeyValuePair<int, ProcessHistoryEntry> pair in _history)
+        {
+            if (pair.Value.LastSeenGeneration != generation)
+                _staleProcessIDs.Add(pair.Key);
+        }
+
+        for (int staleIndex = 0; staleIndex < _staleProcessIDs.Count; staleIndex++)
+        {
+            int processID = _staleProcessIDs[staleIndex];
+            ProcessHistoryEntry history = _history[processID];
+            _history.Remove(processID);
+            ReleaseImageIdentity(history.StaticData.Image);
+            ReleaseUserName(history.StaticData.UserName);
+        }
+    }
+
+    private void Publish()
     {
         lock (_publishGate)
         {
-            ProcessSnapshotRow[] previousPublished = _publishedRows;
-            _publishedRows = _stagingRows;
-            _stagingRows = previousPublished;
-            _publishedCount = count;
+            ProcessSnapshotBuffer previousPublished = _publishedBuffer;
+            _publishedBuffer = _stagingBuffer;
+            _stagingBuffer = previousPublished;
             _publishedVersion++;
         }
 
@@ -310,11 +1401,94 @@ internal sealed class ProcessSnapshotService : IDisposable
     private void LogCapacityWarningOnce(int observedProcessCount)
     {
         if (_capacityWarningLogged) return;
-
         _capacityWarningLogged = true;
         TADNLog.Log(
             $"ProcessSnapshotService capacity {MaximumProcessCount} was exceeded by {observedProcessCount} processes.");
     }
+
+    private static void EnsurePolicyCapacity(ref int[] values, int count)
+    {
+        if (values.Length >= count) return;
+
+        int capacity = Math.Max(256, values.Length);
+        while (capacity < count)
+            capacity = checked(capacity * 2);
+        Array.Resize(ref values, capacity);
+    }
+
+    private static void SetStaticNumeric(
+        ProcessDataSchema schema,
+        long[] values,
+        ProcessTableColumnKind column,
+        long value)
+    {
+        int slot = schema.GetStaticNumericSlot(column);
+        if (slot >= 0) values[slot] = value;
+    }
+
+    private static void SetStaticCode(
+        ProcessDataSchema schema,
+        long[] values,
+        ProcessTableColumnKind column,
+        ProcessDisplayCode value) =>
+        SetStaticNumeric(schema, values, column, (long)value);
+
+    private static void SetStaticText(
+        ProcessDataSchema schema,
+        string?[] values,
+        ProcessTableColumnKind column,
+        string value)
+    {
+        int slot = schema.GetStaticTextSlot(column);
+        if (slot >= 0) values[slot] = value;
+    }
+
+    private static void SetDynamicNumeric(
+        ProcessDataSchema schema,
+        ProcessHistoryEntry history,
+        ProcessTableColumnKind column,
+        long value)
+    {
+        int slot = schema.GetDynamicNumericSlot(column);
+        if (slot >= 0) history.DynamicNumericValues[slot] = value;
+    }
+
+    private static void SetDynamicUnsigned(
+        ProcessDataSchema schema,
+        ProcessHistoryEntry history,
+        ProcessTableColumnKind column,
+        ulong value) =>
+        SetDynamicNumeric(schema, history, column, unchecked((long)value));
+
+    private static void SetDynamicDouble(
+        ProcessDataSchema schema,
+        ProcessHistoryEntry history,
+        ProcessTableColumnKind column,
+        double value) =>
+        SetDynamicNumeric(schema, history, column, BitConverter.DoubleToInt64Bits(value));
+
+    private static void SetDynamicCode(
+        ProcessDataSchema schema,
+        ProcessHistoryEntry history,
+        ProcessTableColumnKind column,
+        ProcessDisplayCode value) =>
+        SetDynamicNumeric(schema, history, column, (long)value);
+
+    private static void SetDynamicText(
+        ProcessDataSchema schema,
+        ProcessHistoryEntry history,
+        ProcessTableColumnKind column,
+        string value)
+    {
+        int slot = schema.GetDynamicTextSlot(column);
+        if (slot >= 0) history.DynamicTextValues[slot] = value;
+    }
+
+    private static ulong ColumnMask(ProcessTableColumnKind column) =>
+        ProcessTableColumnCatalog.GetMask(column);
+
+    private static bool HasAnyColumn(ulong activeMask, ulong columns) =>
+        (activeMask & columns) != 0;
 
     public void Dispose()
     {
@@ -326,20 +1500,37 @@ internal sealed class ProcessSnapshotService : IDisposable
             TADNLog.Log("ProcessSnapshotService sampling thread did not stop before the shutdown timeout.");
 
         _refreshWake.Dispose();
+        _acceleratorSampler?.Dispose();
+        _enterpriseContextReader?.Dispose();
+        _systemProcessSnapshot.Dispose();
         _history.Clear();
+        _imageIdentities.Clear();
+        _sharedUserNames.Clear();
+        _systemProcessData.Clear();
     }
 
-    private readonly record struct ProcessHistoryEntry(
-        string Name,
-        long TotalProcessorTicks,
-        int LastSeenGeneration);
-
-    private sealed class ProcessRowComparer : IComparer<ProcessSnapshotRow>
+    private sealed class ProcessHistoryEntry
     {
-        public int Compare(ProcessSnapshotRow left, ProcessSnapshotRow right)
-        {
-            int nameComparison = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
-            return nameComparison != 0 ? nameComparison : left.ProcessID.CompareTo(right.ProcessID);
-        }
+        public required ProcessStaticData StaticData;
+        public required long[] DynamicNumericValues;
+        public required string?[] DynamicTextValues;
+        public long TotalProcessorTicks;
+        public long LastProcessorSampleTimestamp;
+        public ulong CycleCount;
+        public long LastCycleSampleTimestamp;
+        public long WorkingSetBytes;
+        public long PageFaultCount;
+        public long LastMemorySampleTimestamp;
+        public int LastSeenGeneration;
+        public bool HasDynamicSample;
+        public bool HasProcessorSample;
+        public bool HasCycleSample;
+        public bool HasMemorySample;
+    }
+
+    private sealed class SharedUserName(string value)
+    {
+        public string Value { get; } = value;
+        public int ReferenceCount { get; set; } = 1;
     }
 }

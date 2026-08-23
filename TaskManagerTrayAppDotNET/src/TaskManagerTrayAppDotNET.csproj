@@ -11,12 +11,14 @@
     <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">win-x64</RuntimeIdentifiers>
     <PublishAot Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging'">true</PublishAot>
     <AvaloniaVersion>12.0.4</AvaloniaVersion>
     <HotAvaloniaPackageVersion>3.1.1</HotAvaloniaPackageVersion>
     <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
     <HotAvaloniaMode>Balanced</HotAvaloniaMode>
+    <ApplicationIcon Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')">..\app.ico</ApplicationIcon>
     <_DefaultTrayAppDotNETCommonRoot>$(MSBuildProjectDirectory)\..\..\TrayAppDotNETCommon</_DefaultTrayAppDotNETCommonRoot>
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
@@ -75,6 +77,10 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True"
                       Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="..\app.ico" Link="Assets/app.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\app.ico')" />
   </ItemGroup>
 
   <ItemGroup>

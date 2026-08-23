@@ -30,10 +30,12 @@ public static unsafe partial class IconExtraction
         Default = 0x00030000
     }
 
-    // SHGetImageFromShellItem flag set; only RESIZETOFIT is needed for the icon use case.
+    // SHGetImageFromShellItem flags used by the shared shell icon pipelines.
+    [Flags]
     public enum SIIGBF
     {
-        SIIGBF_RESIZETOFIT = 0
+        SIIGBF_RESIZETOFIT = 0,
+        SIIGBF_ICONONLY = 0x00000004
     }
 
     public const uint BI_RGB = 0;

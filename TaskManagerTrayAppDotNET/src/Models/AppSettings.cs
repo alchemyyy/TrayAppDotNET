@@ -13,11 +13,25 @@ public sealed class AppSettings : AppSettingsCommon
     public AppSettings()
         : base(
             TimeConstants.UpdateCheckIntervalDefaultMs,
-            TrayAppDotNETRenderingBackend.Software)
+            TrayAppDotNETRenderingBackend.GPUPreferred)
     {
         SuppressChangeNotification = true;
         UseWindows11SettingsNavigation = true;
         SuppressChangeNotification = false;
+    }
+
+    [XmlArray("DetailsColumns")]
+    [XmlArrayItem("Column")]
+    public List<ProcessColumnSetting> DetailsColumns
+    {
+        get;
+        set => SetField(ref field, ProcessColumnSettings.Normalize(value));
+    } = ProcessColumnSettings.CreateDefault();
+
+    public override void OnTrayXmlDeserialized()
+    {
+        DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
+        base.OnTrayXmlDeserialized();
     }
 
     protected override void RequestSave()

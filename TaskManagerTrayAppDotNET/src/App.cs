@@ -14,28 +14,16 @@ internal static class TaskManagerAvaloniaRunner
     public static int Run(string[] args) =>
         TrayAppDotNETAvalonia.StartWithExplicitShutdown<TaskManagerAvaloniaApp>(
             args,
-            builder => TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
+            builder => TrayAppDotNETAvalonia.UseRenderingBackend(
                 builder,
-                AppSettings.GetDefaultPath,
-                TADNLog.Log,
-                TrayAppDotNETRenderingBackend.Software));
+                TrayAppDotNETRenderingBackend.GPUPreferred));
 }
 
 internal sealed class TaskManagerAvaloniaApp : Application
 {
-    private readonly TrayIconRenderer _trayIconRenderer = new(new TrayIconRenderOptions
-    {
-        IconFontFamilies =
-        [
-            TADNFontResolver.SegoeFluentIconsFamilyName,
-            TADNFontResolver.SegoeMDL2AssetsFamilyName
-        ],
-        FallbackIcon = null,
-        Log = TADNLog.Log
-    });
-
     private AppSettings? _settings;
     private AppTheme? _theme;
+    private ProcessIconService? _processIconService;
     private ProcessSnapshotService? _snapshotService;
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
@@ -68,9 +56,10 @@ internal sealed class TaskManagerAvaloniaApp : Application
         }
 
         StartWatcherMonitor();
+        _processIconService = new ProcessIconService();
         _snapshotService = new ProcessSnapshotService();
-        _snapshotService.Start();
         CreateTaskManagerWindow();
+        _snapshotService.Start();
         CreateTrayIcon();
         _taskManagerWindow!.ShowAtDefaultPositionAndActivate();
         base.OnFrameworkInitializationCompleted();
@@ -130,25 +119,27 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
     private void CreateTaskManagerWindow()
     {
-        if (_settings == null || _theme == null || _snapshotService == null)
+        if (_settings == null || _theme == null || _processIconService == null || _snapshotService == null)
             throw new InvalidOperationException("Task Manager services must be loaded before creating the window.");
 
-        _taskManagerWindow = new TaskManagerWindow(_settings, _theme, _snapshotService);
+        _taskManagerWindow = new TaskManagerWindow(
+            _settings,
+            _theme,
+            _snapshotService,
+            _processIconService);
     }
 
     private void CreateTrayIcon()
     {
         _trayIcon = new TrayAppDotNETShellTrayIcon(
             Constants.TrayIconGUID,
-            Program.ApplicationName + ".TrayIcon")
-        {
-            IsVisible = true
-        };
+            Program.ApplicationName + ".TrayIcon");
         _trayIcon.LeftClick += OnTrayLeftClick;
         _trayIcon.LeftDoubleClick += ShowTaskManager;
         _trayIcon.RightClick += OnTrayRightClick;
         _trayIcon.RefreshNeeded += RefreshTrayIcon;
         RefreshTrayIcon();
+        _trayIcon.IsVisible = true;
     }
 
     private void RefreshTrayIcon()
@@ -156,20 +147,15 @@ internal sealed class TaskManagerAvaloniaApp : Application
         TrayAppDotNETShellTrayIcon? trayIcon = _trayIcon;
         if (trayIcon == null) return;
 
-        bool isLight = ResolveEffectiveIsLightTheme();
-        AppTheme theme = _theme ?? AppTheme.Default;
-        TrayIconRenderInput input = new(
-            new TrayIconGlyphLayer(null, SettingsNavigationGlyphs.MonitorOptions.Text),
-            theme.ResolveForeground(_settings, isLight),
-            BackdropOpacity: 0);
-        NativeIcon? icon = _trayIconRenderer.Render(input);
+        NativeIcon? icon = AppThemeStore.LoadAppNativeIcon();
         if (icon == null)
         {
             trayIcon.SetTooltip(Constants.DisplayName);
+            TADNLog.Log("Task Manager tray icon could not be loaded.");
             return;
         }
 
-        trayIcon.SetIconAndTooltip(icon, Constants.DisplayName);
+        trayIcon.SetOwnedIconAndTooltip(icon, Constants.DisplayName);
     }
 
     private void OnTrayLeftClick()
@@ -276,6 +262,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
             Safe.Dispose(_snapshotService);
             _snapshotService = null;
+            Safe.Dispose(_processIconService);
+            _processIconService = null;
 
             if (_trayIcon != null)
             {
@@ -287,7 +275,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
-            _trayIconRenderer.Dispose();
             Safe.Dispose(_watcherMonitor);
             _watcherMonitor = null;
 

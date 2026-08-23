@@ -33,17 +33,20 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
     private readonly ProcessSnapshotService _snapshotService;
+    private readonly ProcessIconService _processIconService;
     private readonly TaskManagerWindowResources _taskManagerResources = new();
     private bool _allowClose;
 
     public TaskManagerWindow(
         AppSettings settings,
         AppTheme theme,
-        ProcessSnapshotService snapshotService)
+        ProcessSnapshotService snapshotService,
+        ProcessIconService processIconService)
     {
         _settings = settings;
         _theme = theme;
         _snapshotService = snapshotService;
+        _processIconService = processIconService;
         Resources.MergedDictionaries.Add(_taskManagerResources);
 
         ConfigureSettingsWindow(Constants.DisplayName, icon: null);
@@ -95,6 +98,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>
     internal void RefreshTheme() => RebuildShell(CurrentPageKey);
 
+    /// <summary>Rebuilds the Details drawing DAG after its visible schema or order changes.</summary>
+    internal void RefreshDetailsColumns()
+    {
+        if (CurrentPageKey == TaskManagerPage.Details)
+            RebuildShell(TaskManagerPage.Details);
+    }
+
     /// <summary>Allows app shutdown to close the otherwise warm, hide-on-close window.</summary>
     internal void RequestPermanentClose()
     {
@@ -106,6 +116,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         ProcessDetailsPage page = new(
             _snapshotService,
+            _processIconService,
+            _settings,
             Palette,
             _taskManagerResources,
             TerminateProcess,

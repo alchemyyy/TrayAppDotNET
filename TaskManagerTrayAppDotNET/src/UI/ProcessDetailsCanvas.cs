@@ -1,75 +1,89 @@
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>
-/// Paints the process table as one control. No control or view-model object is created per row.
-/// </summary>
+/// <summary>Composites two retained drawing roots per process from shared visible-column fragments.</summary>
 internal sealed class ProcessDetailsCanvas : Control, IDisposable
 {
     private const double DefaultViewportHeight = 900;
-    private const string RunningText = "Running";
-    private const string SuspendedText = "Suspended";
-    private const string SystemUserText = "SYSTEM";
+    private const int DynamicRefreshBatchSize = 16;
+    private const double DynamicRefreshBudgetMilliseconds = 1.25;
     private const string UnavailableText = "Unavailable";
-    private const string NotSampledText = "Not sampled";
+    private const string ZeroText = "0";
+    private const string ZeroMemoryText = "0 K";
+    private const string ZeroCPUTimeText = "0:00:00";
 
     private static readonly Typeface TableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
     private static readonly Typeface GlyphTypeface = new(TADNFontResolver.SegoeFluentIconsFamilyName);
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
 
+    private readonly ProcessIconService _processIconService;
+    private readonly ProcessDataSchema _schema;
     private readonly ProcessTableMetrics _metrics;
     private readonly ProcessTableColumn[] _columns;
-    private readonly ProcessSnapshotRow[] _rows = new ProcessSnapshotRow[ProcessSnapshotService.MaximumProcessCount];
-    private readonly int[] _visibleRowIndexes = new int[ProcessSnapshotService.MaximumProcessCount];
-    private readonly ProcessRowTextCache[] _textCaches = new ProcessRowTextCache[ProcessSnapshotService.MaximumProcessCount];
-    private readonly Dictionary<int, int> _cacheSlots = new(ProcessSnapshotService.MaximumProcessCount);
-    private readonly int[] _freeCacheSlots = new int[ProcessSnapshotService.MaximumProcessCount];
-    private readonly int[] _staleProcessIDs = new int[ProcessSnapshotService.MaximumProcessCount];
+    private readonly bool _hasDynamicColumns;
+    private readonly ProcessSnapshotBuffer _snapshot = new();
+    private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
+    private readonly Dictionary<ProcessSharedCellKey, SharedCellDrawing> _sharedCellDrawings = new();
+    private readonly List<SharedCellDrawing> _sharedCellBuffer = new(8);
+    private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly ProcessRowIndexComparer _rowComparer;
     private readonly FormattedText[] _headerTexts;
     private readonly FormattedText _ascendingCaretText;
     private readonly FormattedText _descendingCaretText;
-    private readonly FormattedText _runningText;
-    private readonly FormattedText _suspendedText;
-    private readonly FormattedText _currentUserText;
-    private readonly FormattedText _systemUserText;
-    private readonly FormattedText _unavailableText;
-    private readonly FormattedText _notSampledText;
     private readonly IBrush _backgroundBrush;
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
-    private readonly IBrush _hoverBrush;
-    private readonly IBrush _selectedBrush;
     private readonly IBrush _accentBrush;
     private readonly Pen _gridPen;
     private readonly double _sortCaretRightMargin;
+    private readonly Action _refreshWarmDynamicDrawings;
+    private int[] _visibleRowIndexes = [];
+    private int[] _warmProcessIDs = [];
     private int _rowCount;
     private int _visibleRowCount;
-    private int _selectedProcessID = -1;
-    private int _hoveredProcessID = -1;
-    private int _freeCacheSlotCount = ProcessSnapshotService.MaximumProcessCount;
     private int _cacheGeneration;
     private int _filterProcessID = -1;
+    private int _warmRefreshCursor;
+    private int _warmRefreshEnd;
     private long _snapshotVersion = -1;
     private string _filterText = string.Empty;
     private Rect _effectiveViewport;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
+    private ProcessInstanceKey? _selectedProcess;
+    private int _hoveredVisibleIndex = -1;
+    private double _pointerViewportY;
     private bool _sortDescending;
+    private bool _pointerInside;
+    private bool _dynamicRefreshScheduled;
     private bool _disposed;
+    private ProcessSnapshotService? _snapshotService;
 
-    public ProcessDetailsCanvas(SettingsPalette palette, TaskManagerWindowResources resources)
+    public ProcessDetailsCanvas(
+        ProcessIconService processIconService,
+        ProcessDataSchema schema,
+        IReadOnlyList<ProcessColumnSetting> columnSettings,
+        SettingsPalette palette,
+        TaskManagerWindowResources resources)
     {
+        ArgumentNullException.ThrowIfNull(processIconService);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(columnSettings);
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
 
+        _processIconService = processIconService;
+        _processIconService.IconsChanged += OnIconsChanged;
+        _schema = schema;
         _metrics = new ProcessTableMetrics(
             resources.AxamlProcessTable.HeaderHeight,
             resources.AxamlProcessTable.RowHeight,
@@ -78,18 +92,15 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             resources.AxamlProcessTable.HeaderFontSize,
             resources.AxamlProcessTable.ProcessIconSize,
             resources.AxamlProcessTable.ProcessIconGap);
-        _columns = CreateColumns(resources);
-        _rowComparer = new ProcessRowIndexComparer(_rows);
+        _columns = CreateColumns(columnSettings);
+        _hasDynamicColumns = ContainsLifetime(_columns, ProcessTableColumnLifetime.Dynamic);
+        _rowComparer = new ProcessRowIndexComparer(_snapshot, _schema);
         _sortCaretRightMargin = resources.AxamlProcessTable.SortCaretRightMargin;
-
-        for (int cacheIndex = 0; cacheIndex < _freeCacheSlots.Length; cacheIndex++)
-            _freeCacheSlots[cacheIndex] = _freeCacheSlots.Length - cacheIndex - 1;
+        _refreshWarmDynamicDrawings = RefreshWarmDynamicDrawings;
 
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(TaskManagerWindowResources.ProcessGridBackgroundColor);
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
-        _hoverBrush = TrayAppDotNETSettingsUI.Brush(palette.Hover);
-        _selectedBrush = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected);
         _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
         _gridPen = new Pen(TrayAppDotNETSettingsUI.Brush(palette.Border), 1);
 
@@ -111,12 +122,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             "\uE96E",
             resources.AxamlProcessTable.SortCaretFontSize,
             _secondaryForegroundBrush);
-        _runningText = CreateText(RunningText, _metrics.FontSize, _foregroundBrush);
-        _suspendedText = CreateText(SuspendedText, _metrics.FontSize, _secondaryForegroundBrush);
-        _currentUserText = CreateText(Environment.UserName, _metrics.FontSize, _foregroundBrush);
-        _systemUserText = CreateText(SystemUserText, _metrics.FontSize, _foregroundBrush);
-        _unavailableText = CreateText(UnavailableText, _metrics.FontSize, _secondaryForegroundBrush);
-        _notSampledText = CreateText(NotSampledText, _metrics.FontSize, _secondaryForegroundBrush);
 
         ClipToBounds = true;
         Focusable = true;
@@ -124,26 +129,32 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     }
 
     public event Action<int?>? SelectedProcessChanged;
+    public event Action<double?>? HoverRowTopChanged;
+    public event Action<double?>? SelectionRowTopChanged;
+    public event Action? ColumnsRequested;
 
-    public int? SelectedProcessID => _selectedProcessID >= 0 ? _selectedProcessID : null;
+    public int? SelectedProcessID => _selectedProcess?.ProcessID;
 
-    /// <summary>Copies and applies the service's newest snapshot without allocating a row collection.</summary>
+    /// <summary>Copies the newest compact snapshot and updates only changed retained row roots.</summary>
     public void RefreshFrom(ProcessSnapshotService snapshotService)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(snapshotService);
 
-        int previousCount = _rowCount;
-        int count = snapshotService.CopyLatest(_rows, out long version);
+        _snapshotService ??= snapshotService;
+        int count = snapshotService.CopyLatest(_snapshot, _schema.VisibleMask, out long version);
         if (version == _snapshotVersion) return;
 
-        if (count < previousCount)
-            Array.Clear(_rows, count, previousCount - count);
         _snapshotVersion = version;
         _rowCount = count;
-        SynchronizeTextCacheMembership();
+        EnsureRowCapacity(count);
+        SynchronizeRenderCacheMembership();
         RebuildVisibleRows();
+        PublishWarmProcesses();
         EnsureSelectedProcessStillExists();
+        UpdateRetainedDrawings();
+        UpdateSelectionOverlay();
+        UpdateHoverFromPointer();
         InvalidateMeasure();
         InvalidateVisual();
     }
@@ -159,15 +170,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             ? processID
             : -1;
         RebuildVisibleRows();
+        PublishWarmProcesses();
+        UpdateSelectionOverlay();
+        UpdateHoverFromPointer();
         InvalidateMeasure();
         InvalidateVisual();
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        double contentWidth = _columns.Length == 0 ? 0 : _columns[^1].Right;
         double width = double.IsFinite(availableSize.Width)
-            ? Math.Max(0, availableSize.Width)
-            : _columns[^1].Right;
+            ? Math.Max(contentWidth, availableSize.Width)
+            : contentWidth;
         return new Size(width, ProcessTableLayout.GetContentHeight(_visibleRowCount, _metrics));
     }
 
@@ -178,8 +193,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         Rect viewport = ResolveViewport();
         double stickyHeaderTop = Math.Clamp(viewport.Y, 0, Math.Max(0, Bounds.Height - _metrics.HeaderHeight));
-        context.FillRectangle(_backgroundBrush, viewport);
-
         ProcessTableLayout.GetVisibleRowRange(
             viewport,
             _visibleRowCount,
@@ -187,7 +200,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             out int firstRow,
             out int lastRowExclusive);
         for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
-            DrawRow(context, visibleIndex);
+            DrawRetainedRow(context, viewport, visibleIndex);
 
         DrawColumnGrid(context, viewport);
         DrawHeader(context, stickyHeaderTop);
@@ -197,11 +210,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         base.OnPointerPressed(eventArgs);
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
-        if (!pointerPoint.Properties.IsLeftButtonPressed) return;
-
         Point position = eventArgs.GetPosition(this);
         double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
-        if (position.Y >= stickyHeaderTop && position.Y < stickyHeaderTop + _metrics.HeaderHeight)
+        bool isHeader = position.Y >= stickyHeaderTop
+                        && position.Y < stickyHeaderTop + _metrics.HeaderHeight;
+        if (pointerPoint.Properties.IsRightButtonPressed && isHeader)
+        {
+            ColumnsRequested?.Invoke();
+            eventArgs.Handled = true;
+            return;
+        }
+
+        if (!pointerPoint.Properties.IsLeftButtonPressed) return;
+        if (isHeader)
         {
             SortFromHeader(position.X);
             eventArgs.Handled = true;
@@ -218,95 +239,86 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         base.OnPointerMoved(eventArgs);
         Point position = eventArgs.GetPosition(this);
-        double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
-        int nextHoveredProcessID = -1;
-        if (position.Y < stickyHeaderTop || position.Y >= stickyHeaderTop + _metrics.HeaderHeight)
-        {
-            int visibleIndex = ProcessTableLayout.HitTestRow(position.Y, _visibleRowCount, _metrics);
-            if (visibleIndex >= 0)
-                nextHoveredProcessID = _rows[_visibleRowIndexes[visibleIndex]].ProcessID;
-        }
-
-        if (nextHoveredProcessID == _hoveredProcessID) return;
-        _hoveredProcessID = nextHoveredProcessID;
-        InvalidateVisual();
+        _pointerInside = true;
+        _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
+        UpdateHoveredRow(position.Y);
     }
 
     protected override void OnPointerExited(PointerEventArgs eventArgs)
     {
         base.OnPointerExited(eventArgs);
-        if (_hoveredProcessID < 0) return;
-
-        _hoveredProcessID = -1;
-        InvalidateVisual();
+        _pointerInside = false;
+        SetHoveredVisibleIndex(-1);
     }
 
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs eventArgs)
     {
         _effectiveViewport = eventArgs.EffectiveViewport;
+        UpdateHoverFromPointer();
+        PublishWarmProcesses();
+        ScheduleWarmDynamicRefresh();
         InvalidateVisual();
+    }
+
+    private void OnIconsChanged()
+    {
+        if (!_disposed) InvalidateVisual();
     }
 
     private Rect ResolveViewport()
     {
         if (_effectiveViewport.Width > 0 && _effectiveViewport.Height > 0)
         {
+            double left = Math.Clamp(_effectiveViewport.X, 0, Bounds.Width);
+            double right = Math.Clamp(_effectiveViewport.Right, left, Bounds.Width);
             double top = Math.Clamp(_effectiveViewport.Y, 0, Bounds.Height);
             double bottom = Math.Clamp(_effectiveViewport.Bottom, top, Bounds.Height);
-            return new Rect(0, top, Bounds.Width, bottom - top);
+            return new Rect(left, top, right - left, bottom - top);
         }
 
         return new Rect(0, 0, Bounds.Width, Math.Min(Bounds.Height, DefaultViewportHeight));
     }
 
-    private void DrawRow(DrawingContext context, int visibleIndex)
+    private void DrawRetainedRow(DrawingContext context, Rect viewport, int visibleIndex)
     {
         int rowIndex = _visibleRowIndexes[visibleIndex];
-        ref ProcessSnapshotRow row = ref _rows[rowIndex];
+        ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+        if (row == null || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
+            return;
+
         double top = _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight;
-        Rect rowBounds = new(0, top, Bounds.Width, _metrics.RowHeight);
-
-        if (row.ProcessID == _selectedProcessID)
+        using (context.PushTransform(Matrix.CreateTranslation(0, top)))
         {
-            context.FillRectangle(_selectedBrush, rowBounds);
-            context.FillRectangle(_accentBrush, new Rect(0, top, 3, _metrics.RowHeight));
-        }
-        else if (row.ProcessID == _hoveredProcessID)
-            context.FillRectangle(_hoverBrush, rowBounds);
-
-        if (!_cacheSlots.TryGetValue(row.ProcessID, out int cacheSlot)) return;
-        ref ProcessRowTextCache cache = ref _textCaches[cacheSlot];
-        double textTop = top + Math.Max(0, (_metrics.RowHeight - _metrics.FontSize * 1.35) / 2);
-
-        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
-        {
-            ProcessTableColumn column = _columns[columnIndex];
-            FormattedText text = ResolveCellText(ref cache, row, column.Kind);
-            double leftInset = column.Kind == ProcessTableColumnKind.Name
-                ? _metrics.CellPadding + _metrics.ProcessIconSize + _metrics.ProcessIconGap
-                : _metrics.CellPadding;
-            double textX = column.Alignment == ProcessTableColumnAlignment.Right
-                ? column.Right - _metrics.CellPadding - text.Width
-                : column.Left + leftInset;
-            Rect clip = new(
-                column.Left + leftInset,
-                top,
-                Math.Max(0, column.Width - leftInset - _metrics.CellPadding),
-                _metrics.RowHeight);
-            using (context.PushClip(clip))
-                context.DrawText(text, new Point(textX, textTop));
+            cache.StaticDrawing?.Draw(context);
+            cache.DynamicDrawing?.Draw(context);
         }
 
-        ProcessTableColumn nameColumn = _columns[0];
+        DrawProcessIcon(context, viewport, row, top);
+    }
+
+    private void DrawProcessIcon(
+        DrawingContext context,
+        Rect viewport,
+        ProcessStaticData row,
+        double top)
+    {
+        int nameColumnIndex = FindColumn(ProcessTableColumnKind.Name);
+        if (nameColumnIndex < 0) return;
+
+        ProcessTableColumn nameColumn = _columns[nameColumnIndex];
+        if (nameColumn.Right <= viewport.Left || nameColumn.Left >= viewport.Right) return;
+
         double iconTop = top + (_metrics.RowHeight - _metrics.ProcessIconSize) / 2;
-        context.FillRectangle(
-            _accentBrush,
-            new Rect(
-                nameColumn.Left + _metrics.CellPadding,
-                iconTop,
-                _metrics.ProcessIconSize,
-                _metrics.ProcessIconSize),
-            2);
+        Rect iconBounds = new(
+            nameColumn.Left + _metrics.CellPadding,
+            iconTop,
+            _metrics.ProcessIconSize,
+            _metrics.ProcessIconSize);
+        IImage? icon = _processIconService.GetOrQueue(row.Image.IconSource);
+        if (icon != null)
+            context.DrawImage(icon, iconBounds);
+        else
+            context.FillRectangle(_accentBrush, iconBounds, 2);
     }
 
     private void DrawColumnGrid(DrawingContext context, Rect viewport)
@@ -314,6 +326,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         for (int columnIndex = 1; columnIndex < _columns.Length; columnIndex++)
         {
             double left = _columns[columnIndex].Left;
+            if (left < viewport.Left || left > viewport.Right) continue;
             context.DrawLine(_gridPen, new Point(left, viewport.Y), new Point(left, viewport.Bottom));
         }
     }
@@ -327,9 +340,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             new Point(0, top + _metrics.HeaderHeight),
             new Point(Bounds.Width, top + _metrics.HeaderHeight));
 
+        Rect viewport = ResolveViewport();
         for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
         {
             ProcessTableColumn column = _columns[columnIndex];
+            if (column.Right <= viewport.Left || column.Left >= viewport.Right) continue;
+
             FormattedText headerText = _headerTexts[columnIndex];
             double textX = column.Left + _metrics.CellPadding;
             double textTop = top + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
@@ -365,75 +381,416 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
     }
 
-    private FormattedText ResolveCellText(
-        ref ProcessRowTextCache cache,
-        ProcessSnapshotRow row,
-        ProcessTableColumnKind kind) =>
-        kind switch
+    private void UpdateRetainedDrawings()
+    {
+        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
-            ProcessTableColumnKind.Name => GetStringText(ref cache.Name, row.Name, _foregroundBrush),
-            ProcessTableColumnKind.ProcessID => GetIntegerText(ref cache.ProcessID, row.ProcessID),
-            ProcessTableColumnKind.Status => row.State == ProcessExecutionState.Suspended
-                ? _suspendedText
-                : _runningText,
-            ProcessTableColumnKind.UserName => row.Owner switch
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
+                continue;
+
+            if (cache.StaticDrawing == null)
             {
-                ProcessOwnerKind.CurrentUser => _currentUserText,
-                ProcessOwnerKind.System => _systemUserText,
-                _ => _unavailableText
-            },
-            ProcessTableColumnKind.CPU => GetCPUText(ref cache.CPU, row.CPUPercent),
-            ProcessTableColumnKind.PrivateMemory => GetMemoryText(ref cache.PrivateMemory, row.PrivateMemoryBytes),
-            ProcessTableColumnKind.WorkingSet => GetMemoryText(ref cache.WorkingSet, row.WorkingSetBytes),
-            ProcessTableColumnKind.CommandLine => row.CommandLine == null
-                ? _notSampledText
-                : GetStringText(ref cache.CommandLine, row.CommandLine, _foregroundBrush),
-            _ => _unavailableText
+                cache.StaticDrawing = BuildRowDrawing(
+                    rowIndex,
+                    ProcessTableColumnLifetime.Static,
+                    out SharedCellDrawing[] sharedCells);
+                cache.StaticSharedCells = sharedCells;
+            }
+            if (!_hasDynamicColumns) continue;
+
+            cache.PendingDynamicFingerprint = CalculateDynamicFingerprint(rowIndex);
+            if (cache.DynamicDrawing == null)
+                RebuildDynamicDrawing(cache, rowIndex);
+        }
+
+        ScheduleWarmDynamicRefresh();
+    }
+
+    private DrawingGroup BuildRowDrawing(
+        int rowIndex,
+        ProcessTableColumnLifetime lifetime,
+        out SharedCellDrawing[] sharedCells)
+    {
+        _sharedCellBuffer.Clear();
+        DrawingGroup uniqueDrawing = new();
+        DrawingCollection children = new() { Capacity = _columns.Length + 1 };
+        bool hasUniqueDrawing = false;
+        using (DrawingContext uniqueContext = uniqueDrawing.Open())
+        {
+            for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+            {
+                ProcessTableColumn column = _columns[columnIndex];
+                ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(column.Kind);
+                if (definition.Lifetime != lifetime) continue;
+
+                string display = lifetime == ProcessTableColumnLifetime.Static
+                    ? GetStaticDisplayValue(rowIndex, column.Kind)
+                    : GetDynamicDisplayValue(rowIndex, column.Kind);
+                if (display.Length == 0) continue;
+
+                if (ShouldShareCell(column.Kind, display))
+                {
+                    ProcessSharedCellKey key = new(column.Kind, display);
+                    SharedCellDrawing sharedCell = AcquireSharedCellDrawing(column, key);
+                    children.Add(sharedCell.Drawing);
+                    _sharedCellBuffer.Add(sharedCell);
+                    continue;
+                }
+
+                DrawCell(uniqueContext, column, display);
+                hasUniqueDrawing = true;
+            }
+        }
+
+        if (hasUniqueDrawing) children.Insert(0, uniqueDrawing);
+        sharedCells = _sharedCellBuffer.Count == 0 ? [] : _sharedCellBuffer.ToArray();
+        return new DrawingGroup { Children = children };
+    }
+
+    private SharedCellDrawing AcquireSharedCellDrawing(ProcessTableColumn column, ProcessSharedCellKey key)
+    {
+        if (_sharedCellDrawings.TryGetValue(key, out SharedCellDrawing? existing))
+        {
+            existing.ReferenceCount++;
+            return existing;
+        }
+
+        DrawingGroup drawing = new();
+        using (DrawingContext context = drawing.Open())
+            DrawCell(context, column, key.Value);
+        SharedCellDrawing sharedCell = new(key, drawing);
+        _sharedCellDrawings.Add(key, sharedCell);
+        return sharedCell;
+    }
+
+    private void ReleaseSharedCellDrawings(SharedCellDrawing[] sharedCells)
+    {
+        for (int cellIndex = 0; cellIndex < sharedCells.Length; cellIndex++)
+        {
+            SharedCellDrawing entry = sharedCells[cellIndex];
+            entry.ReferenceCount--;
+            if (entry.ReferenceCount <= 0)
+                _sharedCellDrawings.Remove(entry.Key);
+        }
+    }
+
+    private void DrawCell(DrawingContext context, ProcessTableColumn column, string display)
+    {
+        double textTop = Math.Max(0, (_metrics.RowHeight - _metrics.FontSize * 1.35) / 2);
+        double leftInset = column.Kind == ProcessTableColumnKind.Name
+            ? _metrics.CellPadding + _metrics.ProcessIconSize + _metrics.ProcessIconGap
+            : _metrics.CellPadding;
+        double availableWidth = Math.Max(0, column.Width - leftInset - _metrics.CellPadding);
+        FormattedText text = CreateBoundedText(display, availableWidth);
+        double textX = column.Alignment == ProcessTableColumnAlignment.Right
+            ? column.Right - _metrics.CellPadding - text.Width
+            : column.Left + leftInset;
+        context.DrawText(text, new Point(textX, textTop));
+    }
+
+    private void RebuildDynamicDrawing(ProcessRowRenderCache cache, int rowIndex)
+    {
+        ReleaseSharedCellDrawings(cache.DynamicSharedCells);
+        cache.DynamicDrawing = BuildRowDrawing(
+            rowIndex,
+            ProcessTableColumnLifetime.Dynamic,
+            out SharedCellDrawing[] sharedCells);
+        cache.DynamicSharedCells = sharedCells;
+        cache.DynamicFingerprint = cache.PendingDynamicFingerprint;
+    }
+
+    private int CalculateDynamicFingerprint(int rowIndex)
+    {
+        HashCode hash = new();
+        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+        {
+            ProcessTableColumnKind kind = _columns[columnIndex].Kind;
+            if (ProcessTableColumnCatalog.Get(kind).Lifetime != ProcessTableColumnLifetime.Dynamic) continue;
+
+            if (ProcessDataSchema.StoresText(kind))
+            {
+                hash.Add(_snapshot.GetDynamicText(rowIndex, kind));
+                continue;
+            }
+
+            long value = _snapshot.GetDynamicNumeric(rowIndex, kind);
+            switch (kind)
+            {
+                case ProcessTableColumnKind.CPU:
+                case ProcessTableColumnKind.GPU:
+                case ProcessTableColumnKind.NPU:
+                case ProcessTableColumnKind.CPUUtility:
+                    hash.Add(QuantizePercent(BitConverter.Int64BitsToDouble(value)));
+                    break;
+                case ProcessTableColumnKind.CPUTime:
+                    hash.Add(value / TimeSpan.TicksPerSecond);
+                    break;
+                case ProcessTableColumnKind.WorkingSet:
+                case ProcessTableColumnKind.PeakWorkingSet:
+                case ProcessTableColumnKind.ActivePrivateWorkingSet:
+                case ProcessTableColumnKind.PrivateMemory:
+                case ProcessTableColumnKind.SharedWorkingSet:
+                case ProcessTableColumnKind.CommitSize:
+                case ProcessTableColumnKind.PagedPool:
+                case ProcessTableColumnKind.NonPagedPool:
+                case ProcessTableColumnKind.DedicatedGPUMemory:
+                case ProcessTableColumnKind.SharedGPUMemory:
+                case ProcessTableColumnKind.DedicatedNPUMemory:
+                case ProcessTableColumnKind.SharedNPUMemory:
+                    hash.Add(ToKibibytes(value));
+                    break;
+                case ProcessTableColumnKind.WorkingSetDelta:
+                    hash.Add(ToSignedKibibytes(value));
+                    break;
+                default:
+                    hash.Add(value);
+                    break;
+            }
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private string GetStaticDisplayValue(int rowIndex, ProcessTableColumnKind kind)
+    {
+        ProcessStaticData row = _snapshot.StaticRows[rowIndex]
+            ?? throw new InvalidOperationException("A published process row is missing static data.");
+        if (kind == ProcessTableColumnKind.ProcessID)
+            return row.ProcessID.ToString(TableCulture);
+
+        string? identityText = GetIdentityText(row, kind);
+        if (identityText != null) return identityText;
+
+        if (ProcessDataSchema.StoresText(kind))
+        {
+            int slot = _schema.GetStaticTextSlot(kind);
+            return slot < 0 ? string.Empty : row.TextValues[slot] ?? string.Empty;
+        }
+
+        int numericSlot = _schema.GetStaticNumericSlot(kind);
+        if (numericSlot < 0) return string.Empty;
+        long value = row.NumericValues[numericSlot];
+        return kind switch
+        {
+            ProcessTableColumnKind.ProcessID => value.ToString(TableCulture),
+            ProcessTableColumnKind.SessionID => value < 0 ? UnavailableText : value.ToString(TableCulture),
+            _ => FormatDisplayCode(value)
         };
-
-    private FormattedText GetStringText(ref CellTextCache cache, string value, IBrush brush)
-    {
-        if (cache.Text != null && string.Equals(cache.Source, value, StringComparison.Ordinal)) return cache.Text;
-
-        cache.Source = value;
-        cache.Text = CreateText(value, _metrics.FontSize, brush);
-        return cache.Text;
     }
 
-    private FormattedText GetIntegerText(ref CellTextCache cache, int value)
+    private static string? GetIdentityText(ProcessStaticData row, ProcessTableColumnKind kind) => kind switch
     {
-        if (cache.Text != null && cache.NumericValue == value) return cache.Text;
+        ProcessTableColumnKind.Name => row.Image.Name,
+        ProcessTableColumnKind.UserName => row.UserName,
+        ProcessTableColumnKind.ImagePath => row.Image.ImagePath,
+        ProcessTableColumnKind.Description => row.Image.Description,
+        _ => null
+    };
 
-        cache.NumericValue = value;
-        cache.Source = null;
-        cache.Text = CreateText(value.ToString(TableCulture), _metrics.FontSize, _foregroundBrush);
-        return cache.Text;
+    private string GetDynamicDisplayValue(int rowIndex, ProcessTableColumnKind kind)
+    {
+        if (ProcessDataSchema.StoresText(kind)) return _snapshot.GetDynamicText(rowIndex, kind);
+
+        long value = _snapshot.GetDynamicNumeric(rowIndex, kind);
+        return kind switch
+        {
+            ProcessTableColumnKind.Status => FormatDisplayCode(value),
+            ProcessTableColumnKind.JobObjectID => FormatJobObjectID(value),
+            ProcessTableColumnKind.CPU => FormatPercent(BitConverter.Int64BitsToDouble(value)),
+            ProcessTableColumnKind.CPUTime => FormatCPUTime(value),
+            ProcessTableColumnKind.Cycle => FormatUnsigned(value),
+            ProcessTableColumnKind.WorkingSet => FormatMemory(value),
+            ProcessTableColumnKind.PeakWorkingSet => FormatMemory(value),
+            ProcessTableColumnKind.WorkingSetDelta => FormatMemoryDelta(value),
+            ProcessTableColumnKind.ActivePrivateWorkingSet => FormatMemory(value),
+            ProcessTableColumnKind.PrivateMemory => FormatMemory(value),
+            ProcessTableColumnKind.SharedWorkingSet => FormatMemory(value),
+            ProcessTableColumnKind.CommitSize => FormatMemory(value),
+            ProcessTableColumnKind.PagedPool => FormatMemory(value),
+            ProcessTableColumnKind.NonPagedPool => FormatMemory(value),
+            ProcessTableColumnKind.PageFaults => FormatSigned(value),
+            ProcessTableColumnKind.PageFaultDelta => FormatSigned(value),
+            ProcessTableColumnKind.BasePriority => value.ToString(TableCulture),
+            ProcessTableColumnKind.Handles => value.ToString("N0", TableCulture),
+            ProcessTableColumnKind.Threads => value.ToString("N0", TableCulture),
+            ProcessTableColumnKind.UserObjects => value.ToString("N0", TableCulture),
+            ProcessTableColumnKind.GDIObjects => value.ToString("N0", TableCulture),
+            ProcessTableColumnKind.IOReads => FormatUnsigned(value),
+            ProcessTableColumnKind.IOWrites => FormatUnsigned(value),
+            ProcessTableColumnKind.IOOther => FormatUnsigned(value),
+            ProcessTableColumnKind.IOReadBytes => FormatUnsigned(value),
+            ProcessTableColumnKind.IOWriteBytes => FormatUnsigned(value),
+            ProcessTableColumnKind.IOOtherBytes => FormatUnsigned(value),
+            ProcessTableColumnKind.UACVirtualization => FormatDisplayCode(value),
+            ProcessTableColumnKind.IOPriority => FormatDisplayCode(value),
+            ProcessTableColumnKind.PowerThrottling => FormatDisplayCode(value),
+            ProcessTableColumnKind.GPU => FormatPercent(BitConverter.Int64BitsToDouble(value)),
+            ProcessTableColumnKind.DedicatedGPUMemory => FormatMemory(value),
+            ProcessTableColumnKind.SharedGPUMemory => FormatMemory(value),
+            ProcessTableColumnKind.DPIAwareness => FormatDisplayCode(value),
+            ProcessTableColumnKind.NPU => FormatPercent(BitConverter.Int64BitsToDouble(value)),
+            ProcessTableColumnKind.DedicatedNPUMemory => FormatMemory(value),
+            ProcessTableColumnKind.SharedNPUMemory => FormatMemory(value),
+            ProcessTableColumnKind.CPUUtility => FormatPercent(BitConverter.Int64BitsToDouble(value)),
+            _ => string.Empty
+        };
     }
 
-    private FormattedText GetCPUText(ref CellTextCache cache, double value)
-    {
-        long tenths = (long)Math.Round(value * 10, MidpointRounding.AwayFromZero);
-        if (cache.Text != null && cache.NumericValue == tenths) return cache.Text;
+    private static string FormatDisplayCode(long value) =>
+        ProcessDisplayCodeText.Get((ProcessDisplayCode)value);
 
-        cache.NumericValue = tenths;
-        cache.Source = null;
-        string display = tenths == 0
-            ? "0"
-            : (tenths / 10.0).ToString("0.0", TableCulture);
-        cache.Text = CreateText(display, _metrics.FontSize, _foregroundBrush);
-        return cache.Text;
+    private static string FormatJobObjectID(long value) => value switch
+    {
+        < 0 => UnavailableText,
+        0 => string.Empty,
+        _ => value.ToString(TableCulture)
+    };
+
+    private static string FormatPercent(double value)
+    {
+        if (value < 0) return UnavailableText;
+        long tenths = QuantizePercent(value);
+        return tenths == 0 ? ZeroText : (tenths / 10.0).ToString("0.0", TableCulture);
     }
 
-    private FormattedText GetMemoryText(ref CellTextCache cache, long bytes)
+    private static string FormatCPUTime(long ticks)
     {
-        long kibibytes = bytes <= 0 ? 0 : (bytes + 1023) / 1024;
-        if (cache.Text != null && cache.NumericValue == kibibytes) return cache.Text;
+        long totalSeconds = Math.Max(0, ticks / TimeSpan.TicksPerSecond);
+        if (totalSeconds == 0) return ZeroCPUTimeText;
 
-        cache.NumericValue = kibibytes;
-        cache.Source = null;
-        string display = string.Concat(kibibytes.ToString("N0", TableCulture), " K");
-        cache.Text = CreateText(display, _metrics.FontSize, _foregroundBrush);
-        return cache.Text;
+        long hours = totalSeconds / 3_600;
+        long minutes = totalSeconds / 60 % 60;
+        long seconds = totalSeconds % 60;
+        return string.Create(TableCulture, $"{hours}:{minutes:00}:{seconds:00}");
+    }
+
+    private static string FormatMemory(long bytes) => bytes switch
+    {
+        < 0 => UnavailableText,
+        0 => ZeroMemoryText,
+        _ => string.Concat(ToKibibytes(bytes).ToString("N0", TableCulture), " K")
+    };
+
+    private static string FormatMemoryDelta(long bytes) => bytes == 0
+        ? ZeroMemoryText
+        : string.Concat(ToSignedKibibytes(bytes).ToString("N0", TableCulture), " K");
+
+    private static string FormatSigned(long value) => value == 0
+        ? ZeroText
+        : value.ToString("N0", TableCulture);
+
+    private static string FormatUnsigned(long value) => value == 0
+        ? ZeroText
+        : unchecked((ulong)value).ToString("N0", TableCulture);
+
+    private static long QuantizePercent(double value) => value < 0
+        ? -1
+        : (long)Math.Round(Math.Max(0, value) * 10, MidpointRounding.AwayFromZero);
+
+    private static long ToKibibytes(long bytes) => bytes switch
+    {
+        < 0 => -1,
+        0 => 0,
+        _ => (bytes + 1023) / 1024
+    };
+
+    private static long ToSignedKibibytes(long bytes) => bytes switch
+    {
+        > 0 => (bytes + 1023) / 1024,
+        < 0 => -((-bytes + 1023) / 1024),
+        _ => 0
+    };
+
+    private void ScheduleWarmDynamicRefresh()
+    {
+        if (_disposed || !_hasDynamicColumns) return;
+
+        GetWarmVisibleRowRange(out _warmRefreshCursor, out _warmRefreshEnd);
+        if (_warmRefreshCursor >= _warmRefreshEnd || _dynamicRefreshScheduled) return;
+
+        _dynamicRefreshScheduled = true;
+        Dispatcher.UIThread.Post(_refreshWarmDynamicDrawings, DispatcherPriority.Background);
+    }
+
+    private void RefreshWarmDynamicDrawings()
+    {
+        _dynamicRefreshScheduled = false;
+        if (_disposed) return;
+
+        bool changed = false;
+        int processed = 0;
+        long startTimestamp = Stopwatch.GetTimestamp();
+        while (_warmRefreshCursor < _warmRefreshEnd && processed < DynamicRefreshBatchSize)
+        {
+            int rowIndex = _visibleRowIndexes[_warmRefreshCursor];
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row != null
+                && _renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache)
+                && (cache.DynamicDrawing == null
+                    || cache.DynamicFingerprint != cache.PendingDynamicFingerprint))
+            {
+                RebuildDynamicDrawing(cache, rowIndex);
+                changed = true;
+            }
+
+            _warmRefreshCursor++;
+            processed++;
+            if (Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds
+                >= DynamicRefreshBudgetMilliseconds)
+            {
+                break;
+            }
+        }
+
+        if (changed) InvalidateVisual();
+        if (_warmRefreshCursor < _warmRefreshEnd)
+        {
+            _dynamicRefreshScheduled = true;
+            Dispatcher.UIThread.Post(_refreshWarmDynamicDrawings, DispatcherPriority.Background);
+        }
+    }
+
+    private void GetWarmVisibleRowRange(out int firstRow, out int lastRowExclusive)
+    {
+        Rect viewport = ResolveViewport();
+        ProcessTableLayout.GetVisibleRowRange(
+            viewport,
+            _visibleRowCount,
+            _metrics,
+            out int visibleFirst,
+            out int visibleLastExclusive);
+        firstRow = visibleFirst;
+        lastRowExclusive = visibleLastExclusive;
+    }
+
+    private void PublishWarmProcesses()
+    {
+        if (_snapshotService == null) return;
+
+        bool sampleEveryProcess = ProcessTableColumnCatalog.Get(_sortColumn).Lifetime
+                                  == ProcessTableColumnLifetime.Dynamic;
+        if (sampleEveryProcess)
+        {
+            _snapshotService.SetWarmProcesses(_schema.VisibleMask, _warmProcessIDs, 0, true);
+            return;
+        }
+
+        GetWarmVisibleRowRange(out int firstRow, out int lastRowExclusive);
+        int warmProcessCount = lastRowExclusive - firstRow;
+        EnsureWarmCapacity(warmProcessCount);
+        for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            _warmProcessIDs[visibleIndex - firstRow] = row?.ProcessID ?? -1;
+        }
+
+        _snapshotService.SetWarmProcesses(
+            _schema.VisibleMask,
+            _warmProcessIDs,
+            warmProcessCount,
+            false);
     }
 
     private void SortFromHeader(double x)
@@ -451,19 +808,72 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         SortVisibleRows();
+        PublishWarmProcesses();
+        UpdateSelectionOverlay();
+        UpdateHoverFromPointer();
+        ScheduleWarmDynamicRefresh();
         InvalidateVisual();
     }
 
     private void SelectVisibleRow(int visibleIndex)
     {
-        int nextProcessID = visibleIndex >= 0 && visibleIndex < _visibleRowCount
-            ? _rows[_visibleRowIndexes[visibleIndex]].ProcessID
-            : -1;
-        if (nextProcessID == _selectedProcessID) return;
+        ProcessStaticData? row = visibleIndex >= 0 && visibleIndex < _visibleRowCount
+            ? _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]]
+            : null;
+        ProcessInstanceKey? nextProcess = row?.InstanceKey;
+        if (_selectedProcess == nextProcess) return;
 
-        _selectedProcessID = nextProcessID;
+        _selectedProcess = nextProcess;
         SelectedProcessChanged?.Invoke(SelectedProcessID);
-        InvalidateVisual();
+        UpdateSelectionOverlay();
+    }
+
+    private void UpdateHoveredRow(double positionY)
+    {
+        double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
+        int visibleIndex = -1;
+        if (positionY < stickyHeaderTop || positionY >= stickyHeaderTop + _metrics.HeaderHeight)
+            visibleIndex = ProcessTableLayout.HitTestRow(positionY, _visibleRowCount, _metrics);
+        SetHoveredVisibleIndex(visibleIndex);
+    }
+
+    private void UpdateHoverFromPointer()
+    {
+        if (!_pointerInside)
+        {
+            SetHoveredVisibleIndex(-1);
+            return;
+        }
+
+        UpdateHoveredRow(Math.Max(0, _effectiveViewport.Y) + _pointerViewportY);
+    }
+
+    private void SetHoveredVisibleIndex(int visibleIndex)
+    {
+        if (_hoveredVisibleIndex == visibleIndex) return;
+        _hoveredVisibleIndex = visibleIndex;
+        HoverRowTopChanged?.Invoke(visibleIndex < 0
+            ? null
+            : _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight);
+    }
+
+    private void UpdateSelectionOverlay()
+    {
+        if (!_selectedProcess.HasValue)
+        {
+            SelectionRowTopChanged?.Invoke(null);
+            return;
+        }
+
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            if (row?.InstanceKey != _selectedProcess.Value) continue;
+            SelectionRowTopChanged?.Invoke(_metrics.HeaderHeight + visibleIndex * _metrics.RowHeight);
+            return;
+        }
+
+        SelectionRowTopChanged?.Invoke(null);
     }
 
     private void RebuildVisibleRows()
@@ -471,7 +881,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         int writeIndex = 0;
         for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
-            if (!MatchesFilter(_rows[rowIndex])) continue;
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null || !MatchesFilter(row)) continue;
             _visibleRowIndexes[writeIndex] = rowIndex;
             writeIndex++;
         }
@@ -480,20 +891,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         SortVisibleRows();
     }
 
-    private bool MatchesFilter(ProcessSnapshotRow row)
+    private bool MatchesFilter(ProcessStaticData row)
     {
         if (_filterText.Length == 0) return true;
         if (_filterProcessID >= 0 && row.ProcessID == _filterProcessID) return true;
-        if (row.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase)) return true;
-
-        return row.Owner switch
-        {
-            ProcessOwnerKind.CurrentUser => Environment.UserName.Contains(
-                _filterText,
-                StringComparison.OrdinalIgnoreCase),
-            ProcessOwnerKind.System => SystemUserText.Contains(_filterText, StringComparison.OrdinalIgnoreCase),
-            _ => false
-        };
+        if (row.Image.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase)) return true;
+        return row.UserName.Contains(_filterText, StringComparison.OrdinalIgnoreCase);
     }
 
     private void SortVisibleRows()
@@ -503,108 +906,170 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         Array.Sort(_visibleRowIndexes, 0, _visibleRowCount, _rowComparer);
     }
 
-    private void SynchronizeTextCacheMembership()
+    private void SynchronizeRenderCacheMembership()
     {
         int generation = unchecked(_cacheGeneration + 1);
         if (generation == 0)
         {
-            ResetTextCaches();
+            foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+                ReleaseRenderCache(cache);
+            _renderCaches.Clear();
             generation = 1;
         }
 
         _cacheGeneration = generation;
         for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
-            int processID = _rows[rowIndex].ProcessID;
-            if (_cacheSlots.TryGetValue(processID, out int slot))
-                _textCaches[slot].LastSeenGeneration = generation;
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null) continue;
+            if (_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
+            {
+                cache.LastSeenGeneration = generation;
+                continue;
+            }
+
+            _renderCaches.Add(
+                row.InstanceKey,
+                new ProcessRowRenderCache
+                {
+                    LastSeenGeneration = generation
+                });
         }
 
-        int staleCount = 0;
-        foreach (KeyValuePair<int, int> pair in _cacheSlots)
+        _staleProcessKeys.Clear();
+        foreach (KeyValuePair<ProcessInstanceKey, ProcessRowRenderCache> pair in _renderCaches)
         {
-            if (_textCaches[pair.Value].LastSeenGeneration == generation) continue;
-            _staleProcessIDs[staleCount] = pair.Key;
-            staleCount++;
+            if (pair.Value.LastSeenGeneration != generation)
+                _staleProcessKeys.Add(pair.Key);
         }
 
-        for (int staleIndex = 0; staleIndex < staleCount; staleIndex++)
+        for (int staleIndex = 0; staleIndex < _staleProcessKeys.Count; staleIndex++)
         {
-            int processID = _staleProcessIDs[staleIndex];
-            int slot = _cacheSlots[processID];
-            _cacheSlots.Remove(processID);
-            _textCaches[slot] = default;
-            _freeCacheSlots[_freeCacheSlotCount] = slot;
-            _freeCacheSlotCount++;
+            ProcessInstanceKey key = _staleProcessKeys[staleIndex];
+            if (!_renderCaches.Remove(key, out ProcessRowRenderCache? cache)) continue;
+            ReleaseRenderCache(cache);
         }
+    }
 
-        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
-        {
-            int processID = _rows[rowIndex].ProcessID;
-            if (_cacheSlots.ContainsKey(processID)) continue;
-            if (_freeCacheSlotCount <= 0) break;
-
-            _freeCacheSlotCount--;
-            int slot = _freeCacheSlots[_freeCacheSlotCount];
-            _textCaches[slot] = new ProcessRowTextCache { LastSeenGeneration = generation };
-            _cacheSlots.Add(processID, slot);
-        }
+    private void ReleaseRenderCache(ProcessRowRenderCache cache)
+    {
+        ReleaseSharedCellDrawings(cache.StaticSharedCells);
+        ReleaseSharedCellDrawings(cache.DynamicSharedCells);
+        cache.StaticSharedCells = [];
+        cache.DynamicSharedCells = [];
+        cache.StaticDrawing = null;
+        cache.DynamicDrawing = null;
     }
 
     private void EnsureSelectedProcessStillExists()
     {
-        if (_selectedProcessID < 0) return;
-
+        if (!_selectedProcess.HasValue) return;
         for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
-            if (_rows[rowIndex].ProcessID == _selectedProcessID) return;
+            if (_snapshot.StaticRows[rowIndex]?.InstanceKey == _selectedProcess.Value) return;
         }
 
-        _selectedProcessID = -1;
+        _selectedProcess = null;
         SelectedProcessChanged?.Invoke(null);
     }
 
-    private void ResetTextCaches()
+    private void EnsureRowCapacity(int count)
     {
-        _cacheSlots.Clear();
-        Array.Clear(_textCaches);
-        _freeCacheSlotCount = _freeCacheSlots.Length;
-        for (int cacheIndex = 0; cacheIndex < _freeCacheSlots.Length; cacheIndex++)
-            _freeCacheSlots[cacheIndex] = _freeCacheSlots.Length - cacheIndex - 1;
+        if (_visibleRowIndexes.Length >= count) return;
+
+        int capacity = Math.Max(256, _visibleRowIndexes.Length);
+        while (capacity < count)
+            capacity = checked(capacity * 2);
+        Array.Resize(ref _visibleRowIndexes, capacity);
     }
 
-    private static ProcessTableColumn[] CreateColumns(TaskManagerWindowResources resources)
+    private void EnsureWarmCapacity(int count)
     {
-        ProcessTableColumn[] columns = new ProcessTableColumn[8];
-        double left = 0;
-        AddColumn(0, ProcessTableColumnKind.Name, "Name", resources.AxamlProcessTable.NameColumnWidth,
-            ProcessTableColumnAlignment.Left);
-        AddColumn(1, ProcessTableColumnKind.ProcessID, "PID", resources.AxamlProcessTable.PIDColumnWidth,
-            ProcessTableColumnAlignment.Right);
-        AddColumn(2, ProcessTableColumnKind.Status, "Status", resources.AxamlProcessTable.StatusColumnWidth,
-            ProcessTableColumnAlignment.Left);
-        AddColumn(3, ProcessTableColumnKind.UserName, "User name", resources.AxamlProcessTable.UserNameColumnWidth,
-            ProcessTableColumnAlignment.Left);
-        AddColumn(4, ProcessTableColumnKind.CPU, "CPU", resources.AxamlProcessTable.CPUColumnWidth,
-            ProcessTableColumnAlignment.Right);
-        AddColumn(5, ProcessTableColumnKind.PrivateMemory, "Memory (private working set)",
-            resources.AxamlProcessTable.PrivateMemoryColumnWidth, ProcessTableColumnAlignment.Right);
-        AddColumn(6, ProcessTableColumnKind.WorkingSet, "Memory (shared working set)",
-            resources.AxamlProcessTable.WorkingSetColumnWidth, ProcessTableColumnAlignment.Right);
-        AddColumn(7, ProcessTableColumnKind.CommandLine, "Command line",
-            resources.AxamlProcessTable.CommandLineColumnWidth, ProcessTableColumnAlignment.Left);
-        return columns;
+        if (_warmProcessIDs.Length >= count) return;
 
-        void AddColumn(
-            int index,
-            ProcessTableColumnKind kind,
-            string title,
-            double width,
-            ProcessTableColumnAlignment alignment)
+        int capacity = Math.Max(256, _warmProcessIDs.Length);
+        while (capacity < count)
+            capacity = checked(capacity * 2);
+        Array.Resize(ref _warmProcessIDs, capacity);
+    }
+
+    private int FindColumn(ProcessTableColumnKind kind)
+    {
+        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
         {
-            columns[index] = new ProcessTableColumn(kind, title, left, width, alignment);
-            left += width;
+            if (_columns[columnIndex].Kind == kind) return columnIndex;
         }
+
+        return -1;
+    }
+
+    private static ProcessTableColumn[] CreateColumns(IReadOnlyList<ProcessColumnSetting> source)
+    {
+        List<ProcessColumnSetting> settings = ProcessColumnSettings.Normalize(source);
+        List<ProcessTableColumn> columns = new(settings.Count);
+        double left = 0;
+        foreach (ProcessColumnSetting setting in settings)
+        {
+            if (!setting.Visible) continue;
+
+            ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
+            columns.Add(new ProcessTableColumn(
+                setting.Column,
+                definition.Title,
+                left,
+                setting.Width,
+                definition.Alignment));
+            left += setting.Width;
+        }
+
+        return columns.ToArray();
+    }
+
+    private static bool ContainsLifetime(
+        ProcessTableColumn[] columns,
+        ProcessTableColumnLifetime lifetime)
+    {
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        {
+            if (ProcessTableColumnCatalog.Get(columns[columnIndex].Kind).Lifetime == lifetime)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ShouldShareCell(ProcessTableColumnKind column, string value)
+    {
+        if (value is ZeroText or ZeroMemoryText or ZeroCPUTimeText or UnavailableText) return true;
+        if (ProcessRowIndexComparer.IsDisplayCodeColumn(column)) return true;
+
+        return column switch
+        {
+            ProcessTableColumnKind.SessionID
+                or ProcessTableColumnKind.BasePriority
+                or ProcessTableColumnKind.Threads
+                or ProcessTableColumnKind.UserObjects
+                or ProcessTableColumnKind.GDIObjects
+                or ProcessTableColumnKind.Name
+                or ProcessTableColumnKind.UserName
+                or ProcessTableColumnKind.JobObjectID
+                or ProcessTableColumnKind.ImagePath
+                or ProcessTableColumnKind.Description
+                or ProcessTableColumnKind.PackageName
+                or ProcessTableColumnKind.EnterpriseContext
+                or ProcessTableColumnKind.GPUEngine
+                or ProcessTableColumnKind.NPUEngine => true,
+            _ => false
+        };
+    }
+
+    private FormattedText CreateBoundedText(string value, double maximumWidth)
+    {
+        FormattedText text = CreateText(value, _metrics.FontSize, _foregroundBrush);
+        text.MaxTextWidth = Math.Max(0, maximumWidth);
+        text.MaxLineCount = 1;
+        text.Trimming = TextTrimming.CharacterEllipsis;
+        return text;
     }
 
     private static FormattedText CreateText(
@@ -634,56 +1099,55 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (_disposed) return;
 
         _disposed = true;
+        _processIconService.IconsChanged -= OnIconsChanged;
         EffectiveViewportChanged -= OnEffectiveViewportChanged;
         SelectedProcessChanged = null;
-        ResetTextCaches();
+        HoverRowTopChanged = null;
+        SelectionRowTopChanged = null;
+        ColumnsRequested = null;
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            ReleaseRenderCache(cache);
+        _renderCaches.Clear();
+        _sharedCellDrawings.Clear();
+        _sharedCellBuffer.Clear();
+        _staleProcessKeys.Clear();
+        _snapshot.Reset();
     }
 
-    private struct CellTextCache
-    {
-        public string? Source;
-        public long NumericValue;
-        public FormattedText? Text;
-    }
+    private readonly record struct ProcessSharedCellKey(ProcessTableColumnKind Column, string Value);
 
-    private struct ProcessRowTextCache
+    private sealed class ProcessRowRenderCache
     {
         public int LastSeenGeneration;
-        public CellTextCache Name;
-        public CellTextCache ProcessID;
-        public CellTextCache CPU;
-        public CellTextCache PrivateMemory;
-        public CellTextCache WorkingSet;
-        public CellTextCache CommandLine;
+        public int DynamicFingerprint;
+        public int PendingDynamicFingerprint;
+        public DrawingGroup? StaticDrawing;
+        public DrawingGroup? DynamicDrawing;
+        public SharedCellDrawing[] StaticSharedCells = [];
+        public SharedCellDrawing[] DynamicSharedCells = [];
     }
 
-    private sealed class ProcessRowIndexComparer(ProcessSnapshotRow[] rows) : IComparer<int>
+    private sealed class SharedCellDrawing(ProcessSharedCellKey key, Drawing drawing)
+    {
+        public ProcessSharedCellKey Key { get; } = key;
+        public Drawing Drawing { get; } = drawing;
+        public int ReferenceCount { get; set; } = 1;
+    }
+
+    private sealed class ProcessRowIndexComparer(
+        ProcessSnapshotBuffer snapshot,
+        ProcessDataSchema schema) : IComparer<int>
     {
         public ProcessTableColumnKind Column { get; set; }
         public bool IsDescending { get; set; }
 
         public int Compare(int leftIndex, int rightIndex)
         {
-            ProcessSnapshotRow left = rows[leftIndex];
-            ProcessSnapshotRow right = rows[rightIndex];
-            int comparison = Column switch
-            {
-                ProcessTableColumnKind.Name => string.Compare(
-                    left.Name,
-                    right.Name,
-                    StringComparison.OrdinalIgnoreCase),
-                ProcessTableColumnKind.ProcessID => left.ProcessID.CompareTo(right.ProcessID),
-                ProcessTableColumnKind.Status => left.State.CompareTo(right.State),
-                ProcessTableColumnKind.UserName => left.Owner.CompareTo(right.Owner),
-                ProcessTableColumnKind.CPU => left.CPUPercent.CompareTo(right.CPUPercent),
-                ProcessTableColumnKind.PrivateMemory => left.PrivateMemoryBytes.CompareTo(right.PrivateMemoryBytes),
-                ProcessTableColumnKind.WorkingSet => left.WorkingSetBytes.CompareTo(right.WorkingSetBytes),
-                ProcessTableColumnKind.CommandLine => string.Compare(
-                    left.CommandLine,
-                    right.CommandLine,
-                    StringComparison.OrdinalIgnoreCase),
-                _ => 0
-            };
+            ProcessStaticData? left = snapshot.StaticRows[leftIndex];
+            ProcessStaticData? right = snapshot.StaticRows[rightIndex];
+            if (left == null || right == null) return left == null ? right == null ? 0 : 1 : -1;
+
+            int comparison = CompareColumn(leftIndex, rightIndex, left, right, Column);
             if (comparison == 0)
                 comparison = left.ProcessID.CompareTo(right.ProcessID);
             if (!IsDescending) return comparison;
@@ -694,5 +1158,112 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 _ => 0
             };
         }
+
+        private int CompareColumn(
+            int leftIndex,
+            int rightIndex,
+            ProcessStaticData left,
+            ProcessStaticData right,
+            ProcessTableColumnKind column)
+        {
+            ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(column);
+            if (column == ProcessTableColumnKind.ProcessID)
+                return left.ProcessID.CompareTo(right.ProcessID);
+
+            string? leftIdentityText = GetIdentityText(left, column);
+            if (leftIdentityText != null)
+            {
+                string rightIdentityText = GetIdentityText(right, column) ?? string.Empty;
+                return string.Compare(leftIdentityText, rightIdentityText, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (ProcessDataSchema.StoresText(column))
+            {
+                string leftText;
+                string rightText;
+                if (definition.Lifetime == ProcessTableColumnLifetime.Static)
+                {
+                    int slot = schema.GetStaticTextSlot(column);
+                    leftText = left.TextValues[slot] ?? string.Empty;
+                    rightText = right.TextValues[slot] ?? string.Empty;
+                }
+                else
+                {
+                    leftText = snapshot.GetDynamicText(leftIndex, column);
+                    rightText = snapshot.GetDynamicText(rightIndex, column);
+                }
+
+                return string.Compare(leftText, rightText, StringComparison.OrdinalIgnoreCase);
+            }
+
+            long leftValue;
+            long rightValue;
+            if (definition.Lifetime == ProcessTableColumnLifetime.Static)
+            {
+                int slot = schema.GetStaticNumericSlot(column);
+                leftValue = left.NumericValues[slot];
+                rightValue = right.NumericValues[slot];
+            }
+            else
+            {
+                leftValue = snapshot.GetDynamicNumeric(leftIndex, column);
+                rightValue = snapshot.GetDynamicNumeric(rightIndex, column);
+            }
+
+            if (IsPercentColumn(column))
+            {
+                return BitConverter.Int64BitsToDouble(leftValue)
+                    .CompareTo(BitConverter.Int64BitsToDouble(rightValue));
+            }
+            if (IsUnsignedColumn(column))
+                return unchecked((ulong)leftValue).CompareTo(unchecked((ulong)rightValue));
+            if (IsDisplayCodeColumn(column))
+            {
+                string leftText = ProcessDisplayCodeText.Get((ProcessDisplayCode)leftValue);
+                string rightText = ProcessDisplayCodeText.Get((ProcessDisplayCode)rightValue);
+                return string.Compare(leftText, rightText, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return leftValue.CompareTo(rightValue);
+        }
+
+        public static bool IsDisplayCodeColumn(ProcessTableColumnKind column) => column switch
+        {
+            ProcessTableColumnKind.Status
+                or ProcessTableColumnKind.OperatingSystemContext
+                or ProcessTableColumnKind.Platform
+                or ProcessTableColumnKind.Elevated
+                or ProcessTableColumnKind.UACVirtualization
+                or ProcessTableColumnKind.DataExecutionPrevention
+                or ProcessTableColumnKind.IOPriority
+                or ProcessTableColumnKind.PowerThrottling
+                or ProcessTableColumnKind.DPIAwareness
+                or ProcessTableColumnKind.Architecture
+                or ProcessTableColumnKind.HardwareStackProtection
+                or ProcessTableColumnKind.ExtendedControlFlowGuard
+                or ProcessTableColumnKind.Isolation => true,
+            _ => false
+        };
+
+        private static bool IsPercentColumn(ProcessTableColumnKind column) => column switch
+        {
+            ProcessTableColumnKind.CPU
+                or ProcessTableColumnKind.GPU
+                or ProcessTableColumnKind.NPU
+                or ProcessTableColumnKind.CPUUtility => true,
+            _ => false
+        };
+
+        private static bool IsUnsignedColumn(ProcessTableColumnKind column) => column switch
+        {
+            ProcessTableColumnKind.Cycle
+                or ProcessTableColumnKind.IOReads
+                or ProcessTableColumnKind.IOWrites
+                or ProcessTableColumnKind.IOOther
+                or ProcessTableColumnKind.IOReadBytes
+                or ProcessTableColumnKind.IOWriteBytes
+                or ProcessTableColumnKind.IOOtherBytes => true,
+            _ => false
+        };
     }
 }
