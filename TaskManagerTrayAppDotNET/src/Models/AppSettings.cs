@@ -33,6 +33,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     } = true;
 
+    public bool GroupProcesses
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public double GridFontSize
     {
         get;
@@ -69,6 +75,41 @@ public sealed class AppSettings : AppSettingsCommon
         try
         {
             DetailsColumns = columns;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists an already-applied grouping change without rebuilding the app shell.</summary>
+    internal void UpdateGroupProcesses(bool groupProcesses)
+    {
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            GroupProcesses = groupProcesses;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists an already-applied grid zoom without rebuilding the app shell.</summary>
+    internal void UpdateGridMetrics(double fontSize, int rowHeight)
+    {
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            GridFontSize = fontSize;
+            GridRowHeight = rowHeight;
         }
         finally
         {

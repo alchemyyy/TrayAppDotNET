@@ -14,9 +14,10 @@ internal static class TaskManagerAvaloniaRunner
     public static int Run(string[] args) =>
         TrayAppDotNETAvalonia.StartWithExplicitShutdown<TaskManagerAvaloniaApp>(
             args,
-            builder => TrayAppDotNETAvalonia.UseRenderingBackend(
+            builder => TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
                 builder,
-                TrayAppDotNETRenderingBackend.GPUPreferred));
+                AppSettings.GetDefaultPath,
+                TADNLog.Log));
 }
 
 internal sealed class TaskManagerAvaloniaApp : Application

@@ -36,6 +36,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessIconService _processIconService;
     private readonly ProcessTerminationService _processTerminationService;
     private readonly TaskManagerWindowResources _taskManagerResources = new();
+    private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
 
     public TaskManagerWindow(
@@ -66,6 +67,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool ShowSettingsSearchBox => false;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
     protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Details;
+    protected override bool HandleNavigationRequest(TaskManagerPage pageKey)
+    {
+        if (pageKey != TaskManagerPage.Settings) return false;
+        ShowClassicSettingsWindow();
+        return true;
+    }
     protected override Thickness ContentPadding => default;
     protected override double SidebarWidth => _taskManagerResources.AxamlTaskManagerWindow.SidebarWidth;
     protected override TaskManagerPage DefaultPageKey => TaskManagerPage.Details;
@@ -112,7 +119,41 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     internal void RequestPermanentClose()
     {
         _allowClose = true;
+        if (_settingsWindow != null)
+        {
+            _settingsWindow.Closed -= OnSettingsWindowClosed;
+            _settingsWindow.Close();
+            _settingsWindow = null;
+        }
         Close();
+    }
+
+    private void ShowClassicSettingsWindow()
+    {
+        if (_settingsWindow != null)
+        {
+            _settingsWindow.ShowAtDefaultPositionAndActivate();
+            return;
+        }
+
+        _settingsWindow = new TaskManagerSettingsWindow(_settings, ShowUninstallerWindow);
+        _settingsWindow.Closed += OnSettingsWindowClosed;
+        _settingsWindow.ShowAtDefaultPositionAndActivate();
+    }
+
+    private void OnSettingsWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is TaskManagerSettingsWindow settingsWindow)
+            settingsWindow.Closed -= OnSettingsWindowClosed;
+        if (ReferenceEquals(sender, _settingsWindow))
+            _settingsWindow = null;
+    }
+
+    private void ShowUninstallerWindow(string installDirectory, InstallScope scope)
+    {
+        TaskManagerUninstallerWindow uninstaller = new(installDirectory, scope);
+        Window owner = _settingsWindow != null ? _settingsWindow : this;
+        uninstaller.Show(owner);
     }
 
     private Control BuildDetailsPage()
@@ -124,7 +165,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             Palette,
             _taskManagerResources,
             _processTerminationService.Arm,
-            TerminateProcess,
+            TryTerminateProcess,
+            ReportMessage,
             StartProcess);
         return OwnPageResource(page);
     }
@@ -156,13 +198,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return stack;
     }
 
-    private bool TerminateProcess(ProcessTerminationTarget target)
-    {
-        if (_processTerminationService.TryTerminate(target, out string errorMessage)) return true;
+    private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
+        _processTerminationService.TryTerminate(target, out errorMessage);
 
-        _ = ShowMessage("End task failed", errorMessage);
-        return false;
-    }
+    private void ReportMessage(string title, string message) => _ = ShowMessage(title, message);
 
     private bool StartProcess(string command)
     {

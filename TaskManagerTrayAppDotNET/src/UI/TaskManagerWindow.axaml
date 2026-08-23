@@ -13,6 +13,7 @@
 
   <!-- Details page -->
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.ToolbarFontSize">13</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchWidth">430</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.TitleFontSize">20</sys:Double>

@@ -90,6 +90,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
 
+    /// <summary>Returns true when a derived window handled navigation without replacing its content.</summary>
+    protected virtual bool HandleNavigationRequest(TPageKey pageKey) => false;
+
     protected SettingsWindowCommon()
     {
         _windowResources = new UIResourceScope(GetType().Name);
@@ -653,7 +656,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             customNavigationIcon,
             page.NavigationIconScale,
             page.NavigationIconTransform);
-        item.Click += (_, _) => NavigateToSettingsPage(page.Key);
+        item.Click += (_, _) =>
+        {
+            if (!HandleNavigationRequest(page.Key))
+                NavigateToSettingsPage(page.Key);
+        };
         _navItems[page.Key] = item;
         navigationPanel.Children.Add(item);
     }
