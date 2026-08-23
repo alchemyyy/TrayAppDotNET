@@ -11,6 +11,7 @@ internal static class Constants
     public const string AppIconFileName = "app.ico";
     public const string AppIconRelativePath = "Assets/" + AppIconFileName;
     public const string AppIconResourceUri = AppBaseURI + AppIconRelativePath;
+    public const string KillHelperFileName = "TaskManagerTrayAppDotNET.KillHelper.exe";
     public const string AppGUID = "4ae62894-9d4e-44fb-97d7-622d90f594ae";
     public const string TrayIconGUID = "25683ae6-ff6c-4d7f-8115-59181532f7f5";
 }

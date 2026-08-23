@@ -128,12 +128,16 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         EffectiveViewportChanged += OnEffectiveViewportChanged;
     }
 
-    public event Action<int?>? SelectedProcessChanged;
+    public event Action<ProcessTerminationTarget?>? SelectedProcessChanged;
     public event Action<double?>? HoverRowTopChanged;
     public event Action<double?>? SelectionRowTopChanged;
     public event Action? ColumnsRequested;
 
     public int? SelectedProcessID => _selectedProcess?.ProcessID;
+
+    public ProcessTerminationTarget? SelectedTerminationTarget => _selectedProcess is { } process
+        ? new ProcessTerminationTarget(process.ProcessID, process.CreationTimeTicks)
+        : null;
 
     /// <summary>Copies the newest compact snapshot and updates only changed retained row roots.</summary>
     public void RefreshFrom(ProcessSnapshotService snapshotService)
@@ -824,7 +828,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (_selectedProcess == nextProcess) return;
 
         _selectedProcess = nextProcess;
-        SelectedProcessChanged?.Invoke(SelectedProcessID);
+        SelectedProcessChanged?.Invoke(SelectedTerminationTarget);
         UpdateSelectionOverlay();
     }
 

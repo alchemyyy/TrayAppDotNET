@@ -25,6 +25,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private AppTheme? _theme;
     private ProcessIconService? _processIconService;
     private ProcessSnapshotService? _snapshotService;
+    private ProcessTerminationService? _processTerminationService;
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
@@ -57,6 +58,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
         StartWatcherMonitor();
         _processIconService = new ProcessIconService();
+        _processTerminationService = new ProcessTerminationService(TADNLog.Log);
         _snapshotService = new ProcessSnapshotService();
         CreateTaskManagerWindow();
         _snapshotService.Start();
@@ -119,14 +121,21 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
     private void CreateTaskManagerWindow()
     {
-        if (_settings == null || _theme == null || _processIconService == null || _snapshotService == null)
+        if (_settings == null ||
+            _theme == null ||
+            _processIconService == null ||
+            _snapshotService == null ||
+            _processTerminationService == null)
+        {
             throw new InvalidOperationException("Task Manager services must be loaded before creating the window.");
+        }
 
         _taskManagerWindow = new TaskManagerWindow(
             _settings,
             _theme,
             _snapshotService,
-            _processIconService);
+            _processIconService,
+            _processTerminationService);
     }
 
     private void CreateTrayIcon()
@@ -264,6 +273,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _snapshotService = null;
             Safe.Dispose(_processIconService);
             _processIconService = null;
+            Safe.Dispose(_processTerminationService);
+            _processTerminationService = null;
 
             if (_trayIcon != null)
             {

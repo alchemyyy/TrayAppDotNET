@@ -9,6 +9,7 @@ namespace TrayAppDotNETCommon.Interop;
 public static class Kernel32
 {
     public const uint PROCESS_TERMINATE = 0x0001;
+    public const uint SYNCHRONIZE = 0x00100000;
 
     // PROCESS_QUERY_LIMITED_INFORMATION is the cheapest right that still resolves a PID to its
     // image path and lets us query AUMID / GetPackageId. Works against UWP and other restricted
@@ -16,7 +17,15 @@ public static class Kernel32
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
     public const uint WAIT_OBJECT_0 = 0x00000000;
+    public const uint WAIT_TIMEOUT = 0x00000102;
     public const uint INFINITE = 0xFFFFFFFF;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FILETIME
+    {
+        public uint LowDateTime;
+        public uint HighDateTime;
+    }
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr OpenProcess(
@@ -27,6 +36,21 @@ public static class Kernel32
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool TerminateProcess(IntPtr hProcess, uint uExitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetProcessTimes(
+        IntPtr hProcess,
+        out FILETIME lpCreationTime,
+        out FILETIME lpExitTime,
+        out FILETIME lpKernelTime,
+        out FILETIME lpUserTime);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsProcessCritical(
+        IntPtr hProcess,
+        [MarshalAs(UnmanagedType.Bool)] out bool critical);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);

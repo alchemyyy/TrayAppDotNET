@@ -34,6 +34,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly AppTheme _theme;
     private readonly ProcessSnapshotService _snapshotService;
     private readonly ProcessIconService _processIconService;
+    private readonly ProcessTerminationService _processTerminationService;
     private readonly TaskManagerWindowResources _taskManagerResources = new();
     private bool _allowClose;
 
@@ -41,12 +42,14 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         AppSettings settings,
         AppTheme theme,
         ProcessSnapshotService snapshotService,
-        ProcessIconService processIconService)
+        ProcessIconService processIconService,
+        ProcessTerminationService processTerminationService)
     {
         _settings = settings;
         _theme = theme;
         _snapshotService = snapshotService;
         _processIconService = processIconService;
+        _processTerminationService = processTerminationService;
         Resources.MergedDictionaries.Add(_taskManagerResources);
 
         ConfigureSettingsWindow(Constants.DisplayName, icon: null);
@@ -120,6 +123,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settings,
             Palette,
             _taskManagerResources,
+            _processTerminationService.Arm,
             TerminateProcess,
             StartProcess);
         return OwnPageResource(page);
@@ -137,9 +141,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return stack;
     }
 
-    private bool TerminateProcess(int processID)
+    private bool TerminateProcess(ProcessTerminationTarget target)
     {
-        if (CriticalProcessActions.TryTerminate(processID, out string errorMessage)) return true;
+        if (_processTerminationService.TryTerminate(target, out string errorMessage)) return true;
 
         _ = ShowMessage("End task failed", errorMessage);
         return false;

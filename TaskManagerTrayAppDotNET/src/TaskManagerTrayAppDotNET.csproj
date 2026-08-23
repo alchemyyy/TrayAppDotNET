@@ -4,6 +4,7 @@
     <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
     <RootNamespace>TaskManagerTrayAppDotNET</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <StartupObject>TaskManagerTrayAppDotNET.Program</StartupObject>
@@ -11,7 +12,6 @@
     <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <IsAotCompatible>true</IsAotCompatible>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">win-x64</RuntimeIdentifiers>
     <PublishAot Condition="'$(Configuration)' == 'Release' or '$(Configuration)' == 'ReleaseWithDebugging'">true</PublishAot>
     <AvaloniaVersion>12.0.4</AvaloniaVersion>
@@ -23,6 +23,13 @@
     <_DefaultTrayAppDotNETCommonProject>$(_DefaultTrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</_DefaultTrayAppDotNETCommonProject>
     <TrayAppDotNETCommonRoot Condition="'$(TrayAppDotNETCommonRoot)' == ''">$(_DefaultTrayAppDotNETCommonRoot)</TrayAppDotNETCommonRoot>
     <TrayAppDotNETCommonProject Condition="'$(TrayAppDotNETCommonProject)' == ''">$(TrayAppDotNETCommonRoot)\src\TrayAppDotNETCommon.csproj</TrayAppDotNETCommonProject>
+    <NativeKillHelperFileName>TaskManagerTrayAppDotNET.KillHelper.exe</NativeKillHelperFileName>
+    <NativeKillHelperSourceDirectory>$(MSBuildProjectDirectory)\..\native\KillHelper</NativeKillHelperSourceDirectory>
+    <NativeKillHelperBuildDirectory>$(TrayAppDotNETRoot).native\TaskManagerKillHelper\$(Configuration)</NativeKillHelperBuildDirectory>
+    <NativeKillHelperExecutable>$(NativeKillHelperBuildDirectory)\out\$(NativeKillHelperFileName)</NativeKillHelperExecutable>
+    <NativeKillHelperConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</NativeKillHelperConfiguration>
+    <NativeKillHelperConfiguration Condition="'$(NativeKillHelperConfiguration)' == ''">Release</NativeKillHelperConfiguration>
+    <TrayAppDotNETUnlockProcessNames>$(TrayAppDotNETUnlockProcessNames);TaskManagerTrayAppDotNET.KillHelper</TrayAppDotNETUnlockProcessNames>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
@@ -86,7 +93,29 @@
   <ItemGroup>
     <AdditionalFiles Include="**\*.axaml" />
     <InternalsVisibleTo Include="TaskManagerTrayAppDotNET.Tests" />
+    <_NativeKillHelperSource Include="$(NativeKillHelperSourceDirectory)\**\*" />
+    <Content Include="$(NativeKillHelperExecutable)"
+             Link="$(NativeKillHelperFileName)"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             Visible="false" />
   </ItemGroup>
+
+  <Target Name="BuildNativeKillHelper"
+          BeforeTargets="PrepareForBuild"
+          Inputs="@(_NativeKillHelperSource)"
+          Outputs="$(NativeKillHelperExecutable)">
+    <MakeDir Directories="$(NativeKillHelperBuildDirectory)" />
+    <Exec Command="cmake -S &quot;$(NativeKillHelperSourceDirectory)&quot; -B &quot;$(NativeKillHelperBuildDirectory)&quot; -A x64" />
+    <Exec Command="cmake --build &quot;$(NativeKillHelperBuildDirectory)&quot; --config $(NativeKillHelperConfiguration) --target TaskManagerTrayAppDotNETKillHelper" />
+    <Error Condition="!Exists('$(NativeKillHelperExecutable)')"
+           Text="Native kill helper was not produced at $(NativeKillHelperExecutable)." />
+  </Target>
+
+  <Target Name="CleanNativeKillHelper" AfterTargets="Clean">
+    <RemoveDir Directories="$(NativeKillHelperBuildDirectory)"
+               Condition="Exists('$(NativeKillHelperBuildDirectory)')" />
+  </Target>
 
   <Target Name="CopyHotAvaloniaRuntimeAssemblies"
           AfterTargets="Build"

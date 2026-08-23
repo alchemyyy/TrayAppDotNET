@@ -12,7 +12,8 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal sealed class ProcessDetailsPage : Grid, IDisposable
 {
     private readonly ProcessSnapshotService _snapshotService;
-    private readonly Func<int, bool> _terminateProcess;
+    private readonly Action<ProcessTerminationTarget?> _armTerminationTarget;
+    private readonly Func<ProcessTerminationTarget, bool> _terminateProcess;
     private readonly Func<string, bool> _startProcess;
     private readonly AppSettings _settings;
     private readonly ProcessDetailsCanvas _processCanvas;
@@ -38,11 +39,13 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
-        Func<int, bool> terminateProcess,
+        Action<ProcessTerminationTarget?> armTerminationTarget,
+        Func<ProcessTerminationTarget, bool> terminateProcess,
         Func<string, bool> startProcess)
     {
         _snapshotService = snapshotService;
         _settings = settings;
+        _armTerminationTarget = armTerminationTarget;
         _terminateProcess = terminateProcess;
         _startProcess = startProcess;
         ProcessDataSchema schema = ProcessDataSchema.Create(settings.DetailsColumns);
@@ -176,7 +179,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         {
             Orientation = Orientation.Horizontal,
             Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-                Children = { _runTaskButton, _columnsButton, _endTaskButton }
+            Children = { _runTaskButton, _columnsButton, _endTaskButton }
         };
         Grid.SetColumn(actions, 1);
         titleBar.Children.Add(actions);
@@ -206,8 +209,11 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.RefreshFrom(_snapshotService);
     }
 
-    private void OnSelectedProcessChanged(int? processID) =>
-        _endTaskButton.IsEnabled = processID.HasValue;
+    private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
+    {
+        _endTaskButton.IsEnabled = target.HasValue;
+        _armTerminationTarget(target);
+    }
 
     private void OnHoverRowTopChanged(double? rowTop)
     {
@@ -276,9 +282,9 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnEndTaskClick(object? sender, EventArgs eventArgs)
     {
-        int? processID = _processCanvas.SelectedProcessID;
-        if (!processID.HasValue) return;
-        if (_terminateProcess(processID.Value))
+        ProcessTerminationTarget? target = _processCanvas.SelectedTerminationTarget;
+        if (!target.HasValue) return;
+        if (_terminateProcess(target.Value))
             _snapshotService.RequestRefresh();
     }
 
@@ -322,6 +328,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         if (_disposed) return;
 
         _disposed = true;
+        _armTerminationTarget(null);
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.HoverRowTopChanged -= OnHoverRowTopChanged;

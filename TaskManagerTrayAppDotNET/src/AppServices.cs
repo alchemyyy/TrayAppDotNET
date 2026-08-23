@@ -35,7 +35,7 @@ internal static class AppServices
     public static TrayAppDotNETInstallationService Installation { get; } = new(new TrayAppDotNETInstallationOptions(
         InstallIdentity,
         InstallLayout,
-        TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName),
+        CreateInstallPayload(),
         BuildInfo.BuildNumber,
         SyncStartMenu: StartMenu.Sync,
         PostToUIThread: action => Dispatcher.UIThread.Post(action)));
@@ -45,4 +45,15 @@ internal static class AppServices
 
     private static List<TrayAppDotNETInstallationInfo> DetectInstallations() =>
         Installation.DetectAll();
+
+    private static TrayAppDotNETInstallPayload CreateInstallPayload()
+    {
+        TrayAppDotNETInstallPayload payload = TrayAppDotNETInstallPayload.NativeAOTApp(Program.ApplicationName);
+        TrayAppDotNETInstallFile[] requiredFiles =
+        [
+            .. payload.RequiredFiles,
+            new TrayAppDotNETInstallFile(Constants.KillHelperFileName)
+        ];
+        return payload with { RequiredFiles = requiredFiles };
+    }
 }
