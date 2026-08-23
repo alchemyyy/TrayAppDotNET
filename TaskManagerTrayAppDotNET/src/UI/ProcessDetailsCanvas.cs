@@ -692,8 +692,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             if (column.Right <= viewport.Left || column.Left >= viewport.Right) continue;
 
             FormattedText headerText = _headerTexts[columnIndex];
-            double textX = column.Left + _metrics.CellPadding;
-            double textTop = top + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
+            double textLeft = column.Left + _metrics.CellPadding;
             bool isSortedColumn = column.Kind == _sortColumn;
             FormattedText? caret = isSortedColumn
                 ? _sortDescending ? _descendingCaretText : _ascendingCaretText
@@ -704,13 +703,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             double headerTextRight = caret == null
                 ? column.Right - _metrics.CellPadding
                 : caretX - _metrics.CellPadding;
+            double headerTextWidth = Math.Max(0, headerTextRight - textLeft);
+            if (column.Alignment == ProcessTableColumnAlignment.Right)
+                headerText.MaxTextWidth = headerTextWidth;
+            double textTop = top + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
             Rect headerClip = new(
-                textX,
+                textLeft,
                 top,
-                Math.Max(0, headerTextRight - textX),
+                headerTextWidth,
                 _metrics.HeaderHeight);
             using (context.PushClip(headerClip))
-                context.DrawText(headerText, new Point(textX, textTop));
+                context.DrawText(headerText, new Point(textLeft, textTop));
 
             if (caret != null)
             {
@@ -1495,11 +1498,21 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         FormattedText[] headerTexts = new FormattedText[columns.Length];
         for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
         {
-            headerTexts[columnIndex] = CreateText(
-                columns[columnIndex].Title,
+            ProcessTableColumn column = columns[columnIndex];
+            FormattedText headerText = CreateText(
+                column.Title,
                 _metrics.HeaderFontSize,
                 _foregroundBrush,
                 FontWeight.Normal);
+            if (column.Alignment == ProcessTableColumnAlignment.Right)
+            {
+                headerText.TextAlignment = TextAlignment.Right;
+                headerText.MaxLineCount = 1;
+                headerText.Trimming = TextTrimming.CharacterEllipsis;
+                headerText.MaxTextWidth = Math.Max(0, column.Width - _metrics.CellPadding * 2);
+            }
+
+            headerTexts[columnIndex] = headerText;
         }
 
         return headerTexts;
