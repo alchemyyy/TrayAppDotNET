@@ -59,6 +59,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             processIconService,
             schema,
             settings.DetailsColumns,
+            settings.EnableLiveDetailsColumnResizing,
             palette,
             resources);
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;

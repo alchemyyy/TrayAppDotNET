@@ -149,6 +149,37 @@ public sealed class ProcessColumnSettingsTests
             settings.DetailsColumns.Single(static setting => setting.Column == ProcessTableColumnKind.Name).Width);
     }
 
+    [Fact]
+    public void LiveColumnResizingIsEnabledByDefault()
+    {
+        AppSettings settings = new();
+
+        Assert.True(settings.EnableLiveDetailsColumnResizing);
+    }
+
+    [Fact]
+    public void LiveColumnResizingModeRoundTripsThroughSettingsXml()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            AppSettings settings = new()
+            {
+                Autosave = false,
+                EnableLiveDetailsColumnResizing = false
+            };
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.False(loaded.EnableLiveDetailsColumnResizing);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     private static ProcessColumnSetting Setting(
         ProcessTableColumnKind column,
         bool visible,

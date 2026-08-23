@@ -33,6 +33,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly ProcessDataSchema _schema;
     private readonly ProcessTableMetrics _metrics;
     private readonly bool _hasDynamicColumns;
+    private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
     private readonly Dictionary<ProcessSharedCellKey, SharedCellDrawing> _sharedCellDrawings = new();
@@ -49,6 +50,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly Pen _columnInteractionPen;
     private readonly double _sortCaretRightMargin;
     private readonly Action _refreshWarmDynamicDrawings;
+    private readonly ProcessTableColumn[]? _liveResizeColumns;
     private List<ProcessColumnSetting> _columnSettings;
     private ProcessTableColumn[] _columns;
     private FormattedText[] _headerTexts;
@@ -78,6 +80,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private double _pointerViewportY;
     private bool _sortDescending;
     private bool _pointerInside;
+    private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
     private bool _disposed;
     private ProcessSnapshotService? _snapshotService;
@@ -86,6 +89,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ProcessIconService processIconService,
         ProcessDataSchema schema,
         IReadOnlyList<ProcessColumnSetting> columnSettings,
+        bool enableLiveColumnResizing,
         SettingsPalette palette,
         TaskManagerWindowResources resources)
     {
@@ -109,6 +113,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _columns = CreateColumns(_columnSettings);
         _hasDynamicColumns = ContainsLifetime(_columns, ProcessTableColumnLifetime.Dynamic);
+        _enableLiveColumnResizing = enableLiveColumnResizing;
+        _liveResizeColumns = enableLiveColumnResizing
+            ? new ProcessTableColumn[_columns.Length]
+            : null;
         _rowComparer = new ProcessRowIndexComparer(_snapshot, _schema);
         _sortCaretRightMargin = resources.AxamlProcessTable.SortCaretRightMargin;
         _refreshWarmDynamicDrawings = RefreshWarmDynamicDrawings;
@@ -141,6 +149,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public event Action<double?>? SelectionRowTopChanged;
     public event Action? ColumnsRequested;
     public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
+
+    private ProcessTableColumn[] DisplayColumns =>
+        _isLiveColumnResizeActive ? _liveResizeColumns! : _columns;
 
     public int? SelectedProcessID => _selectedProcess?.ProcessID;
 
@@ -192,7 +203,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double contentWidth = _columns.Length == 0 ? 0 : _columns[^1].Right;
+        ProcessTableColumn[] columns = DisplayColumns;
+        double contentWidth = columns.Length == 0 ? 0 : columns[^1].Right;
         double width = double.IsFinite(availableSize.Width)
             ? Math.Max(contentWidth, availableSize.Width)
             : contentWidth;
@@ -436,6 +448,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 if (Math.Abs(nextWidth - _resizePreviewWidth) < 0.01) return;
 
                 _resizePreviewWidth = nextWidth;
+                if (_enableLiveColumnResizing && _liveResizeColumns != null)
+                {
+                    ProcessTableLayout.WriteResizedColumns(
+                        _columns,
+                        _interactionColumnIndex,
+                        nextWidth,
+                        _liveResizeColumns);
+                    _isLiveColumnResizeActive = true;
+                    InvalidateMeasure();
+                }
+
                 InvalidateVisual();
                 return;
             }
@@ -489,6 +512,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void ClearHeaderInteractionState()
     {
+        if (_isLiveColumnResizeActive)
+        {
+            _isLiveColumnResizeActive = false;
+            InvalidateMeasure();
+        }
+
         _headerInteraction = HeaderInteractionMode.None;
         _interactionColumnIndex = -1;
         _reorderInsertionIndex = -1;
@@ -525,11 +554,88 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         double top = _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight;
         using (context.PushTransform(Matrix.CreateTranslation(0, top)))
         {
-            cache.StaticDrawing?.Draw(context);
-            cache.DynamicDrawing?.Draw(context);
+            if (_isLiveColumnResizeActive && _liveResizeColumns != null)
+                DrawLiveResizedRow(context, cache, _liveResizeColumns);
+            else
+                DrawRetainedRowDrawings(context, cache);
         }
 
         DrawProcessIcon(context, viewport, row, top);
+    }
+
+    /// <summary>Clips the resized cell and translates trailing retained cells without rebuilding the row DAG.</summary>
+    private void DrawLiveResizedRow(
+        DrawingContext context,
+        ProcessRowRenderCache cache,
+        ProcessTableColumn[] liveColumns)
+    {
+        int resizedColumnIndex = _interactionColumnIndex;
+        if ((uint)resizedColumnIndex >= (uint)_columns.Length)
+        {
+            DrawRetainedRowDrawings(context, cache);
+            return;
+        }
+
+        ProcessTableColumn committedColumn = _columns[resizedColumnIndex];
+        ProcessTableColumn liveColumn = liveColumns[resizedColumnIndex];
+        double offset = liveColumn.Width - committedColumn.Width;
+        DrawRetainedRowSegment(
+            context,
+            cache,
+            new Rect(0, 0, committedColumn.Left, _metrics.RowHeight),
+            0);
+
+        double sourceTranslation = committedColumn.Alignment == ProcessTableColumnAlignment.Right
+            ? offset
+            : 0;
+        double sourceClipLeft = Math.Max(liveColumn.Left, committedColumn.Left + sourceTranslation);
+        double sourceClipRight = Math.Min(liveColumn.Right, committedColumn.Right + sourceTranslation);
+        DrawRetainedRowSegment(
+            context,
+            cache,
+            new Rect(
+                sourceClipLeft,
+                0,
+                Math.Max(0, sourceClipRight - sourceClipLeft),
+                _metrics.RowHeight),
+            sourceTranslation);
+
+        DrawRetainedRowSegment(
+            context,
+            cache,
+            new Rect(
+                liveColumn.Right,
+                0,
+                Math.Max(0, Bounds.Width - liveColumn.Right),
+                _metrics.RowHeight),
+            offset);
+    }
+
+    private static void DrawRetainedRowSegment(
+        DrawingContext context,
+        ProcessRowRenderCache cache,
+        Rect clip,
+        double translationX)
+    {
+        if (clip.Width <= 0 || clip.Height <= 0) return;
+
+        using (context.PushClip(clip))
+        {
+            if (Math.Abs(translationX) < 0.01)
+            {
+                DrawRetainedRowDrawings(context, cache);
+                return;
+            }
+
+            using (context.PushTransform(Matrix.CreateTranslation(translationX, 0)))
+                DrawRetainedRowDrawings(context, cache);
+        }
+    }
+
+    private static void DrawRetainedRowDrawings(DrawingContext context, ProcessRowRenderCache cache)
+    {
+        cache.StaticDrawing?.Draw(context);
+        cache.DynamicDrawing?.Draw(context);
     }
 
     private void DrawProcessIcon(
@@ -538,10 +644,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ProcessStaticData row,
         double top)
     {
-        int nameColumnIndex = FindColumn(ProcessTableColumnKind.Name);
+        ProcessTableColumn[] columns = DisplayColumns;
+        int nameColumnIndex = FindColumn(columns, ProcessTableColumnKind.Name);
         if (nameColumnIndex < 0) return;
 
-        ProcessTableColumn nameColumn = _columns[nameColumnIndex];
+        ProcessTableColumn nameColumn = columns[nameColumnIndex];
         if (nameColumn.Right <= viewport.Left || nameColumn.Left >= viewport.Right) return;
 
         double iconTop = top + (_metrics.RowHeight - _metrics.ProcessIconSize) / 2;
@@ -559,9 +666,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void DrawColumnGrid(DrawingContext context, Rect viewport)
     {
-        for (int columnIndex = 1; columnIndex < _columns.Length; columnIndex++)
+        ProcessTableColumn[] columns = DisplayColumns;
+        for (int columnIndex = 1; columnIndex < columns.Length; columnIndex++)
         {
-            double left = _columns[columnIndex].Left;
+            double left = columns[columnIndex].Left;
             if (left < viewport.Left || left > viewport.Right) continue;
             context.DrawLine(_gridPen, new Point(left, viewport.Y), new Point(left, viewport.Bottom));
         }
@@ -577,9 +685,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             new Point(Bounds.Width, top + _metrics.HeaderHeight));
 
         Rect viewport = ResolveViewport();
-        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+        ProcessTableColumn[] columns = DisplayColumns;
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
         {
-            ProcessTableColumn column = _columns[columnIndex];
+            ProcessTableColumn column = columns[columnIndex];
             if (column.Right <= viewport.Left || column.Left >= viewport.Right) continue;
 
             FormattedText headerText = _headerTexts[columnIndex];
@@ -619,13 +728,16 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void DrawHeaderInteraction(DrawingContext context, Rect viewport, double headerTop)
     {
-        if ((uint)_interactionColumnIndex >= (uint)_columns.Length) return;
+        if (_headerInteraction == HeaderInteractionMode.Resizing && _enableLiveColumnResizing) return;
+
+        ProcessTableColumn[] columns = DisplayColumns;
+        if ((uint)_interactionColumnIndex >= (uint)columns.Length) return;
 
         switch (_headerInteraction)
         {
             case HeaderInteractionMode.Resizing:
             {
-                double dividerX = _columns[_interactionColumnIndex].Left + _resizePreviewWidth;
+                double dividerX = columns[_interactionColumnIndex].Left + _resizePreviewWidth;
                 if (dividerX >= viewport.Left && dividerX <= viewport.Right)
                 {
                     context.DrawLine(
@@ -641,7 +753,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 if (_reorderInsertionIndex != _interactionColumnIndex)
                 {
                     double insertionX = ProcessTableLayout.GetReorderInsertionX(
-                        _columns,
+                        columns,
                         _interactionColumnIndex,
                         _reorderInsertionIndex);
                     if (double.IsFinite(insertionX)
@@ -663,7 +775,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void DrawDraggedHeader(DrawingContext context, Rect viewport, double headerTop)
     {
-        ProcessTableColumn column = _columns[_interactionColumnIndex];
+        ProcessTableColumn column = DisplayColumns[_interactionColumnIndex];
         double minimumLeft = viewport.Left;
         double maximumLeft = Math.Max(minimumLeft, viewport.Right - column.Width);
         double left = Math.Clamp(_headerDragX - _headerPointerOffsetX, minimumLeft, maximumLeft);
@@ -1346,11 +1458,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         Array.Resize(ref _warmProcessIDs, capacity);
     }
 
-    private int FindColumn(ProcessTableColumnKind kind)
+    private static int FindColumn(ProcessTableColumn[] columns, ProcessTableColumnKind kind)
     {
-        for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
         {
-            if (_columns[columnIndex].Kind == kind) return columnIndex;
+            if (columns[columnIndex].Kind == kind) return columnIndex;
         }
 
         return -1;

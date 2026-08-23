@@ -20,6 +20,12 @@ public sealed class AppSettings : AppSettingsCommon
         SuppressChangeNotification = false;
     }
 
+    public bool EnableLiveDetailsColumnResizing
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
     [XmlArray("DetailsColumns")]
     [XmlArrayItem("Column")]
     public List<ProcessColumnSetting> DetailsColumns

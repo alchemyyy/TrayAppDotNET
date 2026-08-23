@@ -87,7 +87,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         new(TaskManagerPage.Users, "Users", () => BuildPlaceholderPage("Users"), UsersGlyph),
         new(TaskManagerPage.Details, "Details", BuildDetailsPage, DetailsGlyph),
         new(TaskManagerPage.Services, "Services", () => BuildPlaceholderPage("Services"), ServicesGlyph),
-        new(TaskManagerPage.Settings, "Settings", () => BuildPlaceholderPage("Settings"), SettingsNavigationGlyphs.Settings)
+        new(TaskManagerPage.Settings, "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
     ];
 
     protected override void Save() => _settings.Save();
@@ -127,6 +127,21 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             TerminateProcess,
             StartProcess);
         return OwnPageResource(page);
+    }
+
+    private StackPanel BuildSettingsPage()
+    {
+        SettingsPalette palette = Palette;
+        StackPanel stack = PageStack("Settings", palette);
+        stack.Margin = _taskManagerResources.AxamlTaskManagerDetails.PlaceholderMargin;
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Details", palette));
+        stack.Children.Add(BoolCard(
+            "Live column resizing",
+            "Update Details column widths and positions while dragging a divider. Turn this off to show a resize guide and apply the width on release.",
+            _settings.EnableLiveDetailsColumnResizing,
+            enabled => _settings.EnableLiveDetailsColumnResizing = enabled,
+            palette));
+        return stack;
     }
 
     private StackPanel BuildPlaceholderPage(string pageName)

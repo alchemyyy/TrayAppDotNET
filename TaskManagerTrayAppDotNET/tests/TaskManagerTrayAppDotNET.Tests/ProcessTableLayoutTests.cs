@@ -80,6 +80,22 @@ public sealed class ProcessTableLayoutTests
     }
 
     [Fact]
+    public void LiveResizeChangesOneWidthAndOffsetsFollowingColumns()
+    {
+        ProcessTableColumn[] columns = CreateColumns();
+        ProcessTableColumn[] resized = new ProcessTableColumn[columns.Length];
+
+        ProcessTableLayout.WriteResizedColumns(columns, 1, 80, resized);
+
+        Assert.Equal(columns[0], resized[0]);
+        Assert.Equal(80, resized[1].Width);
+        Assert.Equal(100, resized[1].Left);
+        Assert.Equal(180, resized[2].Left);
+        Assert.Equal(100, columns[1].Left);
+        Assert.Equal(150, columns[2].Left);
+    }
+
+    [Fact]
     public void ReorderInsertionGeometryExcludesTheDraggedColumn()
     {
         ProcessTableColumn[] columns = CreateColumns();

@@ -336,6 +336,36 @@ internal static class ProcessTableLayout
             : -1;
     }
 
+    /// <summary>Writes resized display geometry without modifying the committed column layout.</summary>
+    public static void WriteResizedColumns(
+        ReadOnlySpan<ProcessTableColumn> columns,
+        int resizedColumnIndex,
+        double width,
+        Span<ProcessTableColumn> destination)
+    {
+        if (columns.Length != destination.Length)
+            throw new ArgumentException("Source and destination column counts must match.", nameof(destination));
+        if ((uint)resizedColumnIndex >= (uint)columns.Length)
+            throw new ArgumentOutOfRangeException(nameof(resizedColumnIndex));
+        if (!double.IsFinite(width) || width <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width));
+
+        double offset = width - columns[resizedColumnIndex].Width;
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        {
+            ProcessTableColumn column = columns[columnIndex];
+            if (columnIndex < resizedColumnIndex)
+            {
+                destination[columnIndex] = column;
+                continue;
+            }
+
+            destination[columnIndex] = columnIndex == resizedColumnIndex
+                ? column with { Width = width }
+                : column with { Left = column.Left + offset };
+        }
+    }
+
     /// <summary>Returns the final visible index after removing and reinserting the source column.</summary>
     public static int GetReorderInsertionIndex(
         double x,
