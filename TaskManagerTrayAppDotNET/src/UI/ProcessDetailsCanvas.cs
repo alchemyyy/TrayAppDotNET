@@ -195,6 +195,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         base.Render(context);
         if (_disposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
+        // Keep every row and column position in Avalonia's render-data hit-test surface
+        context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
+
         Rect viewport = ResolveViewport();
         double stickyHeaderTop = Math.Clamp(viewport.Y, 0, Math.Max(0, Bounds.Height - _metrics.HeaderHeight));
         ProcessTableLayout.GetVisibleRowRange(
