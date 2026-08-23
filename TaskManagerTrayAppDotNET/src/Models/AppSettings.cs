@@ -6,6 +6,13 @@ namespace TaskManagerTrayAppDotNET.Models;
 [XmlRoot("AppSettings")]
 public sealed class AppSettings : AppSettingsCommon
 {
+    public const double GridFontSizeDefault = 11.5;
+    public const double GridFontSizeMinimum = 8.0;
+    public const double GridFontSizeMaximum = 32.0;
+    public const int GridRowHeightDefault = 19;
+    public const int GridRowHeightMinimum = 14;
+    public const int GridRowHeightMaximum = 64;
+
     private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
         TimeConstants.SettingsSaveDebounceMs,
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
@@ -25,6 +32,18 @@ public sealed class AppSettings : AppSettingsCommon
         get;
         set => SetField(ref field, value);
     } = true;
+
+    public double GridFontSize
+    {
+        get;
+        set => SetField(ref field, NormalizeGridFontSize(value));
+    } = GridFontSizeDefault;
+
+    public int GridRowHeight
+    {
+        get;
+        set => SetField(ref field, Math.Clamp(value, GridRowHeightMinimum, GridRowHeightMaximum));
+    } = GridRowHeightDefault;
 
     [XmlArray("DetailsColumns")]
     [XmlArrayItem("Column")]
@@ -93,4 +112,9 @@ public sealed class AppSettings : AppSettingsCommon
             path,
             static () => new AppSettings(),
             exception => TADNLog.Log($"AppSettings.LoadOrDefault: {exception.Message}"));
+
+    private static double NormalizeGridFontSize(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, GridFontSizeMinimum, GridFontSizeMaximum)
+            : GridFontSizeDefault;
 }
