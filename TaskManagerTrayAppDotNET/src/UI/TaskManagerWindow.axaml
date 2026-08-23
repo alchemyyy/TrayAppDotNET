@@ -26,9 +26,9 @@
 
   <!-- Painted process table -->
   <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>
-  <sys:Double x:Key="ProcessTable.RowHeight">23</sys:Double>
+  <sys:Double x:Key="ProcessTable.RowHeight">19</sys:Double>
   <sys:Double x:Key="ProcessTable.CellPadding">7</sys:Double>
-  <sys:Double x:Key="ProcessTable.FontSize">13</sys:Double>
+  <sys:Double x:Key="ProcessTable.FontSize">11.5</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderFontSize">13</sys:Double>
   <sys:Double x:Key="ProcessTable.SortCaretFontSize">10</sys:Double>
   <sys:Double x:Key="ProcessTable.SortCaretRightMargin">6</sys:Double>
