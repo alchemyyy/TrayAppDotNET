@@ -16,7 +16,7 @@
     <OutputPath>$(MSBuildProjectDirectory)\..\bin\$(Configuration)\</OutputPath>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <IsAotCompatible>true</IsAotCompatible>
-    <AvaloniaVersion>12.0.4</AvaloniaVersion>
+    <AvaloniaVersion>12.1.1</AvaloniaVersion>
     <HotAvaloniaPackageVersion>3.1.1</HotAvaloniaPackageVersion>
     <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
     <HotAvaloniaMode>Balanced</HotAvaloniaMode>
