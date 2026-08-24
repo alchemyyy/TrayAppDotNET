@@ -25,11 +25,13 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private readonly TryTerminateProcessAction _terminateProcess;
     private readonly Action _requestRefresh;
     private readonly Action<string, string> _reportError;
+    private readonly Action<ProcessCopyPreviewMode> _setCopyPreview;
     private readonly Action<string, string>? _reportInformation;
     private readonly HashSet<Window> _actionWindows = [];
     private ProcessRowContextMenuWindow? _menuWindow;
     private Window? _owner;
     private PixelPoint _menuPosition;
+    private ProcessCopyPreviewMode _hoveredCopyPreview;
     private bool _disposed;
 
     public ProcessRowContextMenuController(
@@ -38,42 +40,49 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         TryTerminateProcessAction terminateProcess,
         Action requestRefresh,
         Action<string, string> reportError,
+        Action<ProcessCopyPreviewMode> setCopyPreview,
         Action<string, string>? reportInformation = null)
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(terminateProcess);
         ArgumentNullException.ThrowIfNull(requestRefresh);
         ArgumentNullException.ThrowIfNull(reportError);
+        ArgumentNullException.ThrowIfNull(setCopyPreview);
 
         _palette = palette;
         _enableRoundedCorners = enableRoundedCorners;
         _terminateProcess = terminateProcess;
         _requestRefresh = requestRefresh;
         _reportError = reportError;
+        _setCopyPreview = setCopyPreview;
         _reportInformation = reportInformation;
     }
 
     /// <summary>Shows a common TADN menu for one immutable process identity at a screen position.</summary>
-    public void Show(
-        Window owner,
-        PixelPoint screenPosition,
-        ProcessTerminationTarget target,
-        string copyText)
+    public void Show(Window owner, ProcessRowContextMenuRequest request)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(owner);
 
         CloseMenu();
         _owner = owner;
-        _menuPosition = screenPosition;
-        List<TrayMenuEntry> entries = BuildMainEntries(target, copyText);
+        _menuPosition = request.ScreenPosition;
+        List<TrayMenuEntry> entries = BuildMainEntries(request);
         ShowMenu(entries);
     }
 
-    private List<TrayMenuEntry> BuildMainEntries(ProcessTerminationTarget target, string copyText)
+    private List<TrayMenuEntry> BuildMainEntries(ProcessRowContextMenuRequest request)
     {
+        ProcessTerminationTarget target = request.Target;
         TrayMenuEntryBuilder entries = new();
-        entries.Add("Copy", () => ExecuteCopy(copyText));
+        entries.Add(new TrayMenuEntry("Copy", () => ExecuteCopy(request.CellCopyText))
+        {
+            HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Cell, isHovered)
+        });
+        entries.Add(new TrayMenuEntry("Copy row", () => ExecuteCopy(request.RowCopyText))
+        {
+            HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered)
+        });
         entries.AddSeparator();
         entries.Add("End task", () => ExecuteEndTask(target));
         entries.Add("End process tree", () => ExecuteEndProcessTree(target));
@@ -114,6 +123,26 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
 
         return entries.ToList();
+    }
+
+    private void SetCopyPreviewHover(ProcessCopyPreviewMode previewMode, bool isHovered)
+    {
+        if (isHovered)
+        {
+            _hoveredCopyPreview = previewMode;
+            _setCopyPreview(previewMode);
+            return;
+        }
+
+        if (_hoveredCopyPreview != previewMode) return;
+        _hoveredCopyPreview = ProcessCopyPreviewMode.None;
+        _setCopyPreview(ProcessCopyPreviewMode.None);
+    }
+
+    private void ClearCopyPreview()
+    {
+        _hoveredCopyPreview = ProcessCopyPreviewMode.None;
+        _setCopyPreview(ProcessCopyPreviewMode.None);
     }
 
     private void ExecuteCopy(string copyText) => _ = ExecuteCopyAsync(copyText);
@@ -350,6 +379,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 
     private void CloseMenu()
     {
+        ClearCopyPreview();
         ProcessRowContextMenuWindow? menuWindow = _menuWindow;
         if (menuWindow == null) return;
 
@@ -360,6 +390,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 
     private void OnMenuClosed(object? sender, EventArgs eventArgs)
     {
+        ClearCopyPreview();
         if (sender is ProcessRowContextMenuWindow menuWindow)
             menuWindow.Closed -= OnMenuClosed;
         if (ReferenceEquals(sender, _menuWindow)) _menuWindow = null;

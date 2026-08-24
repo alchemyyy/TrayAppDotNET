@@ -21,6 +21,7 @@ public sealed record TrayMenuEntry(string Text, Action Click)
 {
     public Glyph? LeadingGlyph { get; init; }
     public string? TrailingGlyph { get; init; }
+    public Action<bool>? HoverChanged { get; init; }
     public bool HasTopRule { get; init; }
     public bool HasBottomRule { get; init; }
 }
@@ -438,6 +439,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         private readonly TrayMenuWindowOptions _options;
         private readonly Border _itemBorder;
         private readonly Action _click;
+        private readonly Action<bool>? _hoverChanged;
         private bool _isPointerOver;
         private bool _disposed;
 
@@ -448,6 +450,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             _options = options;
             _click = click;
+            _hoverChanged = entry.HoverChanged;
             Background = Brushes.Transparent;
             Cursor = TrayAppDotNETCursors.Hand;
             Focusable = true;
@@ -555,6 +558,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed) return;
             _isPointerOver = true;
             UpdateVisual();
+            _hoverChanged?.Invoke(true);
         }
 
         private void OnPointerExited(object? sender, PointerEventArgs e)
@@ -562,6 +566,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed) return;
             _isPointerOver = false;
             UpdateVisual();
+            _hoverChanged?.Invoke(false);
         }
 
         private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -597,6 +602,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             if (_disposed) return;
             _disposed = true;
+            if (_isPointerOver) _hoverChanged?.Invoke(false);
+            _isPointerOver = false;
             PointerEntered -= OnPointerEntered;
             PointerExited -= OnPointerExited;
             PointerPressed -= OnPointerPressed;

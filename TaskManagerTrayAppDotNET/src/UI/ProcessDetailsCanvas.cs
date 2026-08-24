@@ -12,6 +12,19 @@ using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
+internal enum ProcessCopyPreviewMode : byte
+{
+    None,
+    Cell,
+    Row
+}
+
+internal readonly record struct ProcessRowContextMenuRequest(
+    ProcessTerminationTarget Target,
+    PixelPoint ScreenPosition,
+    string CellCopyText,
+    string RowCopyText);
+
 /// <summary>Composites two retained drawing roots per process from shared visible-column fragments.</summary>
 internal sealed class ProcessDetailsCanvas : Control, IDisposable
 {
@@ -64,6 +77,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly Action _refreshWarmDynamicDrawings;
     private readonly ProcessTableColumn[]? _liveResizeColumns;
     private readonly TextUnderlineSegment[] _textUnderlineSegments;
+    private readonly string?[] _contextCopyValuesByColumn;
     private List<ProcessColumnSetting> _columnSettings;
     private ProcessColumnSetting[] _settingsByColumn;
     private ProcessTableColumn[] _columns;
@@ -99,20 +113,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private int _interactionColumnIndex = -1;
     private int _reorderInsertionIndex = -1;
     private int _hoveredVisibleIndex = -1;
-    private int _hoveredColumnIndex = -1;
     private int _hoveredHeaderColumnIndex = -1;
+    private int _textPreviewVisibleIndex = -1;
     private int _textUnderlineSegmentCount;
     private double _resizeInitialWidth;
     private double _resizePreviewWidth;
     private double _headerDragX;
     private double _headerPointerOffsetX;
-    private double _pointerViewportX;
     private double _pointerViewportY;
-    private string _textSelectionCopyText = string.Empty;
-    private ProcessInstanceKey? _hoveredProcess;
+    private ProcessInstanceKey? _contextCopyProcess;
+    private ProcessTableColumnKind? _contextCopyColumn;
+    private ProcessCopyPreviewMode _copyPreviewMode;
     private bool _sortDescending;
     private bool _pointerInside;
-    private bool _isWholeRowTextSelection;
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
@@ -155,6 +168,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             ? new ProcessTableColumn[_columns.Length]
             : null;
         _textUnderlineSegments = new TextUnderlineSegment[_columns.Length];
+        _contextCopyValuesByColumn = new string?[ProcessTableColumnCatalog.Definitions.Length];
         _rowComparer = new ProcessRowIndexComparer(_snapshot, _schema);
         _sortCaretRightMargin = resources.AxamlProcessTable.SortCaretRightMargin;
         _totalPhysicalMemoryBytes = NativeProcessInfo.ReadTotalPhysicalMemoryBytes();
@@ -194,7 +208,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public event Action<double, double>? GridMetricsChanged;
     public event Action<int>? GridZoomRequested;
     public event Action? GridZoomResetRequested;
-    public event Action<ProcessTerminationTarget, PixelPoint, string>? RowContextMenuRequested;
+    public event Action<ProcessRowContextMenuRequest>? RowContextMenuRequested;
 
     private ProcessTableColumn[] DisplayColumns =>
         _isLiveColumnResizeActive ? _liveResizeColumns! : _columns;
@@ -225,7 +239,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
     }
@@ -245,7 +259,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
     }
@@ -279,7 +293,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
             DrawRetainedRow(context, viewport, visibleIndex);
 
-        DrawTextSelectionUnderline(context);
+        DrawCopyPreviewUnderline(context);
         DrawColumnGrid(context, viewport);
         DrawHeader(context, stickyHeaderTop);
         DrawHeaderInteraction(context, viewport, stickyHeaderTop);
@@ -292,8 +306,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
         Point position = eventArgs.GetPosition(this);
-        SetWholeRowTextSelection(eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift));
-        UpdateHoveredCell(position);
         bool isHeader = IsHeaderPosition(position.Y);
         if (pointerPoint.Properties.IsRightButtonPressed && isHeader)
         {
@@ -312,10 +324,15 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             SelectVisibleRow(contextVisibleIndex);
             Focus();
             if (contextVisibleIndex >= 0 && SelectedTerminationTarget is { } target)
-                RowContextMenuRequested?.Invoke(
+            {
+                int contextColumnIndex = ProcessTableLayout.HitTestColumn(position.X, DisplayColumns);
+                ProcessRowContextMenuRequest request = CreateRowContextMenuRequest(
                     target,
                     this.PointToScreen(position),
-                    _textSelectionCopyText);
+                    contextVisibleIndex,
+                    contextColumnIndex);
+                RowContextMenuRequested?.Invoke(request);
+            }
             eventArgs.Handled = contextVisibleIndex >= 0;
             return;
         }
@@ -387,18 +404,15 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         _pointerInside = true;
-        _pointerViewportX = position.X - Math.Max(0, _effectiveViewport.X);
         _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
-        SetWholeRowTextSelection(eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift));
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
-        UpdateHoveredCell(position);
+        UpdateHoveredRow(position.Y);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
     {
         base.OnPointerWheelChanged(eventArgs);
-        SetWholeRowTextSelection(eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift));
         if (!eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control) || eventArgs.Delta.Y == 0) return;
 
         GridZoomRequested?.Invoke(eventArgs.Delta.Y > 0 ? 1 : -1);
@@ -438,9 +452,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         _pointerInside = new Rect(Bounds.Size).Contains(position);
-        _pointerViewportX = position.X - Math.Max(0, _effectiveViewport.X);
         _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
-        SetWholeRowTextSelection(eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift));
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
         UpdateHoverFromPointer();
@@ -470,18 +482,18 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
     }
 
-    /// <summary>Expands the transient text hover target from one cell to every visible cell in its row.</summary>
-    public void SetWholeRowTextSelection(bool wholeRow)
+    /// <summary>Shows the copy target preview requested by the active row context menu.</summary>
+    public void SetContextCopyPreview(ProcessCopyPreviewMode previewMode)
     {
-        if (_disposed || _isWholeRowTextSelection == wholeRow) return;
+        if (_disposed || _copyPreviewMode == previewMode) return;
 
-        _isWholeRowTextSelection = wholeRow;
-        RebuildTextSelectionCache();
+        _copyPreviewMode = previewMode;
+        RebuildCopyPreview();
         InvalidateVisual();
     }
 
@@ -505,7 +517,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         GridMetricsChanged?.Invoke(fontSize, rowHeight);
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
     }
@@ -534,7 +546,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         base.OnPointerExited(eventArgs);
         _pointerInside = false;
-        SetHoveredCell(-1, -1);
+        SetHoveredVisibleIndex(-1);
         SetHoveredHeaderColumnIndex(-1);
         if (_headerInteraction == HeaderInteractionMode.None)
             Cursor = TrayAppDotNETCursors.Arrow;
@@ -543,19 +555,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     protected override void OnKeyDown(KeyEventArgs eventArgs)
     {
         base.OnKeyDown(eventArgs);
-        if (eventArgs.Key is Key.LeftShift or Key.RightShift)
-            SetWholeRowTextSelection(true);
         if (eventArgs.Key != Key.Escape || _headerInteraction == HeaderInteractionMode.None) return;
 
         ResetHeaderInteraction();
         eventArgs.Handled = true;
-    }
-
-    protected override void OnKeyUp(KeyEventArgs eventArgs)
-    {
-        base.OnKeyUp(eventArgs);
-        if (eventArgs.Key is Key.LeftShift or Key.RightShift)
-            SetWholeRowTextSelection(eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift));
     }
 
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs eventArgs)
@@ -589,7 +592,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _resizeInitialWidth = _columns[columnIndex].Width;
         _resizePreviewWidth = _resizeInitialWidth;
         _reorderInsertionIndex = columnIndex;
-        SetHoveredCell(-1, -1);
+        SetHoveredVisibleIndex(-1);
         Focus();
 
         try
@@ -761,16 +764,16 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         DrawProcessIcon(context, viewport, rowIndex, row, top);
     }
 
-    private void DrawTextSelectionUnderline(DrawingContext context)
+    private void DrawCopyPreviewUnderline(DrawingContext context)
     {
         if (_textUnderlineSegmentCount == 0
-            || _hoveredVisibleIndex < 0
-            || _hoveredVisibleIndex >= _visibleRowCount)
+            || _textPreviewVisibleIndex < 0
+            || _textPreviewVisibleIndex >= _visibleRowCount)
         {
             return;
         }
 
-        double top = _metrics.HeaderHeight + _hoveredVisibleIndex * _metrics.RowHeight;
+        double top = _metrics.HeaderHeight + _textPreviewVisibleIndex * _metrics.RowHeight;
         using (context.PushTransform(Matrix.CreateTranslation(0, top)))
         {
             for (int segmentIndex = 0; segmentIndex < _textUnderlineSegmentCount; segmentIndex++)
@@ -784,45 +787,110 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
     }
 
-    private void RebuildTextSelectionCache()
+    private ProcessRowContextMenuRequest CreateRowContextMenuRequest(
+        ProcessTerminationTarget target,
+        PixelPoint screenPosition,
+        int visibleIndex,
+        int columnIndex)
+    {
+        int rowIndex = _visibleRowIndexes[visibleIndex];
+        ProcessStaticData row = _snapshot.StaticRows[rowIndex]
+            ?? throw new InvalidOperationException("A published process row is missing static data.");
+        ProcessTableColumn[] columns = DisplayColumns;
+        _contextCopyProcess = row.InstanceKey;
+        _contextCopyColumn = (uint)columnIndex < (uint)columns.Length
+            ? columns[columnIndex].Kind
+            : null;
+        _copyPreviewMode = ProcessCopyPreviewMode.None;
+        _textPreviewVisibleIndex = -1;
+        _textUnderlineSegmentCount = 0;
+        InvalidateVisual();
+        EnsureDynamicDrawingCurrent(rowIndex, row);
+
+        Array.Clear(_contextCopyValuesByColumn);
+        for (int visibleColumnIndex = 0; visibleColumnIndex < columns.Length; visibleColumnIndex++)
+        {
+            ProcessTableColumnKind kind = columns[visibleColumnIndex].Kind;
+            _contextCopyValuesByColumn[(int)kind] = GetCellDisplayValue(rowIndex, kind);
+        }
+
+        string cellCopyText = _contextCopyColumn.HasValue
+            ? _contextCopyValuesByColumn[(int)_contextCopyColumn.Value] ?? string.Empty
+            : string.Empty;
+        return new ProcessRowContextMenuRequest(
+            target,
+            screenPosition,
+            cellCopyText,
+            CreateRowCopyText(columns));
+    }
+
+    private string CreateRowCopyText(ProcessTableColumn[] columns)
+    {
+        StringBuilder copyText = new();
+        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        {
+            if (columnIndex > 0) copyText.Append(',');
+            string display = _contextCopyValuesByColumn[(int)columns[columnIndex].Kind] ?? string.Empty;
+            AppendCSVField(copyText, display);
+        }
+        return copyText.ToString();
+    }
+
+    private void RebuildCopyPreview()
     {
         _textUnderlineSegmentCount = 0;
-        _textSelectionCopyText = string.Empty;
-        if (_hoveredVisibleIndex < 0 || _hoveredVisibleIndex >= _visibleRowCount) return;
+        _textPreviewVisibleIndex = -1;
+        if (_copyPreviewMode == ProcessCopyPreviewMode.None || !_contextCopyProcess.HasValue) return;
 
-        int rowIndex = _visibleRowIndexes[_hoveredVisibleIndex];
+        int visibleIndex = FindVisibleProcess(_contextCopyProcess.Value);
+        if (visibleIndex < 0) return;
+
+        int rowIndex = _visibleRowIndexes[visibleIndex];
         ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-        if (row == null || row.InstanceKey != _hoveredProcess) return;
-
-        if (_hasDynamicColumns
-            && _renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache)
-            && (cache.DynamicDrawing == null
-                || cache.DynamicFingerprint != cache.PendingDynamicFingerprint))
-        {
-            RebuildDynamicDrawing(cache, rowIndex);
-        }
+        if (row == null) return;
+        _textPreviewVisibleIndex = visibleIndex;
 
         ProcessTableColumn[] columns = DisplayColumns;
         int treeLayoutKey = GetTreeLayoutKey(rowIndex);
-        if (_isWholeRowTextSelection)
+        if (_copyPreviewMode == ProcessCopyPreviewMode.Row)
         {
-            StringBuilder copyText = new();
             for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
             {
-                if (columnIndex > 0) copyText.Append(',');
-                string display = GetCellDisplayValue(rowIndex, columns[columnIndex].Kind);
-                AppendCSVField(copyText, display);
+                string display = _contextCopyValuesByColumn[(int)columns[columnIndex].Kind] ?? string.Empty;
                 AddTextUnderlineSegment(columns[columnIndex], display, treeLayoutKey);
             }
-            _textSelectionCopyText = copyText.ToString();
             return;
         }
 
-        if ((uint)_hoveredColumnIndex >= (uint)columns.Length) return;
-        ProcessTableColumn column = columns[_hoveredColumnIndex];
-        string cellDisplay = GetCellDisplayValue(rowIndex, column.Kind);
-        _textSelectionCopyText = cellDisplay;
+        if (!_contextCopyColumn.HasValue) return;
+        int previewColumnIndex = FindColumn(columns, _contextCopyColumn.Value);
+        if (previewColumnIndex < 0) return;
+        ProcessTableColumn column = columns[previewColumnIndex];
+        string cellDisplay = _contextCopyValuesByColumn[(int)column.Kind] ?? string.Empty;
         AddTextUnderlineSegment(column, cellDisplay, treeLayoutKey);
+    }
+
+    private void EnsureDynamicDrawingCurrent(int rowIndex, ProcessStaticData row)
+    {
+        if (!_hasDynamicColumns
+            || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache)
+            || cache.DynamicDrawing != null
+            && cache.DynamicFingerprint == cache.PendingDynamicFingerprint)
+        {
+            return;
+        }
+
+        RebuildDynamicDrawing(cache, rowIndex);
+    }
+
+    private int FindVisibleProcess(ProcessInstanceKey process)
+    {
+        for (int visibleIndex = 0; visibleIndex < _visibleRowCount; visibleIndex++)
+        {
+            ProcessStaticData? row = _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+            if (row?.InstanceKey == process) return visibleIndex;
+        }
+        return -1;
     }
 
     private void AddTextUnderlineSegment(
@@ -1567,7 +1635,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (_disposed) return;
 
         bool changed = false;
-        bool textSelectionChanged = false;
         int processed = 0;
         long startTimestamp = Stopwatch.GetTimestamp();
         while (_warmRefreshCursor < _warmRefreshEnd && processed < DynamicRefreshBatchSize)
@@ -1581,8 +1648,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             {
                 RebuildDynamicDrawing(cache, rowIndex);
                 changed = true;
-                if (row.InstanceKey == _hoveredProcess)
-                    textSelectionChanged = true;
             }
 
             _warmRefreshCursor++;
@@ -1594,7 +1659,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             }
         }
 
-        if (textSelectionChanged) RebuildTextSelectionCache();
         if (changed) InvalidateVisual();
         if (_warmRefreshCursor < _warmRefreshEnd)
         {
@@ -1696,7 +1760,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         PublishWarmProcesses();
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
         ColumnLayoutChanged?.Invoke(normalized);
@@ -1720,7 +1784,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         PublishWarmProcesses();
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         ScheduleWarmDynamicRefresh();
         InvalidateVisual();
     }
@@ -1766,63 +1830,39 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         UpdateHoverFromPointer();
-        RebuildTextSelectionCache();
+        RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
         return true;
     }
 
-    private void UpdateHoveredCell(Point position)
+    private void UpdateHoveredRow(double positionY)
     {
         double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
         int visibleIndex = -1;
-        int columnIndex = -1;
-        if (position.Y < stickyHeaderTop || position.Y >= stickyHeaderTop + _metrics.HeaderHeight)
-        {
-            visibleIndex = ProcessTableLayout.HitTestRow(position.Y, _visibleRowCount, _metrics);
-            if (visibleIndex >= 0)
-                columnIndex = ProcessTableLayout.HitTestColumn(position.X, DisplayColumns);
-        }
-        SetHoveredCell(visibleIndex, columnIndex);
+        if (positionY < stickyHeaderTop || positionY >= stickyHeaderTop + _metrics.HeaderHeight)
+            visibleIndex = ProcessTableLayout.HitTestRow(positionY, _visibleRowCount, _metrics);
+        SetHoveredVisibleIndex(visibleIndex);
     }
 
     private void UpdateHoverFromPointer()
     {
         if (!_pointerInside)
         {
-            SetHoveredCell(-1, -1);
+            SetHoveredVisibleIndex(-1);
             return;
         }
 
-        UpdateHoveredCell(new Point(
-            Math.Max(0, _effectiveViewport.X) + _pointerViewportX,
-            Math.Max(0, _effectiveViewport.Y) + _pointerViewportY));
+        UpdateHoveredRow(Math.Max(0, _effectiveViewport.Y) + _pointerViewportY);
     }
 
-    private void SetHoveredCell(int visibleIndex, int columnIndex)
+    private void SetHoveredVisibleIndex(int visibleIndex)
     {
-        ProcessInstanceKey? process = visibleIndex >= 0 && visibleIndex < _visibleRowCount
-            ? _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]]?.InstanceKey
-            : null;
-        if (_hoveredVisibleIndex == visibleIndex
-            && _hoveredColumnIndex == columnIndex
-            && _hoveredProcess == process)
-        {
-            return;
-        }
-
-        bool rowChanged = _hoveredVisibleIndex != visibleIndex;
+        if (_hoveredVisibleIndex == visibleIndex) return;
         _hoveredVisibleIndex = visibleIndex;
-        _hoveredColumnIndex = columnIndex;
-        _hoveredProcess = process;
-        if (rowChanged)
-        {
-            HoverRowTopChanged?.Invoke(visibleIndex < 0
-                ? null
-                : _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight);
-        }
-        RebuildTextSelectionCache();
-        InvalidateVisual();
+        HoverRowTopChanged?.Invoke(visibleIndex < 0
+            ? null
+            : _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight);
     }
 
     private void UpdateSelectionOverlay()
@@ -2283,6 +2323,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _staleProcessKeys.Clear();
         _collapsedProcesses.Clear();
         _rowIndexByProcessID.Clear();
+        Array.Clear(_contextCopyValuesByColumn);
         _snapshot.Reset();
     }
 
