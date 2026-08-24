@@ -77,6 +77,7 @@ public static class User32
     public const uint MONITOR_DEFAULTTONULL = 0x00000000;
     public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
     public const int MDT_EFFECTIVE_DPI = 0;
+    public const uint GA_ROOT = 2;
 
     // MessageBox flags
     public const uint MB_ICONERROR = 0x10;
@@ -135,6 +136,16 @@ public static class User32
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetAncestor(IntPtr windowHandle, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ScreenToClient(IntPtr windowHandle, ref POINT point);
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetDC(IntPtr hwnd);

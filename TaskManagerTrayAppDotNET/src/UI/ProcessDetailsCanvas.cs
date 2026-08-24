@@ -141,7 +141,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private Point _headerPressPosition;
     private int _interactionColumnIndex = -1;
     private int _reorderInsertionIndex = -1;
-    private int _hoveredVisibleIndex = -1;
     private int _hoveredHeaderColumnIndex = -1;
     private int _textPreviewVisibleIndex = -1;
     private int _textUnderlineSegmentCount;
@@ -149,17 +148,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private double _resizePreviewWidth;
     private double _headerDragX;
     private double _headerPointerOffsetX;
-    private double _pointerViewportY;
     private ProcessInstanceKey? _contextCopyProcess;
     private ProcessTableColumnKind? _contextCopyColumn;
     private ProcessCopyPreviewMode _copyPreviewMode;
     private bool _sortDescending;
-    private bool _pointerInside;
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
     private double _axamlFontSize;
     private double _axamlRowHeight;
+    private ProcessRowHoverGeometry _publishedRowHoverGeometry;
+    private bool _hasPublishedRowHoverGeometry;
     private bool _disposed;
     private ProcessSnapshotService? _snapshotService;
 
@@ -264,7 +263,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     }
 
     public event Action<ProcessTerminationTarget?>? SelectedProcessChanged;
-    public event Action<double?>? HoverRowTopChanged;
+    public event Action<ProcessRowHoverGeometry>? RowHoverGeometryChanged;
     public event Action<double?>? SelectionRowTopChanged;
     public event Action<ProcessTableColumnKind>? ColumnPropertiesRequested;
     public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
@@ -278,6 +277,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     /// <summary>Returns the fixed retained visual stack rendered beneath the input canvas.</summary>
     public IReadOnlyList<Control> RenderLayers => _renderLayers;
+
+    /// <summary>Returns the structural state consumed by the render-thread row-hover sampler.</summary>
+    public ProcessRowHoverGeometry RowHoverGeometry => CreateRowHoverGeometry();
 
     public int? SelectedProcessID => _selectedProcess?.ProcessID;
 
@@ -304,7 +306,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         EnsureSelectedProcessStillExists();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
@@ -324,7 +325,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
@@ -338,6 +338,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             ? Math.Max(contentWidth, availableSize.Width)
             : contentWidth;
         return new Size(width, ProcessTableLayout.GetContentHeight(_visibleRowCount, _metrics));
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        Size arrangedSize = base.ArrangeOverride(finalSize);
+        PublishRowHoverGeometry();
+        return arrangedSize;
     }
 
     public override void Render(DrawingContext context)
@@ -503,11 +510,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             return;
         }
 
-        _pointerInside = true;
-        _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
-        UpdateHoveredRow(position.Y);
     }
 
     private Point GetLatestPointerPosition(PointerEventArgs eventArgs)
@@ -564,11 +568,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 break;
         }
 
-        _pointerInside = new Rect(Bounds.Size).Contains(position);
-        _pointerViewportY = position.Y - Math.Max(0, _effectiveViewport.Y);
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
-        UpdateHoverFromPointer();
         eventArgs.Handled = true;
     }
 
@@ -593,7 +594,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
@@ -628,7 +628,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateRetainedDrawings();
         GridMetricsChanged?.Invoke(fontSize, rowHeight);
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
+        PublishRowHoverGeometry();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
@@ -657,8 +657,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     protected override void OnPointerExited(PointerEventArgs eventArgs)
     {
         base.OnPointerExited(eventArgs);
-        _pointerInside = false;
-        SetHoveredVisibleIndex(-1);
         SetHoveredHeaderColumnIndex(-1);
         if (_headerInteraction == HeaderInteractionMode.None)
             Cursor = TrayAppDotNETCursors.Arrow;
@@ -676,7 +674,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs eventArgs)
     {
         _effectiveViewport = eventArgs.EffectiveViewport;
-        UpdateHoverFromPointer();
+        PublishRowHoverGeometry();
         PublishWarmProcesses();
         ScheduleWarmDynamicRefresh();
         UpdateHeaderHoverVisual();
@@ -705,7 +703,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _resizeInitialWidth = _columns[columnIndex].Width;
         _resizePreviewWidth = _resizeInitialWidth;
         _reorderInsertionIndex = columnIndex;
-        SetHoveredVisibleIndex(-1);
+        PublishRowHoverGeometry();
         Focus();
 
         try
@@ -859,6 +857,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _reorderInsertionIndex = -1;
         _resizeInitialWidth = 0;
         _resizePreviewWidth = 0;
+        PublishRowHoverGeometry();
         UpdateHeaderHoverVisual();
         InvalidateLayers(wasLiveColumnResizeActive
             ? RenderLayerMask.Rows
@@ -940,7 +939,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (gridMetricsChanged)
             GridMetricsChanged?.Invoke(_metrics.FontSize, _metrics.RowHeight);
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
+        PublishRowHoverGeometry();
         RebuildCopyPreview();
         PublishWarmProcesses();
         InvalidateMeasure();
@@ -2148,7 +2147,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateRetainedDrawings();
         PublishWarmProcesses();
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
         UpdateHeaderHoverVisual();
@@ -2172,7 +2170,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         RebuildVisibleRows();
         PublishWarmProcesses();
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
         RebuildCopyPreview();
         ScheduleWarmDynamicRefresh();
         InvalidateLayers(
@@ -2226,40 +2223,34 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
-        UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
         return true;
     }
 
-    private void UpdateHoveredRow(double positionY)
+    private ProcessRowHoverGeometry CreateRowHoverGeometry()
     {
-        double stickyHeaderTop = ResolveStickyHeaderTop(ResolveViewport());
-        int visibleIndex = -1;
-        if (positionY < stickyHeaderTop || positionY >= stickyHeaderTop + _metrics.HeaderHeight)
-            visibleIndex = ProcessTableLayout.HitTestRow(positionY, _visibleRowCount, _metrics);
-        SetHoveredVisibleIndex(visibleIndex);
+        Rect viewport = ResolveViewport();
+        return new ProcessRowHoverGeometry(
+            viewport,
+            _visibleRowCount,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
+            ResolveStickyHeaderTop(viewport),
+            _headerInteraction == HeaderInteractionMode.None && !_disposed);
     }
 
-    private void UpdateHoverFromPointer()
+    private void PublishRowHoverGeometry()
     {
-        if (!_pointerInside)
-        {
-            SetHoveredVisibleIndex(-1);
-            return;
-        }
+        if (_disposed) return;
 
-        UpdateHoveredRow(Math.Max(0, _effectiveViewport.Y) + _pointerViewportY);
-    }
+        ProcessRowHoverGeometry geometry = CreateRowHoverGeometry();
+        if (_hasPublishedRowHoverGeometry && geometry == _publishedRowHoverGeometry) return;
 
-    private void SetHoveredVisibleIndex(int visibleIndex)
-    {
-        if (_hoveredVisibleIndex == visibleIndex) return;
-        _hoveredVisibleIndex = visibleIndex;
-        HoverRowTopChanged?.Invoke(visibleIndex < 0
-            ? null
-            : _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight);
+        _hasPublishedRowHoverGeometry = true;
+        _publishedRowHoverGeometry = geometry;
+        RowHoverGeometryChanged?.Invoke(geometry);
     }
 
     private void UpdateSelectionOverlay()
@@ -2298,6 +2289,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             BuildGroupedVisibleRows();
         else
             ClearTreeLayout();
+        PublishRowHoverGeometry();
     }
 
     private bool MatchesFilter(ProcessStaticData row)
@@ -2754,7 +2746,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
         LocalizationManager.Instance.CultureChanged -= OnCultureChanged;
         SelectedProcessChanged = null;
-        HoverRowTopChanged = null;
+        RowHoverGeometryChanged = null;
         SelectionRowTopChanged = null;
         ColumnPropertiesRequested = null;
         ColumnLayoutChanged = null;

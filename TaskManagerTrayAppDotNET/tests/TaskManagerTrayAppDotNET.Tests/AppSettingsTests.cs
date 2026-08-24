@@ -1,10 +1,19 @@
 using TaskManagerTrayAppDotNET.Models;
+using TrayAppDotNETCommon.Models;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class AppSettingsTests
 {
+    [Fact]
+    public void RenderingBackendDefaultsToGPUPreferred()
+    {
+        AppSettings settings = new();
+
+        Assert.Equal(TrayAppDotNETRenderingBackend.GPUPreferred, settings.RenderingBackend);
+    }
+
     [Fact]
     public void SubmenuDelayDefaultsToCustom150Milliseconds()
     {

@@ -79,7 +79,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             palette,
             resources);
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;
-        _processCanvas.HoverRowTopChanged += OnHoverRowTopChanged;
+        _processCanvas.RowHoverGeometryChanged += OnRowHoverGeometryChanged;
         _processCanvas.SelectionRowTopChanged += OnSelectionRowTopChanged;
         _processCanvas.ColumnPropertiesRequested += OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged += OnColumnLayoutChanged;
@@ -140,7 +140,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Children.Add(_runPanel);
 
         SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
-        _hoverHighlight = new ProcessRowHoverVisual(palette.Hover, settings.GridRowHeight);
+        _hoverHighlight = new ProcessRowHoverVisual(palette.Hover, _processCanvas.RowHoverGeometry);
         _selectionHighlight = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected),
@@ -275,9 +275,9 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _armTerminationTarget(target);
     }
 
-    private void OnHoverRowTopChanged(double? rowTop)
+    private void OnRowHoverGeometryChanged(ProcessRowHoverGeometry geometry)
     {
-        _hoverHighlight.SetRowTop(rowTop);
+        _hoverHighlight.SetGeometry(geometry);
     }
 
     private void OnSelectionRowTopChanged(double? rowTop)
@@ -288,7 +288,6 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnGridMetricsChanged(double fontSize, double rowHeight)
     {
-        _hoverHighlight.SetRowHeight(rowHeight);
         _selectionHighlight.Height = rowHeight;
     }
 
@@ -483,7 +482,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
-        _processCanvas.HoverRowTopChanged -= OnHoverRowTopChanged;
+        _processCanvas.RowHoverGeometryChanged -= OnRowHoverGeometryChanged;
         _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;
         _processCanvas.ColumnPropertiesRequested -= OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
