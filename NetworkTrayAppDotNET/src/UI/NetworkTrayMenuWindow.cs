@@ -4,6 +4,7 @@ using NetworkTrayAppDotNET.Models;
 namespace NetworkTrayAppDotNET.UI;
 
 public sealed class NetworkTrayMenuWindow(
+    AppSettings settings,
     SettingsPalette palette,
     bool rounded,
     int fontSize,
@@ -24,7 +25,13 @@ public sealed class NetworkTrayMenuWindow(
             openAdapterSettings,
             openSettings,
             exit),
-        new TrayMenuWindowOptions { Palette = palette, Rounded = rounded, FontSize = fontSize })
+        new TrayMenuWindowOptions
+        {
+            Palette = palette,
+            Rounded = rounded,
+            FontSize = fontSize,
+            TrayMenuSettings = settings
+        })
 {
     public void ShowAt(
         TrayAppDotNETShellTrayIcon trayIcon,

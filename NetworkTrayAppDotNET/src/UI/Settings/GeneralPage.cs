@@ -129,6 +129,7 @@ public sealed partial class NetworkSettingsWindow
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
             RenderingSettings = _settings,
+            TrayMenuSettings = _settings,
             WarmWindowSettings = _settings,
             SupportsTrayContextMenuWarmWindow = true
         });

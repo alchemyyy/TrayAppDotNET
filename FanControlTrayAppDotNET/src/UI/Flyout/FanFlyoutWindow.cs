@@ -2275,6 +2275,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 Palette = FanSettingsWindow.CreatePalette(theme, _settings, isLight),
                 Rounded = _settings.EnableRoundedCorners,
                 FontSize = _settings.ContextMenuFontSize,
+                TrayMenuSettings = _settings,
                 ShadowColor = theme.MenuShadow.For(isLight),
                 InvokeOnPointerReleased = true,
                 InvokeBeforeClose = true

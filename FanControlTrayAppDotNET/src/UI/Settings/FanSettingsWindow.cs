@@ -198,6 +198,7 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
             RenderingSettings = _settings,
+            TrayMenuSettings = _settings,
             WarmWindowSettings = _settings,
             SupportsFlyoutWarmWindow = true,
             SupportsTrayContextMenuWarmWindow = true

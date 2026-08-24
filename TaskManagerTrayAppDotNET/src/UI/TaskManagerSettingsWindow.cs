@@ -222,6 +222,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             afterSave: ApplyAnimationMode,
             searchKeywords: ["motion transitions"]));
+
         stack.Children.Add(IntCard(
             "Tooltip delay",
             "Set how long the pointer must hover before a tooltip appears.",
@@ -298,7 +299,8 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             Save = Save,
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
-            RenderingSettings = _settings
+            RenderingSettings = _settings,
+            TrayMenuSettings = _settings
         });
 
     private Border DoubleCard(

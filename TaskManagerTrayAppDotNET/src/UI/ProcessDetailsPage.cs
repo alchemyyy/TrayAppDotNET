@@ -88,6 +88,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _rowContextMenuController = new ProcessRowContextMenuController(
             palette,
             settings.EnableRoundedCorners,
+            settings,
             terminateProcess,
             _snapshotService.RequestRefresh,
             reportMessage,

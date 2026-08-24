@@ -362,6 +362,7 @@ public sealed partial class BrightnessSettingsWindow
             ConfirmAsync = ConfirmAsync,
             ShowMessage = ShowMessage,
             RenderingSettings = _settings,
+            TrayMenuSettings = _settings,
             WarmWindowSettings = _settings,
             SupportsFlyoutWarmWindow = true,
             SupportsTrayContextMenuWarmWindow = true

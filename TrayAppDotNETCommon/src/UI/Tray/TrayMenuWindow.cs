@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using TrayAppDotNETCommon.Visuals;
@@ -77,8 +78,10 @@ public sealed class TrayMenuWindowOptions
     public double LeadingGlyphColumnWidth { get; init; } = 24;
     public double TrailingGlyphFontSize { get; init; } = 12;
     public string SubmenuGlyph { get; init; } = "\uE76C";
+    public ITrayAppDotNETTrayMenuSettings? TrayMenuSettings { get; init; }
+    public bool UseSystemSubmenuShowDelay { get; init; }
     public int SubmenuShowDelayMilliseconds { get; init; } =
-        TrayMenuWindow.SystemSubmenuShowDelayMilliseconds;
+        TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
     public int EdgePadding { get; init; } = 8;
     public int OffscreenPosition { get; init; } = -32000;
@@ -170,7 +173,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             _submenuHoverTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMilliseconds(Math.Max(1, _options.SubmenuShowDelayMilliseconds))
+                Interval = TimeSpan.FromMilliseconds(Math.Max(1, ResolveSubmenuShowDelayMilliseconds()))
             };
             _submenuHoverTimer.Tick += OnSubmenuHoverTimerTick;
             _windowResources.Add(() =>
@@ -338,7 +341,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 return;
             }
 
-            if (_options.SubmenuShowDelayMilliseconds <= 0)
+            int submenuShowDelayMilliseconds = ResolveSubmenuShowDelayMilliseconds();
+            if (submenuShowDelayMilliseconds <= 0)
             {
                 SwitchSubmenu(item, entry);
                 return;
@@ -346,6 +350,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
             if (submenuHoverTimer == null) return;
             submenuHoverTimer.Stop();
+            submenuHoverTimer.Interval = TimeSpan.FromMilliseconds(submenuShowDelayMilliseconds);
             submenuHoverTimer.Start();
             return;
         }
@@ -746,6 +751,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         return TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
     }
+
+    private int ResolveSubmenuShowDelayMilliseconds() =>
+        (_options.TrayMenuSettings?.UseSystemSubmenuShowDelay ?? _options.UseSystemSubmenuShowDelay)
+            ? SystemSubmenuShowDelayMilliseconds
+            : Math.Clamp(
+                _options.TrayMenuSettings?.SubmenuShowDelayMs ?? _options.SubmenuShowDelayMilliseconds,
+                TimeConstants.TrayMenuSubmenuShowDelayMinMs,
+                TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
 
     private CornerRadius ResolveCornerRadius(CornerRadius roundedRadius) =>
         _options.Rounded ? roundedRadius : new CornerRadius(0);

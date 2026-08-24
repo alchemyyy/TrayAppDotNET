@@ -237,7 +237,7 @@ public class KnownDisplayEntry
 /// </summary>
 [XmlRoot("AppSettings")]
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    IFlyoutDockSettings, ITrayXmlSerializationCallbacks
+    ITrayAppDotNETTrayMenuSettings, IFlyoutDockSettings, ITrayXmlSerializationCallbacks
 {
     public const int FlyoutScrollWheelStepMin = 1;
     public const int FlyoutScrollWheelStepMax = 50;
@@ -280,6 +280,17 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public bool ShowAllDisplaysPowerButton { get; set; } = true;
     public PowerOffMode PowerOffMode { get; set; } = PowerOffMode.Sleep;
     public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
+    public bool UseSystemSubmenuShowDelay { get; set; }
+
+    public int SubmenuShowDelayMs
+    {
+        get;
+        set => field = Math.Clamp(
+            value,
+            TimeConstants.TrayMenuSubmenuShowDelayMinMs,
+            TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
+    } = TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
+
     public bool KeepFlyoutWarm { get; set; } = true;
     public bool KeepTrayContextMenuWarm { get; set; } = true;
     public TrayAppDotNETRenderingBackend RenderingBackend { get; set; } = TrayAppDotNETRenderingBackend.GPUPreferred;

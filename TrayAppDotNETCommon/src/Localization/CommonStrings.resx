@@ -129,6 +129,27 @@
   <data name="Settings_General_KeepWarm_SearchKeywords" xml:space="preserve">
     <value>preload cache instant fast performance background</value>
   </data>
+  <data name="Settings_General_ContextMenu_Header" xml:space="preserve">
+    <value>Context menu</value>
+  </data>
+  <data name="Settings_General_SubmenuOpenDelay_Description" xml:space="preserve">
+    <value>Set how long the pointer must hover before a submenu opens.</value>
+  </data>
+  <data name="Settings_General_SubmenuOpenDelay_SearchKeywords" xml:space="preserve">
+    <value>context menu nested hover timing milliseconds</value>
+  </data>
+  <data name="Settings_General_SubmenuOpenDelay_Title" xml:space="preserve">
+    <value>Submenu open delay</value>
+  </data>
+  <data name="Settings_General_UseSystemSubmenuDelay_Description" xml:space="preserve">
+    <value>Use the submenu hover delay configured in Windows.</value>
+  </data>
+  <data name="Settings_General_UseSystemSubmenuDelay_SearchKeywords" xml:space="preserve">
+    <value>context menu nested hover timing Windows default</value>
+  </data>
+  <data name="Settings_General_UseSystemSubmenuDelay_Title" xml:space="preserve">
+    <value>Use system submenu delay</value>
+  </data>
   <data name="Settings_General_RenderingBackend_Description" xml:space="preserve">
     <value>"GPU preferred" uses Avalonia's Windows GPU path with software fallback. "Software" forces CPU rendering. GPU rendering is faster but has more RAM overhead. Restart required.</value>
   </data>

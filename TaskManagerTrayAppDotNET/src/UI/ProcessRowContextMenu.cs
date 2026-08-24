@@ -21,6 +21,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
+    private readonly ITrayAppDotNETTrayMenuSettings _trayMenuSettings;
     private readonly TryTerminateProcessAction _terminateProcess;
     private readonly Action _requestRefresh;
     private readonly Action<string, string> _reportError;
@@ -36,6 +37,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     public ProcessRowContextMenuController(
         SettingsPalette palette,
         bool enableRoundedCorners,
+        ITrayAppDotNETTrayMenuSettings trayMenuSettings,
         TryTerminateProcessAction terminateProcess,
         Action requestRefresh,
         Action<string, string> reportError,
@@ -43,6 +45,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         Action<string, string>? reportInformation = null)
     {
         ArgumentNullException.ThrowIfNull(palette);
+        ArgumentNullException.ThrowIfNull(trayMenuSettings);
         ArgumentNullException.ThrowIfNull(terminateProcess);
         ArgumentNullException.ThrowIfNull(requestRefresh);
         ArgumentNullException.ThrowIfNull(reportError);
@@ -50,6 +53,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 
         _palette = palette;
         _enableRoundedCorners = enableRoundedCorners;
+        _trayMenuSettings = trayMenuSettings;
         _terminateProcess = terminateProcess;
         _requestRefresh = requestRefresh;
         _reportError = reportError;
@@ -369,7 +373,8 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             {
                 Palette = _palette,
                 Rounded = _enableRoundedCorners,
-                FontSize = ContextMenuFontSize
+                FontSize = ContextMenuFontSize,
+                TrayMenuSettings = _trayMenuSettings
             });
         _menuWindow = menuWindow;
         menuWindow.Closed += OnMenuClosed;

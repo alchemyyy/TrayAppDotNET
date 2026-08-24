@@ -3,8 +3,8 @@ using Avalonia;
 namespace TaskManagerTrayAppDotNET.UI;
 
 internal sealed class TaskManagerTrayMenuWindow(
+    AppSettings settings,
     SettingsPalette palette,
-    bool enableRoundedCorners,
     Action openTaskManager,
     Action exitApplication)
     : TrayMenuWindow(
@@ -12,8 +12,9 @@ internal sealed class TaskManagerTrayMenuWindow(
         new TrayMenuWindowOptions
         {
             Palette = palette,
-            Rounded = enableRoundedCorners,
-            FontSize = 15
+            Rounded = settings.EnableRoundedCorners,
+            FontSize = 15,
+            TrayMenuSettings = settings
         })
 {
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, PixelPoint cursorPoint) =>

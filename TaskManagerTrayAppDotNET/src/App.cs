@@ -209,8 +209,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _trayMenuWindow.Close();
 
         _trayMenuWindow = new TaskManagerTrayMenuWindow(
+            _settings,
             CreatePalette(),
-            _settings.EnableRoundedCorners,
             ShowTaskManager,
             ExitApplication);
         _trayMenuWindow.Closed += OnTrayMenuClosed;

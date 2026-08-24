@@ -52,7 +52,7 @@ public enum MultipleSliderValuesDisplayMode
 /// </summary>
 [XmlRoot("AppSettings")]
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    IFlyoutDockSettings, ITrayXmlSerializationCallbacks
+    ITrayAppDotNETTrayMenuSettings, IFlyoutDockSettings, ITrayXmlSerializationCallbacks
 {
     private const string CPUNickname = "CPU";
     private const string GPUNickname = "GPU";
@@ -85,6 +85,16 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     // Context menu
     public ContextMenuPosition ContextMenuPosition { get; set; } = ContextMenuPosition.Modern;
     public int ContextMenuFontSize { get; set; } = 15;
+    public bool UseSystemSubmenuShowDelay { get; set; }
+
+    public int SubmenuShowDelayMs
+    {
+        get;
+        set => field = Math.Clamp(
+            value,
+            TimeConstants.TrayMenuSubmenuShowDelayMinMs,
+            TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
+    } = TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
     // Theme
     public ThemeMode ThemeMode { get; set; } = ThemeMode.System;

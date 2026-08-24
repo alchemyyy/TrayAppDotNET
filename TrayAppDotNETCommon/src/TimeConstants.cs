@@ -27,7 +27,8 @@ public abstract class TimeConstants
     protected internal const int ToolTipShowDelayDefaultMs = 750;
     protected internal const int ToolTipShowDelayMinMs = 0;
     protected internal const int ToolTipShowDelayMaxMs = 10_000;
-    protected internal const int TrayMenuSubmenuShowDelayDefaultMs = 400;
+    protected internal const int TrayMenuSubmenuShowDelayDefaultMs = 150;
+    protected internal const int TrayMenuSubmenuShowDelayMinMs = 0;
     protected internal const int TrayMenuSubmenuShowDelayMaxMs = 5_000;
     protected internal const int RelativeTimestampJustNowThresholdMs = 60_000;
     protected internal const int RelativeTimestampMinutesThresholdMs = 3_600_000;
