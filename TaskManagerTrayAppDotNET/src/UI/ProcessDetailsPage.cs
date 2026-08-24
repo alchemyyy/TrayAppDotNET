@@ -35,9 +35,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly SettingsToggle _groupProcessesToggle;
     private readonly SettingsScrollViewport _tableScrollViewport;
     private readonly TaskManagerResizeGrip _resizeGrip;
-    private readonly Border _hoverHighlight;
+    private readonly ProcessRowHoverVisual _hoverHighlight;
     private readonly Border _selectionHighlight;
-    private readonly TranslateTransform _hoverTransform = new();
     private readonly TranslateTransform _selectionTransform = new();
     private readonly Dictionary<ProcessTableColumnKind, ProcessColumnPropertiesWindow> _columnPropertyWindows = [];
     private ProcessColumnChooserWindow? _columnChooserWindow;
@@ -141,15 +140,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Children.Add(_runPanel);
 
         SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
-        _hoverHighlight = new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.Hover),
-            Height = settings.GridRowHeight,
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            IsVisible = false,
-            RenderTransform = _hoverTransform
-        };
+        _hoverHighlight = new ProcessRowHoverVisual(palette.Hover, settings.GridRowHeight);
         _selectionHighlight = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected),
@@ -284,8 +275,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnHoverRowTopChanged(double? rowTop)
     {
-        _hoverHighlight.IsVisible = rowTop.HasValue;
-        if (rowTop.HasValue) _hoverTransform.Y = rowTop.Value;
+        _hoverHighlight.SetRowTop(rowTop);
     }
 
     private void OnSelectionRowTopChanged(double? rowTop)
@@ -296,7 +286,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnGridMetricsChanged(double fontSize, double rowHeight)
     {
-        _hoverHighlight.Height = rowHeight;
+        _hoverHighlight.SetRowHeight(rowHeight);
         _selectionHighlight.Height = rowHeight;
     }
 
@@ -521,6 +511,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _columnPropertyWindows.Clear();
         _rowContextMenuController.Dispose();
         _tableScrollViewport.Dispose();
+        _hoverHighlight.Dispose();
         _processCanvas.Dispose();
     }
 }
