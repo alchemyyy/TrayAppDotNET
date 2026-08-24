@@ -6,15 +6,13 @@ using Avalonia.VisualTree;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Moves one GPU-composited row highlight while discarding superseded pointer positions.</summary>
+/// <summary>Moves one GPU-composited row highlight without invalidating table drawings.</summary>
 internal sealed class ProcessRowHoverVisual : Control, IDisposable
 {
     private readonly Color _color;
-    private readonly Action<TimeSpan> _applyPendingFrame;
     private CompositionSolidColorVisual? _compositionVisual;
-    private double? _pendingRowTop;
+    private double? _rowTop;
     private double _rowHeight;
-    private bool _frameRequested;
     private bool _disposed;
 
     public ProcessRowHoverVisual(Color color, double rowHeight)
@@ -24,20 +22,20 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
 
         _color = color;
         _rowHeight = rowHeight;
-        _applyPendingFrame = ApplyPendingFrame;
         ClipToBounds = true;
         IsHitTestVisible = false;
     }
 
-    /// <summary>Queues only the newest row position for the next compositor frame.</summary>
+    /// <summary>Applies a row position directly to the compositor-owned highlight.</summary>
     public void SetRowTop(double? rowTop)
     {
         if (_disposed) return;
         if (rowTop.HasValue && !double.IsFinite(rowTop.Value))
             throw new ArgumentOutOfRangeException(nameof(rowTop));
+        if (_rowTop == rowTop) return;
 
-        _pendingRowTop = rowTop;
-        QueueFrame();
+        _rowTop = rowTop;
+        ApplyRowTop();
     }
 
     /// <summary>Updates the compositor rectangle height without rebuilding table drawings.</summary>
@@ -66,14 +64,13 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         _compositionVisual = compositionVisual;
         ElementComposition.SetElementChildVisual(this, compositionVisual);
         UpdateCompositionSize(Bounds.Size);
-        QueueFrame();
+        ApplyRowTop();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs eventArgs)
     {
         ElementComposition.SetElementChildVisual(this, null);
         _compositionVisual = null;
-        _frameRequested = false;
         base.OnDetachedFromVisualTree(eventArgs);
     }
 
@@ -84,23 +81,11 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         return arrangedSize;
     }
 
-    private void QueueFrame()
+    private void ApplyRowTop()
     {
-        if (_disposed || _frameRequested || _compositionVisual == null) return;
-
-        TopLevel? topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
-
-        _frameRequested = true;
-        topLevel.RequestAnimationFrame(_applyPendingFrame);
-    }
-
-    private void ApplyPendingFrame(TimeSpan timestamp)
-    {
-        _frameRequested = false;
         if (_disposed || _compositionVisual == null) return;
 
-        double? rowTop = _pendingRowTop;
+        double? rowTop = _rowTop;
         if (!rowTop.HasValue)
         {
             _compositionVisual.Visible = false;
@@ -123,7 +108,6 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         if (_disposed) return;
 
         _disposed = true;
-        _frameRequested = false;
         ElementComposition.SetElementChildVisual(this, null);
         _compositionVisual = null;
     }
