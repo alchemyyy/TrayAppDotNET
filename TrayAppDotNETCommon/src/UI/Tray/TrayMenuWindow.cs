@@ -66,7 +66,7 @@ public sealed class TrayMenuWindowOptions
     public double FontSize { get; init; } = 15;
     public FontWeight FontWeight { get; init; } = FontWeight.Normal;
 
-    /// <summary>Sets the highlighted item height, or uses automatic sizing when left as NaN.</summary>
+    /// <summary>Sets the minimum highlighted item height, or uses automatic sizing when left as NaN.</summary>
     public double ItemHeight { get; init; } = double.NaN;
     public Color? SeparatorColor { get; init; }
     public Color? ShadowColor { get; init; }
@@ -800,7 +800,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 CornerRadius = ResolveCornerRadius(options, options.ItemCornerRadius),
                 Padding = options.ItemPadding,
                 Margin = options.ItemMargin,
-                Height = options.ItemHeight,
+                MinHeight = double.IsFinite(options.ItemHeight) ? options.ItemHeight : 0,
                 MinWidth = options.ItemMinWidth,
                 Child = BuildContent(entry, options)
             };
