@@ -17,7 +17,6 @@ internal delegate bool TryTerminateProcessAction(
 internal sealed class ProcessRowContextMenuController : IDisposable
 {
     private const int ContextMenuFontSize = 15;
-    private const string SubmenuGlyph = "\uE76C";
     private const string SelectedGlyph = "\uE73E";
 
     private readonly SettingsPalette _palette;
@@ -87,7 +86,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         entries.Add("End task", () => ExecuteEndTask(target));
         entries.Add("End process tree", () => ExecuteEndProcessTree(target));
         entries.AddSeparator();
-        entries.Add("Set priority", () => ShowPriorityMenu(target), SubmenuGlyph);
+        entries.AddSubmenu("Set priority", () => BuildPriorityEntries(target));
         entries.Add("Set affinity", () => ShowAffinityWindow(target));
         entries.AddSeparator();
         entries.Add("Create memory dump file", () => ExecuteCreateMemoryDump(target));
@@ -168,7 +167,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
     }
 
-    private void ShowPriorityMenu(ProcessTerminationTarget target)
+    private IReadOnlyList<TrayMenuEntry> BuildPriorityEntries(ProcessTerminationTarget target)
     {
         if (!ProcessNativeActions.TryGetPriority(
                 target,
@@ -176,7 +175,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
                 out string errorMessage))
         {
             _reportError("Set priority failed", errorMessage);
-            return;
+            return [];
         }
 
         TrayMenuEntryBuilder entries = new();
@@ -186,7 +185,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         AddPriorityEntry(entries, "Normal", ProcessPriorityLevel.Normal, currentPriority, target);
         AddPriorityEntry(entries, "Below normal", ProcessPriorityLevel.BelowNormal, currentPriority, target);
         AddPriorityEntry(entries, "Low", ProcessPriorityLevel.Idle, currentPriority, target);
-        ShowMenu(entries.ToList());
+        return entries.ToList();
     }
 
     private void AddPriorityEntry(
