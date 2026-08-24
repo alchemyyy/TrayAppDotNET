@@ -155,6 +155,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Grid tableSurface = new();
         tableSurface.Children.Add(_hoverHighlight);
         tableSurface.Children.Add(_selectionHighlight);
+        foreach (Control renderLayer in _processCanvas.RenderLayers)
+            tableSurface.Children.Add(renderLayer);
         tableSurface.Children.Add(_processCanvas);
 
         _resizeGrip = new TaskManagerResizeGrip(resources);
