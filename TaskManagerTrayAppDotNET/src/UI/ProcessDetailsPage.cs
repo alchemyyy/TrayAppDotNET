@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -39,6 +41,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly TranslateTransform _selectionTransform = new();
     private readonly Dictionary<ProcessTableColumnKind, ProcessColumnPropertiesWindow> _columnPropertyWindows = [];
     private ProcessColumnChooserWindow? _columnChooserWindow;
+    private TopLevel? _inputTopLevel;
+    private Window? _inputWindow;
     private bool _disposed;
 
     public ProcessDetailsPage(
@@ -188,6 +192,80 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.RefreshFrom(_snapshotService);
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs eventArgs)
+    {
+        base.OnAttachedToVisualTree(eventArgs);
+        AttachTopLevelInput();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs eventArgs)
+    {
+        DetachTopLevelInput();
+        base.OnDetachedFromVisualTree(eventArgs);
+    }
+
+    private void AttachTopLevelInput()
+    {
+        TopLevel? inputTopLevel = TopLevel.GetTopLevel(this);
+        if (inputTopLevel == null || ReferenceEquals(inputTopLevel, _inputTopLevel)) return;
+
+        DetachTopLevelInput();
+        _inputTopLevel = inputTopLevel;
+        inputTopLevel.AddHandler(
+            InputElement.KeyDownEvent,
+            OnTopLevelKeyDown,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        inputTopLevel.AddHandler(
+            InputElement.KeyUpEvent,
+            OnTopLevelKeyUp,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        if (inputTopLevel is Window inputWindow)
+        {
+            _inputWindow = inputWindow;
+            inputWindow.Deactivated += OnInputWindowDeactivated;
+        }
+    }
+
+    private void DetachTopLevelInput()
+    {
+        TopLevel? inputTopLevel = _inputTopLevel;
+        _inputTopLevel = null;
+        if (inputTopLevel != null)
+        {
+            inputTopLevel.RemoveHandler(InputElement.KeyDownEvent, OnTopLevelKeyDown);
+            inputTopLevel.RemoveHandler(InputElement.KeyUpEvent, OnTopLevelKeyUp);
+        }
+
+        Window? inputWindow = _inputWindow;
+        _inputWindow = null;
+        if (inputWindow != null)
+            inputWindow.Deactivated -= OnInputWindowDeactivated;
+        _processCanvas.SetWholeRowTextSelection(false);
+    }
+
+    private void OnTopLevelKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        if (_disposed) return;
+        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift)
+            || eventArgs.Key is Key.LeftShift or Key.RightShift)
+        {
+            _processCanvas.SetWholeRowTextSelection(true);
+        }
+    }
+
+    private void OnTopLevelKeyUp(object? sender, KeyEventArgs eventArgs)
+    {
+        if (!_disposed)
+            _processCanvas.SetWholeRowTextSelection(eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift));
+    }
+
+    private void OnInputWindowDeactivated(object? sender, EventArgs eventArgs)
+    {
+        if (!_disposed) _processCanvas.SetWholeRowTextSelection(false);
+    }
+
     private Grid BuildTitleBar(SettingsPalette palette, TaskManagerWindowResources resources)
     {
         Grid titleBar = new()
@@ -307,12 +385,15 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _settings.UpdateGroupProcesses(groupProcesses);
     }
 
-    private void OnRowContextMenuRequested(ProcessTerminationTarget target, PixelPoint screenPosition)
+    private void OnRowContextMenuRequested(
+        ProcessTerminationTarget target,
+        PixelPoint screenPosition,
+        string copyText)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner) return;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_disposed) _rowContextMenuController.Show(owner, screenPosition, target);
+            if (!_disposed) _rowContextMenuController.Show(owner, screenPosition, target, copyText);
         });
     }
 
@@ -466,6 +547,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         if (_disposed) return;
 
         _disposed = true;
+        DetachTopLevelInput();
         _armTerminationTarget(null);
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;

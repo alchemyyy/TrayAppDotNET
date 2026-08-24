@@ -87,6 +87,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual Thickness ContentPadding => _settingsResources.AxamlSettingsWindow.ScrollHostMargin;
     protected virtual bool UseWindows11SettingsNavigation => false;
     protected virtual bool ShowSettingsSearchBox => true;
+    protected virtual bool UseExtendedTitleBarDragZone => true;
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
 
@@ -501,7 +502,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid titleBar = new()
         {
             Background = Brushes.Transparent,
-            Height = _settingsResources.AxamlSettingsWindow.TitleBarDragZoneHeight,
+            Height = UseExtendedTitleBarDragZone
+                ? _settingsResources.AxamlSettingsWindow.TitleBarDragZoneHeight
+                : _settingsResources.AxamlSettingsWindow.TitleBarHeight,
             VerticalAlignment = VerticalAlignment.Top
         };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));

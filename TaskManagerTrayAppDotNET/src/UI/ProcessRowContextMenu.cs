@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -53,7 +54,11 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     }
 
     /// <summary>Shows a common TADN menu for one immutable process identity at a screen position.</summary>
-    public void Show(Window owner, PixelPoint screenPosition, ProcessTerminationTarget target)
+    public void Show(
+        Window owner,
+        PixelPoint screenPosition,
+        ProcessTerminationTarget target,
+        string copyText)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(owner);
@@ -61,13 +66,15 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         CloseMenu();
         _owner = owner;
         _menuPosition = screenPosition;
-        List<TrayMenuEntry> entries = BuildMainEntries(target);
+        List<TrayMenuEntry> entries = BuildMainEntries(target, copyText);
         ShowMenu(entries);
     }
 
-    private List<TrayMenuEntry> BuildMainEntries(ProcessTerminationTarget target)
+    private List<TrayMenuEntry> BuildMainEntries(ProcessTerminationTarget target, string copyText)
     {
         TrayMenuEntryBuilder entries = new();
+        entries.Add("Copy", () => ExecuteCopy(copyText));
+        entries.AddSeparator();
         entries.Add("End task", () => ExecuteEndTask(target));
         entries.Add("End process tree", () => ExecuteEndProcessTree(target));
         entries.AddSeparator();
@@ -107,6 +114,29 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
 
         return entries.ToList();
+    }
+
+    private void ExecuteCopy(string copyText) => _ = ExecuteCopyAsync(copyText);
+
+    private async Task ExecuteCopyAsync(string copyText)
+    {
+        Window? owner = _owner;
+        if (owner == null || _disposed) return;
+
+        try
+        {
+            IClipboard? clipboard = owner.Clipboard;
+            if (clipboard == null)
+                throw new InvalidOperationException("The system clipboard is unavailable.");
+
+            await clipboard.SetTextAsync(copyText);
+            await clipboard.FlushAsync();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Copy failed: {exception}");
+            if (!_disposed) _reportError("Copy failed", exception.Message);
+        }
     }
 
     private void ShowPriorityMenu(ProcessTerminationTarget target)
