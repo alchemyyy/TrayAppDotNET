@@ -63,7 +63,11 @@ public sealed class TrayMenuWindowOptions
 {
     public required SettingsPalette Palette { get; init; }
     public bool Rounded { get; init; } = true;
-    public int FontSize { get; init; } = 15;
+    public double FontSize { get; init; } = 15;
+    public FontWeight FontWeight { get; init; } = FontWeight.Normal;
+
+    /// <summary>Sets the highlighted item height, or uses automatic sizing when left as NaN.</summary>
+    public double ItemHeight { get; init; } = double.NaN;
     public Color? SeparatorColor { get; init; }
     public Color? ShadowColor { get; init; }
     public bool ScrollToBottom { get; init; }
@@ -796,6 +800,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 CornerRadius = ResolveCornerRadius(options, options.ItemCornerRadius),
                 Padding = options.ItemPadding,
                 Margin = options.ItemMargin,
+                Height = options.ItemHeight,
                 MinWidth = options.ItemMinWidth,
                 Child = BuildContent(entry, options)
             };
@@ -833,6 +838,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         private static Control BuildContent(TrayMenuEntry entry, TrayMenuWindowOptions options)
         {
             TextBlock label = TrayAppDotNETSettingsUI.Text(entry.Text, options.Palette, options.FontSize);
+            label.FontWeight = options.FontWeight;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.TextTrimming = TextTrimming.CharacterEllipsis;
             string? resolvedTrailingGlyph = entry.SubmenuFactory != null

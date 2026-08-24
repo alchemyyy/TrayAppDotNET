@@ -16,7 +16,6 @@ internal delegate bool TryTerminateProcessAction(
 /// <summary>Owns transient row menus and dispatches process actions away from the UI thread.</summary>
 internal sealed class ProcessRowContextMenuController : IDisposable
 {
-    private const int ContextMenuFontSize = 15;
     private const string SelectedGlyph = "\uE73E";
 
     private readonly SettingsPalette _palette;
@@ -28,7 +27,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private readonly Action<ProcessCopyPreviewMode> _setCopyPreview;
     private readonly Action<string, string>? _reportInformation;
     private readonly HashSet<Window> _actionWindows = [];
-    private ProcessRowContextMenuWindow? _menuWindow;
+    private TaskManagerContextMenuWindow? _menuWindow;
     private Window? _owner;
     private PixelPoint _menuPosition;
     private ProcessCopyPreviewMode _hoveredCopyPreview;
@@ -367,15 +366,11 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         if (owner == null) return;
 
         CloseMenu();
-        ProcessRowContextMenuWindow menuWindow = new(
+        TaskManagerContextMenuWindow menuWindow = new(
             entries,
-            new TrayMenuWindowOptions
-            {
-                Palette = _palette,
-                Rounded = _enableRoundedCorners,
-                FontSize = ContextMenuFontSize,
-                TrayMenuSettings = _trayMenuSettings
-            });
+            _palette,
+            _enableRoundedCorners,
+            _trayMenuSettings);
         _menuWindow = menuWindow;
         menuWindow.Closed += OnMenuClosed;
         menuWindow.ShowAt(owner, _menuPosition);
@@ -384,7 +379,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private void CloseMenu()
     {
         ClearCopyPreview();
-        ProcessRowContextMenuWindow? menuWindow = _menuWindow;
+        TaskManagerContextMenuWindow? menuWindow = _menuWindow;
         if (menuWindow == null) return;
 
         _menuWindow = null;
@@ -395,7 +390,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private void OnMenuClosed(object? sender, EventArgs eventArgs)
     {
         ClearCopyPreview();
-        if (sender is ProcessRowContextMenuWindow menuWindow)
+        if (sender is TaskManagerContextMenuWindow menuWindow)
             menuWindow.Closed -= OnMenuClosed;
         if (ReferenceEquals(sender, _menuWindow)) _menuWindow = null;
     }
@@ -432,44 +427,6 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private readonly record struct ProcessActionResult(bool Succeeded, string Message, string Value = "")
     {
         public static ProcessActionResult Success { get; } = new(true, string.Empty);
-    }
-}
-
-/// <summary>Positions the shared TADN context-menu window at an arbitrary grid pointer location.</summary>
-internal sealed class ProcessRowContextMenuWindow(
-    IReadOnlyList<TrayMenuEntry> entries,
-    TrayMenuWindowOptions options)
-    : TrayMenuWindow(entries, options)
-{
-    private const int ScreenEdgePadding = 8;
-    private const int OffscreenCoordinate = -32_000;
-
-    public void ShowAt(Window owner, PixelPoint screenPosition)
-    {
-        ArgumentNullException.ThrowIfNull(owner);
-
-        Opacity = 0;
-        Position = new PixelPoint(OffscreenCoordinate, OffscreenCoordinate);
-        Show(owner);
-        Dispatcher.UIThread.Post(() => PositionAt(screenPosition), DispatcherPriority.Loaded);
-    }
-
-    private void PositionAt(PixelPoint screenPosition)
-    {
-        if (!IsVisible) return;
-
-        UpdateLayout();
-        PixelRect workArea = (Screens.ScreenFromPoint(screenPosition) ?? Screens.Primary)?.WorkingArea
-                             ?? new PixelRect(0, 0, 1920, 1080);
-        int menuWidth = Math.Max(1, (int)Math.Ceiling(Bounds.Width * RenderScaling));
-        int menuHeight = Math.Max(1, (int)Math.Ceiling(Bounds.Height * RenderScaling));
-        int maximumX = Math.Max(workArea.X + ScreenEdgePadding, workArea.Right - menuWidth - ScreenEdgePadding);
-        int maximumY = Math.Max(workArea.Y + ScreenEdgePadding, workArea.Bottom - menuHeight - ScreenEdgePadding);
-        Position = new PixelPoint(
-            Math.Clamp(screenPosition.X, workArea.X + ScreenEdgePadding, maximumX),
-            Math.Clamp(screenPosition.Y, workArea.Y + ScreenEdgePadding, maximumY));
-        Opacity = 1;
-        Activate();
     }
 }
 
