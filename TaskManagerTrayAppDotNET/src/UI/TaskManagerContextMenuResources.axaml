@@ -5,8 +5,8 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
   <!-- Task Manager content context menus; the tray menu does not consume these values -->
-  <sys:Double x:Key="TaskManagerContextMenu.FontSize">15</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.FontSize">14</sys:Double>
   <!-- OpenType weight: 400 normal, 600 semibold, 700 bold -->
   <sys:Int32 x:Key="TaskManagerContextMenu.FontWeight">400</sys:Int32>
-  <sys:Double x:Key="TaskManagerContextMenu.ItemHeight">30</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.ItemHeight">26</sys:Double>
 </ResourceDictionary>
