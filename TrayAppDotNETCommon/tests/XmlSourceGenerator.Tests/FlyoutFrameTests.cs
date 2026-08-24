@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.WarmWindows;
@@ -76,9 +78,10 @@ public sealed class FlyoutFrameTests
         });
 
     [Fact]
-    public void HiddenShowResetsAnOpaqueWindowBeforeCreatingItsNativeSurface() =>
+    public void HiddenShowStagesAnOpaqueWindowOnTheTargetMonitorBeforeCreatingItsNativeSurface() =>
         AvaloniaTestHost.Run(() =>
         {
+            PixelPoint stagingPosition = new(2560, 120);
             TestFlyoutWindow window = new()
             {
                 Opacity = 1,
@@ -87,15 +90,64 @@ public sealed class FlyoutFrameTests
 
             try
             {
-                window.ShowHidden();
+                window.ShowHidden(stagingPosition);
 
                 Assert.True(window.IsVisible);
                 Assert.Equal(0, window.Opacity);
-                Assert.Equal(
-                    new PixelPoint(
-                        TrayAppDotNETWarmWindowDefaults.OffscreenPosition,
-                        TrayAppDotNETWarmWindowDefaults.OffscreenPosition),
-                    window.Position);
+                Assert.Equal(stagingPosition, window.Position);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public void FixedFlyoutWidthSetsExactLogicalConstraints() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            TestFlyoutWindow window = new();
+            try
+            {
+                window.SetLogicalWidth(350);
+
+                Assert.Equal(350, window.Width);
+                Assert.Equal(350, window.MinWidth);
+                Assert.Equal(350, window.MaxWidth);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public void ScalingChangeCorrectsNativeSizeWritebackAfterTheNotification() =>
+        AvaloniaTestHost.RunAsync(async () =>
+        {
+            TestFlyoutWindow window = new()
+            {
+                Content = new Border { Height = 180 }
+            };
+            try
+            {
+                window.SetLogicalWidth(350);
+                window.ShowHidden(new PixelPoint(0, 0));
+                window.UpdateLayout();
+
+                window.ScalingChanged += (_, _) =>
+                {
+                    // Simulate the native DPI resize arriving after the common scaling notification handler
+                    window.Width = 280;
+                    window.Height = 90;
+                };
+                window.SetRenderScaling(1.5);
+                await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.ContextIdle);
+
+                Assert.Equal(350, window.Width);
+                Assert.Equal(350, window.Bounds.Width);
+                Assert.Equal(180, window.Bounds.Height);
+                Assert.Equal(1, window.ScalingConstraintApplicationCount);
             }
             finally
             {
@@ -136,8 +188,14 @@ public sealed class FlyoutFrameTests
 
     private sealed class TestFlyoutWindow : FlyoutWindowCommon
     {
-        public void ShowHidden() => ShowHiddenForPositioning();
+        public int ScalingConstraintApplicationCount { get; private set; }
+
+        public void ShowHidden(PixelPoint stagingPosition) => ShowHiddenForPositioning(stagingPosition);
+
+        public void SetLogicalWidth(double logicalWidth) => SetFixedFlyoutWidth(logicalWidth);
 
         public void RestoreHeightSizing() => RestoreAutomaticHeightSizing();
+
+        protected override void ApplyRenderScalingLayoutConstraints() => ScalingConstraintApplicationCount++;
     }
 }

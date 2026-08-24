@@ -149,7 +149,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private void InitializeComponentState()
     {
         _layout = AxamlFlyout;
-        Width = Layout.WindowWidth;
+        SetFixedFlyoutWidth(Layout.WindowWidth);
 
         if (_settings != null && _audioManager != null)
             Rebuild();
@@ -176,18 +176,19 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         _lastTrayIcon = trayIcon;
+        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         _bluetoothRadioController?.Refresh();
         _audioManager.ReconcileSessions();
         ApplyWorkAreaMaxHeight();
         Rebuild();
-        ShowHiddenForPositioning();
+        ShowHiddenForPositioning(stagingPosition);
 
         Dispatcher.UIThread.Post(() =>
         {
             if (_isClosed || !IsVisible) return;
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
             ScrollCellsToBottom();
             StartFlyoutActivity();
@@ -308,8 +309,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsVisible || _activeContent?.IsDraggingWindow == true) return;
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
             if (scrollToBottom) ScrollCellsToBottom();
         }, DispatcherPriority.Loaded);
@@ -371,6 +372,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
         MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
+    }
+
+    protected override void ApplyRenderScalingLayoutConstraints()
+    {
+        if (_layout == null) return;
+        ApplyWorkAreaMaxHeight();
     }
 
     private void StartFlyoutActivity()
@@ -3361,6 +3368,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             CanResize = false;
             Topmost = true;
             SizeToContent = SizeToContent.WidthAndHeight;
+            WindowStartupLocation = WindowStartupLocation.Manual;
 
             StackPanel items = controlNames.Assign(new StackPanel { Spacing = 0 }, "MenuItems");
             foreach (FlyoutMenuEntry entry in entries)
@@ -3410,7 +3418,16 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         {
             PixelPoint anchorBottom = anchor.PointToScreen(new Point(0, anchor.Bounds.Height));
             PixelPoint anchorTop = anchor.PointToScreen(new Point(0, 0));
-            Position = new PixelPoint(_layout.OffscreenPosition, _layout.OffscreenPosition);
+            PixelRect stagingWorkArea = TrayWorkArea.Resolve(
+                Screens,
+                anchorBottom,
+                new PixelRect(
+                    _layout.FallbackWorkAreaX,
+                    _layout.FallbackWorkAreaY,
+                    _layout.FallbackWorkAreaWidth,
+                    _layout.FallbackWorkAreaHeight));
+            Opacity = 0;
+            Position = stagingWorkArea.Position;
             Show();
 
             Dispatcher.UIThread.Post(() =>
@@ -3438,6 +3455,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     Math.Max(workArea.Y + EdgePadding, workArea.Bottom - height - EdgePadding));
 
                 Position = new PixelPoint(left, top);
+                Opacity = 1;
                 Activate();
             }, DispatcherPriority.Loaded);
         }

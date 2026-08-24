@@ -195,7 +195,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private void InitializeComponentState()
     {
         _layout = AxamlFlyout;
-        Width = Layout.WindowWidth;
+        SetFixedFlyoutWidth(Layout.WindowWidth);
 
         RebuildVisual();
     }
@@ -268,10 +268,11 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
         _lastTrayIcon = trayIcon;
+        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         ExecuteFanRebuild(reposition: false);
-        ShowHiddenForPositioning();
+        ShowHiddenForPositioning(stagingPosition);
 
         FanFlyoutVisualGeneration? generation = _activeVisualGeneration;
         Dispatcher.UIThread.Post(() =>
@@ -283,8 +284,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 return;
             }
 
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
             ShowPinnedFanPropertiesWindows();
             Opacity = 1;
@@ -5786,8 +5787,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 return;
             }
 
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
         }, DispatcherPriority.Loaded);
     }
@@ -5846,6 +5847,12 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
         MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
+    }
+
+    protected override void ApplyRenderScalingLayoutConstraints()
+    {
+        if (_layout == null) return;
+        ApplyWorkAreaMaxHeight();
     }
 
     private FlyoutControlPalette CreateFlyoutPalette(AppTheme theme, SettingsPalette sp, bool isLight) =>

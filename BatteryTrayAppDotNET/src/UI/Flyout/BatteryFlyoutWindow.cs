@@ -94,7 +94,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             StateChanged = OnDockStateChanged
         });
 
-        Width = WindowWidth;
+        SetFixedFlyoutWidth(WindowWidth);
 
         _batteryMonitor.StateChanged += OnBatteryStateChanged;
         WindowResources.Add(() => _batteryMonitor.StateChanged -= OnBatteryStateChanged);
@@ -112,20 +112,21 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         if (_isClosed) return;
 
         _lastTrayIcon = trayIcon;
+        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         _dockingController.RedockIfUndockingDisabled();
         ApplyWorkAreaMaxHeight();
         Rebuild();
 
-        ShowHiddenForPositioning();
+        ShowHiddenForPositioning(stagingPosition);
 
         CancellationToken cancellationToken = WindowResources.CancellationToken;
         Dispatcher.UIThread.Post(
             () =>
             {
                 if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible) return;
-                UpdateLayout();
                 ApplyWorkAreaMaxHeight();
+                UpdateLayout();
                 PositionNearTray();
                 Opacity = 1;
                 if (activate) Activate();
@@ -672,6 +673,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         MaxHeight = workArea.Height / RenderScaling - 2 * EdgePadding;
     }
 
+    protected override void ApplyRenderScalingLayoutConstraints() => ApplyWorkAreaMaxHeight();
+
     private int ResolveSnapTolerance()
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
@@ -712,8 +715,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
             {
                 if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible || _isDraggingWindow)
                     return;
-                UpdateLayout();
                 ApplyWorkAreaMaxHeight();
+                UpdateLayout();
                 PositionNearTray();
             },
             DispatcherPriority.Loaded);

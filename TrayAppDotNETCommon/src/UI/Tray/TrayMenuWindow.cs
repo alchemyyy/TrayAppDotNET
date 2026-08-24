@@ -124,6 +124,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         CanResize = false;
         Topmost = true;
         SizeToContent = SizeToContent.WidthAndHeight;
+        WindowStartupLocation = WindowStartupLocation.Manual;
 
         StackPanel items = new();
         UIResourceScope contentResources = new($"{GetType().Name}.Content");
@@ -183,8 +184,9 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
         _closedFromDeactivation = false;
         _closedFromSelection = false;
+        PixelRect stagingWorkArea = ResolveWorkArea(cursorPoint);
         Opacity = 0;
-        Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
+        Position = stagingWorkArea.Position;
         Show();
 
         Dispatcher.UIThread.Post(() =>

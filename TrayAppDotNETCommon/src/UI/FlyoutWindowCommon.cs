@@ -16,6 +16,8 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _activeContentGeneration;
+    private double? _fixedLogicalWidth;
+    private bool _scalingLayoutCorrectionQueued;
 
     public bool KeepOpenForSettingsWindow { get; set; }
     public bool IsWarmPriming { get; set; }
@@ -41,6 +43,8 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         Position = HiddenPosition;
         Deactivated += OnDeactivated;
         _windowResources.Add(() => Deactivated -= OnDeactivated);
+        ScalingChanged += OnScalingChanged;
+        _windowResources.Add(() => ScalingChanged -= OnScalingChanged);
     }
 
     protected virtual bool HasOpenChildWindow => false;
@@ -58,13 +62,25 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     /// <summary>Gets the source-level control naming scope for this flyout instance.</summary>
     protected ControlNameScope ControlNames { get; }
 
-    /// <summary>Shows the flyout transparently offscreen until its measured position is ready.</summary>
-    protected void ShowHiddenForPositioning()
+    /// <summary>Fixes the logical flyout width across native per-monitor DPI resize notifications.</summary>
+    protected void SetFixedFlyoutWidth(double logicalWidth)
+    {
+        if (!double.IsFinite(logicalWidth) || logicalWidth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(logicalWidth));
+
+        _fixedLogicalWidth = logicalWidth;
+        ReapplyFixedFlyoutWidth();
+    }
+
+    /// <summary>Shows the transparent flyout on its target monitor before final measured positioning.</summary>
+    protected void ShowHiddenForPositioning(PixelPoint stagingPosition)
     {
         if (IsVisible) return;
 
         Opacity = 0;
-        Position = HiddenPosition;
+        Position = stagingPosition;
+        ReapplyFixedFlyoutWidth();
+        RestoreAutomaticHeightSizing();
         Show();
     }
 
@@ -76,6 +92,11 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
         // Avalonia writes the native client height back after showing the window
         Height = double.NaN;
         InvalidateMeasure();
+    }
+
+    /// <summary>Reapplies monitor-dependent flyout constraints before a DPI correction layout pass.</summary>
+    protected virtual void ApplyRenderScalingLayoutConstraints()
+    {
     }
 
     /// <summary>
@@ -204,6 +225,43 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
 
         _suppressNextAutoHide = false;
         return true;
+    }
+
+    private void OnScalingChanged(object? sender, EventArgs e)
+    {
+        // Avalonia raises this before Win32 applies the WM_DPICHANGED suggested bounds. Correct again after resize.
+        ReapplyFixedFlyoutWidth();
+        RestoreAutomaticHeightSizing();
+        QueueScalingLayoutCorrection();
+    }
+
+    private void QueueScalingLayoutCorrection()
+    {
+        if (_scalingLayoutCorrectionQueued || _windowResources.IsDisposed) return;
+
+        _scalingLayoutCorrectionQueued = true;
+        CancellationToken cancellationToken = _windowResources.CancellationToken;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _scalingLayoutCorrectionQueued = false;
+                if (cancellationToken.IsCancellationRequested || _windowResources.IsDisposed || !IsVisible) return;
+
+                ReapplyFixedFlyoutWidth();
+                RestoreAutomaticHeightSizing();
+                ApplyRenderScalingLayoutConstraints();
+                UpdateLayout();
+            },
+            DispatcherPriority.Loaded);
+    }
+
+    private void ReapplyFixedFlyoutWidth()
+    {
+        if (_fixedLogicalWidth is not { } logicalWidth) return;
+
+        MinWidth = logicalWidth;
+        MaxWidth = logicalWidth;
+        Width = logicalWidth;
     }
 
     protected override void OnClosed(EventArgs e)

@@ -244,7 +244,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void InitializeComponentState()
     {
         _layout = AxamlFlyout;
-        Width = Layout.WindowWidth;
+        SetFixedFlyoutWidth(Layout.WindowWidth);
 
         RebuildVisual();
     }
@@ -357,18 +357,19 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (!IsWindowAlive) return;
         _lastTrayIcon = trayIcon;
+        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         RebuildVisual();
-        ShowHiddenForPositioning();
+        ShowHiddenForPositioning(stagingPosition);
 
         long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
             AppServices.DisplayEventManager?.RunSingleGatedScan();
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
             Opacity = 1;
             if (activate) Activate();
@@ -379,14 +380,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (!IsWindowAlive) return;
         if (ActiveContentGeneration == null) RebuildVisual();
-        ShowHiddenForPositioning();
+        ShowHiddenForPositioning(ResolveWorkArea(_lastTrayIcon).Position);
         AppServices.DisplayEventManager?.RunSingleGatedScan();
         long visibilityGeneration = ++_visibilityGeneration;
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
             Opacity = 1;
             Activate();
@@ -400,7 +401,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         ShowActivated = false;
         try
         {
-            ShowHiddenForPositioning();
+            ShowHiddenForPositioning(ResolveWorkArea(_lastTrayIcon).Position);
         }
         finally
         {
@@ -412,8 +413,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
             Opacity = 1;
         }, DispatcherPriority.Loaded);
@@ -3498,8 +3499,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || !IsVisible || _isDraggingWindow) return;
-            UpdateLayout();
             ApplyWorkAreaMaxHeight();
+            UpdateLayout();
             PositionNearTray();
         }, DispatcherPriority.Loaded);
     }
@@ -3508,6 +3509,12 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         PixelRect workArea = ResolveWorkArea(_lastTrayIcon);
         MaxHeight = Math.Max(Layout.WorkAreaMinHeight, workArea.Height / RenderScaling - EdgePadding * 2);
+    }
+
+    protected override void ApplyRenderScalingLayoutConstraints()
+    {
+        if (_layout == null) return;
+        ApplyWorkAreaMaxHeight();
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)

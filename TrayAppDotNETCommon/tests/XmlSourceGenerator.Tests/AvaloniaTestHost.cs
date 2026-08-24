@@ -14,6 +14,18 @@ internal static class AvaloniaTestHost
         session.Dispatch(test, CancellationToken.None).GetAwaiter().GetResult();
     }
 
+    public static void RunAsync(Func<Task> test)
+    {
+        using HeadlessUnitTestSession session = HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
+        session.Dispatch(
+            async () =>
+            {
+                await test();
+                return true;
+            },
+            CancellationToken.None).GetAwaiter().GetResult();
+    }
+
     public sealed class TestApplication : Application
     {
     }
