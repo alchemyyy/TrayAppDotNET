@@ -35,7 +35,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessSnapshotService _snapshotService;
     private readonly ProcessIconService _processIconService;
     private readonly ProcessTerminationService _processTerminationService;
-    private readonly TaskManagerWindowResources _taskManagerResources = new();
+    private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
     private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
 

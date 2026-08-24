@@ -223,6 +223,9 @@ centered|centred|center aligned|middle aligned</value>
   <data name="Common_Install" xml:space="preserve">
     <value>Install</value>
   </data>
+  <data name="Common_Unavailable" xml:space="preserve">
+    <value>Unavailable</value>
+  </data>
   <data name="Settings_About_AuthorLabel" xml:space="preserve">
     <value>Author</value>
   </data>

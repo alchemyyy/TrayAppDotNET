@@ -3,6 +3,9 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+#if HOTAVALONIA_ENABLE
+using HotAvalonia;
+#endif
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI;
 using TrayAppDotNETCommon.Visuals;
@@ -11,13 +14,23 @@ namespace TaskManagerTrayAppDotNET;
 
 internal static class TaskManagerAvaloniaRunner
 {
-    public static int Run(string[] args) =>
-        TrayAppDotNETAvalonia.StartWithExplicitShutdown<TaskManagerAvaloniaApp>(
+    public static int Run(string[] args)
+    {
+        return TrayAppDotNETAvalonia.StartWithExplicitShutdown<TaskManagerAvaloniaApp>(
             args,
-            builder => TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
-                builder,
-                AppSettings.GetDefaultPath,
-                TADNLog.Log));
+            builder =>
+            {
+                builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
+                    builder,
+                    AppSettings.GetDefaultPath,
+                    TADNLog.Log);
+#if HOTAVALONIA_ENABLE
+                builder = builder.UseHotReload();
+#endif
+
+                return builder;
+            });
+    }
 }
 
 internal sealed class TaskManagerAvaloniaApp : Application

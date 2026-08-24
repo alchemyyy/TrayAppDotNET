@@ -28,18 +28,7 @@ internal readonly record struct ProcessRowContextMenuRequest(
 /// <summary>Composites two retained drawing roots per process from shared visible-column fragments.</summary>
 internal sealed class ProcessDetailsCanvas : Control, IDisposable
 {
-    private const double DefaultViewportHeight = 900;
     private const int DynamicRefreshBatchSize = 16;
-    private const double DynamicRefreshBudgetMilliseconds = 1.25;
-    private const double ColumnResizeHitRadius = 4;
-    private const double HeaderDragThreshold = 4;
-    private const double ColumnInteractionLineThickness = 2;
-    private const double TextUnderlineThickness = 1;
-    private const double TreeIndentWidth = 18;
-    private const double TreeExpanderWidth = 14;
-    private const double TreeExpanderHalfHeight = 3;
-    private const double RowTextHeightMultiplier = 1.35;
-    private const string UnavailableText = "Unavailable";
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
     private const string ZeroCPUTimeText = "0:00:00";
@@ -50,7 +39,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private readonly ProcessIconService _processIconService;
     private readonly ProcessDataSchema _schema;
+    private readonly TaskManagerWindowResources _resources;
     private ProcessTableMetrics _metrics;
+    private ProcessTableVisualMetrics _visualMetrics;
     private readonly bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
@@ -61,18 +52,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly HashSet<ProcessInstanceKey> _collapsedProcesses = [];
     private readonly Dictionary<int, int> _rowIndexByProcessID = new(1_024);
     private readonly ProcessRowIndexComparer _rowComparer;
-    private readonly FormattedText _ascendingCaretText;
-    private readonly FormattedText _descendingCaretText;
+    private FormattedText _ascendingCaretText;
+    private FormattedText _descendingCaretText;
     private readonly IBrush _backgroundBrush;
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
     private readonly IBrush _accentBrush;
     private readonly IBrush _hoverBrush;
-    private readonly Pen _gridPen;
-    private readonly Pen _columnInteractionPen;
-    private readonly Pen _textUnderlinePen;
-    private readonly Pen _treeExpanderPen;
-    private readonly double _sortCaretRightMargin;
+    private readonly IBrush _borderBrush;
+    private Pen _gridPen;
+    private Pen _columnInteractionPen;
+    private Pen _textUnderlinePen;
+    private Pen _treeExpanderPen;
+    private double _sortCaretRightMargin;
     private readonly long _totalPhysicalMemoryBytes;
     private readonly Action _refreshWarmDynamicDrawings;
     private readonly ProcessTableColumn[]? _liveResizeColumns;
@@ -104,6 +96,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private int _warmRefreshEnd;
     private long _snapshotVersion = -1;
     private string _filterText = string.Empty;
+    private string _unavailableText;
     private Rect _effectiveViewport;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
     private ProcessInstanceKey? _selectedProcess;
@@ -129,6 +122,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
+    private bool _usesAXAMLFontSize;
+    private bool _usesAXAMLRowHeight;
     private bool _disposed;
     private ProcessSnapshotService? _snapshotService;
 
@@ -151,14 +146,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _processIconService = processIconService;
         _processIconService.IconsChanged += OnIconsChanged;
         _schema = schema;
-        _metrics = new ProcessTableMetrics(
-            resources.AxamlProcessTable.HeaderHeight,
-            gridRowHeight,
-            resources.AxamlProcessTable.CellPadding,
-            gridFontSize,
-            resources.AxamlProcessTable.HeaderFontSize,
-            resources.AxamlProcessTable.ProcessIconSize,
-            resources.AxamlProcessTable.ProcessIconGap);
+        _resources = resources;
+        _metrics = CreateTableMetrics(resources, gridFontSize, gridRowHeight);
+        _visualMetrics = CreateVisualMetrics(resources);
+        _usesAXAMLFontSize = Math.Abs(gridFontSize - resources.AxamlProcessTable.FontSize) < 0.01;
+        _usesAXAMLRowHeight = Math.Abs(gridRowHeight - resources.AxamlProcessTable.RowHeight) < 0.01;
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
         _columns = CreateColumns(_columnSettings);
@@ -170,34 +162,44 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _textUnderlineSegments = new TextUnderlineSegment[_columns.Length];
         _contextCopyValuesByColumn = new string?[ProcessTableColumnCatalog.Definitions.Length];
         _rowComparer = new ProcessRowIndexComparer(_snapshot, _schema);
-        _sortCaretRightMargin = resources.AxamlProcessTable.SortCaretRightMargin;
+        _sortCaretRightMargin = _visualMetrics.SortCaretRightMargin;
         _totalPhysicalMemoryBytes = NativeProcessInfo.ReadTotalPhysicalMemoryBytes();
         _refreshWarmDynamicDrawings = RefreshWarmDynamicDrawings;
+        _unavailableText = ResolveUnavailableText();
 
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(TaskManagerWindowResources.ProcessGridBackgroundColor);
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
         _hoverBrush = TrayAppDotNETSettingsUI.Brush(palette.Hover);
-        _gridPen = new Pen(TrayAppDotNETSettingsUI.Brush(palette.Border), 1);
-        _columnInteractionPen = new Pen(_accentBrush, ColumnInteractionLineThickness);
-        _textUnderlinePen = new Pen(_foregroundBrush, TextUnderlineThickness);
-        _treeExpanderPen = new Pen(_secondaryForegroundBrush, 1.25);
+        _borderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
+        _gridPen = new Pen(_borderBrush, _visualMetrics.GridLineThickness);
+        _columnInteractionPen = new Pen(
+            _accentBrush,
+            _visualMetrics.ColumnInteractionLineThickness);
+        _textUnderlinePen = new Pen(
+            _foregroundBrush,
+            _visualMetrics.TextUnderlineThickness);
+        _treeExpanderPen = new Pen(
+            _secondaryForegroundBrush,
+            _visualMetrics.TreeExpanderLineThickness);
 
         _headerTexts = CreateHeaderTexts(_columns);
 
         _ascendingCaretText = CreateGlyphText(
             "\uE96D",
-            resources.AxamlProcessTable.SortCaretFontSize,
+            _visualMetrics.SortCaretFontSize,
             _secondaryForegroundBrush);
         _descendingCaretText = CreateGlyphText(
             "\uE96E",
-            resources.AxamlProcessTable.SortCaretFontSize,
+            _visualMetrics.SortCaretFontSize,
             _secondaryForegroundBrush);
 
         ClipToBounds = true;
         Focusable = true;
         EffectiveViewportChanged += OnEffectiveViewportChanged;
+        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+        LocalizationManager.Instance.CultureChanged += OnCultureChanged;
     }
 
     public event Action<ProcessTerminationTarget?>? SelectedProcessChanged;
@@ -351,7 +353,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             int dividerColumnIndex = ProcessTableLayout.HitTestColumnDivider(
                 position.X,
                 _columns,
-                ColumnResizeHitRadius);
+                _visualMetrics.ColumnResizeHitRadius);
             if (dividerColumnIndex >= 0)
             {
                 BeginHeaderInteraction(
@@ -503,6 +505,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!double.IsFinite(fontSize) || fontSize <= 0) throw new ArgumentOutOfRangeException(nameof(fontSize));
         if (!double.IsFinite(rowHeight) || rowHeight <= 0) throw new ArgumentOutOfRangeException(nameof(rowHeight));
+        _usesAXAMLFontSize = Math.Abs(fontSize - _resources.AxamlProcessTable.FontSize) < 0.01;
+        _usesAXAMLRowHeight = Math.Abs(rowHeight - _resources.AxamlProcessTable.RowHeight) < 0.01;
         if (Math.Abs(_metrics.FontSize - fontSize) < 0.01
             && Math.Abs(_metrics.RowHeight - rowHeight) < 0.01)
         {
@@ -616,8 +620,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             {
                 double horizontalDistance = Math.Abs(position.X - _headerPressPosition.X);
                 double verticalDistance = Math.Abs(position.Y - _headerPressPosition.Y);
-                if (horizontalDistance < HeaderDragThreshold
-                    && verticalDistance < HeaderDragThreshold)
+                if (horizontalDistance < _visualMetrics.HeaderDragThreshold
+                    && verticalDistance < _visualMetrics.HeaderDragThreshold)
                 {
                     return;
                 }
@@ -670,7 +674,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                  && ProcessTableLayout.HitTestColumnDivider(
                      position.X,
                      _columns,
-                     ColumnResizeHitRadius) >= 0
+                     _visualMetrics.ColumnResizeHitRadius) >= 0
             ? TrayAppDotNETCursors.SizeWestEast
             : TrayAppDotNETCursors.Arrow;
     }
@@ -731,6 +735,117 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (!_disposed) InvalidateVisual();
     }
 
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        ProcessTableMetrics nextMetrics = CreateTableMetrics(
+            _resources,
+            _usesAXAMLFontSize ? _resources.AxamlProcessTable.FontSize : _metrics.FontSize,
+            _usesAXAMLRowHeight ? _resources.AxamlProcessTable.RowHeight : _metrics.RowHeight);
+        ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
+        if (nextMetrics == _metrics && nextVisualMetrics == _visualMetrics) return;
+
+        bool rebuildRetainedRows = RetainedRowGeometryChanged(
+            _metrics,
+            nextMetrics,
+            _visualMetrics,
+            nextVisualMetrics);
+        bool rebuildHeaderText = _metrics.HeaderFontSize != nextMetrics.HeaderFontSize
+                                 || _metrics.CellPadding != nextMetrics.CellPadding;
+        bool rebuildCaretText = _visualMetrics.SortCaretFontSize
+                                != nextVisualMetrics.SortCaretFontSize;
+        bool gridMetricsChanged = _metrics.FontSize != nextMetrics.FontSize
+                                  || _metrics.RowHeight != nextMetrics.RowHeight;
+
+        _metrics = nextMetrics;
+        _visualMetrics = nextVisualMetrics;
+        _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
+        RecreatePens();
+        if (rebuildHeaderText)
+            _headerTexts = CreateHeaderTexts(_columns);
+        if (rebuildCaretText)
+        {
+            _ascendingCaretText = CreateGlyphText(
+                "\uE96D",
+                _visualMetrics.SortCaretFontSize,
+                _secondaryForegroundBrush);
+            _descendingCaretText = CreateGlyphText(
+                "\uE96E",
+                _visualMetrics.SortCaretFontSize,
+                _secondaryForegroundBrush);
+        }
+
+        if (rebuildRetainedRows)
+            RebuildRetainedRowDrawings();
+        if (gridMetricsChanged)
+            GridMetricsChanged?.Invoke(_metrics.FontSize, _metrics.RowHeight);
+        UpdateSelectionOverlay();
+        UpdateHoverFromPointer();
+        RebuildCopyPreview();
+        PublishWarmProcesses();
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs eventArgs)
+    {
+        if (_disposed) return;
+
+        string unavailableText = ResolveUnavailableText();
+        if (string.Equals(_unavailableText, unavailableText, StringComparison.Ordinal)) return;
+
+        _unavailableText = unavailableText;
+        RebuildRetainedRowDrawings();
+        RebuildCopyPreview();
+        InvalidateVisual();
+    }
+
+    private void RecreatePens()
+    {
+        _gridPen = new Pen(_borderBrush, _visualMetrics.GridLineThickness);
+        _columnInteractionPen = new Pen(
+            _accentBrush,
+            _visualMetrics.ColumnInteractionLineThickness);
+        _textUnderlinePen = new Pen(
+            _foregroundBrush,
+            _visualMetrics.TextUnderlineThickness);
+        _treeExpanderPen = new Pen(
+            _secondaryForegroundBrush,
+            _visualMetrics.TreeExpanderLineThickness);
+    }
+
+    private void RebuildRetainedRowDrawings()
+    {
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            ReleaseRenderCache(cache);
+        _sharedCellDrawings.Clear();
+        UpdateRetainedDrawings();
+    }
+
+    private string LocalizeUnavailableText(string value) =>
+        string.Equals(value, NativeProcessInfo.Unavailable, StringComparison.Ordinal)
+            ? _unavailableText
+            : value;
+
+    private static string ResolveUnavailableText() =>
+        LocalizationManager.Instance[nameof(CommonStrings.Common_Unavailable)];
+
+    private static bool RetainedRowGeometryChanged(
+        ProcessTableMetrics currentMetrics,
+        ProcessTableMetrics nextMetrics,
+        ProcessTableVisualMetrics currentVisualMetrics,
+        ProcessTableVisualMetrics nextVisualMetrics) =>
+        currentMetrics.RowHeight != nextMetrics.RowHeight
+        || currentMetrics.CellPadding != nextMetrics.CellPadding
+        || currentMetrics.FontSize != nextMetrics.FontSize
+        || currentMetrics.ProcessIconSize != nextMetrics.ProcessIconSize
+        || currentMetrics.ProcessIconGap != nextMetrics.ProcessIconGap
+        || currentVisualMetrics.RowTextHeightMultiplier
+        != nextVisualMetrics.RowTextHeightMultiplier
+        || currentVisualMetrics.TreeIndentWidth != nextVisualMetrics.TreeIndentWidth
+        || currentVisualMetrics.TreeExpanderWidth != nextVisualMetrics.TreeExpanderWidth;
+
     private Rect ResolveViewport()
     {
         if (_effectiveViewport.Width > 0 && _effectiveViewport.Height > 0)
@@ -742,7 +857,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             return new Rect(left, top, right - left, bottom - top);
         }
 
-        return new Rect(0, 0, Bounds.Width, Math.Min(Bounds.Height, DefaultViewportHeight));
+        return new Rect(
+            0,
+            0,
+            Bounds.Width,
+            Math.Min(Bounds.Height, _visualMetrics.DefaultViewportHeight));
     }
 
     private void DrawRetainedRow(DrawingContext context, Rect viewport, int visibleIndex)
@@ -905,8 +1024,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (width <= 0) return;
 
         double underlineY = Math.Min(
-            _metrics.RowHeight - TextUnderlineThickness,
-            layout.Top + layout.Text.Baseline + TextUnderlineThickness);
+            _metrics.RowHeight - _visualMetrics.TextUnderlineThickness,
+            layout.Top + layout.Text.Baseline + _visualMetrics.TextUnderlineThickness);
         _textUnderlineSegments[_textUnderlineSegmentCount] = new TextUnderlineSegment(
             layout.Left,
             layout.Left + width,
@@ -1033,7 +1152,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         double iconTop = top + (_metrics.RowHeight - _metrics.ProcessIconSize) / 2;
         int treeLayoutKey = GetTreeLayoutKey(rowIndex);
         double hierarchyInset = GetHierarchyInset(treeLayoutKey);
-        double expanderInset = HasTreeExpanderSlot(treeLayoutKey) ? TreeExpanderWidth : 0;
+        double expanderInset = HasTreeExpanderSlot(treeLayoutKey)
+            ? _visualMetrics.TreeExpanderWidth
+            : 0;
         Rect iconBounds = new(
             nameColumn.Left + _metrics.CellPadding + hierarchyInset + expanderInset,
             iconTop,
@@ -1043,7 +1164,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (icon != null)
             context.DrawImage(icon, iconBounds);
         else
-            context.FillRectangle(_accentBrush, iconBounds, 2);
+            context.FillRectangle(
+                _accentBrush,
+                iconBounds,
+                (float)_visualMetrics.ProcessIconCornerRadius);
 
         if ((treeLayoutKey & 1) != 0)
             DrawTreeExpander(context, nameColumn, row, top, hierarchyInset);
@@ -1056,29 +1180,40 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         double top,
         double hierarchyInset)
     {
-        double centerX = nameColumn.Left + _metrics.CellPadding + hierarchyInset + TreeExpanderWidth / 2;
+        double centerX = nameColumn.Left
+                         + _metrics.CellPadding
+                         + hierarchyInset
+                         + _visualMetrics.TreeExpanderWidth / 2;
         double centerY = top + _metrics.RowHeight / 2;
         if (_collapsedProcesses.Contains(row.InstanceKey))
         {
             context.DrawLine(
                 _treeExpanderPen,
-                new Point(centerX - 2, centerY - TreeExpanderHalfHeight),
-                new Point(centerX + 2, centerY));
+                new Point(
+                    centerX - _visualMetrics.TreeExpanderChevronHalfWidth,
+                    centerY - _visualMetrics.TreeExpanderChevronHalfHeight),
+                new Point(centerX + _visualMetrics.TreeExpanderChevronHalfWidth, centerY));
             context.DrawLine(
                 _treeExpanderPen,
-                new Point(centerX + 2, centerY),
-                new Point(centerX - 2, centerY + TreeExpanderHalfHeight));
+                new Point(centerX + _visualMetrics.TreeExpanderChevronHalfWidth, centerY),
+                new Point(
+                    centerX - _visualMetrics.TreeExpanderChevronHalfWidth,
+                    centerY + _visualMetrics.TreeExpanderChevronHalfHeight));
             return;
         }
 
         context.DrawLine(
             _treeExpanderPen,
-            new Point(centerX - TreeExpanderHalfHeight, centerY - 2),
-            new Point(centerX, centerY + 2));
+            new Point(
+                centerX - _visualMetrics.TreeExpanderChevronHalfHeight,
+                centerY - _visualMetrics.TreeExpanderChevronHalfWidth),
+            new Point(centerX, centerY + _visualMetrics.TreeExpanderChevronHalfWidth));
         context.DrawLine(
             _treeExpanderPen,
-            new Point(centerX, centerY + 2),
-            new Point(centerX + TreeExpanderHalfHeight, centerY - 2));
+            new Point(centerX, centerY + _visualMetrics.TreeExpanderChevronHalfWidth),
+            new Point(
+                centerX + _visualMetrics.TreeExpanderChevronHalfHeight,
+                centerY - _visualMetrics.TreeExpanderChevronHalfWidth));
     }
 
     private void DrawColumnGrid(DrawingContext context, Rect viewport)
@@ -1338,11 +1473,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         double textTop = Math.Max(
             0,
-            (_metrics.RowHeight - _metrics.FontSize * RowTextHeightMultiplier) / 2);
+            (_metrics.RowHeight - _metrics.FontSize * _visualMetrics.RowTextHeightMultiplier) / 2);
         double leftInset = column.Kind == ProcessTableColumnKind.Name
             ? _metrics.CellPadding
               + GetHierarchyInset(treeLayoutKey)
-              + (HasTreeExpanderSlot(treeLayoutKey) ? TreeExpanderWidth : 0)
+              + (HasTreeExpanderSlot(treeLayoutKey) ? _visualMetrics.TreeExpanderWidth : 0)
               + _metrics.ProcessIconSize
               + _metrics.ProcessIconGap
             : _metrics.CellPadding;
@@ -1441,12 +1576,14 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             if (separatorIndex >= 0 && separatorIndex < identityText.Length - 1)
                 identityText = identityText[(separatorIndex + 1)..];
         }
-        if (identityText != null) return identityText;
+        if (identityText != null) return LocalizeUnavailableText(identityText);
 
         if (ProcessDataSchema.StoresText(kind))
         {
             int slot = _schema.GetStaticTextSlot(kind);
-            return slot < 0 ? string.Empty : row.TextValues[slot] ?? string.Empty;
+            return slot < 0
+                ? string.Empty
+                : LocalizeUnavailableText(row.TextValues[slot] ?? string.Empty);
         }
 
         int numericSlot = _schema.GetStaticNumericSlot(kind);
@@ -1455,7 +1592,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         return kind switch
         {
             ProcessTableColumnKind.ProcessID => value.ToString(TableCulture),
-            ProcessTableColumnKind.SessionID => value < 0 ? UnavailableText : value.ToString(TableCulture),
+            ProcessTableColumnKind.SessionID => value < 0 ? _unavailableText : value.ToString(TableCulture),
             _ => FormatDisplayCode(value)
         };
     }
@@ -1471,7 +1608,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private string GetDynamicDisplayValue(int rowIndex, ProcessTableColumnKind kind)
     {
-        if (ProcessDataSchema.StoresText(kind)) return _snapshot.GetDynamicText(rowIndex, kind);
+        if (ProcessDataSchema.StoresText(kind))
+            return LocalizeUnavailableText(_snapshot.GetDynamicText(rowIndex, kind));
 
         long value = _snapshot.GetDynamicNumeric(rowIndex, kind);
         ProcessColumnSetting setting = _settingsByColumn[(int)kind];
@@ -1519,20 +1657,25 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         };
     }
 
-    private static string FormatDisplayCode(long value) =>
-        ProcessDisplayCodeText.Get((ProcessDisplayCode)value);
-
-    private static string FormatJobObjectID(long value) => value switch
+    private string FormatDisplayCode(long value)
     {
-        < 0 => UnavailableText,
+        ProcessDisplayCode code = (ProcessDisplayCode)value;
+        return code == ProcessDisplayCode.Unavailable
+            ? _unavailableText
+            : ProcessDisplayCodeText.Get(code);
+    }
+
+    private string FormatJobObjectID(long value) => value switch
+    {
+        < 0 => _unavailableText,
         0 => string.Empty,
         _ => value.ToString(TableCulture)
     };
 
-    private static string FormatPercent(double value, ProcessColumnSetting setting)
+    private string FormatPercent(double value, ProcessColumnSetting setting)
     {
         long quantized = QuantizePercent(value, setting.ShowDecimalUsage);
-        if (quantized < 0) return UnavailableText;
+        if (quantized < 0) return _unavailableText;
 
         string display = setting.ShowDecimalUsage
             ? (quantized / 10.0).ToString("0.0", TableCulture)
@@ -1553,13 +1696,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private string FormatMemory(long bytes, ProcessColumnSetting setting, bool isDelta)
     {
-        if (!isDelta && bytes < 0) return UnavailableText;
+        if (!isDelta && bytes < 0) return _unavailableText;
 
         long quantized = QuantizeMemory(bytes, setting.MemoryUnit, isDelta);
         if (quantized == -1 && setting.MemoryUnit == ProcessMemoryUnit.PercentageOfSystem
             && _totalPhysicalMemoryBytes <= 0)
         {
-            return UnavailableText;
+            return _unavailableText;
         }
 
         string display = setting.MemoryUnit == ProcessMemoryUnit.Kilobytes
@@ -1653,7 +1796,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             _warmRefreshCursor++;
             processed++;
             if (Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds
-                >= DynamicRefreshBudgetMilliseconds)
+                >= TimeConstants.DynamicRefreshBudgetMilliseconds)
             {
                 break;
             }
@@ -1816,8 +1959,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ProcessTableColumn nameColumn = columns[nameColumnIndex];
         double expanderLeft = nameColumn.Left
                               + _metrics.CellPadding
-                              + _rowDepths[rowIndex] * TreeIndentWidth;
-        if (position.X < expanderLeft || position.X >= expanderLeft + TreeExpanderWidth) return false;
+                              + _rowDepths[rowIndex] * _visualMetrics.TreeIndentWidth;
+        if (position.X < expanderLeft
+            || position.X >= expanderLeft + _visualMetrics.TreeExpanderWidth)
+        {
+            return false;
+        }
 
         ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
         if (row == null) return false;
@@ -2163,10 +2310,42 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         return _rowDepths[rowIndex] * 2 + (_rowHasChildren[rowIndex] ? 1 : 0);
     }
 
-    private static double GetHierarchyInset(int treeLayoutKey) =>
-        (treeLayoutKey >> 1) * TreeIndentWidth;
+    private double GetHierarchyInset(int treeLayoutKey) =>
+        (treeLayoutKey >> 1) * _visualMetrics.TreeIndentWidth;
 
     private static bool HasTreeExpanderSlot(int treeLayoutKey) => treeLayoutKey != 0;
+
+    private static ProcessTableMetrics CreateTableMetrics(
+        TaskManagerWindowResources resources,
+        double fontSize,
+        double rowHeight) =>
+        new(
+            resources.AxamlProcessTable.HeaderHeight,
+            rowHeight,
+            resources.AxamlProcessTable.CellPadding,
+            fontSize,
+            resources.AxamlProcessTable.HeaderFontSize,
+            resources.AxamlProcessTable.ProcessIconSize,
+            resources.AxamlProcessTable.ProcessIconGap);
+
+    private static ProcessTableVisualMetrics CreateVisualMetrics(
+        TaskManagerWindowResources resources) =>
+        new(
+            resources.AxamlProcessTable.DefaultViewportHeight,
+            resources.AxamlProcessTable.RowTextHeightMultiplier,
+            resources.AxamlProcessTable.GridLineThickness,
+            resources.AxamlProcessTable.ColumnResizeHitRadius,
+            resources.AxamlProcessTable.HeaderDragThreshold,
+            resources.AxamlProcessTable.ColumnInteractionLineThickness,
+            resources.AxamlProcessTable.TextUnderlineThickness,
+            resources.AxamlProcessTable.SortCaretFontSize,
+            resources.AxamlProcessTable.SortCaretRightMargin,
+            resources.AxamlProcessTable.ProcessIconCornerRadius,
+            resources.AxamlProcessTable.TreeIndentWidth,
+            resources.AxamlProcessTable.TreeExpanderWidth,
+            resources.AxamlProcessTable.TreeExpanderChevronHalfWidth,
+            resources.AxamlProcessTable.TreeExpanderChevronHalfHeight,
+            resources.AxamlProcessTable.TreeExpanderLineThickness);
 
     private static ProcessTableColumn[] CreateColumns(IReadOnlyList<ProcessColumnSetting> source)
     {
@@ -2242,9 +2421,15 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         return false;
     }
 
-    private static bool ShouldShareCell(ProcessTableColumnKind column, string value)
+    private bool ShouldShareCell(ProcessTableColumnKind column, string value)
     {
-        if (value is ZeroText or ZeroMemoryText or ZeroCPUTimeText or UnavailableText) return true;
+        if (value == ZeroText
+            || value == ZeroMemoryText
+            || value == ZeroCPUTimeText
+            || value == _unavailableText)
+        {
+            return true;
+        }
         if (ProcessRowIndexComparer.IsDisplayCodeColumn(column)) return true;
 
         return column switch
@@ -2306,6 +2491,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _disposed = true;
         _processIconService.IconsChanged -= OnIconsChanged;
         EffectiveViewportChanged -= OnEffectiveViewportChanged;
+        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+        LocalizationManager.Instance.CultureChanged -= OnCultureChanged;
         SelectedProcessChanged = null;
         HoverRowTopChanged = null;
         SelectionRowTopChanged = null;
@@ -2334,6 +2521,23 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         double AvailableWidth);
 
     private readonly record struct TextUnderlineSegment(double Left, double Right, double Y);
+
+    private readonly record struct ProcessTableVisualMetrics(
+        double DefaultViewportHeight,
+        double RowTextHeightMultiplier,
+        double GridLineThickness,
+        double ColumnResizeHitRadius,
+        double HeaderDragThreshold,
+        double ColumnInteractionLineThickness,
+        double TextUnderlineThickness,
+        double SortCaretFontSize,
+        double SortCaretRightMargin,
+        double ProcessIconCornerRadius,
+        double TreeIndentWidth,
+        double TreeExpanderWidth,
+        double TreeExpanderChevronHalfWidth,
+        double TreeExpanderChevronHalfHeight,
+        double TreeExpanderLineThickness);
 
     private enum HeaderInteractionMode : byte
     {
