@@ -404,7 +404,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     protected override void OnPointerMoved(PointerEventArgs eventArgs)
     {
         base.OnPointerMoved(eventArgs);
-        Point position = eventArgs.GetPosition(this);
+        Point position = GetLatestPointerPosition(eventArgs);
         if (_headerInteraction != HeaderInteractionMode.None
             && ReferenceEquals(_capturedHeaderPointer, eventArgs.Pointer))
         {
@@ -418,6 +418,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
         UpdateHoveredRow(position.Y);
+    }
+
+    private Point GetLatestPointerPosition(PointerEventArgs eventArgs)
+    {
+        // Read the live OS cursor so queued PointerMoved events cannot replay obsolete rows
+        if (eventArgs.Pointer.Type == PointerType.Mouse
+            && OperatingSystem.IsWindows()
+            && User32.GetCursorPos(out User32.POINT cursorPosition))
+        {
+            return this.PointToClient(new PixelPoint(cursorPosition.X, cursorPosition.Y));
+        }
+
+        return eventArgs.GetPosition(this);
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
