@@ -62,6 +62,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private bool _rebuildPending;
     private bool _rebuildQueued;
     private bool _isClosed;
+    private long _visibilityGeneration;
     private FlyoutAxamlProperties? _layout;
     private VolumeFlyoutContentGeneration? _activeContent;
     private VolumeFlyoutContentGeneration? _buildingContent;
@@ -175,18 +176,29 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (_isClosed) return;
 
+        long visibilityGeneration = ++_visibilityGeneration;
+        bool wasVisible = IsVisible;
+        if (!wasVisible) Opacity = 0;
+
         _lastTrayIcon = trayIcon;
-        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         _bluetoothRadioController?.Refresh();
         _audioManager.ReconcileSessions();
         ApplyWorkAreaMaxHeight();
         Rebuild();
+
+        // Stage near the tray so native creation cannot flash at the work-area origin
+        PixelPoint stagingPosition = Docking.ResolvePosition();
         ShowHiddenForPositioning(stagingPosition);
+
+        // Position before the dispatcher can present the staging surface
+        ApplyWorkAreaMaxHeight();
+        UpdateLayout();
+        PositionNearTray();
 
         Dispatcher.UIThread.Post(() =>
         {
-            if (_isClosed || !IsVisible) return;
+            if (_isClosed || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
             ApplyWorkAreaMaxHeight();
             UpdateLayout();
             PositionNearTray();
@@ -201,6 +213,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (_isClosed) return;
 
+        _visibilityGeneration++;
+        Opacity = 0;
         CloseOpenMenu();
         StopFlyoutActivity();
         bool retirePendingContent = _rebuildPending;
