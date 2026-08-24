@@ -72,6 +72,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             settings.DetailsColumns,
             settings.EnableLiveDetailsColumnResizing,
             settings.GridFontSize,
+            settings.GridFontWeight,
             settings.GridRowHeight,
             palette,
             resources);

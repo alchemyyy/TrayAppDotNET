@@ -150,6 +150,29 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             ["grid text size", "zoom"],
             decimalPlaces: 1,
             step: 0.5));
+        stack.Children.Add(ComboCard(
+            "Font weight",
+            "Set the text weight used by process rows and column headers.",
+            [
+                (nameof(DetailsGridFontWeight.Thin), "Thin"),
+                (nameof(DetailsGridFontWeight.ExtraLight), "Extra light"),
+                (nameof(DetailsGridFontWeight.Light), "Light"),
+                (nameof(DetailsGridFontWeight.SemiLight), "Semi-light"),
+                (nameof(DetailsGridFontWeight.Normal), "Normal"),
+                (nameof(DetailsGridFontWeight.Medium), "Medium"),
+                (nameof(DetailsGridFontWeight.SemiBold), "Semi-bold"),
+                (nameof(DetailsGridFontWeight.Bold), "Bold"),
+                (nameof(DetailsGridFontWeight.ExtraBold), "Extra bold"),
+                (nameof(DetailsGridFontWeight.Black), "Black")
+            ],
+            _settings.GridFontWeight.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out DetailsGridFontWeight value))
+                    _settings.GridFontWeight = value;
+            },
+            palette,
+            searchKeywords: ["grid text thickness", "bold"]));
         stack.Children.Add(IntCard(
             "Row height",
             "Set the height of each process row.",
@@ -173,7 +196,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             "Theme mode",
             "Choose whether Task Manager follows Windows or uses a fixed light or dark theme.",
             [
-                (nameof(TrayAppDotNETThemeMode.System), "Use Windows setting"),
+                (nameof(TrayAppDotNETThemeMode.System), "System"),
                 (nameof(TrayAppDotNETThemeMode.Light), "Light"),
                 (nameof(TrayAppDotNETThemeMode.Dark), "Dark")
             ],
@@ -208,7 +231,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             "Animations",
             "Choose whether interface animations follow Windows, remain disabled, or remain enabled.",
             [
-                (nameof(TrayAppDotNETAnimationMode.System), "Use Windows setting"),
+                (nameof(TrayAppDotNETAnimationMode.System), "System"),
                 (nameof(TrayAppDotNETAnimationMode.Disabled), "Disabled"),
                 (nameof(TrayAppDotNETAnimationMode.Enabled), "Enabled")
             ],

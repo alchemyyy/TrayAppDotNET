@@ -3,6 +3,20 @@ using TrayAppDotNETCommon.Serialization;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
+public enum DetailsGridFontWeight
+{
+    Thin = 100,
+    ExtraLight = 200,
+    Light = 300,
+    SemiLight = 350,
+    Normal = 400,
+    Medium = 500,
+    SemiBold = 600,
+    Bold = 700,
+    ExtraBold = 800,
+    Black = 900
+}
+
 [XmlRoot("AppSettings")]
 public sealed class AppSettings : AppSettingsCommon
 {
@@ -44,6 +58,12 @@ public sealed class AppSettings : AppSettingsCommon
         get;
         set => SetField(ref field, NormalizeGridFontSize(value));
     } = GridFontSizeDefault;
+
+    public DetailsGridFontWeight GridFontWeight
+    {
+        get;
+        set => SetField(ref field, NormalizeGridFontWeight(value));
+    } = DetailsGridFontWeight.Normal;
 
     public int GridRowHeight
     {
@@ -158,4 +178,7 @@ public sealed class AppSettings : AppSettingsCommon
         double.IsFinite(value)
             ? Math.Clamp(value, GridFontSizeMinimum, GridFontSizeMaximum)
             : GridFontSizeDefault;
+
+    private static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
+        Enum.IsDefined(value) ? value : DetailsGridFontWeight.Normal;
 }

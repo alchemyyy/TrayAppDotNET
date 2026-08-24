@@ -33,13 +33,14 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private const string ZeroMemoryText = "0 K";
     private const string ZeroCPUTimeText = "0:00:00";
 
-    private static readonly Typeface TableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
+    private static readonly Typeface DefaultTableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
     private static readonly Typeface GlyphTypeface = new(TADNFontResolver.SegoeFluentIconsFamilyName);
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
 
     private readonly ProcessIconService _processIconService;
     private readonly ProcessDataSchema _schema;
     private readonly TaskManagerWindowResources _resources;
+    private readonly Typeface _tableTypeface;
     private ProcessTableMetrics _metrics;
     private ProcessTableVisualMetrics _visualMetrics;
     private readonly bool _hasDynamicColumns;
@@ -133,6 +134,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         IReadOnlyList<ProcessColumnSetting> columnSettings,
         bool enableLiveColumnResizing,
         double gridFontSize,
+        DetailsGridFontWeight gridFontWeight,
         double gridRowHeight,
         SettingsPalette palette,
         TaskManagerWindowResources resources)
@@ -147,6 +149,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _processIconService.IconsChanged += OnIconsChanged;
         _schema = schema;
         _resources = resources;
+        _tableTypeface = new Typeface(
+            DefaultTableTypeface.FontFamily,
+            FontStyle.Normal,
+            (FontWeight)(int)gridFontWeight);
         _metrics = CreateTableMetrics(resources, gridFontSize, gridRowHeight);
         _visualMetrics = CreateVisualMetrics(resources);
         _usesAXAMLFontSize = Math.Abs(gridFontSize - resources.AxamlProcessTable.FontSize) < 0.01;
@@ -2392,8 +2398,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             FormattedText headerText = CreateText(
                 column.Title,
                 _metrics.HeaderFontSize,
-                _foregroundBrush,
-                FontWeight.Normal);
+                _foregroundBrush);
             if (column.Alignment == ProcessTableColumnAlignment.Right)
             {
                 headerText.TextAlignment = TextAlignment.Right;
@@ -2461,16 +2466,15 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         return text;
     }
 
-    private static FormattedText CreateText(
+    private FormattedText CreateText(
         string text,
         double fontSize,
-        IBrush brush,
-        FontWeight? fontWeight = null) =>
+        IBrush brush) =>
         new(
             text,
             TableCulture,
             FlowDirection.LeftToRight,
-            new Typeface(TableTypeface.FontFamily, FontStyle.Normal, fontWeight ?? FontWeight.Normal),
+            _tableTypeface,
             fontSize,
             brush);
 

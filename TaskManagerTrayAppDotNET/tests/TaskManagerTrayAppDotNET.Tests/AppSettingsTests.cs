@@ -38,4 +38,26 @@ public sealed class AppSettingsTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    [Fact]
+    public void GridFontWeightDefaultsToNormalAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.Equal(DetailsGridFontWeight.Normal, settings.GridFontWeight);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.GridFontWeight = DetailsGridFontWeight.SemiBold;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(DetailsGridFontWeight.SemiBold, loaded.GridFontWeight);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }
