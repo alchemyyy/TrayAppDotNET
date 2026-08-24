@@ -28,6 +28,32 @@ internal readonly record struct ProcessRowContextMenuRequest(
 /// <summary>Composites two retained drawing roots per process from shared visible-column fragments.</summary>
 internal sealed class ProcessDetailsCanvas : Control, IDisposable
 {
+    [Flags]
+    private enum RenderLayerMask : byte
+    {
+        None = 0,
+        StaticRows = 1 << 0,
+        DynamicRows = 1 << 1,
+        Icons = 1 << 2,
+        CopyPreview = 1 << 3,
+        Chrome = 1 << 4,
+        Header = 1 << 5,
+        HeaderInteraction = 1 << 6,
+        Rows = StaticRows | DynamicRows,
+        All = StaticRows | DynamicRows | Icons | CopyPreview | Chrome | Header | HeaderInteraction
+    }
+
+    private enum RenderLayerKind : byte
+    {
+        StaticRows,
+        DynamicRows,
+        Icons,
+        CopyPreview,
+        Chrome,
+        Header,
+        HeaderInteraction
+    }
+
     private const int DynamicRefreshBatchSize = 16;
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
@@ -41,6 +67,15 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly ProcessDataSchema _schema;
     private readonly TaskManagerWindowResources _resources;
     private readonly Typeface _tableTypeface;
+    private readonly ProcessTableRenderLayer _staticRowsLayer;
+    private readonly ProcessTableRenderLayer _dynamicRowsLayer;
+    private readonly ProcessTableRenderLayer _iconsLayer;
+    private readonly ProcessTableRenderLayer _copyPreviewLayer;
+    private readonly ProcessTableRenderLayer _chromeLayer;
+    private readonly ProcessTableRenderLayer _headerLayer;
+    private readonly ProcessTableRenderLayer _headerInteractionLayer;
+    private readonly ProcessHeaderHoverVisual _headerHoverLayer;
+    private readonly Control[] _renderLayers;
     private ProcessTableMetrics _metrics;
     private ProcessTableVisualMetrics _visualMetrics;
     private ProcessTableColumnWidths _axamlColumnWidths;
@@ -60,7 +95,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
     private readonly IBrush _accentBrush;
-    private readonly IBrush _hoverBrush;
     private readonly IBrush _borderBrush;
     private Pen _gridPen;
     private Pen _columnInteractionPen;
@@ -179,7 +213,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
-        _hoverBrush = TrayAppDotNETSettingsUI.Brush(palette.Hover);
         _borderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border);
         _gridPen = new Pen(_borderBrush, _visualMetrics.GridLineThickness);
         _columnInteractionPen = new Pen(
@@ -203,6 +236,26 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             _visualMetrics.SortCaretFontSize,
             _secondaryForegroundBrush);
 
+        _staticRowsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.StaticRows);
+        _dynamicRowsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.DynamicRows);
+        _iconsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.Icons);
+        _copyPreviewLayer = new ProcessTableRenderLayer(this, RenderLayerKind.CopyPreview);
+        _chromeLayer = new ProcessTableRenderLayer(this, RenderLayerKind.Chrome);
+        _headerLayer = new ProcessTableRenderLayer(this, RenderLayerKind.Header);
+        _headerInteractionLayer = new ProcessTableRenderLayer(this, RenderLayerKind.HeaderInteraction);
+        _headerHoverLayer = new ProcessHeaderHoverVisual(palette.Hover);
+        _renderLayers =
+        [
+            _staticRowsLayer,
+            _dynamicRowsLayer,
+            _iconsLayer,
+            _copyPreviewLayer,
+            _chromeLayer,
+            _headerHoverLayer,
+            _headerLayer,
+            _headerInteractionLayer
+        ];
+
         ClipToBounds = true;
         Focusable = true;
         EffectiveViewportChanged += OnEffectiveViewportChanged;
@@ -222,6 +275,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private ProcessTableColumn[] DisplayColumns =>
         _isLiveColumnResizeActive ? _liveResizeColumns! : _columns;
+
+    /// <summary>Returns the fixed retained visual stack rendered beneath the input canvas.</summary>
+    public IReadOnlyList<Control> RenderLayers => _renderLayers;
 
     public int? SelectedProcessID => _selectedProcess?.ProcessID;
 
@@ -251,7 +307,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     public void SetFilter(string? filterText)
@@ -271,7 +327,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -291,22 +347,56 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         // Keep every row and column position in Avalonia's render-data hit-test surface
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
+    }
 
-        Rect viewport = ResolveViewport();
-        double stickyHeaderTop = Math.Clamp(viewport.Y, 0, Math.Max(0, Bounds.Height - _metrics.HeaderHeight));
-        ProcessTableLayout.GetVisibleRowRange(
-            viewport,
-            _visibleRowCount,
-            _metrics,
-            out int firstRow,
-            out int lastRowExclusive);
-        for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
-            DrawRetainedRow(context, viewport, visibleIndex);
+    private void RenderLayer(DrawingContext context, RenderLayerKind layerKind)
+    {
+        if (_disposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
-        DrawCopyPreviewUnderline(context);
-        DrawColumnGrid(context, viewport);
-        DrawHeader(context, stickyHeaderTop);
-        DrawHeaderInteraction(context, viewport, stickyHeaderTop);
+        switch (layerKind)
+        {
+            case RenderLayerKind.StaticRows:
+                DrawRetainedRows(context, ProcessTableColumnLifetime.Static);
+                return;
+            case RenderLayerKind.DynamicRows:
+                DrawRetainedRows(context, ProcessTableColumnLifetime.Dynamic);
+                return;
+            case RenderLayerKind.Icons:
+                DrawProcessIcons(context);
+                return;
+            case RenderLayerKind.CopyPreview:
+                DrawCopyPreviewUnderline(context);
+                return;
+            case RenderLayerKind.Chrome:
+            {
+                Rect viewport = ResolveViewport();
+                double headerTop = ResolveStickyHeaderTop(viewport);
+                DrawColumnGrid(context, viewport);
+                DrawHeaderBackground(context, headerTop);
+                return;
+            }
+            case RenderLayerKind.Header:
+                DrawHeaderContent(context, ResolveStickyHeaderTop(ResolveViewport()));
+                return;
+            case RenderLayerKind.HeaderInteraction:
+            {
+                Rect viewport = ResolveViewport();
+                DrawHeaderInteraction(context, viewport, ResolveStickyHeaderTop(viewport));
+                return;
+            }
+        }
+    }
+
+    private void InvalidateLayers(RenderLayerMask layers)
+    {
+        if ((layers & RenderLayerMask.StaticRows) != 0) _staticRowsLayer.InvalidateVisual();
+        if ((layers & RenderLayerMask.DynamicRows) != 0) _dynamicRowsLayer.InvalidateVisual();
+        if ((layers & RenderLayerMask.Icons) != 0) _iconsLayer.InvalidateVisual();
+        if ((layers & RenderLayerMask.CopyPreview) != 0) _copyPreviewLayer.InvalidateVisual();
+        if ((layers & RenderLayerMask.Chrome) != 0) _chromeLayer.InvalidateVisual();
+        if ((layers & RenderLayerMask.Header) != 0) _headerLayer.InvalidateVisual();
+        if ((layers & RenderLayerMask.HeaderInteraction) != 0)
+            _headerInteractionLayer.InvalidateVisual();
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs eventArgs)
@@ -490,7 +580,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _capturedHeaderPointer = null;
         ClearHeaderInteractionState();
         Cursor = TrayAppDotNETCursors.Arrow;
-        InvalidateVisual();
     }
 
     /// <summary>Switches between a flat sorted list and an allocation-free parent-process tree.</summary>
@@ -507,7 +596,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     /// <summary>Shows the copy target preview requested by the active row context menu.</summary>
@@ -517,7 +606,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         _copyPreviewMode = previewMode;
         RebuildCopyPreview();
-        InvalidateVisual();
+        InvalidateLayers(RenderLayerMask.CopyPreview);
     }
 
     /// <summary>Rebuilds retained row text at a new font size and row height.</summary>
@@ -542,7 +631,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     /// <summary>Applies one column's display properties without changing the visible schema.</summary>
@@ -590,12 +679,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         PublishWarmProcesses();
         ScheduleWarmDynamicRefresh();
-        InvalidateVisual();
+        UpdateHeaderHoverVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     private bool IsHeaderPosition(double positionY)
     {
-        double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
+        double stickyHeaderTop = ResolveStickyHeaderTop(ResolveViewport());
         return positionY >= stickyHeaderTop
                && positionY < stickyHeaderTop + _metrics.HeaderHeight;
     }
@@ -666,9 +756,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                         _liveResizeColumns);
                     _isLiveColumnResizeActive = true;
                     InvalidateMeasure();
+                    UpdateHeaderHoverVisual();
+                    InvalidateLayers(
+                        RenderLayerMask.Rows
+                        | RenderLayerMask.Icons
+                        | RenderLayerMask.Chrome
+                        | RenderLayerMask.Header
+                        | RenderLayerMask.HeaderInteraction);
+                    return;
                 }
 
-                InvalidateVisual();
+                InvalidateLayers(RenderLayerMask.HeaderInteraction);
                 return;
             }
             case HeaderInteractionMode.Reordering:
@@ -681,7 +779,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                                || Math.Abs(position.X - _headerDragX) >= 0.01;
                 _reorderInsertionIndex = nextInsertionIndex;
                 _headerDragX = position.X;
-                if (changed) InvalidateVisual();
+                if (changed) InvalidateLayers(RenderLayerMask.HeaderInteraction);
                 return;
             }
         }
@@ -710,7 +808,22 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         if (_hoveredHeaderColumnIndex == columnIndex) return;
         _hoveredHeaderColumnIndex = columnIndex;
-        InvalidateVisual();
+        UpdateHeaderHoverVisual();
+    }
+
+    private void UpdateHeaderHoverVisual()
+    {
+        ProcessTableColumn[] columns = DisplayColumns;
+        if ((uint)_hoveredHeaderColumnIndex >= (uint)columns.Length)
+        {
+            _headerHoverLayer.SetHighlightBounds(null);
+            return;
+        }
+
+        ProcessTableColumn column = columns[_hoveredHeaderColumnIndex];
+        double headerTop = ResolveStickyHeaderTop(ResolveViewport());
+        _headerHoverLayer.SetHighlightBounds(
+            new Rect(column.Left, headerTop, column.Width, _metrics.HeaderHeight));
     }
 
     private void ResetHeaderInteraction()
@@ -730,13 +843,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 TADNLog.Log($"ProcessDetailsCanvas header pointer release failed: {exception.Message}");
             }
         }
-
-        InvalidateVisual();
     }
 
     private void ClearHeaderInteractionState()
     {
-        if (_isLiveColumnResizeActive)
+        bool wasLiveColumnResizeActive = _isLiveColumnResizeActive;
+        if (wasLiveColumnResizeActive)
         {
             _isLiveColumnResizeActive = false;
             InvalidateMeasure();
@@ -747,11 +859,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _reorderInsertionIndex = -1;
         _resizeInitialWidth = 0;
         _resizePreviewWidth = 0;
+        UpdateHeaderHoverVisual();
+        InvalidateLayers(wasLiveColumnResizeActive
+            ? RenderLayerMask.Rows
+              | RenderLayerMask.Icons
+              | RenderLayerMask.Chrome
+              | RenderLayerMask.Header
+              | RenderLayerMask.HeaderInteraction
+            : RenderLayerMask.HeaderInteraction);
     }
 
     private void OnIconsChanged()
     {
-        if (!_disposed) InvalidateVisual();
+        if (!_disposed) InvalidateLayers(RenderLayerMask.Icons);
     }
 
     private void OnAXAMLResourcesReloaded()
@@ -824,7 +944,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         RebuildCopyPreview();
         PublishWarmProcesses();
         InvalidateMeasure();
-        InvalidateVisual();
+        UpdateHeaderHoverVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     private void OnCultureChanged(object? sender, EventArgs eventArgs)
@@ -837,7 +958,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _unavailableText = unavailableText;
         RebuildRetainedRowDrawings();
         RebuildCopyPreview();
-        InvalidateVisual();
+        InvalidateLayers(
+            RenderLayerMask.Rows
+            | RenderLayerMask.CopyPreview);
     }
 
     private void RecreatePens()
@@ -933,7 +1056,26 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             Math.Min(Bounds.Height, _visualMetrics.DefaultViewportHeight));
     }
 
-    private void DrawRetainedRow(DrawingContext context, Rect viewport, int visibleIndex)
+    private double ResolveStickyHeaderTop(Rect viewport) =>
+        Math.Clamp(viewport.Y, 0, Math.Max(0, Bounds.Height - _metrics.HeaderHeight));
+
+    private void DrawRetainedRows(DrawingContext context, ProcessTableColumnLifetime lifetime)
+    {
+        Rect viewport = ResolveViewport();
+        ProcessTableLayout.GetVisibleRowRange(
+            viewport,
+            _visibleRowCount,
+            _metrics,
+            out int firstRow,
+            out int lastRowExclusive);
+        for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
+            DrawRetainedRow(context, visibleIndex, lifetime);
+    }
+
+    private void DrawRetainedRow(
+        DrawingContext context,
+        int visibleIndex,
+        ProcessTableColumnLifetime lifetime)
     {
         int rowIndex = _visibleRowIndexes[visibleIndex];
         ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
@@ -944,12 +1086,30 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         using (context.PushTransform(Matrix.CreateTranslation(0, top)))
         {
             if (_isLiveColumnResizeActive && _liveResizeColumns != null)
-                DrawLiveResizedRow(context, cache, _liveResizeColumns);
+                DrawLiveResizedRow(context, cache, _liveResizeColumns, lifetime);
             else
-                DrawRetainedRowDrawings(context, cache);
+                DrawRetainedRowDrawing(context, cache, lifetime);
         }
+    }
 
-        DrawProcessIcon(context, viewport, rowIndex, row, top);
+    private void DrawProcessIcons(DrawingContext context)
+    {
+        Rect viewport = ResolveViewport();
+        ProcessTableLayout.GetVisibleRowRange(
+            viewport,
+            _visibleRowCount,
+            _metrics,
+            out int firstRow,
+            out int lastRowExclusive);
+        for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null) continue;
+
+            double top = _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight;
+            DrawProcessIcon(context, viewport, rowIndex, row, top);
+        }
     }
 
     private void DrawCopyPreviewUnderline(DrawingContext context)
@@ -992,8 +1152,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _copyPreviewMode = ProcessCopyPreviewMode.None;
         _textPreviewVisibleIndex = -1;
         _textUnderlineSegmentCount = 0;
-        InvalidateVisual();
         EnsureDynamicDrawingCurrent(rowIndex, row);
+        InvalidateLayers(
+            RenderLayerMask.DynamicRows
+            | RenderLayerMask.CopyPreview);
 
         Array.Clear(_contextCopyValuesByColumn);
         for (int visibleColumnIndex = 0; visibleColumnIndex < columns.Length; visibleColumnIndex++)
@@ -1133,12 +1295,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void DrawLiveResizedRow(
         DrawingContext context,
         ProcessRowRenderCache cache,
-        ProcessTableColumn[] liveColumns)
+        ProcessTableColumn[] liveColumns,
+        ProcessTableColumnLifetime lifetime)
     {
         int resizedColumnIndex = _interactionColumnIndex;
         if ((uint)resizedColumnIndex >= (uint)_columns.Length)
         {
-            DrawRetainedRowDrawings(context, cache);
+            DrawRetainedRowDrawing(context, cache, lifetime);
             return;
         }
 
@@ -1149,7 +1312,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             context,
             cache,
             new Rect(0, 0, committedColumn.Left, _metrics.RowHeight),
-            0);
+            0,
+            lifetime);
 
         double sourceTranslation = committedColumn.Alignment == ProcessTableColumnAlignment.Right
             ? offset
@@ -1164,7 +1328,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 0,
                 Math.Max(0, sourceClipRight - sourceClipLeft),
                 _metrics.RowHeight),
-            sourceTranslation);
+            sourceTranslation,
+            lifetime);
 
         DrawRetainedRowSegment(
             context,
@@ -1174,14 +1339,16 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 0,
                 Math.Max(0, Bounds.Width - liveColumn.Right),
                 _metrics.RowHeight),
-            offset);
+            offset,
+            lifetime);
     }
 
     private static void DrawRetainedRowSegment(
         DrawingContext context,
         ProcessRowRenderCache cache,
         Rect clip,
-        double translationX)
+        double translationX,
+        ProcessTableColumnLifetime lifetime)
     {
         if (clip.Width <= 0 || clip.Height <= 0) return;
 
@@ -1189,19 +1356,29 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         {
             if (Math.Abs(translationX) < 0.01)
             {
-                DrawRetainedRowDrawings(context, cache);
+                DrawRetainedRowDrawing(context, cache, lifetime);
                 return;
             }
 
             using (context.PushTransform(Matrix.CreateTranslation(translationX, 0)))
-                DrawRetainedRowDrawings(context, cache);
+                DrawRetainedRowDrawing(context, cache, lifetime);
         }
     }
 
-    private static void DrawRetainedRowDrawings(DrawingContext context, ProcessRowRenderCache cache)
+    private static void DrawRetainedRowDrawing(
+        DrawingContext context,
+        ProcessRowRenderCache cache,
+        ProcessTableColumnLifetime lifetime)
     {
-        cache.StaticDrawing?.Draw(context);
-        cache.DynamicDrawing?.Draw(context);
+        switch (lifetime)
+        {
+            case ProcessTableColumnLifetime.Static:
+                cache.StaticDrawing?.Draw(context);
+                return;
+            case ProcessTableColumnLifetime.Dynamic:
+                cache.DynamicDrawing?.Draw(context);
+                return;
+        }
     }
 
     private void DrawProcessIcon(
@@ -1296,25 +1473,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
     }
 
-    private void DrawHeader(DrawingContext context, double top)
+    private void DrawHeaderBackground(DrawingContext context, double top)
     {
         Rect headerBounds = new(0, top, Bounds.Width, _metrics.HeaderHeight);
         context.FillRectangle(_backgroundBrush, headerBounds);
-
-        ProcessTableColumn[] columns = DisplayColumns;
-        if ((uint)_hoveredHeaderColumnIndex < (uint)columns.Length)
-        {
-            ProcessTableColumn hoveredColumn = columns[_hoveredHeaderColumnIndex];
-            context.FillRectangle(
-                _hoverBrush,
-                new Rect(hoveredColumn.Left, top, hoveredColumn.Width, _metrics.HeaderHeight));
-        }
-
         context.DrawLine(
             _gridPen,
             new Point(0, top + _metrics.HeaderHeight),
             new Point(Bounds.Width, top + _metrics.HeaderHeight));
+    }
 
+    private void DrawHeaderContent(DrawingContext context, double top)
+    {
+        ProcessTableColumn[] columns = DisplayColumns;
         Rect viewport = ResolveViewport();
         for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
         {
@@ -1871,7 +2042,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             }
         }
 
-        if (changed) InvalidateVisual();
+        if (changed) InvalidateLayers(RenderLayerMask.DynamicRows);
         if (_warmRefreshCursor < _warmRefreshEnd)
         {
             _dynamicRefreshScheduled = true;
@@ -1980,7 +2151,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
-        InvalidateVisual();
+        UpdateHeaderHoverVisual();
+        InvalidateLayers(RenderLayerMask.All);
     }
 
     private void SortFromHeader(double x)
@@ -2003,7 +2175,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         ScheduleWarmDynamicRefresh();
-        InvalidateVisual();
+        InvalidateLayers(
+            RenderLayerMask.Rows
+            | RenderLayerMask.Icons
+            | RenderLayerMask.CopyPreview
+            | RenderLayerMask.Header);
     }
 
     private void SelectVisibleRow(int visibleIndex)
@@ -2053,13 +2229,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         UpdateHoverFromPointer();
         RebuildCopyPreview();
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidateLayers(RenderLayerMask.All);
         return true;
     }
 
     private void UpdateHoveredRow(double positionY)
     {
-        double stickyHeaderTop = Math.Max(0, _effectiveViewport.Y);
+        double stickyHeaderTop = ResolveStickyHeaderTop(ResolveViewport());
         int visibleIndex = -1;
         if (positionY < stickyHeaderTop || positionY >= stickyHeaderTop + _metrics.HeaderHeight)
             visibleIndex = ProcessTableLayout.HitTestRow(positionY, _visibleRowCount, _metrics);
@@ -2595,7 +2771,28 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _collapsedProcesses.Clear();
         _rowIndexByProcessID.Clear();
         Array.Clear(_contextCopyValuesByColumn);
+        _headerHoverLayer.Dispose();
         _snapshot.Reset();
+    }
+
+    private sealed class ProcessTableRenderLayer : Control
+    {
+        private readonly ProcessDetailsCanvas _owner;
+        private readonly RenderLayerKind _layerKind;
+
+        public ProcessTableRenderLayer(ProcessDetailsCanvas owner, RenderLayerKind layerKind)
+        {
+            _owner = owner;
+            _layerKind = layerKind;
+            ClipToBounds = true;
+            IsHitTestVisible = false;
+        }
+
+        public override void Render(DrawingContext context)
+        {
+            base.Render(context);
+            _owner.RenderLayer(context, _layerKind);
+        }
     }
 
     private readonly record struct CellTextLayout(
