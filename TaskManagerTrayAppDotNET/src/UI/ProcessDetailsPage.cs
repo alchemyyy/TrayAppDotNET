@@ -8,7 +8,7 @@ using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Builds the Details toolbar around the allocation-light painted process table.</summary>
+/// <summary>Builds the Processes toolbar around the allocation-light painted process table.</summary>
 internal sealed class ProcessDetailsPage : Grid, IDisposable
 {
     private const double GridFontZoomStep = 0.5;
@@ -21,6 +21,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly Func<string, bool> _startProcess;
     private readonly AppSettings _settings;
     private readonly SettingsPalette _palette;
+    private readonly TaskManagerWindowResources _resources;
     private readonly ProcessDetailsCanvas _processCanvas;
     private readonly ProcessRowContextMenuController _rowContextMenuController;
     private readonly TextBox _searchBox;
@@ -33,6 +34,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly SettingsButton _cancelRunButton;
     private readonly SettingsToggle _groupProcessesToggle;
     private readonly SettingsScrollViewport _tableScrollViewport;
+    private readonly TaskManagerResizeGrip _resizeGrip;
     private readonly Border _hoverHighlight;
     private readonly Border _selectionHighlight;
     private readonly TranslateTransform _hoverTransform = new();
@@ -55,6 +57,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _snapshotService = snapshotService;
         _settings = settings;
         _palette = palette;
+        _resources = resources;
         _armTerminationTarget = armTerminationTarget;
         _terminateProcess = terminateProcess;
         _reportMessage = reportMessage;
@@ -137,18 +140,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Grid.SetRow(_runPanel, 2);
         Children.Add(_runPanel);
 
-        SettingsScrollBarStyle scrollBarStyle = new(
-            resources.AxamlProcessTable.ScrollBarTrackThickness,
-            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
-            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
-            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
-            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
-            TaskManagerWindowResources.ProcessGridBackgroundColor,
-            TaskManagerWindowResources.ProcessGridScrollThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            ShowButtonsOnHover: true);
+        SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
         _hoverHighlight = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Hover),
@@ -162,7 +154,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent),
-            BorderThickness = new Thickness(3, 0, 0, 0),
+            BorderThickness = resources.AxamlProcessTable.SelectionBorderThickness,
             Height = settings.GridRowHeight,
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
@@ -174,12 +166,13 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         tableSurface.Children.Add(_selectionHighlight);
         tableSurface.Children.Add(_processCanvas);
 
+        _resizeGrip = new TaskManagerResizeGrip(resources);
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
             default,
             TaskManagerWindowResources.ProcessGridBackgroundColor,
             scrollBarStyle,
-            new TaskManagerResizeGrip(resources))
+            _resizeGrip)
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
@@ -187,6 +180,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Children.Add(_tableScrollViewport);
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
+        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
         _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
         _processCanvas.RefreshFrom(_snapshotService);
     }
@@ -203,7 +197,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         };
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(
-            "Details",
+            "Processes",
             palette,
             resources.AxamlTaskManagerDetails.TitleFontSize,
             FontWeight.SemiBold);
@@ -257,6 +251,30 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         if (_disposed) return;
         _processCanvas.RefreshFrom(_snapshotService);
     }
+
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(_resources));
+        _resizeGrip.ApplyResources(_resources);
+        _selectionHighlight.BorderThickness = _resources.AxamlProcessTable.SelectionBorderThickness;
+    }
+
+    private static SettingsScrollBarStyle CreateProcessTableScrollBarStyle(
+        TaskManagerWindowResources resources) =>
+        new(
+            resources.AxamlProcessTable.ScrollBarTrackThickness,
+            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
+            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
+            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
+            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
+            TaskManagerWindowResources.ProcessGridBackgroundColor,
+            TaskManagerWindowResources.ProcessGridScrollThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            ShowButtonsOnHover: true);
 
     private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
     {
@@ -403,7 +421,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     {
         if (_disposed) return;
         if (TopLevel.GetTopLevel(this) is TaskManagerWindow window)
-            window.RefreshDetailsColumns();
+            window.RefreshProcessColumns();
     }
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs) =>
@@ -470,6 +488,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
         _disposed = true;
         _armTerminationTarget(null);
+        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.HoverRowTopChanged -= OnHoverRowTopChanged;

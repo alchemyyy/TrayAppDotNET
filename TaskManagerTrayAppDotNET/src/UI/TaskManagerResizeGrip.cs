@@ -8,21 +8,29 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Paints and handles the southeast resize grip in the process-table scrollbar corner.</summary>
 internal sealed class TaskManagerResizeGrip : Control
 {
-    private const int DotRows = 3;
-
     private readonly IBrush _backgroundBrush;
     private readonly IBrush _dotBrush;
-    private readonly double _dotSize;
-    private readonly double _dotStep;
+    private double _dotSize;
+    private double _dotStep;
+    private int _dotRows;
 
     public TaskManagerResizeGrip(TaskManagerWindowResources resources)
     {
         _backgroundBrush = TrayAppDotNETSettingsUI.Brush(TaskManagerWindowResources.ProcessGridBackgroundColor);
         _dotBrush = TrayAppDotNETSettingsUI.Brush(TaskManagerWindowResources.ProcessGridResizeGripColor);
-        _dotSize = resources.AxamlProcessTable.ResizeGripDotSize;
-        _dotStep = resources.AxamlProcessTable.ResizeGripDotStep;
+        ApplyResources(resources);
         Cursor = TrayAppDotNETCursors.BottomRightCorner;
         Focusable = false;
+    }
+
+    /// <summary>Applies hot-reloaded process-table geometry.</summary>
+    public void ApplyResources(TaskManagerWindowResources resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        _dotSize = resources.AxamlProcessTable.ResizeGripDotSize;
+        _dotStep = resources.AxamlProcessTable.ResizeGripDotStep;
+        _dotRows = resources.AxamlProcessTable.ResizeGripDotRows;
+        InvalidateVisual();
     }
 
     public override void Render(DrawingContext context)
@@ -33,7 +41,7 @@ internal sealed class TaskManagerResizeGrip : Control
         int visibleRows = Math.Clamp(
             (int)Math.Floor((availableSize - _dotSize * 2) / _dotStep) + 1,
             0,
-            DotRows);
+            _dotRows);
         for (int row = 0; row < visibleRows; row++)
         {
             double top = Bounds.Height - _dotSize * 2 - row * _dotStep;

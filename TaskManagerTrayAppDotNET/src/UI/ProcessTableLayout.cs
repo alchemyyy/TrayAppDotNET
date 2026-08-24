@@ -102,7 +102,7 @@ internal readonly record struct ProcessTableColumnDefinition(
     ProcessTableColumnAlignment Alignment,
     bool DefaultVisible);
 
-/// <summary>Complete Details-column catalog for the current Windows Task Manager surface.</summary>
+/// <summary>Complete Processes-column catalog for the current Windows Task Manager surface.</summary>
 internal static class ProcessTableColumnCatalog
 {
     private const double NarrowWidth = 76;

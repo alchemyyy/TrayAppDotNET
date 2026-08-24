@@ -6,7 +6,7 @@ using Avalonia.Layout;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Configures Details-column visibility and ordering.</summary>
+/// <summary>Configures Processes-column visibility and ordering.</summary>
 internal sealed class ProcessColumnChooserWindow : Window
 {
     private const double WindowWidth = 560;
@@ -28,7 +28,7 @@ internal sealed class ProcessColumnChooserWindow : Window
 
         _apply = apply;
         _settings = ProcessColumnSettings.CloneList(settings);
-        Title = "Select Details columns";
+        Title = "Select Processes columns";
         Width = WindowWidth;
         Height = WindowHeight;
         MinWidth = WindowWidth;

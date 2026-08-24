@@ -3,7 +3,7 @@ using System.Text;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
-/// <summary>Reads Windows Information Protection context only while its Details column is active.</summary>
+/// <summary>Reads Windows Information Protection context only while its Processes column is active.</summary>
 internal sealed unsafe class EnterpriseContextReader : IDisposable
 {
     public const string NotApplicable = "N/A";

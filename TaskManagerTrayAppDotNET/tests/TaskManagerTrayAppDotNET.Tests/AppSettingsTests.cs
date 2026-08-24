@@ -60,4 +60,32 @@ public sealed class AppSettingsTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    [Fact]
+    public void WindowManagementDefaultsPreserveExistingTrayBehaviorAndRoundTrip()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.False(settings.AlwaysOnTop);
+        Assert.True(settings.CloseToTray);
+        Assert.False(settings.MinimizeToTray);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.AlwaysOnTop = true;
+            settings.CloseToTray = false;
+            settings.MinimizeToTray = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.True(loaded.AlwaysOnTop);
+            Assert.False(loaded.CloseToTray);
+            Assert.True(loaded.MinimizeToTray);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

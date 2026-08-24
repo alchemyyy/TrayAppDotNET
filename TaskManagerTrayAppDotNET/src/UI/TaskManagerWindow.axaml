@@ -25,6 +25,10 @@
   <Thickness x:Key="TaskManagerDetails.TableMargin">0,10,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
 
+  <!-- Task Manager settings -->
+  <Thickness x:Key="TaskManagerSettings.WindowManagementOptionsMargin">0,8,0,0</Thickness>
+  <sys:Double x:Key="TaskManagerSettings.WindowManagementOptionSpacing">6</sys:Double>
+
   <!-- Painted process table -->
   <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>
   <sys:Double x:Key="ProcessTable.RowHeight">19</sys:Double>
@@ -63,4 +67,6 @@
   <sys:Double x:Key="ProcessTable.ScrollBarMinimumThumbLength">28</sys:Double>
   <sys:Double x:Key="ProcessTable.ResizeGripDotSize">2</sys:Double>
   <sys:Double x:Key="ProcessTable.ResizeGripDotStep">4</sys:Double>
+  <sys:Int32 x:Key="ProcessTable.ResizeGripDotRows">3</sys:Int32>
+  <Thickness x:Key="ProcessTable.SelectionBorderThickness">3,0,0,0</Thickness>
 </ResourceDictionary>

@@ -6,7 +6,7 @@ using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Base window for live editing of one Details column's display properties.</summary>
+/// <summary>Base window for live editing of one Processes column's display properties.</summary>
 internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
 {
     private const double WindowWidth = 460;

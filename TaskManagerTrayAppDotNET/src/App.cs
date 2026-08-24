@@ -149,7 +149,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _theme,
             _snapshotService,
             _processIconService,
-            _processTerminationService);
+            _processTerminationService,
+            ExitApplication);
     }
 
     private void CreateTrayIcon()

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
 
@@ -14,7 +15,6 @@ public enum TaskManagerPage
     AppHistory,
     StartupApps,
     Users,
-    Details,
     Services,
     Settings
 }
@@ -27,7 +27,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private static readonly Glyph AppHistoryGlyph = Glyph.Fluent("\uE81C");
     private static readonly Glyph StartupAppsGlyph = Glyph.Fluent("\uE768");
     private static readonly Glyph UsersGlyph = Glyph.Fluent("\uE716");
-    private static readonly Glyph DetailsGlyph = Glyph.Fluent("\uE8FD");
     private static readonly Glyph ServicesGlyph = Glyph.Fluent("\uEA86");
 
     private readonly AppSettings _settings;
@@ -35,22 +34,26 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessSnapshotService _snapshotService;
     private readonly ProcessIconService _processIconService;
     private readonly ProcessTerminationService _processTerminationService;
+    private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
     private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
+    private bool _exitRequested;
 
     public TaskManagerWindow(
         AppSettings settings,
         AppTheme theme,
         ProcessSnapshotService snapshotService,
         ProcessIconService processIconService,
-        ProcessTerminationService processTerminationService)
+        ProcessTerminationService processTerminationService,
+        Action exitApplication)
     {
         _settings = settings;
         _theme = theme;
         _snapshotService = snapshotService;
         _processIconService = processIconService;
         _processTerminationService = processTerminationService;
+        _exitApplication = exitApplication;
         Resources.MergedDictionaries.Add(_taskManagerResources);
 
         ConfigureSettingsWindow(Constants.DisplayName, icon: null);
@@ -58,7 +61,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         Height = _taskManagerResources.AxamlTaskManagerWindow.Height;
         MinWidth = _taskManagerResources.AxamlTaskManagerWindow.MinWidth;
         MinHeight = _taskManagerResources.AxamlTaskManagerWindow.MinHeight;
+        Topmost = settings.AlwaysOnTop;
         Closing += OnWindowClosing;
+        PropertyChanged += OnWindowPropertyChanged;
         InitializeSettingsShell();
     }
 
@@ -67,7 +72,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool ShowSettingsSearchBox => false;
     protected override bool UseExtendedTitleBarDragZone => false;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
-    protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Details;
+    protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Processes;
     protected override bool HandleNavigationRequest(TaskManagerPage pageKey)
     {
         if (pageKey != TaskManagerPage.Settings) return false;
@@ -76,7 +81,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     }
     protected override Thickness ContentPadding => default;
     protected override double SidebarWidth => _taskManagerResources.AxamlTaskManagerWindow.SidebarWidth;
-    protected override TaskManagerPage DefaultPageKey => TaskManagerPage.Details;
+    protected override TaskManagerPage DefaultPageKey => TaskManagerPage.Processes;
     protected override string HeaderText => Constants.DisplayName;
     protected override string OpenSettingsFolderText => "Open Task Manager settings folder";
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
@@ -88,12 +93,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override IReadOnlyList<SettingsPageDescriptor<TaskManagerPage>> CreatePageDescriptors() =>
     [
-        new(TaskManagerPage.Processes, "Processes", () => BuildPlaceholderPage("Processes"), ProcessesGlyph),
+        new(TaskManagerPage.Processes, "Processes", BuildProcessesPage, ProcessesGlyph),
         new(TaskManagerPage.Performance, "Performance", () => BuildPlaceholderPage("Performance"), PerformanceGlyph),
         new(TaskManagerPage.AppHistory, "App history", () => BuildPlaceholderPage("App history"), AppHistoryGlyph),
         new(TaskManagerPage.StartupApps, "Startup apps", () => BuildPlaceholderPage("Startup apps"), StartupAppsGlyph),
         new(TaskManagerPage.Users, "Users", () => BuildPlaceholderPage("Users"), UsersGlyph),
-        new(TaskManagerPage.Details, "Details", BuildDetailsPage, DetailsGlyph),
         new(TaskManagerPage.Services, "Services", () => BuildPlaceholderPage("Services"), ServicesGlyph),
         new(TaskManagerPage.Settings, "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
     ];
@@ -103,17 +107,22 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override void OnSettingsWindowClosed()
     {
         Closing -= OnWindowClosing;
+        PropertyChanged -= OnWindowPropertyChanged;
         base.OnSettingsWindowClosed();
     }
 
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>
-    internal void RefreshTheme() => RebuildShell(CurrentPageKey);
-
-    /// <summary>Rebuilds the Details drawing DAG after its visible schema or order changes.</summary>
-    internal void RefreshDetailsColumns()
+    internal void RefreshTheme()
     {
-        if (CurrentPageKey == TaskManagerPage.Details)
-            RebuildShell(TaskManagerPage.Details);
+        Topmost = _settings.AlwaysOnTop;
+        RebuildShell(CurrentPageKey);
+    }
+
+    /// <summary>Rebuilds the Processes drawing DAG after its visible schema or order changes.</summary>
+    internal void RefreshProcessColumns()
+    {
+        if (CurrentPageKey == TaskManagerPage.Processes)
+            RebuildShell(TaskManagerPage.Processes);
     }
 
     /// <summary>Allows app shutdown to close the otherwise warm, hide-on-close window.</summary>
@@ -157,7 +166,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         uninstaller.Show(owner);
     }
 
-    private Control BuildDetailsPage()
+    private Control BuildProcessesPage()
     {
         ProcessDetailsPage page = new(
             _snapshotService,
@@ -177,10 +186,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         SettingsPalette palette = Palette;
         StackPanel stack = PageStack("Settings", palette);
         stack.Margin = _taskManagerResources.AxamlTaskManagerDetails.PlaceholderMargin;
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Details", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Processes", palette));
         stack.Children.Add(BoolCard(
             "Live column resizing",
-            "Update Details column widths and positions while dragging a divider. Turn this off to show a resize guide and apply the width on release.",
+            "Update Processes column widths and positions while dragging a divider. Turn this off to show a resize guide and apply the width on release.",
             _settings.EnableLiveDetailsColumnResizing,
             enabled => _settings.EnableLiveDetailsColumnResizing = enabled,
             palette));
@@ -219,12 +228,34 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _ => _theme.IsLightTheme
     };
 
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
+    {
+        if (_allowClose
+            || !_settings.MinimizeToTray
+            || change.Property != WindowStateProperty
+            || WindowState != WindowState.Minimized)
+        {
+            return;
+        }
+
+        Hide();
+        WindowState = WindowState.Normal;
+    }
+
     private void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
     {
         if (_allowClose || Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime)
             return;
 
         eventArgs.Cancel = true;
-        Hide();
+        if (_settings.CloseToTray)
+        {
+            Hide();
+            return;
+        }
+
+        if (_exitRequested) return;
+        _exitRequested = true;
+        Dispatcher.UIThread.Post(_exitApplication);
     }
 }

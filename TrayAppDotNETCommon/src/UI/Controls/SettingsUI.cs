@@ -1182,6 +1182,15 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         base.OnPointerWheelChanged(eventArgs);
     }
 
+    /// <summary>Applies new painted-scrollbar visuals without replacing the scroll viewport.</summary>
+    public void SetScrollBarStyle(SettingsScrollBarStyle scrollBarStyle)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _verticalScrollBar.SetStyle(scrollBarStyle);
+        _horizontalScrollBar.SetStyle(scrollBarStyle);
+        _cornerHost.Background = TrayAppDotNETSettingsUI.Brush(scrollBarStyle.TrackColor);
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
@@ -1212,12 +1221,12 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
 internal sealed class SettingsScrollBar : Control, IDisposable
 {
     private readonly Orientation _orientation;
-    private readonly SettingsScrollBarStyle _style;
-    private readonly IBrush _trackBrush;
-    private readonly IBrush _idleThumbBrush;
-    private readonly IBrush _hoverThumbBrush;
-    private readonly IBrush _dragThumbBrush;
-    private readonly Pen _arrowPen;
+    private SettingsScrollBarStyle _style;
+    private IBrush _trackBrush;
+    private IBrush _idleThumbBrush;
+    private IBrush _hoverThumbBrush;
+    private IBrush _dragThumbBrush;
+    private Pen _arrowPen;
     private ScrollViewer? _viewer;
     private bool _isPointerOver;
     private bool _isDragging;
@@ -1287,6 +1296,25 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         if (_isExternallyExpanded == isExpanded) return;
 
         _isExternallyExpanded = isExpanded;
+        UpdateTrackThickness();
+        InvalidateVisual();
+    }
+
+    /// <summary>Applies a new style while preserving scroll position and pointer state.</summary>
+    internal void SetStyle(SettingsScrollBarStyle style)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (style.TrackThickness <= 0)
+            throw new ArgumentOutOfRangeException(nameof(style), "Track thickness must be positive.");
+        if (style.IdleThumbThickness <= 0 || style.HoverThumbThickness <= 0)
+            throw new ArgumentOutOfRangeException(nameof(style), "Thumb thicknesses must be positive.");
+
+        _style = style;
+        _trackBrush = TrayAppDotNETSettingsUI.Brush(style.TrackColor);
+        _idleThumbBrush = TrayAppDotNETSettingsUI.Brush(style.IdleThumbColor);
+        _hoverThumbBrush = TrayAppDotNETSettingsUI.Brush(style.HoverThumbColor);
+        _dragThumbBrush = TrayAppDotNETSettingsUI.Brush(style.DragThumbColor);
+        _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), 1);
         UpdateTrackThickness();
         InvalidateVisual();
     }

@@ -21,6 +21,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
 
     private readonly AppSettings _settings;
     private readonly Action<string, InstallScope> _showUninstaller;
+    private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
 
     public TaskManagerSettingsWindow(
         AppSettings settings,
@@ -32,6 +33,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         _settings = settings;
         _showUninstaller = showUninstaller;
         ConfigureCompactSettingsWindow("Task Manager settings", icon: null);
+        Topmost = settings.AlwaysOnTop;
         InitializeSettingsShell();
     }
 
@@ -92,6 +94,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             value => _settings.Autosave = value,
             palette,
             searchKeywords: ["save settings automatically"]));
+        stack.Children.Add(BuildWindowManagementCard(palette));
 
         commonSection.AddInstallationSection(
             stack,
@@ -132,12 +135,68 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         return stack;
     }
 
+    private Border BuildWindowManagementCard(SettingsPalette palette)
+    {
+        StackPanel options = new()
+        {
+            Margin = _taskManagerResources.AxamlTaskManagerSettings.WindowManagementOptionsMargin,
+            Spacing = _taskManagerResources.AxamlTaskManagerSettings.WindowManagementOptionSpacing
+        };
+        options.Children.Add(CreateWindowManagementCheckBox(
+            "Always on top",
+            _settings.AlwaysOnTop,
+            value =>
+            {
+                _settings.AlwaysOnTop = value;
+                Topmost = value;
+            },
+            palette));
+        options.Children.Add(CreateWindowManagementCheckBox(
+            "Close to Tray",
+            _settings.CloseToTray,
+            value => _settings.CloseToTray = value,
+            palette));
+        options.Children.Add(CreateWindowManagementCheckBox(
+            "Minimize to Tray",
+            _settings.MinimizeToTray,
+            value => _settings.MinimizeToTray = value,
+            palette));
+
+        StackPanel content = new();
+        content.Children.Add(TrayAppDotNETSettingsUI.TitleText("Window management", palette));
+        content.Children.Add(options);
+        return RawCard(
+            content,
+            palette,
+            ["always on top", "close to tray", "minimize to tray"]);
+    }
+
+    private CheckBox CreateWindowManagementCheckBox(
+        string text,
+        bool isChecked,
+        Action<bool> set,
+        SettingsPalette palette)
+    {
+        CheckBox checkBox = new()
+        {
+            Content = TrayAppDotNETSettingsUI.Text(text, palette),
+            IsChecked = isChecked,
+            Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground)
+        };
+        checkBox.IsCheckedChanged += (_, _) =>
+        {
+            set(checkBox.IsChecked == true);
+            Save();
+        };
+        return checkBox;
+    }
+
     private StackPanel BuildThemePage()
     {
         SettingsPalette palette = Palette;
         StackPanel stack = PageStack("Appearance", palette);
 
-        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Details grid", palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Processes grid", palette));
         stack.Children.Add(DoubleCard(
             "Font size",
             "Set the text size used by process rows.",

@@ -53,6 +53,24 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    public bool AlwaysOnTop
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    public bool CloseToTray
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
+    public bool MinimizeToTray
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public double GridFontSize
     {
         get;

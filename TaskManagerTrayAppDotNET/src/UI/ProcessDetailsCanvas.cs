@@ -43,6 +43,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly Typeface _tableTypeface;
     private ProcessTableMetrics _metrics;
     private ProcessTableVisualMetrics _visualMetrics;
+    private ProcessTableColumnWidths _axamlColumnWidths;
     private readonly bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
@@ -123,8 +124,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
-    private bool _usesAXAMLFontSize;
-    private bool _usesAXAMLRowHeight;
+    private double _axamlFontSize;
+    private double _axamlRowHeight;
     private bool _disposed;
     private ProcessSnapshotService? _snapshotService;
 
@@ -155,8 +156,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             (FontWeight)(int)gridFontWeight);
         _metrics = CreateTableMetrics(resources, gridFontSize, gridRowHeight);
         _visualMetrics = CreateVisualMetrics(resources);
-        _usesAXAMLFontSize = Math.Abs(gridFontSize - resources.AxamlProcessTable.FontSize) < 0.01;
-        _usesAXAMLRowHeight = Math.Abs(gridRowHeight - resources.AxamlProcessTable.RowHeight) < 0.01;
+        _axamlColumnWidths = CreateAXAMLColumnWidths(resources);
+        _axamlFontSize = resources.AxamlProcessTable.FontSize;
+        _axamlRowHeight = resources.AxamlProcessTable.RowHeight;
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
         _columns = CreateColumns(_columnSettings);
@@ -511,8 +513,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!double.IsFinite(fontSize) || fontSize <= 0) throw new ArgumentOutOfRangeException(nameof(fontSize));
         if (!double.IsFinite(rowHeight) || rowHeight <= 0) throw new ArgumentOutOfRangeException(nameof(rowHeight));
-        _usesAXAMLFontSize = Math.Abs(fontSize - _resources.AxamlProcessTable.FontSize) < 0.01;
-        _usesAXAMLRowHeight = Math.Abs(rowHeight - _resources.AxamlProcessTable.RowHeight) < 0.01;
         if (Math.Abs(_metrics.FontSize - fontSize) < 0.01
             && Math.Abs(_metrics.RowHeight - rowHeight) < 0.01)
         {
@@ -745,12 +745,28 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         if (_disposed) return;
 
+        double nextAXAMLFontSize = _resources.AxamlProcessTable.FontSize;
+        double nextAXAMLRowHeight = _resources.AxamlProcessTable.RowHeight;
+        double nextFontSize = Math.Abs(nextAXAMLFontSize - _axamlFontSize) >= 0.01
+            ? nextAXAMLFontSize
+            : _metrics.FontSize;
+        double nextRowHeight = Math.Abs(nextAXAMLRowHeight - _axamlRowHeight) >= 0.01
+            ? nextAXAMLRowHeight
+            : _metrics.RowHeight;
         ProcessTableMetrics nextMetrics = CreateTableMetrics(
             _resources,
-            _usesAXAMLFontSize ? _resources.AxamlProcessTable.FontSize : _metrics.FontSize,
-            _usesAXAMLRowHeight ? _resources.AxamlProcessTable.RowHeight : _metrics.RowHeight);
+            nextFontSize,
+            nextRowHeight);
         ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
-        if (nextMetrics == _metrics && nextVisualMetrics == _visualMetrics) return;
+        ProcessTableColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
+        _axamlFontSize = nextAXAMLFontSize;
+        _axamlRowHeight = nextAXAMLRowHeight;
+        if (nextMetrics == _metrics
+            && nextVisualMetrics == _visualMetrics
+            && nextColumnWidths == _axamlColumnWidths)
+        {
+            return;
+        }
 
         bool rebuildRetainedRows = RetainedRowGeometryChanged(
             _metrics,
@@ -768,7 +784,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _visualMetrics = nextVisualMetrics;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
         RecreatePens();
-        if (rebuildHeaderText)
+        bool rebuiltForColumnWidths = ApplyHotReloadedColumnWidths(
+            _axamlColumnWidths,
+            nextColumnWidths);
+        _axamlColumnWidths = nextColumnWidths;
+        if (rebuildHeaderText && !rebuiltForColumnWidths)
             _headerTexts = CreateHeaderTexts(_columns);
         if (rebuildCaretText)
         {
@@ -782,7 +802,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 _secondaryForegroundBrush);
         }
 
-        if (rebuildRetainedRows)
+        if (rebuildRetainedRows && !rebuiltForColumnWidths)
             RebuildRetainedRowDrawings();
         if (gridMetricsChanged)
             GridMetricsChanged?.Invoke(_metrics.FontSize, _metrics.RowHeight);
@@ -827,6 +847,36 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             ReleaseRenderCache(cache);
         _sharedCellDrawings.Clear();
         UpdateRetainedDrawings();
+    }
+
+    private bool ApplyHotReloadedColumnWidths(
+        ProcessTableColumnWidths currentWidths,
+        ProcessTableColumnWidths nextWidths)
+    {
+        if (currentWidths == nextWidths) return false;
+
+        List<ProcessColumnSetting> nextSettings = ProcessColumnSettings.CloneList(_columnSettings);
+        bool changed = false;
+        for (int settingIndex = 0; settingIndex < nextSettings.Count; settingIndex++)
+        {
+            ProcessColumnSetting setting = nextSettings[settingIndex];
+            if (!currentWidths.TryGet(setting.Column, out double currentWidth)
+                || !nextWidths.TryGet(setting.Column, out double nextWidth)
+                || Math.Abs(currentWidth - nextWidth) < 0.01)
+            {
+                continue;
+            }
+
+            setting.Width = Math.Max(ProcessColumnSettings.MinimumWidth, nextWidth);
+            changed = true;
+        }
+
+        if (!changed) return false;
+
+        ProcessTableColumn[] columns = CreateColumns(nextSettings);
+        if (columns.Length != _columns.Length) return false;
+        ApplyDisplayColumnLayout(columns);
+        return true;
     }
 
     private string LocalizeUnavailableText(string value) =>
@@ -1898,6 +1948,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
+        ApplyDisplayColumnLayout(columns);
+        ColumnLayoutChanged?.Invoke(normalized);
+    }
+
+    private void ApplyDisplayColumnLayout(ProcessTableColumn[] columns)
+    {
         _columns = columns;
         _headerTexts = CreateHeaderTexts(columns);
         RebuildVisibleRows();
@@ -1912,7 +1968,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateVisual();
-        ColumnLayoutChanged?.Invoke(normalized);
     }
 
     private void SortFromHeader(double x)
@@ -2353,6 +2408,18 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             resources.AxamlProcessTable.TreeExpanderChevronHalfHeight,
             resources.AxamlProcessTable.TreeExpanderLineThickness);
 
+    private static ProcessTableColumnWidths CreateAXAMLColumnWidths(
+        TaskManagerWindowResources resources) =>
+        new(
+            resources.AxamlProcessTable.NameColumnWidth,
+            resources.AxamlProcessTable.PIDColumnWidth,
+            resources.AxamlProcessTable.StatusColumnWidth,
+            resources.AxamlProcessTable.UserNameColumnWidth,
+            resources.AxamlProcessTable.CPUColumnWidth,
+            resources.AxamlProcessTable.PrivateMemoryColumnWidth,
+            resources.AxamlProcessTable.WorkingSetColumnWidth,
+            resources.AxamlProcessTable.CommandLineColumnWidth);
+
     private static ProcessTableColumn[] CreateColumns(IReadOnlyList<ProcessColumnSetting> source)
     {
         List<ProcessTableColumn> columns = new(source.Count);
@@ -2542,6 +2609,34 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         double TreeExpanderChevronHalfWidth,
         double TreeExpanderChevronHalfHeight,
         double TreeExpanderLineThickness);
+
+    private readonly record struct ProcessTableColumnWidths(
+        double Name,
+        double ProcessID,
+        double Status,
+        double UserName,
+        double CPU,
+        double PrivateMemory,
+        double WorkingSet,
+        double CommandLine)
+    {
+        public bool TryGet(ProcessTableColumnKind column, out double width)
+        {
+            width = column switch
+            {
+                ProcessTableColumnKind.Name => Name,
+                ProcessTableColumnKind.ProcessID => ProcessID,
+                ProcessTableColumnKind.Status => Status,
+                ProcessTableColumnKind.UserName => UserName,
+                ProcessTableColumnKind.CPU => CPU,
+                ProcessTableColumnKind.PrivateMemory => PrivateMemory,
+                ProcessTableColumnKind.WorkingSet or ProcessTableColumnKind.SharedWorkingSet => WorkingSet,
+                ProcessTableColumnKind.CommandLine => CommandLine,
+                _ => double.NaN
+            };
+            return double.IsFinite(width);
+        }
+    }
 
     private enum HeaderInteractionMode : byte
     {
