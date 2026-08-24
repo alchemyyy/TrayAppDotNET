@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Rendering.Composition;
+using Avalonia.Rendering.Composition.Transport;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
@@ -193,6 +195,86 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         RestoreForDefaultPosition();
         MoveToDefaultPosition();
         BringToForeground();
+    }
+
+    /// <summary>Shows a cold window only after its first compositor frame contains the completed shell.</summary>
+    public void ShowAtDefaultPositionAndActivateAfterFirstFrame()
+    {
+        if (IsVisible)
+        {
+            ShowAtDefaultPositionAndActivate();
+            return;
+        }
+
+        IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        bool isCloaked = TrySetNativeWindowCloak(windowHandle, isCloaked: true);
+        double restoredOpacity = Opacity;
+        if (!isCloaked) Opacity = 0;
+
+        try
+        {
+            Show();
+        }
+        catch
+        {
+            if (isCloaked)
+                _ = TrySetNativeWindowCloak(windowHandle, isCloaked: false);
+            else
+                Opacity = restoredOpacity;
+            throw;
+        }
+
+        _ = RevealAfterFirstFrameAsync(windowHandle, isCloaked, restoredOpacity);
+    }
+
+    private async Task RevealAfterFirstFrameAsync(
+        IntPtr windowHandle,
+        bool isCloaked,
+        double restoredOpacity)
+    {
+        try
+        {
+            // Loaded runs after layout and UI-thread render-data generation. Waiting for the resulting
+            // compositor batch prevents Windows from exposing its blank initial surface.
+            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Loaded);
+            CompositionVisual? windowVisual = ElementComposition.GetElementVisual(this);
+            if (windowVisual != null)
+            {
+                CompositionBatch batch = windowVisual.Compositor.RequestCompositionBatchCommitAsync();
+                await batch.Rendered.ConfigureAwait(false);
+            }
+
+            if (isCloaked) _ = DWMAPI.DwmFlush();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"{GetType().Name}.RevealAfterFirstFrameAsync failed: " +
+                $"{exception.GetType().Name}: {exception.Message}");
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(
+            () =>
+            {
+                if (isCloaked)
+                    _ = TrySetNativeWindowCloak(windowHandle, isCloaked: false);
+                else
+                    Opacity = restoredOpacity;
+                if (IsVisible) BringToForeground();
+            },
+            DispatcherPriority.Send);
+    }
+
+    private static bool TrySetNativeWindowCloak(IntPtr windowHandle, bool isCloaked)
+    {
+        if (!OperatingSystem.IsWindows() || windowHandle == IntPtr.Zero) return false;
+
+        int cloakValue = isCloaked ? 1 : 0;
+        return DWMAPI.DwmSetWindowAttribute(
+            windowHandle,
+            DWMAPI.DWMWA_CLOAK,
+            ref cloakValue,
+            sizeof(int)) == 0;
     }
 
     protected void SelectPage(TPageKey key) => NavigateToSettingsPage(key);

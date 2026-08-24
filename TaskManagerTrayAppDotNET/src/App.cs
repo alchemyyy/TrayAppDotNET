@@ -77,7 +77,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
         CreateTaskManagerWindow();
         _snapshotService.Start();
         CreateTrayIcon();
-        _taskManagerWindow!.ShowAtDefaultPositionAndActivate();
+        _taskManagerWindow!.ShowAtDefaultPositionAndActivateAfterFirstFrame();
         base.OnFrameworkInitializationCompleted();
     }
 
