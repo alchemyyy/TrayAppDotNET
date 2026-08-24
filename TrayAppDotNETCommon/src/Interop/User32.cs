@@ -82,6 +82,7 @@ public static class User32
     public const uint MB_ICONERROR = 0x10;
 
     // SystemParametersInfo actions
+    public const uint SPI_GETMENUSHOWDELAY = 0x006A;
     public const uint SPI_GETCLIENTAREAANIMATION = 0x1042;
 
     // Global hotkeys (RegisterHotKey / WM_HOTKEY)

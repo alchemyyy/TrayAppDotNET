@@ -47,6 +47,38 @@ public sealed class TrayMenuWindowTests
     }
 
     [Fact]
+    public void SubmenuPositionOpensBesideOwnerWhenRightSideHasSpace()
+    {
+        PixelRect workArea = new(0, 0, 1000, 800);
+        PixelRect ownerBounds = new(200, 300, 160, 30);
+        PixelSize menuSize = new(180, 200);
+
+        PixelPoint position = TrayMenuWindow.ResolveSubmenuPosition(
+            workArea,
+            ownerBounds,
+            menuSize,
+            edgePadding: 8);
+
+        Assert.Equal(new PixelPoint(360, 300), position);
+    }
+
+    [Fact]
+    public void SubmenuPositionFlipsLeftAndClampsToBottomEdge()
+    {
+        PixelRect workArea = new(0, 0, 1000, 800);
+        PixelRect ownerBounds = new(900, 750, 80, 30);
+        PixelSize menuSize = new(180, 200);
+
+        PixelPoint position = TrayMenuWindow.ResolveSubmenuPosition(
+            workArea,
+            ownerBounds,
+            menuSize,
+            edgePadding: 8);
+
+        Assert.Equal(new PixelPoint(720, 592), position);
+    }
+
+    [Fact]
     public void PointerReleaseSelectionKeepsMenuOpenThroughAction() =>
         AvaloniaTestHost.Run(() =>
         {

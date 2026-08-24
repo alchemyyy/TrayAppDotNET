@@ -674,6 +674,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         return new ProcessStaticData
         {
             InstanceKey = new ProcessInstanceKey(processID, creationTime),
+            ParentProcessID = hasSystemProcessData ? systemProcessData.ParentProcessID : -1,
             Image = image,
             UserName = needsUserName ? AcquireUserName(userName) : string.Empty,
             NumericValues = numericValues,

@@ -7,6 +7,7 @@ namespace TrayAppDotNETCommon.Interop;
 /// </summary>
 public static class DWMAPI
 {
+    public const int DWMWA_CLOAK = 13;
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const int DWMWCP_DEFAULT = 0;
@@ -16,4 +17,7 @@ public static class DWMAPI
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(
         IntPtr hwnd, int attribute, ref int attributeValue, int cbAttribute);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmFlush();
 }

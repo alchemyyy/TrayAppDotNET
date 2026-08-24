@@ -68,6 +68,7 @@ internal sealed class ProcessImageIdentity(
 internal sealed class ProcessStaticData
 {
     public required ProcessInstanceKey InstanceKey { get; init; }
+    public int ParentProcessID { get; init; } = -1;
     public required ProcessImageIdentity Image { get; init; }
     public required string UserName { get; init; }
     public required long[] NumericValues { get; init; }

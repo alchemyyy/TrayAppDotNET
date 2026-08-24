@@ -1,5 +1,6 @@
 #if DEBUG
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
@@ -9,7 +10,7 @@ namespace TrayAppDotNETCommon.UI;
 /// <summary>
 /// Replaces a compiled resource dictionary after successful Debug source AXAML reloads.
 /// </summary>
-internal sealed class AXAMLResourceHotReloadStore<TResource>
+public sealed class AXAMLResourceHotReloadStore<TResource>
     where TResource : ResourceDictionary
 {
     private const int ReloadDebounceMilliseconds = 150;
@@ -51,7 +52,7 @@ internal sealed class AXAMLResourceHotReloadStore<TResource>
         Func<TResource> resourceFactory,
         Action resourcesReloaded,
         string sourceFileName,
-        string callerFilePath,
+        [CallerFilePath] string callerFilePath = "",
         Action<TResource, TResource>? synchronizeReload = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);

@@ -116,6 +116,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
                     : -1;
                 destination[processID] = new SystemProcessData(
                     process.CreateTime,
+                    ToProcessID(process.InheritedFromUniqueProcessID),
                     SaturatingAdd(process.KernelTime, process.UserTime),
                     process.CycleTime,
                     ToNonNegativeLong(process.WorkingSetSize),
@@ -239,6 +240,12 @@ internal sealed class SystemProcessSnapshot : IDisposable
 
     private static int ToInt32(uint value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
+    private static int ToProcessID(IntPtr value)
+    {
+        long processID = value.ToInt64();
+        return processID is >= 0 and <= int.MaxValue ? (int)processID : -1;
+    }
+
     private static bool IsBufferSizeStatus(int status) =>
         status is StatusInfoLengthMismatch or StatusBufferOverflow or StatusBufferTooSmall;
 
@@ -358,6 +365,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
 
 internal readonly record struct SystemProcessData(
     long CreationTimeTicks,
+    int ParentProcessID,
     long TotalProcessorTicks,
     ulong CycleCount,
     long WorkingSetBytes,

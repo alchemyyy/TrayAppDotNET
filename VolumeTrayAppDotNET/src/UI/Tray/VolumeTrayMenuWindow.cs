@@ -25,6 +25,7 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
                 Palette = palette,
                 Rounded = rounded,
                 FontSize = fontSize,
+                TrayMenuSettings = settings,
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
                 ScrollToBottom = true

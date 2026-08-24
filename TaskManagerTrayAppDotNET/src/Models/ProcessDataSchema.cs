@@ -2,7 +2,7 @@ using TaskManagerTrayAppDotNET.UI;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
-/// <summary>Compact storage map containing only the currently visible Details columns.</summary>
+/// <summary>Compact storage map containing only the currently visible Processes columns.</summary>
 internal sealed class ProcessDataSchema
 {
     private readonly int[] _staticNumericSlots;

@@ -32,7 +32,11 @@ internal sealed class BrightnessTrayMenuWindow(
             exit),
         new TrayMenuWindowOptions
         {
-            Palette = palette, Rounded = rounded, FontSize = fontSize, ShadowColor = shadowColor
+            Palette = palette,
+            Rounded = rounded,
+            FontSize = fontSize,
+            TrayMenuSettings = settings,
+            ShadowColor = shadowColor
         })
 {
     public void ShowAt(

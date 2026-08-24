@@ -6,7 +6,7 @@ using Avalonia.Layout;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Configures Details-column visibility and ordering.</summary>
+/// <summary>Configures Processes-column visibility and ordering.</summary>
 internal sealed class ProcessColumnChooserWindow : Window
 {
     private const double WindowWidth = 560;
@@ -27,8 +27,8 @@ internal sealed class ProcessColumnChooserWindow : Window
         ArgumentNullException.ThrowIfNull(apply);
 
         _apply = apply;
-        _settings = CloneSettings(ProcessColumnSettings.Normalize(settings));
-        Title = "Select Details columns";
+        _settings = ProcessColumnSettings.CloneList(settings);
+        Title = "Select Processes columns";
         Width = WindowWidth;
         Height = WindowHeight;
         MinWidth = WindowWidth;
@@ -178,24 +178,7 @@ internal sealed class ProcessColumnChooserWindow : Window
 
     private void OnApplyClick(object? sender, RoutedEventArgs eventArgs)
     {
-        List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(_settings);
-        _apply(CloneSettings(normalized));
+        _apply(ProcessColumnSettings.CloneList(_settings));
         Close();
-    }
-
-    private static List<ProcessColumnSetting> CloneSettings(IEnumerable<ProcessColumnSetting> source)
-    {
-        List<ProcessColumnSetting> clone = [];
-        foreach (ProcessColumnSetting setting in source)
-        {
-            clone.Add(new ProcessColumnSetting
-            {
-                Column = setting.Column,
-                Visible = setting.Visible,
-                Width = setting.Width
-            });
-        }
-
-        return clone;
     }
 }

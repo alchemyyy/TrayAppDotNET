@@ -3,9 +3,30 @@ using TrayAppDotNETCommon.Serialization;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
+public enum DetailsGridFontWeight
+{
+    Thin = 100,
+    ExtraLight = 200,
+    Light = 300,
+    SemiLight = 350,
+    Normal = 400,
+    Medium = 500,
+    SemiBold = 600,
+    Bold = 700,
+    ExtraBold = 800,
+    Black = 900
+}
+
 [XmlRoot("AppSettings")]
 public sealed class AppSettings : AppSettingsCommon
 {
+    public const double GridFontSizeDefault = 11.5;
+    public const double GridFontSizeMinimum = 8.0;
+    public const double GridFontSizeMaximum = 32.0;
+    public const int GridRowHeightDefault = 19;
+    public const int GridRowHeightMinimum = 14;
+    public const int GridRowHeightMaximum = 64;
+
     private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
         TimeConstants.SettingsSaveDebounceMs,
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
@@ -20,6 +41,54 @@ public sealed class AppSettings : AppSettingsCommon
         SuppressChangeNotification = false;
     }
 
+    public bool EnableLiveDetailsColumnResizing
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
+    public bool GroupProcesses
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    public bool AlwaysOnTop
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    public bool CloseToTray
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
+    public bool MinimizeToTray
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    public double GridFontSize
+    {
+        get;
+        set => SetField(ref field, NormalizeGridFontSize(value));
+    } = GridFontSizeDefault;
+
+    public DetailsGridFontWeight GridFontWeight
+    {
+        get;
+        set => SetField(ref field, NormalizeGridFontWeight(value));
+    } = DetailsGridFontWeight.Normal;
+
+    public int GridRowHeight
+    {
+        get;
+        set => SetField(ref field, Math.Clamp(value, GridRowHeightMinimum, GridRowHeightMaximum));
+    } = GridRowHeightDefault;
+
     [XmlArray("DetailsColumns")]
     [XmlArrayItem("Column")]
     public List<ProcessColumnSetting> DetailsColumns
@@ -32,6 +101,60 @@ public sealed class AppSettings : AppSettingsCommon
     {
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
         base.OnTrayXmlDeserialized();
+    }
+
+    /// <summary>Persists an already-applied width or order change without rebuilding the app shell.</summary>
+    internal void UpdateDetailsColumnLayout(List<ProcessColumnSetting> columns)
+    {
+        ArgumentNullException.ThrowIfNull(columns);
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            DetailsColumns = columns;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists an already-applied grouping change without rebuilding the app shell.</summary>
+    internal void UpdateGroupProcesses(bool groupProcesses)
+    {
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            GroupProcesses = groupProcesses;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists an already-applied grid zoom without rebuilding the app shell.</summary>
+    internal void UpdateGridMetrics(double fontSize, int rowHeight)
+    {
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            GridFontSize = fontSize;
+            GridRowHeight = rowHeight;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
     }
 
     protected override void RequestSave()
@@ -68,4 +191,12 @@ public sealed class AppSettings : AppSettingsCommon
             path,
             static () => new AppSettings(),
             exception => TADNLog.Log($"AppSettings.LoadOrDefault: {exception.Message}"));
+
+    private static double NormalizeGridFontSize(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, GridFontSizeMinimum, GridFontSizeMaximum)
+            : GridFontSizeDefault;
+
+    private static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
+        Enum.IsDefined(value) ? value : DetailsGridFontWeight.Normal;
 }

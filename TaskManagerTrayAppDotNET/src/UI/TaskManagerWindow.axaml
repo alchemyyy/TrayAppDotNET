@@ -13,6 +13,7 @@
 
   <!-- Details page -->
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.ToolbarFontSize">13</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchWidth">430</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.TitleFontSize">20</sys:Double>
@@ -24,16 +25,33 @@
   <Thickness x:Key="TaskManagerDetails.TableMargin">0,10,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
 
+  <!-- Task Manager settings -->
+  <Thickness x:Key="TaskManagerSettings.WindowManagementOptionsMargin">0,8,0,0</Thickness>
+  <sys:Double x:Key="TaskManagerSettings.WindowManagementOptionSpacing">6</sys:Double>
+
   <!-- Painted process table -->
   <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>
-  <sys:Double x:Key="ProcessTable.RowHeight">23</sys:Double>
+  <sys:Double x:Key="ProcessTable.RowHeight">19</sys:Double>
+  <sys:Double x:Key="ProcessTable.DefaultViewportHeight">900</sys:Double>
   <sys:Double x:Key="ProcessTable.CellPadding">7</sys:Double>
-  <sys:Double x:Key="ProcessTable.FontSize">13</sys:Double>
+  <sys:Double x:Key="ProcessTable.FontSize">11.5</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderFontSize">13</sys:Double>
+  <sys:Double x:Key="ProcessTable.RowTextHeightMultiplier">1.35</sys:Double>
+  <sys:Double x:Key="ProcessTable.GridLineThickness">1</sys:Double>
+  <sys:Double x:Key="ProcessTable.ColumnResizeHitRadius">4</sys:Double>
+  <sys:Double x:Key="ProcessTable.HeaderDragThreshold">4</sys:Double>
+  <sys:Double x:Key="ProcessTable.ColumnInteractionLineThickness">2</sys:Double>
+  <sys:Double x:Key="ProcessTable.TextUnderlineThickness">1</sys:Double>
   <sys:Double x:Key="ProcessTable.SortCaretFontSize">10</sys:Double>
   <sys:Double x:Key="ProcessTable.SortCaretRightMargin">6</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconSize">10</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconGap">8</sys:Double>
+  <sys:Double x:Key="ProcessTable.ProcessIconCornerRadius">2</sys:Double>
+  <sys:Double x:Key="ProcessTable.TreeIndentWidth">18</sys:Double>
+  <sys:Double x:Key="ProcessTable.TreeExpanderWidth">14</sys:Double>
+  <sys:Double x:Key="ProcessTable.TreeExpanderChevronHalfWidth">2</sys:Double>
+  <sys:Double x:Key="ProcessTable.TreeExpanderChevronHalfHeight">3</sys:Double>
+  <sys:Double x:Key="ProcessTable.TreeExpanderLineThickness">1.25</sys:Double>
   <sys:Double x:Key="ProcessTable.NameColumnWidth">280</sys:Double>
   <sys:Double x:Key="ProcessTable.PIDColumnWidth">82</sys:Double>
   <sys:Double x:Key="ProcessTable.StatusColumnWidth">106</sys:Double>
@@ -49,4 +67,6 @@
   <sys:Double x:Key="ProcessTable.ScrollBarMinimumThumbLength">28</sys:Double>
   <sys:Double x:Key="ProcessTable.ResizeGripDotSize">2</sys:Double>
   <sys:Double x:Key="ProcessTable.ResizeGripDotStep">4</sys:Double>
+  <sys:Int32 x:Key="ProcessTable.ResizeGripDotRows">3</sys:Int32>
+  <Thickness x:Key="ProcessTable.SelectionBorderThickness">3,0,0,0</Thickness>
 </ResourceDictionary>

@@ -8,15 +8,22 @@ using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Builds the Details toolbar around the allocation-light painted process table.</summary>
+/// <summary>Builds the Processes toolbar around the allocation-light painted process table.</summary>
 internal sealed class ProcessDetailsPage : Grid, IDisposable
 {
+    private const double GridFontZoomStep = 0.5;
+    private const int GridRowHeightZoomStep = 1;
+
     private readonly ProcessSnapshotService _snapshotService;
     private readonly Action<ProcessTerminationTarget?> _armTerminationTarget;
-    private readonly Func<ProcessTerminationTarget, bool> _terminateProcess;
+    private readonly TryTerminateProcessAction _terminateProcess;
+    private readonly Action<string, string> _reportMessage;
     private readonly Func<string, bool> _startProcess;
     private readonly AppSettings _settings;
+    private readonly SettingsPalette _palette;
+    private readonly TaskManagerWindowResources _resources;
     private readonly ProcessDetailsCanvas _processCanvas;
+    private readonly ProcessRowContextMenuController _rowContextMenuController;
     private readonly TextBox _searchBox;
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
@@ -25,11 +32,13 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly SettingsButton _endTaskButton;
     private readonly SettingsButton _submitRunButton;
     private readonly SettingsButton _cancelRunButton;
+    private readonly SettingsToggle _groupProcessesToggle;
     private readonly SettingsScrollViewport _tableScrollViewport;
-    private readonly Border _hoverHighlight;
+    private readonly TaskManagerResizeGrip _resizeGrip;
+    private readonly ProcessRowHoverVisual _hoverHighlight;
     private readonly Border _selectionHighlight;
-    private readonly TranslateTransform _hoverTransform = new();
     private readonly TranslateTransform _selectionTransform = new();
+    private readonly Dictionary<ProcessTableColumnKind, ProcessColumnPropertiesWindow> _columnPropertyWindows = [];
     private ProcessColumnChooserWindow? _columnChooserWindow;
     private bool _disposed;
 
@@ -40,13 +49,17 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         SettingsPalette palette,
         TaskManagerWindowResources resources,
         Action<ProcessTerminationTarget?> armTerminationTarget,
-        Func<ProcessTerminationTarget, bool> terminateProcess,
+        TryTerminateProcessAction terminateProcess,
+        Action<string, string> reportMessage,
         Func<string, bool> startProcess)
     {
         _snapshotService = snapshotService;
         _settings = settings;
+        _palette = palette;
+        _resources = resources;
         _armTerminationTarget = armTerminationTarget;
         _terminateProcess = terminateProcess;
+        _reportMessage = reportMessage;
         _startProcess = startProcess;
         ProcessDataSchema schema = ProcessDataSchema.Create(settings.DetailsColumns);
         _snapshotService.SetActiveSchema(schema);
@@ -59,12 +72,31 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             processIconService,
             schema,
             settings.DetailsColumns,
+            settings.EnableLiveDetailsColumnResizing,
+            settings.GridFontSize,
+            settings.GridFontWeight,
+            settings.GridRowHeight,
             palette,
             resources);
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;
         _processCanvas.HoverRowTopChanged += OnHoverRowTopChanged;
         _processCanvas.SelectionRowTopChanged += OnSelectionRowTopChanged;
-        _processCanvas.ColumnsRequested += OnColumnsRequested;
+        _processCanvas.ColumnPropertiesRequested += OnColumnPropertiesRequested;
+        _processCanvas.ColumnLayoutChanged += OnColumnLayoutChanged;
+        _processCanvas.GridMetricsChanged += OnGridMetricsChanged;
+        _processCanvas.GridZoomRequested += OnGridZoomRequested;
+        _processCanvas.GridZoomResetRequested += OnGridZoomResetRequested;
+        _processCanvas.RowContextMenuRequested += OnRowContextMenuRequested;
+
+        _rowContextMenuController = new ProcessRowContextMenuController(
+            palette,
+            settings.EnableRoundedCorners,
+            settings,
+            terminateProcess,
+            _snapshotService.RequestRefresh,
+            reportMessage,
+            _processCanvas.SetContextCopyPreview,
+            reportMessage);
 
         _runTaskButton = TrayAppDotNETSettingsUI.Button("Run new task", palette);
         _runTaskButton.Click += OnRunTaskClick;
@@ -73,6 +105,10 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _endTaskButton = TrayAppDotNETSettingsUI.Button("End task", palette);
         _endTaskButton.IsEnabled = false;
         _endTaskButton.Click += OnEndTaskClick;
+        _groupProcessesToggle = TrayAppDotNETSettingsUI.Toggle(
+            palette,
+            settings.GroupProcesses,
+            OnGroupProcessesChanged);
 
         Grid titleBar = BuildTitleBar(palette, resources);
         titleBar.Margin = resources.AxamlTaskManagerDetails.HeaderMargin;
@@ -103,33 +139,14 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Grid.SetRow(_runPanel, 2);
         Children.Add(_runPanel);
 
-        SettingsScrollBarStyle scrollBarStyle = new(
-            resources.AxamlProcessTable.ScrollBarTrackThickness,
-            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
-            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
-            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
-            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
-            TaskManagerWindowResources.ProcessGridBackgroundColor,
-            TaskManagerWindowResources.ProcessGridScrollThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            ShowButtonsOnHover: true);
-        _hoverHighlight = new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.Hover),
-            Height = resources.AxamlProcessTable.RowHeight,
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            IsVisible = false,
-            RenderTransform = _hoverTransform
-        };
+        SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
+        _hoverHighlight = new ProcessRowHoverVisual(palette.Hover, settings.GridRowHeight);
         _selectionHighlight = new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.SearchListItemSelected),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent),
-            BorderThickness = new Thickness(3, 0, 0, 0),
-            Height = resources.AxamlProcessTable.RowHeight,
+            BorderThickness = resources.AxamlProcessTable.SelectionBorderThickness,
+            Height = settings.GridRowHeight,
             VerticalAlignment = VerticalAlignment.Top,
             IsHitTestVisible = false,
             IsVisible = false,
@@ -140,18 +157,21 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         tableSurface.Children.Add(_selectionHighlight);
         tableSurface.Children.Add(_processCanvas);
 
+        _resizeGrip = new TaskManagerResizeGrip(resources);
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
             default,
             TaskManagerWindowResources.ProcessGridBackgroundColor,
             scrollBarStyle,
-            new TaskManagerResizeGrip(resources))
+            _resizeGrip)
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
         Grid.SetRow(_tableScrollViewport, 3);
         Children.Add(_tableScrollViewport);
 
+        _processCanvas.SetGroupProcesses(settings.GroupProcesses);
+        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
         _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
         _processCanvas.RefreshFrom(_snapshotService);
     }
@@ -168,18 +188,32 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         };
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(
-            "Details",
+            "Processes",
             palette,
             resources.AxamlTaskManagerDetails.TitleFontSize,
             FontWeight.SemiBold);
         title.VerticalAlignment = VerticalAlignment.Center;
         titleBar.Children.Add(title);
 
+        TextBlock groupProcessesLabel = TrayAppDotNETSettingsUI.Text(
+            "Group processes",
+            palette,
+            resources.AxamlTaskManagerDetails.ToolbarFontSize,
+            FontWeight.Normal);
+        groupProcessesLabel.VerticalAlignment = VerticalAlignment.Center;
+        StackPanel groupProcesses = new()
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { groupProcessesLabel, _groupProcessesToggle }
+        };
+
         StackPanel actions = new()
         {
             Orientation = Orientation.Horizontal,
             Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            Children = { _runTaskButton, _columnsButton, _endTaskButton }
+            Children = { groupProcesses, _runTaskButton, _columnsButton, _endTaskButton }
         };
         Grid.SetColumn(actions, 1);
         titleBar.Children.Add(actions);
@@ -209,6 +243,30 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.RefreshFrom(_snapshotService);
     }
 
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(_resources));
+        _resizeGrip.ApplyResources(_resources);
+        _selectionHighlight.BorderThickness = _resources.AxamlProcessTable.SelectionBorderThickness;
+    }
+
+    private static SettingsScrollBarStyle CreateProcessTableScrollBarStyle(
+        TaskManagerWindowResources resources) =>
+        new(
+            resources.AxamlProcessTable.ScrollBarTrackThickness,
+            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
+            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
+            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
+            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
+            TaskManagerWindowResources.ProcessGridBackgroundColor,
+            TaskManagerWindowResources.ProcessGridScrollThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            ShowButtonsOnHover: true);
+
     private void OnSelectedProcessChanged(ProcessTerminationTarget? target)
     {
         _endTaskButton.IsEnabled = target.HasValue;
@@ -217,8 +275,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnHoverRowTopChanged(double? rowTop)
     {
-        _hoverHighlight.IsVisible = rowTop.HasValue;
-        if (rowTop.HasValue) _hoverTransform.Y = rowTop.Value;
+        _hoverHighlight.SetRowTop(rowTop);
     }
 
     private void OnSelectionRowTopChanged(double? rowTop)
@@ -227,7 +284,94 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         if (rowTop.HasValue) _selectionTransform.Y = rowTop.Value;
     }
 
-    private void OnColumnsRequested() => ShowColumnChooser();
+    private void OnGridMetricsChanged(double fontSize, double rowHeight)
+    {
+        _hoverHighlight.SetRowHeight(rowHeight);
+        _selectionHighlight.Height = rowHeight;
+    }
+
+    private void OnGridZoomRequested(int direction)
+    {
+        if (direction == 0) return;
+
+        double fontSize = Math.Clamp(
+            _settings.GridFontSize + Math.Sign(direction) * GridFontZoomStep,
+            AppSettings.GridFontSizeMinimum,
+            AppSettings.GridFontSizeMaximum);
+        int rowHeight = Math.Clamp(
+            _settings.GridRowHeight + Math.Sign(direction) * GridRowHeightZoomStep,
+            AppSettings.GridRowHeightMinimum,
+            AppSettings.GridRowHeightMaximum);
+        _processCanvas.SetGridMetrics(fontSize, rowHeight);
+        _settings.UpdateGridMetrics(fontSize, rowHeight);
+    }
+
+    private void OnGridZoomResetRequested()
+    {
+        _processCanvas.SetGridMetrics(AppSettings.GridFontSizeDefault, AppSettings.GridRowHeightDefault);
+        _settings.UpdateGridMetrics(AppSettings.GridFontSizeDefault, AppSettings.GridRowHeightDefault);
+    }
+
+    private void OnGroupProcessesChanged(object? sender, bool groupProcesses)
+    {
+        _processCanvas.SetGroupProcesses(groupProcesses);
+        _settings.UpdateGroupProcesses(groupProcesses);
+    }
+
+    private void OnRowContextMenuRequested(ProcessRowContextMenuRequest request)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_disposed) _rowContextMenuController.Show(owner, request);
+        });
+    }
+
+    private void OnColumnPropertiesRequested(ProcessTableColumnKind column)
+    {
+        if (!_disposed) ShowColumnProperties(column);
+    }
+
+    private void ShowColumnProperties(ProcessTableColumnKind column)
+    {
+        if (_columnPropertyWindows.TryGetValue(column, out ProcessColumnPropertiesWindow? existing))
+        {
+            existing.Activate();
+            return;
+        }
+
+        ProcessColumnPropertiesWindow propertiesWindow = ProcessColumnPropertiesWindow.Create(
+            _processCanvas.GetColumnSetting(column),
+            _palette,
+            _settings.EnableRoundedCorners,
+            _processCanvas.ApplyColumnProperties);
+        _columnPropertyWindows.Add(column, propertiesWindow);
+        propertiesWindow.Closed += OnColumnPropertiesWindowClosed;
+        if (TopLevel.GetTopLevel(this) is Window owner)
+            propertiesWindow.Show(owner);
+        else
+            propertiesWindow.Show();
+    }
+
+    private void OnColumnPropertiesWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is not ProcessColumnPropertiesWindow propertiesWindow) return;
+
+        propertiesWindow.Closed -= OnColumnPropertiesWindowClosed;
+        ProcessTableColumnKind? closedColumn = null;
+        foreach (KeyValuePair<ProcessTableColumnKind, ProcessColumnPropertiesWindow> pair in _columnPropertyWindows)
+        {
+            if (!ReferenceEquals(pair.Value, propertiesWindow)) continue;
+            closedColumn = pair.Key;
+            break;
+        }
+
+        if (closedColumn.HasValue)
+            _columnPropertyWindows.Remove(closedColumn.Value);
+    }
+
+    private void OnColumnLayoutChanged(List<ProcessColumnSetting> settings) =>
+        _settings.UpdateDetailsColumnLayout(settings);
 
     private void OnColumnsClick(object? sender, EventArgs eventArgs) => ShowColumnChooser();
 
@@ -267,7 +411,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     {
         if (_disposed) return;
         if (TopLevel.GetTopLevel(this) is TaskManagerWindow window)
-            window.RefreshDetailsColumns();
+            window.RefreshProcessColumns();
     }
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs) =>
@@ -284,8 +428,13 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     {
         ProcessTerminationTarget? target = _processCanvas.SelectedTerminationTarget;
         if (!target.HasValue) return;
-        if (_terminateProcess(target.Value))
-            _snapshotService.RequestRefresh();
+        if (!_terminateProcess(target.Value, out string errorMessage))
+        {
+            _reportMessage("End task failed", errorMessage);
+            return;
+        }
+
+        _snapshotService.RequestRefresh();
     }
 
     private void OnSubmitRunClick(object? sender, EventArgs eventArgs) => SubmitRunTask();
@@ -329,11 +478,18 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
         _disposed = true;
         _armTerminationTarget(null);
+        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.HoverRowTopChanged -= OnHoverRowTopChanged;
         _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;
-        _processCanvas.ColumnsRequested -= OnColumnsRequested;
+        _processCanvas.ColumnPropertiesRequested -= OnColumnPropertiesRequested;
+        _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
+        _processCanvas.GridMetricsChanged -= OnGridMetricsChanged;
+        _processCanvas.GridZoomRequested -= OnGridZoomRequested;
+        _processCanvas.GridZoomResetRequested -= OnGridZoomResetRequested;
+        _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
+        _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;
         _searchBox.TextChanged -= OnSearchTextChanged;
         _runInput.KeyDown -= OnRunInputKeyDown;
         _runTaskButton.Click -= OnRunTaskClick;
@@ -347,7 +503,15 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             _columnChooserWindow.Close();
             _columnChooserWindow = null;
         }
+        foreach (ProcessColumnPropertiesWindow propertiesWindow in _columnPropertyWindows.Values)
+        {
+            propertiesWindow.Closed -= OnColumnPropertiesWindowClosed;
+            propertiesWindow.Close();
+        }
+        _columnPropertyWindows.Clear();
+        _rowContextMenuController.Dispose();
         _tableScrollViewport.Dispose();
+        _hoverHighlight.Dispose();
         _processCanvas.Dispose();
     }
 }

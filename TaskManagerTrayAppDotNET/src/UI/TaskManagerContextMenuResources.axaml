@@ -1,0 +1,12 @@
+<ResourceDictionary
+    x:Class="TaskManagerTrayAppDotNET.UI.TaskManagerContextMenuResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+  <!-- Task Manager content context menus; the tray menu does not consume these values -->
+  <sys:Double x:Key="TaskManagerContextMenu.FontSize">13</sys:Double>
+  <!-- OpenType weight: 400 normal, 600 semibold, 700 bold -->
+  <sys:Int32 x:Key="TaskManagerContextMenu.FontWeight">400</sys:Int32>
+  <sys:Double x:Key="TaskManagerContextMenu.ItemHeight">24</sys:Double>
+</ResourceDictionary>

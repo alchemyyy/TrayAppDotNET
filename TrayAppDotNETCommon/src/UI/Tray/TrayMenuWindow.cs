@@ -5,6 +5,8 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using TrayAppDotNETCommon.Visuals;
@@ -21,6 +23,8 @@ public sealed record TrayMenuEntry(string Text, Action Click)
 {
     public Glyph? LeadingGlyph { get; init; }
     public string? TrailingGlyph { get; init; }
+    public Func<IReadOnlyList<TrayMenuEntry>>? SubmenuFactory { get; init; }
+    public Action<bool>? HoverChanged { get; init; }
     public bool HasTopRule { get; init; }
     public bool HasBottomRule { get; init; }
 }
@@ -33,6 +37,9 @@ public sealed class TrayMenuEntryBuilder
     public int Count => _entries.Count;
 
     public void Add(string text, Action click, string? trailingGlyph = null) => Add(new TrayMenuEntry(text, click) { TrailingGlyph = trailingGlyph });
+
+    public void AddSubmenu(string text, Func<IReadOnlyList<TrayMenuEntry>> submenuFactory) =>
+        Add(new TrayMenuEntry(text, static () => { }) { SubmenuFactory = submenuFactory });
 
     public void Add(TrayMenuEntry entry)
     {
@@ -56,7 +63,11 @@ public sealed class TrayMenuWindowOptions
 {
     public required SettingsPalette Palette { get; init; }
     public bool Rounded { get; init; } = true;
-    public int FontSize { get; init; } = 15;
+    public double FontSize { get; init; } = 15;
+    public FontWeight FontWeight { get; init; } = FontWeight.Normal;
+
+    /// <summary>Sets the minimum highlighted item height, or uses automatic sizing when left as NaN.</summary>
+    public double ItemHeight { get; init; } = double.NaN;
     public Color? SeparatorColor { get; init; }
     public Color? ShadowColor { get; init; }
     public bool ScrollToBottom { get; init; }
@@ -70,6 +81,11 @@ public sealed class TrayMenuWindowOptions
     public double LeadingGlyphFontSize { get; init; } = 16;
     public double LeadingGlyphColumnWidth { get; init; } = 24;
     public double TrailingGlyphFontSize { get; init; } = 12;
+    public string SubmenuGlyph { get; init; } = "\uE76C";
+    public ITrayAppDotNETTrayMenuSettings? TrayMenuSettings { get; init; }
+    public bool UseSystemSubmenuShowDelay { get; init; }
+    public int SubmenuShowDelayMilliseconds { get; init; } =
+        TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
     public int EdgePadding { get; init; } = 8;
     public int OffscreenPosition { get; init; } = -32000;
@@ -96,13 +112,22 @@ public sealed class TrayMenuWindowOptions
 
 public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 {
+    internal static readonly int SystemSubmenuShowDelayMilliseconds = ResolveSystemSubmenuShowDelayMilliseconds();
+
     private readonly TrayMenuWindowOptions _options;
     private readonly UIResourceScope _windowResources;
+    private readonly TrayMenuWindow? _parentMenu;
     private UIContentGeneration? _contentGeneration;
     private ScrollViewer? _scrollViewer;
+    private DispatcherTimer? _submenuHoverTimer;
+    private TrayMenuWindow? _childMenu;
+    private TrayMenuItemControl? _childMenuOwner;
+    private TrayMenuItemControl? _hoveredItem;
+    private TrayMenuEntry? _hoveredEntry;
     private bool _closed;
     private bool _closedFromDeactivation;
     private bool _closedFromSelection;
+    private bool _deactivationCheckPending;
     public bool IsWarmPriming { get; set; }
     public bool IsManagedByWarmSlot { get; set; }
     public bool ClosedFromDeactivation => _closedFromDeactivation;
@@ -110,11 +135,20 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     public event EventHandler? WarmDismissed;
 
     public TrayMenuWindow(IReadOnlyList<TrayMenuEntry> entries, TrayMenuWindowOptions options)
+        : this(entries, options, parentMenu: null)
+    {
+    }
+
+    private TrayMenuWindow(
+        IReadOnlyList<TrayMenuEntry> entries,
+        TrayMenuWindowOptions options,
+        TrayMenuWindow? parentMenu)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
+        _parentMenu = parentMenu;
         _windowResources = new UIResourceScope(GetType().Name);
 
         WindowDecorations = WindowDecorations.None;
@@ -127,14 +161,31 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         WindowStartupLocation = WindowStartupLocation.Manual;
 
         StackPanel items = new();
+        bool hasSubmenus = false;
         UIResourceScope contentResources = new($"{GetType().Name}.Content");
         foreach (TrayMenuEntry entry in entries)
         {
+            hasSubmenus |= entry.SubmenuFactory != null;
             TrayMenuItemControl item = contentResources.Own(new TrayMenuItemControl(
                 entry,
                 _options,
-                () => InvokeAndClose(entry.Click)));
+                OnItemInvoked,
+                OnItemHoverChanged));
             items.Children.Add(item);
+        }
+
+        if (hasSubmenus)
+        {
+            _submenuHoverTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(Math.Max(1, ResolveSubmenuShowDelayMilliseconds()))
+            };
+            _submenuHoverTimer.Tick += OnSubmenuHoverTimerTick;
+            _windowResources.Add(() =>
+            {
+                _submenuHoverTimer.Stop();
+                _submenuHoverTimer.Tick -= OnSubmenuHoverTimerTick;
+            });
         }
 
         _scrollViewer = new ScrollViewer
@@ -265,6 +316,173 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         }, DispatcherPriority.Loaded);
     }
 
+    private void OnItemInvoked(TrayMenuItemControl item, TrayMenuEntry entry)
+    {
+        if (entry.SubmenuFactory != null)
+        {
+            SwitchSubmenu(item, entry);
+            return;
+        }
+
+        InvokeAndClose(entry.Click);
+    }
+
+    private void OnItemHoverChanged(TrayMenuItemControl item, TrayMenuEntry entry, bool isHovered)
+    {
+        DispatcherTimer? submenuHoverTimer = _submenuHoverTimer;
+        if (isHovered)
+        {
+            _hoveredItem = item;
+            _hoveredEntry = entry;
+            if (ReferenceEquals(item, _childMenuOwner))
+            {
+                submenuHoverTimer?.Stop();
+                return;
+            }
+
+            bool requiresSubmenuTransition = entry.SubmenuFactory != null || _childMenu != null;
+            if (!requiresSubmenuTransition)
+            {
+                submenuHoverTimer?.Stop();
+                return;
+            }
+
+            int submenuShowDelayMilliseconds = ResolveSubmenuShowDelayMilliseconds();
+            if (submenuShowDelayMilliseconds <= 0)
+            {
+                SwitchSubmenu(item, entry);
+                return;
+            }
+
+            if (submenuHoverTimer == null) return;
+            submenuHoverTimer.Stop();
+            submenuHoverTimer.Interval = TimeSpan.FromMilliseconds(submenuShowDelayMilliseconds);
+            submenuHoverTimer.Start();
+            return;
+        }
+
+        if (!ReferenceEquals(item, _hoveredItem)) return;
+        _hoveredItem = null;
+        _hoveredEntry = null;
+        submenuHoverTimer?.Stop();
+    }
+
+    private void OnSubmenuHoverTimerTick(object? sender, EventArgs eventArgs)
+    {
+        _submenuHoverTimer?.Stop();
+        TrayMenuItemControl? hoveredItem = _hoveredItem;
+        TrayMenuEntry? hoveredEntry = _hoveredEntry;
+        if (hoveredItem == null || hoveredEntry == null) return;
+
+        SwitchSubmenu(hoveredItem, hoveredEntry);
+    }
+
+    private void SwitchSubmenu(TrayMenuItemControl owner, TrayMenuEntry entry)
+    {
+        if (ReferenceEquals(owner, _childMenuOwner) && _childMenu is { IsVisible: true }) return;
+
+        CloseChildMenu();
+        Func<IReadOnlyList<TrayMenuEntry>>? submenuFactory = entry.SubmenuFactory;
+        if (submenuFactory == null) return;
+
+        IReadOnlyList<TrayMenuEntry> submenuEntries;
+        try
+        {
+            submenuEntries = submenuFactory() ?? [];
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log(
+                $"{GetType().Name} submenu creation failed for '{entry.Text}': " +
+                $"{exception.GetType().Name}: {exception.Message}");
+            return;
+        }
+
+        if (submenuEntries.Count == 0) return;
+
+        TrayMenuWindow childMenu = new(submenuEntries, _options, this)
+        {
+            ShowActivated = false
+        };
+        _childMenu = childMenu;
+        _childMenuOwner = owner;
+        owner.SetSubmenuOpen(true);
+        try
+        {
+            childMenu.ShowAsSubmenu(owner);
+        }
+        catch
+        {
+            _childMenu = null;
+            _childMenuOwner = null;
+            owner.SetSubmenuOpen(false);
+            childMenu.Close();
+            throw;
+        }
+    }
+
+    private void ShowAsSubmenu(TrayMenuItemControl owner)
+    {
+        TrayMenuWindow parentMenu = _parentMenu
+                                    ?? throw new InvalidOperationException("A submenu requires a parent menu.");
+        Opacity = 0;
+        Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
+        Show(parentMenu);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_windowResources.IsDisposed || !IsVisible || !parentMenu.IsVisible) return;
+            ScrollViewer? scrollViewer = _scrollViewer;
+            if (scrollViewer == null) return;
+
+            PixelRect ownerBounds = ScreenBounds(owner);
+            PixelPoint ownerCenter = new(
+                ownerBounds.X + ownerBounds.Width / 2,
+                ownerBounds.Y + ownerBounds.Height / 2);
+            PixelRect workArea = ResolveWorkArea(ownerCenter);
+            scrollViewer.MaxHeight = Math.Max(
+                _options.PixelMinSize,
+                (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
+
+            UpdateLayout();
+            int menuWidth = Math.Max(
+                _options.PixelMinSize,
+                (int)Math.Ceiling(Bounds.Width * RenderScaling));
+            int menuHeight = Math.Max(
+                _options.PixelMinSize,
+                (int)Math.Ceiling(Bounds.Height * RenderScaling));
+            Position = ResolveSubmenuPosition(
+                workArea,
+                ownerBounds,
+                new PixelSize(menuWidth, menuHeight),
+                _options.EdgePadding);
+            Opacity = 1;
+        }, DispatcherPriority.Loaded);
+    }
+
+    internal static PixelPoint ResolveSubmenuPosition(
+        PixelRect workArea,
+        PixelRect ownerBounds,
+        PixelSize menuSize,
+        int edgePadding)
+    {
+        int minimumX = workArea.X + edgePadding;
+        int maximumX = Math.Max(minimumX, workArea.Right - menuSize.Width - edgePadding);
+        int rightX = ownerBounds.Right;
+        int leftX = ownerBounds.X - menuSize.Width;
+        int requestedX = rightX <= maximumX
+            ? rightX
+            : leftX >= minimumX
+                ? leftX
+                : maximumX;
+        int minimumY = workArea.Y + edgePadding;
+        int maximumY = Math.Max(minimumY, workArea.Bottom - menuSize.Height - edgePadding);
+
+        return new PixelPoint(
+            Math.Clamp(requestedX, minimumX, maximumX),
+            Math.Clamp(ownerBounds.Y, minimumY, maximumY));
+    }
+
     private PixelPoint ResolvePosition(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
@@ -350,10 +568,71 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         scrollViewer.Offset = new Vector(scrollViewer.Offset.X, maxOffset);
     }
 
+    private void CloseChildMenu()
+    {
+        TrayMenuWindow? childMenu = _childMenu;
+        if (childMenu == null) return;
+
+        _childMenu = null;
+        _childMenuOwner?.SetSubmenuOpen(false);
+        _childMenuOwner = null;
+        childMenu.CloseDescendantMenus();
+        if (!childMenu._closed) childMenu.Close();
+    }
+
+    private void CloseDescendantMenus()
+    {
+        List<TrayMenuWindow> descendants = [];
+        TrayMenuWindow? current = _childMenu;
+        while (current != null)
+        {
+            descendants.Add(current);
+            current = current._childMenu;
+        }
+
+        _childMenuOwner?.SetSubmenuOpen(false);
+        _childMenuOwner = null;
+        _childMenu = null;
+        for (int menuIndex = 0; menuIndex < descendants.Count; menuIndex++)
+        {
+            TrayMenuWindow menu = descendants[menuIndex];
+            menu._childMenuOwner?.SetSubmenuOpen(false);
+            menu._childMenuOwner = null;
+            menu._childMenu = null;
+        }
+
+        for (int menuIndex = descendants.Count - 1; menuIndex >= 0; menuIndex--)
+        {
+            TrayMenuWindow menu = descendants[menuIndex];
+            if (!menu._closed) menu.Close();
+        }
+    }
+
+    private TrayMenuWindow GetRootMenu()
+    {
+        TrayMenuWindow rootMenu = this;
+        while (rootMenu._parentMenu != null)
+            rootMenu = rootMenu._parentMenu;
+        return rootMenu;
+    }
+
+    private bool IsAnyMenuActive()
+    {
+        TrayMenuWindow? menu = this;
+        while (menu != null)
+        {
+            if (menu.IsActive) return true;
+            menu = menu._childMenu;
+        }
+
+        return false;
+    }
+
     private void InvokeAndClose(Action action)
     {
-        _closedFromSelection = true;
-        _closedFromDeactivation = false;
+        TrayMenuWindow rootMenu = GetRootMenu();
+        rootMenu._closedFromSelection = true;
+        rootMenu._closedFromDeactivation = false;
         if (_options.InvokeBeforeClose)
         {
             try
@@ -362,19 +641,30 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             }
             finally
             {
-                DismissForWarmCache();
+                rootMenu.DismissForWarmCache();
             }
 
             return;
         }
 
-        DismissForWarmCache();
+        rootMenu.DismissForWarmCache();
         action();
     }
 
     public virtual void DismissForWarmCache()
     {
+        TrayMenuWindow rootMenu = GetRootMenu();
+        if (!ReferenceEquals(rootMenu, this))
+        {
+            rootMenu.DismissForWarmCache();
+            return;
+        }
+
         if (IsWarmPriming) return;
+        CloseDescendantMenus();
+        _submenuHoverTimer?.Stop();
+        _hoveredItem = null;
+        _hoveredEntry = null;
 
         if (IsManagedByWarmSlot)
         {
@@ -391,6 +681,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
     public virtual void CloseForWarmEviction()
     {
+        TrayMenuWindow rootMenu = GetRootMenu();
+        if (!ReferenceEquals(rootMenu, this))
+        {
+            rootMenu.CloseForWarmEviction();
+            return;
+        }
+
+        CloseDescendantMenus();
         if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
             resourceOwner.DisposeWarmResources();
 
@@ -401,6 +699,15 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
     protected override void OnClosed(EventArgs e)
     {
         _closed = true;
+        CloseDescendantMenus();
+        TrayMenuWindow? parentMenu = _parentMenu;
+        if (parentMenu != null && ReferenceEquals(parentMenu._childMenu, this))
+        {
+            parentMenu._childMenu = null;
+            parentMenu._childMenuOwner?.SetSubmenuOpen(false);
+            parentMenu._childMenuOwner = null;
+        }
+
         UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
         try
         {
@@ -418,10 +725,18 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
 
     private void OnDeactivated(object? sender, EventArgs e)
     {
-        if (_closedFromSelection) return;
+        TrayMenuWindow rootMenu = GetRootMenu();
+        if (rootMenu._closedFromSelection || rootMenu._deactivationCheckPending) return;
 
-        _closedFromDeactivation = true;
-        DismissForWarmCache();
+        rootMenu._deactivationCheckPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            rootMenu._deactivationCheckPending = false;
+            if (rootMenu._closed || rootMenu._closedFromSelection || rootMenu.IsAnyMenuActive()) return;
+
+            rootMenu._closedFromDeactivation = true;
+            rootMenu.DismissForWarmCache();
+        }, DispatcherPriority.Input);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -432,24 +747,51 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         e.Handled = true;
     }
 
+    private static int ResolveSystemSubmenuShowDelayMilliseconds()
+    {
+        if (OperatingSystem.IsWindows() &&
+            User32.SystemParametersInfo(User32.SPI_GETMENUSHOWDELAY, 0, out int delayMilliseconds, 0))
+        {
+            return Math.Clamp(delayMilliseconds, 0, TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
+        }
+
+        return TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
+    }
+
+    private int ResolveSubmenuShowDelayMilliseconds() =>
+        (_options.TrayMenuSettings?.UseSystemSubmenuShowDelay ?? _options.UseSystemSubmenuShowDelay)
+            ? SystemSubmenuShowDelayMilliseconds
+            : Math.Clamp(
+                _options.TrayMenuSettings?.SubmenuShowDelayMs ?? _options.SubmenuShowDelayMilliseconds,
+                TimeConstants.TrayMenuSubmenuShowDelayMinMs,
+                TimeConstants.TrayMenuSubmenuShowDelayMaxMs);
+
     private CornerRadius ResolveCornerRadius(CornerRadius roundedRadius) =>
         _options.Rounded ? roundedRadius : new CornerRadius(0);
 
     private sealed class TrayMenuItemControl : Border, IDisposable
     {
+        private readonly TrayMenuEntry _entry;
         private readonly TrayMenuWindowOptions _options;
         private readonly Border _itemBorder;
-        private readonly Action _click;
+        private readonly Action<TrayMenuItemControl, TrayMenuEntry> _invoke;
+        private readonly Action<TrayMenuItemControl, TrayMenuEntry, bool> _itemHoverChanged;
+        private readonly Action<bool>? _hoverChanged;
         private bool _isPointerOver;
+        private bool _isSubmenuOpen;
         private bool _disposed;
 
         public TrayMenuItemControl(
             TrayMenuEntry entry,
             TrayMenuWindowOptions options,
-            Action click)
+            Action<TrayMenuItemControl, TrayMenuEntry> invoke,
+            Action<TrayMenuItemControl, TrayMenuEntry, bool> itemHoverChanged)
         {
+            _entry = entry;
             _options = options;
-            _click = click;
+            _invoke = invoke;
+            _itemHoverChanged = itemHoverChanged;
+            _hoverChanged = entry.HoverChanged;
             Background = Brushes.Transparent;
             Cursor = TrayAppDotNETCursors.Hand;
             Focusable = true;
@@ -460,6 +802,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 CornerRadius = ResolveCornerRadius(options, options.ItemCornerRadius),
                 Padding = options.ItemPadding,
                 Margin = options.ItemMargin,
+                MinHeight = double.IsFinite(options.ItemHeight) ? options.ItemHeight : 0,
                 MinWidth = options.ItemMinWidth,
                 Child = BuildContent(entry, options)
             };
@@ -497,10 +840,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         private static Control BuildContent(TrayMenuEntry entry, TrayMenuWindowOptions options)
         {
             TextBlock label = TrayAppDotNETSettingsUI.Text(entry.Text, options.Palette, options.FontSize);
+            label.FontWeight = options.FontWeight;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.TextTrimming = TextTrimming.CharacterEllipsis;
+            string? resolvedTrailingGlyph = entry.SubmenuFactory != null
+                ? options.SubmenuGlyph
+                : entry.TrailingGlyph;
 
-            if (entry.LeadingGlyph == null && string.IsNullOrEmpty(entry.TrailingGlyph))
+            if (entry.LeadingGlyph == null && string.IsNullOrEmpty(resolvedTrailingGlyph))
                 return label;
 
             Grid content = new()
@@ -511,7 +858,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                         entry.LeadingGlyph == null ? 0 : options.LeadingGlyphColumnWidth)),
                     new ColumnDefinition(GridLength.Star),
                     new ColumnDefinition(
-                        string.IsNullOrEmpty(entry.TrailingGlyph) ? new GridLength(0) : GridLength.Auto)
+                        string.IsNullOrEmpty(resolvedTrailingGlyph) ? new GridLength(0) : GridLength.Auto)
                 }
             };
 
@@ -532,24 +879,36 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             Grid.SetColumn(label, 1);
             content.Children.Add(label);
 
-            if (string.IsNullOrEmpty(entry.TrailingGlyph))
+            if (string.IsNullOrEmpty(resolvedTrailingGlyph))
                 return content;
 
-            TextBlock trailingGlyph =
-                TrayAppDotNETSettingsUI.Text(entry.TrailingGlyph, options.Palette, options.TrailingGlyphFontSize);
-            trailingGlyph.FontFamily = TrayAppDotNETSettingsUI.IconFont;
-            trailingGlyph.Margin = options.TrailingGlyphMargin;
-            trailingGlyph.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(trailingGlyph, 2);
-            content.Children.Add(trailingGlyph);
+            TextBlock trailingGlyphText = TrayAppDotNETSettingsUI.Text(
+                resolvedTrailingGlyph,
+                options.Palette,
+                options.TrailingGlyphFontSize);
+            trailingGlyphText.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+            trailingGlyphText.Margin = options.TrailingGlyphMargin;
+            trailingGlyphText.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(trailingGlyphText, 2);
+            content.Children.Add(trailingGlyphText);
 
             return content;
         }
 
         private void UpdateVisual()
         {
-            Color background = _isPointerOver ? _options.Palette.Hover : Colors.Transparent;
+            Color background = _isPointerOver || _isSubmenuOpen
+                ? _options.Palette.Hover
+                : Colors.Transparent;
             _itemBorder.Background = TrayAppDotNETSettingsUI.Brush(background);
+        }
+
+        public void SetSubmenuOpen(bool isOpen)
+        {
+            if (_disposed || _isSubmenuOpen == isOpen) return;
+
+            _isSubmenuOpen = isOpen;
+            UpdateVisual();
         }
 
         private void OnPointerEntered(object? sender, PointerEventArgs e)
@@ -557,6 +916,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed) return;
             _isPointerOver = true;
             UpdateVisual();
+            _itemHoverChanged(this, _entry, true);
+            _hoverChanged?.Invoke(true);
         }
 
         private void OnPointerExited(object? sender, PointerEventArgs e)
@@ -564,6 +925,8 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed) return;
             _isPointerOver = false;
             UpdateVisual();
+            _itemHoverChanged(this, _entry, false);
+            _hoverChanged?.Invoke(false);
         }
 
         private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -571,7 +934,7 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             if (_disposed || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
             if (!_options.InvokeOnPointerReleased)
-                _click();
+                _invoke(this, _entry);
 
             e.Handled = true;
         }
@@ -582,16 +945,19 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
                 return;
 
             if (_isPointerOver)
-                _click();
+                _invoke(this, _entry);
 
             e.Handled = true;
         }
 
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
-            if (_disposed || e.Key is not (Key.Enter or Key.Space)) return;
+            if (_disposed) return;
+            bool invokesEntry = e.Key is Key.Enter or Key.Space ||
+                                e.Key == Key.Right && _entry.SubmenuFactory != null;
+            if (!invokesEntry) return;
 
-            _click();
+            _invoke(this, _entry);
             e.Handled = true;
         }
 
@@ -599,6 +965,14 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             if (_disposed) return;
             _disposed = true;
+            if (_isPointerOver)
+            {
+                _itemHoverChanged(this, _entry, false);
+                _hoverChanged?.Invoke(false);
+            }
+
+            _isPointerOver = false;
+            _isSubmenuOpen = false;
             PointerEntered -= OnPointerEntered;
             PointerExited -= OnPointerExited;
             PointerPressed -= OnPointerPressed;

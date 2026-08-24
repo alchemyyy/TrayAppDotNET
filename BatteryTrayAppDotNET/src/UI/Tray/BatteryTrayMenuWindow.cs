@@ -20,6 +20,7 @@ public sealed class BatteryTrayMenuWindow : TrayMenuWindow
                 Palette = palette,
                 Rounded = settings.EnableRoundedCorners,
                 FontSize = settings.ContextMenuFontSize,
+                TrayMenuSettings = settings,
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
                 ScrollToBottom = true

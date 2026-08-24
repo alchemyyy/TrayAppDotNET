@@ -47,12 +47,18 @@ public interface ITrayAppDotNETWarmWindowSettings
     bool KeepTrayContextMenuWarm { get; set; }
 }
 
+public interface ITrayAppDotNETTrayMenuSettings
+{
+    bool UseSystemSubmenuShowDelay { get; set; }
+    int SubmenuShowDelayMs { get; set; }
+}
+
 public abstract class AppSettingsCommon(
     int updateCheckIntervalDefaultMs,
     TrayAppDotNETRenderingBackend renderingBackendDefault = TrayAppDotNETRenderingBackend.GPUPreferred)
     : INotifyPropertyChanged,
     ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayXmlSerializationCallbacks
+    ITrayAppDotNETTrayMenuSettings, ITrayXmlSerializationCallbacks
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -122,6 +128,23 @@ public abstract class AppSettingsCommon(
             ref field,
             Math.Clamp(value, TimeConstants.ToolTipShowDelayMinMs, TimeConstants.ToolTipShowDelayMaxMs));
     } = TimeConstants.ToolTipShowDelayDefaultMs;
+
+    public bool UseSystemSubmenuShowDelay
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    public int SubmenuShowDelayMs
+    {
+        get;
+        set => SetField(
+            ref field,
+            Math.Clamp(
+                value,
+                TimeConstants.TrayMenuSubmenuShowDelayMinMs,
+                TimeConstants.TrayMenuSubmenuShowDelayMaxMs));
+    } = TimeConstants.TrayMenuSubmenuShowDelayDefaultMs;
 
     public TrayAppDotNETRenderingBackend RenderingBackend
     {

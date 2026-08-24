@@ -506,10 +506,13 @@ internal sealed class NetworkAvaloniaApp : Application
 
     private NetworkTrayMenuWindow CreateTrayMenuWindow()
     {
+        AppSettings settings = _settings
+                               ?? throw new InvalidOperationException("Network tray menu requires settings.");
         NetworkTrayMenuWindow menuWindow = new(
+            settings,
             TrayMenuPalette(),
-            rounded: _settings?.EnableRoundedCorners ?? true,
-            fontSize: _settings?.ContextMenuFontSize ?? 15,
+            rounded: settings.EnableRoundedCorners,
+            fontSize: settings.ContextMenuFontSize,
             networkSettingsText: L(nameof(AppStrings.Tray_NetworkSettings)),
             adapterSettingsText: L(nameof(AppStrings.Tray_AdapterSettings)),
             settingsText: L(nameof(AppStrings.Tray_Settings)),

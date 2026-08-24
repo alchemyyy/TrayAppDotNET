@@ -45,6 +45,18 @@ internal static class NativeProcessInfo
     private const ushort ImageFileMachineARM64 = 0xAA64;
     private const int MaximumPackageNameLength = 4096;
 
+    /// <summary>Reads installed physical memory once for percentage-based column formatting.</summary>
+    public static long ReadTotalPhysicalMemoryBytes()
+    {
+        MEMORYSTATUSEX memoryStatus = new()
+        {
+            Length = (uint)Marshal.SizeOf<MEMORYSTATUSEX>()
+        };
+        return GlobalMemoryStatusEx(ref memoryStatus) && memoryStatus.TotalPhysicalMemory <= long.MaxValue
+            ? (long)memoryStatus.TotalPhysicalMemory
+            : 0;
+    }
+
     public static long ReadCreationTimeTicks(IntPtr processHandle, long fallback)
     {
         if (!GetProcessTimes(
@@ -467,6 +479,10 @@ internal static class NativeProcessInfo
     [DllImport("kernel32.dll")]
     private static extern uint GetActiveProcessorCount(uint groupNumber);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX buffer);
+
     [DllImport("powrprof.dll")]
     private static extern uint CallNtPowerInformation(
         int informationLevel,
@@ -536,6 +552,20 @@ internal static class NativeProcessInfo
     {
         public uint LowDateTime;
         public uint HighDateTime;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MEMORYSTATUSEX
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhysicalMemory;
+        public ulong AvailablePhysicalMemory;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
     }
 
     [StructLayout(LayoutKind.Sequential)]

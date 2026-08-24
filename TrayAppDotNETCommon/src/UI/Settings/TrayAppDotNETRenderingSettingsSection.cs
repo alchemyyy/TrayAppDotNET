@@ -23,6 +23,7 @@ public sealed class TrayAppDotNETRenderingSettingsSectionOptions
     public required Func<string, string, Task> ShowMessage { get; init; }
     public required ITrayAppDotNETRenderingSettings RenderingSettings { get; init; }
     public ITrayAppDotNETWarmWindowSettings? WarmWindowSettings { get; init; }
+    public ITrayAppDotNETTrayMenuSettings? TrayMenuSettings { get; init; }
     public bool SupportsFlyoutWarmWindow { get; init; }
     public bool SupportsTrayContextMenuWarmWindow { get; init; }
     public IReadOnlyList<Func<TrayAppDotNETRenderingSettingsCardContext, Control>> AdditionalCards { get; init; } = [];
@@ -46,30 +47,72 @@ public sealed class TrayAppDotNETRenderingSettingsSection(TrayAppDotNETRendering
             stack.Children.Add(buildCard(_cardContext));
 
         ITrayAppDotNETWarmWindowSettings? warmWindowSettings = options.WarmWindowSettings;
-        if (warmWindowSettings == null ||
-            options is { SupportsFlyoutWarmWindow: false, SupportsTrayContextMenuWarmWindow: false })
-            return;
+        if (warmWindowSettings != null &&
+            options is not { SupportsFlyoutWarmWindow: false, SupportsTrayContextMenuWarmWindow: false })
+        {
+            stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
+                L(nameof(CommonStrings.Settings_General_Performance_Header)), p));
 
+            if (options.SupportsFlyoutWarmWindow)
+            {
+                stack.Children.Add(BuildCard(
+                    L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Title)),
+                    L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Description)),
+                    warmWindowSettings.KeepFlyoutWarm,
+                    value => warmWindowSettings.KeepFlyoutWarm = value));
+            }
+
+            if (options.SupportsTrayContextMenuWarmWindow)
+            {
+                stack.Children.Add(BuildCard(
+                    L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Title)),
+                    L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Description)),
+                    warmWindowSettings.KeepTrayContextMenuWarm,
+                    value => warmWindowSettings.KeepTrayContextMenuWarm = value));
+            }
+        }
+
+        AddTrayMenuCards(stack);
+    }
+
+    private void AddTrayMenuCards(StackPanel stack)
+    {
+        ITrayAppDotNETTrayMenuSettings? trayMenuSettings = options.TrayMenuSettings;
+        if (trayMenuSettings == null) return;
+
+        SettingsPalette palette = options.Palette;
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
-            L(nameof(CommonStrings.Settings_General_Performance_Header)), p));
+            L(nameof(CommonStrings.Settings_General_ContextMenu_Header)),
+            palette));
 
-        if (options.SupportsFlyoutWarmWindow)
-        {
-            stack.Children.Add(BuildCard(
-                L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Title)),
-                L(nameof(CommonStrings.Settings_General_KeepFlyoutWarm_Description)),
-                warmWindowSettings.KeepFlyoutWarm,
-                value => warmWindowSettings.KeepFlyoutWarm = value));
-        }
+        Border submenuDelayCard = TrayAppDotNETSettingsCards.IntCard(
+            L(nameof(CommonStrings.Settings_General_SubmenuOpenDelay_Title)),
+            L(nameof(CommonStrings.Settings_General_SubmenuOpenDelay_Description)),
+            trayMenuSettings.SubmenuShowDelayMs,
+            TimeConstants.TrayMenuSubmenuShowDelayMinMs,
+            TimeConstants.TrayMenuSubmenuShowDelayMaxMs,
+            value => trayMenuSettings.SubmenuShowDelayMs = value,
+            palette,
+            options.CardRadius,
+            options.Save,
+            " ms",
+            [L(nameof(CommonStrings.Settings_General_SubmenuOpenDelay_SearchKeywords))]);
+        submenuDelayCard.IsVisible = !trayMenuSettings.UseSystemSubmenuShowDelay;
 
-        if (options.SupportsTrayContextMenuWarmWindow)
-        {
-            stack.Children.Add(BuildCard(
-                L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Title)),
-                L(nameof(CommonStrings.Settings_General_KeepTrayContextMenuWarm_Description)),
-                warmWindowSettings.KeepTrayContextMenuWarm,
-                value => warmWindowSettings.KeepTrayContextMenuWarm = value));
-        }
+        stack.Children.Add(TrayAppDotNETSettingsCards.BoolCard(
+            L(nameof(CommonStrings.Settings_General_UseSystemSubmenuDelay_Title)),
+            L(nameof(CommonStrings.Settings_General_UseSystemSubmenuDelay_Description)),
+            trayMenuSettings.UseSystemSubmenuShowDelay,
+            value =>
+            {
+                trayMenuSettings.UseSystemSubmenuShowDelay = value;
+                submenuDelayCard.IsVisible = !value;
+            },
+            palette,
+            options.CardRadius,
+            options.Save,
+            searchKeywords: [L(nameof(CommonStrings.Settings_General_UseSystemSubmenuDelay_SearchKeywords))]));
+        stack.Children.Add(submenuDelayCard);
     }
 
     /// <summary>Builds the startup-only rendering backend selector.</summary>

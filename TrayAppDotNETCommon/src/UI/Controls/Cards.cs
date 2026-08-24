@@ -94,6 +94,42 @@ public static class TrayAppDotNETSettingsCards
         return Card(title, description, input, palette, cardRadius, searchKeywords);
     }
 
+    public static Border DoubleCard(
+        string title,
+        string description,
+        double value,
+        double min,
+        double max,
+        Action<double> set,
+        SettingsPalette palette,
+        CornerRadius cardRadius,
+        Action save,
+        string suffix = "",
+        IReadOnlyList<string>? searchKeywords = null,
+        int decimalPlaces = 1,
+        double step = 0.1)
+    {
+        SettingsNumberBox input = new(
+            palette,
+            value,
+            min,
+            max,
+            SettingsCardsLayout.NumberBoxWidth,
+            suffix,
+            decimalPlaces)
+        {
+            Step = step,
+            WheelStep = step
+        };
+        input.ValueChanged += (_, eventArgs) =>
+        {
+            if (!eventArgs.NewValue.HasValue) return;
+            set(eventArgs.NewValue.Value);
+            save();
+        };
+        return Card(title, description, input, palette, cardRadius, searchKeywords);
+    }
+
     public static Border ComboCard(
         string title,
         string description,
