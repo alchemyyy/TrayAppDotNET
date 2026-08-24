@@ -59,4 +59,10 @@ public abstract class TimeConstants
     protected internal const int UpdateCheckStartupDelayMs = 5_000;
     protected internal const int UpdateAssetDownloadMaxAttempts = 3;
     protected internal const int UpdateAssetDownloadInitialBackoffMs = 1_000;
+    protected internal const int UpdateFileRetryDelayMs = 250;
+    protected internal const int UpdateProcessRetryDelayMs = 250;
+    protected internal const int UpdateLogRetryDelayMs = 50;
+    protected internal const int UpdateCleanupRetryDelayMs = 1_000;
+    protected internal const int UninstallProcessRetryDelayMs = 250;
+    protected internal const int UninstallFileRetryDelayMs = 1_000;
 }

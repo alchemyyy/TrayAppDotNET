@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Security.Cryptography;
 using System.Security.Principal;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Utils;
@@ -13,7 +12,8 @@ public sealed record TrayAppDotNETInstallationOptions(
     TrayAppDotNETInstallPayload Payload,
     int CurrentBuildNumber,
     Action<InstallScope?, bool>? SyncStartMenu = null,
-    Action<Action>? PostToUIThread = null);
+    Action<Action>? PostToUIThread = null,
+    TrayAppDotNETDesktopShortcutOptions? DesktopShortcutOptions = null);
 
 /// <summary>
 /// App-agnostic installer for TrayAppDotNET publish payloads.
@@ -22,11 +22,20 @@ public sealed record TrayAppDotNETInstallationOptions(
 /// </summary>
 public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOptions options)
 {
+    private const int UninstallProcessStopAttempts = 20;
+
     public TrayAppDotNETInstallIdentity Identity => options.Identity;
 
     public TrayAppDotNETInstallLayout Layout => options.Layout;
 
     public TrayAppDotNETInstallPayload Payload => options.Payload;
+
+    public TrayAppDotNETDesktopShortcut DesktopShortcut { get; } = new(
+        options.DesktopShortcutOptions
+        ?? new TrayAppDotNETDesktopShortcutOptions(
+            options.Identity.ApplicationName,
+            options.Layout,
+            options.Identity.WriteLog));
 
     public static bool IsElevated(Action<string>? log = null)
     {
@@ -120,7 +129,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             TrayAppDotNETInstallStatus.NotInstalled, null);
     }
 
-    public TrayAppDotNETInstallResult InstallToLocalAppData(string? sourceExe = null)
+    public TrayAppDotNETInstallResult InstallToLocalAppData(
+        string? sourceExe = null,
+        TrayAppDotNETInstallOptions? installOptions = null)
     {
         sourceExe ??= Environment.ProcessPath ?? string.Empty;
         if (!File.Exists(sourceExe))
@@ -128,6 +139,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
 
         try
         {
+            StopInstalledProcesses(InstallScope.LocalAppData);
+
             TrayAppDotNETInstallResult copyResult = CopyInstallPayload(
                 sourceExe,
                 Layout.LocalAppDataInstallDirectory,
@@ -141,8 +154,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 Identity,
                 Layout.InstalledExecutableFileName);
 
-            options.SyncStartMenu?.Invoke(null, false);
-            return new TrayAppDotNETInstallResult(true);
+            return ApplyInstallOptions(InstallScope.LocalAppData, allUsers: false, installOptions);
         }
         catch (Exception ex)
         {
@@ -151,26 +163,35 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         }
     }
 
-    public TrayAppDotNETInstallResult InstallSystemWide(string? sourceExe = null)
+    public TrayAppDotNETInstallResult InstallSystemWide(
+        string? sourceExe = null,
+        TrayAppDotNETInstallOptions? installOptions = null)
     {
         sourceExe ??= Environment.ProcessPath ?? string.Empty;
         if (!File.Exists(sourceExe))
             return new TrayAppDotNETInstallResult(false, "Cannot determine running executable path");
 
         if (IsElevated(Identity.WriteLog))
-            return RunAdminInstallSystem(sourceExe, options.CurrentBuildNumber);
+            return RunAdminInstallSystem(sourceExe, options.CurrentBuildNumber, installOptions);
 
         return TryInvokeElevated(
-            $"--admin-action install-system \"{sourceExe}\" {options.CurrentBuildNumber}",
+            BuildElevatedInstallArguments(sourceExe, options.CurrentBuildNumber, installOptions),
             sourceExe);
     }
 
-    public TrayAppDotNETInstallResult RunAdminInstallSystem(string sourceExe, int buildNumber)
+    public TrayAppDotNETInstallResult RunAdminInstallSystem(
+        string sourceExe,
+        int buildNumber,
+        TrayAppDotNETInstallOptions? installOptions = null)
     {
         try
         {
+            if (!IsElevated(Identity.WriteLog))
+                return new TrayAppDotNETInstallResult(false, "System installation requires elevation");
             if (!File.Exists(sourceExe))
                 return new TrayAppDotNETInstallResult(false, $"Source exe not found: {sourceExe}");
+
+            StopInstalledProcesses(InstallScope.ProgramFiles);
 
             TrayAppDotNETInstallResult copyResult = CopyInstallPayload(
                 sourceExe,
@@ -185,8 +206,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 Identity,
                 Layout.InstalledExecutableFileName);
 
-            options.SyncStartMenu?.Invoke(null, true);
-            return new TrayAppDotNETInstallResult(true);
+            return ApplyInstallOptions(InstallScope.ProgramFiles, allUsers: true, installOptions);
         }
         catch (Exception ex)
         {
@@ -285,8 +305,6 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         };
         if (string.IsNullOrEmpty(installDirectory)) return null;
 
-        options.SyncStartMenu?.Invoke(scope, false);
-
         Process? batProcess = UninstallScript.Run(
             installDirectory,
             scope,
@@ -307,11 +325,175 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         if (!runningFromInstall) return batProcess;
 
         Action shutdown = shutdownCurrentProcess ?? (() => Environment.Exit(0));
-        if (options.PostToUIThread != null) options.PostToUIThread(shutdown);
+        if (shutdownCurrentProcess != null) shutdown();
+        else if (options.PostToUIThread != null) options.PostToUIThread(shutdown);
         else shutdown();
 
         batProcess?.Dispose();
         return null;
+    }
+
+    /// <summary>Reconciles shell state and stops exact installed processes before file removal.</summary>
+    public TrayAppDotNETInstallResult PrepareUninstall(InstallScope scope)
+    {
+        if (scope is not (InstallScope.LocalAppData or InstallScope.ProgramFiles))
+            return new TrayAppDotNETInstallResult(false, $"Unsupported uninstall scope: {scope}");
+        if (scope == InstallScope.ProgramFiles && !IsElevated(Identity.WriteLog))
+            return new TrayAppDotNETInstallResult(false, "System uninstall preparation requires elevation");
+
+        try
+        {
+            ReconcileStartupShortcut(scope);
+            options.SyncStartMenu?.Invoke(scope, scope == InstallScope.ProgramFiles);
+
+            TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(scope, enabled: false);
+            if (!desktopResult.Success)
+                Identity.WriteLog($"PrepareUninstall: {desktopResult.ErrorMessage}");
+
+            _ = WindowsUninstallRegistry.Remove(scope, Identity);
+            RemoveLegacyRunEntry();
+            StopInstalledProcesses(scope);
+            return desktopResult.Success
+                ? new TrayAppDotNETInstallResult(true)
+                : desktopResult;
+        }
+        catch (Exception exception)
+        {
+            Identity.WriteLog($"TrayAppDotNETInstallationService.PrepareUninstall({scope}): {exception}");
+            return new TrayAppDotNETInstallResult(false, exception.Message);
+        }
+    }
+
+    private void ReconcileStartupShortcut(InstallScope removingScope)
+    {
+        string shortcutPath = Identity.StartupShortcutPath;
+        if (!File.Exists(shortcutPath)) return;
+
+        string replacement = removingScope switch
+        {
+            InstallScope.LocalAppData when File.Exists(Layout.ProgramFilesInstallExecutable) =>
+                Layout.ProgramFilesInstallExecutable,
+            InstallScope.ProgramFiles when File.Exists(Layout.LocalAppDataInstallExecutable) =>
+                Layout.LocalAppDataInstallExecutable,
+            _ => string.Empty
+        };
+        if (!string.IsNullOrWhiteSpace(replacement))
+        {
+            Interop.ShellLink.Create(shortcutPath, replacement, Identity.ApplicationName);
+            return;
+        }
+
+        string? currentTarget = Interop.ShellLink.TryRead(shortcutPath, Identity.WriteLog);
+        string removedDirectory = removingScope == InstallScope.ProgramFiles
+            ? Layout.ProgramFilesInstallDirectory
+            : Layout.LocalAppDataInstallDirectory;
+        if (currentTarget != null && IsPathWithin(currentTarget, removedDirectory))
+            File.Delete(shortcutPath);
+    }
+
+    private void RemoveLegacyRunEntry()
+    {
+        try
+        {
+            using Microsoft.Win32.RegistryKey? key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                Identity.LegacyRunKeyRegistryPath,
+                writable: true);
+            key?.DeleteValue(Identity.ApplicationName, throwOnMissingValue: false);
+        }
+        catch (Exception exception)
+        {
+            Identity.WriteLog($"PrepareUninstall: legacy Run entry cleanup failed: {exception.Message}");
+        }
+    }
+
+    private void StopInstalledProcesses(InstallScope scope)
+    {
+        string targetExecutable = Path.GetFullPath(scope == InstallScope.ProgramFiles
+            ? Layout.ProgramFilesInstallExecutable
+            : Layout.LocalAppDataInstallExecutable);
+
+        for (int attempt = 1; attempt <= UninstallProcessStopAttempts; attempt++)
+        {
+            List<Process> processes = FindInstalledProcesses(targetExecutable);
+            if (processes.Count == 0) return;
+
+            foreach (Process process in processes)
+            {
+                try
+                {
+                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                }
+                catch (Exception exception)
+                {
+                    Identity.WriteLog(
+                        $"PrepareUninstall: could not stop PID {SafeProcessID(process)}: {exception.Message}");
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
+
+            if (attempt < UninstallProcessStopAttempts)
+                Thread.Sleep(TimeConstants.UninstallProcessRetryDelayMs);
+        }
+
+        List<Process> remaining = FindInstalledProcesses(targetExecutable);
+        try
+        {
+            if (remaining.Count > 0)
+            {
+                string processIDs = string.Join(", ", remaining.Select(SafeProcessID));
+                throw new IOException($"Could not stop installed process IDs: {processIDs}");
+            }
+        }
+        finally
+        {
+            foreach (Process process in remaining) process.Dispose();
+        }
+    }
+
+    private static List<Process> FindInstalledProcesses(string targetExecutable)
+    {
+        List<Process> matches = [];
+        foreach (Process process in Process.GetProcesses())
+        {
+            bool keep = false;
+            try
+            {
+                if (process.Id == Environment.ProcessId || process.HasExited) continue;
+                string? executable = process.MainModule?.FileName;
+                keep = executable != null
+                       && string.Equals(
+                           Path.GetFullPath(executable),
+                           targetExecutable,
+                           StringComparison.OrdinalIgnoreCase);
+                if (keep) matches.Add(process);
+            }
+            catch
+            {
+            }
+            finally
+            {
+                if (!keep) process.Dispose();
+            }
+        }
+
+        return matches;
+    }
+
+    private static int SafeProcessID(Process process)
+    {
+        try { return process.Id; }
+        catch { return 0; }
+    }
+
+    private static bool IsPathWithin(string path, string directory)
+    {
+        string normalizedPath = Path.GetFullPath(path);
+        string normalizedDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar)
+                                     + Path.DirectorySeparatorChar;
+        return normalizedPath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
     }
 
     public TrayAppDotNETInstallResult TryInvokeElevated(string arguments, string sourceExe)
@@ -346,6 +528,59 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
             return new TrayAppDotNETInstallResult(false, ex.Message);
         }
     }
+
+    internal TrayAppDotNETInstallResult ApplyInstallOptions(
+        InstallScope scope,
+        bool allUsers,
+        TrayAppDotNETInstallOptions? installOptions)
+    {
+        if (installOptions != null)
+        {
+            Identity.WriteLog(
+                $"TrayAppDotNETInstallationService.ApplyInstallOptions: scope={scope}, "
+                + $"desktopShortcut={installOptions.CreateDesktopShortcut}, "
+                + $"startMenuShortcut={installOptions.CreateStartMenuShortcut}");
+        }
+
+        InstallScope? removingStartMenuScope = installOptions is { CreateStartMenuShortcut: false }
+            ? scope
+            : null;
+
+        options.SyncStartMenu?.Invoke(removingStartMenuScope, allUsers);
+
+        // Existing callers did not manage desktop shortcuts. Only an explicit choice may alter one.
+        if (installOptions == null) return new TrayAppDotNETInstallResult(true);
+
+        TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(
+            scope,
+            installOptions.CreateDesktopShortcut);
+        if (desktopResult.Success) return desktopResult;
+
+        return new TrayAppDotNETInstallResult(
+            false,
+            $"Application files were installed, but the desktop shortcut could not be updated: "
+            + desktopResult.ErrorMessage);
+    }
+
+    internal static string BuildElevatedInstallArguments(
+        string sourceExecutable,
+        int buildNumber,
+        TrayAppDotNETInstallOptions? installOptions)
+    {
+        string arguments =
+            $"{TrayAppDotNETInstallOptions.SystemInstallArgument} "
+            + $"{TrayAppDotNETInstallOptions.SourceExecutableArgument} \"{sourceExecutable}\" "
+            + $"{TrayAppDotNETInstallOptions.BuildNumberArgument} {buildNumber}";
+        if (installOptions == null) return arguments;
+
+        return arguments
+               + $" {TrayAppDotNETInstallOptions.DesktopShortcutArgument} "
+               + FormatBooleanArgument(installOptions.CreateDesktopShortcut)
+               + $" {TrayAppDotNETInstallOptions.StartMenuShortcutArgument} "
+               + FormatBooleanArgument(installOptions.CreateStartMenuShortcut);
+    }
+
+    private static string FormatBooleanArgument(bool value) => value ? "true" : "false";
 
     private static bool ShouldCopySourceDirectoryRootFile(string sourceFile, string installedExecutableFileName)
     {
@@ -411,7 +646,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         string? destinationDirectory = Path.GetDirectoryName(destinationFile);
         if (!string.IsNullOrEmpty(destinationDirectory)) Directory.CreateDirectory(destinationDirectory);
 
-        if (File.Exists(destinationFile) && IsDllFile(sourceFile) && DllHashesMatch(sourceFile, destinationFile)) return;
+        if (File.Exists(destinationFile) && IsDllFile(sourceFile) && DllContentsMatch(sourceFile, destinationFile))
+            return;
 
         File.Copy(sourceFile, destinationFile, overwrite: true);
     }
@@ -419,17 +655,12 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     private static bool IsDllFile(string path) =>
         string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase);
 
-    private static bool DllHashesMatch(string sourceFile, string destinationFile)
+    private static bool DllContentsMatch(string sourceFile, string destinationFile)
     {
-        byte[] sourceHash = HashFile(sourceFile);
-        byte[] destinationHash = HashFile(destinationFile);
-        return sourceHash.SequenceEqual(destinationHash);
-    }
-
-    private static byte[] HashFile(string path)
-    {
-        using FileStream stream = File.OpenRead(path);
-        return SHA256.HashData(stream);
+        FileInfo source = new(sourceFile);
+        FileInfo destination = new(destinationFile);
+        return source.Length == destination.Length
+               && File.ReadAllBytes(sourceFile).AsSpan().SequenceEqual(File.ReadAllBytes(destinationFile));
     }
 
     private static void CopyDirectoryMerge(string sourceDirectory, string destinationDirectory)

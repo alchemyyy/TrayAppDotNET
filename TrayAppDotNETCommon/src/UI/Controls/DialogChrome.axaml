@@ -5,11 +5,16 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- Window geometry and chrome -->
+    <sys:Double x:Key="DialogChrome.InstallerWindowWidth">560</sys:Double>
+    <sys:Double x:Key="DialogChrome.InstallerWindowHeight">500</sys:Double>
+    <sys:Double x:Key="DialogChrome.InstallerWindowMinWidth">460</sys:Double>
+    <sys:Double x:Key="DialogChrome.InstallerWindowMinHeight">460</sys:Double>
     <sys:Double x:Key="DialogChrome.UninstallerWindowWidth">520</sys:Double>
     <sys:Double x:Key="DialogChrome.UninstallerWindowHeight">360</sys:Double>
     <sys:Double x:Key="DialogChrome.UninstallerWindowMinWidth">420</sys:Double>
     <sys:Double x:Key="DialogChrome.UninstallerWindowMinHeight">320</sys:Double>
     <sys:Double x:Key="DialogChrome.TitleBarHeight">32</sys:Double>
+    <sys:Double x:Key="DialogChrome.TitleFontSize">13</sys:Double>
     <Thickness x:Key="DialogChrome.RootBorderThickness">1</Thickness>
     <CornerRadius x:Key="DialogChrome.RootCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="DialogChrome.CardCornerRadius">6</CornerRadius>
@@ -22,6 +27,17 @@
     <Thickness x:Key="DialogChrome.OptionRadioMargin">0,0,12,0</Thickness>
     <Thickness x:Key="DialogChrome.OptionCardPadding">16,12</Thickness>
     <Thickness x:Key="DialogChrome.OptionCardMargin">0,0,0,6</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerLocationTitleMargin">0,0,0,8</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerLocationButtonsMargin">0,0,0,8</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerLocationButtonPadding">20,10</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerLocationButtonBorderThickness">1</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerLocationButtonGap">0,0,8,0</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerPathPadding">12,8</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerPathMargin">0,0,0,16</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerPathBorderThickness">1</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerShortcutMargin">0,0,0,8</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerShortcutPadding">16,10</Thickness>
+    <sys:Double x:Key="DialogChrome.InstallerPathFontSize">12</sys:Double>
     <Thickness x:Key="DialogChrome.ActionButtonPadding">20,8</Thickness>
     <Thickness x:Key="DialogChrome.CancelButtonMargin">0,0,8,0</Thickness>
     <Thickness x:Key="DialogChrome.ActionButtonsMargin">0,20,0,0</Thickness>

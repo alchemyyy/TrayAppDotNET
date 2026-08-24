@@ -7,39 +7,80 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 public sealed class ProgramStartupTests
 {
     [Fact]
-    public void InstallStopsRecordedWatcherAndMonitoredProcessesBeforeCopying()
+    public void LocalInstallDoesNotStopUnrelatedProcessesBeforeServiceRuns()
     {
         string uniqueID = Guid.NewGuid().ToString("N");
         string applicationName = $"TrayAppDotNETInstallTest{uniqueID}";
         SingleInstanceIdentity identity = new(applicationName, uniqueID);
         using FakeRunningApplication runningApplication = new(identity);
         List<string> logMessages = [];
-        bool processesExitedBeforeCopy = false;
+        bool unrelatedProcessesWereRunning = false;
 
         TrayAppDotNETProgramOptions options = new(
             applicationName,
             "TrayAppDotNETInstallTests",
             uniqueID,
             static _ => throw new InvalidOperationException("Application mode was not expected."),
-            static (_, _) => throw new InvalidOperationException("Admin install mode was not expected."),
+            static (_, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
             static (_, _) => { },
-            () =>
+            static _ => throw new InvalidOperationException("Uninstall preparation was not expected."),
+            static (_, _) => throw new InvalidOperationException("Headless uninstall was not expected."),
+            _ =>
             {
-                processesExitedBeforeCopy = runningApplication.ProcessesExited;
+                unrelatedProcessesWereRunning = !runningApplication.ProcessesExited;
                 return new TrayAppDotNETProgramInstallResult(
-                    processesExitedBeforeCopy,
-                    processesExitedBeforeCopy ? null : "Running processes were not stopped.");
+                    unrelatedProcessesWereRunning,
+                    unrelatedProcessesWereRunning ? null : "Unrelated processes were stopped.");
             },
-            static () => throw new InvalidOperationException("System install mode was not expected."),
+            static _ => throw new InvalidOperationException("System install mode was not expected."),
             () => Path.Combine(Path.GetTempPath(), applicationName + ".exe"),
             () => Path.Combine(Path.GetTempPath(), applicationName + "-system.exe"),
             logMessages.Add);
 
         int exitCode = TrayAppDotNETProgram.RunInstall("local", options, logMessages.Add, startInstalled: false);
 
-        runningApplication.AssertStopped();
         Assert.True(exitCode == 0, string.Join(Environment.NewLine, logMessages));
-        Assert.True(processesExitedBeforeCopy);
+        Assert.True(unrelatedProcessesWereRunning);
+        Assert.False(runningApplication.ProcessesExited);
+    }
+
+    [Fact]
+    public void CancelledSystemInstallLeavesRunningApplicationUntouched()
+    {
+        string uniqueID = Guid.NewGuid().ToString("N");
+        string applicationName = $"TrayAppDotNETInstallTest{uniqueID}";
+        SingleInstanceIdentity identity = new(applicationName, uniqueID);
+        using FakeRunningApplication runningApplication = new(identity);
+        List<string> logMessages = [];
+        bool systemInstallInvoked = false;
+
+        TrayAppDotNETProgramOptions options = new(
+            applicationName,
+            "TrayAppDotNETInstallTests",
+            uniqueID,
+            static _ => throw new InvalidOperationException("Application mode was not expected."),
+            static (_, _, _) => throw new InvalidOperationException("Admin install mode was not expected."),
+            static (_, _) => { },
+            static _ => throw new InvalidOperationException("Uninstall preparation was not expected."),
+            static (_, _) => throw new InvalidOperationException("Headless uninstall was not expected."),
+            static _ => throw new InvalidOperationException("Local install mode was not expected."),
+            _ =>
+            {
+                systemInstallInvoked = true;
+                return new TrayAppDotNETProgramInstallResult(
+                    Success: false,
+                    ErrorMessage: null,
+                    UserCancelled: true);
+            },
+            () => Path.Combine(Path.GetTempPath(), applicationName + ".exe"),
+            () => Path.Combine(Path.GetTempPath(), applicationName + "-system.exe"),
+            logMessages.Add);
+
+        int exitCode = TrayAppDotNETProgram.RunInstall("system", options, logMessages.Add, startInstalled: false);
+
+        Assert.Equal(1, exitCode);
+        Assert.True(systemInstallInvoked);
+        Assert.False(runningApplication.ProcessesExited);
     }
 
     private sealed class FakeRunningApplication : IDisposable
@@ -71,13 +112,6 @@ public sealed class ProgramStartupTests
         }
 
         public bool ProcessesExited => Volatile.Read(ref _processesExited);
-
-        public void AssertStopped()
-        {
-            Assert.True(_ownerThread.Join(OwnerShutdownTimeoutMs), "The fake watcher owner did not exit.");
-            ThrowOwnerException();
-            Assert.True(ProcessesExited);
-        }
 
         public void Dispose()
         {

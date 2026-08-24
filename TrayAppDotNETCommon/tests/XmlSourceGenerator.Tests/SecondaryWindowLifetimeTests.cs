@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.WarmWindows;
@@ -66,6 +68,84 @@ public sealed class SecondaryWindowLifetimeTests
         Collect();
         Assert.False(callbackTargetReference.IsAlive);
         GC.KeepAlive(window);
+    });
+
+    [Fact]
+    public void InstallerReturnsSelectedLocationAndShortcutOptions() => AvaloniaTestHost.Run(() =>
+    {
+        string localInstallDirectory = Path.Combine(Path.GetTempPath(), "TrayAppDotNET", "Local");
+        string systemInstallDirectory = Path.Combine(Path.GetTempPath(), "TrayAppDotNET", "System");
+        TrayAppDotNETInstallerWindow window = new(new TrayAppDotNETInstallerWindowOptions
+        {
+            Layout = new TrayAppDotNETInstallLayout(
+                "Test",
+                "TrayAppDotNET",
+                localInstallDirectory,
+                systemInstallDirectory,
+                "Test.exe"),
+            Icon = null,
+            Palette = Palette(),
+            EnableRoundedCorners = true
+        });
+
+        window.Show();
+
+        Assert.Equal(InstallScope.LocalAppData, window.SelectedScope);
+        Assert.Equal(localInstallDirectory, window.SelectedInstallDirectory);
+        Assert.False(window.SelectedInstallOptions.CreateDesktopShortcut);
+        Assert.True(window.SelectedInstallOptions.CreateStartMenuShortcut);
+        Assert.Contains(
+            window.GetVisualDescendants().OfType<TextBlock>(),
+            text => text.Text == localInstallDirectory);
+        Assert.Contains(
+            window.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "Local");
+        Assert.Contains(
+            window.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "System");
+
+        SettingsButton systemButton = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "System");
+        systemButton.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Enter
+        });
+        Assert.Equal(InstallScope.ProgramFiles, window.SelectedScope);
+        Assert.Equal(systemInstallDirectory, window.SelectedInstallDirectory);
+        Assert.Contains(
+            window.GetVisualDescendants().OfType<TextBlock>(),
+            text => text.Text == systemInstallDirectory);
+
+        CheckBox desktopShortcut = Assert.Single(
+            window.GetVisualDescendants().OfType<CheckBox>(),
+            checkBox => checkBox.Content is TextBlock { Text: "Desktop shortcut" });
+        CheckBox startMenuShortcut = Assert.Single(
+            window.GetVisualDescendants().OfType<CheckBox>(),
+            checkBox => checkBox.Content is TextBlock { Text: "Start Menu entry" });
+        desktopShortcut.IsChecked = true;
+        startMenuShortcut.IsChecked = false;
+
+        SettingsButton installButton = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "Install");
+        installButton.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.Enter
+        });
+
+        TrayAppDotNETInstallerWindowResult result = Assert.IsType<TrayAppDotNETInstallerWindowResult>(window.Result);
+        Assert.Equal(InstallScope.ProgramFiles, result.Scope);
+        Assert.Equal(systemInstallDirectory, result.InstallDirectory);
+        Assert.True(result.InstallOptions.CreateDesktopShortcut);
+        Assert.False(result.InstallOptions.CreateStartMenuShortcut);
+        window.Dispose();
+        window.Dispose();
+
+        Assert.Null(window.Content);
+        Assert.Null(window.Icon);
     });
 
     [Fact]
@@ -198,7 +278,6 @@ public sealed class SecondaryWindowLifetimeTests
             Palette = Palette(),
             EnableRoundedCorners = true,
             L = callbackTarget.L,
-            RetargetStartupShortcut = callbackTarget.RetargetStartupShortcut,
             RunUninstall = callbackTarget.RunUninstall
         });
         return (window, new WeakReference(callbackTarget));
@@ -267,11 +346,6 @@ public sealed class SecondaryWindowLifetimeTests
         {
             _callCount++;
             return key;
-        }
-
-        public void RetargetStartupShortcut(InstallScope installScope)
-        {
-            _callCount++;
         }
 
         public Process? RunUninstall(InstallScope installScope, bool deleteSettings)

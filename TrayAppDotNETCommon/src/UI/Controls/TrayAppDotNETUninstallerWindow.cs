@@ -9,32 +9,6 @@ using TrayAppDotNETCommon.Models;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
-internal static class TrayAppDotNETDialogChromeLayout
-{
-    private static readonly Lazy<DialogChromeResources> Resources = new(static () => new DialogChromeResources());
-
-    private static DialogChromeResources AXAMLResources => Resources.Value;
-
-    public static double UninstallerWindowWidth => AXAMLResources.AxamlDialogChrome.UninstallerWindowWidth;
-    public static double UninstallerWindowHeight => AXAMLResources.AxamlDialogChrome.UninstallerWindowHeight;
-    public static double UninstallerWindowMinWidth => AXAMLResources.AxamlDialogChrome.UninstallerWindowMinWidth;
-    public static double UninstallerWindowMinHeight => AXAMLResources.AxamlDialogChrome.UninstallerWindowMinHeight;
-    public static double TitleBarHeight => AXAMLResources.AxamlDialogChrome.TitleBarHeight;
-    public static Thickness RootBorderThickness => AXAMLResources.AxamlDialogChrome.RootBorderThickness;
-    public static CornerRadius RootCornerRadius => AXAMLResources.AxamlDialogChrome.RootCornerRadius;
-    public static CornerRadius CardCornerRadius => AXAMLResources.AxamlDialogChrome.CardCornerRadius;
-    public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlDialogChrome.ZeroCornerRadius;
-    public static Thickness TitleMargin => AXAMLResources.AxamlDialogChrome.TitleMargin;
-    public static Thickness BodyMargin => AXAMLResources.AxamlDialogChrome.BodyMargin;
-    public static Thickness DescriptionMargin => AXAMLResources.AxamlDialogChrome.DescriptionMargin;
-    public static Thickness OptionRadioMargin => AXAMLResources.AxamlDialogChrome.OptionRadioMargin;
-    public static Thickness OptionCardPadding => AXAMLResources.AxamlDialogChrome.OptionCardPadding;
-    public static Thickness OptionCardMargin => AXAMLResources.AxamlDialogChrome.OptionCardMargin;
-    public static Thickness ActionButtonPadding => AXAMLResources.AxamlDialogChrome.ActionButtonPadding;
-    public static Thickness CancelButtonMargin => AXAMLResources.AxamlDialogChrome.CancelButtonMargin;
-    public static Thickness ActionButtonsMargin => AXAMLResources.AxamlDialogChrome.ActionButtonsMargin;
-}
-
 public sealed record TrayAppDotNETUninstallerWindowOptions
 {
     public required string ApplicationName { get; init; }
@@ -45,7 +19,6 @@ public sealed record TrayAppDotNETUninstallerWindowOptions
     public required SettingsPalette Palette { get; init; }
     public required bool EnableRoundedCorners { get; init; }
     public required Func<string, string> L { get; init; }
-    public required Action<InstallScope> RetargetStartupShortcut { get; init; }
     public required Func<InstallScope, bool, Process?> RunUninstall { get; init; }
 }
 
@@ -174,7 +147,7 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
         TextBlock title = TrayAppDotNETSettingsUI.Text(
             FormatApplicationName(nameof(CommonStrings.Uninstaller_Title)),
             Options.Palette,
-            13);
+            TrayAppDotNETDialogChromeLayout.TitleFontSize);
         title.VerticalAlignment = VerticalAlignment.Center;
         title.Margin = TrayAppDotNETDialogChromeLayout.TitleMargin;
         titleBar.Children.Add(title);
@@ -346,7 +319,6 @@ public class TrayAppDotNETUninstallerWindow : Window, IDisposable
 
         _cancelButton?.IsEnabled = false;
 
-        options.RetargetStartupShortcut(options.InstallScope);
         ConfirmedUninstall = true;
         TrackUninstallProcess(options.RunUninstall(options.InstallScope, deleteSettings));
         Close();

@@ -79,6 +79,24 @@ internal sealed class FanAvaloniaApp : Application
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
 
+        if (Program.IsInstallerMode)
+        {
+            LoadSettingsAndTheme();
+            AppSettings settings = _settings ?? new AppSettings();
+            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
+            {
+                Layout = AppServices.InstallLayout,
+                Icon = AppTheme.LoadAppIcon(),
+                Palette = FanSettingsWindow.CreatePalette(
+                    _theme,
+                    settings,
+                    ResolveEffectiveIsLightTheme()),
+                EnableRoundedCorners = settings.EnableRoundedCorners
+            });
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         if (Program.IsUninstallerMode)
         {
             LoadSettingsAndTheme();

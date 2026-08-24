@@ -77,6 +77,20 @@ internal sealed class NetworkAvaloniaApp : Application
 
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
 
+        if (Program.IsInstallerMode)
+        {
+            LoadSettingsAndTheme();
+            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
+            {
+                Layout = AppServices.InstallLayout,
+                Icon = AppTheme.LoadAppIcon(),
+                Palette = TrayMenuPalette(),
+                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+            });
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         if (Program.IsUninstallerMode)
         {
             LoadSettingsAndTheme();

@@ -28,8 +28,6 @@ internal sealed class TaskManagerUninstallerWindow(string installDirectory, Inst
             Palette = palette,
             EnableRoundedCorners = settings?.EnableRoundedCorners ?? true,
             L = static key => LocalizationManager.Instance[key],
-            RetargetStartupShortcut = static uninstallScope =>
-                AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
                 AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
         };

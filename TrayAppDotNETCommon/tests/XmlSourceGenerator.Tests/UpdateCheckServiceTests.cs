@@ -245,7 +245,6 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.NotNull(previousRelease);
         Assert.Equal(CurrentBuild - 1, previousRelease.Version);
         Assert.Equal("TrayAppDotNET_109", previousRelease.TagName);
-        Assert.Equal(new string('a', 64), previousRelease.AssetSha256);
         Assert.Equal(123L, previousRelease.AssetSize);
         Assert.Equal(3, messageHandler.RequestUrls.Count);
         Assert.Equal(
@@ -306,6 +305,50 @@ public sealed class UpdateCheckServiceTests : IDisposable
         Assert.Equal(expectUpdate, availableUpdate != null);
     }
 
+    [Fact]
+    public async Task DownloadAndStageAsync_RetriesAndRemovesPartialDownloads()
+    {
+        byte[] partialAsset = Encoding.UTF8.GetBytes("partial zip response");
+        using FixedAssetMessageHandler messageHandler = new(partialAsset);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+        UpdateInfo update = new(
+            Version: CurrentBuild + 1,
+            TagName: LatestReleaseTag,
+            ReleaseName: "Partial asset test",
+            Changelog: string.Empty,
+            AssetUrl: "https://downloads.test/TestTrayApp.zip",
+            AssetName: "TestTrayApp.zip",
+            AssetSize: partialAsset.Length + 1);
+
+        bool staged = await service.DownloadAndStageAsync(update);
+
+        Assert.False(staged);
+        Assert.Equal(3, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_testDirectory, "*_update_*"));
+    }
+
+    [Fact]
+    public async Task DownloadAndStageAsync_RetriesAndRemovesCorruptArchives()
+    {
+        byte[] corruptArchive = Encoding.UTF8.GetBytes("not a zip archive");
+        using FixedAssetMessageHandler messageHandler = new(corruptArchive);
+        using UpdateCheckService service = CreateService(messageHandler, static () => 0, static _ => { });
+        UpdateInfo update = new(
+            Version: CurrentBuild + 1,
+            TagName: LatestReleaseTag,
+            ReleaseName: "Corrupt asset test",
+            Changelog: string.Empty,
+            AssetUrl: "https://downloads.test/TestTrayApp.zip",
+            AssetName: "TestTrayApp.zip",
+            AssetSize: corruptArchive.Length);
+
+        bool staged = await service.DownloadAndStageAsync(update);
+
+        Assert.False(staged);
+        Assert.Equal(3, messageHandler.RequestCount);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_testDirectory, "*_update_*"));
+    }
+
     private UpdateCheckService CreateService(
         HttpMessageHandler messageHandler,
         Func<int> getSkippedUpdateVersion,
@@ -323,7 +366,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
                 ApplicationName = ApplicationName,
                 CurrentBuild = currentBuild,
                 UserAgent = ApplicationName + "-Updater",
-                StagingDirectory = Path.GetTempPath,
+                StagingDirectory = () => _testDirectory,
                 IsEnabled = static () => true,
                 PollInterval = pollInterval ?? (static () => TimeSpan.FromHours(1)),
                 GetSkippedUpdateVersion = getSkippedUpdateVersion,
@@ -333,6 +376,8 @@ public sealed class UpdateCheckServiceTests : IDisposable
                     action();
                     return Task.CompletedTask;
                 },
+                AssetDownloadMaxAttempts = 3,
+                AssetDownloadInitialBackoff = TimeSpan.FromMilliseconds(1),
                 GetCurrentUTCTime = getCurrentUTCTime ?? (static () => DateTime.UtcNow)
             },
             messageHandler);
@@ -351,7 +396,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
           <release tag="v{version}" name="Release {version}" />
           <artifacts>
             <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
-                      fileName="{ApplicationName}_{version}.zip" sha256="" size="0" />
+                      fileName="{ApplicationName}_{version}.zip" size="0" />
           </artifacts>
         </versions>
         """;
@@ -380,6 +425,24 @@ public sealed class UpdateCheckServiceTests : IDisposable
                 RequestMessage = request
             };
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class FixedAssetMessageHandler(byte[] content) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RequestCount++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(content),
+                RequestMessage = request
+            });
         }
     }
 
@@ -417,7 +480,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
             string appArtifact = includeApp
                 ? $"""
                       <artifact profile="release" kind="app" appId="{ApplicationName}" version="{appVersion}"
-                                fileName="{ApplicationName}_{appVersion}.zip"{releaseTagAttribute} sha256="" size="0" />
+                                fileName="{ApplicationName}_{appVersion}.zip"{releaseTagAttribute} size="0" />
                   """
                 : string.Empty;
             string manifest = $"""
@@ -426,7 +489,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
                   <release tag="TrayAppDotNET_{aggregateVersion}" name="TrayAppDotNET {aggregateVersion}" />
                   <artifacts>
                     <artifact profile="release" kind="aggregate" appId="TrayAppDotNET" version="{aggregateVersion}"
-                              fileName="TrayAppDotNET_{aggregateVersion}.zip" sha256="" size="0" />
+                              fileName="TrayAppDotNET_{aggregateVersion}.zip" size="0" />
                 {appArtifact}
                   </artifacts>
                 </versions>
@@ -450,8 +513,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
                     "assets": [
                       {
                         "name": "{{ApplicationName}}_{{appVersion}}.zip",
-                        "size": 123,
-                        "digest": "sha256:{{new string('a', 64)}}"
+                        "size": 123
                       }
                     ]
                   }
@@ -524,7 +586,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
                   <release tag="{tagName}" name="Release {version}" />
                   <artifacts>
                     <artifact profile="release" kind="app" appId="{ApplicationName}" version="{version}"
-                              fileName="{ApplicationName}_{version}.zip" sha256="" size="0" />
+                              fileName="{ApplicationName}_{version}.zip" size="0" />
                   </artifacts>
                 </versions>
                 """;
@@ -547,8 +609,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
                     "assets": [
                       {
                         "name": "{{ApplicationName}}_{{CurrentBuild - 1}}.zip",
-                        "size": 123,
-                        "digest": "sha256:{{new string('a', 64)}}"
+                        "size": 123
                       }
                     ]
                   }

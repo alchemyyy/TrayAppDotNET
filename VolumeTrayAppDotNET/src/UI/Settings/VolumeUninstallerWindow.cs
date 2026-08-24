@@ -26,8 +26,6 @@ public sealed class VolumeUninstallerWindow(string installDir, VolumeInstallScop
             Palette = palette,
             EnableRoundedCorners = AppServices.Settings?.EnableRoundedCorners == true,
             L = L,
-            RetargetStartupShortcut = static uninstallScope =>
-                AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
                 AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
         };

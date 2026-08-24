@@ -3,11 +3,11 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Xml.Serialization;
 using TrayAppDotNETCommon.Serialization;
+using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.Services;
@@ -19,7 +19,6 @@ public sealed record UpdateInfo(
     string Changelog,
     string AssetUrl,
     string AssetName,
-    string AssetSha256,
     long AssetSize);
 
 [XmlRoot("versions")]
@@ -63,9 +62,6 @@ internal sealed class VersionsArtifact
 
     [XmlAttribute("fileName")]
     public string FileName { get; set; } = string.Empty;
-
-    [XmlAttribute("sha256")]
-    public string Sha256 { get; set; } = string.Empty;
 
     [XmlAttribute("size")]
     public string Size { get; set; } = string.Empty;
@@ -136,26 +132,9 @@ public sealed class UpdateCheckService : IDisposable
     private const int PollStateIdle = 0;
     private const int PollStateScheduled = 1;
     private const int PollStateManual = 2;
-    private const int UpdateScriptTargetWaitSeconds = 60;
-    private const int UpdateScriptTerminateAttempts = 20;
-    private const int UpdateScriptStepDelaySeconds = 1;
-    private const int UpdateScriptTerminateDelaySeconds = 1;
     private const int GitHubFallbackReleasesPerPage = 10;
     private const int GitHubFallbackReleaseMaxPages = 10;
     private const string GitHubApiVersion = "2026-03-10";
-    private const string Sha256DigestPrefix = "sha256:";
-
-    private static readonly string[] SharedNativeDLLFileNames =
-    [
-        "av_libglesv2.dll",
-        "libHarfBuzzSharp.dll",
-        "libSkiaSharp.dll",
-        "libMonoPosixHelper.dll",
-        "MonoPosixHelper.dll"
-    ];
-
-    private sealed record UpdateCopyPlan(IReadOnlyList<string> RelativeFilePaths, bool StopSiblingApps);
-
     private readonly UpdateCheckOptions _options;
     private readonly HttpClient _http;
     private readonly SemaphoreSlim _previousReleaseSemaphore = new(1, 1);
@@ -358,9 +337,7 @@ public sealed class UpdateCheckService : IDisposable
         await SetCheckingAsync(true).ConfigureAwait(false);
         string? zipPath = null;
         string? extractDirectory = null;
-        string? scriptPath = null;
-        string? scriptLogPath = null;
-        bool launched = false;
+        bool handedOff = false;
         try
         {
             string stagingDirectory = _options.StagingDirectory();
@@ -375,85 +352,34 @@ public sealed class UpdateCheckService : IDisposable
 
             zipPath = Path.Combine(stagingDirectory, updateId + ".zip");
             extractDirectory = Path.Combine(stagingDirectory, updateId);
-            scriptPath = Path.Combine(stagingDirectory, updateId + ".bat");
-            scriptLogPath = Path.Combine(stagingDirectory, updateId + ".log");
+            string artifactBasePath = Path.Combine(stagingDirectory, updateId);
+            string installerLogPath = artifactBasePath + ".log";
 
-            bool downloaded = await DownloadAssetWithRetryAsync(info.AssetUrl, zipPath, token)
+            bool downloaded = await DownloadAndExtractAssetWithRetryAsync(
+                    info.AssetUrl,
+                    zipPath,
+                    extractDirectory,
+                    info.AssetSize,
+                    token)
                 .ConfigureAwait(false);
             if (!downloaded) return false;
 
-            if (info.AssetSize > 0)
-            {
-                FileInfo onDisk = new(zipPath);
-                if (onDisk.Length != info.AssetSize)
-                {
-                    TADNLog.Log(
-                        $"UpdateCheckService.DownloadAndStageAsync: size mismatch "
-                        + $"(got {onDisk.Length}, expected {info.AssetSize})");
-                    return false;
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(info.AssetSha256))
-            {
-                string actualSha = await Sha256FileAsync(zipPath, token).ConfigureAwait(false);
-                if (!string.Equals(actualSha, info.AssetSha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    TADNLog.Log(
-                        $"UpdateCheckService.DownloadAndStageAsync: sha256 mismatch "
-                        + $"(got {actualSha}, expected {info.AssetSha256})");
-                    return false;
-                }
-            }
-
-            ExtractZip(zipPath, extractDirectory);
-
             string currentExe = _options.CurrentExecutablePath()
                                 ?? throw new InvalidOperationException("Could not resolve current executable path.");
-            string? targetDirectory = Path.GetDirectoryName(currentExe);
-            if (string.IsNullOrWhiteSpace(targetDirectory))
-                throw new InvalidOperationException($"Could not resolve current executable directory: {currentExe}");
-
             string expectedExe = Path.Combine(extractDirectory, Path.GetFileName(currentExe));
             if (!File.Exists(expectedExe))
                 throw new InvalidOperationException($"Update package did not contain {Path.GetFileName(currentExe)}.");
 
-            UpdateCopyPlan copyPlan = await BuildUpdateCopyPlanAsync(
-                    extractDirectory,
-                    targetDirectory,
+            handedOff = await UpdateInstaller.LaunchAsync(
+                    expectedExe,
+                    currentExe,
+                    zipPath,
+                    installerLogPath,
+                    TADNLog.Log,
                     token)
                 .ConfigureAwait(false);
-            string scriptContents = BuildUpdateScript(
-                Environment.ProcessId,
-                extractDirectory,
-                zipPath,
-                targetDirectory,
-                currentExe,
-                scriptLogPath,
-                copyPlan);
-            await File.WriteAllTextAsync(scriptPath, scriptContents, Encoding.ASCII, token)
-                .ConfigureAwait(false);
-
-            ProcessStartInfo psi = new()
-            {
-                FileName = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe",
-                Arguments = $"/d /c call \"{scriptPath}\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                WorkingDirectory = stagingDirectory
-            };
-            using Process? cmd = Process.Start(psi);
-            launched = cmd != null;
-            if (launched)
-            {
-                TADNLog.Log(
-                    $"UpdateCheckService.DownloadAndStageAsync: launched update script {scriptPath}; "
-                    + $"installer log {scriptLogPath}");
-                TADNLog.Flush();
-            }
-
-            return launched;
+            if (handedOff) TADNLog.Flush();
+            return handedOff;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -462,11 +388,10 @@ public sealed class UpdateCheckService : IDisposable
         }
         finally
         {
-            if (!launched)
+            if (!handedOff)
             {
                 TryDeleteFile(zipPath);
                 TryDeleteDirectory(extractDirectory);
-                TryDeleteFile(scriptPath);
             }
 
             await SetCheckingAsync(false).ConfigureAwait(false);
@@ -882,7 +807,6 @@ public sealed class UpdateCheckService : IDisposable
             "",
             assetUrl.ToString(),
             expectedAssetName,
-            appArtifact.Sha256,
             ParsePositiveLong(appArtifact.Size));
     }
 
@@ -1003,7 +927,6 @@ public sealed class UpdateCheckService : IDisposable
                     GetJSONString(release, "body"),
                     assetUrl.ToString(),
                     assetName,
-                    ParseSHA256Digest(GetJSONString(asset, "digest")),
                     GetJSONPositiveInt64(asset, "size"));
                 if (preferredVersion.HasValue && version == preferredVersion.Value)
                     return (bestRelease, releases.GetArrayLength());
@@ -1073,28 +996,16 @@ public sealed class UpdateCheckService : IDisposable
             ? value
             : 0;
 
-    private static string ParseSHA256Digest(string digest)
-    {
-        if (!digest.StartsWith(Sha256DigestPrefix, StringComparison.OrdinalIgnoreCase)) return string.Empty;
-
-        string sha256 = digest[Sha256DigestPrefix.Length..];
-        if (sha256.Length != 64) return string.Empty;
-        foreach (char character in sha256)
-        {
-            if (!Uri.IsHexDigit(character)) return string.Empty;
-        }
-
-        return sha256;
-    }
-
     private bool IsReleaseAppArtifact(VersionsArtifact artifact) =>
         string.Equals(artifact.AppId, _options.ApplicationName, StringComparison.OrdinalIgnoreCase)
         && string.Equals(artifact.Profile, GitHubReleaseUrls.ReleaseProfile, StringComparison.OrdinalIgnoreCase)
         && string.Equals(artifact.Kind, "app", StringComparison.OrdinalIgnoreCase);
 
-    private async Task<bool> DownloadAssetWithRetryAsync(
+    private async Task<bool> DownloadAndExtractAssetWithRetryAsync(
         string assetUrl,
         string destination,
+        string extractDirectory,
+        long expectedSize,
         CancellationToken token)
     {
         TimeSpan backoff = _options.AssetDownloadInitialBackoff;
@@ -1108,33 +1019,53 @@ public sealed class UpdateCheckService : IDisposable
                 if (IsTerminalHttpStatus(resp.StatusCode))
                 {
                     TADNLog.Log(
-                        $"UpdateCheckService.DownloadAssetWithRetryAsync: terminal HTTP {(int)resp.StatusCode}");
+                        $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: "
+                        + $"terminal HTTP {(int)resp.StatusCode}");
                     TryDeleteFile(destination);
+                    TryDeleteDirectory(extractDirectory);
                     return false;
                 }
 
                 resp.EnsureSuccessStatusCode();
-                await using FileStream fs = new(destination, FileMode.Create, FileAccess.Write, FileShare.None);
-                await resp.Content.CopyToAsync(fs, token).ConfigureAwait(false);
+                await using (FileStream fs = new(destination, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await resp.Content.CopyToAsync(fs, token).ConfigureAwait(false);
+                }
+
+                if (expectedSize > 0)
+                {
+                    long actualSize = new FileInfo(destination).Length;
+                    if (actualSize != expectedSize)
+                    {
+                        throw new IOException(
+                            $"Downloaded asset size differs (got {actualSize}, expected {expectedSize}).");
+                    }
+                }
+
+                ExtractZip(destination, extractDirectory);
                 return true;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 TryDeleteFile(destination);
+                TryDeleteDirectory(extractDirectory);
                 throw;
             }
             catch (HttpRequestException ex) when (IsTerminalHttpRequestException(ex))
             {
-                TADNLog.Log($"UpdateCheckService.DownloadAssetWithRetryAsync: terminal HTTP error: {ex.Message}");
+                TADNLog.Log(
+                    $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: terminal HTTP error: {ex.Message}");
                 TryDeleteFile(destination);
+                TryDeleteDirectory(extractDirectory);
                 return false;
             }
             catch (Exception ex) when (attempt < _options.AssetDownloadMaxAttempts)
             {
                 TADNLog.Log(
-                    $"UpdateCheckService.DownloadAssetWithRetryAsync: attempt "
+                    $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: attempt "
                     + $"{attempt}/{_options.AssetDownloadMaxAttempts} failed: {ex.Message}");
                 TryDeleteFile(destination);
+                TryDeleteDirectory(extractDirectory);
                 try { await Task.Delay(backoff, token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return false; }
 
@@ -1142,8 +1073,11 @@ public sealed class UpdateCheckService : IDisposable
             }
             catch (Exception ex)
             {
-                TADNLog.Log($"UpdateCheckService.DownloadAssetWithRetryAsync: final attempt failed: {ex.Message}");
+                TADNLog.Log(
+                    $"UpdateCheckService.DownloadAndExtractAssetWithRetryAsync: "
+                    + $"final attempt failed: {ex.Message}");
                 TryDeleteFile(destination);
+                TryDeleteDirectory(extractDirectory);
                 return false;
             }
         }
@@ -1159,313 +1093,6 @@ public sealed class UpdateCheckService : IDisposable
 
     private static bool IsTerminalHttpRequestException(HttpRequestException ex) =>
         ex.StatusCode is { } statusCode && IsTerminalHttpStatus(statusCode);
-
-    /// <summary>Builds the exact file list the updater should copy.</summary>
-    private static async Task<UpdateCopyPlan> BuildUpdateCopyPlanAsync(
-        string sourceDirectory,
-        string targetDirectory,
-        CancellationToken token)
-    {
-        string normalizedSourceDirectory = Path.GetFullPath(sourceDirectory);
-        List<string> relativeFilePaths = [];
-        bool stopSiblingApps = false;
-
-        string[] sourceFiles = [.. Directory.EnumerateFiles(
-            normalizedSourceDirectory,
-            "*",
-            SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase)];
-        foreach (string sourceFile in sourceFiles)
-        {
-            token.ThrowIfCancellationRequested();
-
-            string relativePath = Path.GetRelativePath(normalizedSourceDirectory, sourceFile);
-            if (!IsSharedNativeDLLRootFile(relativePath))
-            {
-                relativeFilePaths.Add(relativePath);
-                continue;
-            }
-
-            SharedNativeDLLCopyDecision decision = await SharedNativeDLLCopyDecisionAsync(
-                    sourceFile,
-                    Path.Combine(targetDirectory, relativePath),
-                    Path.GetFileName(relativePath),
-                    token)
-                .ConfigureAwait(false);
-            if (decision == SharedNativeDLLCopyDecision.Skip) continue;
-
-            relativeFilePaths.Add(relativePath);
-            if (decision == SharedNativeDLLCopyDecision.CopyAndStopSiblings)
-                stopSiblingApps = true;
-        }
-
-        return new UpdateCopyPlan(relativeFilePaths, stopSiblingApps);
-    }
-
-    /// <summary>Determines how a shared native sidecar should be handled by the update copy plan.</summary>
-    private static async Task<SharedNativeDLLCopyDecision> SharedNativeDLLCopyDecisionAsync(
-        string sourceFile,
-        string targetFile,
-        string fileName,
-        CancellationToken token)
-    {
-        if (!File.Exists(targetFile))
-        {
-            TADNLog.Log(
-                $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} is missing; "
-                + "sibling apps must stop.");
-            return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
-        }
-
-        try
-        {
-            FileInfo sourceInfo = new(sourceFile);
-            FileInfo targetInfo = new(targetFile);
-            if (sourceInfo.Length != targetInfo.Length)
-            {
-                TADNLog.Log(
-                    $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} size differs; "
-                    + "sibling apps must stop.");
-                return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
-            }
-
-            string sourceHash = await Sha256FileAsync(sourceFile, token).ConfigureAwait(false);
-            string targetHash = await Sha256FileAsync(targetFile, token).ConfigureAwait(false);
-            if (!string.Equals(sourceHash, targetHash, StringComparison.OrdinalIgnoreCase))
-            {
-                TADNLog.Log(
-                    $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} hash differs; "
-                    + "sibling apps must stop.");
-                return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
-            }
-
-            TADNLog.Log($"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} is unchanged; skipping.");
-            return SharedNativeDLLCopyDecision.Skip;
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            TADNLog.Log(
-                $"UpdateCheckService.SharedNativeDLLCopyDecisionAsync: {fileName} comparison failed: "
-                + $"{ex.Message}; sibling apps must stop.");
-            return SharedNativeDLLCopyDecision.CopyAndStopSiblings;
-        }
-    }
-
-    private enum SharedNativeDLLCopyDecision
-    {
-        Skip,
-        CopyAndStopSiblings
-    }
-
-    /// <summary>Returns true for root-level native sidecars shared by every Native AOT tray app.</summary>
-    private static bool IsSharedNativeDLLRootFile(string relativePath) =>
-        string.IsNullOrEmpty(Path.GetDirectoryName(relativePath))
-        && SharedNativeDLLFileNames.Contains(Path.GetFileName(relativePath), StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Builds the detached batch updater that replaces the installed payload and restarts apps.</summary>
-    private static string BuildUpdateScript(
-        int pid,
-        string sourceDirectory,
-        string downloadedZip,
-        string targetDirectory,
-        string currentExe,
-        string logPath,
-        UpdateCopyPlan copyPlan)
-    {
-        string targetPID = pid.ToString(CultureInfo.InvariantCulture);
-        string sourceBAT = EscapeBATValue(sourceDirectory);
-        string zipBAT = EscapeBATValue(downloadedZip);
-        string targetBAT = EscapeBATValue(targetDirectory);
-        string exeBAT = EscapeBATValue(currentExe);
-        string logBAT = EscapeBATValue(logPath);
-        string stopSiblingAppsBAT = copyPlan.StopSiblingApps ? "1" : "0";
-        string plannedFileCount = copyPlan.RelativeFilePaths.Count.ToString(CultureInfo.InvariantCulture);
-        string copyCommands = BuildBATCopyCommands(copyPlan.RelativeFilePaths);
-        string targetWaitSeconds = UpdateScriptTargetWaitSeconds.ToString(CultureInfo.InvariantCulture);
-        string terminateAttempts = UpdateScriptTerminateAttempts.ToString(CultureInfo.InvariantCulture);
-        string stepDelayCommand = BATDelayCommand(UpdateScriptStepDelaySeconds);
-        string terminateDelayCommand = BATDelayCommand(UpdateScriptTerminateDelaySeconds);
-
-        return $"""
-        @echo off
-        setlocal EnableExtensions
-        set TARGETPID={targetPID}
-        set "SOURCE={sourceBAT}"
-        set "ZIP={zipBAT}"
-        set "TARGET={targetBAT}"
-        set "EXE={exeBAT}"
-        set "LOG={logBAT}"
-        set STOP_SIBLING_APPS={stopSiblingAppsBAT}
-        set "RESTARTLIST=%~dpn0.restart"
-        set "RUNNINGFLAG=%~dpn0.running"
-        set COPYRC=1
-        set PROCESSRC=1
-        if exist "%RESTARTLIST%" del /f /q "%RESTARTLIST%" >NUL 2>&1
-        if exist "%RUNNINGFLAG%" del /f /q "%RUNNINGFLAG%" >NUL 2>&1
-        > "%RESTARTLIST%" echo %EXE%
-        >> "%LOG%" echo [%DATE% %TIME%] Update installer started.
-        call :wait_for_target_exit
-        if "%STOP_SIBLING_APPS%"=="1" (
-          call :record_running_apps
-          call :terminate_running_apps
-        ) else (
-          >> "%LOG%" echo [%DATE% %TIME%] Shared native DLLs are unchanged; sibling apps can keep running.
-        )
-        call :copy_update_payload
-        set COPYRC=%ERRORLEVEL%
-        if %COPYRC% GEQ 8 (
-          set PROCESSRC=%COPYRC%
-          >> "%LOG%" echo [%DATE% %TIME%] Copy failed; restarting recorded apps from the existing install root.
-        ) else (
-          set PROCESSRC=0
-          >> "%LOG%" echo [%DATE% %TIME%] Copy succeeded; restarting recorded apps.
-        )
-        call :restart_recorded_apps
-        goto cleanup
-
-        :wait_for_target_exit
-        >> "%LOG%" echo [%DATE% %TIME%] Waiting for PID %TARGETPID%.
-        set WAITCOUNT=0
-        :waitloop
-        tasklist /FI "PID eq %TARGETPID%" /FO CSV /NH 2>NUL | find "%TARGETPID%" >NUL
-        if errorlevel 1 goto afterwait
-        set /a WAITCOUNT+=1 >NUL
-        if %WAITCOUNT% GEQ {targetWaitSeconds} goto force_target_exit
-        {stepDelayCommand}
-        goto waitloop
-        :force_target_exit
-        >> "%LOG%" echo [%DATE% %TIME%] PID %TARGETPID% still running after wait limit.
-        >> "%LOG%" echo [%DATE% %TIME%] Terminating PID %TARGETPID%.
-        taskkill /PID %TARGETPID% /T /F >> "%LOG%" 2>&1
-        {stepDelayCommand}
-        :afterwait
-        exit /b 0
-
-        :record_running_apps
-        >> "%LOG%" echo [%DATE% %TIME%] Recording running sibling TrayAppDotNET apps from "%TARGET%".
-        for %%F in ("%TARGET%\*TrayAppDotNET.exe") do (
-          if exist "%%~fF" (
-            if /I not "%%~fF"=="%EXE%" (
-              tasklist /FI "IMAGENAME eq %%~nxF" /FO CSV /NH 2>NUL | find /I "%%~nxF" >NUL
-              if not errorlevel 1 (
-                >> "%LOG%" echo [%DATE% %TIME%] Recording "%%~fF" for restart.
-                >> "%RESTARTLIST%" echo %%~fF
-              )
-            )
-          )
-        )
-        exit /b 0
-
-        :terminate_running_apps
-        >> "%LOG%" echo [%DATE% %TIME%] Terminating known TrayAppDotNET app names from "%TARGET%".
-        for /L %%I in (1,1,{terminateAttempts}) do (
-          if exist "%RUNNINGFLAG%" del /f /q "%RUNNINGFLAG%" >NUL 2>&1
-          call :terminate_running_once
-          if not exist "%RUNNINGFLAG%" exit /b 0
-          {terminateDelayCommand}
-        )
-        if exist "%RUNNINGFLAG%" (
-          >> "%LOG%" echo [%DATE% %TIME%] WARNING: one or more TrayAppDotNET app names remained after termination attempts.
-          del /f /q "%RUNNINGFLAG%" >NUL 2>&1
-        )
-        exit /b 0
-
-        :terminate_running_once
-        for %%F in ("%TARGET%\*TrayAppDotNET.exe") do (
-          if exist "%%~fF" (
-            tasklist /FI "IMAGENAME eq %%~nxF" /FO CSV /NH 2>NUL | find /I "%%~nxF" >NUL
-            if not errorlevel 1 (
-              > "%RUNNINGFLAG%" echo 1
-              >> "%LOG%" echo [%DATE% %TIME%] Terminating "%%~nxF".
-              taskkill /IM "%%~nxF" /T /F >> "%LOG%" 2>&1
-            )
-          )
-        )
-        exit /b 0
-
-        :copy_update_payload
-        >> "%LOG%" echo [%DATE% %TIME%] Copying {plannedFileCount} planned file(s) from "%SOURCE%" to "%TARGET%".
-        {stepDelayCommand}
-        set COPYFAILED=0
-        {copyCommands}
-        if "%COPYFAILED%"=="1" (
-          >> "%LOG%" echo [%DATE% %TIME%] One or more file copies failed.
-          exit /b 8
-        )
-        >> "%LOG%" echo [%DATE% %TIME%] Planned file copy completed.
-        exit /b 0
-
-        :copy_file
-        set "REL=%~1"
-        set "SRCFILE=%SOURCE%\%REL%"
-        set "DSTFILE=%TARGET%\%REL%"
-        for %%D in ("%DSTFILE%") do if not exist "%%~dpD" mkdir "%%~dpD" >> "%LOG%" 2>&1
-        >> "%LOG%" echo [%DATE% %TIME%] Copying "%REL%".
-        copy /Y "%SRCFILE%" "%DSTFILE%" >> "%LOG%" 2>&1
-        set COPYRC=%ERRORLEVEL%
-        if %COPYRC% GEQ 1 (
-          >> "%LOG%" echo [%DATE% %TIME%] Failed to copy "%REL%" with exit code %COPYRC%.
-          set COPYFAILED=1
-        )
-        exit /b %COPYRC%
-
-        :restart_recorded_apps
-        if not exist "%RESTARTLIST%" exit /b 0
-        for /F "usebackq delims=" %%P in ("%RESTARTLIST%") do call :start_recorded_app "%%~fP"
-        exit /b 0
-
-        :start_recorded_app
-        if not exist "%~1" (
-          >> "%LOG%" echo [%DATE% %TIME%] Skipping missing executable "%~1".
-          exit /b 0
-        )
-        set "APPDIR=%~dp1"
-        >> "%LOG%" echo [%DATE% %TIME%] Starting "%~1".
-        start "" /D "%APPDIR%" "%~1"
-        >> "%LOG%" echo [%DATE% %TIME%] Start exit code %ERRORLEVEL%.
-        exit /b 0
-
-        :cleanup
-        >> "%LOG%" echo [%DATE% %TIME%] Cleaning staging files.
-        if exist "%RUNNINGFLAG%" del /f /q "%RUNNINGFLAG%" >NUL 2>&1
-        if exist "%RESTARTLIST%" del /f /q "%RESTARTLIST%" >NUL 2>&1
-        rmdir /S /Q "%SOURCE%" 2>NUL
-        del "%ZIP%" 2>NUL
-        (goto) 2>nul & del "%~f0" & exit /b %PROCESSRC%
-        """;
-    }
-
-    /// <summary>Escapes a value embedded in a batch file variable assignment.</summary>
-    private static string EscapeBATValue(string value) =>
-        value.Replace("%", "%%", StringComparison.Ordinal);
-
-    /// <summary>Builds one explicit batch copy call for each planned update file.</summary>
-    private static string BuildBATCopyCommands(IReadOnlyList<string> relativeFilePaths)
-    {
-        if (relativeFilePaths.Count == 0)
-            return "rem No files were selected for update copy.";
-
-        StringBuilder sb = new();
-        foreach (string relativePath in relativeFilePaths)
-        {
-            sb.Append("call :copy_file \"");
-            sb.Append(EscapeBATValue(relativePath));
-            sb.Append('"');
-            sb.Append('\n');
-        }
-
-        return sb.ToString().TrimEnd();
-    }
-
-    /// <summary>Builds a batch-compatible delay command that does not read console input.</summary>
-    private static string BATDelayCommand(int seconds)
-    {
-        int pingCount = Math.Max(2, seconds + 1);
-        return $"ping -n {pingCount.ToString(CultureInfo.InvariantCulture)} 127.0.0.1 >NUL";
-    }
 
     private static void ExtractZip(string zipPath, string destinationDirectory)
     {
@@ -1495,13 +1122,6 @@ public sealed class UpdateCheckService : IDisposable
                 Directory.CreateDirectory(parent);
             entry.ExtractToFile(destinationPath, overwrite: true);
         }
-    }
-
-    private static async Task<string> Sha256FileAsync(string path, CancellationToken token)
-    {
-        await using FileStream fs = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        byte[] hash = await SHA256.HashDataAsync(fs, token).ConfigureAwait(false);
-        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
     private static void TryDeleteFile(string? path)

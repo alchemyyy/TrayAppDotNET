@@ -45,6 +45,19 @@ internal sealed class TaskManagerAvaloniaApp : Application
         TrayAppDotNETAvalonia.ConfigureExplicitShutdown(this, ShutdownServices);
         LoadSettingsAndTheme();
 
+        if (Program.IsInstallerMode)
+        {
+            TrayAppDotNETInstallerRunner.Show(this, new TrayAppDotNETInstallerWindowOptions
+            {
+                Layout = AppServices.InstallLayout,
+                Icon = null,
+                Palette = CreatePalette(),
+                EnableRoundedCorners = _settings?.EnableRoundedCorners ?? true
+            });
+            base.OnFrameworkInitializationCompleted();
+            return;
+        }
+
         if (Program.IsUninstallerMode)
         {
             TrayAppDotNETAvalonia.ConfigureShutdownOnLastWindowClose(this);

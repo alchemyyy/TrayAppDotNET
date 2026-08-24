@@ -29,8 +29,6 @@ public sealed class FanUninstallerWindow(string installDir, FanInstallScope scop
             Palette = palette,
             EnableRoundedCorners = settings.EnableRoundedCorners,
             L = L,
-            RetargetStartupShortcut = static uninstallScope =>
-                AppServices.Startup.RetargetShortcutIfPresent(exclude: uninstallScope),
             RunUninstall = static (uninstallScope, deleteSettings) =>
                 AppServices.Installation.RunUninstall(uninstallScope, deleteSettings)
         };

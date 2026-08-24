@@ -511,6 +511,39 @@ Restart from the installed copy now?</value>
   <data name="SettingsWindow_ConfirmOverlay_OK" xml:space="preserve">
     <value>OK</value>
   </data>
+  <data name="Installer_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Installer_Caption_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Installer_DesktopShortcut" xml:space="preserve">
+    <value>Desktop shortcut</value>
+  </data>
+  <data name="Installer_Description" xml:space="preserve">
+    <value>Choose where to install the application and which shortcuts to create.</value>
+  </data>
+  <data name="Installer_InstallButton" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Installer_InstallLocation" xml:space="preserve">
+    <value>Install location</value>
+  </data>
+  <data name="Installer_LocalLocation" xml:space="preserve">
+    <value>Local</value>
+  </data>
+  <data name="Installer_SectionHeader_Format" xml:space="preserve">
+    <value>Install {0}</value>
+  </data>
+  <data name="Installer_StartMenuShortcut" xml:space="preserve">
+    <value>Start Menu entry</value>
+  </data>
+  <data name="Installer_SystemLocation" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Installer_Title_Format" xml:space="preserve">
+    <value>Install {0}</value>
+  </data>
   <data name="Uninstaller_Caption_Close" xml:space="preserve">
     <value>Close</value>
   </data>

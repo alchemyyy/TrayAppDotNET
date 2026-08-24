@@ -15,6 +15,8 @@ internal static class Program
 
     public static bool IsUninstallerMode => TrayAppDotNETProgram.IsUninstallerMode;
 
+    public static bool IsInstallerMode => TrayAppDotNETProgram.IsInstallerMode;
+
     public static string? UninstallerInstallDir => TrayAppDotNETProgram.UninstallerInstallDir;
 
     public static InstallScope UninstallerScope => TrayAppDotNETProgram.UninstallerScope;
@@ -28,11 +30,18 @@ internal static class Program
             SharedRootFolderName,
             Constants.AppGUID,
             TaskManagerAvaloniaRunner.Run,
-            (sourceExecutable, buildNumber) => TrayAppDotNETProgramInstallResult.From(
-                AppServices.Installation.RunAdminInstallSystem(sourceExecutable, buildNumber)),
+            (sourceExecutable, buildNumber, installOptions) => TrayAppDotNETProgramInstallResult.From(
+                AppServices.Installation.RunAdminInstallSystem(sourceExecutable, buildNumber, installOptions)),
             (removingScope, allUsers) => AppServices.StartMenu.Sync(removingScope, allUsers),
-            () => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.InstallToLocalAppData()),
-            () => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.InstallSystemWide()),
+            scope => TrayAppDotNETProgramInstallResult.From(AppServices.Installation.PrepareUninstall(scope)),
+            (scope, deleteSettings) => AppServices.Installation.RunUninstall(
+                scope,
+                deleteSettings,
+                static () => Environment.Exit(0)),
+            installOptions => TrayAppDotNETProgramInstallResult.From(
+                AppServices.Installation.InstallToLocalAppData(installOptions: installOptions)),
+            installOptions => TrayAppDotNETProgramInstallResult.From(
+                AppServices.Installation.InstallSystemWide(installOptions: installOptions)),
             () => AppServices.InstallLayout.LocalAppDataInstallExecutable,
             () => AppServices.InstallLayout.ProgramFilesInstallExecutable,
             TADNLog.Log,
