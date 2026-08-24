@@ -23,6 +23,13 @@ namespace BrightnessTrayAppDotNET.DDCCI;
 /// </summary>
 public class DisplayService : IDisplayService, IDisposable
 {
+    private enum MonitorEnumerationPurpose
+    {
+        Full,
+        DDCRecovery,
+        HelperResolution
+    }
+
     private readonly bool _useHelperProcess;
     // One helper process per stable monitor identity. A blocked driver call can therefore time out and kill only
     // that monitor's helper instead of holding the single pipe lock in front of every other panel.
@@ -70,7 +77,13 @@ public class DisplayService : IDisplayService, IDisposable
 
     public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
     {
-        return TryGetMonitorsCore(helperResolutionOnly: false, out monitors, out error);
+        return TryGetMonitorsCore(MonitorEnumerationPurpose.Full, out monitors, out error);
+    }
+
+    /// <inheritdoc />
+    public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
+    {
+        return TryGetMonitorsCore(MonitorEnumerationPurpose.DDCRecovery, out monitors, out error);
     }
 
     /// <summary>
@@ -78,16 +91,17 @@ public class DisplayService : IDisplayService, IDisposable
     /// </summary>
     internal static bool TryGetDDCMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
     {
-        return TryGetMonitorsCore(helperResolutionOnly: true, out monitors, out error);
+        return TryGetMonitorsCore(MonitorEnumerationPurpose.HelperResolution, out monitors, out error);
     }
 
     private static bool TryGetMonitorsCore(
-        bool helperResolutionOnly,
+        MonitorEnumerationPurpose purpose,
         out IReadOnlyList<DDCMonitor> monitors,
         out string? error)
     {
         error = null;
         List<DDCMonitor> list = [];
+        bool helperResolutionOnly = purpose == MonitorEnumerationPurpose.HelperResolution;
 
         if (!User32Monitor.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero))
         {
@@ -135,7 +149,7 @@ public class DisplayService : IDisplayService, IDisposable
             }
         }
 
-        if (!helperResolutionOnly)
+        if (purpose == MonitorEnumerationPurpose.Full)
             AttachWindowsBrightnessTargets(list);
         monitors = list;
         return true;
@@ -622,15 +636,23 @@ public class DisplayService : IDisplayService, IDisposable
             updatedFriendlyName = friendlyName;
             updatedManufacturer = manufacturer;
             updatedProduct = product;
-            ApplyWindowsBrightnessFromCurrentEnumeration();
+            if (targetControlKind == MonitorBrightnessControlKind.Windows)
+                ApplyWindowsBrightnessFromCurrentEnumeration();
+            else
+                ClearWindowsBrightnessTarget();
             return false; // match found - stop enumeration
         }
 
-        void ApplyWindowsBrightnessFromCurrentEnumeration()
+        void ClearWindowsBrightnessTarget()
         {
             updatedControlKind = MonitorBrightnessControlKind.DdcCi;
             updatedWindowsBrightnessInstanceName = string.Empty;
             updatedWindowsBrightnessMethodPath = string.Empty;
+        }
+
+        void ApplyWindowsBrightnessFromCurrentEnumeration()
+        {
+            ClearWindowsBrightnessTarget();
 
             if (!WindowsBrightnessWmi.TryGetActiveTargets(
                     out IReadOnlyList<WindowsBrightnessTarget> targets,

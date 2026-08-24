@@ -27,7 +27,7 @@ public static class Safe
 
     /// <summary>
     /// Release the supplied COM wrapper when non-null.
-    /// Source-generated ComWrappers objects use the registered strategy release path;
+    /// Unique source-generated RCWs use <c>ComObject.FinalRelease</c>;
     /// built-in RCWs fall back to Marshal.FinalReleaseComObject.
     /// </summary>
     public static void Release(object? rcw)

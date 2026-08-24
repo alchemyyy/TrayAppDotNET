@@ -1,6 +1,20 @@
+using System.Diagnostics;
 using BrightnessTrayAppDotNET.DDCCI;
 
-DisplayService display = new();
+const string EnumerationStressOption = "--enumeration-stress";
+
+if (args.Length > 0 && string.Equals(args[0], EnumerationStressOption, StringComparison.Ordinal))
+{
+    if (args.Length != 2 || !int.TryParse(args[1], out int iterationCount) || iterationCount <= 0)
+    {
+        Console.Error.WriteLine($"Usage: WindowsBrightnessProbe {EnumerationStressOption} <positive iteration count>");
+        return 64;
+    }
+
+    return RunEnumerationStress(iterationCount);
+}
+
+using DisplayService display = new();
 display.OperationTimeoutMs = 0;
 
 if (!display.TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? enumError))
@@ -67,3 +81,66 @@ bool restoredRead = display.TryGetVCPFeature(windows, windows.BrightnessCode, ou
 Console.WriteLine($"WINDOWS_RESTORED ok={restoredRead} current={restored} max={restoredMax} error='{restoredError}'");
 
 return afterRead && restoredRead && after == target && restored == before ? 0 : 7;
+
+static int RunEnumerationStress(int iterationCount)
+{
+    const int WarmupIterations = 10;
+    using DisplayService display = new();
+
+    for (int warmupIteration = 0; warmupIteration < WarmupIterations; warmupIteration++)
+        _ = display.TryGetMonitors(out IReadOnlyList<DDCMonitor> _, out string? _);
+
+    ForceCollection();
+    using Process process = Process.GetCurrentProcess();
+    process.Refresh();
+    long startingPrivateBytes = process.PrivateMemorySize64;
+    int startingHandleCount = process.HandleCount;
+    int failures = 0;
+    Stopwatch stopwatch = Stopwatch.StartNew();
+
+    for (int iteration = 1; iteration <= iterationCount; iteration++)
+    {
+        if (!display.TryGetMonitors(out IReadOnlyList<DDCMonitor> _, out string? error))
+        {
+            failures++;
+            Console.Error.WriteLine($"ENUM_FAIL iteration={iteration} error='{error}'");
+        }
+
+        if (iteration % 1000 == 0)
+        {
+            process.Refresh();
+            Console.WriteLine(
+                $"ENUM_PROGRESS completed={iteration} "
+                + $"privateDelta={process.PrivateMemorySize64 - startingPrivateBytes} "
+                + $"handles={process.HandleCount}");
+        }
+    }
+
+    stopwatch.Stop();
+    process.Refresh();
+    long endingPrivateBytesBeforeCollection = process.PrivateMemorySize64;
+    int endingHandleCountBeforeCollection = process.HandleCount;
+
+    ForceCollection();
+    process.Refresh();
+    long endingPrivateBytesAfterCollection = process.PrivateMemorySize64;
+    int endingHandleCountAfterCollection = process.HandleCount;
+
+    Console.WriteLine(
+        $"ENUM_STRESS iterations={iterationCount} failures={failures} elapsedMs={stopwatch.ElapsedMilliseconds} "
+        + $"privateStart={startingPrivateBytes} privateEndBeforeGC={endingPrivateBytesBeforeCollection} "
+        + $"privateEndAfterGC={endingPrivateBytesAfterCollection} "
+        + $"privateDeltaBeforeGC={endingPrivateBytesBeforeCollection - startingPrivateBytes} "
+        + $"privateDeltaAfterGC={endingPrivateBytesAfterCollection - startingPrivateBytes} "
+        + $"handlesStart={startingHandleCount} handlesEndBeforeGC={endingHandleCountBeforeCollection} "
+        + $"handlesEndAfterGC={endingHandleCountAfterCollection}");
+
+    return failures == 0 ? 0 : 8;
+}
+
+static void ForceCollection()
+{
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+}

@@ -37,9 +37,13 @@ public sealed class MonitorRecoveryTests
         display.SetMonitors(CreateMonitor(deviceID: "DISPLAY\\PORT-A", displayNumber: 7, serial: string.Empty));
         display.SetRead("DISPLAY\\PORT-A", ok: true, current: 55, max: 100);
 
+        int fullEnumerationsBeforeRecovery = display.FullEnumerationCalls;
+        int DDCRecoveryEnumerationsBeforeRecovery = display.DDCRecoveryEnumerationCalls;
         bool recovered = service.TryRecoverMonitor(originalID);
 
         Assert.True(recovered);
+        Assert.Equal(fullEnumerationsBeforeRecovery, display.FullEnumerationCalls);
+        Assert.Equal(DDCRecoveryEnumerationsBeforeRecovery + 1, display.DDCRecoveryEnumerationCalls);
         Assert.True(monitor.IsHardwareFunctional);
         Assert.False(monitor.IsReadDegraded);
         Assert.Null(monitor.LastDDCError);
@@ -1557,6 +1561,8 @@ public sealed class MonitorRecoveryTests
         private List<DDCMonitor> _monitors = [];
         private int _refreshHandleCalls;
         private int _enumerationCalls;
+        private int _fullEnumerationCalls;
+        private int _DDCRecoveryEnumerationCalls;
         private int _setVcpCalls;
         private int _getVcpCalls;
         private int _writesToFail;
@@ -1570,6 +1576,8 @@ public sealed class MonitorRecoveryTests
         public ManualResetEventSlim? EnumerationReleaseSignal { get; set; }
         public int RefreshHandleCalls => Volatile.Read(ref _refreshHandleCalls);
         public int EnumerationCalls => Volatile.Read(ref _enumerationCalls);
+        public int FullEnumerationCalls => Volatile.Read(ref _fullEnumerationCalls);
+        public int DDCRecoveryEnumerationCalls => Volatile.Read(ref _DDCRecoveryEnumerationCalls);
         public int SetVcpCalls => Volatile.Read(ref _setVcpCalls);
         public int GetVcpCalls => Volatile.Read(ref _getVcpCalls);
         public string LastReadKey { get; private set; } = string.Empty;
@@ -1701,8 +1709,27 @@ public sealed class MonitorRecoveryTests
 
         public bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
         {
+            return TryGetMonitorsCore(isDDCRecovery: false, out monitors, out error);
+        }
+
+        public bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error)
+        {
+            return TryGetMonitorsCore(isDDCRecovery: true, out monitors, out error);
+        }
+
+        private bool TryGetMonitorsCore(
+            bool isDDCRecovery,
+            out IReadOnlyList<DDCMonitor> monitors,
+            out string? error)
+        {
             EnumerationEnteredSignal?.Set();
             EnumerationReleaseSignal?.Wait();
+
+            Interlocked.Increment(ref _enumerationCalls);
+            if (isDDCRecovery)
+                Interlocked.Increment(ref _DDCRecoveryEnumerationCalls);
+            else
+                Interlocked.Increment(ref _fullEnumerationCalls);
 
             lock (_gate)
             {
@@ -1710,13 +1737,11 @@ public sealed class MonitorRecoveryTests
                 {
                     monitors = [];
                     error = "simulated enumeration failure";
-                    Interlocked.Increment(ref _enumerationCalls);
                     return false;
                 }
 
                 monitors = _monitors.Select(Clone).ToList();
                 error = null;
-                Interlocked.Increment(ref _enumerationCalls);
                 return true;
             }
         }

@@ -29,6 +29,13 @@ public interface IDisplayService
     bool TryGetMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error);
 
     /// <summary>
+    /// Enumerate connected monitors with the identity and profile data needed for targeted DDC recovery.
+    /// This path must not query the Windows brightness WMI provider because recovery can repeat indefinitely
+    /// while a known DDC monitor remains unavailable.
+    /// </summary>
+    bool TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> monitors, out string? error);
+
+    /// <summary>
     /// Parse the capability string and return every supported VCP feature
     /// together with its current and maximum values.
     ///

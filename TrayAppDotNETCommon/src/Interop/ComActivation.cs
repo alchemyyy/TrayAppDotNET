@@ -5,7 +5,7 @@ namespace TrayAppDotNETCommon.Interop;
 
 public static class COMActivation
 {
-    private static readonly ReleasableStrategyBasedComWrappers ComWrappers = new();
+    private static readonly StrategyBasedComWrappers ComWrappers = new();
     private static int _registeredForMarshalling;
 
     public const uint ClsCtxInprocServer = 0x1;
@@ -66,16 +66,12 @@ public static class COMActivation
 
     public static bool TryReleaseGeneratedComObject(object? obj)
     {
-        if (obj == null) return false;
-        if (!System.Runtime.InteropServices.ComWrappers.TryGetComInstance(obj, out IntPtr _)) return false;
+        if (obj is not ComObject comObject) return false;
 
-        ComWrappers.ReleaseObject(obj);
+        // GetObjectForComInstance uses UniqueComInterfaceMarshaller, so its ComObject wrappers are
+        // UniqueInstance RCWs and support deterministic release through FinalRelease.
+        comObject.FinalRelease();
         return true;
-    }
-
-    private sealed class ReleasableStrategyBasedComWrappers : StrategyBasedComWrappers
-    {
-        public void ReleaseObject(object obj) => ReleaseObjects(new object[] { obj });
     }
 
     [DllImport("ole32.dll", ExactSpelling = true, PreserveSig = true)]

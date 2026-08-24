@@ -1808,7 +1808,7 @@ public sealed class MonitorService : IDisposable
 
         if (string.IsNullOrEmpty(monitorID)) return false;
 
-        // Snapshot only UI-owned state on the dispatcher. Monitor enumeration includes registry and WMI work and
+        // Snapshot only UI-owned state on the dispatcher. Monitor enumeration includes registry work and
         // must remain on the recovery caller's worker thread rather than blocking the Avalonia dispatcher.
         MonitorInfo? info = null;
         bool alreadySupported = false;
@@ -1887,7 +1887,7 @@ public sealed class MonitorService : IDisposable
 
         if (info == null || !canProbe) return false;
 
-        if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> live, out string? enumError))
+        if (!_display.TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> live, out string? enumError))
         {
             WPFLog.Log($"MonitorService.TryRecoverMonitor: enumeration failed: {enumError}");
             return false;
