@@ -2244,6 +2244,9 @@ public sealed class SettingsNumberValueChangedEventArgs(double? oldValue, double
 
 public sealed class SettingsNumberBox : Grid, IDisposable
 {
+    private const int MaximumDecimalPlaces = 6;
+    private const double MinimumStep = 0.000001;
+
     private readonly SettingsPalette _palette;
     private readonly Border _valueBorder;
     private readonly TextBox _textBox;
@@ -2255,18 +2258,28 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private bool _isPointerOverValue;
     private bool _isTextFocused;
     private bool _cancelTextEditOnLostFocus;
-    private int _minimum;
-    private int _maximum;
+    private double _minimum;
+    private double _maximum;
+    private int _decimalPlaces;
+    private string _numberFormat = "0";
     private double? _value;
     private double? _valueAtTextFocus;
     private int _disposed;
 
-    public SettingsNumberBox(SettingsPalette palette, int value, int min, int max, double width = 100,
-        string suffix = "")
+    public SettingsNumberBox(
+        SettingsPalette palette,
+        double value,
+        double min,
+        double max,
+        double width = 100,
+        string suffix = "",
+        int decimalPlaces = 0)
     {
         _palette = palette;
         _minimum = min;
         _maximum = max;
+        _decimalPlaces = Math.Clamp(decimalPlaces, 0, MaximumDecimalPlaces);
+        _numberFormat = CreateNumberFormat(_decimalPlaces);
         _baseWidth = Math.Max(1, width);
         MinWidth = _baseWidth;
         Height = SettingsUILayout.NumberBoxHeight;
@@ -2306,6 +2319,10 @@ public sealed class SettingsNumberBox : Grid, IDisposable
                     Minimum < 0 &&
                     _textBox.SelectionStart == 0 &&
                     !(_textBox.Text ?? string.Empty).Contains('-', StringComparison.Ordinal))
+                    continue;
+                if (IsDecimalSeparator(c) &&
+                    DecimalPlaces > 0 &&
+                    !ContainsDecimalSeparator(_textBox.Text ?? string.Empty))
                     continue;
 
                 e.Handled = true;
@@ -2409,7 +2426,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         PointerWheelChanged += (_, e) =>
         {
             if (!_isTextFocused && !HandleMouseWheelWhenMouseOver) return;
-            int magnitude = WheelStepFromModifiers(e.KeyModifiers);
+            double magnitude = WheelStepFromModifiers(e.KeyModifiers);
             ChangeBy(e.Delta.Y > 0 ? magnitude : -magnitude);
             e.Handled = true;
         };
@@ -2424,7 +2441,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
 
     public event EventHandler<SettingsNumberValueChangedEventArgs>? ValueChanged;
 
-    public int Minimum
+    public double Minimum
     {
         get => _minimum;
         set
@@ -2435,7 +2452,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         }
     }
 
-    public int Maximum
+    public double Maximum
     {
         get => _maximum;
         set
@@ -2446,29 +2463,45 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         }
     }
 
-    public int Step
+    public double Step
     {
         get;
-        set => field = Math.Max(1, value);
+        set => field = NormalizeStep(value);
     } = 1;
 
-    public int WheelStep
+    public double WheelStep
     {
         get;
-        set => field = Math.Max(1, value);
+        set => field = NormalizeStep(value);
     } = 1;
 
-    public int LargeStep
+    public double LargeStep
     {
         get;
-        set => field = Math.Max(1, value);
+        set => field = NormalizeStep(value);
     } = 10;
 
-    public int ExtraLargeStep
+    public double ExtraLargeStep
     {
         get;
-        set => field = Math.Max(1, value);
+        set => field = NormalizeStep(value);
     } = 100;
+
+    public int DecimalPlaces
+    {
+        get => _decimalPlaces;
+        set
+        {
+            int normalized = Math.Clamp(value, 0, MaximumDecimalPlaces);
+            if (_decimalPlaces == normalized) return;
+
+            _decimalPlaces = normalized;
+            _numberFormat = CreateNumberFormat(normalized);
+            SetValue(_value, raiseChanged: false);
+            UpdateText();
+            UpdateAutoWidth();
+        }
+    }
 
     public bool AllowInherit
     {
@@ -2528,11 +2561,11 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         set => SetValue(value, raiseChanged: true);
     }
 
-    private void ChangeBy(int delta)
+    private void ChangeBy(double delta)
     {
         string text = _textBox.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text) ||
-            !int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int current))
+            !TryParseNumber(text, out double current))
             current = delta > 0 ? Minimum : Maximum;
 
         Value = Math.Clamp(current + delta, Minimum, Maximum);
@@ -2560,12 +2593,12 @@ public sealed class SettingsNumberBox : Grid, IDisposable
                 return;
             }
 
-            int fallback = Value == InheritValue ? Minimum : (int)Math.Round(Value ?? Minimum);
+            double fallback = Value == InheritValue ? Minimum : Value ?? Minimum;
             Value = Math.Clamp(fallback, Minimum, Maximum);
             return;
         }
 
-        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+        if (TryParseNumber(text, out double parsed))
         {
             Value = Math.Clamp(parsed, Minimum, Maximum);
             return;
@@ -2645,7 +2678,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         double? clamped = next.HasValue
             ? AllowInherit && (int)Math.Round(next.Value) == InheritValue
                 ? InheritValue
-                : Math.Clamp(next.Value, Minimum, Maximum)
+                : NormalizeValue(next.Value)
             : null;
         if (_value == clamped)
         {
@@ -2666,7 +2699,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         string text = _value.HasValue
             ? AllowInherit && (int)Math.Round(_value.Value) == InheritValue
                 ? string.Empty
-                : ((int)Math.Round(_value.Value)).ToString(CultureInfo.InvariantCulture)
+                : FormatValue(_value.Value)
             : string.Empty;
         if (_textBox.Text == text) return;
 
@@ -2682,7 +2715,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         Value = Math.Clamp(Value.Value, Minimum, Maximum);
     }
 
-    private int ArrowStepFromModifiers(KeyModifiers modifiers)
+    private double ArrowStepFromModifiers(KeyModifiers modifiers)
     {
         bool ctrl = (modifiers & KeyModifiers.Control) != 0;
         bool shift = (modifiers & KeyModifiers.Shift) != 0;
@@ -2694,7 +2727,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         };
     }
 
-    private int WheelStepFromModifiers(KeyModifiers modifiers)
+    private double WheelStepFromModifiers(KeyModifiers modifiers)
     {
         bool ctrl = (modifiers & KeyModifiers.Control) != 0;
         bool shift = (modifiers & KeyModifiers.Shift) != 0;
@@ -2723,7 +2756,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
             valueText = PlaceholderText;
         bool isInheritedValue = Value.HasValue && (int)Math.Round(Value.Value) == InheritValue;
         if (string.IsNullOrEmpty(valueText) && !(AllowInherit && isInheritedValue))
-            valueText = ((int)Math.Round(Value ?? 0)).ToString(CultureInfo.InvariantCulture);
+            valueText = FormatValue(Value ?? 0);
         if (string.IsNullOrEmpty(valueText))
             valueText = "0";
 
@@ -2746,6 +2779,41 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         TextBlock probe = new() { Text = text, FontFamily = TrayAppDotNETSettingsUI.UIFont, FontSize = fontSize };
         probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return probe.DesiredSize.Width;
+    }
+
+    private double NormalizeValue(double value)
+    {
+        double rounded = Math.Round(value, DecimalPlaces, MidpointRounding.AwayFromZero);
+        return Math.Clamp(rounded, Minimum, Maximum);
+    }
+
+    private string FormatValue(double value) =>
+        value.ToString(_numberFormat, CultureInfo.CurrentCulture);
+
+    private static string CreateNumberFormat(int decimalPlaces) =>
+        decimalPlaces == 0
+            ? "0"
+            : $"0.{new string('#', decimalPlaces)}";
+
+    private static double NormalizeStep(double value) =>
+        double.IsFinite(value) ? Math.Max(MinimumStep, value) : 1;
+
+    private static bool TryParseNumber(string text, out double value) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+
+    private static bool IsDecimalSeparator(char character)
+    {
+        string currentSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        return character == '.' ||
+               currentSeparator.Length == 1 && character == currentSeparator[0];
+    }
+
+    private static bool ContainsDecimalSeparator(string text)
+    {
+        string currentSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+        return text.Contains('.', StringComparison.Ordinal) ||
+               text.Contains(currentSeparator, StringComparison.Ordinal);
     }
 
     private void UpdateValueBorder()

@@ -423,6 +423,33 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             suffix,
             searchKeywords);
 
+    protected Border DoubleCard(
+        string title,
+        string description,
+        double value,
+        double min,
+        double max,
+        Action<double> set,
+        SettingsPalette palette,
+        string suffix = "",
+        IReadOnlyList<string>? searchKeywords = null,
+        int decimalPlaces = 1,
+        double step = 0.1) =>
+        TrayAppDotNETSettingsCards.DoubleCard(
+            title,
+            description,
+            value,
+            min,
+            max,
+            set,
+            palette,
+            RadiusLarge,
+            Save,
+            suffix,
+            searchKeywords,
+            decimalPlaces,
+            step);
+
     protected Border ComboCard(
         string title,
         string description,

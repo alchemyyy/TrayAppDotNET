@@ -1,7 +1,5 @@
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
@@ -18,7 +16,6 @@ public enum TaskManagerSettingsPage
 /// <summary>Classic TrayAppDotNET settings window for Task Manager.</summary>
 public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManagerSettingsPage>
 {
-    private const double GridSizeInputWidth = 88;
     private const int ToolTipDelayMinimumMilliseconds = 0;
     private const int ToolTipDelayMaximumMilliseconds = 10_000;
 
@@ -150,7 +147,9 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             value => _settings.GridFontSize = value,
             palette,
             " DIP",
-            ["grid text size", "zoom"]));
+            ["grid text size", "zoom"],
+            decimalPlaces: 1,
+            step: 0.5));
         stack.Children.Add(IntCard(
             "Row height",
             "Set the height of each process row.",
@@ -303,65 +302,6 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             TrayMenuSettings = _settings
         });
 
-    private Border DoubleCard(
-        string title,
-        string description,
-        double value,
-        double minimum,
-        double maximum,
-        Action<double> set,
-        SettingsPalette palette,
-        string suffix,
-        IReadOnlyList<string> searchKeywords)
-    {
-        double currentValue = Math.Clamp(value, minimum, maximum);
-        TextBox input = TrayAppDotNETSettingsUI.TextBox(
-            palette,
-            GridSizeInputWidth,
-            FormatGridSize(currentValue));
-        input.TextAlignment = TextAlignment.Right;
-
-        Action commit = () =>
-        {
-            if (!TryParseGridSize(input.Text, out double parsedValue))
-            {
-                input.Text = FormatGridSize(currentValue);
-                return;
-            }
-
-            double nextValue = Math.Clamp(parsedValue, minimum, maximum);
-            input.Text = FormatGridSize(nextValue);
-            if (Math.Abs(nextValue - currentValue) < 0.001) return;
-
-            currentValue = nextValue;
-            set(nextValue);
-            Save();
-        };
-        input.LostFocus += (_, _) => commit();
-        input.KeyDown += (_, eventArgs) =>
-        {
-            switch (eventArgs.Key)
-            {
-                case Key.Enter:
-                    commit();
-                    eventArgs.Handled = true;
-                    break;
-                case Key.Escape:
-                    input.Text = FormatGridSize(currentValue);
-                    eventArgs.Handled = true;
-                    break;
-            }
-        };
-
-        TextBlock suffixText = TrayAppDotNETSettingsUI.Text(suffix, palette);
-        return Card(
-            title,
-            description,
-            TrayAppDotNETSettingsUI.Horizontal(input, suffixText),
-            palette,
-            searchKeywords);
-    }
-
     private Control NamePage(TaskManagerSettingsPage page, Control control)
     {
         ControlNames.AssignLogicalSubtree(control, page.ToString());
@@ -382,10 +322,4 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         RebuildShell(TaskManagerSettingsPage.Theme);
     }
 
-    private static bool TryParseGridSize(string? text, out double value) =>
-        double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
-        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-
-    private static string FormatGridSize(double value) =>
-        value.ToString("0.##", CultureInfo.CurrentCulture);
 }
