@@ -1,5 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -10,15 +13,21 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
     private const double DefaultWindowHeight = 280;
     private const double ControlWidth = 190;
     private const double ContentPadding = 16;
+    private const double TitleBarHeight = 32;
+    private const double TitleFontSize = 13;
+    private const double RootCornerRadius = 8;
 
     private readonly List<IDisposable> _ownedControls = [];
     private readonly TextBox _nicknameTextBox;
+    private readonly Grid _titleBar;
+    private readonly TrayAppDotNETCaptionCloseButton _closeButton;
     private Action<ProcessColumnSetting>? _apply;
     private int _disposed;
 
     protected ProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<ProcessColumnSetting> apply)
     {
         ArgumentNullException.ThrowIfNull(setting);
@@ -34,15 +43,18 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
         Title = definition.Title;
         Width = WindowWidth;
-        Height = DefaultWindowHeight;
         MinWidth = WindowWidth;
-        MinHeight = DefaultWindowHeight;
+        MaxWidth = WindowWidth;
+        SetFixedHeight(DefaultWindowHeight);
+        WindowDecorations = WindowDecorations.None;
         CanResize = false;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
+        Background = Brushes.Transparent;
+        FontFamily = TrayAppDotNETSettingsUI.UIFont;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
-        ContentStack = TrayAppDotNETSettingsUI.PageStack("Column properties", palette);
+        ContentStack = new StackPanel();
         _nicknameTextBox = TrayAppDotNETSettingsUI.TextBox(palette, ControlWidth, Setting.Nickname);
         _nicknameTextBox.PlaceholderText = definition.Title;
         _nicknameTextBox.TextChanged += OnNicknameTextChanged;
@@ -51,12 +63,16 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
             "Leave blank to use the original column name.",
             _nicknameTextBox);
 
-        SettingsScrollHost scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
-            ContentStack,
-            palette,
-            new Thickness(ContentPadding));
-        Own(scrollHost);
-        Content = scrollHost;
+        _closeButton = new TrayAppDotNETCaptionCloseButton(palette);
+        _closeButton.Click += OnCloseClick;
+        TrayAppDotNETToolTip.SetTip(_closeButton, "Close");
+        TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
+
+        _titleBar = BuildTitleBar(definition.Title, palette, _closeButton);
+        _titleBar.PointerPressed += OnTitleBarPointerPressed;
+
+        Content = BuildRoot(palette, enableRoundedCorners, _titleBar, ContentStack);
+        KeyDown += OnWindowKeyDown;
         Closed += OnClosed;
     }
 
@@ -70,6 +86,7 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
     public static ProcessColumnPropertiesWindow Create(
         ProcessColumnSetting setting,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<ProcessColumnSetting> apply)
     {
         ArgumentNullException.ThrowIfNull(setting);
@@ -77,12 +94,12 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         return setting.Column switch
         {
             ProcessTableColumnKind.CPU or ProcessTableColumnKind.CPUUtility =>
-                new CPUProcessColumnPropertiesWindow(setting, palette, apply),
+                new CPUProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
             ProcessTableColumnKind.UserName =>
-                new UserNameProcessColumnPropertiesWindow(setting, palette, apply),
+                new UserNameProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
             _ when ProcessColumnSettings.IsMemoryColumn(setting.Column) =>
-                new MemoryProcessColumnPropertiesWindow(setting, palette, apply),
-            _ => new DefaultProcessColumnPropertiesWindow(setting, palette, apply)
+                new MemoryProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
+            _ => new DefaultProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply)
         };
     }
 
@@ -90,6 +107,13 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         ContentStack.Children.Add(TrayAppDotNETSettingsUI.Card(title, description, control, Palette));
 
     protected void Own(IDisposable control) => _ownedControls.Add(control);
+
+    protected void SetFixedHeight(double height)
+    {
+        Height = height;
+        MinHeight = height;
+        MaxHeight = height;
+    }
 
     protected void Publish()
     {
@@ -103,6 +127,83 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         Publish();
     }
 
+    private static Border BuildRoot(
+        SettingsPalette palette,
+        bool enableRoundedCorners,
+        Grid titleBar,
+        StackPanel contentStack)
+    {
+        Border body = new()
+        {
+            Padding = new Thickness(ContentPadding),
+            Child = contentStack
+        };
+
+        Grid chrome = new();
+        chrome.RowDefinitions.Add(new RowDefinition(new GridLength(TitleBarHeight)));
+        chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        chrome.Children.Add(titleBar);
+        Grid.SetRow(body, 1);
+        chrome.Children.Add(body);
+
+        return new Border
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+            BorderThickness = new Thickness(1),
+            CornerRadius = enableRoundedCorners
+                ? new CornerRadius(RootCornerRadius)
+                : default,
+            Child = chrome
+        };
+    }
+
+    private static Grid BuildTitleBar(
+        string title,
+        SettingsPalette palette,
+        TrayAppDotNETCaptionCloseButton closeButton)
+    {
+        Grid titleBar = new() { Background = Brushes.Transparent };
+        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+
+        TextBlock titleText = TrayAppDotNETSettingsUI.Text(
+            title,
+            palette,
+            TitleFontSize,
+            FontWeight.SemiBold);
+        titleText.VerticalAlignment = VerticalAlignment.Center;
+        titleText.Margin = new Thickness(12, 0, 8, 0);
+        titleText.TextTrimming = TextTrimming.CharacterEllipsis;
+        titleBar.Children.Add(titleText);
+
+        Grid.SetColumn(closeButton, 1);
+        titleBar.Children.Add(closeButton);
+        return titleBar;
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+        if (!eventArgs.GetCurrentPoint(_titleBar).Properties.IsLeftButtonPressed) return;
+
+        BeginMoveDrag(eventArgs);
+        eventArgs.Handled = true;
+    }
+
+    private void OnCloseClick(object? sender, EventArgs eventArgs)
+    {
+        if (Volatile.Read(ref _disposed) == 0) Close();
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        if (Volatile.Read(ref _disposed) != 0 || eventArgs.Key != Key.Escape) return;
+
+        Close();
+        eventArgs.Handled = true;
+    }
+
     private void OnClosed(object? sender, EventArgs eventArgs) => Dispose();
 
     public void Dispose()
@@ -110,6 +211,9 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         Closed -= OnClosed;
+        KeyDown -= OnWindowKeyDown;
+        _titleBar.PointerPressed -= OnTitleBarPointerPressed;
+        _closeButton.Click -= OnCloseClick;
         _nicknameTextBox.TextChanged -= OnNicknameTextChanged;
         for (int controlIndex = _ownedControls.Count - 1; controlIndex >= 0; controlIndex--)
             _ownedControls[controlIndex].Dispose();
@@ -124,8 +228,9 @@ internal sealed class DefaultProcessColumnPropertiesWindow : ProcessColumnProper
     public DefaultProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<ProcessColumnSetting> apply)
-        : base(setting, palette, apply)
+        : base(setting, palette, enableRoundedCorners, apply)
     {
     }
 }
@@ -137,11 +242,11 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
     public CPUProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<ProcessColumnSetting> apply)
-        : base(setting, palette, apply)
+        : base(setting, palette, enableRoundedCorners, apply)
     {
-        Height = WindowHeight;
-        MinHeight = WindowHeight;
+        SetFixedHeight(WindowHeight);
 
         SettingsToggle percentSuffixToggle = TrayAppDotNETSettingsUI.Toggle(
             palette,
@@ -183,11 +288,11 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
     public MemoryProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<ProcessColumnSetting> apply)
-        : base(setting, palette, apply)
+        : base(setting, palette, enableRoundedCorners, apply)
     {
-        Height = WindowHeight;
-        MinHeight = WindowHeight;
+        SetFixedHeight(WindowHeight);
 
         _unitComboBox = TrayAppDotNETSettingsUI.ComboBox(palette, ControlWidth);
         AddUnit(ProcessMemoryUnit.Kilobytes, "Kilobytes");
@@ -259,11 +364,11 @@ internal sealed class UserNameProcessColumnPropertiesWindow : ProcessColumnPrope
     public UserNameProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<ProcessColumnSetting> apply)
-        : base(setting, palette, apply)
+        : base(setting, palette, enableRoundedCorners, apply)
     {
-        Height = WindowHeight;
-        MinHeight = WindowHeight;
+        SetFixedHeight(WindowHeight);
 
         SettingsToggle prefixToggle = TrayAppDotNETSettingsUI.Toggle(
             palette,

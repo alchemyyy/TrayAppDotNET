@@ -318,10 +318,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnColumnPropertiesRequested(ProcessTableColumnKind column)
     {
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (!_disposed) ShowColumnProperties(column);
-        });
+        if (!_disposed) ShowColumnProperties(column);
     }
 
     private void ShowColumnProperties(ProcessTableColumnKind column)
@@ -335,6 +332,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         ProcessColumnPropertiesWindow propertiesWindow = ProcessColumnPropertiesWindow.Create(
             _processCanvas.GetColumnSetting(column),
             _palette,
+            _settings.EnableRoundedCorners,
             _processCanvas.ApplyColumnProperties);
         _columnPropertyWindows.Add(column, propertiesWindow);
         propertiesWindow.Closed += OnColumnPropertiesWindowClosed;
