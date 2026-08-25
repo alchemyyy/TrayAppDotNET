@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
+using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
@@ -1098,9 +1099,11 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         Thickness padding,
         Color background,
         SettingsScrollBarStyle scrollBarStyle,
+        TrayMenuWindowOptions contextMenuOptions,
         Control? cornerContent = null)
     {
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (scrollBarStyle.TrackThickness <= 0)
             throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), "Track thickness must be positive.");
 
@@ -1130,7 +1133,8 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         _verticalScrollBar = new SettingsScrollBar(
             Orientation.Vertical,
             scrollBarStyle,
-            TrayAppDotNETCursors.Arrow);
+            TrayAppDotNETCursors.Arrow,
+            contextMenuOptions);
         _verticalScrollBar.Attach(_scrollViewer);
         Grid.SetColumn(_verticalScrollBar, 1);
         Children.Add(_verticalScrollBar);
@@ -1138,7 +1142,8 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         _horizontalScrollBar = new SettingsScrollBar(
             Orientation.Horizontal,
             scrollBarStyle,
-            TrayAppDotNETCursors.Arrow);
+            TrayAppDotNETCursors.Arrow,
+            contextMenuOptions);
         _horizontalScrollBar.Attach(_scrollViewer);
         Grid.SetRow(_horizontalScrollBar, 1);
         Children.Add(_horizontalScrollBar);
@@ -1227,7 +1232,22 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
 
 internal sealed class SettingsScrollBar : Control, IDisposable
 {
+    private const string ScrollHereText = "Scroll Here";
+    private const string TopText = "Top";
+    private const string BottomText = "Bottom";
+    private const string PageUpText = "Page Up";
+    private const string PageDownText = "Page Down";
+    private const string ScrollUpText = "Scroll Up";
+    private const string ScrollDownText = "Scroll Down";
+    private const string LeftEdgeText = "Left Edge";
+    private const string RightEdgeText = "Right Edge";
+    private const string PageLeftText = "Page Left";
+    private const string PageRightText = "Page Right";
+    private const string ScrollLeftText = "Scroll Left";
+    private const string ScrollRightText = "Scroll Right";
+
     private readonly Orientation _orientation;
+    private readonly TrayMenuWindowOptions _contextMenuOptions;
     private SettingsScrollBarStyle _style;
     private IBrush _trackBrush;
     private IBrush _idleThumbBrush;
@@ -1240,27 +1260,32 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     private bool _isExternallyExpanded;
     private double _dragOffset;
     private IPointer? _capturedPointer;
+    private TrayMenuWindow? _contextMenuWindow;
     private int _disposed;
 
     public SettingsScrollBar(SettingsPalette palette)
         : this(
             Orientation.Vertical,
             CreateDefaultStyle(palette),
-            TrayAppDotNETCursors.Hand)
+            TrayAppDotNETCursors.Hand,
+            CreateDefaultContextMenuOptions(palette))
     {
     }
 
     public SettingsScrollBar(
         Orientation orientation,
         SettingsScrollBarStyle style,
-        Cursor cursor)
+        Cursor cursor,
+        TrayMenuWindowOptions contextMenuOptions)
     {
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (style.TrackThickness <= 0)
             throw new ArgumentOutOfRangeException(nameof(style), "Track thickness must be positive.");
         if (style.IdleThumbThickness <= 0 || style.HoverThumbThickness <= 0)
             throw new ArgumentOutOfRangeException(nameof(style), "Thumb thicknesses must be positive.");
 
         _orientation = orientation;
+        _contextMenuOptions = contextMenuOptions;
         _style = style;
         _trackBrush = TrayAppDotNETSettingsUI.Brush(style.TrackColor);
         _idleThumbBrush = TrayAppDotNETSettingsUI.Brush(style.IdleThumbColor);
@@ -1355,13 +1380,20 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         }
 
         PointerPoint point = e.GetCurrentPoint(this);
+        Point position = e.GetPosition(this);
+        if (point.Properties.IsRightButtonPressed)
+        {
+            ShowContextMenu(position);
+            e.Handled = true;
+            return;
+        }
+
         if (!point.Properties.IsLeftButtonPressed)
         {
             base.OnPointerPressed(e);
             return;
         }
 
-        Point position = e.GetPosition(this);
         double pointerAxis = Axis(position);
         double buttonLength = ButtonLength;
         if (buttonLength > 0 && pointerAxis < buttonLength)
@@ -1531,11 +1563,129 @@ internal sealed class SettingsScrollBar : Control, IDisposable
             0,
             MaxOffset));
 
+    private void ScrollPage(int direction) =>
+        SetCurrentOffset(Math.Clamp(
+            CurrentOffset + direction * ViewportLength,
+            0,
+            MaxOffset));
+
+    private void ScrollHere(double pointerAxis)
+    {
+        Rect thumb = ThumbRect();
+        double offset = CalculateScrollHereOffset(
+            pointerAxis,
+            TrackLength,
+            ButtonLength,
+            ThumbLength(thumb),
+            MaxOffset);
+        SetCurrentOffset(offset);
+    }
+
+    internal static double CalculateScrollHereOffset(
+        double pointerAxis,
+        double trackLength,
+        double buttonLength,
+        double thumbLength,
+        double maximumOffset)
+    {
+        double available = Math.Max(0, trackLength - buttonLength * 2 - thumbLength);
+        if (available <= 0 || maximumOffset <= 0) return 0;
+
+        double thumbStart = Math.Clamp(
+            pointerAxis - buttonLength - thumbLength / 2,
+            0,
+            available);
+        return thumbStart / available * maximumOffset;
+    }
+
+    internal IReadOnlyList<TrayMenuEntry> BuildContextMenuEntries(double pointerAxis)
+    {
+        string startText;
+        string endText;
+        string pageBackwardText;
+        string pageForwardText;
+        string lineBackwardText;
+        string lineForwardText;
+        switch (_orientation)
+        {
+            case Orientation.Vertical:
+                startText = TopText;
+                endText = BottomText;
+                pageBackwardText = PageUpText;
+                pageForwardText = PageDownText;
+                lineBackwardText = ScrollUpText;
+                lineForwardText = ScrollDownText;
+                break;
+            case Orientation.Horizontal:
+                startText = LeftEdgeText;
+                endText = RightEdgeText;
+                pageBackwardText = PageLeftText;
+                pageForwardText = PageRightText;
+                lineBackwardText = ScrollLeftText;
+                lineForwardText = ScrollRightText;
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported scrollbar orientation: {_orientation}.");
+        }
+
+        TrayMenuEntryBuilder entries = new();
+        entries.Add(ScrollHereText, () => ScrollHere(pointerAxis));
+        entries.AddSeparator();
+        entries.Add(startText, () => SetCurrentOffset(0));
+        entries.Add(endText, () => SetCurrentOffset(MaxOffset));
+        entries.AddSeparator();
+        entries.Add(pageBackwardText, () => ScrollPage(-1));
+        entries.Add(pageForwardText, () => ScrollPage(1));
+        entries.AddSeparator();
+        entries.Add(lineBackwardText, () => ScrollLine(-1));
+        entries.Add(lineForwardText, () => ScrollLine(1));
+        return entries.ToList();
+    }
+
+    private void ShowContextMenu(Point position)
+    {
+        if (_viewer == null || MaxOffset <= 0) return;
+
+        PixelPoint screenPosition = this.PointToScreen(position);
+        CloseContextMenu();
+        TrayMenuWindow menuWindow = new(BuildContextMenuEntries(Axis(position)), _contextMenuOptions);
+        _contextMenuWindow = menuWindow;
+        menuWindow.Closed += OnContextMenuClosed;
+        if (TopLevel.GetTopLevel(this) is Window owner)
+            menuWindow.ShowAt(owner, screenPosition);
+        else
+            menuWindow.ShowAt(screenPosition);
+    }
+
+    private void CloseContextMenu()
+    {
+        TrayMenuWindow? menuWindow = _contextMenuWindow;
+        if (menuWindow == null) return;
+
+        _contextMenuWindow = null;
+        menuWindow.Closed -= OnContextMenuClosed;
+        menuWindow.Close();
+    }
+
+    private void OnContextMenuClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is not TrayMenuWindow menuWindow) return;
+
+        menuWindow.Closed -= OnContextMenuClosed;
+        if (ReferenceEquals(menuWindow, _contextMenuWindow)) _contextMenuWindow = null;
+    }
+
     private double Axis(Point point) => _orientation == Orientation.Vertical ? point.Y : point.X;
 
     private double ThumbStart(Rect thumb) => _orientation == Orientation.Vertical ? thumb.Y : thumb.X;
 
     private double ThumbLength(Rect thumb) => _orientation == Orientation.Vertical ? thumb.Height : thumb.Width;
+
+    private double ViewportLength => _viewer == null
+        ? 0
+        : _orientation == Orientation.Vertical
+            ? Math.Max(0, _viewer.Viewport.Height)
+            : Math.Max(0, _viewer.Viewport.Width);
 
     private void DrawHoverButtons(DrawingContext context)
     {
@@ -1597,6 +1747,9 @@ internal sealed class SettingsScrollBar : Control, IDisposable
             ShowButtonsOnHover: false);
     }
 
+    private static TrayMenuWindowOptions CreateDefaultContextMenuOptions(SettingsPalette palette) =>
+        new() { Palette = palette };
+
     private void UpdateTrackThickness()
     {
         if (_orientation == Orientation.Vertical)
@@ -1612,6 +1765,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+        CloseContextMenu();
         IPointer? capturedPointer = Interlocked.Exchange(ref _capturedPointer, null);
         _isDragging = false;
         _isExternallyExpanded = false;

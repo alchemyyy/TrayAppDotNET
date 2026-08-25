@@ -140,6 +140,10 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Children.Add(_runPanel);
 
         SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
+        TrayMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
+            palette,
+            settings.EnableRoundedCorners,
+            settings);
         _hoverHighlight = new ProcessRowHoverVisual(palette.Hover, _processCanvas.RowHoverGeometry);
         _selectionHighlight = new Border
         {
@@ -165,6 +169,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             default,
             TaskManagerWindowResources.ProcessGridBackgroundColor,
             scrollBarStyle,
+            scrollBarContextMenuOptions,
             _resizeGrip)
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin

@@ -259,6 +259,16 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         }, DispatcherPriority.Loaded);
     }
 
+    /// <summary>Shows the menu at an arbitrary screen point within its owner's work area.</summary>
+    public void ShowAt(Window owner, PixelPoint screenPosition)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ShowAtScreenPoint(screenPosition, owner);
+    }
+
+    /// <summary>Shows an unowned menu at an arbitrary screen point.</summary>
+    public void ShowAt(PixelPoint screenPosition) => ShowAtScreenPoint(screenPosition, owner: null);
+
     /// <summary>
     /// Shows the menu inside a containing window, horizontally aligned to one anchor and vertically outside another.
     /// </summary>
@@ -483,6 +493,21 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
             Math.Clamp(ownerBounds.Y, minimumY, maximumY));
     }
 
+    internal static PixelPoint ResolveScreenPointPosition(
+        PixelRect workArea,
+        PixelPoint screenPosition,
+        PixelSize menuSize,
+        int edgePadding)
+    {
+        int minimumX = workArea.X + edgePadding;
+        int minimumY = workArea.Y + edgePadding;
+        int maximumX = Math.Max(minimumX, workArea.Right - menuSize.Width - edgePadding);
+        int maximumY = Math.Max(minimumY, workArea.Bottom - menuSize.Height - edgePadding);
+        return new PixelPoint(
+            Math.Clamp(screenPosition.X, minimumX, maximumX),
+            Math.Clamp(screenPosition.Y, minimumY, maximumY));
+    }
+
     private PixelPoint ResolvePosition(
         TrayAppDotNETShellTrayIcon trayIcon,
         PixelPoint cursorPoint,
@@ -514,6 +539,48 @@ public class TrayMenuWindow : Window, ITrayAppDotNETWarmWindow
         }
 
         return new PixelPoint(cursorPoint.X, Math.Clamp(cursorPoint.Y, minTop, maxTop));
+    }
+
+    private void ShowAtScreenPoint(PixelPoint screenPosition, Window? owner)
+    {
+        if (_closed) return;
+
+        _closedFromDeactivation = false;
+        _closedFromSelection = false;
+        Opacity = 0;
+        Position = new PixelPoint(_options.OffscreenPosition, _options.OffscreenPosition);
+        if (owner == null)
+            Show();
+        else
+            Show(owner);
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_windowResources.IsDisposed || !IsVisible) return;
+            ScrollViewer? scrollViewer = _scrollViewer;
+            if (scrollViewer == null) return;
+
+            PixelRect workArea = ResolveWorkArea(screenPosition);
+            scrollViewer.MaxHeight = Math.Max(
+                _options.PixelMinSize,
+                (workArea.Height - 2 * _options.EdgePadding) / RenderScaling);
+
+            UpdateLayout();
+            int menuWidth = Math.Max(
+                _options.PixelMinSize,
+                (int)Math.Ceiling(Bounds.Width * RenderScaling));
+            int menuHeight = Math.Max(
+                _options.PixelMinSize,
+                (int)Math.Ceiling(Bounds.Height * RenderScaling));
+            Position = ResolveScreenPointPosition(
+                workArea,
+                screenPosition,
+                new PixelSize(menuWidth, menuHeight),
+                _options.EdgePadding);
+            if (_options.ScrollToBottom) ScrollToBottom();
+            Opacity = 1;
+            Activate();
+        }, DispatcherPriority.Loaded);
     }
 
     private PixelRect ResolveWorkArea(PixelPoint cursorPoint) =>

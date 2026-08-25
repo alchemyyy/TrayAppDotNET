@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media;
+using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Tray;
 using Xunit;
@@ -77,6 +79,90 @@ public sealed class TrayMenuWindowTests
 
         Assert.Equal(new PixelPoint(720, 592), position);
     }
+
+    [Fact]
+    public void ScreenPointPositionClampsMenuInsideWorkArea()
+    {
+        PixelRect workArea = new(100, 100, 500, 400);
+        PixelSize menuSize = new(180, 200);
+
+        PixelPoint insidePosition = TrayMenuWindow.ResolveScreenPointPosition(
+            workArea,
+            new PixelPoint(250, 180),
+            menuSize,
+            edgePadding: 8);
+        PixelPoint clampedPosition = TrayMenuWindow.ResolveScreenPointPosition(
+            workArea,
+            new PixelPoint(590, 490),
+            menuSize,
+            edgePadding: 8);
+
+        Assert.Equal(new PixelPoint(250, 180), insidePosition);
+        Assert.Equal(new PixelPoint(412, 292), clampedPosition);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(50, 500)]
+    [InlineData(100, 1000)]
+    public void ScrollHereCentersThumbAtRequestedTrackPoint(double pointerAxis, double expectedOffset)
+    {
+        double offset = SettingsScrollBar.CalculateScrollHereOffset(
+            pointerAxis,
+            trackLength: 100,
+            buttonLength: 10,
+            thumbLength: 20,
+            maximumOffset: 1000);
+
+        Assert.Equal(expectedOffset, offset);
+    }
+
+    [Fact]
+    public void ScrollBarContextMenuUsesOrientationSpecificCommands() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            SettingsPalette palette = Palette();
+            SettingsScrollBarStyle style = new(
+                TrackThickness: 20,
+                IdleThumbThickness: 4,
+                HoverThumbThickness: 12,
+                ThumbEndMargin: 4,
+                MinimumThumbLength: 24,
+                TrackColor: Colors.Transparent,
+                IdleThumbColor: Colors.Gray,
+                HoverThumbColor: Colors.LightGray,
+                DragThumbColor: Colors.White,
+                ArrowColor: Colors.White,
+                ShowButtonsOnHover: true);
+            TrayMenuWindowOptions options = new() { Palette = palette };
+            using SettingsScrollBar verticalScrollBar = new(
+                Orientation.Vertical,
+                style,
+                TrayAppDotNETCursors.Arrow,
+                options);
+            using SettingsScrollBar horizontalScrollBar = new(
+                Orientation.Horizontal,
+                style,
+                TrayAppDotNETCursors.Arrow,
+                options);
+
+            string[] verticalCommands = verticalScrollBar.BuildContextMenuEntries(pointerAxis: 50)
+                .Select(entry => entry.Text)
+                .ToArray();
+            string[] horizontalCommands = horizontalScrollBar.BuildContextMenuEntries(pointerAxis: 50)
+                .Select(entry => entry.Text)
+                .ToArray();
+
+            Assert.Equal(
+                ["Scroll Here", "Top", "Bottom", "Page Up", "Page Down", "Scroll Up", "Scroll Down"],
+                verticalCommands);
+            Assert.Equal(
+                [
+                    "Scroll Here", "Left Edge", "Right Edge", "Page Left", "Page Right", "Scroll Left",
+                    "Scroll Right"
+                ],
+                horizontalCommands);
+        });
 
     [Fact]
     public void PointerReleaseSelectionKeepsMenuOpenThroughAction() =>
