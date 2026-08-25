@@ -48,6 +48,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private UIContentGeneration? _pageGeneration;
     private UIResourceScope? _buildingPageResources;
     private SettingsScrollHost? _scrollHost;
+    private Grid? _sidebar;
+    private ColumnDefinition? _sidebarColumn;
     private TaskCompletionSource<bool>? _confirmTcs;
     private Border? _confirmOverlay;
     private TextBlock? _confirmTitle;
@@ -92,6 +94,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual bool UseExtendedTitleBarDragZone => true;
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
+
+    /// <summary>Gets whether the navigation sidebar automatically hides below its collapse threshold.</summary>
+    protected virtual bool EnableResponsiveSidebarCollapse => false;
+
+    /// <summary>Gets the window width below which the navigation sidebar is hidden.</summary>
+    protected virtual double SidebarCollapseThreshold => 0;
 
     /// <summary>Returns true when a derived window handled navigation without replacing its content.</summary>
     protected virtual bool HandleNavigationRequest(TPageKey pageKey) => false;
@@ -521,17 +529,18 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         root.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Grid body = new();
-        body.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(SidebarWidth)));
+        _sidebarColumn = new ColumnDefinition(new GridLength(SidebarWidth));
+        body.ColumnDefinitions.Add(_sidebarColumn);
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         Grid.SetRow(body, 1);
         root.Children.Add(body);
 
-        Grid sidebar = new() { Background = Brushes.Transparent };
-        sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        Grid.SetColumn(sidebar, 0);
-        body.Children.Add(sidebar);
+        _sidebar = new Grid { Background = Brushes.Transparent };
+        _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        Grid.SetColumn(_sidebar, 0);
+        body.Children.Add(_sidebar);
 
         TextBlock header = TrayAppDotNETSettingsUI.Text(
             HeaderText,
@@ -540,7 +549,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             FontWeight.SemiBold);
         header.Margin = _settingsResources.AxamlSettingsWindow.HeaderMargin;
         Grid.SetRow(header, 0);
-        sidebar.Children.Add(header);
+        _sidebar.Children.Add(header);
 
         StackPanel nav = new() { Margin = _settingsResources.AxamlSettingsWindow.NavMargin };
         StackPanel footer = new() { Margin = _settingsResources.AxamlSettingsWindow.FooterMargin };
@@ -551,7 +560,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         }
 
         Grid.SetRow(nav, 1);
-        sidebar.Children.Add(nav);
+        _sidebar.Children.Add(nav);
 
         if (ShowSettingsSearchBox)
         {
@@ -562,7 +571,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             footer.Children.Add(_settingsSearchBox);
         }
         Grid.SetRow(footer, 2);
-        sidebar.Children.Add(footer);
+        _sidebar.Children.Add(footer);
 
         _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
             _content,
@@ -580,6 +589,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmOverlay.IsVisible = false;
         Grid.SetRow(_confirmOverlay, 1);
         root.Children.Add(_confirmOverlay);
+
+        UpdateSidebarLayout();
 
         CornerRadius outerRadius = RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.OuterCornerRadius);
         CornerRadius innerRadius = RoundedCornerRadius(_settingsResources.AxamlSettingsWindow.InnerCornerRadius);
@@ -843,6 +854,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Dictionary<TPageKey, Func<Control>> previousPages = _pages;
         Dictionary<TPageKey, SettingsNavItem> previousNavItems = _navItems;
         SettingsScrollHost? previousScrollHost = _scrollHost;
+        Grid? previousSidebar = _sidebar;
+        ColumnDefinition? previousSidebarColumn = _sidebarColumn;
         SettingsSearchBox? previousSettingsSearchBox = _settingsSearchBox;
         Border? previousConfirmOverlay = _confirmOverlay;
         TextBlock? previousConfirmTitle = _confirmTitle;
@@ -867,6 +880,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _pages = replacementPages;
             _navItems = replacementNavItems;
             _scrollHost = null;
+            _sidebar = null;
+            _sidebarColumn = null;
             _settingsSearchBox = null;
             _confirmOverlay = null;
             _confirmTitle = null;
@@ -926,6 +941,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _pages = previousPages;
             _navItems = previousNavItems;
             _scrollHost = previousScrollHost;
+            _sidebar = previousSidebar;
+            _sidebarColumn = previousSidebarColumn;
             _settingsSearchBox = previousSettingsSearchBox;
             _confirmOverlay = previousConfirmOverlay;
             _confirmTitle = previousConfirmTitle;
@@ -1116,12 +1133,17 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private void OnWindowOpened(object? sender, EventArgs e)
     {
         AttachWndProcHook();
+        UpdateSidebarLayout();
         UpdateWindowCornerRadius();
     }
 
     private void OnWindowPositionChanged(object? sender, PixelPointEventArgs e) => UpdateWindowCornerRadius();
 
-    private void OnWindowResized(object? sender, WindowResizedEventArgs e) => UpdateWindowCornerRadius();
+    private void OnWindowResized(object? sender, WindowResizedEventArgs e)
+    {
+        UpdateSidebarLayout(e.ClientSize.Width);
+        UpdateWindowCornerRadius();
+    }
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
@@ -1172,12 +1194,36 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _pageDescriptors = [];
         _pageScrollOffsets.Clear();
         _scrollHost = null;
+        _sidebar = null;
+        _sidebarColumn = null;
         _confirmOverlay = null;
         _confirmTitle = null;
         _confirmMessage = null;
         _confirmOk = null;
         _confirmCancel = null;
         _windowResources.Dispose();
+    }
+
+    private void UpdateSidebarLayout()
+    {
+        double windowWidth = ClientSize.Width;
+        if (!double.IsFinite(windowWidth) || windowWidth <= 0)
+            windowWidth = Bounds.Width;
+        if (!double.IsFinite(windowWidth) || windowWidth <= 0)
+            windowWidth = Width;
+
+        UpdateSidebarLayout(windowWidth);
+    }
+
+    private void UpdateSidebarLayout(double windowWidth)
+    {
+        Grid? sidebar = _sidebar;
+        ColumnDefinition? sidebarColumn = _sidebarColumn;
+        if (sidebar == null || sidebarColumn == null) return;
+
+        bool isCollapsed = EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold;
+        sidebar.IsVisible = !isCollapsed;
+        sidebarColumn.Width = new GridLength(isCollapsed ? 0 : SidebarWidth);
     }
 
     private void RunWindowCloseCleanup(string operation, Action cleanup)

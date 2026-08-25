@@ -1235,7 +1235,10 @@ internal sealed class BrightnessAvaloniaApp : Application
             theme.SliderThumb.For(isLight),
             theme.CloseButtonHover.For(isLight),
             theme.CloseButtonPressed.For(isLight),
-            theme.CloseButtonGlyphActive.For(isLight));
+            theme.CloseButtonGlyphActive.For(isLight),
+            hoverDeep: theme.HoverDeep.For(isLight),
+            pressedDeep: theme.PressedDeep.For(isLight),
+            controlBackgroundDeep: theme.ControlBackgroundDeep.For(isLight));
     }
 
     private void ApplyTrayIconSettings()

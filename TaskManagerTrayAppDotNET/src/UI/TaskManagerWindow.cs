@@ -73,6 +73,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool UseExtendedTitleBarDragZone => false;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
     protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Processes;
+    protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
+    protected override double SidebarCollapseThreshold =>
+        _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
     protected override bool HandleNavigationRequest(TaskManagerPage pageKey)
     {
         if (pageKey != TaskManagerPage.Settings) return false;

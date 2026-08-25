@@ -140,7 +140,10 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
             resolvedTheme.SliderThumb.For(isLight),
             resolvedTheme.CloseButtonHover.For(isLight),
             resolvedTheme.CloseButtonPressed.For(isLight),
-            resolvedTheme.CloseButtonGlyphActive.For(isLight));
+            resolvedTheme.CloseButtonGlyphActive.For(isLight),
+            hoverDeep: resolvedTheme.HoverDeep.For(isLight),
+            pressedDeep: resolvedTheme.PressedDeep.For(isLight),
+            controlBackgroundDeep: resolvedTheme.ControlBackgroundDeep.For(isLight));
     }
 
     private bool ResolveEffectiveIsLight() => AppTheme.ResolveEffectiveIsLightTheme(_settings);

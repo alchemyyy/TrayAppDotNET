@@ -176,7 +176,10 @@ public sealed class SettingsPalette
     private const int CloseButtonHoverIndex = 18;
     private const int CloseButtonPressedIndex = 19;
     private const int CloseButtonGlyphActiveIndex = 20;
-    private const int ColorCount = 21;
+    private const int HoverDeepIndex = 21;
+    private const int PressedDeepIndex = 22;
+    private const int ControlBackgroundDeepIndex = 23;
+    private const int ColorCount = 24;
 
     private readonly Color[] _colors;
     private SolidColorBrush?[]? _brushes;
@@ -202,7 +205,10 @@ public sealed class SettingsPalette
         Color sliderThumb,
         Color closeButtonHover,
         Color closeButtonPressed,
-        Color closeButtonGlyphActive)
+        Color closeButtonGlyphActive,
+        Color? hoverDeep = null,
+        Color? pressedDeep = null,
+        Color? controlBackgroundDeep = null)
     {
         _colors = new Color[ColorCount];
         _colors[BackgroundIndex] = background;
@@ -226,15 +232,21 @@ public sealed class SettingsPalette
         _colors[CloseButtonHoverIndex] = closeButtonHover;
         _colors[CloseButtonPressedIndex] = closeButtonPressed;
         _colors[CloseButtonGlyphActiveIndex] = closeButtonGlyphActive;
+        _colors[HoverDeepIndex] = hoverDeep ?? hover;
+        _colors[PressedDeepIndex] = pressedDeep ?? pressed;
+        _colors[ControlBackgroundDeepIndex] = controlBackgroundDeep ?? controlBackground;
     }
 
     public SettingsPaletteColor Background => new(this, BackgroundIndex);
     public SettingsPaletteColor Foreground => new(this, ForegroundIndex);
     public SettingsPaletteColor Border => new(this, BorderIndex);
     public SettingsPaletteColor Hover => new(this, HoverIndex);
+    public SettingsPaletteColor HoverDeep => new(this, HoverDeepIndex);
     public SettingsPaletteColor Pressed => new(this, PressedIndex);
+    public SettingsPaletteColor PressedDeep => new(this, PressedDeepIndex);
     public SettingsPaletteColor CardBackground => new(this, CardBackgroundIndex);
     public SettingsPaletteColor ControlBackground => new(this, ControlBackgroundIndex);
+    public SettingsPaletteColor ControlBackgroundDeep => new(this, ControlBackgroundDeepIndex);
     public SettingsPaletteColor SecondaryForeground => new(this, SecondaryForegroundIndex);
     public SettingsPaletteColor DisabledForeground => new(this, DisabledForegroundIndex);
     public SettingsPaletteColor Accent => new(this, AccentIndex);
@@ -299,7 +311,10 @@ public sealed class SettingsPalette
             SliderThumb,
             CloseButtonHover,
             CloseButtonPressed,
-            CloseButtonGlyphActive);
+            CloseButtonGlyphActive,
+            hoverDeep: HoverDeep,
+            pressedDeep: PressedDeep,
+            controlBackgroundDeep: ControlBackgroundDeep);
 
     internal Color GetColor(int index) => _colors[index];
 
@@ -633,21 +648,46 @@ public sealed class SettingsNavAction : Border
 
 public sealed class SettingsButton : Border
 {
-    private readonly SettingsPalette _palette;
     private readonly TextBlock _label;
     private readonly bool _transparentBase;
+    private readonly SettingsPaletteColor _normalBackground;
+    private readonly SettingsPaletteColor _hoverBackground;
+    private readonly SettingsPaletteColor _pressedBackground;
     private bool _isPointerOver;
     private bool _isPressed;
 
     public SettingsButton(string text, SettingsPalette palette, bool transparentBase = false, bool navGutter = false)
+        : this(
+            text,
+            palette,
+            palette.ControlBackground,
+            palette.Hover,
+            palette.Pressed,
+            transparentBase,
+            navGutter)
     {
-        _palette = palette;
+    }
+
+    internal SettingsButton(
+        string text,
+        SettingsPalette palette,
+        SettingsPaletteColor normalBackground,
+        SettingsPaletteColor hoverBackground,
+        SettingsPaletteColor pressedBackground,
+        bool transparentBase = false,
+        bool navGutter = false)
+    {
         _transparentBase = transparentBase;
+        _normalBackground = normalBackground;
+        _hoverBackground = hoverBackground;
+        _pressedBackground = pressedBackground;
         _label = TrayAppDotNETSettingsUI.Text(text, palette);
         _label.HorizontalAlignment = navGutter ? HorizontalAlignment.Left : HorizontalAlignment.Center;
         _label.VerticalAlignment = VerticalAlignment.Center;
 
-        Background = transparentBase ? Brushes.Transparent : TrayAppDotNETSettingsUI.Brush(palette.ControlBackground);
+        Background = transparentBase
+            ? Brushes.Transparent
+            : TrayAppDotNETSettingsUI.Brush(_normalBackground);
         CornerRadius = SettingsUILayout.ButtonCornerRadius;
         MinHeight = SettingsUILayout.ButtonMinHeight;
         Padding = SettingsUILayout.ButtonPadding;
@@ -716,6 +756,26 @@ public sealed class SettingsButton : Border
         GlyphApplicator.ApplyTo(_label, glyph);
     }
 
+    internal SettingsButton(
+        Glyph glyph,
+        SettingsPalette palette,
+        SettingsPaletteColor normalBackground,
+        SettingsPaletteColor hoverBackground,
+        SettingsPaletteColor pressedBackground,
+        bool transparentBase = false,
+        bool navGutter = false)
+        : this(
+            glyph.Text,
+            palette,
+            normalBackground,
+            hoverBackground,
+            pressedBackground,
+            transparentBase,
+            navGutter)
+    {
+        GlyphApplicator.ApplyTo(_label, glyph);
+    }
+
     public event EventHandler? Click;
 
     public TextBlock Label => _label;
@@ -736,14 +796,14 @@ public sealed class SettingsButton : Border
     {
         Opacity = IsEnabled ? SettingsUILayout.EnabledOpacity : SettingsUILayout.DisabledOpacity;
         if (_isPressed)
-            Background = TrayAppDotNETSettingsUI.Brush(_palette.Pressed);
+            Background = TrayAppDotNETSettingsUI.Brush(_pressedBackground);
         else if (_isPointerOver)
-            Background = TrayAppDotNETSettingsUI.Brush(_palette.Hover);
+            Background = TrayAppDotNETSettingsUI.Brush(_hoverBackground);
         else
         {
             Background = _transparentBase
                 ? Brushes.Transparent
-                : TrayAppDotNETSettingsUI.Brush(_palette.ControlBackground);
+                : TrayAppDotNETSettingsUI.Brush(_normalBackground);
         }
         DebugUIProvenance.RecordBuilder(this);
     }
@@ -3294,7 +3354,33 @@ public static class TrayAppDotNETSettingsUI
     public static string? SelectedTag(SettingsComboBox combo) =>
         combo.SelectedItem?.Tag?.ToString();
 
-    public static TextBox TextBox(SettingsPalette palette, double width, string text = "")
+    public static TextBox TextBox(SettingsPalette palette, double width, string text = "") =>
+        TextBox(
+            palette,
+            width,
+            text,
+            palette.ControlBackground,
+            palette.Hover,
+            palette.TextBoxFocused);
+
+    /// <summary>Creates a search text box using the deep surface-state colors.</summary>
+    public static TextBox SearchTextBox(SettingsPalette palette, double width, string text = "") =>
+        TextBox(
+            palette,
+            width,
+            text,
+            palette.ControlBackgroundDeep,
+            palette.HoverDeep,
+            palette.PressedDeep);
+
+    /// <summary>Creates a text box with caller-selected surface-state colors.</summary>
+    internal static TextBox TextBox(
+        SettingsPalette palette,
+        double width,
+        string text,
+        SettingsPaletteColor normalBackground,
+        SettingsPaletteColor pointerOverBackground,
+        SettingsPaletteColor focusedBackground)
     {
         TextBox textBox = new()
         {
@@ -3303,7 +3389,7 @@ public static class TrayAppDotNETSettingsUI
             Text = text,
             FontFamily = UIFont,
             FontSize = SettingsUILayout.TextBoxFontSize,
-            Background = Brush(palette.ControlBackground),
+            Background = Brush(normalBackground),
             Foreground = Brush(palette.Foreground),
             BorderBrush = Brushes.Transparent,
             BorderThickness = SettingsUILayout.TextBoxBorderThickness,
@@ -3316,15 +3402,15 @@ public static class TrayAppDotNETSettingsUI
         ApplyTextBoxResources(
             textBox,
             palette,
-            Brush(palette.ControlBackground),
-            Brush(palette.Hover),
-            Brush(palette.TextBoxFocused));
+            Brush(normalBackground),
+            Brush(pointerOverBackground),
+            Brush(focusedBackground));
 
         AttachSurfaceStates(
             textBox,
-            palette.ControlBackground,
-            palette.Hover,
-            palette.TextBoxFocused);
+            normalBackground,
+            pointerOverBackground,
+            focusedBackground);
         DebugUIProvenance.RecordBuilder(textBox);
         return textBox;
     }
@@ -3419,7 +3505,11 @@ public static class TrayAppDotNETSettingsUI
         DebugUIProvenance.RecordBuilder(control);
     }
 
-    private static void AttachSurfaceStates(Control control, Color normal, Color hover, Color focusedOrPressed)
+    private static void AttachSurfaceStates(
+        Control control,
+        SettingsPaletteColor normal,
+        SettingsPaletteColor hover,
+        SettingsPaletteColor focusedOrPressed)
     {
         bool pointerOver = false;
         bool focused = false;
@@ -3449,7 +3539,7 @@ public static class TrayAppDotNETSettingsUI
 
         void Update()
         {
-            Color color = focused ? focusedOrPressed : pointerOver ? hover : normal;
+            SettingsPaletteColor color = focused ? focusedOrPressed : pointerOver ? hover : normal;
             switch (control)
             {
                 case TextBox textBox:

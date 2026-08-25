@@ -110,23 +110,28 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             settings.GroupProcesses,
             OnGroupProcessesChanged);
 
+        _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
+            palette,
+            resources.AxamlTaskManagerDetails.SearchWidth);
+        _searchBox.Width = double.NaN;
+        _searchBox.PlaceholderText = "Type a name, user, or PID to search";
+        _searchBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _searchBox.TextChanged += OnSearchTextChanged;
+
         Grid titleBar = BuildTitleBar(palette, resources);
         titleBar.Margin = resources.AxamlTaskManagerDetails.HeaderMargin;
         Children.Add(titleBar);
 
-        _searchBox = TrayAppDotNETSettingsUI.TextBox(
-            palette,
-            resources.AxamlTaskManagerDetails.SearchWidth);
-        _searchBox.PlaceholderText = "Type a name, user, or PID to search";
-        _searchBox.HorizontalAlignment = HorizontalAlignment.Left;
-        _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
-        _searchBox.TextChanged += OnSearchTextChanged;
-        Grid.SetRow(_searchBox, 1);
-        Children.Add(_searchBox);
+        StackPanel actionBar = BuildActionBar(palette, resources);
+        actionBar.Margin = resources.AxamlTaskManagerDetails.ActionsMargin;
+        Grid.SetRow(actionBar, 1);
+        Children.Add(actionBar);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
             resources.AxamlTaskManagerDetails.RunInputWidth);
+        _runInput.Width = double.NaN;
+        _runInput.HorizontalAlignment = HorizontalAlignment.Stretch;
         _runInput.PlaceholderText = "Executable, document, or URI";
         _runInput.KeyDown += OnRunInputKeyDown;
         _submitRunButton = TrayAppDotNETSettingsUI.Button("Run", palette);
@@ -185,12 +190,17 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private Grid BuildTitleBar(SettingsPalette palette, TaskManagerWindowResources resources)
     {
+        ColumnDefinition searchColumn = new(GridLength.Star)
+        {
+            MaxWidth = resources.AxamlTaskManagerDetails.SearchWidth
+        };
         Grid titleBar = new()
         {
+            ColumnSpacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
             ColumnDefinitions =
             {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
+                new ColumnDefinition(GridLength.Auto),
+                searchColumn
             }
         };
 
@@ -202,6 +212,13 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         title.VerticalAlignment = VerticalAlignment.Center;
         titleBar.Children.Add(title);
 
+        Grid.SetColumn(_searchBox, 1);
+        titleBar.Children.Add(_searchBox);
+        return titleBar;
+    }
+
+    private StackPanel BuildActionBar(SettingsPalette palette, TaskManagerWindowResources resources)
+    {
         TextBlock groupProcessesLabel = TrayAppDotNETSettingsUI.Text(
             "Group processes",
             palette,
@@ -216,25 +233,37 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             Children = { groupProcessesLabel, _groupProcessesToggle }
         };
 
-        StackPanel actions = new()
+        return new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
             Children = { groupProcesses, _runTaskButton, _columnsButton, _endTaskButton }
         };
-        Grid.SetColumn(actions, 1);
-        titleBar.Children.Add(actions);
-        return titleBar;
     }
 
     private Border BuildRunPanel(SettingsPalette palette, TaskManagerWindowResources resources)
     {
-        StackPanel actions = new()
+        ColumnDefinition inputColumn = new(GridLength.Star)
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            Children = { _runInput, _submitRunButton, _cancelRunButton }
+            MaxWidth = resources.AxamlTaskManagerDetails.RunInputWidth
         };
+        Grid actions = new()
+        {
+            ColumnSpacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
+            ColumnDefinitions =
+            {
+                inputColumn,
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        actions.Children.Add(_runInput);
+        Grid.SetColumn(_submitRunButton, 1);
+        actions.Children.Add(_submitRunButton);
+        Grid.SetColumn(_cancelRunButton, 2);
+        actions.Children.Add(_cancelRunButton);
         return new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.CardBackground),

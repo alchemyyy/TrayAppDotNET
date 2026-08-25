@@ -97,4 +97,26 @@ public sealed class AppSettingsTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    [Fact]
+    public void NarrowWindowSidebarCollapseDefaultsEnabledAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.True(settings.CollapseSidebarWhenNarrow);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.CollapseSidebarWhenNarrow = false;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.False(loaded.CollapseSidebarWhenNarrow);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

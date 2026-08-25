@@ -3757,7 +3757,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             theme.SliderThumb.For(isLight),
             theme.CloseButtonHover.For(isLight),
             theme.CloseButtonPressed.For(isLight),
-            theme.CloseButtonGlyphActive.For(isLight));
+            theme.CloseButtonGlyphActive.For(isLight),
+            hoverDeep: theme.HoverDeep.For(isLight),
+            pressedDeep: theme.PressedDeep.For(isLight),
+            controlBackgroundDeep: theme.ControlBackgroundDeep.For(isLight));
     }
 
     private static FlyoutControlPalette CreateFlyoutPalette(BrightnessAppTheme theme, AppSettings? settings,

@@ -9,9 +9,12 @@
     <visuals:ThemeColor x:Key="AppTheme.Foreground" LightHex="#000000" DarkHex="#FFFFFF" />
     <visuals:ThemeColor x:Key="AppTheme.Border" LightHex="#E0E0E0" DarkHex="#454545" />
     <visuals:ThemeColor x:Key="AppTheme.Separator" LightHex="#E5E5E5" DarkHex="#3A3A3A" />
-    <visuals:ThemeColor x:Key="AppTheme.Hover" LightHex="#E9E9E9" DarkHex="#292929" />
-    <visuals:ThemeColor x:Key="AppTheme.Pressed" LightHex="#DFDFDF" DarkHex="#2A2A2A" />
+    <visuals:ThemeColor x:Key="AppTheme.Hover" LightHex="#E9E9E9" DarkHex="#363636" />
+    <visuals:ThemeColor x:Key="AppTheme.HoverDeep" LightHex="#E9E9E9" DarkHex="#363636" />
+    <visuals:ThemeColor x:Key="AppTheme.Pressed" LightHex="#DFDFDF" DarkHex="#242424" />
+    <visuals:ThemeColor x:Key="AppTheme.PressedDeep" LightHex="#DFDFDF" DarkHex="#181818" />
     <visuals:ThemeColor x:Key="AppTheme.ControlBackground" LightHex="#FFFFFF" DarkHex="#3C3C3C" />
+    <visuals:ThemeColor x:Key="AppTheme.ControlBackgroundDeep" LightHex="#FFFFFF" DarkHex="#323232" />
     <visuals:ThemeColor x:Key="AppTheme.ControlBorder" LightHex="#808080" DarkHex="#444444" />
     <visuals:ThemeColor x:Key="AppTheme.DisabledForeground" LightHex="#808080" DarkHex="#808080" />
     <visuals:ThemeColor x:Key="AppTheme.Accent" LightHex="#222222" DarkHex="#DDDDDD" />

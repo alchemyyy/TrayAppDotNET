@@ -7,9 +7,10 @@
   <!-- Main window -->
   <sys:Double x:Key="TaskManagerWindow.Width">1480</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.Height">860</sys:Double>
-  <sys:Double x:Key="TaskManagerWindow.MinWidth">900</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.MinWidth">600</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.MinHeight">600</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarWidth">250</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.SidebarCollapseThreshold">750</sys:Double>
 
   <!-- Details page -->
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
@@ -20,7 +21,7 @@
   <Thickness x:Key="TaskManagerDetails.RunPanelPadding">12</Thickness>
   <CornerRadius x:Key="TaskManagerDetails.PanelCornerRadius">6</CornerRadius>
   <Thickness x:Key="TaskManagerDetails.HeaderMargin">24,4,20,0</Thickness>
-  <Thickness x:Key="TaskManagerDetails.SearchMargin">24,10,20,0</Thickness>
+  <Thickness x:Key="TaskManagerDetails.ActionsMargin">24,8,20,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.RunPanelMargin">24,10,20,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.TableMargin">0,10,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>

@@ -155,8 +155,12 @@ public class AppTheme : IDisposable
     public ThemeColor Border { get; set; } = AppThemeColorCatalog.Color(nameof(Border));
     public ThemeColor Separator { get; set; } = AppThemeColorCatalog.Color(nameof(Separator));
     public ThemeColor Hover { get; set; } = AppThemeColorCatalog.Color(nameof(Hover));
+    public ThemeColor HoverDeep { get; set; } = AppThemeColorCatalog.Color(nameof(HoverDeep));
     public ThemeColor Pressed { get; set; } = AppThemeColorCatalog.Color(nameof(Pressed));
+    public ThemeColor PressedDeep { get; set; } = AppThemeColorCatalog.Color(nameof(PressedDeep));
     public ThemeColor ControlBackground { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBackground));
+    public ThemeColor ControlBackgroundDeep { get; set; } =
+        AppThemeColorCatalog.Color(nameof(ControlBackgroundDeep));
     public ThemeColor ControlBorder { get; set; } = AppThemeColorCatalog.Color(nameof(ControlBorder));
     public ThemeColor DisabledForeground { get; set; } = AppThemeColorCatalog.Color(nameof(DisabledForeground));
     public ThemeColor Accent { get; set; } = AppThemeColorCatalog.Color(nameof(Accent));

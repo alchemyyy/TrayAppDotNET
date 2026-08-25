@@ -19,14 +19,19 @@ public sealed class SettingsSearchBox : Grid, IDisposable
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
-        _textBox = TrayAppDotNETSettingsUI.TextBox(palette, double.NaN);
+        _textBox = TrayAppDotNETSettingsUI.SearchTextBox(palette, double.NaN);
         _textBox.HorizontalAlignment = HorizontalAlignment.Stretch;
         _textBox.PlaceholderText = placeholderText;
         _textBox.PropertyChanged += OnTextBoxPropertyChanged;
         _textBox.KeyDown += OnKeyDown;
         Children.Add(_textBox);
 
-        _clearButton = TrayAppDotNETSettingsUI.Button(GlyphCatalog.CHROME_CLOSE, palette);
+        _clearButton = new SettingsButton(
+            GlyphCatalog.CHROME_CLOSE,
+            palette,
+            palette.ControlBackgroundDeep,
+            palette.HoverDeep,
+            palette.PressedDeep);
         _clearButton.Width = SearchableListBoxLayout.ClearButtonWidth;
         _clearButton.Height = SearchableListBoxLayout.ClearButtonHeight;
         _clearButton.MinHeight = SearchableListBoxLayout.ClearButtonHeight;

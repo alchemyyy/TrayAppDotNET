@@ -286,6 +286,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             afterSave: () => RebuildShell(TaskManagerSettingsPage.Theme),
             searchKeywords: ["square sharp corners"]));
+        stack.Children.Add(BoolCard(
+            "Collapse navigation when narrow",
+            "Hide the left navigation menu when the Task Manager window is narrower than 750 pixels.",
+            _settings.CollapseSidebarWhenNarrow,
+            value => _settings.CollapseSidebarWhenNarrow = value,
+            palette,
+            searchKeywords: ["sidebar left menu responsive"]));
         stack.Children.Add(ComboCard(
             "Animations",
             "Choose whether interface animations follow Windows, remain disabled, or remain enabled.",

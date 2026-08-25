@@ -47,6 +47,26 @@ public sealed class SettingsWindowLifetimeTests
         Assert.Equal(new Thickness(0), contentSurface.Margin);
     });
 
+    [Theory]
+    [InlineData(true, 749.0, true)]
+    [InlineData(true, 750.0, false)]
+    [InlineData(false, 749.0, false)]
+    public void CommonShellOwnsResponsiveSidebarCollapse(
+        bool isEnabled,
+        double windowWidth,
+        bool expectedCollapsed) => AvaloniaTestHost.Run(() =>
+    {
+        ResponsiveSettingsWindow window = new(isEnabled, windowWidth);
+        Border root = Assert.IsType<Border>(window.Content);
+        Border contentSurface = Assert.IsType<Border>(root.Child);
+        Grid shell = Assert.IsType<Grid>(contentSurface.Child);
+        Grid body = Assert.Single(shell.Children.OfType<Grid>(), child => Grid.GetRow(child) == 1);
+        Grid sidebar = Assert.Single(body.Children.OfType<Grid>(), child => Grid.GetColumn(child) == 0);
+
+        Assert.Equal(!expectedCollapsed, sidebar.IsVisible);
+        Assert.Equal(expectedCollapsed ? 0 : window.ConfiguredSidebarWidth, body.ColumnDefinitions[0].Width.Value);
+    });
+
     [Fact]
     public void FailedPageBuildKeepsPreviousPageGenerationActive() => AvaloniaTestHost.Run(() =>
     {
@@ -231,6 +251,42 @@ public sealed class SettingsWindowLifetimeTests
         }
     }
 
+    private sealed class ResponsiveSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly bool _enableResponsiveSidebarCollapse;
+
+        public ResponsiveSettingsWindow(bool enableResponsiveSidebarCollapse, double width)
+        {
+            _enableResponsiveSidebarCollapse = enableResponsiveSidebarCollapse;
+            ConfigureSettingsWindow("Responsive Test", null);
+            MinWidth = 0;
+            Width = width;
+            ClientSize = new Size(width, 600);
+            InitializeSettingsShell();
+        }
+
+        public double ConfiguredSidebarWidth => SidebarWidth;
+
+        protected override bool EnableRoundedCorners => false;
+        protected override bool EnableResponsiveSidebarCollapse => _enableResponsiveSidebarCollapse;
+        protected override double SidebarCollapseThreshold => 750;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Responsive Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => TestPalette;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+        ];
+
+        protected override void Save()
+        {
+        }
+    }
+
     private sealed class SearchSettingsWindow : SettingsWindowCommon<SearchPage>
     {
         private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
@@ -310,4 +366,5 @@ public sealed class SettingsWindowLifetimeTests
             Colors.Red,
             Colors.DarkRed,
             Colors.White);
+
 }

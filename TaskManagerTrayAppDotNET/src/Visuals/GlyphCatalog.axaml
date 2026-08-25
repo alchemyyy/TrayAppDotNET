@@ -1,0 +1,10 @@
+<ResourceDictionary
+    x:Class="TaskManagerTrayAppDotNET.Visuals.GlyphCatalogResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:visuals="clr-namespace:TrayAppDotNETCommon.Visuals;assembly=TrayAppDotNETCommon">
+
+    <!-- Application identity -->
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.PC1" Text="&#xE977;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.TaskManagerApp" Text="&#xF120;" Font="SegoeFluentIcons" />
+</ResourceDictionary>

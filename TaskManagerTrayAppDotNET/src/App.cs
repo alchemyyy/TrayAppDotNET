@@ -297,6 +297,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
                 _taskManagerWindow = null;
             }
 
+            SkiaFlyoutGlyphIcon.DisposeSharedResources();
+
             Safe.Dispose(_snapshotService);
             _snapshotService = null;
             Safe.Dispose(_processIconService);

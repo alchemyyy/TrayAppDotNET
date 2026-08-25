@@ -47,6 +47,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     } = true;
 
+    public bool CollapseSidebarWhenNarrow
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
     public bool GroupProcesses
     {
         get;
