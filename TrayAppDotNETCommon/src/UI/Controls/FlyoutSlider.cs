@@ -1,8 +1,8 @@
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.Visuals;
 
@@ -745,27 +745,27 @@ public sealed class FlyoutSlider : Control, IDisposable
             return;
         }
 
-        FormattedText text = new(
+        using TextLayout text = new(
             thumb.Glyph,
-            CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
             new Typeface(thumb.FontFamily),
             thumb.FontSize,
-            new SolidColorBrush(color));
+            new SolidColorBrush(color),
+            textWrapping: TextWrapping.NoWrap,
+            maxLines: 1);
 
         double x = thumbBounds.Center.X - text.Width / 2.0;
         double y = thumbBounds.Center.Y - text.Height / 2.0;
 
         if (Math.Abs(thumb.XScale - 1.0) < 0.001)
         {
-            context.DrawText(text, new Point(x, y));
+            text.Draw(context, new Point(x, y));
             return;
         }
 
         using (context.PushTransform(Matrix.CreateTranslation(-thumbBounds.Center.X, -thumbBounds.Center.Y)))
         using (context.PushTransform(Matrix.CreateScale(thumb.XScale, 1.0)))
         using (context.PushTransform(Matrix.CreateTranslation(thumbBounds.Center.X, thumbBounds.Center.Y)))
-            context.DrawText(text, new Point(x, y));
+            text.Draw(context, new Point(x, y));
     }
 
     /// <summary>

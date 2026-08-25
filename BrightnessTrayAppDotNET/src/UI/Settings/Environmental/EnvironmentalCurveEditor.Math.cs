@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Localization;
 
@@ -128,16 +129,16 @@ public sealed partial class EnvironmentalCurveEditor
         }
     }
 
-    private static FormattedText Text(string text, double size, Color color, bool monospace = false) =>
+    private static TextLayout Text(string text, double size, Color color, bool monospace = false) =>
         new(
             text,
-            CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
             new Typeface(monospace
                 ? new FontFamily("Consolas, Cascadia Mono, Segoe UI")
                 : new FontFamily("Segoe UI Variable, Segoe UI")),
             size,
-            Brush(color));
+            Brush(color),
+            textWrapping: TextWrapping.NoWrap,
+            maxLines: 1);
 
     private static string FormatHourLabel(int hour, bool use24Hour)
     {

@@ -1036,6 +1036,11 @@ public sealed class SettingsScrollHost : Grid, IDisposable
     {
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        Control? previousContent = _contentHost.Child;
+        if (ReferenceEquals(previousContent, content)) return;
+
+        if (previousContent != null)
+            TextBlockLayoutLifetime.ReleaseForRetirement(previousContent);
         _contentHost.Child = content;
     }
 
@@ -1069,6 +1074,7 @@ public sealed class SettingsScrollHost : Grid, IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+        TextBlockLayoutLifetime.ReleaseForRetirement(this);
         _scrollBar.Dispose();
         _contentHost.Child = null;
         _scrollViewer.Content = null;
@@ -1195,6 +1201,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+        TextBlockLayoutLifetime.ReleaseForRetirement(this);
         _verticalScrollBar.Dispose();
         _horizontalScrollBar.Dispose();
         _cornerHost.PointerEntered -= OnCornerPointerEntered;
@@ -1732,6 +1739,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
         }
         finally
         {
+            TextBlockLayoutLifetime.ReleaseForRetirement(content);
             if (content is IDisposable disposable)
                 disposable.Dispose();
         }
@@ -1770,6 +1778,7 @@ public sealed class SettingsComboBoxItem : Border, IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+        TextBlockLayoutLifetime.ReleaseForRetirement(this);
         PointerEntered -= OnPointerEntered;
         PointerExited -= OnPointerExited;
         PointerPressed -= OnPointerPressed;
@@ -1999,11 +2008,15 @@ public sealed class SettingsComboBox : Grid, IDisposable
                 _selectionContent = previousContent;
                 _selectedItem = previousItem;
                 previousItem?.IsSelected = true;
+                if (replacementContent != null)
+                    TextBlockLayoutLifetime.ReleaseForRetirement(replacementContent);
                 if (replacementContent is IDisposable failedDisposable)
                     failedDisposable.Dispose();
                 throw;
             }
 
+            if (previousContent != null)
+                TextBlockLayoutLifetime.ReleaseForRetirement(previousContent);
             if (previousContent is IDisposable disposable)
                 disposable.Dispose();
             UpdateAutoWidth();
@@ -2138,6 +2151,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+        TextBlockLayoutLifetime.ReleaseForRetirement(this);
         DetachedFromVisualTree -= OnDetachedFromVisualTree;
         PointerEntered -= OnPointerEntered;
         PointerExited -= OnPointerExited;
@@ -2805,8 +2819,15 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     private static double MeasureTextWidth(string text, double fontSize)
     {
         TextBlock probe = new() { Text = text, FontFamily = TrayAppDotNETSettingsUI.UIFont, FontSize = fontSize };
-        probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        return probe.DesiredSize.Width;
+        try
+        {
+            probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return probe.DesiredSize.Width;
+        }
+        finally
+        {
+            TextBlockLayoutLifetime.ReleaseForRetirement(probe);
+        }
     }
 
     private double NormalizeValue(double value)

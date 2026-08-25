@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using BrightnessTrayAppDotNET.SunriseSunset;
 using BrightnessTrayAppDotNET.Utils;
 
@@ -226,10 +227,13 @@ public sealed partial class EnvironmentalCurveEditor
         {
             int hour = (int)Math.Round(24.0 * i / HorizontalGridDivisions);
             string text = FormatHourLabel(hour, use24Hour);
-            FormattedText formatted = Text(text, TimeAxisLabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.7));
+            using TextLayout formatted = Text(
+                text,
+                TimeAxisLabelFontSize,
+                WithOpacity(_palette.SecondaryForeground, 0.7));
             double x = ScreenX((double)i / HorizontalGridDivisions, plot) - formatted.Width / 2.0;
             double y = bounds.Height - TimeAxisHeight + 2.0;
-            context.DrawText(formatted, new Point(x, y));
+            formatted.Draw(context, new Point(x, y));
         }
 
         for (int i = 0; i <= VerticalGridDivisions; i++)
@@ -239,11 +243,17 @@ public sealed partial class EnvironmentalCurveEditor
                 : 100 - (int)Math.Round(100.0 * i / VerticalGridDivisions);
             string text = _offsetMode && value > 0 ? $"+{value}" : value.ToString(CultureInfo.InvariantCulture);
             double y = ScreenY(100.0 * (VerticalGridDivisions - i) / VerticalGridDivisions, plot);
-            FormattedText left = Text(text, TimeAxisLabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.7));
-            context.DrawText(left, new Point(AxisGutterWidth - left.Width - 2.0, y - left.Height / 2.0));
+            using TextLayout left = Text(
+                text,
+                TimeAxisLabelFontSize,
+                WithOpacity(_palette.SecondaryForeground, 0.7));
+            left.Draw(context, new Point(AxisGutterWidth - left.Width - 2.0, y - left.Height / 2.0));
 
-            FormattedText right = Text(text, TimeAxisLabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.7));
-            context.DrawText(right, new Point(bounds.Width - AxisGutterWidth + 2.0, y - right.Height / 2.0));
+            using TextLayout right = Text(
+                text,
+                TimeAxisLabelFontSize,
+                WithOpacity(_palette.SecondaryForeground, 0.7));
+            right.Draw(context, new Point(bounds.Width - AxisGutterWidth + 2.0, y - right.Height / 2.0));
         }
     }
 
@@ -350,79 +360,107 @@ public sealed partial class EnvironmentalCurveEditor
         const double horizontalGap = 6.0;
         double plotMid = plot.Center.X;
 
-        List<(Series Series, LimitKind Kind, FormattedText Text, double Left, double Top, double Width, double Height)>
+        List<(Series Series, LimitKind Kind, TextLayout Text, double Left, double Top, double Width, double Height)>
             entries = [];
-        foreach ((Series series, LimitKind kind, double lineY, bool active) in specs)
+        try
         {
-            string label = (series, kind) switch
+            foreach ((Series series, LimitKind kind, double lineY, bool active) in specs)
             {
-                (Series.Brightness, LimitKind.Min) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinBrightness)),
-                (Series.Brightness, LimitKind.Max) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxBrightness)),
-                (Series.NightLight, LimitKind.Min) => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinNightLight)),
-                _ => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxNightLight))
-            };
-            Color color = WithOpacity(_palette.Foreground, active ? 1.0 : 0.7);
-            FormattedText text = Text(label, TimeAxisLabelFontSize, color);
-            double left = plotMid - text.Width / 2.0;
-            double top = kind == LimitKind.Min ? lineY - text.Height - gap : lineY + gap;
-            entries.Add((series, kind, text, left, top, text.Width, text.Height));
-        }
-
-        bool[] visited = new bool[entries.Count];
-        for (int seed = 0; seed < entries.Count; seed++)
-        {
-            if (visited[seed]) continue;
-
-            List<int> cluster = [seed];
-            visited[seed] = true;
-            bool grew = true;
-            while (grew)
-            {
-                grew = false;
-                for (int i = 0; i < entries.Count; i++)
+                string label = (series, kind) switch
                 {
-                    if (visited[i]) continue;
-                    foreach (int clustered in cluster)
-                    {
-                        if (!VerticalBandsOverlap(entries[i].Top, entries[i].Height, entries[clustered].Top,
-                                entries[clustered].Height))
-                            continue;
-
-                        cluster.Add(i);
-                        visited[i] = true;
-                        grew = true;
-                        break;
-                    }
+                    (Series.Brightness, LimitKind.Min) =>
+                        L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinBrightness)),
+                    (Series.Brightness, LimitKind.Max) =>
+                        L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxBrightness)),
+                    (Series.NightLight, LimitKind.Min) =>
+                        L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MinNightLight)),
+                    _ => L(nameof(AppStrings.Settings_CurveEditor_LimitLabel_MaxNightLight))
+                };
+                Color color = WithOpacity(_palette.Foreground, active ? 1.0 : 0.7);
+                TextLayout text = Text(label, TimeAxisLabelFontSize, color);
+                try
+                {
+                    double left = plotMid - text.Width / 2.0;
+                    double top = kind == LimitKind.Min ? lineY - text.Height - gap : lineY + gap;
+                    entries.Add((series, kind, text, left, top, text.Width, text.Height));
+                }
+                catch
+                {
+                    text.Dispose();
+                    throw;
                 }
             }
 
-            if (cluster.Count <= 1) continue;
-
-            cluster.Sort((a, b) =>
+            bool[] visited = new bool[entries.Count];
+            for (int seed = 0; seed < entries.Count; seed++)
             {
-                int series = entries[a].Series.CompareTo(entries[b].Series);
-                return series != 0 ? series : entries[a].Kind.CompareTo(entries[b].Kind);
-            });
+                if (visited[seed]) continue;
 
-            double totalWidth = cluster.Sum(index => entries[index].Width) + (cluster.Count - 1) * horizontalGap;
-            double cursor = plotMid - totalWidth / 2.0;
-            foreach (int index in cluster)
+                List<int> cluster = [seed];
+                visited[seed] = true;
+                bool grew = true;
+                while (grew)
+                {
+                    grew = false;
+                    for (int entryIndex = 0; entryIndex < entries.Count; entryIndex++)
+                    {
+                        if (visited[entryIndex]) continue;
+                        foreach (int clusteredIndex in cluster)
+                        {
+                            if (!VerticalBandsOverlap(
+                                    entries[entryIndex].Top,
+                                    entries[entryIndex].Height,
+                                    entries[clusteredIndex].Top,
+                                    entries[clusteredIndex].Height))
+                                continue;
+
+                            cluster.Add(entryIndex);
+                            visited[entryIndex] = true;
+                            grew = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (cluster.Count <= 1) continue;
+
+                cluster.Sort((leftIndex, rightIndex) =>
+                {
+                    int seriesComparison = entries[leftIndex].Series.CompareTo(entries[rightIndex].Series);
+                    return seriesComparison != 0
+                        ? seriesComparison
+                        : entries[leftIndex].Kind.CompareTo(entries[rightIndex].Kind);
+                });
+
+                double totalWidth = cluster.Sum(index => entries[index].Width) +
+                                    (cluster.Count - 1) * horizontalGap;
+                double cursor = plotMid - totalWidth / 2.0;
+                foreach (int entryIndex in cluster)
+                {
+                    (Series series, LimitKind kind, TextLayout text, double left, double top, double width,
+                        double height) = entries[entryIndex];
+                    entries[entryIndex] = (series, kind, text, cursor, top, width, height);
+                    cursor += width + horizontalGap;
+                }
+            }
+
+            foreach ((Series series, LimitKind kind, TextLayout text, double left, double top, double width,
+                         double height) in entries)
             {
-                (Series series, LimitKind kind, FormattedText text, double left, double top, double width,
-                    double height) = entries[index];
-                entries[index] = (series, kind, text, cursor, top, width, height);
-                cursor += width + horizontalGap;
+                double x = Math.Clamp(left, plot.Left, Math.Max(plot.Left, plot.Right - width));
+                double y = Math.Clamp(
+                    top,
+                    plot.Top - DisabledPeriodPinAreaHeight,
+                    Math.Max(plot.Top, plot.Bottom - height));
+                text.Draw(context, new Point(x, y));
+                _limitLabelHits.Add(
+                    new LimitLabelHit(series, kind, new Rect(x - 3.0, y - 2.0, width + 6.0, height + 4.0)));
             }
         }
-
-        foreach ((Series series, LimitKind kind, FormattedText text, double left, double top, double width,
-                     double height) in entries)
+        finally
         {
-            double x = Math.Clamp(left, plot.Left, Math.Max(plot.Left, plot.Right - width));
-            double y = Math.Clamp(top, plot.Top - DisabledPeriodPinAreaHeight,
-                Math.Max(plot.Top, plot.Bottom - height));
-            context.DrawText(text, new Point(x, y));
-            _limitLabelHits.Add(new LimitLabelHit(series, kind, new Rect(x - 3.0, y - 2.0, width + 6.0, height + 4.0)));
+            for (int entryIndex = 0; entryIndex < entries.Count; entryIndex++)
+                entries[entryIndex].Text.Dispose();
         }
     }
 
@@ -462,9 +500,9 @@ public sealed partial class EnvironmentalCurveEditor
         string label = kind == LimitKind.Max
             ? L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_UpperBrightnessOffset))
             : L(nameof(AppStrings.Settings_CurveEditor_DegenerationLabel_LowerBrightnessOffset));
-        FormattedText text = Text(label, TimeAxisLabelFontSize, color);
+        using TextLayout text = Text(label, TimeAxisLabelFontSize, color);
         double textY = kind == LimitKind.Min ? y - text.Height - 2.0 : y + 2.0;
-        context.DrawText(text, new Point(plot.Center.X - text.Width / 2.0, textY));
+        text.Draw(context, new Point(plot.Center.X - text.Width / 2.0, textY));
     }
 
     private void DrawDisabledPeriod(DrawingContext context, Rect plot)
@@ -528,7 +566,7 @@ public sealed partial class EnvironmentalCurveEditor
         double t = Math.Clamp(FromScreenX(cursor.X, plot), 0.0, 1.0);
         double v = Math.Clamp(FromScreenY(cursor.Y, plot), 0.0, 100.0);
         string readout = $"{FormatCursorTime(t, SystemUses24HourClock())}  {FormatCursorValue(v)}";
-        FormattedText text = Text(readout, 12.0, _palette.Foreground, monospace: true);
+        using TextLayout text = Text(readout, 12.0, _palette.Foreground, monospace: true);
         Rect pill = ReadoutRect(text, plot, cursor, avoidCursor: true, verticalSlot: 0);
         DrawPill(context, pill, text, _palette.CardBackground, _palette.Foreground);
 
@@ -563,7 +601,7 @@ public sealed partial class EnvironmentalCurveEditor
         Point center = new(ScreenX(t, plot), ScreenY(sample, plot));
         context.DrawEllipse(Brush(color), new Pen(Brush(_palette.Foreground)), center, 4.0, 4.0);
 
-        FormattedText label = Text(FormatCursorValue(sample), 11.0, color, monospace: true);
+        using TextLayout label = Text(FormatCursorValue(sample), 11.0, color, monospace: true);
         const double gap = 6.0;
         double left = SampleCurveAt(series, Math.Max(0.0, t - 0.01));
         double right = SampleCurveAt(series, Math.Min(1.0, t + 0.01));
@@ -573,7 +611,7 @@ public sealed partial class EnvironmentalCurveEditor
         if (y < plot.Top) y = center.Y + 5.0;
         x = Math.Clamp(x, plot.Left, Math.Max(plot.Left, plot.Right - label.Width));
         y = Math.Clamp(y, plot.Top, Math.Max(plot.Top, plot.Bottom - label.Height));
-        context.DrawText(label, new Point(x, y));
+        label.Draw(context, new Point(x, y));
     }
 
     private void DrawSelectedNodeReadout(DrawingContext context, Rect plot)
@@ -586,7 +624,7 @@ public sealed partial class EnvironmentalCurveEditor
             FormatCursorTime(_selectedPoint.Time, SystemUses24HourClock()),
             FormatCursorValue(_selectedPoint.Value));
         Color color = _selectedSeries == Series.Brightness ? _palette.BrightnessCurve : _palette.NightLightCurve;
-        FormattedText text = Text(textValue, 12.0, color, monospace: true);
+        using TextLayout text = Text(textValue, 12.0, color, monospace: true);
         Rect pill = ReadoutRect(text, plot, _cursorPos ?? new Point(plot.Right, plot.Top), avoidCursor: false,
             verticalSlot: 1);
         DrawPill(context, pill, text, _palette.CardBackground, color);
@@ -597,7 +635,7 @@ public sealed partial class EnvironmentalCurveEditor
         context.FillRectangle(Brush(_palette.PreviewTint), bounds, 6);
 
         string label = L(nameof(AppStrings.Settings_CurveEditor_ExitPreviewMode_Button));
-        FormattedText text = Text(label, 12.0, _palette.Foreground);
+        using TextLayout text = Text(label, 12.0, _palette.Foreground);
         Rect button = new(
             plot.Right - text.Width - 28.0,
             plot.Bottom - text.Height - 20.0,
@@ -606,10 +644,10 @@ public sealed partial class EnvironmentalCurveEditor
         _exitPreviewButtonRect = button;
         context.FillRectangle(Brush(WithOpacity(_palette.CardBackground, 0.92)), button, 4);
         context.DrawRectangle(new Pen(Brush(WithOpacity(_palette.Foreground, 0.4))), button, 4);
-        context.DrawText(text, new Point(button.X + 10.0, button.Y + 5.0));
+        text.Draw(context, new Point(button.X + 10.0, button.Y + 5.0));
     }
 
-    private static Rect ReadoutRect(FormattedText text, Rect plot, Point cursor, bool avoidCursor, int verticalSlot)
+    private static Rect ReadoutRect(TextLayout text, Rect plot, Point cursor, bool avoidCursor, int verticalSlot)
     {
         double width = text.Width + 12.0;
         double height = text.Height + 4.0;
@@ -619,11 +657,11 @@ public sealed partial class EnvironmentalCurveEditor
         return new Rect(x, y, width, height);
     }
 
-    private static void DrawPill(DrawingContext context, Rect rect, FormattedText text, Color background, Color border)
+    private static void DrawPill(DrawingContext context, Rect rect, TextLayout text, Color background, Color border)
     {
         context.FillRectangle(Brush(WithOpacity(background, 0.88)), rect, 3);
         context.DrawRectangle(new Pen(Brush(WithOpacity(border, 0.22))), rect, 3);
-        context.DrawText(text, new Point(rect.X + 6.0, rect.Y + 2.0));
+        text.Draw(context, new Point(rect.X + 6.0, rect.Y + 2.0));
     }
 
     private void DrawThumb(DrawingContext context, Point center, Color fill, bool active, bool selected)

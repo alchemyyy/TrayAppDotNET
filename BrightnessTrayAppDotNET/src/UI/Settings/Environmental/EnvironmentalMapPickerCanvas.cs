@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using BrightnessTrayAppDotNET.UI;
 using TrayAppDotNETCommon.UI;
@@ -159,19 +160,19 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         Point center = _viewport.MapToViewport(Projection.Project(_selectedCoordinate));
         Glyph pinGlyph = GlyphCatalog.MAP_PIN;
         FontFamily pinFont = TrayAppDotNETCommon.Visuals.TADNFontResolver.ResolveFontFamily(pinGlyph.Font);
-        FormattedText text = new(
+        using TextLayout text = new(
             pinGlyph.Text,
-            System.Globalization.CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
             new Typeface(pinFont),
             PinFontSize,
-            TrayAppDotNETSettingsUI.Brush(_pinColor));
+            TrayAppDotNETSettingsUI.Brush(_pinColor),
+            textWrapping: TextWrapping.NoWrap,
+            maxLines: 1);
 
         Point origin = new(
             center.X - text.Width * PinAnchorXFraction,
             center.Y - text.Height * PinAnchorYFraction);
         _pinHitRect = new Rect(origin, new Size(text.Width, text.Height)).Inflate(PinHitPadding);
-        context.DrawText(text, origin);
+        text.Draw(context, origin);
     }
 
     /// <summary>

@@ -154,6 +154,7 @@ public static class TrayAppDotNETAvalonia
         ArgumentNullException.ThrowIfNull(app);
 
         app.Styles.Add(new FluentTheme());
+        TextBlockLayoutLifetime.Install(app);
         TrayAppDotNETAnimationPolicy.Apply(app, animationMode);
         if (toolTipShowDelayMs.HasValue)
             TrayAppDotNETToolTip.ShowDelayMs = toolTipShowDelayMs.Value;

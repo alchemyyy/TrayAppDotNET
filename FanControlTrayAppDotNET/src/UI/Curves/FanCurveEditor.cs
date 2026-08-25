@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 
 namespace FanControlTrayAppDotNET.UI.Curves;
@@ -321,10 +322,10 @@ public sealed class FanCurveEditor : Control, IDisposable
             DrawLine(context, new Point(plot.Left, y), new Point(plot.Right, y),
                 WithOpacity(_palette.GridLine, 0.4), 1.0);
 
-            FormattedText left = Text(FormatYAxisValue(yValue), Layout.GraphLabelFontSize,
+            using TextLayout left = Text(FormatYAxisValue(yValue), Layout.GraphLabelFontSize,
                 WithOpacity(_palette.SecondaryForeground, 0.75));
-            context.DrawText(
-                left,
+            left.Draw(
+                context,
                 new Point(yAxisGutterWidth - left.Width - Layout.GraphYAxisLabelGap, y - left.Height / 2.0));
         }
 
@@ -338,10 +339,10 @@ public sealed class FanCurveEditor : Control, IDisposable
             string label = FormatAxisValue(xValue);
             string unit = _dataSource?.DisplayUnit ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(unit)) label += unit;
-            FormattedText formatted = Text(label, Layout.GraphLabelFontSize,
+            using TextLayout formatted = Text(label, Layout.GraphLabelFontSize,
                 WithOpacity(_palette.SecondaryForeground, 0.75));
-            context.DrawText(
-                formatted,
+            formatted.Draw(
+                context,
                 new Point(x - formatted.Width / 2.0, bounds.Height - Layout.GraphXAxisHeight + 3.0));
         }
     }
@@ -358,8 +359,11 @@ public sealed class FanCurveEditor : Control, IDisposable
             WithOpacity(_palette.SecondaryForeground, 0.65), 1.0, 4.0, 3.0);
 
         string label = $"Min {FormatYAxisValue(min)}";
-        FormattedText text = Text(label, Layout.GraphLabelFontSize, WithOpacity(_palette.SecondaryForeground, 0.75));
-        context.DrawText(text, new Point(plot.Left + 6.0, Math.Clamp(y + 3.0, plot.Top, plot.Bottom - text.Height)));
+        using TextLayout text = Text(
+            label,
+            Layout.GraphLabelFontSize,
+            WithOpacity(_palette.SecondaryForeground, 0.75));
+        text.Draw(context, new Point(plot.Left + 6.0, Math.Clamp(y + 3.0, plot.Top, plot.Bottom - text.Height)));
     }
 
     private void DrawCurve(DrawingContext context, Rect plot)
@@ -435,8 +439,8 @@ public sealed class FanCurveEditor : Control, IDisposable
         string label = string.IsNullOrWhiteSpace(unit)
             ? $"{_dataSource.DisplayName}  {FormatDataValue(value)}"
             : $"{_dataSource.DisplayName}  {FormatDataValue(value)} {unit}";
-        FormattedText sourceText = Text(label, 12.0, _palette.Foreground);
-        FormattedText? curveText = _curve == null
+        using TextLayout sourceText = Text(label, 12.0, _palette.Foreground);
+        using TextLayout? curveText = _curve == null
             ? null
             : Text($"Curve {FormatYAxisValue(_curve.Evaluate(value))}", 12.0, _palette.Curve);
         double bottom = plot.Bottom - Layout.GraphLegendInset;
@@ -469,7 +473,7 @@ public sealed class FanCurveEditor : Control, IDisposable
         string textValue = string.IsNullOrWhiteSpace(xUnit)
             ? $"{FormatDataValue(displayNode.X)}  {FormatYAxisValue(displayNode.Y)}"
             : $"{FormatDataValue(displayNode.X)} {xUnit}  {FormatYAxisValue(displayNode.Y)}";
-        FormattedText text = Text(textValue, 12.0, _palette.Curve, monospace: true);
+        using TextLayout text = Text(textValue, 12.0, _palette.Curve, monospace: true);
         double width = text.Width + 12.0;
         double height = text.Height + 5.0;
         double x = SelectedReadoutX(plot, width);
@@ -480,7 +484,7 @@ public sealed class FanCurveEditor : Control, IDisposable
     /// <summary>
     /// Sizes and right-aligns one graph legend pill above the requested bottom edge.
     /// </summary>
-    private Rect GraphLegendPill(Rect plot, FormattedText text, double bottom)
+    private Rect GraphLegendPill(Rect plot, TextLayout text, double bottom)
     {
         double width = text.Width + 12.0;
         double height = text.Height + 5.0;
@@ -711,7 +715,10 @@ public sealed class FanCurveEditor : Control, IDisposable
         int verticalGridDivisions = VerticalGridDivisions;
         for (int i = 0; i <= verticalGridDivisions; i++)
         {
-            FormattedText text = Text(FormatYAxisValue(YGridValue(i)), Layout.GraphLabelFontSize, Colors.Transparent);
+            using TextLayout text = Text(
+                FormatYAxisValue(YGridValue(i)),
+                Layout.GraphLabelFontSize,
+                Colors.Transparent);
             width = Math.Max(width, text.Width);
         }
 
@@ -768,11 +775,11 @@ public sealed class FanCurveEditor : Control, IDisposable
         context.DrawEllipse(Brush(fill), ring, center, radius, radius);
     }
 
-    private static void DrawPill(DrawingContext context, Rect rect, FormattedText text, Color background, Color border)
+    private static void DrawPill(DrawingContext context, Rect rect, TextLayout text, Color background, Color border)
     {
         context.FillRectangle(Brush(WithOpacity(background, 0.90)), rect, 3);
         context.DrawRectangle(new Pen(Brush(WithOpacity(border, 0.24))), rect, 3);
-        context.DrawText(text, new Point(rect.X + 6.0, rect.Y + 2.0));
+        text.Draw(context, new Point(rect.X + 6.0, rect.Y + 2.0));
     }
 
     private static IBrush Brush(Color color) =>
@@ -832,16 +839,16 @@ public sealed class FanCurveEditor : Control, IDisposable
         }
     }
 
-    private static FormattedText Text(string text, double size, Color color, bool monospace = false) =>
+    private static TextLayout Text(string text, double size, Color color, bool monospace = false) =>
         new(
             text,
-            CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight,
             new Typeface(monospace
                 ? new FontFamily("Consolas, Cascadia Mono, Segoe UI")
                 : new FontFamily("Segoe UI Variable, Segoe UI")),
             size,
-            Brush(color));
+            Brush(color),
+            textWrapping: TextWrapping.NoWrap,
+            maxLines: 1);
 
     private static string FormatAxisValue(double value)
         => Math.Round(value).ToString(CultureInfo.InvariantCulture);

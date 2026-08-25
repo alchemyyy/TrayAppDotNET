@@ -56,6 +56,18 @@ public sealed class UIContentGeneration : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         Control? root = Interlocked.Exchange(ref _root, null);
+        if (root != null)
+        {
+            try
+            {
+                TextBlockLayoutLifetime.ReleaseForRetirement(root);
+            }
+            catch (Exception exception)
+            {
+                Log(exception);
+            }
+        }
+
         Resources.Dispose();
         if (root == null) return;
 
