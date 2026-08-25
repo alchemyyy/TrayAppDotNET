@@ -69,6 +69,12 @@
   <data name="ColorPicker_RGBAHexLabel" xml:space="preserve">
     <value>rgba hex:</value>
   </data>
+  <data name="Flyout_Update_ButtonText" xml:space="preserve">
+    <value>Update!</value>
+  </data>
+  <data name="Flyout_Update_Tooltip" xml:space="preserve">
+    <value>A newer release is available. Click to review and install.</value>
+  </data>
   <data name="Settings_About_Backdate_AvailableFormat" xml:space="preserve">
     <value>Previous available version: {0}. Installing it will restart the app.</value>
   </data>
@@ -604,9 +610,6 @@ Restart from the installed copy now?</value>
   <data name="UpdateDialog_SkipRelease" xml:space="preserve">
     <value>Skip this release</value>
   </data>
-  <data name="UpdateDialog_Cancel" xml:space="preserve">
-    <value>Cancel</value>
-  </data>
   <data name="UpdateDialog_CaptionClose_Tooltip" xml:space="preserve">
     <value>Close</value>
   </data>
@@ -621,9 +624,6 @@ Restart from the installed copy now?</value>
   </data>
   <data name="UpdateDialog_Install" xml:space="preserve">
     <value>Install</value>
-  </data>
-  <data name="UpdateDialog_NoChangelog" xml:space="preserve">
-    <value>No changelog provided.</value>
   </data>
   <data name="UpdateDialog_TitleFormat" xml:space="preserve">
     <value>Update available: {0}</value>

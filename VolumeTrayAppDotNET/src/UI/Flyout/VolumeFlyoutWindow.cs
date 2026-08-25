@@ -769,7 +769,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         if (IsUpdateButtonVisible)
         {
-            Border update = TextButton(L(nameof(AppStrings.Flyout_Update_ButtonText)), p, ShowUpdateConfirmation);
+            Border update = TextButton(L(nameof(CommonStrings.Flyout_Update_ButtonText)), p, ShowUpdateConfirmation);
             ControlNames.Assign(update, "UpdateButton");
             SuppressNextAutoHideWhenPressed(update);
             update.Width = Layout.UpdateButtonWidth;
@@ -783,7 +783,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             update.Margin = bottomHeader
                 ? CenteredHeaderMargin(Layout.UpdateButtonMarginBottom)
                 : Layout.UpdateButtonMarginTop;
-            TrayAppDotNETToolTip.SetTip(update, L(nameof(AppStrings.Flyout_Update_Tooltip)));
+            TrayAppDotNETToolTip.SetTip(update, L(nameof(CommonStrings.Flyout_Update_Tooltip)));
             update.SetValue(ZIndexProperty, Layout.UpdateButtonZIndex);
             grid.Children.Add(update);
         }
@@ -2601,11 +2601,13 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             L(nameof(AppStrings.EqualizerAPO_NotAvailable_Title)),
             body,
-            string.Empty,
             download,
-            L(nameof(AppStrings.UpdateDialog_Cancel)),
             palette,
-            _settings.EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            _settings.EnableRoundedCorners,
+            cancelText: L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)))
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
 
         _ = ShowEqualizerDialogAsync(dialog);
 

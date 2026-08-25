@@ -742,7 +742,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private Border BuildUpdateCard(FlyoutControlPalette p, AppTheme theme, bool isLight)
     {
         UpdateInfo? update = AppServices.UpdateCheckService?.AvailableUpdate;
-        string releaseName = update?.ReleaseName ?? L(nameof(AppStrings.UpdateDialog_DefaultTitle));
+        string releaseName = update?.ReleaseName ?? L(nameof(CommonStrings.UpdateNotification_Title));
 
         Grid row = new()
         {
@@ -772,14 +772,14 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Margin = Layout.FanNameStackUngroupedMargin
         };
         TextBlock title = TrayAppDotNETFlyoutUI.Text(
-            L(nameof(AppStrings.UpdateNotification_Title)),
+            L(nameof(CommonStrings.UpdateNotification_Title)),
             p,
             Layout.FanNameFontSize,
             FontWeight.SemiBold);
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         TextBlock subtitle = TrayAppDotNETFlyoutUI.Text(
             string.Format(CultureInfo.CurrentCulture,
-                L(nameof(AppStrings.UpdateNotification_BodyFormat)),
+                L(nameof(CommonStrings.UpdateNotification_BodyFormat)),
                 releaseName),
             p,
             Layout.FanSubtitleFontSize,
@@ -792,7 +792,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         row.Children.Add(text);
 
         Border install = TrayAppDotNETFlyoutUI.TextButton(
-            L(nameof(AppStrings.Settings_About_InstallUpdate_Available)),
+            L(nameof(CommonStrings.Settings_About_InstallUpdate_Available)),
             p,
             ShowUpdateConfirmation,
             Layout.UpdateButtonFontSize,

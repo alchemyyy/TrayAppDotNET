@@ -1452,13 +1452,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         if (IsUpdateButtonVisible)
         {
-            Border update = TrayAppDotNETFlyoutUI.TextButton("Update", palette, ShowUpdateConfirmation,
+            Border update = TrayAppDotNETFlyoutUI.TextButton(
+                L(nameof(CommonStrings.Flyout_Update_ButtonText)),
+                palette,
+                ShowUpdateConfirmation,
                 Layout.UpdateButtonFontSize, Layout.UpdateButtonPadding);
             update.Width = Layout.UpdateButtonWidth;
             update.Height = Layout.UpdateButtonHeight;
             update.HorizontalAlignment = HorizontalAlignment.Right;
             update.VerticalAlignment = VerticalAlignment.Top;
             update.Margin = Layout.UpdateButtonMargin;
+            TrayAppDotNETToolTip.SetTip(update, L(nameof(CommonStrings.Flyout_Update_Tooltip)));
             ControlNames.Assign(update, "UpdateButton");
             Grid.SetRow(update, 0);
             rootGrid.Children.Add(update);

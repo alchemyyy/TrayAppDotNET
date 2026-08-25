@@ -347,9 +347,6 @@ Target: {1}</value>
   <data name="Settings_General_Uninstall_Button" xml:space="preserve">
     <value>Uninstall</value>
   </data>
-  <data name="Settings_General_Update_Button" xml:space="preserve">
-    <value>Update</value>
-  </data>
   <data name="Settings_General_WindowsStore_Title" xml:space="preserve">
     <value>Windows Store</value>
   </data>

@@ -36,12 +36,11 @@ public sealed class SecondaryWindowLifetimeTests
         TrayAppDotNETUpdateConfirmationWindow prompt = new(
             "Title",
             "Description",
-            "Changes",
             "Confirm",
-            "Cancel",
             Palette(),
             rounded: true,
-            alternateText: "Skip this release");
+            alternateText: "Skip this release",
+            cancelText: "Cancel");
 
         prompt.Show();
         Assert.Contains(

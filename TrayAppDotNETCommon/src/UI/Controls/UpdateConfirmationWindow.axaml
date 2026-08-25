@@ -13,18 +13,9 @@
     <sys:Double x:Key="UpdateConfirmation.TitleBarHeight">32</sys:Double>
     <Thickness x:Key="UpdateConfirmation.TitleMargin">16,0,0,0</Thickness>
 
-    <!-- Changelog content -->
-    <sys:Int32 x:Key="UpdateConfirmation.MaxVisibleChangelogLines">16</sys:Int32>
-    <sys:Double x:Key="UpdateConfirmation.ChangelogLineHeight">16</sys:Double>
     <Thickness x:Key="UpdateConfirmation.BodyMargin">28,8,28,20</Thickness>
-    <Thickness x:Key="UpdateConfirmation.DescriptionMargin">0,0,0,12</Thickness>
-    <Thickness x:Key="UpdateConfirmation.ChangelogBorderThickness">1</Thickness>
-    <CornerRadius x:Key="UpdateConfirmation.ChangelogCornerRadius">4</CornerRadius>
-    <Thickness x:Key="UpdateConfirmation.ChangelogPadding">12,8</Thickness>
-    <Thickness x:Key="UpdateConfirmation.ChangelogScrollPadding">0</Thickness>
-    <sys:Double x:Key="UpdateConfirmation.ChangelogMaxHeightExtra">4</sys:Double>
     <!-- Dialog actions -->
     <Thickness x:Key="UpdateConfirmation.ActionButtonPadding">20,8</Thickness>
-    <Thickness x:Key="UpdateConfirmation.CancelButtonMargin">0,0,8,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.SecondaryButtonMargin">0,0,8,0</Thickness>
     <Thickness x:Key="UpdateConfirmation.ActionButtonsMargin">0,20,0,0</Thickness>
 </ResourceDictionary>

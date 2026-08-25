@@ -139,19 +139,13 @@ public static class TrayAppDotNETUpdatePromptPresenter
             L(options, nameof(CommonStrings.UpdateDialog_TitleFormat)),
             options.UpdateInfo.ReleaseName);
         string description = L(options, nameof(CommonStrings.UpdateDialog_DefaultDescription));
-        string changelog = string.IsNullOrWhiteSpace(options.UpdateInfo.Changelog)
-            ? L(options, nameof(CommonStrings.UpdateDialog_NoChangelog))
-            : options.UpdateInfo.Changelog;
         string confirmText = L(options, nameof(CommonStrings.UpdateDialog_Install));
-        string cancelText = L(options, nameof(CommonStrings.UpdateDialog_Cancel));
         string skipText = L(options, nameof(CommonStrings.UpdateDialog_SkipRelease));
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
             description,
-            changelog,
             confirmText,
-            cancelText,
             options.Palette,
             options.EnableRoundedCorners,
             skipText)
@@ -172,15 +166,10 @@ public static class TrayAppDotNETUpdatePromptPresenter
             CultureInfo.CurrentCulture,
             L(options, nameof(CommonStrings.BackdateDialog_DescriptionFormat)),
             options.UpdateInfo.Version);
-        string changelog = string.IsNullOrWhiteSpace(options.UpdateInfo.Changelog)
-            ? L(options, nameof(CommonStrings.UpdateDialog_NoChangelog))
-            : options.UpdateInfo.Changelog;
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
             description,
-            changelog,
             L(options, nameof(CommonStrings.BackdateDialog_Confirm)),
-            L(options, nameof(CommonStrings.UpdateDialog_Cancel)),
             options.Palette,
             options.EnableRoundedCorners)
         {
@@ -199,9 +188,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             L(options, nameof(CommonStrings.BackdateDialog_SkipCurrentTitle)),
             description,
-            null,
             L(options, nameof(CommonStrings.BackdateDialog_Yes)),
-            null,
             options.Palette,
             options.EnableRoundedCorners,
             L(options, nameof(CommonStrings.BackdateDialog_No)))
@@ -221,9 +208,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
             message,
-            null,
             okText,
-            null,
             options.Palette,
             options.EnableRoundedCorners)
         {

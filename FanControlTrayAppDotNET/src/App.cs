@@ -322,8 +322,8 @@ internal sealed class FanAvaloniaApp : Application
 
         _lastNotifiedUpdateVersion = info.Version;
         _trayIcon?.ShowBalloon(
-            L(nameof(AppStrings.UpdateNotification_Title)),
-            string.Format(L(nameof(AppStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
+            L(nameof(CommonStrings.UpdateNotification_Title)),
+            string.Format(L(nameof(CommonStrings.UpdateNotification_BodyFormat)), info.ReleaseName));
     }
 
     private void OnUpdateBalloonClicked()
