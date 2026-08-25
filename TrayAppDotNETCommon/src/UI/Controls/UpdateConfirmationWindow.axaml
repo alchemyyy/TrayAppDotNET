@@ -5,8 +5,8 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- Window geometry and chrome -->
-    <sys:Double x:Key="UpdateConfirmation.WindowWidth">520</sys:Double>
-    <sys:Double x:Key="UpdateConfirmation.WindowMinWidth">420</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.WindowWidth">350</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.WindowMinWidth">200</sys:Double>
     <Thickness x:Key="UpdateConfirmation.RootBorderThickness">1</Thickness>
     <CornerRadius x:Key="UpdateConfirmation.RootCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="UpdateConfirmation.ZeroCornerRadius">0</CornerRadius>

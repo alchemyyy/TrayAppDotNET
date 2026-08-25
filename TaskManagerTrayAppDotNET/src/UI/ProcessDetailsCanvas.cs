@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
@@ -85,12 +86,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
     private readonly Dictionary<ProcessSharedCellKey, SharedCellDrawing> _sharedCellDrawings = new();
     private readonly List<SharedCellDrawing> _sharedCellBuffer = new(8);
+    private readonly List<TextLayout> _textLayoutBuffer = new(8);
     private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly HashSet<ProcessInstanceKey> _collapsedProcesses = [];
     private readonly Dictionary<int, int> _rowIndexByProcessID = new(1_024);
     private readonly ProcessRowIndexComparer _rowComparer;
-    private FormattedText _ascendingCaretText;
-    private FormattedText _descendingCaretText;
+    private TextLayout _ascendingCaretText;
+    private TextLayout _descendingCaretText;
     private readonly IBrush _backgroundBrush;
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
@@ -109,7 +111,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private List<ProcessColumnSetting> _columnSettings;
     private ProcessColumnSetting[] _settingsByColumn;
     private ProcessTableColumn[] _columns;
-    private FormattedText[] _headerTexts;
+    private HeaderTextLayouts[] _headerTexts = [];
     private int[] _visibleRowIndexes = [];
     private int[] _treeOrderBuffer = [];
     private int[] _treeParentIndexes = [];
@@ -224,16 +226,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             _secondaryForegroundBrush,
             _visualMetrics.TreeExpanderLineThickness);
 
+        (_ascendingCaretText, _descendingCaretText) = CreateSortCaretTexts(
+            _visualMetrics.SortCaretFontSize,
+            _secondaryForegroundBrush);
         _headerTexts = CreateHeaderTexts(_columns);
-
-        _ascendingCaretText = CreateGlyphText(
-            "\uE96D",
-            _visualMetrics.SortCaretFontSize,
-            _secondaryForegroundBrush);
-        _descendingCaretText = CreateGlyphText(
-            "\uE96E",
-            _visualMetrics.SortCaretFontSize,
-            _secondaryForegroundBrush);
 
         _staticRowsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.StaticRows);
         _dynamicRowsLayer = new ProcessTableRenderLayer(this, RenderLayerKind.DynamicRows);
@@ -905,10 +901,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             nextMetrics,
             _visualMetrics,
             nextVisualMetrics);
-        bool rebuildHeaderText = _metrics.HeaderFontSize != nextMetrics.HeaderFontSize
-                                 || _metrics.CellPadding != nextMetrics.CellPadding;
         bool rebuildCaretText = _visualMetrics.SortCaretFontSize
                                 != nextVisualMetrics.SortCaretFontSize;
+        bool rebuildHeaderText = _metrics.HeaderFontSize != nextMetrics.HeaderFontSize
+                                 || _metrics.CellPadding != nextMetrics.CellPadding
+                                 || _visualMetrics.SortCaretRightMargin
+                                 != nextVisualMetrics.SortCaretRightMargin
+                                 || rebuildCaretText;
         bool gridMetricsChanged = _metrics.FontSize != nextMetrics.FontSize
                                   || _metrics.RowHeight != nextMetrics.RowHeight;
 
@@ -916,23 +915,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _visualMetrics = nextVisualMetrics;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
         RecreatePens();
+        if (rebuildCaretText) RecreateSortCaretTexts();
         bool rebuiltForColumnWidths = ApplyHotReloadedColumnWidths(
             _axamlColumnWidths,
             nextColumnWidths);
         _axamlColumnWidths = nextColumnWidths;
         if (rebuildHeaderText && !rebuiltForColumnWidths)
-            _headerTexts = CreateHeaderTexts(_columns);
-        if (rebuildCaretText)
-        {
-            _ascendingCaretText = CreateGlyphText(
-                "\uE96D",
-                _visualMetrics.SortCaretFontSize,
-                _secondaryForegroundBrush);
-            _descendingCaretText = CreateGlyphText(
-                "\uE96E",
-                _visualMetrics.SortCaretFontSize,
-                _secondaryForegroundBrush);
-        }
+            ReplaceHeaderTexts(_columns);
 
         if (rebuildRetainedRows && !rebuiltForColumnWidths)
             RebuildRetainedRowDrawings();
@@ -1249,7 +1238,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     {
         if (display.Length == 0 || _textUnderlineSegmentCount >= _textUnderlineSegments.Length) return;
 
-        CellTextLayout layout = CreateCellTextLayout(column, display, treeLayoutKey);
+        using CellTextLayout layout = CreateCellTextLayout(column, display, treeLayoutKey);
         double width = Math.Min(layout.Text.Width, layout.AvailableWidth);
         if (width <= 0) return;
 
@@ -1372,10 +1361,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         switch (lifetime)
         {
             case ProcessTableColumnLifetime.Static:
-                cache.StaticDrawing?.Draw(context);
+                cache.StaticDrawing?.Drawing.Draw(context);
                 return;
             case ProcessTableColumnLifetime.Dynamic:
-                cache.DynamicDrawing?.Draw(context);
+                cache.DynamicDrawing?.Drawing.Draw(context);
                 return;
         }
     }
@@ -1491,10 +1480,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             ProcessTableColumn column = columns[columnIndex];
             if (column.Right <= viewport.Left || column.Left >= viewport.Right) continue;
 
-            FormattedText headerText = _headerTexts[columnIndex];
             double textLeft = column.Left + _metrics.CellPadding;
             bool isSortedColumn = column.Kind == _sortColumn;
-            FormattedText? caret = isSortedColumn
+            TextLayout? caret = isSortedColumn
                 ? _sortDescending ? _descendingCaretText : _ascendingCaretText
                 : null;
             double caretX = caret == null
@@ -1504,21 +1492,29 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 ? column.Right - _metrics.CellPadding
                 : caretX - _metrics.CellPadding;
             double headerTextWidth = Math.Max(0, headerTextRight - textLeft);
-            if (column.Alignment == ProcessTableColumnAlignment.Right)
-                headerText.MaxTextWidth = headerTextWidth;
-            double textTop = top + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
-            Rect headerClip = new(
-                textLeft,
-                top,
-                headerTextWidth,
-                _metrics.HeaderHeight);
-            using (context.PushClip(headerClip))
-                context.DrawText(headerText, new Point(textLeft, textTop));
+            if (headerTextWidth > 0 && _metrics.HeaderHeight > 0)
+            {
+                bool needsLiveResizeLayout = column.Alignment == ProcessTableColumnAlignment.Right
+                                             && Math.Abs(column.Width - _columns[columnIndex].Width) >= 0.01;
+                using TextLayout? liveResizeText = needsLiveResizeLayout
+                    ? CreateHeaderText(column, headerTextWidth)
+                    : null;
+                TextLayout headerText = liveResizeText
+                                        ?? _headerTexts[columnIndex].Get(isSortedColumn, _sortDescending);
+                double textTop = top + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
+                Rect headerClip = new(
+                    textLeft,
+                    top,
+                    headerTextWidth,
+                    _metrics.HeaderHeight);
+                using (context.PushClip(headerClip))
+                    headerText.Draw(context, new Point(textLeft, textTop));
+            }
 
             if (caret != null)
             {
                 double caretTop = top + Math.Max(0, (_metrics.HeaderHeight - caret.Height) / 2);
-                context.DrawText(caret, new Point(caretX, caretTop));
+                caret.Draw(context, new Point(caretX, caretTop));
             }
 
             if (columnIndex == 0) continue;
@@ -1586,16 +1582,18 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         context.FillRectangle(_backgroundBrush, bounds);
         context.DrawRectangle(null, _columnInteractionPen, bounds);
 
-        FormattedText headerText = _headerTexts[_interactionColumnIndex];
+        TextLayout headerText = _headerTexts[_interactionColumnIndex].Normal;
         double textLeft = left + _metrics.CellPadding;
+        double textWidth = Math.Max(0, column.Width - _metrics.CellPadding * 2);
+        if (textWidth <= 0 || _metrics.HeaderHeight <= 0) return;
         Rect textClip = new(
             textLeft,
             headerTop,
-            Math.Max(0, column.Width - _metrics.CellPadding * 2),
+            textWidth,
             _metrics.HeaderHeight);
         double textTop = headerTop + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
         using (context.PushClip(textClip))
-            context.DrawText(headerText, new Point(textLeft, textTop));
+            headerText.Draw(context, new Point(textLeft, textTop));
     }
 
     private void UpdateRetainedDrawings()
@@ -1609,12 +1607,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             int treeLayoutKey = GetTreeLayoutKey(rowIndex);
             if (cache.StaticDrawing == null || cache.StaticTreeLayoutKey != treeLayoutKey)
             {
-                ReleaseSharedCellDrawings(cache.StaticSharedCells);
+                ProcessRowDrawing? previousDrawing = cache.StaticDrawing;
+                cache.StaticDrawing = null;
+                ReleaseRowDrawing(previousDrawing);
                 cache.StaticDrawing = BuildRowDrawing(
                     rowIndex,
-                    ProcessTableColumnLifetime.Static,
-                    out SharedCellDrawing[] sharedCells);
-                cache.StaticSharedCells = sharedCells;
+                    ProcessTableColumnLifetime.Static);
                 cache.StaticTreeLayoutKey = treeLayoutKey;
             }
             if (!_hasDynamicColumns) continue;
@@ -1627,45 +1625,76 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ScheduleWarmDynamicRefresh();
     }
 
-    private DrawingGroup BuildRowDrawing(
+    private ProcessRowDrawing BuildRowDrawing(
         int rowIndex,
-        ProcessTableColumnLifetime lifetime,
-        out SharedCellDrawing[] sharedCells)
+        ProcessTableColumnLifetime lifetime)
     {
         _sharedCellBuffer.Clear();
+        _textLayoutBuffer.Clear();
         int treeLayoutKey = GetTreeLayoutKey(rowIndex);
         DrawingGroup uniqueDrawing = new();
         DrawingCollection children = new() { Capacity = _columns.Length + 1 };
         bool hasUniqueDrawing = false;
-        using (DrawingContext uniqueContext = uniqueDrawing.Open())
+        try
         {
-            for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+            using (DrawingContext uniqueContext = uniqueDrawing.Open())
             {
-                ProcessTableColumn column = _columns[columnIndex];
-                ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(column.Kind);
-                if (definition.Lifetime != lifetime) continue;
-
-                string display = GetCellDisplayValue(rowIndex, column.Kind);
-                if (display.Length == 0) continue;
-
-                if (ShouldShareCell(column.Kind, display))
+                for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
                 {
-                    int cellTreeLayoutKey = column.Kind == ProcessTableColumnKind.Name ? treeLayoutKey : 0;
-                    ProcessSharedCellKey key = new(column.Kind, display, cellTreeLayoutKey);
-                    SharedCellDrawing sharedCell = AcquireSharedCellDrawing(column, key);
-                    children.Add(sharedCell.Drawing);
-                    _sharedCellBuffer.Add(sharedCell);
-                    continue;
+                    ProcessTableColumn column = _columns[columnIndex];
+                    ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(column.Kind);
+                    if (definition.Lifetime != lifetime) continue;
+
+                    string display = GetCellDisplayValue(rowIndex, column.Kind);
+                    if (display.Length == 0) continue;
+
+                    if (ShouldShareCell(column.Kind, display))
+                    {
+                        int cellTreeLayoutKey = column.Kind == ProcessTableColumnKind.Name ? treeLayoutKey : 0;
+                        ProcessSharedCellKey key = new(column.Kind, display, cellTreeLayoutKey);
+                        SharedCellDrawing sharedCell = AcquireSharedCellDrawing(column, key);
+                        _sharedCellBuffer.Add(sharedCell);
+                        children.Add(sharedCell.Drawing);
+                        continue;
+                    }
+
+                    TextLayout textLayout = DrawCell(uniqueContext, column, display, treeLayoutKey);
+                    try
+                    {
+                        _textLayoutBuffer.Add(textLayout);
+                    }
+                    catch
+                    {
+                        textLayout.Dispose();
+                        throw;
+                    }
+                    hasUniqueDrawing = true;
                 }
-
-                DrawCell(uniqueContext, column, display, treeLayoutKey);
-                hasUniqueDrawing = true;
             }
-        }
 
-        if (hasUniqueDrawing) children.Insert(0, uniqueDrawing);
-        sharedCells = _sharedCellBuffer.Count == 0 ? [] : _sharedCellBuffer.ToArray();
-        return new DrawingGroup { Children = children };
+            if (hasUniqueDrawing) children.Insert(0, uniqueDrawing);
+            SharedCellDrawing[] sharedCells = _sharedCellBuffer.Count == 0
+                ? []
+                : _sharedCellBuffer.ToArray();
+            TextLayout[] textLayouts = _textLayoutBuffer.Count == 0
+                ? []
+                : _textLayoutBuffer.ToArray();
+            DrawingGroup drawing = new() { Children = children };
+            return new ProcessRowDrawing(drawing, sharedCells, textLayouts);
+        }
+        catch
+        {
+            for (int cellIndex = 0; cellIndex < _sharedCellBuffer.Count; cellIndex++)
+                ReleaseSharedCellDrawing(_sharedCellBuffer[cellIndex]);
+            for (int layoutIndex = 0; layoutIndex < _textLayoutBuffer.Count; layoutIndex++)
+                _textLayoutBuffer[layoutIndex].Dispose();
+            throw;
+        }
+        finally
+        {
+            _sharedCellBuffer.Clear();
+            _textLayoutBuffer.Clear();
+        }
     }
 
     private SharedCellDrawing AcquireSharedCellDrawing(ProcessTableColumn column, ProcessSharedCellKey key)
@@ -1677,32 +1706,62 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         DrawingGroup drawing = new();
+        TextLayout textLayout;
         using (DrawingContext context = drawing.Open())
-            DrawCell(context, column, key.Value, key.TreeLayoutKey);
-        SharedCellDrawing sharedCell = new(key, drawing);
-        _sharedCellDrawings.Add(key, sharedCell);
+            textLayout = DrawCell(context, column, key.Value, key.TreeLayoutKey);
+        SharedCellDrawing sharedCell = new(key, drawing, textLayout);
+        try
+        {
+            _sharedCellDrawings.Add(key, sharedCell);
+        }
+        catch
+        {
+            sharedCell.Dispose();
+            throw;
+        }
         return sharedCell;
     }
 
     private void ReleaseSharedCellDrawings(SharedCellDrawing[] sharedCells)
     {
         for (int cellIndex = 0; cellIndex < sharedCells.Length; cellIndex++)
-        {
-            SharedCellDrawing entry = sharedCells[cellIndex];
-            entry.ReferenceCount--;
-            if (entry.ReferenceCount <= 0)
-                _sharedCellDrawings.Remove(entry.Key);
-        }
+            ReleaseSharedCellDrawing(sharedCells[cellIndex]);
     }
 
-    private void DrawCell(
+    private void ReleaseRowDrawing(ProcessRowDrawing? rowDrawing)
+    {
+        if (rowDrawing == null) return;
+
+        ReleaseSharedCellDrawings(rowDrawing.SharedCells);
+        DisposeTextLayouts(rowDrawing.TextLayouts);
+    }
+
+    private void ReleaseSharedCellDrawing(SharedCellDrawing sharedCell)
+    {
+        sharedCell.ReferenceCount--;
+        if (sharedCell.ReferenceCount > 0) return;
+
+        _sharedCellDrawings.Remove(sharedCell.Key);
+        sharedCell.Dispose();
+    }
+
+    private TextLayout DrawCell(
         DrawingContext context,
         ProcessTableColumn column,
         string display,
         int treeLayoutKey)
     {
         CellTextLayout layout = CreateCellTextLayout(column, display, treeLayoutKey);
-        context.DrawText(layout.Text, new Point(layout.Left, layout.Top));
+        try
+        {
+            layout.Text.Draw(context, new Point(layout.Left, layout.Top));
+            return layout.Text;
+        }
+        catch
+        {
+            layout.Dispose();
+            throw;
+        }
     }
 
     private CellTextLayout CreateCellTextLayout(
@@ -1721,7 +1780,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
               + _metrics.ProcessIconGap
             : _metrics.CellPadding;
         double availableWidth = Math.Max(0, column.Width - leftInset - _metrics.CellPadding);
-        FormattedText text = CreateBoundedText(display, availableWidth);
+        TextLayout text = CreateBoundedText(display, availableWidth);
         double textX = column.Alignment == ProcessTableColumnAlignment.Right
             ? column.Right - _metrics.CellPadding - text.Width
             : column.Left + leftInset;
@@ -1730,12 +1789,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void RebuildDynamicDrawing(ProcessRowRenderCache cache, int rowIndex)
     {
-        ReleaseSharedCellDrawings(cache.DynamicSharedCells);
+        ProcessRowDrawing? previousDrawing = cache.DynamicDrawing;
+        cache.DynamicDrawing = null;
+        ReleaseRowDrawing(previousDrawing);
         cache.DynamicDrawing = BuildRowDrawing(
             rowIndex,
-            ProcessTableColumnLifetime.Dynamic,
-            out SharedCellDrawing[] sharedCells);
-        cache.DynamicSharedCells = sharedCells;
+            ProcessTableColumnLifetime.Dynamic);
         cache.DynamicFingerprint = cache.PendingDynamicFingerprint;
     }
 
@@ -2138,7 +2197,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void ApplyDisplayColumnLayout(ProcessTableColumn[] columns)
     {
         _columns = columns;
-        _headerTexts = CreateHeaderTexts(columns);
+        ReplaceHeaderTexts(columns);
         RebuildVisibleRows();
 
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
@@ -2479,12 +2538,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void ReleaseRenderCache(ProcessRowRenderCache cache)
     {
-        ReleaseSharedCellDrawings(cache.StaticSharedCells);
-        ReleaseSharedCellDrawings(cache.DynamicSharedCells);
-        cache.StaticSharedCells = [];
-        cache.DynamicSharedCells = [];
+        ProcessRowDrawing? staticDrawing = cache.StaticDrawing;
+        ProcessRowDrawing? dynamicDrawing = cache.DynamicDrawing;
         cache.StaticDrawing = null;
         cache.DynamicDrawing = null;
+        ReleaseRowDrawing(staticDrawing);
+        ReleaseRowDrawing(dynamicDrawing);
     }
 
     private void EnsureSelectedProcessStillExists()
@@ -2637,28 +2696,69 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         return settingsByColumn;
     }
 
-    private FormattedText[] CreateHeaderTexts(ProcessTableColumn[] columns)
+    private HeaderTextLayouts[] CreateHeaderTexts(ProcessTableColumn[] columns)
     {
-        FormattedText[] headerTexts = new FormattedText[columns.Length];
-        for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+        List<HeaderTextLayouts> headerTexts = new(columns.Length);
+        try
         {
-            ProcessTableColumn column = columns[columnIndex];
-            FormattedText headerText = CreateText(
-                column.Title,
-                _metrics.HeaderFontSize,
-                _foregroundBrush);
-            if (column.Alignment == ProcessTableColumnAlignment.Right)
-            {
-                headerText.TextAlignment = TextAlignment.Right;
-                headerText.MaxLineCount = 1;
-                headerText.Trimming = TextTrimming.CharacterEllipsis;
-                headerText.MaxTextWidth = Math.Max(0, column.Width - _metrics.CellPadding * 2);
-            }
-
-            headerTexts[columnIndex] = headerText;
+            for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+                headerTexts.Add(CreateHeaderTextLayouts(columns[columnIndex]));
+            return headerTexts.ToArray();
         }
+        catch
+        {
+            for (int headerIndex = 0; headerIndex < headerTexts.Count; headerIndex++)
+                headerTexts[headerIndex].Dispose();
+            throw;
+        }
+    }
 
-        return headerTexts;
+    private HeaderTextLayouts CreateHeaderTextLayouts(ProcessTableColumn column)
+    {
+        double normalWidth = Math.Max(0, column.Width - _metrics.CellPadding * 2);
+        double ascendingSortWidth = Math.Max(
+            0,
+            normalWidth - _sortCaretRightMargin - _ascendingCaretText.Width);
+        double descendingSortWidth = Math.Max(
+            0,
+            normalWidth - _sortCaretRightMargin - _descendingCaretText.Width);
+        List<TextLayout> layouts = new(3);
+        try
+        {
+            layouts.Add(CreateHeaderText(column, normalWidth));
+            layouts.Add(CreateHeaderText(column, ascendingSortWidth));
+            layouts.Add(CreateHeaderText(column, descendingSortWidth));
+            return new HeaderTextLayouts(layouts[0], layouts[1], layouts[2]);
+        }
+        catch
+        {
+            for (int layoutIndex = 0; layoutIndex < layouts.Count; layoutIndex++)
+                layouts[layoutIndex].Dispose();
+            throw;
+        }
+    }
+
+    private void ReplaceHeaderTexts(ProcessTableColumn[] columns)
+    {
+        HeaderTextLayouts[] nextHeaderTexts = CreateHeaderTexts(columns);
+        HeaderTextLayouts[] previousHeaderTexts = _headerTexts;
+        _headerTexts = nextHeaderTexts;
+        DisposeHeaderTexts(previousHeaderTexts);
+    }
+
+    private void RecreateSortCaretTexts()
+    {
+        (TextLayout nextAscendingCaretText, TextLayout nextDescendingCaretText) =
+            CreateSortCaretTexts(
+                _visualMetrics.SortCaretFontSize,
+                _secondaryForegroundBrush);
+
+        TextLayout previousAscendingCaretText = _ascendingCaretText;
+        TextLayout previousDescendingCaretText = _descendingCaretText;
+        _ascendingCaretText = nextAscendingCaretText;
+        _descendingCaretText = nextDescendingCaretText;
+        previousAscendingCaretText.Dispose();
+        previousDescendingCaretText.Dispose();
     }
 
     private static bool ContainsLifetime(
@@ -2705,35 +2805,72 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         };
     }
 
-    private FormattedText CreateBoundedText(string value, double maximumWidth)
-    {
-        FormattedText text = CreateText(value, _metrics.FontSize, _foregroundBrush);
-        text.MaxTextWidth = Math.Max(0, maximumWidth);
-        text.MaxLineCount = 1;
-        text.Trimming = TextTrimming.CharacterEllipsis;
-        return text;
-    }
-
-    private FormattedText CreateText(
-        string text,
-        double fontSize,
-        IBrush brush) =>
+    private TextLayout CreateHeaderText(ProcessTableColumn column, double maximumWidth) =>
         new(
-            text,
-            TableCulture,
-            FlowDirection.LeftToRight,
+            column.Title,
             _tableTypeface,
-            fontSize,
-            brush);
+            _metrics.HeaderFontSize,
+            _foregroundBrush,
+            textAlignment: column.Alignment == ProcessTableColumnAlignment.Right
+                ? TextAlignment.Right
+                : TextAlignment.Left,
+            textWrapping: TextWrapping.NoWrap,
+            textTrimming: column.Alignment == ProcessTableColumnAlignment.Right
+                ? TextTrimming.CharacterEllipsis
+                : TextTrimming.None,
+            maxWidth: column.Alignment == ProcessTableColumnAlignment.Right
+                ? Math.Max(0, maximumWidth)
+                : double.PositiveInfinity,
+            maxLines: 1);
 
-    private static FormattedText CreateGlyphText(string text, double fontSize, IBrush brush) =>
+    private TextLayout CreateBoundedText(string value, double maximumWidth) =>
+        new(
+            value,
+            _tableTypeface,
+            _metrics.FontSize,
+            _foregroundBrush,
+            textWrapping: TextWrapping.NoWrap,
+            textTrimming: TextTrimming.CharacterEllipsis,
+            maxWidth: Math.Max(0, maximumWidth),
+            maxLines: 1);
+
+    private static TextLayout CreateGlyphText(string text, double fontSize, IBrush brush) =>
         new(
             text,
-            TableCulture,
-            FlowDirection.LeftToRight,
             GlyphTypeface,
             fontSize,
-            brush);
+            brush,
+            textWrapping: TextWrapping.NoWrap,
+            maxLines: 1);
+
+    private static (TextLayout ascending, TextLayout descending) CreateSortCaretTexts(
+        double fontSize,
+        IBrush brush)
+    {
+        TextLayout ascending = CreateGlyphText("\uE96D", fontSize, brush);
+        try
+        {
+            TextLayout descending = CreateGlyphText("\uE96E", fontSize, brush);
+            return (ascending, descending);
+        }
+        catch
+        {
+            ascending.Dispose();
+            throw;
+        }
+    }
+
+    private static void DisposeHeaderTexts(ReadOnlySpan<HeaderTextLayouts> headerTexts)
+    {
+        for (int headerIndex = 0; headerIndex < headerTexts.Length; headerIndex++)
+            headerTexts[headerIndex].Dispose();
+    }
+
+    private static void DisposeTextLayouts(ReadOnlySpan<TextLayout> textLayouts)
+    {
+        for (int layoutIndex = 0; layoutIndex < textLayouts.Length; layoutIndex++)
+            textLayouts[layoutIndex].Dispose();
+    }
 
     public void Dispose()
     {
@@ -2757,12 +2894,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
         _renderCaches.Clear();
+        foreach (SharedCellDrawing sharedCell in _sharedCellDrawings.Values)
+            sharedCell.Dispose();
         _sharedCellDrawings.Clear();
         _sharedCellBuffer.Clear();
+        _textLayoutBuffer.Clear();
         _staleProcessKeys.Clear();
         _collapsedProcesses.Clear();
         _rowIndexByProcessID.Clear();
         Array.Clear(_contextCopyValuesByColumn);
+        DisposeHeaderTexts(_headerTexts);
+        _headerTexts = [];
+        _ascendingCaretText.Dispose();
+        _descendingCaretText.Dispose();
         _headerHoverLayer.Dispose();
         _snapshot.Reset();
     }
@@ -2788,10 +2932,41 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     }
 
     private readonly record struct CellTextLayout(
-        FormattedText Text,
+        TextLayout Text,
         double Left,
         double Top,
-        double AvailableWidth);
+        double AvailableWidth) : IDisposable
+    {
+        public void Dispose() => Text.Dispose();
+    }
+
+    private sealed class HeaderTextLayouts(
+        TextLayout normal,
+        TextLayout ascendingSort,
+        TextLayout descendingSort) : IDisposable
+    {
+        private bool _disposed;
+
+        public TextLayout Normal { get; } = normal;
+        private TextLayout AscendingSort { get; } = ascendingSort;
+        private TextLayout DescendingSort { get; } = descendingSort;
+
+        public TextLayout Get(bool isSorted, bool isDescending)
+        {
+            if (!isSorted) return Normal;
+            return isDescending ? DescendingSort : AscendingSort;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            _disposed = true;
+            Normal.Dispose();
+            AscendingSort.Dispose();
+            DescendingSort.Dispose();
+        }
+    }
 
     private readonly record struct TextUnderlineSegment(double Left, double Right, double Y);
 
@@ -2859,17 +3034,38 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         public int DynamicFingerprint;
         public int PendingDynamicFingerprint;
         public int StaticTreeLayoutKey;
-        public DrawingGroup? StaticDrawing;
-        public DrawingGroup? DynamicDrawing;
-        public SharedCellDrawing[] StaticSharedCells = [];
-        public SharedCellDrawing[] DynamicSharedCells = [];
+        public ProcessRowDrawing? StaticDrawing;
+        public ProcessRowDrawing? DynamicDrawing;
     }
 
-    private sealed class SharedCellDrawing(ProcessSharedCellKey key, Drawing drawing)
+    private sealed class ProcessRowDrawing(
+        DrawingGroup drawing,
+        SharedCellDrawing[] sharedCells,
+        TextLayout[] textLayouts)
     {
+        public DrawingGroup Drawing { get; } = drawing;
+        public SharedCellDrawing[] SharedCells { get; } = sharedCells;
+        public TextLayout[] TextLayouts { get; } = textLayouts;
+    }
+
+    private sealed class SharedCellDrawing(
+        ProcessSharedCellKey key,
+        Drawing drawing,
+        TextLayout textLayout) : IDisposable
+    {
+        private bool _disposed;
+
         public ProcessSharedCellKey Key { get; } = key;
         public Drawing Drawing { get; } = drawing;
         public int ReferenceCount { get; set; } = 1;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            _disposed = true;
+            textLayout.Dispose();
+        }
     }
 
     private sealed class ProcessRowIndexComparer(
