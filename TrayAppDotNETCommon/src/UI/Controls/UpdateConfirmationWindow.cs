@@ -11,10 +11,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class UpdateConfirmationLayout
 {
-    private static readonly Lazy<UpdateConfirmationWindowResources> Resources = new(
-        static () => new UpdateConfirmationWindowResources());
-
-    private static UpdateConfirmationWindowResources AXAMLResources => Resources.Value;
+    private static UpdateConfirmationWindowResources AXAMLResources => UpdateConfirmationWindowResources.Current;
 
     public static double WindowWidth => AXAMLResources.AxamlUpdateConfirmation.WindowWidth;
     public static double WindowMinWidth => AXAMLResources.AxamlUpdateConfirmation.WindowMinWidth;
@@ -38,6 +35,13 @@ public enum TrayAppDotNETUpdatePromptResult
 
 public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 {
+    private readonly string _dialogTitle;
+    private readonly string _description;
+    private readonly string _confirmText;
+    private readonly string? _alternateText;
+    private readonly string? _cancelText;
+    private readonly SettingsPalette _palette;
+    private readonly bool _rounded;
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _contentGeneration;
     private int _disposeState;
@@ -64,10 +68,16 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         string? alternateText = null,
         string? cancelText = null)
     {
+        _dialogTitle = title;
+        _description = description;
+        _confirmText = confirmText;
+        _alternateText = alternateText;
+        _cancelText = cancelText;
+        _palette = palette;
+        _rounded = rounded;
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETUpdateConfirmationWindow));
         Title = title;
-        Width = UpdateConfirmationLayout.WindowWidth;
-        MinWidth = UpdateConfirmationLayout.WindowMinWidth;
+        ApplyWindowLayout();
         SizeToContent = SizeToContent.Height;
         WindowDecorations = WindowDecorations.None;
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
@@ -80,42 +90,85 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
         Closed += OnWindowClosed;
         _windowResources.Add(() => Closed -= OnWindowClosed);
+        UpdateConfirmationWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+        _windowResources.Add(() =>
+            UpdateConfirmationWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded);
 
-        UIResourceScope contentResources = new(nameof(TrayAppDotNETUpdateConfirmationWindow) + ".Content");
         try
         {
-            Border root = new()
+            RebuildContent();
+        }
+        catch
+        {
+            DisposeCore();
+            throw;
+        }
+    }
+
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (_closed) return;
+
+        ApplyWindowLayout();
+        RebuildContent();
+    }
+
+    private void ApplyWindowLayout()
+    {
+        MinWidth = UpdateConfirmationLayout.WindowMinWidth;
+        Width = UpdateConfirmationLayout.WindowWidth;
+    }
+
+    private void RebuildContent()
+    {
+        UIResourceScope contentResources = new(nameof(TrayAppDotNETUpdateConfirmationWindow) + ".Content");
+        UIContentGeneration replacement;
+        Border root;
+        try
+        {
+            root = new Border
             {
-                Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
-                BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+                Background = TrayAppDotNETSettingsUI.Brush(_palette.Background),
+                BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
                 BorderThickness = UpdateConfirmationLayout.RootBorderThickness,
-                CornerRadius = rounded
+                CornerRadius = _rounded
                     ? UpdateConfirmationLayout.RootCornerRadius
                     : UpdateConfirmationLayout.ZeroCornerRadius,
                 Child = BuildContent(
-                    title,
-                    description,
-                    confirmText,
-                    alternateText,
-                    cancelText,
-                    palette,
+                    _dialogTitle,
+                    _description,
+                    _confirmText,
+                    _alternateText,
+                    _cancelText,
+                    _palette,
                     contentResources)
             };
-            UIContentGeneration contentGeneration = new(
+            replacement = new UIContentGeneration(
                 nameof(TrayAppDotNETUpdateConfirmationWindow),
                 root,
                 contentResources);
-            _contentGeneration = contentGeneration;
             ControlNameScope.For(this).AssignLogicalSubtree(root, this);
-            Content = root;
-            _windowResources.Add(() => RetireContent(contentGeneration));
         }
         catch
         {
             contentResources.Dispose();
-            DisposeCore();
             throw;
         }
+
+        UIContentGeneration? previous = _contentGeneration;
+        _contentGeneration = replacement;
+        try
+        {
+            Content = root;
+        }
+        catch
+        {
+            _contentGeneration = previous;
+            replacement.Dispose();
+            throw;
+        }
+
+        previous?.Dispose();
     }
 
     private Grid BuildContent(
@@ -136,15 +189,10 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         Grid body = new() { Margin = UpdateConfirmationLayout.BodyMargin };
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         Grid.SetRow(body, 1);
 
-        TextBlock header = TrayAppDotNETSettingsUI.SectionHeader(title, palette);
-        Grid.SetRow(header, 0);
-        body.Children.Add(header);
-
         TextBlock descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
-        Grid.SetRow(descriptionText, 1);
+        Grid.SetRow(descriptionText, 0);
         body.Children.Add(descriptionText);
 
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
@@ -180,7 +228,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         buttons.Children.Add(install);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         buttons.Margin = UpdateConfirmationLayout.ActionButtonsMargin;
-        Grid.SetRow(buttons, 2);
+        Grid.SetRow(buttons, 1);
         body.Children.Add(buttons);
 
         root.Children.Add(body);
@@ -274,21 +322,6 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
         if (contentGeneration == null) return;
 
-        try
-        {
-            if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))
-                Content = null;
-        }
-        finally
-        {
-            contentGeneration.Dispose();
-        }
-    }
-
-    private void RetireContent(UIContentGeneration contentGeneration)
-    {
-        if (ReferenceEquals(_contentGeneration, contentGeneration))
-            _contentGeneration = null;
         try
         {
             if (!contentGeneration.IsDisposed && ReferenceEquals(Content, contentGeneration.Root))

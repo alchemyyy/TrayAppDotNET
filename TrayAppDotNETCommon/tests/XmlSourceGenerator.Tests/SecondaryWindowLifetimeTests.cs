@@ -46,12 +46,38 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Contains(
             prompt.GetVisualDescendants().OfType<SettingsButton>(),
             button => button.Text == "Skip this release");
+        Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "Title");
         prompt.Close();
         prompt.Dispose();
         prompt.Dispose();
 
         Assert.Null(prompt.Content);
     });
+
+#if DEBUG
+    [Fact]
+    public void ConfirmationRebuildsAfterAXAMLResourceReload() => AvaloniaTestHost.Run(() =>
+    {
+        TrayAppDotNETUpdateConfirmationWindow prompt = new(
+            "Title",
+            "Description",
+            "Confirm",
+            Palette(),
+            rounded: true);
+
+        prompt.Show();
+        object? initialContent = prompt.Content;
+        Assert.NotNull(initialContent);
+
+        UpdateConfirmationWindowResources.ReloadNow();
+
+        Assert.NotSame(initialContent, prompt.Content);
+        prompt.Close();
+        prompt.Dispose();
+    });
+#endif
 
     [Fact]
     public void UninstallerCloseSeversContentIconAndOptionDelegates() => AvaloniaTestHost.Run(() =>
