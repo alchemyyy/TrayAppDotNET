@@ -158,6 +158,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
 
         bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(Button, e);
         FinishButtonDrag(e.Pointer, commitDrag: true, clickWhenNotDragged: releasedInside);
+        _pointerInside = releasedInside;
         Button.Background = releasedInside ? TrayAppDotNETFlyoutUI.Brush(_palette.Hover) : Brushes.Transparent;
         e.Handled = true;
     }

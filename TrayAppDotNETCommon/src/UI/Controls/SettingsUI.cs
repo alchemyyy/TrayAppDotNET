@@ -611,7 +611,9 @@ public sealed class SettingsNavAction : Border
         PointerReleased += (_, e) =>
         {
             if (!IsEnabled) return;
-            bool clicked = _isPressed;
+            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
+            bool clicked = _isPressed && releasedInside;
+            _isPointerOver = releasedInside;
             _isPressed = false;
             UpdateVisual();
             if (!clicked) return;
@@ -724,7 +726,9 @@ public sealed class SettingsButton : Border
         PointerReleased += (_, e) =>
         {
             if (!IsEnabled) return;
-            bool clicked = _isPressed;
+            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
+            bool clicked = _isPressed && releasedInside;
+            _isPointerOver = releasedInside;
             _isPressed = false;
             UpdateVisual();
             if (clicked)
@@ -2421,6 +2425,7 @@ public sealed class SettingsComboBox : Grid, IDisposable
     {
         if (!_isPressed) return;
 
+        _isPointerOver = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
         _isPressed = false;
         UpdateSurface();
         e.Handled = true;
@@ -3138,9 +3143,11 @@ internal sealed class SettingsSpinnerButton : Border
         PointerReleased += (_, e) =>
         {
             if (!_isPressed) return;
+            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
+            _isPointerOver = releasedInside;
             _isPressed = false;
             UpdateVisual();
-            Click?.Invoke(this, EventArgs.Empty);
+            if (releasedInside) Click?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
         };
 

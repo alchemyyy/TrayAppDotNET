@@ -87,11 +87,12 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
         {
             if (!_isPressed) return;
 
+            bool releasedInside = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
+            _isPointerOver = releasedInside;
             _isPressed = false;
-            e.Pointer.Capture(null);
-            bool clicked = _isPointerOver;
             UpdateVisual();
-            if (!clicked) return;
+            e.Pointer.Capture(null);
+            if (!releasedInside) return;
 
             Click?.Invoke(this, EventArgs.Empty);
             e.Handled = true;

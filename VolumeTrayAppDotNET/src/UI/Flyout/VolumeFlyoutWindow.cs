@@ -3565,6 +3565,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             PointerReleased += (_, e) =>
             {
                 if (e.InitialPressMouseButton != MouseButton.Left) return;
+                _isPointerOver = TrayAppDotNETFlyoutUI.IsPointerInside(this, e);
                 UpdateBackground(false);
                 if (_isPointerOver)
                 {
