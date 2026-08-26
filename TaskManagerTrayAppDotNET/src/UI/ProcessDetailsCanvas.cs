@@ -26,7 +26,7 @@ internal readonly record struct ProcessRowContextMenuRequest(
     string CellCopyText,
     string RowCopyText);
 
-/// <summary>Composites two retained drawing roots per process from shared visible-column fragments.</summary>
+/// <summary>Composites bounded viewport drawing roots from shared visible-column fragments.</summary>
 internal sealed class ProcessDetailsCanvas : Control, IDisposable
 {
     [Flags]
@@ -56,6 +56,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     }
 
     private const int DynamicRefreshBatchSize = 16;
+    private const int MaximumTextLayoutCharacters = 2_048;
+    private const string TextEllipsis = "\u2026";
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
     private const string ZeroCPUTimeText = "0:00:00";
@@ -130,6 +132,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private int _visibleRowCount;
     private int _cacheGeneration;
     private int _filterProcessID = -1;
+    private int _retainedFirstVisibleIndex = -1;
+    private int _retainedLastVisibleIndexExclusive = -1;
     private int _warmRefreshCursor;
     private int _warmRefreshEnd;
     private long _snapshotVersion = -1;
@@ -339,6 +343,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     protected override Size ArrangeOverride(Size finalSize)
     {
         Size arrangedSize = base.ArrangeOverride(finalSize);
+        EnsureRetainedDrawingsForViewport();
         PublishRowHoverGeometry();
         return arrangedSize;
     }
@@ -672,7 +677,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _effectiveViewport = eventArgs.EffectiveViewport;
         PublishRowHoverGeometry();
         PublishWarmProcesses();
-        ScheduleWarmDynamicRefresh();
+        EnsureRetainedDrawingsForViewport();
         UpdateHeaderHoverVisual();
         InvalidateLayers(RenderLayerMask.All);
     }
@@ -1598,8 +1603,68 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void UpdateRetainedDrawings()
     {
-        for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+        ProcessTableLayout.GetRetainedRowRange(
+            ResolveViewport(),
+            _visibleRowCount,
+            _metrics,
+            out int firstVisibleIndex,
+            out int lastVisibleIndexExclusive);
+        UpdateRetainedDrawings(firstVisibleIndex, lastVisibleIndexExclusive);
+    }
+
+    private void EnsureRetainedDrawingsForViewport()
+    {
+        if (_disposed) return;
+
+        ProcessTableLayout.GetRetainedRowRange(
+            ResolveViewport(),
+            _visibleRowCount,
+            _metrics,
+            out int firstVisibleIndex,
+            out int lastVisibleIndexExclusive);
+        if (firstVisibleIndex == _retainedFirstVisibleIndex
+            && lastVisibleIndexExclusive == _retainedLastVisibleIndexExclusive)
         {
+            ScheduleWarmDynamicRefresh();
+            return;
+        }
+
+        UpdateRetainedDrawings(firstVisibleIndex, lastVisibleIndexExclusive);
+    }
+
+    private void UpdateRetainedDrawings(
+        int firstVisibleIndex,
+        int lastVisibleIndexExclusive)
+    {
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            cache.IsDrawingRetained = false;
+
+        for (int visibleIndex = firstVisibleIndex;
+             visibleIndex < lastVisibleIndexExclusive;
+             visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
+            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+            if (row == null || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
+                continue;
+
+            cache.IsDrawingRetained = true;
+        }
+
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+        {
+            if (!cache.IsDrawingRetained
+                && (cache.StaticDrawing != null || cache.DynamicDrawing != null))
+            {
+                ReleaseRenderCache(cache);
+            }
+        }
+
+        for (int visibleIndex = firstVisibleIndex;
+             visibleIndex < lastVisibleIndexExclusive;
+             visibleIndex++)
+        {
+            int rowIndex = _visibleRowIndexes[visibleIndex];
             ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
             if (row == null || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
                 continue;
@@ -1622,6 +1687,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 RebuildDynamicDrawing(cache, rowIndex);
         }
 
+        _retainedFirstVisibleIndex = firstVisibleIndex;
+        _retainedLastVisibleIndexExclusive = lastVisibleIndexExclusive;
         ScheduleWarmDynamicRefresh();
     }
 
@@ -2228,9 +2295,9 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         RebuildVisibleRows();
         PublishWarmProcesses();
+        UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
-        ScheduleWarmDynamicRefresh();
         InvalidateLayers(
             RenderLayerMask.Rows
             | RenderLayerMask.Icons
@@ -2807,7 +2874,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private TextLayout CreateHeaderText(ProcessTableColumn column, double maximumWidth) =>
         new(
-            column.Title,
+            LimitTextLayoutInput(column.Title),
             _tableTypeface,
             _metrics.HeaderFontSize,
             _foregroundBrush,
@@ -2825,7 +2892,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private TextLayout CreateBoundedText(string value, double maximumWidth) =>
         new(
-            value,
+            LimitTextLayoutInput(value),
             _tableTypeface,
             _metrics.FontSize,
             _foregroundBrush,
@@ -2833,6 +2900,22 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             textTrimming: TextTrimming.CharacterEllipsis,
             maxWidth: Math.Max(0, maximumWidth),
             maxLines: 1);
+
+    private static string LimitTextLayoutInput(string value)
+    {
+        if (value.Length <= MaximumTextLayoutCharacters) return value;
+
+        int prefixLength = MaximumTextLayoutCharacters;
+        if (char.IsHighSurrogate(value[prefixLength - 1])
+            && char.IsLowSurrogate(value[prefixLength]))
+        {
+            prefixLength--;
+        }
+
+        return string.Concat(
+            value.AsSpan(0, prefixLength),
+            TextEllipsis.AsSpan());
+    }
 
     private static TextLayout CreateGlyphText(string text, double fontSize, IBrush brush) =>
         new(
@@ -3034,6 +3117,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         public int DynamicFingerprint;
         public int PendingDynamicFingerprint;
         public int StaticTreeLayoutKey;
+        public bool IsDrawingRetained;
         public ProcessRowDrawing? StaticDrawing;
         public ProcessRowDrawing? DynamicDrawing;
     }

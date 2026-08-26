@@ -268,6 +268,7 @@ internal static class ProcessTableColumnCatalog
 internal static class ProcessTableLayout
 {
     private const int ViewportOverscanRows = 1;
+    private const int RetainedDrawingOverscanRows = 32;
 
     public static double GetContentHeight(int rowCount, ProcessTableMetrics metrics) =>
         metrics.HeaderHeight + Math.Max(0, rowCount) * metrics.RowHeight;
@@ -427,5 +428,32 @@ internal static class ProcessTableLayout
         int unclampedLast = (int)Math.Ceiling(lastRowPosition / metrics.RowHeight) + ViewportOverscanRows;
         firstRow = Math.Clamp(unclampedFirst, 0, rowCount);
         lastRowExclusive = Math.Clamp(unclampedLast, firstRow, rowCount);
+    }
+
+    /// <summary>Returns the visible rows plus a bounded retained-drawing prefetch margin.</summary>
+    public static void GetRetainedRowRange(
+        Rect viewport,
+        int rowCount,
+        ProcessTableMetrics metrics,
+        out int firstRow,
+        out int lastRowExclusive)
+    {
+        GetVisibleRowRange(
+            viewport,
+            rowCount,
+            metrics,
+            out int firstVisibleRow,
+            out int lastVisibleRowExclusive);
+        if (firstVisibleRow >= lastVisibleRowExclusive)
+        {
+            firstRow = firstVisibleRow;
+            lastRowExclusive = lastVisibleRowExclusive;
+            return;
+        }
+
+        firstRow = Math.Max(0, firstVisibleRow - RetainedDrawingOverscanRows);
+        lastRowExclusive = Math.Min(
+            rowCount,
+            lastVisibleRowExclusive + RetainedDrawingOverscanRows);
     }
 }

@@ -54,6 +54,28 @@ public sealed class ProcessTableLayoutTests
         Assert.Equal(13, lastRowExclusive);
     }
 
+    [Theory]
+    [InlineData(32, 0, 35)]
+    [InlineData(13032, 467, 535)]
+    [InlineData(25980, 965, 1000)]
+    public void RetainedRangeAddsBoundedPrefetchRows(
+        double viewportY,
+        int expectedFirstRow,
+        int expectedLastRowExclusive)
+    {
+        Rect viewport = new(0, viewportY, 800, 52);
+
+        ProcessTableLayout.GetRetainedRowRange(
+            viewport,
+            rowCount: 1000,
+            Metrics,
+            out int firstRow,
+            out int lastRowExclusive);
+
+        Assert.Equal(expectedFirstRow, firstRow);
+        Assert.Equal(expectedLastRowExclusive, lastRowExclusive);
+    }
+
     [Fact]
     public void HitTestColumnRejectsUnusedTrailingWidth()
     {
