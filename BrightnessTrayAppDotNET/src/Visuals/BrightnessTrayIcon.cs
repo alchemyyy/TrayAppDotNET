@@ -135,7 +135,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessTrayIcon.CreateIcon: {ex.Message}");
+            TADNLog.Log($"BrightnessTrayIcon.CreateIcon: {ex.Message}");
             lock (_gate)
                 return _currentIcon?.Clone() ?? AppTheme.LoadAppNativeIcon();
         }
@@ -280,7 +280,7 @@ internal sealed class BrightnessTrayIcon(AppTheme? theme) : IDisposable
             typeface.Dispose();
         }
 
-        WPFLog.Log("BrightnessTrayIcon.ResolveIconTypeface: icon fonts unavailable; using Skia default typeface");
+        TADNLog.Log("BrightnessTrayIcon.ResolveIconTypeface: icon fonts unavailable; using Skia default typeface");
         return SKTypeface.Default;
     }
 

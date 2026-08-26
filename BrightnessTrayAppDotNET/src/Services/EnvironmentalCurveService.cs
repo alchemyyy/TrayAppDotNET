@@ -297,7 +297,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         try { timer.Stop(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"EnvironmentalCurveService timer stop failed: {exception.Message}");
+            TADNLog.Log($"EnvironmentalCurveService timer stop failed: {exception.Message}");
         }
 
         if (tickHandler != null)
@@ -696,7 +696,7 @@ public sealed class EnvironmentalCurveService : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"EnvironmentalCurveService.Evaluate failed: {ex.Message}");
+            TADNLog.Log($"EnvironmentalCurveService.Evaluate failed: {ex.Message}");
         }
     }
 

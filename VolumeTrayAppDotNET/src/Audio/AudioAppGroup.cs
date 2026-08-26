@@ -56,7 +56,7 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
 
     // Tooltip surface for the per-app icon. Computed (rather than MultiBinding in XAML) so the
     // binding stays a plain Path="TooltipText" - matches the rest of the bindable surface and
-    // avoids quirks WPF has resolving MultiBindings against internal types.
+    // avoids framework binding quirks when resolving MultiBindings against internal types.
     public string TooltipText => _sessions.Count > 0
         ? AudioLocalization.AppTooltip(_sessions[0].DisplayName, _sessions[0].ProcessID)
         : AudioLocalization.UnknownAppName;
@@ -121,7 +121,7 @@ internal sealed class AudioAppGroup(string appID, Dispatcher dispatcher) : INoti
         }
     }
 
-    /// <summary>Coalesced peak payload for the WPF meter binding.</summary>
+    /// <summary>Coalesced peak payload for the Avalonia meter binding.</summary>
     public MeterPeakValues PeakValues => new(_peakValueMin, _peakValueMax);
 
     /// <summary>Recent decaying maximum derived from this group's rendered peak meter.</summary>

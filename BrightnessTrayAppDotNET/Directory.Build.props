@@ -14,7 +14,7 @@
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Prerelease;Release</Configurations>
 
-    <!-- x64-only: WPF + WinForms + Win32 interop and native dependencies require
+    <!-- x64-only: Win32 interop and native dependencies require
          a concrete x64 build. Platforms drives the IDE platform picker; PlatformTarget
          drives the compiler; Platform covers command-line builds invoked without
          an explicit platform. -->

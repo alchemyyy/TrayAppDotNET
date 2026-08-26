@@ -218,7 +218,7 @@ public sealed partial class BrightnessSettingsWindow
         try { timer.Stop(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"Brightness environmental save timer stop failed: {exception.Message}");
+            TADNLog.Log($"Brightness environmental save timer stop failed: {exception.Message}");
         }
         timer.Tick -= OnCurveSaveDebounceTimerTick;
         if (flushPendingSave && hadPendingSave) _profileManager?.Save();

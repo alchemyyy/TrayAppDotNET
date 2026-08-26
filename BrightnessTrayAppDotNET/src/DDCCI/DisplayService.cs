@@ -183,7 +183,7 @@ public class DisplayService : IDisplayService, IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayService.ReadEDID: failed for '{displayInstancePath}': {ex.Message}");
+            TADNLog.Log($"DisplayService.ReadEDID: failed for '{displayInstancePath}': {ex.Message}");
             return null;
         }
     }
@@ -239,7 +239,7 @@ public class DisplayService : IDisplayService, IDisposable
                 out IReadOnlyList<WindowsBrightnessTarget> targets,
                 out string? error))
         {
-            WPFLog.Log($"DisplayService: Windows brightness enumeration skipped: {error}");
+            TADNLog.Log($"DisplayService: Windows brightness enumeration skipped: {error}");
             return;
         }
 
@@ -452,7 +452,7 @@ public class DisplayService : IDisplayService, IDisposable
 
         if (helperClient == null) return;
 
-        WPFLog.Log($"DisplayService: resetting DDC helper transport for '{monitor.Name}'");
+        TADNLog.Log($"DisplayService: resetting DDC helper transport for '{monitor.Name}'");
         helperClient.Dispose();
     }
 
@@ -619,7 +619,7 @@ public class DisplayService : IDisplayService, IDisposable
 
             if (adapterFallbackMatch && !stableDeviceMatch && !windowsDisplayInstanceMatch && !EDIDMatch)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"DisplayService.RefreshHandle: using adapter-name fallback for '{monitor.Name}' "
                     + $"(targetDevice='{targetDeviceID}', newDevice='{deviceID}')");
             }
@@ -718,7 +718,7 @@ public class DisplayService : IDisplayService, IDisposable
             try { return helperOp(helperClient, timeoutMs, ct); }
             catch (Exception ex)
             {
-                WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
+                TADNLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
                 return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
             }
         }
@@ -729,7 +729,7 @@ public class DisplayService : IDisplayService, IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
+            TADNLog.Log($"DisplayService: {opLabel} threw unexpectedly: {ex.Message}");
             return DDCCallOutcome<T>.Fail($"unexpected exception: {ex.Message}");
         }
     }

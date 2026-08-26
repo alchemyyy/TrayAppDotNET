@@ -44,7 +44,7 @@ internal static class BrightnessAvaloniaRunner
                 builder = TrayAppDotNETAvalonia.UseConfiguredRenderingBackend(
                     builder,
                     AppSettings.GetDefaultPath,
-                    WPFLog.Log);
+                    TADNLog.Log);
 #if HOTAVALONIA_ENABLE
                 builder = builder.UseHotReload();
 #endif
@@ -66,7 +66,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     private MonitorBrightnessRangeProvider? _brightnessRangeProvider;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
     private BrightnessTrayIcon? _trayIconRenderer;
-    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(WPFLog.Log);
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private BrightnessTrayMenuWindow? _trayMenuWindow;
     private BrightnessFlyoutWindow? _brightnessFlyout;
     private BrightnessSettingsWindow? _settingsWindow;
@@ -88,8 +88,8 @@ internal sealed class BrightnessAvaloniaApp : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        WPFLog.Initialize();
-        WPFLog.Log("BrightnessAvaloniaApp.OnFrameworkInitializationCompleted");
+        TADNLog.Initialize();
+        TADNLog.Log("BrightnessAvaloniaApp.OnFrameworkInitializationCompleted");
 
         LocalizationManager.Instance.Initialize(
             AppStrings.ResourceManager,
@@ -140,13 +140,13 @@ internal sealed class BrightnessAvaloniaApp : Application
             processExit: () =>
             {
                 TryDrainQuickly(TimeSpan.FromMilliseconds(TimeConstants.ProcessExitDrainTimeoutMs));
-                WPFLog.Shutdown();
+                TADNLog.Shutdown();
             },
             unobservedTaskException: args =>
             {
                 args.SetObserved();
-                WPFLog.Log($"FATAL UnobservedTaskException: {args.Exception}");
-                WPFLog.Flush();
+                TADNLog.Log($"FATAL UnobservedTaskException: {args.Exception}");
+                TADNLog.Flush();
             });
     }
 
@@ -161,11 +161,11 @@ internal sealed class BrightnessAvaloniaApp : Application
                 GetRunOnStartup = static settings => settings.RunOnStartup,
                 Startup = AppServices.Startup,
                 ConfigureSettings = ConfigureSettings,
-                LogSettingsLoadFailed = ex => WPFLog.Log($"BrightnessAvaloniaApp settings load failed: {ex}"),
+                LogSettingsLoadFailed = ex => TADNLog.Log($"BrightnessAvaloniaApp settings load failed: {ex}"),
                 GetThemePath = AppTheme.GetDefaultPath,
                 LoadTheme = AppTheme.LoadOrDefault,
                 ConfigureTheme = ConfigureTheme,
-                LogThemeLoadFailed = ex => WPFLog.Log($"BrightnessAvaloniaApp theme load failed: {ex}")
+                LogThemeLoadFailed = ex => TADNLog.Log($"BrightnessAvaloniaApp theme load failed: {ex}")
             });
 
         _settings = loaded.Settings;
@@ -175,7 +175,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             NightLightProvider.Initialize(_settings);
             NightLightProvider.EnabledStateChanged += OnNightLightEnabledStateChanged;
         }
-        catch (Exception ex) { WPFLog.Log($"BrightnessAvaloniaApp night-light init failed: {ex.Message}"); }
+        catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp night-light init failed: {ex.Message}"); }
 
         ApplyPDBDownloadTimeout(_settings);
     }
@@ -207,7 +207,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp monitor service init failed: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp monitor service init failed: {ex}");
         }
 
         if (_monitorService != null)
@@ -221,7 +221,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"BrightnessAvaloniaApp display event init failed: {ex}");
+                TADNLog.Log($"BrightnessAvaloniaApp display event init failed: {ex}");
             }
 
             try
@@ -232,12 +232,12 @@ internal sealed class BrightnessAvaloniaApp : Application
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"BrightnessAvaloniaApp DDC recovery init failed: {ex}");
+                TADNLog.Log($"BrightnessAvaloniaApp DDC recovery init failed: {ex}");
             }
         }
 
         try { AppServices.ProfileManager = new ProfileManager(); }
-        catch (Exception ex) { WPFLog.Log($"BrightnessAvaloniaApp profile manager init failed: {ex}"); }
+        catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp profile manager init failed: {ex}"); }
 
         try
         {
@@ -246,7 +246,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp tray renderer init failed: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp tray renderer init failed: {ex}");
         }
 
         try
@@ -259,7 +259,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp hotkey init failed: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp hotkey init failed: {ex}");
         }
 
         try
@@ -269,7 +269,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp watcher init failed: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp watcher init failed: {ex}");
         }
 
         try
@@ -287,7 +287,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp update service init failed: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp update service init failed: {ex}");
         }
     }
 
@@ -302,7 +302,7 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp range provider init failed: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp range provider init failed: {ex}");
         }
     }
 
@@ -369,12 +369,12 @@ internal sealed class BrightnessAvaloniaApp : Application
     private TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow> BrightnessFlyoutWarmSlot =>
         _brightnessFlyoutWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BrightnessFlyoutWindow>(
             () => _settings?.KeepFlyoutWarm ?? true,
-            ex => WPFLog.Log($"BrightnessFlyout keep-warm: {ex.Message}"));
+            ex => TADNLog.Log($"BrightnessFlyout keep-warm: {ex.Message}"));
 
     private TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow> TrayMenuWarmSlot =>
         _trayMenuWarmSlot ??= new TrayAppDotNETWarmWindowSlot<BrightnessTrayMenuWindow>(
             () => _settings?.KeepTrayContextMenuWarm ?? true,
-            ex => WPFLog.Log($"Brightness tray menu keep-warm: {ex.Message}"));
+            ex => TADNLog.Log($"Brightness tray menu keep-warm: {ex.Message}"));
 
     private void ScheduleKeepWarmPriming()
     {
@@ -392,7 +392,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"BrightnessAvaloniaApp.ScheduleKeepWarmPriming: {ex.Message}");
+                TADNLog.Log($"BrightnessAvaloniaApp.ScheduleKeepWarmPriming: {ex.Message}");
             }
         }, DispatcherPriority.ApplicationIdle);
     }
@@ -420,7 +420,7 @@ internal sealed class BrightnessAvaloniaApp : Application
     private void OnHotkeyFired(object? sender, BrightnessHotkeyFiredEventArgs e)
     {
         try { HandleHotkey(e.Action, e.Parameter); }
-        catch (Exception ex) { WPFLog.Log($"BrightnessAvaloniaApp.OnHotkeyFired: {ex}"); }
+        catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp.OnHotkeyFired: {ex}"); }
     }
 
     private void HandleHotkey(BrightnessHotkeyAction action, string parameter)
@@ -480,12 +480,12 @@ internal sealed class BrightnessAvaloniaApp : Application
             if (_shuttingDown) return;
 
             try { RequestTrayRefresh(); }
-            catch (Exception ex) { WPFLog.Log($"BrightnessAvaloniaApp.OnMonitorsRefreshed tray refresh: {ex.Message}"); }
+            catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp.OnMonitorsRefreshed tray refresh: {ex.Message}"); }
 
             if (_hotkeyService == null || _settings == null) return;
 
             try { _hotkeyService.Apply(_settings.Hotkeys); }
-            catch (Exception ex) { WPFLog.Log($"BrightnessAvaloniaApp.OnMonitorsRefreshed hotkeys: {ex.Message}"); }
+            catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp.OnMonitorsRefreshed hotkeys: {ex.Message}"); }
         });
     }
 
@@ -1068,11 +1068,11 @@ internal sealed class BrightnessAvaloniaApp : Application
 
             _lastTrayValueDiagnostic = snapshot;
             _lastTrayValueDiagnosticUtc = now;
-            WPFLog.Log("TrayDiag.Value: " + snapshot);
+            TADNLog.Log("TrayDiag.Value: " + snapshot);
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"TrayDiag.Value failed: {ex.Message}");
+            TADNLog.Log($"TrayDiag.Value failed: {ex.Message}");
         }
     }
 
@@ -1326,7 +1326,7 @@ internal sealed class BrightnessAvaloniaApp : Application
             try { NightLightProvider.Shutdown(); }
             catch (Exception ex)
             {
-                WPFLog.Log($"BrightnessAvaloniaApp.NightLightProvider.Shutdown failed: {ex.Message}");
+                TADNLog.Log($"BrightnessAvaloniaApp.NightLightProvider.Shutdown failed: {ex.Message}");
             }
 
             if (_settings != null)
@@ -1372,7 +1372,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 catch (Exception exception)
                 {
                     glyphConsumersClosed = false;
-                    WPFLog.Log($"Brightness flyout warm-slot shutdown failed: {exception.Message}");
+                    TADNLog.Log($"Brightness flyout warm-slot shutdown failed: {exception.Message}");
                 }
             }
             _brightnessFlyoutWarmSlot = null;
@@ -1385,7 +1385,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 try { _settingsWindow.Close(); }
                 catch (Exception exception)
                 {
-                    WPFLog.Log($"Brightness settings-window shutdown failed: {exception.Message}");
+                    TADNLog.Log($"Brightness settings-window shutdown failed: {exception.Message}");
                 }
 
                 _settingsWindow = null;
@@ -1401,7 +1401,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 catch (Exception exception)
                 {
                     glyphConsumersClosed = false;
-                    WPFLog.Log($"Brightness flyout shutdown failed: {exception.Message}");
+                    TADNLog.Log($"Brightness flyout shutdown failed: {exception.Message}");
                 }
 
                 _brightnessFlyout = null;
@@ -1416,7 +1416,7 @@ internal sealed class BrightnessAvaloniaApp : Application
                 try { _trayMenuWindow.Close(); }
                 catch (Exception exception)
                 {
-                    WPFLog.Log($"Brightness tray-menu shutdown failed: {exception.Message}");
+                    TADNLog.Log($"Brightness tray-menu shutdown failed: {exception.Message}");
                 }
 
                 _trayMenuWindow = null;
@@ -1440,11 +1440,11 @@ internal sealed class BrightnessAvaloniaApp : Application
             Safe.Dispose(_trayIconRenderer);
             _trayIconRenderer = null;
 
-            WPFLog.Flush();
+            TADNLog.Flush();
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp.ShutdownServices: {ex}");
+            TADNLog.Log($"BrightnessAvaloniaApp.ShutdownServices: {ex}");
         }
     }
 
@@ -1460,13 +1460,13 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessAvaloniaApp.TryDrainQuickly: {ex.Message}");
+            TADNLog.Log($"BrightnessAvaloniaApp.TryDrainQuickly: {ex.Message}");
         }
     }
 
     private void ExitApplication()
     {
-        WPFLog.Log("BrightnessAvaloniaApp.ExitApplication");
+        TADNLog.Log("BrightnessAvaloniaApp.ExitApplication");
         ShutdownServices();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.Shutdown();

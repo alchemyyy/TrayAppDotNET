@@ -56,6 +56,6 @@ internal static class Program
                 AppServices.Installation.InstallSystemWide(installOptions: installOptions)),
             () => AppServices.InstallLayout.LocalAppDataInstallExecutable,
             () => AppServices.InstallLayout.ProgramFilesInstallExecutable,
-            WPFLog.Log,
-            WPFLog.Flush);
+            TADNLog.Log,
+            TADNLog.Flush);
 }

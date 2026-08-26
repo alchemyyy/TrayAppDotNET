@@ -398,7 +398,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
     /// visibility filters in the flyout / tray menu reflect the live OS state without a rebuild.
     /// Raises PropertyChanged for the derived bool projections (IsActive / IsDisabled / IsDisconnected
     /// / IsNotPresent) too - they read State synthetically and would otherwise stay stale in the UI
-    /// since WPF only re-evaluates a binding when its bound path raises a notification.
+    /// since Avalonia only re-evaluates a binding when its bound path raises a notification.
     /// </summary>
     public DeviceState State
     {
@@ -941,7 +941,7 @@ internal sealed partial class AudioDevice : INotifyPropertyChanged, IDisposable
         }
     }
 
-    /// <summary>Coalesced peak payload for the WPF meter binding.</summary>
+    /// <summary>Coalesced peak payload for the Avalonia meter binding.</summary>
     public MeterPeakValues PeakValues => new(_meterLerp.DisplayMin, _meterLerp.DisplayMax);
 
     /// <summary>

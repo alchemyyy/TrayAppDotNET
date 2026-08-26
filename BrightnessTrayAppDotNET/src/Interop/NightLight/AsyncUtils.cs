@@ -99,7 +99,7 @@ public static class AsyncUtils
             key = Registry.CurrentUser.OpenSubKey(registryKeyPath, writable: false);
             if (key is null)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"{callerName}.IssueWithSaveNotifyAsync: key '{registryKeyPath}' missing;"
                     + " falling back to fixed dwell.");
             }
@@ -116,7 +116,7 @@ public static class AsyncUtils
                     armed = true;
                 else
                 {
-                    WPFLog.Log(
+                    TADNLog.Log(
                         $"{callerName}.IssueWithSaveNotifyAsync: RegNotifyChangeKeyValue rc={rc};"
                         + " falling back to fixed dwell.");
                 }
@@ -129,7 +129,7 @@ public static class AsyncUtils
                 bool signaled = await WaitOneAsync(eventWaitHandle, saveNotifyTimeoutMs).ConfigureAwait(false);
                 if (!signaled)
                 {
-                    WPFLog.Log(
+                    TADNLog.Log(
                         $"{callerName}.IssueWithSaveNotifyAsync: timeout {saveNotifyTimeoutMs}ms"
                         + " - registry write did not fire RegNotify.");
                 }

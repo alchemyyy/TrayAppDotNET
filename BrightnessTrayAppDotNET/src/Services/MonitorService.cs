@@ -340,7 +340,7 @@ public sealed class MonitorService : IDisposable
         if (TryParseVcpCode(ov.BrightnessVcpOverride, out byte code))
         {
             ddc.BrightnessCode = code;
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: brightness VCP override for '{ddc.Name}' "
                 + $"raw='{ov.BrightnessVcpOverride}' parsed=0x{code:X2}");
         }
@@ -398,7 +398,7 @@ public sealed class MonitorService : IDisposable
 
         code = parsedCode;
         value = parsedValue;
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: power-off VCP override for '{ddc.Name}' "
             + $"raw='{ov.PowerOffVcpOverride}' parsed=0x{code:X2}=0x{value:X2}");
         return true;
@@ -661,7 +661,7 @@ public sealed class MonitorService : IDisposable
 
         if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> enumeratedRo, out string? enumError))
         {
-            WPFLog.Log($"MonitorService.Refresh: enumeration failed: {enumError}");
+            TADNLog.Log($"MonitorService.Refresh: enumeration failed: {enumError}");
             return Task.CompletedTask;
         }
 
@@ -689,7 +689,7 @@ public sealed class MonitorService : IDisposable
         long enumerationGeneration = Interlocked.Increment(ref _refreshEnumerationGeneration);
         if (!_display.TryGetMonitors(out IReadOnlyList<DDCMonitor> enumerated, out string? enumError))
         {
-            WPFLog.Log($"MonitorService.RefreshInitial: enumeration failed: {enumError}");
+            TADNLog.Log($"MonitorService.RefreshInitial: enumeration failed: {enumError}");
             return;
         }
 
@@ -805,7 +805,7 @@ public sealed class MonitorService : IDisposable
                     DropQueuedBrightnessWrites(existing.ID);
                 }
 
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: '{existing.Name}' dropped from enumeration; parking as Failed "
                     + $"(EDIDKey={existing.EDIDKey})");
                 RecordDDCCapableObservation(existing);
@@ -952,7 +952,7 @@ public sealed class MonitorService : IDisposable
                     existingInfo.ID = id;
                     if (reKeyingFromPortForm)
                     {
-                        WPFLog.Log(
+                        TADNLog.Log(
                             $"MonitorService: re-keyed '{existingInfo.Name}' from "
                             + $"{(string.IsNullOrEmpty(oldID) ? "<empty>" : oldID)} -> {id} "
                             + $"(EDIDKey upgrade {portForm} -> {EDIDKey})");
@@ -1024,7 +1024,7 @@ public sealed class MonitorService : IDisposable
                         if (existingInfo.IsReadDegraded)
                         {
                             existingInfo.LastKnownBrightnessMax = NormalizeBrightnessMax(entry.Max);
-                            WPFLog.Log(
+                            TADNLog.Log(
                                 $"MonitorService: kept read-degraded '{ddc.Name}' during Refresh re-probe "
                                 + $"({probe.Error})");
                         }
@@ -1041,7 +1041,7 @@ public sealed class MonitorService : IDisposable
                             // only generate a doomed retry. An in-flight payload is left to drain on its own (it
                             // captured the entry's DDC handle and will release cleanly).
                             DropQueuedBrightnessWrites(existingInfo.ID);
-                            WPFLog.Log(
+                            TADNLog.Log(
                                 $"MonitorService: demoted '{ddc.Name}' during Refresh re-probe ({probe.Error})");
                             RecordDDCCapableObservation(existingInfo);
                             DDCRecoveryRequested?.Invoke(existingInfo.ID);
@@ -1094,7 +1094,7 @@ public sealed class MonitorService : IDisposable
                         PublishRecoveredPowerAvailability(existingInfo, ddc.Name);
                         existingInfo.LastDDCError = null;
                         acquired.Add(existingInfo);
-                        WPFLog.Log($"MonitorService: promoted '{ddc.Name}' to DDC/CI-supported");
+                        TADNLog.Log($"MonitorService: promoted '{ddc.Name}' to DDC/CI-supported");
                     }
                     else
                     {
@@ -1167,7 +1167,7 @@ public sealed class MonitorService : IDisposable
             else
             {
                 RememberRecoveryIdentity(id, ddc);
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: '{ddc.Name}' added as disabled (no DDC/CI response: "
                     + $"{error ?? "unknown error"})");
             }
@@ -1410,7 +1410,7 @@ public sealed class MonitorService : IDisposable
     private static void LogProfileIfMatched(DDCMonitor ddc)
     {
         if (!ddc.HasKnownProfile) return;
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: matched '{ddc.Name}' to monitor profile {ddc.EDIDIdentifier} "
             + $"'{ddc.ProfileModelName}'"
             + (ddc.ProfileQuirks.Count > 0 ? $" (quirks: {string.Join("; ", ddc.ProfileQuirks)})" : ""));
@@ -1496,13 +1496,13 @@ public sealed class MonitorService : IDisposable
                     bool refreshed = WithDDCLock(ddc, () => RefreshHandlePreservingBrightnessCode(ddc));
                     if (refreshed)
                     {
-                        WPFLog.Log(
+                        TADNLog.Log(
                             $"MonitorService: refreshed HMONITOR for '{ddc.Name}' before final read attempt");
                     }
                 }
                 catch (Exception ex)
                 {
-                    WPFLog.Log(
+                    TADNLog.Log(
                         $"MonitorService: HMONITOR refresh failed for '{ddc.Name}' before final read: {ex.Message}");
                 }
             }
@@ -1642,7 +1642,7 @@ public sealed class MonitorService : IDisposable
         // MarkDDCCapable is idempotent and saves only on the false-to-true transition.
         if (_knownDisplays.MarkDDCCapable(monitor.EDIDKey))
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: recorded DDC/CI capability for '{monitor.Name}' ({monitor.EDIDKey})");
         }
     }
@@ -1665,7 +1665,7 @@ public sealed class MonitorService : IDisposable
     /// </summary>
     private void ScheduleStartupRecoverySweep()
     {
-        WPFLog.Log("MonitorService: startup recovery sweep scheduled");
+        TADNLog.Log("MonitorService: startup recovery sweep scheduled");
 
         _ = Task.Run(async () =>
         {
@@ -1679,15 +1679,15 @@ public sealed class MonitorService : IDisposable
 
                 if (AllKnownDDCCapableMonitorsAreSupported())
                 {
-                    WPFLog.Log("MonitorService: startup recovery sweep skipped (all known DDC monitors supported)");
+                    TADNLog.Log("MonitorService: startup recovery sweep skipped (all known DDC monitors supported)");
                     return;
                 }
 
-                WPFLog.Log($"MonitorService: startup recovery sweep tick (after {delayMs} ms)");
+                TADNLog.Log($"MonitorService: startup recovery sweep tick (after {delayMs} ms)");
                 try { Refresh(); }
                 catch (Exception ex)
                 {
-                    WPFLog.Log($"MonitorService: startup sweep Refresh failed: {ex.Message}");
+                    TADNLog.Log($"MonitorService: startup sweep Refresh failed: {ex.Message}");
                 }
             }
         });
@@ -1889,7 +1889,7 @@ public sealed class MonitorService : IDisposable
 
         if (!_display.TryGetDDCRecoveryMonitors(out IReadOnlyList<DDCMonitor> live, out string? enumError))
         {
-            WPFLog.Log($"MonitorService.TryRecoverMonitor: enumeration failed: {enumError}");
+            TADNLog.Log($"MonitorService.TryRecoverMonitor: enumeration failed: {enumError}");
             return false;
         }
 
@@ -1946,14 +1946,14 @@ public sealed class MonitorService : IDisposable
                                               out writeProbeError);
             if (shouldUseBlindProbe)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: blind recovery write probe for '{ddc.Name}' "
                     + $"target={selectedProbePercent} result={writeTransportAccepted}"
                     + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
             }
             else if (isChecksumRecovery && shouldWriteProbe)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: checksum recovery write probe for '{ddc.Name}' "
                     + $"target={selectedProbePercent} result={writeTransportAccepted}"
                     + (writeProbeError == null ? string.Empty : $" error={writeProbeError}"));
@@ -2013,7 +2013,7 @@ public sealed class MonitorService : IDisposable
                     }
                     DropQueuedBrightnessWrites(failedInfo.ID);
                     failedInfo.SliderState = SliderStateMachine.OnHardwareFailed();
-                    WPFLog.Log(
+                    TADNLog.Log(
                         $"MonitorService: '{failedInfo.Name}' demoted from read-degraded to Failed "
                         + "(write transport probe now also failing)");
                 }
@@ -2184,7 +2184,7 @@ public sealed class MonitorService : IDisposable
         info.IsReadDegraded = true;
         info.LastDDCError = readError;
         RememberRecoveryIdentity(info.ID, ddc);
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: '{ddc.Name}' is read-degraded "
             + "(write transport accepted, application unconfirmed, reads failing)");
         QueueRecoveredBrightnessIntent(info);
@@ -2337,7 +2337,7 @@ public sealed class MonitorService : IDisposable
         PublishRecoveredPowerAvailability(info, ddc.Name);
         info.LastDDCError = null;
         _recoveryIdentities.TryRemove(info.ID, out DDCRecoveryIdentity _);
-        WPFLog.Log($"MonitorService: recovered '{ddc.Name}' to DDC/CI-supported");
+        TADNLog.Log($"MonitorService: recovered '{ddc.Name}' to DDC/CI-supported");
 
         MonitorsRefreshed?.Invoke();
         ReplayRecoveredBrightnessIntent(info);
@@ -2372,7 +2372,7 @@ public sealed class MonitorService : IDisposable
     {
         if (!TryResolveRecoveredBrightnessIntent(info, out int percentage, out SliderState expectedState)) return;
 
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: recovery replay '{info.Name}' state={expectedState} target={percentage}");
         EnqueueDirectBrightnessImmediate(info, percentage, IsStillCurrent);
         return;
@@ -2423,7 +2423,7 @@ public sealed class MonitorService : IDisposable
     {
         if (info.SuppressDDCRecoveryForPowerIntent)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: clearing stale power-off recovery suppression for '{monitorName}' after recovery");
         }
 
@@ -2456,7 +2456,7 @@ public sealed class MonitorService : IDisposable
             if (_recoveryIdentities.TryRemove(oldID, out DDCRecoveryIdentity movingRecoveryIdentity))
                 _recoveryIdentities[newID] = movingRecoveryIdentity;
             info.ID = newID;
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: re-keyed recovered '{info.Name}' from "
                 + $"{(string.IsNullOrEmpty(oldID) ? "<empty>" : oldID)} -> {newID}");
         }
@@ -2516,7 +2516,7 @@ public sealed class MonitorService : IDisposable
             : TryResolvePowerOffOverride(ddc, offLevel, out byte overrideCode, out byte overrideValue)
                 ? (overrideCode, overrideValue)
                 : ddc.ResolvePowerOff(offLevel);
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: SetPowerState '{ddc.Name}' on={on}; code=0x{code:X2}; value=0x{value:X2}; "
             + $"mode={_settings.PowerOffMode}");
 
@@ -2534,7 +2534,7 @@ public sealed class MonitorService : IDisposable
                 return;
             case PowerStateApplyOutcome.Failed:
                 monitor.SuppressDDCRecoveryForPowerIntent = previousRecoverySuppression;
-                WPFLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {application.Error}");
+                TADNLog.Log($"MonitorService: SetPowerState failed for '{ddc.Name}': {application.Error}");
                 if (!on)
                 {
                     // The panel remained on, but its queued brightness target was invalidated before the power attempt
@@ -2624,7 +2624,7 @@ public sealed class MonitorService : IDisposable
 
                 // Hard-off is intentionally write-only on many monitors and removes the DDC endpoint. Do not turn an
                 // expected missing reply into failure or reset the transport after an accepted off command.
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: power verification unavailable for '{readBack.MonitorName}'; "
                     + $"accepted write remains unverified: {readBack.Error}");
                 return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, null);
@@ -2632,14 +2632,14 @@ public sealed class MonitorService : IDisposable
 
             if (readBack.Actual == value)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: power write verified for '{readBack.MonitorName}'; "
                     + $"code=0x{code:X2}; value=0x{value:X2}");
                 return new PowerStateApplyResult(PowerStateApplyOutcome.Applied, null);
             }
 
             lastError = $"read-back 0x{readBack.Actual:X2}, expected 0x{value:X2}";
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: power verify mismatch {attempt + 1}/{attempts} for "
                 + $"'{readBack.MonitorName}': {lastError}");
             if (attempt == attempts - 1) break;
@@ -2656,7 +2656,7 @@ public sealed class MonitorService : IDisposable
             if (!reapply.Success)
             {
                 lastError = reapply.Error;
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: power re-apply {attempt + 2}/{attempts} failed for "
                     + $"'{reapply.MonitorName}': {reapply.Error}");
             }
@@ -2971,7 +2971,7 @@ public sealed class MonitorService : IDisposable
             count++;
         }
 
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: brightness replay generation {replayGeneration}; "
             + $"queued {count} manual target(s), curve targets await MonitorsRefreshed evaluation");
     }
@@ -3001,7 +3001,7 @@ public sealed class MonitorService : IDisposable
             // AsyncThrottler deliberately contains payload exceptions. Release target ownership here first so
             // the same percentage remains retryable instead of becoming a permanently deduplicated phantom write.
             AbandonBrightnessTargetIfCurrent(entry, target);
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService.DoBrightnessWriteAsync: unexpected target failure for '{entry.ID}': {ex.Message}");
         }
     }
@@ -3059,7 +3059,7 @@ public sealed class MonitorService : IDisposable
             if (_disposed || _draining || !IsBrightnessTargetCurrent(entry, target)) return;
 
             lastWriteError = write.Error;
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: SetVCPFeature attempt {attempt + 1}/{writeAttempts} failed for "
                 + $"'{write.MonitorName}': {write.Error}");
         }
@@ -3124,7 +3124,7 @@ public sealed class MonitorService : IDisposable
             bool readable = readBack.Success && readBack.Maximum > 0;
             if (!readable)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService: verify read failed for '{readBack.MonitorName}': {readBack.Error}");
             }
             else
@@ -3155,7 +3155,7 @@ public sealed class MonitorService : IDisposable
                 string? refreshedMonitorName = await TryRefreshBrightnessHandleAsync(entry, target)
                     .ConfigureAwait(false);
                 if (refreshedMonitorName != null)
-                    WPFLog.Log($"MonitorService: refreshed HMONITOR for '{refreshedMonitorName}' mid-verify");
+                    TADNLog.Log($"MonitorService: refreshed HMONITOR for '{refreshedMonitorName}' mid-verify");
             }
 
             // A failed GET does not prove the SET missed. Re-applying on every checksum/transport failure floods
@@ -3175,7 +3175,7 @@ public sealed class MonitorService : IDisposable
                 }
 
                 if (!reapply.Success)
-                    WPFLog.Log($"MonitorService: re-apply failed for '{reapply.MonitorName}': {reapply.Error}");
+                    TADNLog.Log($"MonitorService: re-apply failed for '{reapply.MonitorName}': {reapply.Error}");
             }
 
             // Wait for the NEXT attempt (attempt+1).
@@ -3196,7 +3196,7 @@ public sealed class MonitorService : IDisposable
         {
             AbandonBrightnessTargetIfCurrent(entry, target);
             DDCMonitor degradedDDC = Volatile.Read(ref entry.DDC);
-            WPFLog.Log(
+            TADNLog.Log(
                 $"MonitorService: verification exhausted for read-degraded '{degradedDDC.Name}', "
                 + "keeping best-effort state and leaving the target retryable");
             return;
@@ -3204,7 +3204,7 @@ public sealed class MonitorService : IDisposable
 
         uint finalExpectedRaw = ScaleBrightnessPercentToRaw(target.Percentage, Volatile.Read(ref entry.Max));
         DDCMonitor currentDDC = Volatile.Read(ref entry.DDC);
-        WPFLog.Log(
+        TADNLog.Log(
             $"MonitorService: verification exhausted for '{currentDDC.Name}' - target raw={finalExpectedRaw}");
         DemoteOnDDCFailure(entry, "Brightness write was not acknowledged after retry - DDC/CI link is unresponsive.");
     }
@@ -3435,7 +3435,7 @@ public sealed class MonitorService : IDisposable
             // A live MonitorEntry proves that this row was DDC-capable even if persisted identity metadata drifted.
             RecordDDCCapableObservation(info);
             info.LastDDCError = error;
-            WPFLog.Log($"MonitorService: demoted '{entry.DDC.Name}' to DDC/CI-unavailable ({error})");
+            TADNLog.Log($"MonitorService: demoted '{entry.DDC.Name}' to DDC/CI-unavailable ({error})");
 
             DDCRecoveryRequested?.Invoke(id);
             // Wake the DDC fallback worker now instead of waiting for another topology/settings event -
@@ -3566,7 +3566,7 @@ public sealed class MonitorService : IDisposable
             }
             catch (OperationCanceledException)
             {
-                WPFLog.Log("MonitorService.BeginDrainAsync: brightness scheduler drain timed out");
+                TADNLog.Log("MonitorService.BeginDrainAsync: brightness scheduler drain timed out");
                 return false;
             }
         }
@@ -3575,7 +3575,7 @@ public sealed class MonitorService : IDisposable
         {
             if (DateTime.UtcNow >= deadline)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"MonitorService.BeginDrainAsync: timed out with {_activeDDCOps} DDC op(s) still in flight");
                 return false;
             }

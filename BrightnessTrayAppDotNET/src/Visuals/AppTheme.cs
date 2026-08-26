@@ -130,7 +130,7 @@ public sealed class AppTheme : CommonAppTheme
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"AppTheme.LoadAppNativeIcon: {ex.Message}");
+            TADNLog.Log($"AppTheme.LoadAppNativeIcon: {ex.Message}");
         }
 
         return null;

@@ -394,7 +394,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         try { pointer.Capture(null); }
         catch (Exception exception)
         {
-            WPFLog.Log($"EnvironmentalMapPickerCanvas pointer release failed: {exception.Message}");
+            TADNLog.Log($"EnvironmentalMapPickerCanvas pointer release failed: {exception.Message}");
         }
     }
 
@@ -440,7 +440,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"EnvironmentalMapPickerCanvas.LoadMapGeometry: {ex.Message}");
+            TADNLog.Log($"EnvironmentalMapPickerCanvas.LoadMapGeometry: {ex.Message}");
         }
 
         return null;

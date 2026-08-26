@@ -381,7 +381,7 @@ public sealed partial class BrightnessSettingsWindow
     {
         UIResourceScope pageResources = OwnPageResource(new UIResourceScope(
             nameof(BrightnessSettingsWindow) + ".EnvironmentalPage",
-            exception => WPFLog.Log(
+            exception => TADNLog.Log(
                 $"Brightness environmental page cleanup failed: {exception.GetType().Name}: {exception.Message}")));
         _environmentalPageResources = pageResources;
         AddPageCleanup(() => RetireEnvironmentalPage(pageState));
@@ -499,7 +499,7 @@ public sealed partial class BrightnessSettingsWindow
         try { cleanup(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"Brightness environmental page {operation} cleanup failed: {exception.Message}");
+            TADNLog.Log($"Brightness environmental page {operation} cleanup failed: {exception.Message}");
         }
     }
 

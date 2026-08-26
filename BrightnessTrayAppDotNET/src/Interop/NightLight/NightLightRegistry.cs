@@ -79,7 +79,7 @@ internal static class NightLightRegistry
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightRegistry.IsSupported: {ex.Message}");
+            TADNLog.Log($"NightLightRegistry.IsSupported: {ex.Message}");
             return false;
         }
     }
@@ -290,7 +290,7 @@ internal static class NightLightRegistry
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightRegistry.OnResendTimerFired: {ex}");
+            TADNLog.Log($"NightLightRegistry.OnResendTimerFired: {ex}");
         }
     }
 
@@ -317,7 +317,7 @@ internal static class NightLightRegistry
         try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
         catch (ObjectDisposedException)
         {
-            WPFLog.Log("NightLightRegistry.Shutdown: resend timer was already disposed");
+            TADNLog.Log("NightLightRegistry.Shutdown: resend timer was already disposed");
         }
 
         timer.Dispose();
@@ -678,7 +678,7 @@ internal static class NightLightRegistry
         // revision blows past 255 we'd need a multi-byte varint here. Refuse the write rather than corrupt.
         if (newInner.Length > 255)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightRegistry.RebuildOuter: inner too large ({newInner.Length}B)"
                 + " - skipping write to avoid corruption.");
             return original;
@@ -792,7 +792,7 @@ internal static class NightLightRegistry
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightRegistry.ReadBlob('{path}'): {ex.Message}");
+            TADNLog.Log($"NightLightRegistry.ReadBlob('{path}'): {ex.Message}");
             return null;
         }
     }
@@ -812,7 +812,7 @@ internal static class NightLightRegistry
         catch (Exception ex)
         {
             // Registry write can fail on locked/roaming profiles - caller sees no-op.
-            WPFLog.Log($"NightLightRegistry.WriteBlob('{path}'): {ex.Message}");
+            TADNLog.Log($"NightLightRegistry.WriteBlob('{path}'): {ex.Message}");
         }
     }
 }

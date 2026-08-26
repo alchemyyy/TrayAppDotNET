@@ -232,7 +232,7 @@ public sealed class KnownDisplaysStore : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"KnownDisplaysStore: load failed ({_path}): {ex.Message}");
+            TADNLog.Log($"KnownDisplaysStore: load failed ({_path}): {ex.Message}");
             return false;
         }
     }
@@ -252,7 +252,7 @@ public sealed class KnownDisplaysStore : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"KnownDisplaysStore: save failed ({_path}): {ex.Message}");
+            TADNLog.Log($"KnownDisplaysStore: save failed ({_path}): {ex.Message}");
         }
     }
 

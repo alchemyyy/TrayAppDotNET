@@ -4,7 +4,7 @@ internal static class Constants
 {
     public const string ApplicationName = "BrightnessTrayAppDotNET";
     public const string SharedRootFolderName = "TrayAppDotNET";
-    public const string NoWatcherEnvironmentVariable = "BTAWPF_NO_WATCHER";
+    public const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
     public const string Publisher = "alchemyyy";
     public const string HelpLink = "https://github.com/alchemyyy/TrayAppDotNET";
     public const string AppBaseURI = "avares://" + ApplicationName + "/";

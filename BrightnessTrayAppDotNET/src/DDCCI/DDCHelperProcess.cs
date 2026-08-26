@@ -306,7 +306,7 @@ internal sealed class DDCHelperClient : IDisposable
             try { pipe.Dispose(); }
             catch (Exception cleanupException)
             {
-                WPFLog.Log($"DDCHelperClient.EnsureStarted pipe cleanup failed: {cleanupException.Message}");
+                TADNLog.Log($"DDCHelperClient.EnsureStarted pipe cleanup failed: {cleanupException.Message}");
             }
 
             return false;
@@ -341,26 +341,26 @@ internal sealed class DDCHelperClient : IDisposable
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"DDCHelperClient.StopHelperProcess EXIT failed: {ex.Message}");
+                TADNLog.Log($"DDCHelperClient.StopHelperProcess EXIT failed: {ex.Message}");
             }
         }
 
         try { writer?.Dispose(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.StopHelperProcess writer dispose failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.StopHelperProcess writer dispose failed: {ex.Message}");
         }
 
         try { reader?.Dispose(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.StopHelperProcess reader dispose failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.StopHelperProcess reader dispose failed: {ex.Message}");
         }
 
         try { pipe?.Dispose(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.StopHelperProcess pipe dispose failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.StopHelperProcess pipe dispose failed: {ex.Message}");
         }
 
         if (process == null) return;
@@ -372,7 +372,7 @@ internal sealed class DDCHelperClient : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.StopHelperProcess kill failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.StopHelperProcess kill failed: {ex.Message}");
         }
 
         try
@@ -381,20 +381,20 @@ internal sealed class DDCHelperClient : IDisposable
             {
                 bool exited = process.WaitForExit(TimeConstants.ProcessExitDrainTimeoutMs);
                 if (!exited)
-                    WPFLog.Log(
+                    TADNLog.Log(
                         $"DDCHelperClient.StopHelperProcess: PID {process.Id} did not exit within "
                         + $"{TimeConstants.ProcessExitDrainTimeoutMs}ms after {(kill ? "kill" : "disconnect")}");
             }
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.StopHelperProcess wait failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.StopHelperProcess wait failed: {ex.Message}");
         }
 
         try { process.Dispose(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.StopHelperProcess process dispose failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.StopHelperProcess process dispose failed: {ex.Message}");
         }
     }
 
@@ -409,7 +409,7 @@ internal sealed class DDCHelperClient : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperClient.KillProcess failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperClient.KillProcess failed: {ex.Message}");
         }
     }
 
@@ -505,7 +505,7 @@ internal static class DDCHelperServer
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperServer.TryRun failed: {ex.Message}");
+            TADNLog.Log($"DDCHelperServer.TryRun failed: {ex.Message}");
             exitCode = 1;
             return true;
         }
@@ -710,7 +710,7 @@ internal static class DDCHelperServer
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCHelperServer parent watchdog ended: {ex.Message}");
+            TADNLog.Log($"DDCHelperServer parent watchdog ended: {ex.Message}");
         }
 
         Environment.Exit(0);

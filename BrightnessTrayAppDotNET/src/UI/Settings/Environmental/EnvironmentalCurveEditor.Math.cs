@@ -61,7 +61,7 @@ public sealed partial class EnvironmentalCurveEditor
         try { currentTimeTimer.Stop(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"EnvironmentalCurveEditor current-time timer stop failed: {exception.Message}");
+            TADNLog.Log($"EnvironmentalCurveEditor current-time timer stop failed: {exception.Message}");
         }
     }
 

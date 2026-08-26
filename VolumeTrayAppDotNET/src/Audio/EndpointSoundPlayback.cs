@@ -26,8 +26,8 @@ internal static class EndpointSoundPlayback
     /// <summary>
     /// Fires the playback on a threadpool worker and returns immediately. We take the endpoint id
     /// as a string (not an IMMDevice RCW) so the worker can re-acquire the device on its own MTA
-    /// thread - the AudioDevice's IMMDevice RCW is bound to the WPF UI-thread STA and QueryInterface
-    /// fails if we marshal it across apartments. The worker owns every COM proxy it creates.
+    /// thread. The AudioDevice's IMMDevice RCW is bound to the Avalonia UI-thread STA, and
+    /// QueryInterface fails if we marshal it across apartments. The worker owns every COM proxy it creates.
     /// Takes a parsed <see cref="WAVTemplate"/> so the caller (which already holds one) doesn't
     /// re-parse the RIFF chunks on every ding.
     /// </summary>

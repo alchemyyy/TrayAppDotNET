@@ -33,7 +33,7 @@ public sealed class DDCRecoveryService(
         _started = true;
         monitorService.MonitorsRefreshed += OnMonitorsRefreshed;
         monitorService.DDCRecoveryRequested += OnDDCRecoveryRequested;
-        WPFLog.Log("DDCRecoveryService: started");
+        TADNLog.Log("DDCRecoveryService: started");
 
         if (TryGetDDCRecoveryCandidateIDs(out List<string> candidates) && candidates.Count > 0)
             SignalDDCRecoveryNeeded();
@@ -49,14 +49,14 @@ public sealed class DDCRecoveryService(
         if (candidates.Count > 0)
             SignalDDCRecoveryNeeded();
         else if (ClearDDCRecoveryNeeded())
-            WPFLog.Log("DDCRecoveryService: refresh found no eligible candidates; clearing recovery request");
+            TADNLog.Log("DDCRecoveryService: refresh found no eligible candidates; clearing recovery request");
     }
 
     private void OnDDCRecoveryRequested(string monitorID)
     {
         if (_disposed) return;
 
-        WPFLog.Log($"DDCRecoveryService: direct recovery request '{monitorID}'");
+        TADNLog.Log($"DDCRecoveryService: direct recovery request '{monitorID}'");
         SignalDDCRecoveryNeeded();
     }
 
@@ -85,7 +85,7 @@ public sealed class DDCRecoveryService(
 
     private async Task RunDDCRecoveryWorkerAsync(CancellationToken token)
     {
-        WPFLog.Log("DDCRecoveryService: fallback worker starting");
+        TADNLog.Log("DDCRecoveryService: fallback worker starting");
 
         try
         {
@@ -103,12 +103,12 @@ public sealed class DDCRecoveryService(
                 if (!TryGetDDCRecoveryCandidateIDs(out List<string> candidates)) continue;
                 if (candidates.Count == 0)
                 {
-                    WPFLog.Log("DDCRecoveryService: no eligible candidates; clearing recovery request");
+                    TADNLog.Log("DDCRecoveryService: no eligible candidates; clearing recovery request");
                     ClearDDCRecoveryNeeded();
                     break;
                 }
 
-                WPFLog.Log(
+                TADNLog.Log(
                     $"DDCRecoveryService: acquisition retry for {candidates.Count} candidate(s): "
                     + string.Join(", ", candidates));
 
@@ -117,7 +117,7 @@ public sealed class DDCRecoveryService(
                 if (!TryGetDDCRecoveryCandidateIDs(out List<string> remainingCandidates)) continue;
                 if (remainingCandidates.Count == 0)
                 {
-                    WPFLog.Log("DDCRecoveryService: all candidates recovered; clearing recovery request");
+                    TADNLog.Log("DDCRecoveryService: all candidates recovered; clearing recovery request");
                     ClearDDCRecoveryNeeded();
                     break;
                 }
@@ -129,14 +129,14 @@ public sealed class DDCRecoveryService(
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCRecoveryService.RunDDCRecoveryWorkerAsync: {ex.Message}");
+            TADNLog.Log($"DDCRecoveryService.RunDDCRecoveryWorkerAsync: {ex.Message}");
         }
         finally
         {
             lock (_gate)
                 _worker = null;
 
-            WPFLog.Log("DDCRecoveryService: fallback worker stopped");
+            TADNLog.Log("DDCRecoveryService: fallback worker stopped");
 
             if (!_disposed
                 && Volatile.Read(ref _DDCRecoveryNeeded) == 1)
@@ -162,11 +162,11 @@ public sealed class DDCRecoveryService(
             try
             {
                 bool recovered = monitorService.TryRecoverMonitor(id);
-                WPFLog.Log($"DDCRecoveryService: targeted retry '{id}' result={recovered}");
+                TADNLog.Log($"DDCRecoveryService: targeted retry '{id}' result={recovered}");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                WPFLog.Log($"DDCRecoveryService: targeted retry '{id}' failed: {ex.Message}");
+                TADNLog.Log($"DDCRecoveryService: targeted retry '{id}' failed: {ex.Message}");
             }
         }
     }
@@ -180,7 +180,7 @@ public sealed class DDCRecoveryService(
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCRecoveryService: candidate snapshot failed: {ex.Message}");
+            TADNLog.Log($"DDCRecoveryService: candidate snapshot failed: {ex.Message}");
             candidates = [];
             return false;
         }
@@ -195,13 +195,13 @@ public sealed class DDCRecoveryService(
             foreach (string id in currentIDs)
             {
                 if (!_lastCandidateSet.Contains(id))
-                    WPFLog.Log($"DDCRecoveryService: candidate added '{id}'");
+                    TADNLog.Log($"DDCRecoveryService: candidate added '{id}'");
             }
 
             foreach (string id in _lastCandidateSet)
             {
                 if (!currentSet.Contains(id))
-                    WPFLog.Log($"DDCRecoveryService: candidate dropped '{id}'");
+                    TADNLog.Log($"DDCRecoveryService: candidate dropped '{id}'");
             }
 
             _lastCandidateSet.Clear();
@@ -256,7 +256,7 @@ public sealed class DDCRecoveryService(
         {
             bool completed = worker.Wait(TimeSpan.FromMilliseconds(TimeConstants.DDCRecoveryShutdownDrainTimeoutMs));
             if (!completed)
-                WPFLog.Log("DDCRecoveryService: fallback worker did not stop before shutdown drain timeout");
+                TADNLog.Log("DDCRecoveryService: fallback worker did not stop before shutdown drain timeout");
         }
         catch (AggregateException ex)
         {
@@ -264,7 +264,7 @@ public sealed class DDCRecoveryService(
             {
                 if (inner is OperationCanceledException) continue;
 
-                WPFLog.Log($"DDCRecoveryService.DrainWorker: {inner.Message}");
+                TADNLog.Log($"DDCRecoveryService.DrainWorker: {inner.Message}");
             }
         }
         catch (OperationCanceledException)

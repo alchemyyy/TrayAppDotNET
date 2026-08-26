@@ -32,7 +32,7 @@ public interface IHotkeyBinding<out TAction>
 /// distinguished by BindingID. BindingID == 0 is the legacy/primary row; legacy XML files without
 /// the persisted value become the primary row by default.
 /// Modifiers and VirtualKey are raw Win32 values (MOD_* and VK_*) so the storage shape matches RegisterHotKey
-/// directly and the settings model does not depend on WPF input enums.
+/// directly and the settings model does not depend on UI-framework input enums.
 /// </summary>
 public sealed class HotkeyBinding : IHotkeyBinding<HotkeyAction>
 {

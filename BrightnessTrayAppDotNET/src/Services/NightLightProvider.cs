@@ -196,7 +196,7 @@ internal static class NightLightProvider
     /// Toggling off preserves the live strength so the next toggle-on returns the user's same warmth.
     /// Returns true if the underlying backend wrote the requested state and the readback
     /// matched; false if the registry write failed, the readback diverged, or no backend is
-    /// available. Failures are logged via <see cref="WPFLog"/>.
+    /// available. Failures are logged via <see cref="TADNLog"/>.
     /// </summary>
     public static bool SetEnabled(
         bool enabled,
@@ -271,7 +271,7 @@ internal static class NightLightProvider
 
         if (!ok)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightProvider.SetEnabled({enabled}) returned false on backend {backend} "
                 + "(write rejected or readback diverged from request).");
         }
@@ -299,7 +299,7 @@ internal static class NightLightProvider
     /// <summary>
     /// Flips the enabled state on the active backend. Returns true if the toggle landed
     /// (post-write readback shows the inverted state), false on write failure, readback
-    /// divergence, or no backend available. Failures are logged via <see cref="WPFLog"/>.
+    /// divergence, or no backend available. Failures are logged via <see cref="TADNLog"/>.
     /// Optional <paramref name="enableStrength"/> has the same curve-handoff semantics as
     /// <see cref="SetEnabled(bool, int?, bool)"/>.
     /// </summary>
@@ -363,7 +363,7 @@ internal static class NightLightProvider
         }
         catch (ObjectDisposedException ex)
         {
-            WPFLog.Log($"NightLightProvider.PersistLastUserStrength timer disposed: {ex.Message}");
+            TADNLog.Log($"NightLightProvider.PersistLastUserStrength timer disposed: {ex.Message}");
         }
     }
 
@@ -385,7 +385,7 @@ internal static class NightLightProvider
         {
             lock (_gate)
                 _lastStrengthSaveDispatchQueued = false;
-            WPFLog.Log($"NightLightProvider last-strength dispatch failed: {ex.Message}");
+            TADNLog.Log($"NightLightProvider last-strength dispatch failed: {ex.Message}");
         }
     }
 
@@ -419,7 +419,7 @@ internal static class NightLightProvider
             try { timerToRearm.Change(remainingDelayMs, Timeout.Infinite); }
             catch (ObjectDisposedException ex)
             {
-                WPFLog.Log($"NightLightProvider last-strength rearm failed: {ex.Message}");
+                TADNLog.Log($"NightLightProvider last-strength rearm failed: {ex.Message}");
             }
             return;
         }
@@ -433,7 +433,7 @@ internal static class NightLightProvider
         try { settings.Save(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightProvider last-strength save failed: {ex.Message}");
+            TADNLog.Log($"NightLightProvider last-strength save failed: {ex.Message}");
         }
     }
 
@@ -452,7 +452,7 @@ internal static class NightLightProvider
             try { resolved = ResolveBackend(); }
             catch (Exception ex)
             {
-                WPFLog.Log($"NightLightProvider.GetCachedBackend probe: {ex.Message}");
+                TADNLog.Log($"NightLightProvider.GetCachedBackend probe: {ex.Message}");
                 resolved = Backend.None;
             }
 

@@ -61,7 +61,7 @@ public static class DDCMonitorDatabase
         using Stream? stream = assembly.GetManifestResourceStream(ResourceName);
         if (stream == null)
         {
-            WPFLog.Log($"DDCMonitorDatabase: embedded resource '{ResourceName}' not found - using empty DB");
+            TADNLog.Log($"DDCMonitorDatabase: embedded resource '{ResourceName}' not found - using empty DB");
             return new Dictionary<string, ParsedProfile>(0, StringComparer.OrdinalIgnoreCase);
         }
 
@@ -72,7 +72,7 @@ public static class DDCMonitorDatabase
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DDCMonitorDatabase: failed to parse embedded JSON - {ex.GetType().Name}: {ex.Message}");
+            TADNLog.Log($"DDCMonitorDatabase: failed to parse embedded JSON - {ex.GetType().Name}: {ex.Message}");
             return new Dictionary<string, ParsedProfile>(0, StringComparer.OrdinalIgnoreCase);
         }
     }
@@ -89,7 +89,7 @@ public static class DDCMonitorDatabase
             if (profile != null) result[entry.Name] = profile;
         }
 
-        WPFLog.Log($"DDCMonitorDatabase: loaded {result.Count} monitor profiles from embedded DB");
+        TADNLog.Log($"DDCMonitorDatabase: loaded {result.Count} monitor profiles from embedded DB");
         return result;
     }
 

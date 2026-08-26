@@ -24,7 +24,7 @@ internal enum AudioSessionReconciliationResult
 /// <summary>
 /// Managed wrapper around a single audio session (one app's stream into a device).
 /// Owns the COM proxies, subscribes to <see cref="IAudioSessionEvents"/> for live volume / state /
-/// disconnect updates, and surfaces the bindable surface area to WPF via INotifyPropertyChanged.
+/// disconnect updates, and surfaces the bindable state to Avalonia via INotifyPropertyChanged.
 /// Thread model: COM events arrive on a worker thread; the wrapper marshals every observable
 /// state mutation onto the UI dispatcher captured at construction.
 /// </summary>
@@ -51,7 +51,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
     private const int AudioClientDeviceInvalidated = unchecked((int)0x88890004);
 
     // Apartment-state contract for the COM RCWs below:
-    //  - Activated on the WPF UI-thread STA via the parent device's IMMDevice.
+    //  - Activated on the Avalonia UI-thread STA via the parent device's IMMDevice.
     //  - audioses.dll proxies register the FTM, so _meter reads from the sample-timer worker and
     //    _simpleVolume writes from the throttler worker are safe; UI-thread remains canonical
     //    home for any other call.
@@ -174,7 +174,7 @@ internal sealed partial class AudioSession : INotifyPropertyChanged, IDisposable
         }
     }
 
-    /// <summary>Coalesced peak payload for group aggregation and WPF meter binding.</summary>
+    /// <summary>Coalesced peak payload for group aggregation and the Avalonia meter binding.</summary>
     public MeterPeakValues PeakValues => new(_meterLerp.DisplayMin, _meterLerp.DisplayMax);
 
     /// <summary>

@@ -221,7 +221,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightCloudStore streaming drain failed: {ex.Message}");
+            TADNLog.Log($"NightLightCloudStore streaming drain failed: {ex.Message}");
             CompleteStreamingDrain(success: false);
         }
     }
@@ -294,7 +294,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightCloudStore streaming native call failed: {ex.Message}");
+            TADNLog.Log($"NightLightCloudStore streaming native call failed: {ex.Message}");
             CompleteStreamingDrain(success: false);
             return false;
         }
@@ -413,7 +413,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightCloudStore.SaveSettingsKelvinOnMTAThread: bracket emission threw: {ex.Message}");
             return false;
         }
@@ -478,7 +478,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightCloudStore.SetEnabledOnMTAThread: state save threw: {ex.Message}");
+            TADNLog.Log($"NightLightCloudStore.SetEnabledOnMTAThread: state save threw: {ex.Message}");
             return false;
         }
 
@@ -538,7 +538,7 @@ internal static class NightLightCloudStore
 
         if (!backendThread.Join(BackendShutdownTimeoutMs))
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightCloudStore.Shutdown: backend thread did not stop within " +
                 $"{BackendShutdownTimeoutMs}ms");
             streamReleaseTimer?.Dispose();
@@ -631,7 +631,7 @@ internal static class NightLightCloudStore
             _backendThread = null;
             backendRequests.Dispose();
             initializationCompletionSource.TrySetResult(false);
-            WPFLog.Log($"NightLightCloudStore: failed to start backend thread: {ex.Message}");
+            TADNLog.Log($"NightLightCloudStore: failed to start backend thread: {ex.Message}");
         }
     }
 
@@ -676,7 +676,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightCloudStore backend thread failed: {ex.Message}");
+            TADNLog.Log($"NightLightCloudStore backend thread failed: {ex.Message}");
         }
         finally
         {
@@ -788,7 +788,7 @@ internal static class NightLightCloudStore
                 $"settings=0x{settingsInner.ToInt64():X16})");
         }
 
-        WPFLog.Log("NightLightCloudStore: BlueLight singleton initialized on permanent MTA thread");
+        TADNLog.Log("NightLightCloudStore: BlueLight singleton initialized on permanent MTA thread");
     }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
@@ -824,7 +824,7 @@ internal static class NightLightCloudStore
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"NightLightCloudStore.BackendRequest: operation threw: {ex.Message}");
+                TADNLog.Log($"NightLightCloudStore.BackendRequest: operation threw: {ex.Message}");
                 _completionSource.TrySetResult(false);
             }
         }
@@ -871,7 +871,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightCloudStore.LoadKnownRVAs: setup failed, using in-memory defaults: {ex.Message}");
             return defaults;
         }
@@ -889,7 +889,7 @@ internal static class NightLightCloudStore
         }
         catch (Exception ex)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightCloudStore.LoadKnownRVAs: file IO/parse failed, using in-memory defaults: {ex.Message}");
             return defaults;
         }

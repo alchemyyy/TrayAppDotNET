@@ -119,7 +119,7 @@ internal static class NightLightSettingsHandler
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightSettingsHandler.OnDeferredRegistryTimerFired: {ex}");
+            TADNLog.Log($"NightLightSettingsHandler.OnDeferredRegistryTimerFired: {ex}");
         }
     }
 
@@ -148,7 +148,7 @@ internal static class NightLightSettingsHandler
             try { timer.Change(Timeout.Infinite, Timeout.Infinite); }
             catch (ObjectDisposedException)
             {
-                WPFLog.Log("NightLightSettingsHandler.Shutdown: deferred registry timer was already disposed");
+                TADNLog.Log("NightLightSettingsHandler.Shutdown: deferred registry timer was already disposed");
             }
 
             timer.Dispose();

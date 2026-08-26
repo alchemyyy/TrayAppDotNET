@@ -387,7 +387,7 @@ public sealed partial class BrightnessSettingsWindow
         {
             HotkeyApplyResult<BrightnessHotkeyAction, BrightnessHotkeyBinding>? applyResult = null;
             try { applyResult = AppServices.HotkeyService?.Apply(_settings.Hotkeys); }
-            catch (Exception ex) { WPFLog.Log($"BrightnessSettingsWindow.Hotkeys.Apply: {ex.Message}"); }
+            catch (Exception ex) { TADNLog.Log($"BrightnessSettingsWindow.Hotkeys.Apply: {ex.Message}"); }
 
             entries.Children.Clear();
             foreach (BrightnessHotkeyBinding binding in _settings.Hotkeys

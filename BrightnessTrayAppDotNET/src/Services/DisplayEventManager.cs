@@ -92,7 +92,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
         if (AllProfileMonitorsLoaded())
         {
-            WPFLog.Log("DisplayEventManager: short-circuit (flyout)");
+            TADNLog.Log("DisplayEventManager: short-circuit (flyout)");
             return;
         }
 
@@ -176,7 +176,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayEventManager.OnCoalesceTick: {ex.Message}");
+            TADNLog.Log($"DisplayEventManager.OnCoalesceTick: {ex.Message}");
         }
     }
 
@@ -192,7 +192,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         try { timer.Stop(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"DisplayEventManager debounce stop failed: {exception.Message}");
+            TADNLog.Log($"DisplayEventManager debounce stop failed: {exception.Message}");
         }
 
         if (tickHandler != null)
@@ -224,7 +224,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
             }
         }
 
-        WPFLog.Log("DisplayEventManager: burst start");
+        TADNLog.Log("DisplayEventManager: burst start");
     }
 
     private void OnBurstTick(object? state)
@@ -244,12 +244,12 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
             if (AllProfileMonitorsLoaded())
             {
-                WPFLog.Log("DisplayEventManager: short-circuit (burst)");
+                TADNLog.Log("DisplayEventManager: short-circuit (burst)");
                 StopBurst(generation);
                 return;
             }
 
-            WPFLog.Log($"DisplayEventManager: tick {tickCount}");
+            TADNLog.Log($"DisplayEventManager: tick {tickCount}");
             ScanAndReconcile();
 
             bool timedOut;
@@ -261,13 +261,13 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
             if (timedOut)
             {
-                WPFLog.Log("DisplayEventManager: burst timed out");
+                TADNLog.Log("DisplayEventManager: burst timed out");
                 StopBurst(generation);
             }
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayEventManager.OnBurstTick: {ex.Message}");
+            TADNLog.Log($"DisplayEventManager.OnBurstTick: {ex.Message}");
         }
     }
 
@@ -275,7 +275,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
     {
         if (_burstActive && AllProfileMonitorsLoaded())
         {
-            WPFLog.Log("DisplayEventManager: short-circuit on refresh");
+            TADNLog.Log("DisplayEventManager: short-circuit on refresh");
             StopBurst();
         }
     }
@@ -315,7 +315,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
 
             if (hwidGap || countGap)
             {
-                WPFLog.Log("DisplayEventManager: gap detected, calling Refresh");
+                TADNLog.Log("DisplayEventManager: gap detected, calling Refresh");
                 // Mark this as a topology-event-driven Refresh so MonitorService applies the
                 // post-detection settle to Phase B. Cold-start / sweep / recovery Refreshes do not
                 // call this and Phase B runs synchronously, keeping the launch path responsive.
@@ -325,7 +325,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayEventManager: scan failed: {ex.Message}");
+            TADNLog.Log($"DisplayEventManager: scan failed: {ex.Message}");
         }
         finally
         {
@@ -402,7 +402,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
             if (!TrayXmlSerializer.TryReadFile(
                     profilesPath,
                     out ProfileCollection? collection,
-                    ex => WPFLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}")))
+                    ex => TADNLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}")))
                 return null;
 
             int idx = collection.LastSelectedIndex;
@@ -422,7 +422,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}");
+            TADNLog.Log($"DisplayEventManager: failed to read profiles.xml: {ex.Message}");
             return null;
         }
     }
@@ -435,7 +435,7 @@ public sealed class DisplayEventManager(MonitorService monitorService, string pr
             ref classGuid, IntPtr.Zero, IntPtr.Zero, SetupAPI.DIGCF_PRESENT);
         if (hDevInfo == SetupAPI.INVALID_HANDLE_VALUE)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"DisplayEventManager: SetupDiGetClassDevs failed ({Marshal.GetLastWin32Error()})");
             return result;
         }

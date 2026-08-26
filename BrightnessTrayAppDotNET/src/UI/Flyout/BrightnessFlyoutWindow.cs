@@ -703,7 +703,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             _rebuildVisualPending = false;
             _rebuildVisualQueued = false;
-            WPFLog.Log($"BrightnessFlyoutWindow.RebuildVisual: {ex.GetType().Name}: {ex.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow.RebuildVisual: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -723,7 +723,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
         UIResourceScope candidateResources = new(
             nameof(BrightnessFlyoutWindow) + ".Content",
-            exception => WPFLog.Log(
+            exception => TADNLog.Log(
                 $"BrightnessFlyoutWindow content cleanup failed: {exception.GetType().Name}: {exception.Message}"));
         FlyoutVisualState candidate = new();
         candidateResources.Add(() => ReleaseVisualState(candidate));
@@ -780,7 +780,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 nameof(BrightnessFlyoutWindow),
                 candidate.RootCard,
                 candidateResources,
-                logError: exception => WPFLog.Log(
+                logError: exception => TADNLog.Log(
                     $"BrightnessFlyoutWindow root release failed: {exception.GetType().Name}: {exception.Message}"));
             PublishAndCommitVisualState(candidate, replacement);
         }
@@ -841,7 +841,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             try { capturedPointer.Capture(null); }
             catch (Exception exception)
             {
-                WPFLog.Log($"BrightnessFlyoutWindow root pointer release failed: {exception.Message}");
+                TADNLog.Log($"BrightnessFlyoutWindow root pointer release failed: {exception.Message}");
             }
         }
 
@@ -1640,8 +1640,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
             EnableRoundedCorners = _settings?.EnableRoundedCorners == true,
             L = L,
-            Log = static message => WPFLog.Log(message),
-            FlushLog = static () => WPFLog.Flush(),
+            Log = static message => TADNLog.Log(message),
+            FlushLog = static () => TADNLog.Flush(),
             Shutdown = static () =>
             {
                 if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime lifetime)
@@ -2167,7 +2167,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (index < 0 || index >= _profileManager.Profiles.Profiles.Count) return;
         if (MasterMonitor.IsDragging || NightLightMonitor.IsDragging || Monitors.Any(m => m.IsDragging))
         {
-            WPFLog.Log($"BrightnessFlyoutWindow.SelectProfileApplyingMode({index}) skipped: drag in progress");
+            TADNLog.Log($"BrightnessFlyoutWindow.SelectProfileApplyingMode({index}) skipped: drag in progress");
             return;
         }
 
@@ -2591,7 +2591,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"BrightnessFlyoutWindow.RunHardPowerOff: {ex.Message}");
+                TADNLog.Log($"BrightnessFlyoutWindow.RunHardPowerOff: {ex.Message}");
                 ok = false;
                 error = ex.Message;
             }
@@ -2676,7 +2676,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow.OpenDisplaySettings: {ex.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow.OpenDisplaySettings: {ex.Message}");
         }
     }
 
@@ -2879,7 +2879,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             try { previewTimer.Stop(); }
             catch (Exception exception)
             {
-                WPFLog.Log($"BrightnessFlyoutWindow preview timer stop failed: {exception.Message}");
+                TADNLog.Log($"BrightnessFlyoutWindow preview timer stop failed: {exception.Message}");
             }
 
             previewTimer.Tick -= PreviewSweepHardwareTick;
@@ -2900,7 +2900,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow.FinishPreviewSweep restore failed: {exception.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow.FinishPreviewSweep restore failed: {exception.Message}");
         }
 
         RaisePreviewSweepStateChanged(false);
@@ -2911,7 +2911,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try { PreviewSweepStateChanged?.Invoke(isRunning); }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow preview state subscriber failed: {exception.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow preview state subscriber failed: {exception.Message}");
         }
     }
 
@@ -2920,7 +2920,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try { PreviewSweepProgress?.Invoke(progress); }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow preview progress subscriber failed: {exception.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow preview progress subscriber failed: {exception.Message}");
         }
     }
 
@@ -3002,7 +3002,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         SliderState engaged = SliderStateMachine.OnCurveEngaged(monitor.SliderState, _isInCurveDisabledPeriod);
         monitor.SliderState = SliderStateMachine.OnUserRelease(engaged);
         if (monitor.IsCurveReleased)
-            WPFLog.Log($"BrightnessFlyoutWindow: restored manual curve override '{CurveStopwatchKeyFor(monitor)}'");
+            TADNLog.Log($"BrightnessFlyoutWindow: restored manual curve override '{CurveStopwatchKeyFor(monitor)}'");
     }
 
     internal static bool ShouldRestorePersistedCurveRelease(CurveStopwatchEntry? entry, DateTime utcNow)
@@ -3015,7 +3015,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void PersistCurveReleaseState(MonitorInfo monitor, bool released)
     {
         if (!SetPersistedCurveReleaseState(monitor, released)) return;
-        WPFLog.Log(
+        TADNLog.Log(
             $"BrightnessFlyoutWindow: persisted manual curve override '{CurveStopwatchKeyFor(monitor)}'={released}");
         _settings?.Save();
     }
@@ -3191,7 +3191,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try { curveStopwatchTimer.Stop(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow curve stopwatch timer stop failed: {exception.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow curve stopwatch timer stop failed: {exception.Message}");
         }
 
         curveStopwatchTimer.Tick -= OnCurveStopwatchTimerTick;
@@ -3359,7 +3359,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             try { e.Pointer.Capture(null); }
             catch (Exception releaseException)
             {
-                WPFLog.Log($"BrightnessFlyoutWindow capture rollback failed: {releaseException.Message}");
+                TADNLog.Log($"BrightnessFlyoutWindow capture rollback failed: {releaseException.Message}");
             }
             throw;
         }
@@ -3421,7 +3421,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try { pointer.Capture(null); }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow pointer release failed: {exception.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow pointer release failed: {exception.Message}");
         }
         if (commit) _dockingController.CommitDragPosition();
         FlushPendingRebuildVisual();
@@ -3602,7 +3602,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         try { cleanup(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessFlyoutWindow.OnClosed {operation} failed: {exception.Message}");
+            TADNLog.Log($"BrightnessFlyoutWindow.OnClosed {operation} failed: {exception.Message}");
         }
     }
 

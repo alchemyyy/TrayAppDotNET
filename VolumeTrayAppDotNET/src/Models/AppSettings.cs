@@ -984,8 +984,8 @@ public class AppSettings : AppSettingsCommon, IFlyoutDockSettings
     // Scale is an integer percent applied to the icon visuals (Image + fallback / mute glyphs) so
     // the user can bump them larger without changing the slot grid. Defaults to 115 so icons read
     // a touch larger than the slider-drawer baseline.
-    // Soft-max + icons-per-row defaults / clamps are exposed as consts so the WPF panel DP, the
-    // Window-side sanitiser, and the property initializer all reference one source of truth.
+    // Soft-max + icons-per-row defaults / clamps are exposed as consts so the flyout layout,
+    // settings sanitiser, and property initializer all reference one source of truth.
     public const int AppDrawerIconsCenterSoftMaxDefault = 7;
     public const int AppDrawerIconsCenterSoftMaxMin = 1;
     public const int AppDrawerIconsCenterSoftMaxMax = 16;

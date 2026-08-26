@@ -233,7 +233,7 @@ internal static class FlyoutDeviceOrdering
 
     /// <summary>
     /// Bucket classifier. Default-multimedia wins over default-comms when one device holds both
-    /// roles, mirroring the device-icon glyph precedence in <see cref="WPF.DeviceIconGlyphConverter"/>.
+    /// roles, matching the flyout's device-state glyph precedence.
     /// </summary>
     private static int ClassifyBucket(AudioDevice device)
     {

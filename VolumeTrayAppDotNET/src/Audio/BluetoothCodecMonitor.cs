@@ -81,7 +81,7 @@ internal sealed class BluetoothCodecMonitor(Dispatcher dispatcher) : INotifyProp
 
     /// <summary>
     /// The most recently observed A2DP codec, or null when nothing has been seen yet (or after
-    /// <see cref="Reset"/>). Mutated only on the dispatcher. Equality short-circuited so WPF
+    /// <see cref="Reset"/>). Mutated only on the dispatcher. Equality short-circuited so Avalonia
     /// bindings don't see spurious PropertyChanged storms during ETW bursts; the unconditional
     /// re-fanout that newly-promoted endpoints rely on goes through <see cref="RaiseCodecChanged"/>.
     /// </summary>

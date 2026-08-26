@@ -522,7 +522,7 @@ public sealed class ProfileManager : IDisposable
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"ProfileManager.LoadOrCreate: {ex.Message}");
+            TADNLog.Log($"ProfileManager.LoadOrCreate: {ex.Message}");
         }
 
         return CreateDefault();
@@ -576,7 +576,7 @@ public sealed class ProfileManager : IDisposable
                     anyUpgrade = true;
                     if (knownEDIDKeys.Count > 0 && !knownEDIDKeys.Contains(legacyID))
                     {
-                        WPFLog.Log(
+                        TADNLog.Log(
                             $"ProfileManager: migrated EDIDKey '{legacyID}' not yet in KnownDisplays");
                     }
                 }
@@ -641,7 +641,7 @@ public sealed class ProfileManager : IDisposable
         try { SaveCore(); }
         catch (Exception ex)
         {
-            WPFLog.Log($"ProfileManager.Dispose save: {ex.Message}");
+            TADNLog.Log($"ProfileManager.Dispose save: {ex.Message}");
         }
 
         SelectedProfileChanged = null;
@@ -655,7 +655,7 @@ public sealed class ProfileManager : IDisposable
         => TrayXmlSerializer.TryWriteFile(
             _profilesPath,
             Profiles,
-            ex => WPFLog.Log($"ProfileManager.Save: {ex.Message}"));
+            ex => TADNLog.Log($"ProfileManager.Save: {ex.Message}"));
 
     /// <summary>
     /// Gets the default profiles file path.

@@ -88,11 +88,11 @@ public sealed partial class BrightnessSettingsWindow
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            WPFLog.Log("BrightnessSettingsWindow.ApproximateEnvironmentalLocationFromIPAsync: page retired");
+            TADNLog.Log("BrightnessSettingsWindow.ApproximateEnvironmentalLocationFromIPAsync: page retired");
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"BrightnessSettingsWindow.ApproximateEnvironmentalLocationFromIPAsync: {ex.Message}");
+            TADNLog.Log($"BrightnessSettingsWindow.ApproximateEnvironmentalLocationFromIPAsync: {ex.Message}");
         }
         finally
         {
@@ -146,7 +146,7 @@ public sealed partial class BrightnessSettingsWindow
         try { picker.CloseForPageRetirement(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"BrightnessSettingsWindow.CloseEnvironmentalMapPicker: {exception.Message}");
+            TADNLog.Log($"BrightnessSettingsWindow.CloseEnvironmentalMapPicker: {exception.Message}");
         }
     }
 

@@ -34,7 +34,6 @@ public sealed record TrayAppDotNETProgramOptions(
 public static class TrayAppDotNETProgram
 {
     private const string NoWatcherEnvironmentVariable = "TrayAppDotNET_NO_WATCHER";
-    private const string LegacyBrightnessNoWatcherEnvironmentVariable = "BTAWPF_NO_WATCHER";
 
     private static SingleInstanceCoordinator? _singleInstanceCoordinator;
     private static ApplicationInstanceCoordinator? _applicationInstanceCoordinator;
@@ -368,8 +367,7 @@ public static class TrayAppDotNETProgram
         !UpdateInstaller.IsUpdateMode(args);
 
     private static bool NoWatcherRequested() =>
-        IsTruthyEnvironmentValue(Environment.GetEnvironmentVariable(NoWatcherEnvironmentVariable)) ||
-        IsTruthyEnvironmentValue(Environment.GetEnvironmentVariable(LegacyBrightnessNoWatcherEnvironmentVariable));
+        IsTruthyEnvironmentValue(Environment.GetEnvironmentVariable(NoWatcherEnvironmentVariable));
 
     private static bool IsTruthyEnvironmentValue(string? value)
     {

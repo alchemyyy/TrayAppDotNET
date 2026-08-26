@@ -9,7 +9,7 @@ using IAudioSessionControl = VolumeTrayAppDotNET.Interop.IAudioSessionControl;
 namespace VolumeTrayAppDotNET.Audio;
 
 // Resolves an audio session's process to a refcounted, cached Avalonia icon. The extraction chain
-// mirrors the WPF implementation: system-sounds resource, app-supplied icon path, UWP AUMID shell
+// uses the established resolution chain: system-sounds resource, app-supplied icon path, UWP AUMID shell
 // image, then desktop PE/shell image.
 internal static class AppIconResolver
 {

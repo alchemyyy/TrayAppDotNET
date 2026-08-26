@@ -45,7 +45,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="TrayAppDotNETCommon.TADNLog" Alias="WPFLog" />
+    <Using Include="TrayAppDotNETCommon.TADNLog" Alias="TADNLog" />
     <Using Include="TrayAppDotNETCommon" />
     <Using Include="TrayAppDotNETCommon.Interop" />
     <Using Include="BrightnessTrayAppDotNET" />

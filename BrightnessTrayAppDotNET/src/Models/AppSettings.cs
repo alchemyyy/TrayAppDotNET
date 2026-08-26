@@ -640,7 +640,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
         => TrayXmlSerializer.TryWriteFile(
             path,
             this,
-            ex => WPFLog.Log($"AppSettings.Save: {ex.Message}"));
+            ex => TADNLog.Log($"AppSettings.Save: {ex.Message}"));
 
     public static AppSettings LoadOrDefault() => LoadOrDefault(GetDefaultPath());
 

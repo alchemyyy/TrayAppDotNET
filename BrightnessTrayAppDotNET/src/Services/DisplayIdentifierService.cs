@@ -87,7 +87,7 @@ public static class DisplayIdentifierService
         try { timer.Stop(); }
         catch (Exception exception)
         {
-            WPFLog.Log($"DisplayIdentifierService.StopTimer: {exception.Message}");
+            TADNLog.Log($"DisplayIdentifierService.StopTimer: {exception.Message}");
         }
         timer.Tick -= OnTimerTick;
     }
@@ -99,7 +99,7 @@ public static class DisplayIdentifierService
             try { overlayWindow.Close(); }
             catch (Exception exception)
             {
-                WPFLog.Log($"DisplayIdentifierService.CloseAll: {exception.Message}");
+                TADNLog.Log($"DisplayIdentifierService.CloseAll: {exception.Message}");
             }
         }
 

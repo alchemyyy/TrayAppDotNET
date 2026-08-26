@@ -50,7 +50,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperClient.IsSupported: initialization failed: {ex.Message}");
+            TADNLog.Log($"NightLightHelperClient.IsSupported: initialization failed: {ex.Message}");
             return false;
         }
     }
@@ -109,7 +109,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightHelperClient: helper PID {helper.ProcessID} active-state operation failed: "
                 + ex.Message);
             return false;
@@ -127,7 +127,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperClient.Shutdown failed: {ex.Message}");
+            TADNLog.Log($"NightLightHelperClient.Shutdown failed: {ex.Message}");
         }
     }
 
@@ -183,7 +183,7 @@ internal static class NightLightHelperClient
         NightLightHelperConnection? activeHelper = GetActiveHelper();
         if (!pumpReady || activeHelper == null) return false;
 
-        WPFLog.Log(
+        TADNLog.Log(
             $"NightLightHelperClient: active helper PID {activeHelper.ProcessID} primed and ready");
         return true;
     }
@@ -197,7 +197,7 @@ internal static class NightLightHelperClient
             bool pipePrimed = await helper.PingAsync(cancellationToken).ConfigureAwait(false);
             if (!pipePrimed)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"NightLightHelperClient: helper PID {helper.ProcessID} rejected startup PING");
                 return;
             }
@@ -213,7 +213,7 @@ internal static class NightLightHelperClient
                            await activeHelper.DrainAsync(cancellationToken).ConfigureAwait(false);
             if (!drained)
             {
-                WPFLog.Log("NightLightHelperClient: startup native streaming prime did not drain");
+                TADNLog.Log("NightLightHelperClient: startup native streaming prime did not drain");
                 return;
             }
         }
@@ -223,7 +223,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperClient: startup prime failed: {ex.Message}");
+            TADNLog.Log($"NightLightHelperClient: startup prime failed: {ex.Message}");
         }
     }
 
@@ -269,7 +269,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperClient.PumpAsync failed: {ex}");
+            TADNLog.Log($"NightLightHelperClient.PumpAsync failed: {ex}");
         }
         finally
         {
@@ -308,7 +308,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightHelperClient: helper PID {helper.ProcessID} operation failed: " +
                 ex.Message);
             RestorePendingStrength(percent);
@@ -326,7 +326,7 @@ internal static class NightLightHelperClient
 
         if (!operationSucceeded)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightHelperClient: helper PID {helper.ProcessID} rejected strength " +
                 $"operation {helper.CompletedOperationCount}");
         }
@@ -450,7 +450,7 @@ internal static class NightLightHelperClient
 
         if (!started) return;
 
-        WPFLog.Log(
+        TADNLog.Log(
             $"NightLightHelperClient: warming replacement before PID {activeHelper.ProcessID} reaches " +
             $"{Constants.NightLightHelperRecycleOperationCount} operations");
         ArmRecycleQuietTimer();
@@ -508,13 +508,13 @@ internal static class NightLightHelperClient
             bool drained = await activeHelper.DrainAsync(cancellationToken).ConfigureAwait(false);
             if (!drained)
             {
-                WPFLog.Log(
+                TADNLog.Log(
                     $"NightLightHelperClient: helper PID {activeHelper.ProcessID} rejected recycle drain");
             }
         }
         catch (Exception ex)
         {
-            WPFLog.Log(
+            TADNLog.Log(
                 $"NightLightHelperClient: helper PID {activeHelper.ProcessID} recycle drain failed: " +
                 ex.Message);
         }
@@ -545,7 +545,7 @@ internal static class NightLightHelperClient
         // process teardown so input that resumes at the quiet boundary is never held behind graceful exit.
         TrackRetirement(activeHelper.StopAsync(graceful: true));
 
-        WPFLog.Log(
+        TADNLog.Log(
             $"NightLightHelperClient: recycled helper PID {activeHelper.ProcessID} after " +
             $"{activeHelper.CompletedOperationCount} operations; PID {replacementHelper.ProcessID} is active");
 
@@ -614,7 +614,7 @@ internal static class NightLightHelperClient
             return GetActiveHelper() != null;
         }
 
-        WPFLog.Log($"NightLightHelperClient: recovered with helper PID {replacement.ProcessID}");
+        TADNLog.Log($"NightLightHelperClient: recovered with helper PID {replacement.ProcessID}");
         return true;
     }
 
@@ -631,7 +631,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperClient: helper startup failed: {ex.Message}");
+            TADNLog.Log($"NightLightHelperClient: helper startup failed: {ex.Message}");
             return null;
         }
     }
@@ -742,7 +742,7 @@ internal static class NightLightHelperClient
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperClient: bounded shutdown wait ended: {ex.Message}");
+            TADNLog.Log($"NightLightHelperClient: bounded shutdown wait ended: {ex.Message}");
         }
     }
 
@@ -1001,7 +1001,7 @@ internal static class NightLightHelperClient
                     }
                     catch (Exception ex)
                     {
-                        WPFLog.Log(
+                        TADNLog.Log(
                             $"NightLightHelperClient: EXIT to PID {ProcessID} failed: {ex.Message}");
                     }
                     finally
@@ -1018,7 +1018,7 @@ internal static class NightLightHelperClient
                     }
                     catch (Exception ex)
                     {
-                        WPFLog.Log(
+                        TADNLog.Log(
                             $"NightLightHelperClient: PID {ProcessID} graceful exit timed out: {ex.Message}");
                     }
                 }
@@ -1028,7 +1028,7 @@ internal static class NightLightHelperClient
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"NightLightHelperClient: stopping PID {ProcessID} failed: {ex.Message}");
+                TADNLog.Log($"NightLightHelperClient: stopping PID {ProcessID} failed: {ex.Message}");
                 KillProcess(_process);
             }
             finally
@@ -1055,7 +1055,7 @@ internal static class NightLightHelperClient
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"NightLightHelperClient.KillProcess failed: {ex.Message}");
+                TADNLog.Log($"NightLightHelperClient.KillProcess failed: {ex.Message}");
             }
         }
     }
@@ -1123,20 +1123,20 @@ internal static class NightLightHelperServer
                 return true;
             }
 
-            WPFLog.Log($"NightLightHelperServer: PID {Environment.ProcessId} ready");
+            TADNLog.Log($"NightLightHelperServer: PID {Environment.ProcessId} ready");
             RunLoop(reader, writer);
             return true;
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperServer.TryRun failed: {ex}");
+            TADNLog.Log($"NightLightHelperServer.TryRun failed: {ex}");
             exitCode = 1;
             return true;
         }
         finally
         {
             NightLightCloudStore.Shutdown();
-            WPFLog.Shutdown();
+            TADNLog.Shutdown();
         }
     }
 
@@ -1157,7 +1157,7 @@ internal static class NightLightHelperServer
             }
             catch (Exception ex)
             {
-                WPFLog.Log($"NightLightHelperServer command failed: {ex}");
+                TADNLog.Log($"NightLightHelperServer command failed: {ex}");
                 response = FailureResponse;
             }
 
@@ -1286,7 +1286,7 @@ internal static class NightLightHelperServer
         }
         catch (Exception ex)
         {
-            WPFLog.Log($"NightLightHelperServer parent watchdog ended: {ex.Message}");
+            TADNLog.Log($"NightLightHelperServer parent watchdog ended: {ex.Message}");
         }
 
         Environment.Exit(0);

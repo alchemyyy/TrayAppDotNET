@@ -19,13 +19,13 @@ internal static class AppServices
         Program.ApplicationName,
         InstallLayout,
         DetectInstallations,
-        WPFLog.Log));
+        TADNLog.Log));
 
     public static TrayAppDotNETStartMenuShortcut StartMenu { get; } = new(new TrayAppDotNETStartMenuShortcutOptions(
         Program.ApplicationName,
         InstallLayout,
         DetectInstallations,
-        WPFLog.Log));
+        TADNLog.Log));
 
     public static TrayAppDotNETInstallIdentity InstallIdentity { get; } = new(
         Program.ApplicationName,
@@ -34,7 +34,7 @@ internal static class AppServices
         AppSettings.GetDefaultDirectory(),
         Startup.ShortcutPath,
         Startup.LegacyRunKeyRegistryPath,
-        WPFLog.Log);
+        TADNLog.Log);
 
     public static TrayAppDotNETInstallationService Installation { get; } = new(new TrayAppDotNETInstallationOptions(
         InstallIdentity,

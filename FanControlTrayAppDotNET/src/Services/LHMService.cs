@@ -118,7 +118,7 @@ public sealed class LHMService : IDisposable
     // Background poll loop. Hardware updates are real IO (SetupAPI, MSR reads, ACPI queries) and
     // can take tens of ms per pass, which is why this runs off the UI thread. Only the cheap
     // value-push pass marshals back to the dispatcher: setting properties on DataSource / Fan
-    // fires INPC, and WPF bindings expect those to arrive on the UI thread.
+    // fires INPC, and Avalonia bindings expect those to arrive on the UI thread.
     private async Task PollLoop(CancellationToken token)
     {
         while (!token.IsCancellationRequested)

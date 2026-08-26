@@ -122,7 +122,7 @@
     <value>About</value>
   </data>
   <data name="Settings_About_Tagline" xml:space="preserve">
-    <value>A WPF tray app skeleton.</value>
+    <value>A tray-based fan controller and hardware monitor.</value>
   </data>
   <data name="Settings_Common_Page_About" xml:space="preserve">
     <value>About</value>
