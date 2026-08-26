@@ -390,7 +390,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         return root;
     }
 
-    private Grid BuildModalDescription(
+    private static Grid BuildModalDescription(
         string applicationText,
         TrayAppDotNETUpdateModalDetails details,
         SettingsPalette palette)
