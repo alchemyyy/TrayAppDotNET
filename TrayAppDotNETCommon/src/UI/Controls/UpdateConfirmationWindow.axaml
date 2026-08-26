@@ -19,8 +19,8 @@
     <sys:Double x:Key="UpdateConfirmation.ModalTitleFontSize">18</sys:Double>
     <Thickness x:Key="UpdateConfirmation.ModalDescriptionMargin">0,10,0,0</Thickness>
     <sys:Double x:Key="UpdateConfirmation.VersionLineHeightPadding">6</sys:Double>
-    <sys:Double x:Key="UpdateConfirmation.ModalLinkColumnSpacing">8</sys:Double>
-    <Thickness x:Key="UpdateConfirmation.ModalLinkMargin">0,0,18,0</Thickness>
+    <sys:Double x:Key="UpdateConfirmation.ModalLinkSpacing">0</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.ModalLinksMargin">0,8,18,0</Thickness>
     <Thickness x:Key="UpdateConfirmation.ModalRestartNoticeMargin">0,8,0,-4</Thickness>
     <Thickness x:Key="UpdateConfirmation.ModalActionButtonsMargin">-4,12,12,11</Thickness>
     <sys:Double x:Key="UpdateConfirmation.ModalActionButtonSpacing">6</sys:Double>

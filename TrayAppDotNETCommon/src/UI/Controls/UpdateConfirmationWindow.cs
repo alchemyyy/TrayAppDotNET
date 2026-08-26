@@ -28,10 +28,10 @@ internal static class UpdateConfirmationLayout
         AXAMLResources.AxamlUpdateConfirmation.ModalDescriptionMargin;
     public static double VersionLineHeightPadding =>
         AXAMLResources.AxamlUpdateConfirmation.VersionLineHeightPadding;
-    public static double ModalLinkColumnSpacing =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalLinkColumnSpacing;
-    public static Thickness ModalLinkMargin =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalLinkMargin;
+    public static double ModalLinkSpacing =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalLinkSpacing;
+    public static Thickness ModalLinksMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalLinksMargin;
     public static Thickness ModalRestartNoticeMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalRestartNoticeMargin;
     public static Thickness ModalActionButtonsMargin =>
@@ -276,8 +276,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             Grid modalDescription = BuildModalDescription(
                 description,
                 _modalDetails,
-                palette,
-                resources);
+                palette);
             Grid.SetRow(modalDescription, descriptionRow);
             body.Children.Add(modalDescription);
         }
@@ -386,24 +385,19 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         body.Children.Add(buttons);
 
         root.Children.Add(body);
+        if (_useModalContentLayout && _modalDetails != null)
+            root.Children.Add(BuildModalLinks(_modalDetails, palette, resources));
         return root;
     }
 
     private Grid BuildModalDescription(
         string applicationText,
         TrayAppDotNETUpdateModalDetails details,
-        SettingsPalette palette,
-        UIResourceScope resources)
+        SettingsPalette palette)
     {
         Grid description = new()
         {
             Margin = UpdateConfirmationLayout.ModalDescriptionMargin,
-            ColumnSpacing = UpdateConfirmationLayout.ModalLinkColumnSpacing,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            },
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
@@ -429,24 +423,32 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         Grid.SetRow(currentVersion, 2);
         description.Children.Add(currentVersion);
 
-        TextBlock releasesLink = BuildModalHyperlink(
-            details.ReleasesLinkText,
-            details.ReleasesPageURI,
-            palette,
-            resources);
-        Grid.SetRow(releasesLink, 1);
-        Grid.SetColumn(releasesLink, 1);
-        description.Children.Add(releasesLink);
+        return description;
+    }
 
-        TextBlock websiteLink = BuildModalHyperlink(
+    private StackPanel BuildModalLinks(
+        TrayAppDotNETUpdateModalDetails details,
+        SettingsPalette palette,
+        UIResourceScope resources)
+    {
+        StackPanel links = new()
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = UpdateConfirmationLayout.ModalLinkSpacing,
+            Margin = UpdateConfirmationLayout.ModalLinksMargin
+        };
+        links.Children.Add(BuildModalHyperlink(
             details.WebsiteLinkText,
             TrayAppDotNETWebsitePageURI,
             palette,
-            resources);
-        Grid.SetColumn(websiteLink, 1);
-        description.Children.Add(websiteLink);
-
-        return description;
+            resources));
+        links.Children.Add(BuildModalHyperlink(
+            details.ReleasesLinkText,
+            details.ReleasesPageURI,
+            palette,
+            resources));
+        return links;
     }
 
     private static TextBlock BuildModalDescriptionText(
@@ -473,8 +475,6 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             palette,
             SettingsUILayout.DescriptionFontSize);
         link.Foreground = TrayAppDotNETSettingsUI.Brush(palette.Accent);
-        link.LineHeight = link.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
-        link.Margin = UpdateConfirmationLayout.ModalLinkMargin;
         link.TextDecorations = TextDecorations.Underline;
         link.Cursor = TrayAppDotNETCursors.Hand;
         link.Focusable = true;

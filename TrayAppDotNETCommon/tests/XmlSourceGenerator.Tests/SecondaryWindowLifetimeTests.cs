@@ -86,9 +86,10 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Equal(0, Grid.GetColumn(alternateButton));
         Assert.Equal(1, Grid.GetColumn(confirmButton));
         Assert.Equal(2, Grid.GetColumn(closeButton));
-        Assert.Single(
+        Grid modalBody = Assert.Single(
             prompt.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Margin == UpdateConfirmationLayout.ModalBodyMargin);
+        Assert.Equal(4, modalBody.RowDefinitions.Count);
         TextBlock descriptionText = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
             textBlock => textBlock.Text == "App: TestApp");
@@ -112,20 +113,27 @@ public sealed class SecondaryWindowLifetimeTests
             textBlock => textBlock.Text == "trayapp.net");
         Grid modalDescription = Assert.Single(
             prompt.GetVisualDescendants().OfType<Grid>(),
-            grid => grid.Children.Contains(newVersionText) && grid.Children.Contains(releasesLink));
+            grid => grid.Children.Contains(newVersionText) && grid.Children.Contains(currentVersionText));
         Assert.Equal(UpdateConfirmationLayout.ModalDescriptionMargin, modalDescription.Margin);
-        Assert.Equal(UpdateConfirmationLayout.ModalLinkColumnSpacing, modalDescription.ColumnSpacing);
+        Assert.Equal(3, modalDescription.Children.Count);
         Assert.Equal(1, Grid.GetRow(newVersionText));
-        Assert.Equal(1, Grid.GetRow(releasesLink));
-        Assert.Equal(1, Grid.GetColumn(releasesLink));
         Assert.Equal(2, Grid.GetRow(currentVersionText));
-        Assert.Equal(0, Grid.GetRow(websiteLink));
-        Assert.Equal(1, Grid.GetColumn(websiteLink));
-        Assert.Equal(UpdateConfirmationLayout.ModalLinkMargin, releasesLink.Margin);
-        Assert.Equal(UpdateConfirmationLayout.ModalLinkMargin, websiteLink.Margin);
-        Assert.Equal(
-            SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
-            releasesLink.LineHeight);
+        StackPanel modalLinks = Assert.Single(
+            prompt.GetVisualDescendants().OfType<StackPanel>(),
+            panel => panel.Children.Contains(releasesLink));
+        Assert.Equal(Orientation.Vertical, modalLinks.Orientation);
+        Assert.Equal(HorizontalAlignment.Right, modalLinks.HorizontalAlignment);
+        Assert.Equal(UpdateConfirmationLayout.ModalLinkSpacing, modalLinks.Spacing);
+        Assert.Equal(UpdateConfirmationLayout.ModalLinksMargin, modalLinks.Margin);
+        Assert.Equal(0, Grid.GetRow(modalLinks));
+        Assert.Equal(2, modalLinks.Children.Count);
+        Assert.Same(websiteLink, modalLinks.Children[0]);
+        Assert.Same(releasesLink, modalLinks.Children[1]);
+        Assert.DoesNotContain(modalLinks, modalBody.Children);
+        Assert.Equal(default(Thickness), releasesLink.Margin);
+        Assert.Equal(default(Thickness), websiteLink.Margin);
+        Assert.True(double.IsNaN(releasesLink.LineHeight));
+        Assert.True(double.IsNaN(websiteLink.LineHeight));
         Assert.Equal(HorizontalAlignment.Right, releasesLink.HorizontalAlignment);
         Assert.Equal(HorizontalAlignment.Right, websiteLink.HorizontalAlignment);
         Assert.Same(TextDecorations.Underline, releasesLink.TextDecorations);
