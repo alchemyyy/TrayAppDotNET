@@ -97,6 +97,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private bool _fanRebuildQueued;
     private bool _isRebuildingVisual;
     private bool _isPublishingVisualGeneration;
+    private long _visibilityGeneration;
     private int _activeSliderDrags;
     private int? _lastRequestedProfile;
     private TaskCompletionSource<bool>? _confirmTcs;
@@ -267,17 +268,31 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
+        if (WindowResources.IsDisposed) return;
+
+        long visibilityGeneration = ++_visibilityGeneration;
+        bool wasVisible = IsVisible;
+        if (!wasVisible) Opacity = 0;
+
         _lastTrayIcon = trayIcon;
-        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         ExecuteFanRebuild(reposition: false);
+
+        // Stage near the tray so native creation cannot flash at the work-area origin
+        PixelPoint stagingPosition = _dockingController.ResolvePosition();
         ShowHiddenForPositioning(stagingPosition);
+
+        // Position before the dispatcher can present the staging surface
+        ApplyWorkAreaMaxHeight();
+        UpdateLayout();
+        PositionNearTray();
 
         FanFlyoutVisualGeneration? generation = _activeVisualGeneration;
         Dispatcher.UIThread.Post(() =>
         {
             if (WindowResources.IsDisposed
+                || visibilityGeneration != _visibilityGeneration
                 || !IsVisible
                 || !ReferenceEquals(_activeVisualGeneration, generation))
             {
@@ -295,6 +310,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     public new void Hide()
     {
+        _visibilityGeneration++;
+        Opacity = 0;
         CloseAddItemMenu();
         ResetPointerGestureState();
         CancelConfirmOverlay();

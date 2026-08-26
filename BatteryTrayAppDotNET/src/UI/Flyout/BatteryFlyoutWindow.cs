@@ -76,6 +76,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     private bool _rebuildPending;
     private bool _rebuildQueued;
     private bool _isClosed;
+    private long _visibilityGeneration;
 
     public BatteryFlyoutWindow(BatteryMonitorService batteryMonitor, AppSettings settings, Action openSettings)
     {
@@ -111,20 +112,37 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         if (_isClosed) return;
 
+        long visibilityGeneration = ++_visibilityGeneration;
+        bool wasVisible = IsVisible;
+        if (!wasVisible) Opacity = 0;
+
         _lastTrayIcon = trayIcon;
-        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         _dockingController.RedockIfUndockingDisabled();
         ApplyWorkAreaMaxHeight();
         Rebuild();
 
+        // Stage near the tray so native creation cannot flash at the work-area origin
+        PixelPoint stagingPosition = _dockingController.ResolvePosition();
         ShowHiddenForPositioning(stagingPosition);
+
+        // Position before the dispatcher can present the staging surface
+        ApplyWorkAreaMaxHeight();
+        UpdateLayout();
+        PositionNearTray();
 
         CancellationToken cancellationToken = WindowResources.CancellationToken;
         Dispatcher.UIThread.Post(
             () =>
             {
-                if (_isClosed || cancellationToken.IsCancellationRequested || !IsVisible) return;
+                if (_isClosed
+                    || visibilityGeneration != _visibilityGeneration
+                    || cancellationToken.IsCancellationRequested
+                    || !IsVisible)
+                {
+                    return;
+                }
+
                 ApplyWorkAreaMaxHeight();
                 UpdateLayout();
                 PositionNearTray();
@@ -136,6 +154,8 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
     public new void Hide()
     {
+        _visibilityGeneration++;
+        Opacity = 0;
         base.Hide();
         NotifyWarmDismissed();
     }

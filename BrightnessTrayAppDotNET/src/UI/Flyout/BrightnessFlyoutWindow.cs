@@ -356,14 +356,25 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, bool activate = true)
     {
         if (!IsWindowAlive) return;
+
+        long visibilityGeneration = ++_visibilityGeneration;
+        bool wasVisible = IsVisible;
+        if (!wasVisible) Opacity = 0;
+
         _lastTrayIcon = trayIcon;
-        PixelPoint stagingPosition = ResolveWorkArea(trayIcon).Position;
         ShowActivated = activate;
         ApplyWorkAreaMaxHeight();
         RebuildVisual();
+
+        // Stage near the tray so native creation cannot flash at the work-area origin
+        PixelPoint stagingPosition = _dockingController.ResolvePosition();
         ShowHiddenForPositioning(stagingPosition);
 
-        long visibilityGeneration = ++_visibilityGeneration;
+        // Position before the dispatcher can present the staging surface
+        ApplyWorkAreaMaxHeight();
+        UpdateLayout();
+        PositionNearTray();
+
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
@@ -379,10 +390,19 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public new void Show()
     {
         if (!IsWindowAlive) return;
-        if (ActiveContentGeneration == null) RebuildVisual();
-        ShowHiddenForPositioning(ResolveWorkArea(_lastTrayIcon).Position);
-        AppServices.DisplayEventManager?.RunSingleGatedScan();
+
         long visibilityGeneration = ++_visibilityGeneration;
+        bool wasVisible = IsVisible;
+        if (!wasVisible) Opacity = 0;
+
+        if (ActiveContentGeneration == null) RebuildVisual();
+        ShowHiddenForPositioning(_dockingController.ResolvePosition());
+        AppServices.DisplayEventManager?.RunSingleGatedScan();
+
+        ApplyWorkAreaMaxHeight();
+        UpdateLayout();
+        PositionNearTray();
+
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
@@ -397,11 +417,16 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public void ShowWithoutActivating()
     {
         if (!IsWindowAlive) return;
+
+        long visibilityGeneration = ++_visibilityGeneration;
+        bool wasVisible = IsVisible;
+        if (!wasVisible) Opacity = 0;
+
         if (ActiveContentGeneration == null) RebuildVisual();
         ShowActivated = false;
         try
         {
-            ShowHiddenForPositioning(ResolveWorkArea(_lastTrayIcon).Position);
+            ShowHiddenForPositioning(_dockingController.ResolvePosition());
         }
         finally
         {
@@ -409,7 +434,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         AppServices.DisplayEventManager?.RunSingleGatedScan();
-        long visibilityGeneration = ++_visibilityGeneration;
+        ApplyWorkAreaMaxHeight();
+        UpdateLayout();
+        PositionNearTray();
+
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsWindowAlive || visibilityGeneration != _visibilityGeneration || !IsVisible) return;
@@ -425,6 +453,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     public new void Hide()
     {
         _visibilityGeneration++;
+        Opacity = 0;
         CancelPreviewSweep();
         CancelConfirmOverlay();
         base.Hide();
