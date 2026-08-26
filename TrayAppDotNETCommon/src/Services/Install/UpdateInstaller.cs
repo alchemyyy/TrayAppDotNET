@@ -321,6 +321,8 @@ internal static class UpdateInstaller
             int workerPID = RequiredIntArgument(args, "--worker-pid");
             long workerStartTimeTicks = RequiredLongArgument(args, "--worker-start");
             using Process worker = RequireProcess(workerPID, workerStartTimeTicks, "update worker");
+            // Retain the handle so ExitCode remains available after an externally opened process exits
+            _ = worker.SafeHandle;
             log($"Waiting for worker PID {workerPID}.");
             worker.WaitForExit();
             int workerExitCode = worker.ExitCode;
