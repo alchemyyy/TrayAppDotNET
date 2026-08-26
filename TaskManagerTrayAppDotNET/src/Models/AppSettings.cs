@@ -3,6 +3,19 @@ using TrayAppDotNETCommon.Serialization;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
+public enum TrayGraphStyle
+{
+    Current,
+    Marquee
+}
+
+public enum TrayGraphDataSource
+{
+    CPUAverage,
+    CPUHighestCore,
+    Memory
+}
+
 public enum DetailsGridFontWeight
 {
     Thin = 100,
@@ -76,6 +89,18 @@ public sealed class AppSettings : AppSettingsCommon
         get;
         set => SetField(ref field, value);
     }
+
+    public TrayGraphStyle TrayGraphStyle
+    {
+        get;
+        set => SetField(ref field, NormalizeTrayGraphStyle(value));
+    } = TrayGraphStyle.Marquee;
+
+    public TrayGraphDataSource TrayGraphDataSource
+    {
+        get;
+        set => SetField(ref field, NormalizeTrayGraphDataSource(value));
+    } = TrayGraphDataSource.CPUAverage;
 
     public double GridFontSize
     {
@@ -205,4 +230,10 @@ public sealed class AppSettings : AppSettingsCommon
 
     private static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
         Enum.IsDefined(value) ? value : DetailsGridFontWeight.Normal;
+
+    private static TrayGraphStyle NormalizeTrayGraphStyle(TrayGraphStyle value) =>
+        Enum.IsDefined(value) ? value : TrayGraphStyle.Marquee;
+
+    private static TrayGraphDataSource NormalizeTrayGraphDataSource(TrayGraphDataSource value) =>
+        Enum.IsDefined(value) ? value : TrayGraphDataSource.CPUAverage;
 }

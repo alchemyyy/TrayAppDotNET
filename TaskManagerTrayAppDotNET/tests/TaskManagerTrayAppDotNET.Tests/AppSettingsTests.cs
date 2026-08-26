@@ -15,6 +15,42 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void TrayGraphDefaultsToAverageCPUMarquee()
+    {
+        AppSettings settings = new();
+
+        Assert.Equal(TrayGraphStyle.Marquee, settings.TrayGraphStyle);
+        Assert.Equal(TrayGraphDataSource.CPUAverage, settings.TrayGraphDataSource);
+    }
+
+    [Fact]
+    public void TrayGraphSettingsNormalizeAndRoundTripThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        settings.TrayGraphStyle = (TrayGraphStyle)int.MaxValue;
+        settings.TrayGraphDataSource = (TrayGraphDataSource)int.MaxValue;
+        Assert.Equal(TrayGraphStyle.Marquee, settings.TrayGraphStyle);
+        Assert.Equal(TrayGraphDataSource.CPUAverage, settings.TrayGraphDataSource);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.TrayGraphStyle = TrayGraphStyle.Current;
+            settings.TrayGraphDataSource = TrayGraphDataSource.Memory;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(TrayGraphStyle.Current, loaded.TrayGraphStyle);
+            Assert.Equal(TrayGraphDataSource.Memory, loaded.TrayGraphDataSource);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void SubmenuDelayDefaultsToCustom150Milliseconds()
     {
         AppSettings settings = new();

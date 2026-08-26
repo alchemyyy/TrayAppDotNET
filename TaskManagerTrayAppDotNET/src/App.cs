@@ -8,6 +8,7 @@ using HotAvalonia;
 #endif
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI;
+using TaskManagerTrayAppDotNET.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET;
@@ -43,7 +44,10 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
+    private TaskManagerTrayIcon? _trayIconRenderer;
+    private readonly TrayIconRenderQueue _trayIconRenderQueue = new(TADNLog.Log);
     private WatcherMonitor? _watcherMonitor;
+    private SystemPerformanceSample _latestSystemPerformanceSample = SystemPerformanceSample.Empty;
     private bool _shuttingDown;
 
     public override void Initialize() =>
@@ -87,6 +91,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _processIconService = new ProcessIconService();
         _processTerminationService = new ProcessTerminationService(TADNLog.Log);
         _snapshotService = new ProcessSnapshotService();
+        _snapshotService.SnapshotAvailable += OnSystemPerformanceSampleAvailable;
+        _trayIconRenderer = new TaskManagerTrayIcon();
         CreateTaskManagerWindow();
         _snapshotService.Start();
         CreateTrayIcon();
@@ -184,15 +190,69 @@ internal sealed class TaskManagerAvaloniaApp : Application
         TrayAppDotNETShellTrayIcon? trayIcon = _trayIcon;
         if (trayIcon == null) return;
 
-        NativeIcon? icon = AppThemeStore.LoadAppNativeIcon();
-        if (icon == null)
+        if (_trayIconRenderer != null && _settings != null)
         {
-            trayIcon.SetTooltip(Constants.DisplayName);
-            TADNLog.Log("Task Manager tray icon could not be loaded.");
+            TaskManagerTrayIcon renderer = _trayIconRenderer;
+            TrayGraphDataSource dataSource = _settings.TrayGraphDataSource;
+            TaskManagerTrayIconRenderInput input = renderer.CreateRenderInput(
+                _settings.TrayGraphStyle,
+                dataSource);
+            string tooltip = BuildTrayTooltip(_latestSystemPerformanceSample, dataSource);
+            trayIcon.SetTooltip(tooltip);
+            _trayIconRenderQueue.Request(
+                () => renderer.RenderIcon(input),
+                icon => ApplyRenderedTrayIcon(icon, tooltip));
             return;
         }
 
-        trayIcon.SetOwnedIconAndTooltip(icon, Constants.DisplayName);
+        NativeIcon? fallbackIcon = AppThemeStore.LoadAppNativeIcon();
+        if (fallbackIcon != null)
+        {
+            trayIcon.SetOwnedIconAndTooltip(fallbackIcon, Constants.DisplayName);
+            return;
+        }
+
+        trayIcon.SetTooltip(Constants.DisplayName);
+        TADNLog.Log("Task Manager tray icon could not be loaded.");
+    }
+
+    private void OnSystemPerformanceSampleAvailable()
+    {
+        if (_snapshotService == null || _trayIconRenderer == null) return;
+
+        SystemPerformanceSample sample = _snapshotService.GetLatestSystemPerformanceSample();
+        _latestSystemPerformanceSample = sample;
+        _trayIconRenderer.AddSample(sample);
+        RefreshTrayIcon();
+    }
+
+    /// <summary>Applies a rendered graph icon, disposing it after tray shutdown.</summary>
+    private void ApplyRenderedTrayIcon(NativeIcon icon, string tooltip)
+    {
+        if (_trayIcon == null)
+        {
+            icon.Dispose();
+            return;
+        }
+
+        _trayIcon.SetOwnedIconAndTooltip(icon, tooltip);
+    }
+
+    private static string BuildTrayTooltip(
+        SystemPerformanceSample sample,
+        TrayGraphDataSource dataSource)
+    {
+        string label = dataSource switch
+        {
+            TrayGraphDataSource.CPUAverage => "CPU usage (average)",
+            TrayGraphDataSource.CPUHighestCore => "CPU usage (highest core)",
+            TrayGraphDataSource.Memory => "Memory (RAM)",
+            _ => "CPU usage (average)"
+        };
+        int percent = (int)Math.Round(
+            Math.Clamp(sample.Select(dataSource), 0, 100),
+            MidpointRounding.AwayFromZero);
+        return $"{Constants.DisplayName}\n{label}: {percent}%";
     }
 
     private void OnTrayLeftClick()
@@ -299,6 +359,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
             SkiaFlyoutGlyphIcon.DisposeSharedResources();
 
+            if (_snapshotService != null)
+                _snapshotService.SnapshotAvailable -= OnSystemPerformanceSampleAvailable;
             Safe.Dispose(_snapshotService);
             _snapshotService = null;
             Safe.Dispose(_processIconService);
@@ -316,6 +378,9 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
             Safe.Dispose(_trayIcon);
             _trayIcon = null;
+            _trayIconRenderQueue.Dispose();
+            Safe.Dispose(_trayIconRenderer);
+            _trayIconRenderer = null;
             Safe.Dispose(_watcherMonitor);
             _watcherMonitor = null;
 

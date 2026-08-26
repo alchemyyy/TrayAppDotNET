@@ -74,6 +74,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly AutoResetEvent _refreshWake = new(false);
     private readonly Thread _samplingThread;
     private readonly SystemProcessSnapshot _systemProcessSnapshot = new();
+    private readonly SystemPerformanceSampler _systemPerformanceSampler = new();
     private readonly Action _notifySnapshotAvailable;
     private readonly Dictionary<int, ProcessHistoryEntry> _history = new(1_024);
     private readonly Dictionary<string, ProcessImageIdentity> _imageIdentities =
@@ -88,6 +89,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private EnterpriseContextReader? _enterpriseContextReader;
     private ProcessSnapshotBuffer _publishedBuffer = new();
     private ProcessSnapshotBuffer _stagingBuffer = new();
+    private SystemPerformanceSample _latestSystemPerformanceSample = SystemPerformanceSample.Empty;
     private ProcessDataSchema _activeSchema = ProcessDataSchema.Create([]);
     private int[] _warmProcessIDs = [];
     private int[] _sampleWarmProcessIDs = [];
@@ -195,6 +197,13 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
     }
 
+    /// <summary>Returns the system-performance sample published with the latest process snapshot.</summary>
+    public SystemPerformanceSample GetLatestSystemPerformanceSample()
+    {
+        lock (_publishGate)
+            return _latestSystemPerformanceSample;
+    }
+
     private void SamplingLoop()
     {
         while (Volatile.Read(ref _disposed) == 0)
@@ -216,6 +225,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private void RefreshCore()
     {
         long sampleTimestamp = Stopwatch.GetTimestamp();
+        SystemPerformanceSample systemPerformanceSample = _systemPerformanceSampler.Sample();
         CopySamplingPolicy(
             out ProcessDataSchema schema,
             out int warmProcessCount,
@@ -252,7 +262,7 @@ internal sealed class ProcessSnapshotService : IDisposable
 
         _stagingBuffer.CompleteWrite(count);
         RemoveStaleHistory(generation);
-        Publish();
+        Publish(systemPerformanceSample);
     }
 
     private int RefreshFromSystemSnapshot(
@@ -1372,13 +1382,14 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
     }
 
-    private void Publish()
+    private void Publish(SystemPerformanceSample systemPerformanceSample)
     {
         lock (_publishGate)
         {
             ProcessSnapshotBuffer previousPublished = _publishedBuffer;
             _publishedBuffer = _stagingBuffer;
             _stagingBuffer = previousPublished;
+            _latestSystemPerformanceSample = systemPerformanceSample;
             _publishedVersion++;
         }
 
@@ -1503,6 +1514,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         _refreshWake.Dispose();
         _acceleratorSampler?.Dispose();
         _enterpriseContextReader?.Dispose();
+        _systemPerformanceSampler.Dispose();
         _systemProcessSnapshot.Dispose();
         _history.Clear();
         _imageIdentities.Clear();

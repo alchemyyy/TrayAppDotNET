@@ -9,6 +9,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 public enum TaskManagerSettingsPage
 {
     General,
+    TrayIcon,
     Theme,
     About
 }
@@ -66,6 +67,11 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             "General",
             () => NamePage(TaskManagerSettingsPage.General, BuildGeneralPage()),
             SettingsNavigationGlyphs.General),
+        new(
+            TaskManagerSettingsPage.TrayIcon,
+            "Tray icon",
+            () => NamePage(TaskManagerSettingsPage.TrayIcon, BuildTrayIconPage()),
+            SettingsNavigationGlyphs.TrayIcon),
         new(
             TaskManagerSettingsPage.Theme,
             "Appearance",
@@ -132,6 +138,44 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             ]);
 
         CreateRenderingSettingsSection(palette).AddCards(stack);
+        return stack;
+    }
+
+    private StackPanel BuildTrayIconPage()
+    {
+        SettingsPalette palette = Palette;
+        StackPanel stack = PageStack("Tray icon", palette);
+        stack.Children.Add(ComboCard(
+            "Style",
+            "Show only the latest value or a recency-weighted sliding history.",
+            [
+                (nameof(TrayGraphStyle.Current), "Current"),
+                (nameof(TrayGraphStyle.Marquee), "Marquee")
+            ],
+            _settings.TrayGraphStyle.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out TrayGraphStyle value))
+                    _settings.TrayGraphStyle = value;
+            },
+            palette,
+            searchKeywords: ["graph current marquee history sliding"]));
+        stack.Children.Add(ComboCard(
+            "Data source",
+            "Choose the system utilization measured by the tray graph.",
+            [
+                (nameof(TrayGraphDataSource.CPUAverage), "CPU Usage (Average)"),
+                (nameof(TrayGraphDataSource.CPUHighestCore), "CPU Usage (Highest Core)"),
+                (nameof(TrayGraphDataSource.Memory), "Memory (RAM)")
+            ],
+            _settings.TrayGraphDataSource.ToString(),
+            tag =>
+            {
+                if (Enum.TryParse(tag, out TrayGraphDataSource value))
+                    _settings.TrayGraphDataSource = value;
+            },
+            palette,
+            searchKeywords: ["CPU processor core memory RAM metric"]));
         return stack;
     }
 

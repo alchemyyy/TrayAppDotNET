@@ -366,19 +366,24 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
         if (_disposed || !_isVisible || _currentIcon == null) return;
 
         bool forceFullUpdate = _forceFullIconUpdate;
-        NOTIFYICONDATAW iconData = MakeData(
-            forceFullUpdate
-                ? NotifyIconFlags.NIF_MESSAGE
-                  | NotifyIconFlags.NIF_ICON
-                  | NotifyIconFlags.NIF_TIP
-                  | NotifyIconFlags.NIF_SHOWTIP
-                : NotifyIconFlags.NIF_ICON);
+        bool syncsTooltip = forceFullUpdate || _tooltipDirty;
+        NotifyIconFlags iconFlags = NotifyIconFlags.NIF_ICON;
+        if (forceFullUpdate)
+        {
+            iconFlags |= NotifyIconFlags.NIF_MESSAGE
+                         | NotifyIconFlags.NIF_TIP
+                         | NotifyIconFlags.NIF_SHOWTIP;
+        }
+        else if (_tooltipDirty)
+            iconFlags |= GetTooltipShellFlags(includeEmptyTip: true);
+
+        NOTIFYICONDATAW iconData = MakeData(iconFlags);
 
         if (_isCreated)
         {
             if (TryModifyTrayIcon(
                     ref iconData,
-                    syncsTooltip: forceFullUpdate,
+                    syncsTooltip,
                     setVersion: false,
                     out int modifyError))
                 return;
@@ -409,7 +414,7 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
 
         if (TryModifyTrayIcon(
                 ref iconData,
-                syncsTooltip: forceFullUpdate,
+                syncsTooltip,
                 setVersion: true,
                 out int preAddModifyError))
             return;
@@ -1266,6 +1271,10 @@ public sealed class TrayAppDotNETShellTrayIcon : IDisposable
     {
         try
         {
+            // TaskbarCreated can be rebroadcast while Explorer still owns the icon
+            if (_isVisible && TryGetIconRect(out _))
+                return;
+
             _isCreated = false;
             ClearTrayIconLocation();
             StopListeningForInput();
