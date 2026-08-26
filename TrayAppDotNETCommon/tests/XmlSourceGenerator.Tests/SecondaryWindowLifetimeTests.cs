@@ -116,6 +116,9 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonMargin, closeButton.Margin);
         Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonCornerRadius, closeButton.CornerRadius);
         Assert.Same(Brushes.Transparent, closeButton.Background);
+        TextBlock closeGlyph = Assert.Single(closeButton.GetVisualDescendants().OfType<TextBlock>());
+        Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonGlyphFontSize, closeGlyph.FontSize);
+        Assert.Equal(FontWeight.Bold, closeGlyph.FontWeight);
         prompt.Close();
         prompt.Dispose();
         prompt.Dispose();

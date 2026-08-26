@@ -392,6 +392,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             UpdateConfirmationLayout.ModalCloseButtonWidth,
             UpdateConfirmationLayout.ModalCloseButtonHeight,
             UpdateConfirmationLayout.ModalCloseButtonGlyphFontSize,
+            FontWeight.Bold,
             UpdateConfirmationLayout.ModalCloseButtonHoverBackground,
             UpdateConfirmationLayout.ModalCloseButtonPressedBackground,
             UpdateConfirmationLayout.ModalCloseButtonCornerRadius)

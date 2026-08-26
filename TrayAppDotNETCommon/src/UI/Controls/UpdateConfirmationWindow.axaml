@@ -19,9 +19,10 @@
     <sys:Double x:Key="UpdateConfirmation.ModalTitleFontSize">18</sys:Double>
     <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonWidth">28</sys:Double>
     <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonHeight">28</sys:Double>
-    <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonGlyphFontSize">10</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonGlyphFontSize">11</sys:Double>
     <CornerRadius x:Key="UpdateConfirmation.ModalCloseButtonCornerRadius">4</CornerRadius>
-    <Thickness x:Key="UpdateConfirmation.ModalCloseButtonMargin">0,0,4,0</Thickness>
+    <!-- Body top inset 10 plus -3 matches the 7-unit right inset -->
+    <Thickness x:Key="UpdateConfirmation.ModalCloseButtonMargin">0,-3,7,0</Thickness>
     <Color x:Key="UpdateConfirmation.ModalCloseButtonHoverBackground">#20FFFFFF</Color>
     <Color x:Key="UpdateConfirmation.ModalCloseButtonPressedBackground">#30FFFFFF</Color>
     <Thickness x:Key="UpdateConfirmation.ModalDescriptionMargin">0,10,0,0</Thickness>
