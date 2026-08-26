@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -11,7 +12,10 @@ namespace TrayAppDotNETCommon.UI.Controls;
 /// </summary>
 public sealed class TrayAppDotNETCaptionCloseButton : Border
 {
-    private readonly SettingsPalette _palette;
+    private readonly IBrush _normalGlyphForeground;
+    private readonly IBrush _activeGlyphForeground;
+    private readonly IBrush _hoverBackground;
+    private readonly IBrush _pressedBackground;
     private readonly TextBlock _glyph;
     private bool _isPointerOver;
     private bool _isPressed;
@@ -39,14 +43,64 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
 
     public TrayAppDotNETCaptionCloseButton(
         SettingsPalette palette,
+        Glyph glyph,
+        double width,
+        double height,
+        double glyphFontSize,
+        Color hoverBackground,
+        Color pressedBackground,
+        CornerRadius cornerRadius)
+        : this(
+            glyph.Text,
+            width,
+            height,
+            glyphFontSize,
+            TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            TrayAppDotNETSettingsUI.Brush(hoverBackground),
+            TrayAppDotNETSettingsUI.Brush(pressedBackground),
+            cornerRadius)
+    {
+        GlyphApplicator.ApplyTo(_glyph, glyph);
+    }
+
+    public TrayAppDotNETCaptionCloseButton(
+        SettingsPalette palette,
         string glyph,
         double width,
         double height,
         double glyphFontSize)
+        : this(
+            glyph,
+            width,
+            height,
+            glyphFontSize,
+            TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            TrayAppDotNETSettingsUI.Brush(palette.CloseButtonGlyphActive),
+            TrayAppDotNETSettingsUI.Brush(palette.CloseButtonHover),
+            TrayAppDotNETSettingsUI.Brush(palette.CloseButtonPressed),
+            default)
     {
-        _palette = palette;
+    }
+
+    private TrayAppDotNETCaptionCloseButton(
+        string glyph,
+        double width,
+        double height,
+        double glyphFontSize,
+        IBrush normalGlyphForeground,
+        IBrush activeGlyphForeground,
+        IBrush hoverBackground,
+        IBrush pressedBackground,
+        CornerRadius cornerRadius)
+    {
+        _normalGlyphForeground = normalGlyphForeground;
+        _activeGlyphForeground = activeGlyphForeground;
+        _hoverBackground = hoverBackground;
+        _pressedBackground = pressedBackground;
         Width = width;
         Height = height;
+        CornerRadius = cornerRadius;
         Background = Brushes.Transparent;
         Cursor = TrayAppDotNETCursors.Hand;
         Focusable = true;
@@ -56,7 +110,7 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
             Text = glyph,
             FontFamily = TrayAppDotNETSettingsUI.IconFont,
             FontSize = glyphFontSize,
-            Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            Foreground = _normalGlyphForeground,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false
@@ -112,19 +166,19 @@ public sealed class TrayAppDotNETCaptionCloseButton : Border
     {
         if (_isPressed)
         {
-            Background = TrayAppDotNETSettingsUI.Brush(_palette.CloseButtonPressed);
-            _glyph.Foreground = TrayAppDotNETSettingsUI.Brush(_palette.CloseButtonGlyphActive);
+            Background = _pressedBackground;
+            _glyph.Foreground = _activeGlyphForeground;
             return;
         }
 
         if (_isPointerOver)
         {
-            Background = TrayAppDotNETSettingsUI.Brush(_palette.CloseButtonHover);
-            _glyph.Foreground = TrayAppDotNETSettingsUI.Brush(_palette.CloseButtonGlyphActive);
+            Background = _hoverBackground;
+            _glyph.Foreground = _activeGlyphForeground;
             return;
         }
 
         Background = Brushes.Transparent;
-        _glyph.Foreground = TrayAppDotNETSettingsUI.Brush(_palette.Foreground);
+        _glyph.Foreground = _normalGlyphForeground;
     }
 }

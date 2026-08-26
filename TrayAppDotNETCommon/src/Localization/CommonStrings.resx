@@ -630,8 +630,11 @@ Current running version: {2}</value>
   <data name="UpdateDialog_Install" xml:space="preserve">
     <value>Install update</value>
   </data>
+  <data name="UpdateDialog_ViewReleases" xml:space="preserve">
+    <value>view releases</value>
+  </data>
   <data name="UpdateDialog_RestartNotice" xml:space="preserve">
-    <value>Installation of update will cause app to restart.</value>
+    <value>Updating will cause app to restart.</value>
   </data>
   <data name="UpdateDialog_Title" xml:space="preserve">
     <value>Proceed with update?</value>

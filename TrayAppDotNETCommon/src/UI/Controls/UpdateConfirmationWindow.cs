@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -6,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -23,10 +25,26 @@ internal static class UpdateConfirmationLayout
     public static Thickness BodyMargin => AXAMLResources.AxamlUpdateConfirmation.BodyMargin;
     public static Thickness ModalBodyMargin => AXAMLResources.AxamlUpdateConfirmation.ModalBodyMargin;
     public static double ModalTitleFontSize => AXAMLResources.AxamlUpdateConfirmation.ModalTitleFontSize;
+    public static double ModalCloseButtonWidth =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonWidth;
+    public static double ModalCloseButtonHeight =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonHeight;
+    public static double ModalCloseButtonGlyphFontSize =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonGlyphFontSize;
+    public static CornerRadius ModalCloseButtonCornerRadius =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonCornerRadius;
+    public static Thickness ModalCloseButtonMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonMargin;
+    public static Color ModalCloseButtonHoverBackground =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonHoverBackground;
+    public static Color ModalCloseButtonPressedBackground =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonPressedBackground;
     public static Thickness ModalDescriptionMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalDescriptionMargin;
     public static double VersionLineHeightPadding =>
         AXAMLResources.AxamlUpdateConfirmation.VersionLineHeightPadding;
+    public static Thickness ModalReleasesLinkMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalReleasesLinkMargin;
     public static Thickness ModalRestartNoticeMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalRestartNoticeMargin;
     public static Thickness ModalActionButtonsMargin =>
@@ -52,6 +70,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
     private readonly string _confirmText;
     private readonly string? _alternateText;
     private readonly string? _cancelText;
+    private readonly string? _releasesLinkText;
+    private readonly Uri? _releasesPageUrl;
     private readonly string? _modalFooterText;
     private readonly bool _useModalContentLayout;
     private readonly SettingsPalette _palette;
@@ -77,8 +97,10 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             L(nameof(CommonStrings.UpdateDialog_Install)),
             palette,
             rounded,
-            L(nameof(CommonStrings.UpdateDialog_SkipRelease)),
-            L(nameof(CommonStrings.UpdateDialog_Close)),
+            alternateText: L(nameof(CommonStrings.UpdateDialog_SkipRelease)),
+            cancelText: L(nameof(CommonStrings.UpdateDialog_Close)),
+            releasesLinkText: L(nameof(CommonStrings.UpdateDialog_ViewReleases)),
+            releasesPageUrl: service.ReleasesPageUrl,
             modalFooterText: L(nameof(CommonStrings.UpdateDialog_RestartNotice)),
             useModalContentLayout: true)
     {
@@ -92,6 +114,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         bool rounded,
         string? alternateText = null,
         string? cancelText = null,
+        string? releasesLinkText = null,
+        Uri? releasesPageUrl = null,
         string? modalFooterText = null,
         bool useModalContentLayout = false)
     {
@@ -100,6 +124,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         _confirmText = confirmText;
         _alternateText = alternateText;
         _cancelText = cancelText;
+        _releasesLinkText = releasesLinkText;
+        _releasesPageUrl = releasesPageUrl;
         _modalFooterText = modalFooterText;
         _useModalContentLayout = useModalContentLayout;
         _palette = palette;
@@ -225,16 +251,11 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-            TextBlock modalTitle = TrayAppDotNETSettingsUI.Text(
-                title,
-                palette,
-                UpdateConfirmationLayout.ModalTitleFontSize,
-                FontWeight.SemiBold);
-            modalTitle.TextWrapping = TextWrapping.Wrap;
-            body.Children.Add(modalTitle);
+            body.Children.Add(BuildModalHeader(title, cancelText, palette, resources));
             descriptionRow = 1;
-            actionButtonsRow = 3;
+            actionButtonsRow = 4;
         }
         else
         {
@@ -260,6 +281,29 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         Grid.SetRow(descriptionText, descriptionRow);
         body.Children.Add(descriptionText);
 
+        if (_useModalContentLayout &&
+            !string.IsNullOrWhiteSpace(_releasesLinkText) &&
+            _releasesPageUrl != null)
+        {
+            TextBlock releasesLink = TrayAppDotNETSettingsUI.Text(
+                _releasesLinkText,
+                palette,
+                SettingsUILayout.DescriptionFontSize);
+            releasesLink.Foreground = TrayAppDotNETSettingsUI.Brush(palette.Accent);
+            releasesLink.LineHeight =
+                releasesLink.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
+            releasesLink.Margin = UpdateConfirmationLayout.ModalReleasesLinkMargin;
+            releasesLink.TextDecorations = TextDecorations.Underline;
+            releasesLink.Cursor = TrayAppDotNETCursors.Hand;
+            releasesLink.Focusable = true;
+            releasesLink.PointerPressed += OnReleasesLinkPointerPressed;
+            resources.Add(() => releasesLink.PointerPressed -= OnReleasesLinkPointerPressed);
+            releasesLink.KeyDown += OnReleasesLinkKeyDown;
+            resources.Add(() => releasesLink.KeyDown -= OnReleasesLinkKeyDown);
+            Grid.SetRow(releasesLink, 2);
+            body.Children.Add(releasesLink);
+        }
+
         if (_useModalContentLayout && !string.IsNullOrWhiteSpace(_modalFooterText))
         {
             TextBlock modalFooterText = TrayAppDotNETSettingsUI.DescriptionText(_modalFooterText, palette);
@@ -267,7 +311,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             modalFooterText.LineHeight =
                 modalFooterText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
             modalFooterText.TextWrapping = TextWrapping.Wrap;
-            Grid.SetRow(modalFooterText, 2);
+            Grid.SetRow(modalFooterText, 3);
             body.Children.Add(modalFooterText);
         }
 
@@ -296,12 +340,11 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             buttons.Children.Add(alternate);
         }
 
-        if (!string.IsNullOrWhiteSpace(cancelText))
+        if (!_useModalContentLayout && !string.IsNullOrWhiteSpace(cancelText))
         {
             SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
             cancel.Padding = UpdateConfirmationLayout.ActionButtonPadding;
-            if (!_useModalContentLayout)
-                cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
+            cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
             cancel.HorizontalAlignment = HorizontalAlignment.Left;
             cancel.Click += OnCancelClick;
             resources.Add(() => cancel.Click -= OnCancelClick);
@@ -317,6 +360,57 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         root.Children.Add(body);
         return root;
+    }
+
+    private Grid BuildModalHeader(
+        string title,
+        string? closeTooltip,
+        SettingsPalette palette,
+        UIResourceScope resources)
+    {
+        Grid header = new()
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+
+        TextBlock modalTitle = TrayAppDotNETSettingsUI.Text(
+            title,
+            palette,
+            UpdateConfirmationLayout.ModalTitleFontSize,
+            FontWeight.SemiBold);
+        modalTitle.TextWrapping = TextWrapping.Wrap;
+        modalTitle.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(modalTitle);
+
+        TrayAppDotNETCaptionCloseButton close = new(
+            palette,
+            GlyphCatalog.CHROME_CLOSE,
+            UpdateConfirmationLayout.ModalCloseButtonWidth,
+            UpdateConfirmationLayout.ModalCloseButtonHeight,
+            UpdateConfirmationLayout.ModalCloseButtonGlyphFontSize,
+            UpdateConfirmationLayout.ModalCloseButtonHoverBackground,
+            UpdateConfirmationLayout.ModalCloseButtonPressedBackground,
+            UpdateConfirmationLayout.ModalCloseButtonCornerRadius)
+        {
+            Margin = UpdateConfirmationLayout.ModalCloseButtonMargin,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        TrayAppDotNETToolTip.SetTip(
+            close,
+            string.IsNullOrWhiteSpace(closeTooltip)
+                ? L(nameof(CommonStrings.UpdateDialog_CaptionClose_Tooltip))
+                : closeTooltip);
+        TrayAppDotNETToolTip.SuppressWhileEngaged(close);
+        close.Click += OnCancelClick;
+        resources.Add(() => close.Click -= OnCancelClick);
+        Grid.SetColumn(close, 1);
+        header.Children.Add(close);
+
+        return header;
     }
 
     private Grid BuildTitleBar(string title, SettingsPalette palette, UIResourceScope resources)
@@ -361,6 +455,39 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         BeginMoveDrag(e);
         e.Handled = true;
+    }
+
+    private void OnReleasesLinkPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_closed || sender is not Control releasesLink) return;
+        if (!e.GetCurrentPoint(releasesLink).Properties.IsLeftButtonPressed) return;
+
+        OpenReleasesPage();
+        e.Handled = true;
+    }
+
+    private void OnReleasesLinkKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_closed || e.Key is not (Key.Enter or Key.Space)) return;
+
+        OpenReleasesPage();
+        e.Handled = true;
+    }
+
+    private void OpenReleasesPage()
+    {
+        Uri? releasesPageUrl = _releasesPageUrl;
+        if (releasesPageUrl == null) return;
+
+        try
+        {
+            using Process? process = Process.Start(
+                new ProcessStartInfo(releasesPageUrl.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Update confirmation failed to open releases page: {exception.Message}");
+        }
     }
 
     private void OnConfirmClick(object? sender, EventArgs e) => Complete(TrayAppDotNETUpdatePromptResult.Confirmed);

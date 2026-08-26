@@ -185,6 +185,9 @@ public sealed class UpdateCheckService : IDisposable
 
     public int CurrentBuild => _options.CurrentBuild;
 
+    public Uri ReleasesPageUrl =>
+        GitHubReleaseUrls.ReleasesPageUrl(_options.RepositoryOwner, _options.RepositoryName);
+
     public int SkippedUpdateVersion
     {
         get

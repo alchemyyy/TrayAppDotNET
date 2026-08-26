@@ -43,7 +43,9 @@ public sealed class SecondaryWindowLifetimeTests
             rounded: true,
             alternateText: "Skip release",
             cancelText: "Close",
-            modalFooterText: "Installation of update will cause app to restart.",
+            releasesLinkText: "view releases",
+            releasesPageUrl: new Uri("https://github.com/test-owner/test-repository/releases"),
+            modalFooterText: "Updating will cause app to restart.",
             useModalContentLayout: true);
 
         prompt.Show();
@@ -53,7 +55,9 @@ public sealed class SecondaryWindowLifetimeTests
         SettingsButton confirmButton = Assert.Single(
             prompt.GetVisualDescendants().OfType<SettingsButton>(),
             button => button.Text == "Install update");
-        SettingsButton closeButton = Assert.Single(
+        TrayAppDotNETCaptionCloseButton closeButton = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TrayAppDotNETCaptionCloseButton>());
+        Assert.DoesNotContain(
             prompt.GetVisualDescendants().OfType<SettingsButton>(),
             button => button.Text == "Close");
         StackPanel actionButtons = Assert.Single(
@@ -64,13 +68,11 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Equal(UpdateConfirmationLayout.ModalActionButtonSpacing, actionButtons.Spacing);
         Assert.Equal(UpdateConfirmationLayout.ModalActionButtonsMargin, actionButtons.Margin);
         Assert.Equal(HorizontalAlignment.Left, alternateButton.HorizontalAlignment);
-        Assert.Equal(HorizontalAlignment.Left, closeButton.HorizontalAlignment);
         Assert.Equal(HorizontalAlignment.Left, confirmButton.HorizontalAlignment);
         Assert.Equal(UpdateConfirmationLayout.ActionButtonPadding, alternateButton.Padding);
+        Assert.Equal(2, actionButtons.Children.Count);
         Assert.True(
-            actionButtons.Children.IndexOf(alternateButton) < actionButtons.Children.IndexOf(closeButton));
-        Assert.True(
-            actionButtons.Children.IndexOf(closeButton) < actionButtons.Children.IndexOf(confirmButton));
+            actionButtons.Children.IndexOf(alternateButton) < actionButtons.Children.IndexOf(confirmButton));
         Assert.Single(
             prompt.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Margin == UpdateConfirmationLayout.ModalBodyMargin);
@@ -83,15 +85,37 @@ public sealed class SecondaryWindowLifetimeTests
             SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
             descriptionText.LineHeight);
         Assert.Equal(TextWrapping.Wrap, descriptionText.TextWrapping);
+        TextBlock releasesLink = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "view releases");
+        Assert.Equal(UpdateConfirmationLayout.ModalReleasesLinkMargin, releasesLink.Margin);
+        Assert.Equal(
+            SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
+            releasesLink.LineHeight);
+        Assert.Same(TextDecorations.Underline, releasesLink.TextDecorations);
+        Assert.Same(TrayAppDotNETCursors.Hand, releasesLink.Cursor);
+        Assert.True(releasesLink.Focusable);
         TextBlock restartNotice = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
-            textBlock => textBlock.Text == "Installation of update will cause app to restart.");
+            textBlock => textBlock.Text == "Updating will cause app to restart.");
         Assert.Equal(UpdateConfirmationLayout.ModalRestartNoticeMargin, restartNotice.Margin);
         TextBlock titleText = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
             textBlock => textBlock.Text == "Proceed with update?");
         Assert.Equal(UpdateConfirmationLayout.ModalTitleFontSize, titleText.FontSize);
         Assert.Equal(FontWeight.SemiBold, titleText.FontWeight);
+        Grid modalHeader = Assert.Single(
+            prompt.GetVisualDescendants().OfType<Grid>(),
+            grid => grid.Children.Contains(titleText) && grid.Children.Contains(closeButton));
+        Assert.Equal(2, modalHeader.ColumnDefinitions.Count);
+        Assert.Equal(VerticalAlignment.Center, titleText.VerticalAlignment);
+        Assert.Equal(VerticalAlignment.Center, closeButton.VerticalAlignment);
+        Assert.Equal(1, Grid.GetColumn(closeButton));
+        Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonWidth, closeButton.Width);
+        Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonHeight, closeButton.Height);
+        Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonMargin, closeButton.Margin);
+        Assert.Equal(UpdateConfirmationLayout.ModalCloseButtonCornerRadius, closeButton.CornerRadius);
+        Assert.Same(Brushes.Transparent, closeButton.Background);
         prompt.Close();
         prompt.Dispose();
         prompt.Dispose();

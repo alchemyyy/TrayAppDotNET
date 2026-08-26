@@ -149,6 +149,7 @@ public static class TrayAppDotNETUpdatePromptPresenter
         string confirmText = L(options, nameof(CommonStrings.UpdateDialog_Install));
         string skipText = L(options, nameof(CommonStrings.UpdateDialog_SkipRelease));
         string closeText = L(options, nameof(CommonStrings.UpdateDialog_Close));
+        string releasesLinkText = L(options, nameof(CommonStrings.UpdateDialog_ViewReleases));
         string restartNotice = L(options, nameof(CommonStrings.UpdateDialog_RestartNotice));
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
@@ -159,6 +160,8 @@ public static class TrayAppDotNETUpdatePromptPresenter
             options.EnableRoundedCorners,
             skipText,
             closeText,
+            releasesLinkText: releasesLinkText,
+            releasesPageUrl: options.Service.ReleasesPageUrl,
             modalFooterText: restartNotice,
             useModalContentLayout: true)
         {

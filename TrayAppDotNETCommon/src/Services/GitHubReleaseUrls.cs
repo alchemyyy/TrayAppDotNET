@@ -17,6 +17,16 @@ public static class GitHubReleaseUrls
     public static Uri LatestAppReleaseAssetUrl(string owner, string repositoryName, string applicationName, int version) =>
         LatestReleaseAssetUrl(owner, repositoryName, ReleaseAssetName(applicationName, version));
 
+    /// <summary>Builds the public GitHub releases page URL.</summary>
+    public static Uri ReleasesPageUrl(string owner, string repositoryName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryName);
+
+        return new Uri(
+            $"https://github.com/{Uri.EscapeDataString(owner)}/{Uri.EscapeDataString(repositoryName)}/releases");
+    }
+
     /// <summary>Builds a paged GitHub releases API URL.</summary>
     public static Uri ReleasesApiUrl(string owner, string repositoryName, int page, int releasesPerPage)
     {
