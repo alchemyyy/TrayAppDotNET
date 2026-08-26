@@ -638,7 +638,7 @@ Restart from the installed copy now?</value>
     <value>view releases</value>
   </data>
   <data name="UpdateDialog_VisitWebsite" xml:space="preserve">
-    <value>visit trayapp.net</value>
+    <value>trayapp.net</value>
   </data>
   <data name="UpdateDialog_RestartNotice" xml:space="preserve">
     <value>Updating will cause app to restart.</value>

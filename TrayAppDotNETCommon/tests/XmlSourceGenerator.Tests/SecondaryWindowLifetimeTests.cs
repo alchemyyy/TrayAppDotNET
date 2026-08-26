@@ -48,7 +48,7 @@ public sealed class SecondaryWindowLifetimeTests
                 "Current running version: 235",
                 "view releases",
                 new Uri("https://github.com/test-owner/test-repository/releases"),
-                "visit trayapp.net"),
+                "trayapp.net"),
             modalFooterText: "Updating will cause app to restart.",
             useModalContentLayout: true);
 
@@ -100,7 +100,7 @@ public sealed class SecondaryWindowLifetimeTests
             textBlock => textBlock.Text == "view releases");
         TextBlock websiteLink = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
-            textBlock => textBlock.Text == "visit trayapp.net");
+            textBlock => textBlock.Text == "trayapp.net");
         Grid modalDescription = Assert.Single(
             prompt.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Children.Contains(newVersionText) && grid.Children.Contains(releasesLink));
