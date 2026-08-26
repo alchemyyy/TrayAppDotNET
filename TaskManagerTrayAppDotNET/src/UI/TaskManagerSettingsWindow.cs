@@ -44,6 +44,8 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
 
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+
     protected override TaskManagerSettingsPage DefaultPageKey => TaskManagerSettingsPage.General;
 
     protected override string HeaderText => "Task Manager";

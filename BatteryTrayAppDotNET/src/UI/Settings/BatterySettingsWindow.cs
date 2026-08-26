@@ -65,6 +65,8 @@ public sealed class BatterySettingsWindow : SettingsWindowCommon<BatterySettings
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
 
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+
     protected override BatterySettingsPage DefaultPageKey => BatterySettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));

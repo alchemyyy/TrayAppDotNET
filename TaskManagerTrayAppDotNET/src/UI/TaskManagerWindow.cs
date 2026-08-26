@@ -69,6 +69,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
     protected override bool UseWindows11SettingsNavigation => true;
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
     protected override bool ShowSettingsSearchBox => false;
     protected override bool UseExtendedTitleBarDragZone => false;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;

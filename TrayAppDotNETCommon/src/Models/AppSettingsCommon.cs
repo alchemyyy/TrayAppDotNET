@@ -53,12 +53,18 @@ public interface ITrayAppDotNETTrayMenuSettings
     int SubmenuShowDelayMs { get; set; }
 }
 
+/// <summary>Persists the adjustable settings-window navigation width for one app.</summary>
+public interface ISettingsSidebarWidthSettings
+{
+    double SettingsSidebarWidth { get; set; }
+}
+
 public abstract class AppSettingsCommon(
     int updateCheckIntervalDefaultMs,
     TrayAppDotNETRenderingBackend renderingBackendDefault = TrayAppDotNETRenderingBackend.GPUPreferred)
     : INotifyPropertyChanged,
     ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayAppDotNETTrayMenuSettings, ITrayXmlSerializationCallbacks
+    ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, ITrayXmlSerializationCallbacks
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -110,6 +116,13 @@ public abstract class AppSettingsCommon(
     } = true;
 
     public bool UseWindows11SettingsNavigation
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
+    /// <summary>Gets the custom sidebar width, or zero when the app-specific default is active.</summary>
+    public double SettingsSidebarWidth
     {
         get;
         set => SetField(ref field, value);

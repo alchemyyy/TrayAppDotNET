@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
@@ -65,6 +67,100 @@ public sealed class SettingsWindowLifetimeTests
 
         Assert.Equal(!expectedCollapsed, sidebar.IsVisible);
         Assert.Equal(expectedCollapsed ? 0 : window.ConfiguredSidebarWidth, body.ColumnDefinitions[0].Width.Value);
+    });
+
+    [Theory]
+    [InlineData(0, 230, 230)]
+    [InlineData(double.NaN, 230, 230)]
+    [InlineData(90, 230, 140)]
+    [InlineData(600, 230, 520)]
+    [InlineData(310, 230, 310)]
+    public void SidebarWidthResolutionUsesDefaultSentinelAndBounds(
+        double persistedWidth,
+        double defaultWidth,
+        double expectedWidth)
+    {
+        double width = SettingsSidebarWidthLayout.ResolvePersistedWidth(
+            persistedWidth,
+            defaultWidth,
+            minimumWidth: 140,
+            maximumWidth: 520);
+
+        Assert.Equal(expectedWidth, width);
+    }
+
+    [Theory]
+    [InlineData(960, 520)]
+    [InlineData(720, 400)]
+    [InlineData(400, 140)]
+    public void SidebarMaximumWidthPreservesMinimumContentWidth(double windowWidth, double expectedWidth)
+    {
+        double width = SettingsSidebarWidthLayout.GetAvailableMaximumWidth(
+            windowWidth,
+            minimumWidth: 140,
+            maximumWidth: 520,
+            minimumContentWidth: 320);
+
+        Assert.Equal(expectedWidth, width);
+    }
+
+    [Fact]
+    public void CtrlDragPersistsSidebarWidthAndCtrlRightClickResetsIt() => AvaloniaTestHost.Run(() =>
+    {
+        SidebarResizeSettingsWindow window = new();
+        window.Show();
+        window.UpdateLayout();
+
+        SettingsSidebarResizeHandle resizeHandle = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsSidebarResizeHandle>());
+        Assert.False(resizeHandle.IsHitTestVisible);
+        Assert.Equal(230, window.DisplayedSidebarWidth);
+
+        Point dragStart = GetWindowPoint(window, resizeHandle);
+        window.MouseMove(dragStart, RawInputModifiers.None);
+        window.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Key = Key.LeftCtrl
+        });
+
+        Assert.True(resizeHandle.IsHitTestVisible);
+        Assert.Same(TrayAppDotNETCursors.SizeWestEast, resizeHandle.Cursor);
+
+        Point dragEnd = new(dragStart.X + 60, dragStart.Y);
+        window.MouseDown(dragStart, MouseButton.Left, RawInputModifiers.Control);
+        window.MouseMove(dragEnd, RawInputModifiers.Control);
+        window.MouseUp(dragEnd, MouseButton.Left, RawInputModifiers.Control);
+
+        Assert.Equal(290, window.PersistedSidebarWidth);
+        Assert.Equal(290, window.DisplayedSidebarWidth);
+        Assert.Equal(1, window.SaveCount);
+
+        Point resetPoint = GetWindowPoint(window, resizeHandle);
+        window.MouseMove(resetPoint, RawInputModifiers.Control);
+        window.MouseDown(resetPoint, MouseButton.Right, RawInputModifiers.Control);
+        window.MouseUp(resetPoint, MouseButton.Right, RawInputModifiers.Control);
+
+        Assert.Equal(0, window.PersistedSidebarWidth);
+        Assert.Equal(230, window.DisplayedSidebarWidth);
+        Assert.Equal(2, window.SaveCount);
+
+        window.RaiseEvent(new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyUpEvent,
+            Key = Key.LeftCtrl
+        });
+        Assert.False(resizeHandle.IsHitTestVisible);
+        window.Close();
+
+        return;
+
+        static Point GetWindowPoint(Window owner, Control control)
+        {
+            Point controlCenter = new(control.Bounds.Width / 2, control.Bounds.Height / 2);
+            return control.TranslatePoint(controlCenter, owner)
+                   ?? throw new InvalidOperationException("Resize handle is not attached to the test window.");
+        }
     });
 
     [Fact]
@@ -285,6 +381,50 @@ public sealed class SettingsWindowLifetimeTests
         protected override void Save()
         {
         }
+    }
+
+    private sealed class SidebarResizeSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly TestSidebarWidthSettings _settings = new();
+
+        public SidebarResizeSettingsWindow()
+        {
+            ConfigureSettingsWindow("Sidebar Resize Test", null);
+            InitializeSettingsShell();
+        }
+
+        public double PersistedSidebarWidth => _settings.SettingsSidebarWidth;
+        public double DisplayedSidebarWidth => FindBody().ColumnDefinitions[0].Width.Value;
+        public int SaveCount { get; private set; }
+
+        protected override bool EnableRoundedCorners => false;
+        protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => TestPalette;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+        ];
+
+        protected override void Save() => SaveCount++;
+
+        private Grid FindBody()
+        {
+            Border root = Assert.IsType<Border>(Content);
+            Border contentSurface = Assert.IsType<Border>(root.Child);
+            Grid shell = Assert.IsType<Grid>(contentSurface.Child);
+            return Assert.Single(shell.Children.OfType<Grid>(), child => Grid.GetRow(child) == 1);
+        }
+    }
+
+    private sealed class TestSidebarWidthSettings : ISettingsSidebarWidthSettings
+    {
+        public double SettingsSidebarWidth { get; set; }
     }
 
     private sealed class SearchSettingsWindow : SettingsWindowCommon<SearchPage>

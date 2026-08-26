@@ -44,6 +44,8 @@ public sealed partial class VolumeSettingsWindow : SettingsWindowCommon<VolumeSe
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
 
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+
     protected override VolumeSettingsPage DefaultPageKey => VolumeSettingsPage.General;
 
     protected override string HeaderText => Loc(nameof(AppStrings.SettingsWindow_Header));

@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Media;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
@@ -61,6 +62,8 @@ public sealed partial class BrightnessSettingsWindow : SettingsWindowCommon<Brig
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
+
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
 
     protected override BrightnessSettingsPage DefaultPageKey => BrightnessSettingsPage.General;
 

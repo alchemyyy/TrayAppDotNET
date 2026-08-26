@@ -52,7 +52,8 @@ public enum MultipleSliderValuesDisplayMode
 /// </summary>
 [XmlRoot("AppSettings")]
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayAppDotNETTrayMenuSettings, IFlyoutDockSettings, ITrayXmlSerializationCallbacks
+    ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, IFlyoutDockSettings,
+    ITrayXmlSerializationCallbacks
 {
     private const string CPUNickname = "CPU";
     private const string GPUNickname = "GPU";
@@ -109,6 +110,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public NullableThemeColor TrayIconColor { get; set; } = new();
     public bool EnableRoundedCorners { get; set; } = true;
     public bool UseWindows11SettingsNavigation { get; set; }
+    public double SettingsSidebarWidth { get; set; }
     public bool SquareFlyoutTitleBarCorners { get; set; }
     public bool EnableCardBorders { get; set; }
     public bool EnableHoveredCardBorders { get; set; }

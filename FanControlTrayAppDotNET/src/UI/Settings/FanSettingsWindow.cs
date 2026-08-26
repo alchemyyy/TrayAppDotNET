@@ -57,6 +57,8 @@ public sealed class FanSettingsWindow : SettingsWindowCommon<FanSettingsPage>
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
 
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+
     protected override FanSettingsPage DefaultPageKey => FanSettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));

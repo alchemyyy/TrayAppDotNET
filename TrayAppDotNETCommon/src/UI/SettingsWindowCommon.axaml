@@ -16,6 +16,10 @@
     <sys:Double x:Key="SettingsWindow.TitleBarHeight">32</sys:Double>
     <sys:Double x:Key="SettingsWindow.TitleBarDragZoneHeight">72</sys:Double>
     <sys:Double x:Key="SettingsWindow.DefaultSidebarWidth">230</sys:Double>
+    <sys:Double x:Key="SettingsWindow.SidebarMinimumWidth">140</sys:Double>
+    <sys:Double x:Key="SettingsWindow.SidebarMaximumWidth">520</sys:Double>
+    <sys:Double x:Key="SettingsWindow.SidebarMinimumContentWidth">320</sys:Double>
+    <sys:Double x:Key="SettingsWindow.SidebarResizeHitTargetWidth">10</sys:Double>
 
     <!-- Title bar controls -->
     <sys:Double x:Key="SettingsWindow.HeaderFontSize">22</sys:Double>

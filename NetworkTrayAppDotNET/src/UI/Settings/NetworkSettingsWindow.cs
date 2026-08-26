@@ -47,6 +47,8 @@ public sealed partial class NetworkSettingsWindow : SettingsWindowCommon<Network
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
 
+    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
+
     protected override NetworkSettingsPage DefaultPageKey => NetworkSettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.SettingsWindow_Header));

@@ -237,7 +237,8 @@ public class KnownDisplayEntry
 /// </summary>
 [XmlRoot("AppSettings")]
 public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRenderingSettings, ITrayAppDotNETWarmWindowSettings,
-    ITrayAppDotNETTrayMenuSettings, IFlyoutDockSettings, ITrayXmlSerializationCallbacks
+    ITrayAppDotNETTrayMenuSettings, ISettingsSidebarWidthSettings, IFlyoutDockSettings,
+    ITrayXmlSerializationCallbacks
 {
     public const int FlyoutScrollWheelStepMin = 1;
     public const int FlyoutScrollWheelStepMax = 50;
@@ -470,6 +471,7 @@ public class AppSettings : ITrayAppDotNETUpdateSettings, ITrayAppDotNETRendering
     public NullableThemeColor FooterBackgroundColor { get; set; } = new();
     public bool EnableRoundedCorners { get; set; } = true;
     public bool UseWindows11SettingsNavigation { get; set; }
+    public double SettingsSidebarWidth { get; set; }
 
     // Environmental curve colors: curve strokes, current-time marker, twilight / night backdrop bands, grid line color.
     // Backdrops carry a separate Alpha because the system color picker is RGB-only.

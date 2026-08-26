@@ -41,6 +41,25 @@ public sealed class SettingsNavigationTests
     }
 
     [Fact]
+    public void SettingsSidebarWidthRoundTripsThroughSettingsFile()
+    {
+        string settingsPath = Path.Combine(Path.GetTempPath(), $"btadn-sidebar-{Guid.NewGuid():N}.xml");
+        try
+        {
+            AppSettings settings = new() { SettingsSidebarWidth = 312.5 };
+            settings.Save(settingsPath);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(settingsPath);
+
+            Assert.Equal(312.5, loaded.SettingsSidebarWidth);
+        }
+        finally
+        {
+            if (File.Exists(settingsPath)) File.Delete(settingsPath);
+        }
+    }
+
+    [Fact]
     public void Windows11SettingsNavigationBuildsAllBrightnessPageIcons() => AvaloniaTestHost.Run(() =>
     {
         LocalizationManager.Instance.Initialize(Strings.ResourceManager);

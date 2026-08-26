@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Rendering.Composition;
@@ -7,6 +9,7 @@ using Avalonia.Rendering.Composition.Transport;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
+using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
@@ -50,6 +53,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private SettingsScrollHost? _scrollHost;
     private Grid? _sidebar;
     private ColumnDefinition? _sidebarColumn;
+    private SettingsSidebarResizeHandle? _sidebarResizeHandle;
+    private double _currentSidebarWidth;
     private TaskCompletionSource<bool>? _confirmTcs;
     private Border? _confirmOverlay;
     private TextBlock? _confirmTitle;
@@ -88,6 +93,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     protected virtual double SidebarWidth => _settingsResources.AxamlSettingsWindow.DefaultSidebarWidth;
+
+    /// <summary>Gets the app settings object that owns the optional custom navigation width.</summary>
+    protected virtual ISettingsSidebarWidthSettings? SidebarWidthSettings => null;
+
     protected virtual Thickness ContentPadding => _settingsResources.AxamlSettingsWindow.ScrollHostMargin;
     protected virtual bool UseWindows11SettingsNavigation => false;
     protected virtual bool ShowSettingsSearchBox => true;
@@ -113,13 +122,21 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _wndProcHook = WndProcHook;
         Opened += OnWindowOpened;
         Closed += OnWindowClosed;
+        Deactivated += OnWindowDeactivated;
         PositionChanged += OnWindowPositionChanged;
         Resized += OnWindowResized;
+        AddHandler(PointerMovedEvent, OnWindowPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         _windowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+        _windowResources.Add(() => RemoveHandler(KeyUpEvent, OnWindowKeyUp));
+        _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnWindowKeyDown));
+        _windowResources.Add(() => RemoveHandler(PointerMovedEvent, OnWindowPointerMoved));
         _windowResources.Add(DetachWndProcHook);
         _windowResources.Add(() => Resized -= OnWindowResized);
         _windowResources.Add(() => PositionChanged -= OnWindowPositionChanged);
+        _windowResources.Add(() => Deactivated -= OnWindowDeactivated);
         _windowResources.Add(() => Closed -= OnWindowClosed);
         _windowResources.Add(() => Opened -= OnWindowOpened);
     }
@@ -529,7 +546,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         root.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Grid body = new();
-        _sidebarColumn = new ColumnDefinition(new GridLength(SidebarWidth));
+        _currentSidebarWidth = ResolveConfiguredSidebarWidth();
+        _sidebarColumn = new ColumnDefinition(new GridLength(_currentSidebarWidth));
         body.ColumnDefinitions.Add(_sidebarColumn);
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         Grid.SetRow(body, 1);
@@ -579,6 +597,22 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             ContentPadding);
         Grid.SetColumn(_scrollHost, 1);
         body.Children.Add(_scrollHost);
+
+        ISettingsSidebarWidthSettings? sidebarWidthSettings = SidebarWidthSettings;
+        if (sidebarWidthSettings != null)
+        {
+            _sidebarResizeHandle = new SettingsSidebarResizeHandle(
+                body,
+                _settingsResources.AxamlSettingsWindow.SidebarResizeHitTargetWidth,
+                _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+                GetDisplayedSidebarWidth,
+                GetAvailableSidebarMaximumWidth,
+                PreviewSidebarWidth,
+                PersistSidebarWidth,
+                ResetSidebarWidth);
+            Grid.SetColumn(_sidebarResizeHandle, 0);
+            body.Children.Add(_sidebarResizeHandle);
+        }
 
         Control titleBar = BuildTitleBar(palette);
         Grid.SetRow(titleBar, 0);
@@ -856,6 +890,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         SettingsScrollHost? previousScrollHost = _scrollHost;
         Grid? previousSidebar = _sidebar;
         ColumnDefinition? previousSidebarColumn = _sidebarColumn;
+        SettingsSidebarResizeHandle? previousSidebarResizeHandle = _sidebarResizeHandle;
+        double previousCurrentSidebarWidth = _currentSidebarWidth;
         SettingsSearchBox? previousSettingsSearchBox = _settingsSearchBox;
         Border? previousConfirmOverlay = _confirmOverlay;
         TextBlock? previousConfirmTitle = _confirmTitle;
@@ -882,6 +918,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _scrollHost = null;
             _sidebar = null;
             _sidebarColumn = null;
+            _sidebarResizeHandle = null;
             _settingsSearchBox = null;
             _confirmOverlay = null;
             _confirmTitle = null;
@@ -907,6 +944,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             shellResources.Add(replacementPages.Clear);
             if (_scrollHost != null)
                 shellResources.Own(_scrollHost);
+            if (_sidebarResizeHandle != null)
+                shellResources.Own(_sidebarResizeHandle);
             if (_settingsSearchBox != null)
                 shellResources.Own(_settingsSearchBox);
             ControlNames.AssignLogicalSubtree(replacementRoot, this);
@@ -943,6 +982,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _scrollHost = previousScrollHost;
             _sidebar = previousSidebar;
             _sidebarColumn = previousSidebarColumn;
+            _sidebarResizeHandle = previousSidebarResizeHandle;
+            _currentSidebarWidth = previousCurrentSidebarWidth;
             _settingsSearchBox = previousSettingsSearchBox;
             _confirmOverlay = previousConfirmOverlay;
             _confirmTitle = previousConfirmTitle;
@@ -1145,6 +1186,27 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         UpdateWindowCornerRadius();
     }
 
+    private void OnWindowPointerMoved(object? sender, PointerEventArgs eventArgs) =>
+        _sidebarResizeHandle?.SetControlModifierDown(
+            (eventArgs.KeyModifiers & KeyModifiers.Control) != 0);
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
+    {
+        bool isControlModifierDown = eventArgs.Key is Key.LeftCtrl or Key.RightCtrl
+                                     || (eventArgs.KeyModifiers & KeyModifiers.Control) != 0;
+        _sidebarResizeHandle?.SetControlModifierDown(isControlModifierDown);
+    }
+
+    private void OnWindowKeyUp(object? sender, KeyEventArgs eventArgs)
+    {
+        bool isControlModifierDown = eventArgs.Key is not (Key.LeftCtrl or Key.RightCtrl)
+                                     && (eventArgs.KeyModifiers & KeyModifiers.Control) != 0;
+        _sidebarResizeHandle?.SetControlModifierDown(isControlModifierDown);
+    }
+
+    private void OnWindowDeactivated(object? sender, EventArgs eventArgs) =>
+        _sidebarResizeHandle?.SetControlModifierDown(false);
+
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         if (IsClosing) return;
@@ -1196,6 +1258,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _scrollHost = null;
         _sidebar = null;
         _sidebarColumn = null;
+        _sidebarResizeHandle = null;
+        _currentSidebarWidth = 0;
         _confirmOverlay = null;
         _confirmTitle = null;
         _confirmMessage = null;
@@ -1206,13 +1270,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void UpdateSidebarLayout()
     {
-        double windowWidth = ClientSize.Width;
-        if (!double.IsFinite(windowWidth) || windowWidth <= 0)
-            windowWidth = Bounds.Width;
-        if (!double.IsFinite(windowWidth) || windowWidth <= 0)
-            windowWidth = Width;
-
-        UpdateSidebarLayout(windowWidth);
+        UpdateSidebarLayout(ResolveWindowWidth());
     }
 
     private void UpdateSidebarLayout(double windowWidth)
@@ -1222,8 +1280,94 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (sidebar == null || sidebarColumn == null) return;
 
         bool isCollapsed = EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold;
+        double maximumWidth = GetAvailableSidebarMaximumWidth(windowWidth);
+        double displayedWidth = SettingsSidebarWidthLayout.ResolvePersistedWidth(
+            _currentSidebarWidth,
+            SidebarWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+            maximumWidth);
         sidebar.IsVisible = !isCollapsed;
-        sidebarColumn.Width = new GridLength(isCollapsed ? 0 : SidebarWidth);
+        if (_sidebarResizeHandle != null)
+            _sidebarResizeHandle.IsVisible = !isCollapsed;
+        sidebarColumn.Width = new GridLength(isCollapsed ? 0 : displayedWidth);
+    }
+
+    private double ResolveWindowWidth()
+    {
+        double windowWidth = ClientSize.Width;
+        if (!double.IsFinite(windowWidth) || windowWidth <= 0)
+            windowWidth = Bounds.Width;
+        if (!double.IsFinite(windowWidth) || windowWidth <= 0)
+            windowWidth = Width;
+        return windowWidth;
+    }
+
+    private double ResolveConfiguredSidebarWidth()
+    {
+        double persistedWidth = SidebarWidthSettings?.SettingsSidebarWidth ?? 0;
+        return SettingsSidebarWidthLayout.ResolvePersistedWidth(
+            persistedWidth,
+            SidebarWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMaximumWidth);
+    }
+
+    private double GetDisplayedSidebarWidth()
+    {
+        double displayedWidth = _sidebarColumn?.Width.Value ?? _currentSidebarWidth;
+        return double.IsFinite(displayedWidth) && displayedWidth > 0
+            ? displayedWidth
+            : _currentSidebarWidth;
+    }
+
+    private double GetAvailableSidebarMaximumWidth() =>
+        GetAvailableSidebarMaximumWidth(ResolveWindowWidth());
+
+    private double GetAvailableSidebarMaximumWidth(double windowWidth) =>
+        SettingsSidebarWidthLayout.GetAvailableMaximumWidth(
+            windowWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMaximumWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumContentWidth);
+
+    private void PreviewSidebarWidth(double width)
+    {
+        _currentSidebarWidth = SettingsSidebarWidthLayout.ResolvePersistedWidth(
+            width,
+            SidebarWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMaximumWidth);
+        UpdateSidebarLayout();
+    }
+
+    private void PersistSidebarWidth(double width)
+    {
+        PreviewSidebarWidth(width);
+        ISettingsSidebarWidthSettings? settings = SidebarWidthSettings;
+        if (settings == null
+            || SettingsSidebarWidthLayout.AreEqual(settings.SettingsSidebarWidth, _currentSidebarWidth))
+        {
+            return;
+        }
+
+        settings.SettingsSidebarWidth = _currentSidebarWidth;
+        Save();
+    }
+
+    private void ResetSidebarWidth()
+    {
+        _currentSidebarWidth = SettingsSidebarWidthLayout.ResolvePersistedWidth(
+            0,
+            SidebarWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMaximumWidth);
+        UpdateSidebarLayout();
+
+        ISettingsSidebarWidthSettings? settings = SidebarWidthSettings;
+        if (settings == null || settings.SettingsSidebarWidth == 0) return;
+
+        settings.SettingsSidebarWidth = 0;
+        Save();
     }
 
     private void RunWindowCloseCleanup(string operation, Action cleanup)
