@@ -7,7 +7,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Services;
-using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -25,20 +24,6 @@ internal static class UpdateConfirmationLayout
     public static Thickness BodyMargin => AXAMLResources.AxamlUpdateConfirmation.BodyMargin;
     public static Thickness ModalBodyMargin => AXAMLResources.AxamlUpdateConfirmation.ModalBodyMargin;
     public static double ModalTitleFontSize => AXAMLResources.AxamlUpdateConfirmation.ModalTitleFontSize;
-    public static double ModalCloseButtonWidth =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonWidth;
-    public static double ModalCloseButtonHeight =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonHeight;
-    public static double ModalCloseButtonGlyphFontSize =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonGlyphFontSize;
-    public static CornerRadius ModalCloseButtonCornerRadius =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonCornerRadius;
-    public static Thickness ModalCloseButtonMargin =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonMargin;
-    public static Color ModalCloseButtonHoverBackground =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonHoverBackground;
-    public static Color ModalCloseButtonPressedBackground =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalCloseButtonPressedBackground;
     public static Thickness ModalDescriptionMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalDescriptionMargin;
     public static double VersionLineHeightPadding =>
@@ -269,7 +254,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-            body.Children.Add(BuildModalHeader(title, cancelText, palette, resources));
+            body.Children.Add(BuildModalTitle(title, palette));
             descriptionRow = 1;
             actionButtonsRow = 3;
         }
@@ -346,18 +331,24 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             buttons.Children.Add(alternate);
         }
 
-        if (!_useModalContentLayout && !string.IsNullOrWhiteSpace(cancelText))
+        SettingsButton? cancel = null;
+        if (!string.IsNullOrWhiteSpace(cancelText))
         {
-            SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
+            cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
             cancel.Padding = UpdateConfirmationLayout.ActionButtonPadding;
-            cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
+            if (!_useModalContentLayout)
+                cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
             cancel.HorizontalAlignment = HorizontalAlignment.Left;
             cancel.Click += OnCancelClick;
             resources.Add(() => cancel.Click -= OnCancelClick);
-            buttons.Children.Add(cancel);
         }
 
+        if (!_useModalContentLayout && cancel != null)
+            buttons.Children.Add(cancel);
+
         buttons.Children.Add(install);
+        if (_useModalContentLayout && cancel != null)
+            buttons.Children.Add(cancel);
         buttons.Margin = _useModalContentLayout
             ? UpdateConfirmationLayout.ModalActionButtonsMargin
             : UpdateConfirmationLayout.ActionButtonsMargin;
@@ -485,56 +476,15 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         return link;
     }
 
-    private Grid BuildModalHeader(
-        string title,
-        string? closeTooltip,
-        SettingsPalette palette,
-        UIResourceScope resources)
+    private static TextBlock BuildModalTitle(string title, SettingsPalette palette)
     {
-        Grid header = new()
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
-        };
-
         TextBlock modalTitle = TrayAppDotNETSettingsUI.Text(
             title,
             palette,
             UpdateConfirmationLayout.ModalTitleFontSize,
             FontWeight.SemiBold);
         modalTitle.TextWrapping = TextWrapping.Wrap;
-        modalTitle.VerticalAlignment = VerticalAlignment.Center;
-        header.Children.Add(modalTitle);
-
-        TrayAppDotNETCaptionCloseButton close = new(
-            palette,
-            GlyphCatalog.CHROME_CLOSE,
-            UpdateConfirmationLayout.ModalCloseButtonWidth,
-            UpdateConfirmationLayout.ModalCloseButtonHeight,
-            UpdateConfirmationLayout.ModalCloseButtonGlyphFontSize,
-            FontWeight.Bold,
-            UpdateConfirmationLayout.ModalCloseButtonHoverBackground,
-            UpdateConfirmationLayout.ModalCloseButtonPressedBackground,
-            UpdateConfirmationLayout.ModalCloseButtonCornerRadius)
-        {
-            Margin = UpdateConfirmationLayout.ModalCloseButtonMargin,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        TrayAppDotNETToolTip.SetTip(
-            close,
-            string.IsNullOrWhiteSpace(closeTooltip)
-                ? L(nameof(CommonStrings.UpdateDialog_CaptionClose_Tooltip))
-                : closeTooltip);
-        TrayAppDotNETToolTip.SuppressWhileEngaged(close);
-        close.Click += OnCancelClick;
-        resources.Add(() => close.Click -= OnCancelClick);
-        Grid.SetColumn(close, 1);
-        header.Children.Add(close);
-
-        return header;
+        return modalTitle;
     }
 
     private Grid BuildTitleBar(string title, SettingsPalette palette, UIResourceScope resources)
