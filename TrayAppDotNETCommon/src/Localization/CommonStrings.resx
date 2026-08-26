@@ -616,10 +616,14 @@ Restart from the installed copy now?</value>
   <data name="UpdateDialog_CaptionClose_Tooltip" xml:space="preserve">
     <value>Close</value>
   </data>
-  <data name="UpdateDialog_DescriptionFormat" xml:space="preserve">
-    <value>App: {0}
-New version available: {1}
-Current running version: {2}</value>
+  <data name="UpdateDialog_AppFormat" xml:space="preserve">
+    <value>App: {0}</value>
+  </data>
+  <data name="UpdateDialog_NewVersionFormat" xml:space="preserve">
+    <value>New version available: {0}</value>
+  </data>
+  <data name="UpdateDialog_CurrentVersionFormat" xml:space="preserve">
+    <value>Current running version: {0}</value>
   </data>
   <data name="UpdateDialog_DownloadFailed" xml:space="preserve">
     <value>The update could not be downloaded. Check the log for details.</value>
@@ -632,6 +636,9 @@ Current running version: {2}</value>
   </data>
   <data name="UpdateDialog_ViewReleases" xml:space="preserve">
     <value>view releases</value>
+  </data>
+  <data name="UpdateDialog_VisitWebsite" xml:space="preserve">
+    <value>visit trayapp.net</value>
   </data>
   <data name="UpdateDialog_RestartNotice" xml:space="preserve">
     <value>Updating will cause app to restart.</value>

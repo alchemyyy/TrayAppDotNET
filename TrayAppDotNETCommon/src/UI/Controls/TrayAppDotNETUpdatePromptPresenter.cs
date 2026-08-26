@@ -142,14 +142,21 @@ public static class TrayAppDotNETUpdatePromptPresenter
         string title = L(options, nameof(CommonStrings.UpdateDialog_Title));
         string description = string.Format(
             CultureInfo.CurrentCulture,
-            L(options, nameof(CommonStrings.UpdateDialog_DescriptionFormat)),
-            options.Service.ApplicationName,
-            options.UpdateInfo.Version,
+            L(options, nameof(CommonStrings.UpdateDialog_AppFormat)),
+            options.Service.ApplicationName);
+        string newVersionText = string.Format(
+            CultureInfo.CurrentCulture,
+            L(options, nameof(CommonStrings.UpdateDialog_NewVersionFormat)),
+            options.UpdateInfo.Version);
+        string currentVersionText = string.Format(
+            CultureInfo.CurrentCulture,
+            L(options, nameof(CommonStrings.UpdateDialog_CurrentVersionFormat)),
             options.Service.CurrentBuild);
         string confirmText = L(options, nameof(CommonStrings.UpdateDialog_Install));
         string skipText = L(options, nameof(CommonStrings.UpdateDialog_SkipRelease));
         string closeText = L(options, nameof(CommonStrings.UpdateDialog_Close));
         string releasesLinkText = L(options, nameof(CommonStrings.UpdateDialog_ViewReleases));
+        string websiteLinkText = L(options, nameof(CommonStrings.UpdateDialog_VisitWebsite));
         string restartNotice = L(options, nameof(CommonStrings.UpdateDialog_RestartNotice));
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
@@ -160,8 +167,12 @@ public static class TrayAppDotNETUpdatePromptPresenter
             options.EnableRoundedCorners,
             skipText,
             closeText,
-            releasesLinkText: releasesLinkText,
-            releasesPageUrl: options.Service.ReleasesPageUrl,
+            modalDetails: new TrayAppDotNETUpdateModalDetails(
+                newVersionText,
+                currentVersionText,
+                releasesLinkText,
+                options.Service.ReleasesPageUrl,
+                websiteLinkText),
             modalFooterText: restartNotice,
             useModalContentLayout: true)
         {

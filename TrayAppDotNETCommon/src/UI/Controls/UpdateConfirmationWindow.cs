@@ -43,8 +43,10 @@ internal static class UpdateConfirmationLayout
         AXAMLResources.AxamlUpdateConfirmation.ModalDescriptionMargin;
     public static double VersionLineHeightPadding =>
         AXAMLResources.AxamlUpdateConfirmation.VersionLineHeightPadding;
-    public static Thickness ModalReleasesLinkMargin =>
-        AXAMLResources.AxamlUpdateConfirmation.ModalReleasesLinkMargin;
+    public static double ModalLinkColumnSpacing =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalLinkColumnSpacing;
+    public static Thickness ModalLinkMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalLinkMargin;
     public static Thickness ModalRestartNoticeMargin =>
         AXAMLResources.AxamlUpdateConfirmation.ModalRestartNoticeMargin;
     public static Thickness ModalActionButtonsMargin =>
@@ -63,15 +65,24 @@ public enum TrayAppDotNETUpdatePromptResult
     Alternate
 }
 
+/// <summary>Structured version rows and links for the update modal body.</summary>
+public sealed record TrayAppDotNETUpdateModalDetails(
+    string NewVersionText,
+    string CurrentVersionText,
+    string ReleasesLinkText,
+    Uri ReleasesPageURI,
+    string WebsiteLinkText);
+
 public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 {
+    private static readonly Uri TrayAppDotNETWebsitePageURI = new("https://trayapp.net/");
+
     private readonly string _dialogTitle;
     private readonly string _description;
     private readonly string _confirmText;
     private readonly string? _alternateText;
     private readonly string? _cancelText;
-    private readonly string? _releasesLinkText;
-    private readonly Uri? _releasesPageUrl;
+    private readonly TrayAppDotNETUpdateModalDetails? _modalDetails;
     private readonly string? _modalFooterText;
     private readonly bool _useModalContentLayout;
     private readonly SettingsPalette _palette;
@@ -90,17 +101,25 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             L(nameof(CommonStrings.UpdateDialog_Title)),
             string.Format(
                 CultureInfo.CurrentCulture,
-                L(nameof(CommonStrings.UpdateDialog_DescriptionFormat)),
-                service.ApplicationName,
-                info.Version,
-                service.CurrentBuild),
+                L(nameof(CommonStrings.UpdateDialog_AppFormat)),
+                service.ApplicationName),
             L(nameof(CommonStrings.UpdateDialog_Install)),
             palette,
             rounded,
             alternateText: L(nameof(CommonStrings.UpdateDialog_SkipRelease)),
             cancelText: L(nameof(CommonStrings.UpdateDialog_Close)),
-            releasesLinkText: L(nameof(CommonStrings.UpdateDialog_ViewReleases)),
-            releasesPageUrl: service.ReleasesPageUrl,
+            modalDetails: new TrayAppDotNETUpdateModalDetails(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    L(nameof(CommonStrings.UpdateDialog_NewVersionFormat)),
+                    info.Version),
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    L(nameof(CommonStrings.UpdateDialog_CurrentVersionFormat)),
+                    service.CurrentBuild),
+                L(nameof(CommonStrings.UpdateDialog_ViewReleases)),
+                service.ReleasesPageUrl,
+                L(nameof(CommonStrings.UpdateDialog_VisitWebsite))),
             modalFooterText: L(nameof(CommonStrings.UpdateDialog_RestartNotice)),
             useModalContentLayout: true)
     {
@@ -114,8 +133,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         bool rounded,
         string? alternateText = null,
         string? cancelText = null,
-        string? releasesLinkText = null,
-        Uri? releasesPageUrl = null,
+        TrayAppDotNETUpdateModalDetails? modalDetails = null,
         string? modalFooterText = null,
         bool useModalContentLayout = false)
     {
@@ -124,8 +142,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         _confirmText = confirmText;
         _alternateText = alternateText;
         _cancelText = cancelText;
-        _releasesLinkText = releasesLinkText;
-        _releasesPageUrl = releasesPageUrl;
+        _modalDetails = modalDetails;
         _modalFooterText = modalFooterText;
         _useModalContentLayout = useModalContentLayout;
         _palette = palette;
@@ -251,11 +268,10 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
             body.Children.Add(BuildModalHeader(title, cancelText, palette, resources));
             descriptionRow = 1;
-            actionButtonsRow = 4;
+            actionButtonsRow = 3;
         }
         else
         {
@@ -270,38 +286,28 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             actionButtonsRow = 1;
         }
 
-        TextBlock descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
-        if (_useModalContentLayout)
+        if (_useModalContentLayout && _modalDetails != null)
         {
-            descriptionText.Margin = UpdateConfirmationLayout.ModalDescriptionMargin;
-            descriptionText.LineHeight =
-                descriptionText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
-            descriptionText.TextWrapping = TextWrapping.Wrap;
-        }
-        Grid.SetRow(descriptionText, descriptionRow);
-        body.Children.Add(descriptionText);
-
-        if (_useModalContentLayout &&
-            !string.IsNullOrWhiteSpace(_releasesLinkText) &&
-            _releasesPageUrl != null)
-        {
-            TextBlock releasesLink = TrayAppDotNETSettingsUI.Text(
-                _releasesLinkText,
+            Grid modalDescription = BuildModalDescription(
+                description,
+                _modalDetails,
                 palette,
-                SettingsUILayout.DescriptionFontSize);
-            releasesLink.Foreground = TrayAppDotNETSettingsUI.Brush(palette.Accent);
-            releasesLink.LineHeight =
-                releasesLink.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
-            releasesLink.Margin = UpdateConfirmationLayout.ModalReleasesLinkMargin;
-            releasesLink.TextDecorations = TextDecorations.Underline;
-            releasesLink.Cursor = TrayAppDotNETCursors.Hand;
-            releasesLink.Focusable = true;
-            releasesLink.PointerPressed += OnReleasesLinkPointerPressed;
-            resources.Add(() => releasesLink.PointerPressed -= OnReleasesLinkPointerPressed);
-            releasesLink.KeyDown += OnReleasesLinkKeyDown;
-            resources.Add(() => releasesLink.KeyDown -= OnReleasesLinkKeyDown);
-            Grid.SetRow(releasesLink, 2);
-            body.Children.Add(releasesLink);
+                resources);
+            Grid.SetRow(modalDescription, descriptionRow);
+            body.Children.Add(modalDescription);
+        }
+        else
+        {
+            TextBlock descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
+            if (_useModalContentLayout)
+            {
+                descriptionText.Margin = UpdateConfirmationLayout.ModalDescriptionMargin;
+                descriptionText.LineHeight =
+                    descriptionText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
+                descriptionText.TextWrapping = TextWrapping.Wrap;
+            }
+            Grid.SetRow(descriptionText, descriptionRow);
+            body.Children.Add(descriptionText);
         }
 
         if (_useModalContentLayout && !string.IsNullOrWhiteSpace(_modalFooterText))
@@ -311,7 +317,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             modalFooterText.LineHeight =
                 modalFooterText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
             modalFooterText.TextWrapping = TextWrapping.Wrap;
-            Grid.SetRow(modalFooterText, 3);
+            Grid.SetRow(modalFooterText, 2);
             body.Children.Add(modalFooterText);
         }
 
@@ -360,6 +366,123 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         root.Children.Add(body);
         return root;
+    }
+
+    private Grid BuildModalDescription(
+        string applicationText,
+        TrayAppDotNETUpdateModalDetails details,
+        SettingsPalette palette,
+        UIResourceScope resources)
+    {
+        Grid description = new()
+        {
+            Margin = UpdateConfirmationLayout.ModalDescriptionMargin,
+            ColumnSpacing = UpdateConfirmationLayout.ModalLinkColumnSpacing,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            },
+            RowDefinitions =
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto)
+            }
+        };
+
+        TextBlock application = BuildModalDescriptionText(applicationText, palette, TextWrapping.Wrap);
+        Grid.SetColumnSpan(application, 2);
+        description.Children.Add(application);
+
+        TextBlock newVersion = BuildModalDescriptionText(
+            details.NewVersionText,
+            palette,
+            TextWrapping.NoWrap);
+        Grid.SetRow(newVersion, 1);
+        description.Children.Add(newVersion);
+
+        TextBlock currentVersion = BuildModalDescriptionText(
+            details.CurrentVersionText,
+            palette,
+            TextWrapping.NoWrap);
+        Grid.SetRow(currentVersion, 2);
+        description.Children.Add(currentVersion);
+
+        TextBlock releasesLink = BuildModalHyperlink(
+            details.ReleasesLinkText,
+            details.ReleasesPageURI,
+            palette,
+            resources);
+        Grid.SetRow(releasesLink, 1);
+        Grid.SetColumn(releasesLink, 1);
+        description.Children.Add(releasesLink);
+
+        TextBlock websiteLink = BuildModalHyperlink(
+            details.WebsiteLinkText,
+            TrayAppDotNETWebsitePageURI,
+            palette,
+            resources);
+        Grid.SetRow(websiteLink, 2);
+        Grid.SetColumn(websiteLink, 1);
+        description.Children.Add(websiteLink);
+
+        return description;
+    }
+
+    private static TextBlock BuildModalDescriptionText(
+        string text,
+        SettingsPalette palette,
+        TextWrapping textWrapping)
+    {
+        TextBlock textBlock = TrayAppDotNETSettingsUI.DescriptionText(text, palette);
+        textBlock.LineHeight = textBlock.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
+        textBlock.Margin = default;
+        textBlock.TextWrapping = textWrapping;
+        textBlock.VerticalAlignment = VerticalAlignment.Center;
+        return textBlock;
+    }
+
+    private TextBlock BuildModalHyperlink(
+        string text,
+        Uri pageURI,
+        SettingsPalette palette,
+        UIResourceScope resources)
+    {
+        TextBlock link = TrayAppDotNETSettingsUI.Text(
+            text,
+            palette,
+            SettingsUILayout.DescriptionFontSize);
+        link.Foreground = TrayAppDotNETSettingsUI.Brush(palette.Accent);
+        link.LineHeight = link.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
+        link.Margin = UpdateConfirmationLayout.ModalLinkMargin;
+        link.TextDecorations = TextDecorations.Underline;
+        link.Cursor = TrayAppDotNETCursors.Hand;
+        link.Focusable = true;
+        link.HorizontalAlignment = HorizontalAlignment.Right;
+        link.VerticalAlignment = VerticalAlignment.Center;
+
+        void OnPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
+        {
+            if (_closed || !eventArgs.GetCurrentPoint(link).Properties.IsLeftButtonPressed) return;
+
+            OpenPage(pageURI);
+            eventArgs.Handled = true;
+        }
+
+        void OnKeyDown(object? sender, KeyEventArgs eventArgs)
+        {
+            if (_closed || eventArgs.Key is not (Key.Enter or Key.Space)) return;
+
+            OpenPage(pageURI);
+            eventArgs.Handled = true;
+        }
+
+        link.PointerPressed += OnPointerPressed;
+        resources.Add(() => link.PointerPressed -= OnPointerPressed);
+        link.KeyDown += OnKeyDown;
+        resources.Add(() => link.KeyDown -= OnKeyDown);
+        return link;
     }
 
     private Grid BuildModalHeader(
@@ -458,36 +581,16 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         e.Handled = true;
     }
 
-    private void OnReleasesLinkPointerPressed(object? sender, PointerPressedEventArgs e)
+    private static void OpenPage(Uri pageURI)
     {
-        if (_closed || sender is not Control releasesLink) return;
-        if (!e.GetCurrentPoint(releasesLink).Properties.IsLeftButtonPressed) return;
-
-        OpenReleasesPage();
-        e.Handled = true;
-    }
-
-    private void OnReleasesLinkKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (_closed || e.Key is not (Key.Enter or Key.Space)) return;
-
-        OpenReleasesPage();
-        e.Handled = true;
-    }
-
-    private void OpenReleasesPage()
-    {
-        Uri? releasesPageUrl = _releasesPageUrl;
-        if (releasesPageUrl == null) return;
-
         try
         {
             using Process? process = Process.Start(
-                new ProcessStartInfo(releasesPageUrl.AbsoluteUri) { UseShellExecute = true });
+                new ProcessStartInfo(pageURI.AbsoluteUri) { UseShellExecute = true });
         }
         catch (Exception exception)
         {
-            TADNLog.Log($"Update confirmation failed to open releases page: {exception.Message}");
+            TADNLog.Log($"Update confirmation failed to open {pageURI.Host}: {exception.Message}");
         }
     }
 

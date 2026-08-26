@@ -37,14 +37,18 @@ public sealed class SecondaryWindowLifetimeTests
     {
         TrayAppDotNETUpdateConfirmationWindow prompt = new(
             "Proceed with update?",
-            "App: TestApp\nNew version available: 236\nCurrent running version: 235",
+            "App: TestApp",
             "Install update",
             Palette(),
             rounded: true,
             alternateText: "Skip release",
             cancelText: "Close",
-            releasesLinkText: "view releases",
-            releasesPageUrl: new Uri("https://github.com/test-owner/test-repository/releases"),
+            modalDetails: new TrayAppDotNETUpdateModalDetails(
+                "New version available: 236",
+                "Current running version: 235",
+                "view releases",
+                new Uri("https://github.com/test-owner/test-repository/releases"),
+                "visit trayapp.net"),
             modalFooterText: "Updating will cause app to restart.",
             useModalContentLayout: true);
 
@@ -78,23 +82,49 @@ public sealed class SecondaryWindowLifetimeTests
             grid => grid.Margin == UpdateConfirmationLayout.ModalBodyMargin);
         TextBlock descriptionText = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
-            textBlock => textBlock.Text?.StartsWith("App: TestApp", StringComparison.Ordinal) == true);
+            textBlock => textBlock.Text == "App: TestApp");
         Assert.Equal(SettingsUILayout.DescriptionFontSize, descriptionText.FontSize);
-        Assert.Equal(UpdateConfirmationLayout.ModalDescriptionMargin, descriptionText.Margin);
+        Assert.Equal(default(Thickness), descriptionText.Margin);
         Assert.Equal(
             SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
             descriptionText.LineHeight);
         Assert.Equal(TextWrapping.Wrap, descriptionText.TextWrapping);
+        TextBlock newVersionText = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "New version available: 236");
+        TextBlock currentVersionText = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "Current running version: 235");
         TextBlock releasesLink = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
             textBlock => textBlock.Text == "view releases");
-        Assert.Equal(UpdateConfirmationLayout.ModalReleasesLinkMargin, releasesLink.Margin);
+        TextBlock websiteLink = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "visit trayapp.net");
+        Grid modalDescription = Assert.Single(
+            prompt.GetVisualDescendants().OfType<Grid>(),
+            grid => grid.Children.Contains(newVersionText) && grid.Children.Contains(releasesLink));
+        Assert.Equal(UpdateConfirmationLayout.ModalDescriptionMargin, modalDescription.Margin);
+        Assert.Equal(UpdateConfirmationLayout.ModalLinkColumnSpacing, modalDescription.ColumnSpacing);
+        Assert.Equal(1, Grid.GetRow(newVersionText));
+        Assert.Equal(1, Grid.GetRow(releasesLink));
+        Assert.Equal(1, Grid.GetColumn(releasesLink));
+        Assert.Equal(2, Grid.GetRow(currentVersionText));
+        Assert.Equal(2, Grid.GetRow(websiteLink));
+        Assert.Equal(1, Grid.GetColumn(websiteLink));
+        Assert.Equal(UpdateConfirmationLayout.ModalLinkMargin, releasesLink.Margin);
+        Assert.Equal(UpdateConfirmationLayout.ModalLinkMargin, websiteLink.Margin);
         Assert.Equal(
             SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
             releasesLink.LineHeight);
+        Assert.Equal(HorizontalAlignment.Right, releasesLink.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Right, websiteLink.HorizontalAlignment);
         Assert.Same(TextDecorations.Underline, releasesLink.TextDecorations);
+        Assert.Same(TextDecorations.Underline, websiteLink.TextDecorations);
         Assert.Same(TrayAppDotNETCursors.Hand, releasesLink.Cursor);
+        Assert.Same(TrayAppDotNETCursors.Hand, websiteLink.Cursor);
         Assert.True(releasesLink.Focusable);
+        Assert.True(websiteLink.Focusable);
         TextBlock restartNotice = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
             textBlock => textBlock.Text == "Updating will cause app to restart.");

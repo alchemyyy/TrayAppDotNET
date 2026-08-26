@@ -15,19 +15,20 @@
 
     <Thickness x:Key="UpdateConfirmation.BodyMargin">16,8,20,20</Thickness>
     <!-- Modal update content -->
-    <Thickness x:Key="UpdateConfirmation.ModalBodyMargin">14,10,0,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ModalBodyMargin">14,4,0,0</Thickness>
     <sys:Double x:Key="UpdateConfirmation.ModalTitleFontSize">18</sys:Double>
-    <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonWidth">28</sys:Double>
-    <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonHeight">28</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonWidth">32</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonHeight">32</sys:Double>
     <sys:Double x:Key="UpdateConfirmation.ModalCloseButtonGlyphFontSize">11</sys:Double>
     <CornerRadius x:Key="UpdateConfirmation.ModalCloseButtonCornerRadius">4</CornerRadius>
-    <!-- Body top inset 10 plus -3 matches the 7-unit right inset -->
-    <Thickness x:Key="UpdateConfirmation.ModalCloseButtonMargin">0,-3,7,0</Thickness>
+    <!-- Close button offset relative to the modal body -->
+    <Thickness x:Key="UpdateConfirmation.ModalCloseButtonMargin">0,2,7,0</Thickness>
     <Color x:Key="UpdateConfirmation.ModalCloseButtonHoverBackground">#20FFFFFF</Color>
     <Color x:Key="UpdateConfirmation.ModalCloseButtonPressedBackground">#30FFFFFF</Color>
     <Thickness x:Key="UpdateConfirmation.ModalDescriptionMargin">0,10,0,0</Thickness>
     <sys:Double x:Key="UpdateConfirmation.VersionLineHeightPadding">6</sys:Double>
-    <Thickness x:Key="UpdateConfirmation.ModalReleasesLinkMargin">0</Thickness>
+    <sys:Double x:Key="UpdateConfirmation.ModalLinkColumnSpacing">8</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.ModalLinkMargin">0,0,7,0</Thickness>
     <Thickness x:Key="UpdateConfirmation.ModalRestartNoticeMargin">0,8,0,-4</Thickness>
     <Thickness x:Key="UpdateConfirmation.ModalActionButtonsMargin">0,12,0,11</Thickness>
     <sys:Double x:Key="UpdateConfirmation.ModalActionButtonSpacing">6</sys:Double>
