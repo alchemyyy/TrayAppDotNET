@@ -21,6 +21,18 @@ internal static class UpdateConfirmationLayout
     public static double TitleBarHeight => AXAMLResources.AxamlUpdateConfirmation.TitleBarHeight;
     public static Thickness TitleMargin => AXAMLResources.AxamlUpdateConfirmation.TitleMargin;
     public static Thickness BodyMargin => AXAMLResources.AxamlUpdateConfirmation.BodyMargin;
+    public static Thickness ModalBodyMargin => AXAMLResources.AxamlUpdateConfirmation.ModalBodyMargin;
+    public static double ModalTitleFontSize => AXAMLResources.AxamlUpdateConfirmation.ModalTitleFontSize;
+    public static Thickness ModalDescriptionMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalDescriptionMargin;
+    public static double VersionLineHeightPadding =>
+        AXAMLResources.AxamlUpdateConfirmation.VersionLineHeightPadding;
+    public static Thickness ModalRestartNoticeMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalRestartNoticeMargin;
+    public static Thickness ModalActionButtonsMargin =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalActionButtonsMargin;
+    public static double ModalActionButtonSpacing =>
+        AXAMLResources.AxamlUpdateConfirmation.ModalActionButtonSpacing;
     public static Thickness ActionButtonPadding => AXAMLResources.AxamlUpdateConfirmation.ActionButtonPadding;
     public static Thickness SecondaryButtonMargin => AXAMLResources.AxamlUpdateConfirmation.SecondaryButtonMargin;
     public static Thickness ActionButtonsMargin => AXAMLResources.AxamlUpdateConfirmation.ActionButtonsMargin;
@@ -40,6 +52,8 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
     private readonly string _confirmText;
     private readonly string? _alternateText;
     private readonly string? _cancelText;
+    private readonly string? _modalFooterText;
+    private readonly bool _useModalContentLayout;
     private readonly SettingsPalette _palette;
     private readonly bool _rounded;
     private readonly UIResourceScope _windowResources;
@@ -47,15 +61,26 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
     private int _disposeState;
     private bool _closed;
 
-    public TrayAppDotNETUpdateConfirmationWindow(UpdateInfo info, SettingsPalette palette, bool rounded)
+    public TrayAppDotNETUpdateConfirmationWindow(
+        UpdateInfo info,
+        UpdateCheckService service,
+        SettingsPalette palette,
+        bool rounded)
         : this(
-            string.Format(CultureInfo.CurrentCulture, L(nameof(CommonStrings.UpdateDialog_TitleFormat)),
-                info.ReleaseName),
-            L(nameof(CommonStrings.UpdateDialog_DefaultDescription)),
+            L(nameof(CommonStrings.UpdateDialog_Title)),
+            string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(CommonStrings.UpdateDialog_DescriptionFormat)),
+                service.ApplicationName,
+                info.Version,
+                service.CurrentBuild),
             L(nameof(CommonStrings.UpdateDialog_Install)),
             palette,
             rounded,
-            L(nameof(CommonStrings.UpdateDialog_SkipRelease)))
+            L(nameof(CommonStrings.UpdateDialog_SkipRelease)),
+            L(nameof(CommonStrings.UpdateDialog_Close)),
+            modalFooterText: L(nameof(CommonStrings.UpdateDialog_RestartNotice)),
+            useModalContentLayout: true)
     {
     }
 
@@ -66,13 +91,17 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         SettingsPalette palette,
         bool rounded,
         string? alternateText = null,
-        string? cancelText = null)
+        string? cancelText = null,
+        string? modalFooterText = null,
+        bool useModalContentLayout = false)
     {
         _dialogTitle = title;
         _description = description;
         _confirmText = confirmText;
         _alternateText = alternateText;
         _cancelText = cancelText;
+        _modalFooterText = modalFooterText;
+        _useModalContentLayout = useModalContentLayout;
         _palette = palette;
         _rounded = rounded;
         _windowResources = new UIResourceScope(nameof(TrayAppDotNETUpdateConfirmationWindow));
@@ -181,35 +210,87 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         UIResourceScope resources)
     {
         Grid root = new();
-        root.RowDefinitions.Add(new RowDefinition(new GridLength(UpdateConfirmationLayout.TitleBarHeight)));
-        root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        Grid body = new()
+        {
+            Margin = _useModalContentLayout
+                ? UpdateConfirmationLayout.ModalBodyMargin
+                : UpdateConfirmationLayout.BodyMargin
+        };
+        int descriptionRow;
+        int actionButtonsRow;
+        if (_useModalContentLayout)
+        {
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
-        root.Children.Add(BuildTitleBar(title, palette, resources));
+            TextBlock modalTitle = TrayAppDotNETSettingsUI.Text(
+                title,
+                palette,
+                UpdateConfirmationLayout.ModalTitleFontSize,
+                FontWeight.SemiBold);
+            modalTitle.TextWrapping = TextWrapping.Wrap;
+            body.Children.Add(modalTitle);
+            descriptionRow = 1;
+            actionButtonsRow = 3;
+        }
+        else
+        {
+            root.RowDefinitions.Add(new RowDefinition(new GridLength(UpdateConfirmationLayout.TitleBarHeight)));
+            root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            root.Children.Add(BuildTitleBar(title, palette, resources));
 
-        Grid body = new() { Margin = UpdateConfirmationLayout.BodyMargin };
-        body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        Grid.SetRow(body, 1);
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            body.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            Grid.SetRow(body, 1);
+            descriptionRow = 0;
+            actionButtonsRow = 1;
+        }
 
         TextBlock descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
-        Grid.SetRow(descriptionText, 0);
+        if (_useModalContentLayout)
+        {
+            descriptionText.Margin = UpdateConfirmationLayout.ModalDescriptionMargin;
+            descriptionText.LineHeight =
+                descriptionText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
+            descriptionText.TextWrapping = TextWrapping.Wrap;
+        }
+        Grid.SetRow(descriptionText, descriptionRow);
         body.Children.Add(descriptionText);
+
+        if (_useModalContentLayout && !string.IsNullOrWhiteSpace(_modalFooterText))
+        {
+            TextBlock modalFooterText = TrayAppDotNETSettingsUI.DescriptionText(_modalFooterText, palette);
+            modalFooterText.Margin = UpdateConfirmationLayout.ModalRestartNoticeMargin;
+            modalFooterText.LineHeight =
+                modalFooterText.FontSize + UpdateConfirmationLayout.VersionLineHeightPadding;
+            modalFooterText.TextWrapping = TextWrapping.Wrap;
+            Grid.SetRow(modalFooterText, 2);
+            body.Children.Add(modalFooterText);
+        }
 
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
         install.Padding = UpdateConfirmationLayout.ActionButtonPadding;
+        install.HorizontalAlignment = HorizontalAlignment.Left;
         install.Click += OnConfirmClick;
         resources.Add(() => install.Click -= OnConfirmClick);
 
         StackPanel buttons = new()
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
+            Orientation = _useModalContentLayout ? Orientation.Horizontal : Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Left
         };
+        if (_useModalContentLayout)
+            buttons.Spacing = UpdateConfirmationLayout.ModalActionButtonSpacing;
         if (!string.IsNullOrWhiteSpace(alternateText))
         {
             SettingsButton alternate = TrayAppDotNETSettingsUI.Button(alternateText, palette);
             alternate.Padding = UpdateConfirmationLayout.ActionButtonPadding;
-            alternate.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
+            if (!_useModalContentLayout)
+                alternate.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
+            alternate.HorizontalAlignment = HorizontalAlignment.Left;
             alternate.Click += OnAlternateClick;
             resources.Add(() => alternate.Click -= OnAlternateClick);
             buttons.Children.Add(alternate);
@@ -219,16 +300,19 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         {
             SettingsButton cancel = TrayAppDotNETSettingsUI.Button(cancelText, palette);
             cancel.Padding = UpdateConfirmationLayout.ActionButtonPadding;
-            cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
+            if (!_useModalContentLayout)
+                cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
+            cancel.HorizontalAlignment = HorizontalAlignment.Left;
             cancel.Click += OnCancelClick;
             resources.Add(() => cancel.Click -= OnCancelClick);
             buttons.Children.Add(cancel);
         }
 
         buttons.Children.Add(install);
-        buttons.HorizontalAlignment = HorizontalAlignment.Right;
-        buttons.Margin = UpdateConfirmationLayout.ActionButtonsMargin;
-        Grid.SetRow(buttons, 1);
+        buttons.Margin = _useModalContentLayout
+            ? UpdateConfirmationLayout.ModalActionButtonsMargin
+            : UpdateConfirmationLayout.ActionButtonsMargin;
+        Grid.SetRow(buttons, actionButtonsRow);
         body.Children.Add(buttons);
 
         root.Children.Add(body);

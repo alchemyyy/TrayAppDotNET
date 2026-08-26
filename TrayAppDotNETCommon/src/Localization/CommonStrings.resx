@@ -608,13 +608,18 @@ Restart from the installed copy now?</value>
     <value>Uninstalling...</value>
   </data>
   <data name="UpdateDialog_SkipRelease" xml:space="preserve">
-    <value>Skip this release</value>
+    <value>Skip release</value>
+  </data>
+  <data name="UpdateDialog_Close" xml:space="preserve">
+    <value>Close</value>
   </data>
   <data name="UpdateDialog_CaptionClose_Tooltip" xml:space="preserve">
     <value>Close</value>
   </data>
-  <data name="UpdateDialog_DefaultDescription" xml:space="preserve">
-    <value>A newer release is available.</value>
+  <data name="UpdateDialog_DescriptionFormat" xml:space="preserve">
+    <value>App: {0}
+New version available: {1}
+Current running version: {2}</value>
   </data>
   <data name="UpdateDialog_DownloadFailed" xml:space="preserve">
     <value>The update could not be downloaded. Check the log for details.</value>
@@ -623,10 +628,13 @@ Restart from the installed copy now?</value>
     <value>Update failed</value>
   </data>
   <data name="UpdateDialog_Install" xml:space="preserve">
-    <value>Install</value>
+    <value>Install update</value>
   </data>
-  <data name="UpdateDialog_TitleFormat" xml:space="preserve">
-    <value>Update available: {0}</value>
+  <data name="UpdateDialog_RestartNotice" xml:space="preserve">
+    <value>Installation of update will cause app to restart.</value>
+  </data>
+  <data name="UpdateDialog_Title" xml:space="preserve">
+    <value>Proceed with update?</value>
   </data>
   <data name="UpdateNotification_BodyFormat" xml:space="preserve">
     <value>{0} is available.</value>

@@ -181,6 +181,8 @@ public sealed class UpdateCheckService : IDisposable
 
     public UpdateCheckResult? LastResult => _lastResult;
 
+    public string ApplicationName => _options.ApplicationName;
+
     public int CurrentBuild => _options.CurrentBuild;
 
     public int SkippedUpdateVersion

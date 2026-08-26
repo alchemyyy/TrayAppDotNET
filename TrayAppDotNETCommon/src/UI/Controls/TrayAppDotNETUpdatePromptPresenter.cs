@@ -1,6 +1,9 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Controls;
 
@@ -10,6 +13,8 @@ public sealed record TrayAppDotNETUpdatePromptOptions
     public required UpdateCheckService Service { get; init; }
     public required UpdateInfo UpdateInfo { get; init; }
     public required SettingsPalette Palette { get; init; }
+    public Color OwnerBackdrop { get; init; } =
+        AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     public required bool EnableRoundedCorners { get; init; }
     public required Func<string, string> L { get; init; }
     public required Action Shutdown { get; init; }
@@ -134,13 +139,17 @@ public static class TrayAppDotNETUpdatePromptPresenter
     private static async Task<TrayAppDotNETUpdatePromptResult> ShowConfirmationAsync(
         TrayAppDotNETUpdatePromptOptions options)
     {
-        string title = string.Format(
+        string title = L(options, nameof(CommonStrings.UpdateDialog_Title));
+        string description = string.Format(
             CultureInfo.CurrentCulture,
-            L(options, nameof(CommonStrings.UpdateDialog_TitleFormat)),
-            options.UpdateInfo.ReleaseName);
-        string description = L(options, nameof(CommonStrings.UpdateDialog_DefaultDescription));
+            L(options, nameof(CommonStrings.UpdateDialog_DescriptionFormat)),
+            options.Service.ApplicationName,
+            options.UpdateInfo.Version,
+            options.Service.CurrentBuild);
         string confirmText = L(options, nameof(CommonStrings.UpdateDialog_Install));
         string skipText = L(options, nameof(CommonStrings.UpdateDialog_SkipRelease));
+        string closeText = L(options, nameof(CommonStrings.UpdateDialog_Close));
+        string restartNotice = L(options, nameof(CommonStrings.UpdateDialog_RestartNotice));
 
         TrayAppDotNETUpdateConfirmationWindow dialog = new(
             title,
@@ -148,7 +157,10 @@ public static class TrayAppDotNETUpdatePromptPresenter
             confirmText,
             options.Palette,
             options.EnableRoundedCorners,
-            skipText)
+            skipText,
+            closeText,
+            modalFooterText: restartNotice,
+            useModalContentLayout: true)
         {
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
@@ -222,17 +234,107 @@ public static class TrayAppDotNETUpdatePromptPresenter
         TrayAppDotNETUpdateConfirmationWindow dialog)
     {
         options.SetPromptOpen?.Invoke(true);
+        UpdatePromptOwnerBackdrop? ownerBackdrop = null;
         try
         {
+            try
+            {
+                ownerBackdrop = UpdatePromptOwnerBackdrop.Attach(options.Owner, options.OwnerBackdrop);
+            }
+            catch (Exception exception)
+            {
+                options.Log($"TrayAppDotNETUpdatePromptPresenter.OwnerBackdrop: {exception.Message}");
+            }
+
             return await dialog.ShowDialog<TrayAppDotNETUpdatePromptResult>(options.Owner);
         }
         finally
         {
-            options.SetPromptOpen?.Invoke(false);
-            options.PromptClosed?.Invoke();
+            try
+            {
+                ownerBackdrop?.Dispose();
+            }
+            finally
+            {
+                options.SetPromptOpen?.Invoke(false);
+                options.PromptClosed?.Invoke();
+            }
         }
     }
 
     private static string L(TrayAppDotNETUpdatePromptOptions options, string key) =>
         options.L(key);
+}
+
+internal sealed class UpdatePromptOwnerBackdrop : IDisposable
+{
+    private readonly Window _owner;
+    private readonly Control _originalContent;
+    private readonly Grid _host;
+    private readonly Border _backdrop;
+    private int _disposeState;
+
+    private UpdatePromptOwnerBackdrop(
+        Window owner,
+        Control originalContent,
+        Grid host,
+        Border backdrop)
+    {
+        _owner = owner;
+        _originalContent = originalContent;
+        _host = host;
+        _backdrop = backdrop;
+    }
+
+    /// <summary>Adds a non-interactive backdrop over the complete owner client area.</summary>
+    public static UpdatePromptOwnerBackdrop? Attach(Window owner, Color color)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+
+        if (owner.Content is not Control originalContent) return null;
+
+        Border backdrop = new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(color),
+            CornerRadius = originalContent is Border border ? border.CornerRadius : default,
+            Focusable = false,
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            ZIndex = int.MaxValue
+        };
+        Grid host = new();
+        owner.Content = null;
+        try
+        {
+            host.Children.Add(originalContent);
+            host.Children.Add(backdrop);
+            owner.Content = host;
+        }
+        catch
+        {
+            host.Children.Remove(backdrop);
+            host.Children.Remove(originalContent);
+            owner.Content = originalContent;
+            throw;
+        }
+
+        return new UpdatePromptOwnerBackdrop(owner, originalContent, host, backdrop);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposeState, 1) != 0) return;
+
+        _host.Children.Remove(_backdrop);
+        if (!ReferenceEquals(_owner.Content, _host))
+        {
+            _host.Children.Remove(_originalContent);
+            return;
+        }
+
+        _owner.Content = null;
+        _host.Children.Remove(_originalContent);
+        _owner.Content = _originalContent;
+    }
 }

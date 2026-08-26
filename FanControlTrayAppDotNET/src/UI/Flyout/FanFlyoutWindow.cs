@@ -5012,6 +5012,8 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
                 AppServices.Theme,
                 _settings,
                 AppTheme.ResolveEffectiveIsLightTheme(_settings)),
+            OwnerBackdrop = (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(
+                AppTheme.ResolveEffectiveIsLightTheme(_settings)),
             EnableRoundedCorners = _settings.EnableRoundedCorners,
             L = L,
             Log = static message => TADNLog.Log(message),

@@ -5,7 +5,7 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- Window geometry and chrome -->
-    <sys:Double x:Key="UpdateConfirmation.WindowWidth">350</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.WindowWidth">320</sys:Double>
     <sys:Double x:Key="UpdateConfirmation.WindowMinWidth">200</sys:Double>
     <Thickness x:Key="UpdateConfirmation.RootBorderThickness">1</Thickness>
     <CornerRadius x:Key="UpdateConfirmation.RootCornerRadius">8</CornerRadius>
@@ -13,9 +13,17 @@
     <sys:Double x:Key="UpdateConfirmation.TitleBarHeight">32</sys:Double>
     <Thickness x:Key="UpdateConfirmation.TitleMargin">16,0,0,0</Thickness>
 
-    <Thickness x:Key="UpdateConfirmation.BodyMargin">28,8,28,20</Thickness>
+    <Thickness x:Key="UpdateConfirmation.BodyMargin">16,8,20,20</Thickness>
+    <!-- Modal update content -->
+    <Thickness x:Key="UpdateConfirmation.ModalBodyMargin">14,10,0,0</Thickness>
+    <sys:Double x:Key="UpdateConfirmation.ModalTitleFontSize">18</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.ModalDescriptionMargin">0,10,0,0</Thickness>
+    <sys:Double x:Key="UpdateConfirmation.VersionLineHeightPadding">6</sys:Double>
+    <Thickness x:Key="UpdateConfirmation.ModalRestartNoticeMargin">0,8,0,-4</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ModalActionButtonsMargin">0,12,0,11</Thickness>
+    <sys:Double x:Key="UpdateConfirmation.ModalActionButtonSpacing">6</sys:Double>
     <!-- Dialog actions -->
-    <Thickness x:Key="UpdateConfirmation.ActionButtonPadding">20,8</Thickness>
-    <Thickness x:Key="UpdateConfirmation.SecondaryButtonMargin">0,0,8,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ActionButtonPadding">14,6</Thickness>
+    <Thickness x:Key="UpdateConfirmation.SecondaryButtonMargin">0,0,0,6</Thickness>
     <Thickness x:Key="UpdateConfirmation.ActionButtonsMargin">0,20,0,0</Thickness>
 </ResourceDictionary>

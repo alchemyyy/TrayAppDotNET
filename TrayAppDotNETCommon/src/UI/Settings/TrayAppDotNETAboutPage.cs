@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.Visuals;
 
 namespace TrayAppDotNETCommon.UI.Settings;
 
@@ -22,6 +23,8 @@ public sealed class TrayAppDotNETAboutPageOptions
     public required SettingsPalette Palette { get; init; }
     public required CornerRadius ButtonRadius { get; init; }
     public required CornerRadius CardRadius { get; init; }
+    public Color UpdatePromptOwnerBackdrop { get; init; } =
+        AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     public required Func<string, string> L { get; init; }
     public required Action Save { get; init; }
     public required string ApplicationName { get; init; }
@@ -400,6 +403,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                     Service = service,
                     UpdateInfo = info,
                     Palette = _options.Palette,
+                    OwnerBackdrop = _options.UpdatePromptOwnerBackdrop,
                     EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
                     L = L,
                     Shutdown = _options.Shutdown,
@@ -450,6 +454,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                     Service = service,
                     UpdateInfo = previousRelease,
                     Palette = _options.Palette,
+                    OwnerBackdrop = _options.UpdatePromptOwnerBackdrop,
                     EnableRoundedCorners = _options.CardRadius.TopLeft > 0,
                     L = L,
                     Shutdown = _options.Shutdown,

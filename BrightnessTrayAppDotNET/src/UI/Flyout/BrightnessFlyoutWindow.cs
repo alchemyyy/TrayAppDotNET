@@ -1638,6 +1638,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 _theme,
                 _settings,
                 BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
+            OwnerBackdrop = _theme.FlyoutOverlayBackdrop.For(
+                BrightnessAppTheme.ResolveEffectiveIsLightTheme(_settings)),
             EnableRoundedCorners = _settings?.EnableRoundedCorners == true,
             L = L,
             Log = static message => TADNLog.Log(message),

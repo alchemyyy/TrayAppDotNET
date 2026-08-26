@@ -36,7 +36,7 @@
     <visuals:ThemeColor x:Key="AppTheme.CloseButtonHover" LightHex="#C42B1C" DarkHex="#C42B1C" />
     <visuals:ThemeColor x:Key="AppTheme.CloseButtonPressed" LightHex="#A42B1C" DarkHex="#A42B1C" />
     <visuals:ThemeColor x:Key="AppTheme.CloseButtonGlyphActive" LightHex="#FFFFFF" DarkHex="#FFFFFF" />
-    <visuals:ThemeColor x:Key="AppTheme.FlyoutOverlayBackdrop" LightHex="#A0000000" DarkHex="#A0000000" />
+    <visuals:ThemeColor x:Key="AppTheme.FlyoutOverlayBackdrop" LightHex="#A0000000" DarkHex="#60000000" />
     <visuals:ThemeColor x:Key="AppTheme.FlyoutShadow" LightHex="#99000000" DarkHex="#99000000" />
     <visuals:ThemeColor x:Key="AppTheme.MenuShadow" LightHex="#80000000" DarkHex="#80000000" />
     <Color x:Key="AppTheme.TextSelectionHighlightAlpha">#66000000</Color>

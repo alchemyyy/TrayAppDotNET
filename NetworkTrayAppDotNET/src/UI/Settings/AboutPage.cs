@@ -13,6 +13,7 @@ public sealed partial class NetworkSettingsWindow
                 Palette = Palette,
                 ButtonRadius = RadiusMedium,
                 CardRadius = RadiusLarge,
+                UpdatePromptOwnerBackdrop = ConfirmOverlayBackdrop,
                 L = L,
                 Save = Save,
                 ApplicationName = Constants.ApplicationName,

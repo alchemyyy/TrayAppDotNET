@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Models;
@@ -34,26 +36,111 @@ public sealed class SecondaryWindowLifetimeTests
     public void ConfirmationCloseIsIdempotentAndSeversContent() => AvaloniaTestHost.Run(() =>
     {
         TrayAppDotNETUpdateConfirmationWindow prompt = new(
-            "Title",
-            "Description",
-            "Confirm",
+            "Proceed with update?",
+            "App: TestApp\nNew version available: 236\nCurrent running version: 235",
+            "Install update",
             Palette(),
             rounded: true,
-            alternateText: "Skip this release",
-            cancelText: "Cancel");
+            alternateText: "Skip release",
+            cancelText: "Close",
+            modalFooterText: "Installation of update will cause app to restart.",
+            useModalContentLayout: true);
 
         prompt.Show();
-        Assert.Contains(
+        SettingsButton alternateButton = Assert.Single(
             prompt.GetVisualDescendants().OfType<SettingsButton>(),
-            button => button.Text == "Skip this release");
+            button => button.Text == "Skip release");
+        SettingsButton confirmButton = Assert.Single(
+            prompt.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "Install update");
+        SettingsButton closeButton = Assert.Single(
+            prompt.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "Close");
+        StackPanel actionButtons = Assert.Single(
+            prompt.GetVisualDescendants().OfType<StackPanel>(),
+            panel => panel.Children.Contains(alternateButton));
+        Assert.Equal(Orientation.Horizontal, actionButtons.Orientation);
+        Assert.Equal(HorizontalAlignment.Left, actionButtons.HorizontalAlignment);
+        Assert.Equal(UpdateConfirmationLayout.ModalActionButtonSpacing, actionButtons.Spacing);
+        Assert.Equal(UpdateConfirmationLayout.ModalActionButtonsMargin, actionButtons.Margin);
+        Assert.Equal(HorizontalAlignment.Left, alternateButton.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Left, closeButton.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Left, confirmButton.HorizontalAlignment);
+        Assert.Equal(UpdateConfirmationLayout.ActionButtonPadding, alternateButton.Padding);
+        Assert.True(
+            actionButtons.Children.IndexOf(alternateButton) < actionButtons.Children.IndexOf(closeButton));
+        Assert.True(
+            actionButtons.Children.IndexOf(closeButton) < actionButtons.Children.IndexOf(confirmButton));
         Assert.Single(
+            prompt.GetVisualDescendants().OfType<Grid>(),
+            grid => grid.Margin == UpdateConfirmationLayout.ModalBodyMargin);
+        TextBlock descriptionText = Assert.Single(
             prompt.GetVisualDescendants().OfType<TextBlock>(),
-            textBlock => textBlock.Text == "Title");
+            textBlock => textBlock.Text?.StartsWith("App: TestApp", StringComparison.Ordinal) == true);
+        Assert.Equal(SettingsUILayout.DescriptionFontSize, descriptionText.FontSize);
+        Assert.Equal(UpdateConfirmationLayout.ModalDescriptionMargin, descriptionText.Margin);
+        Assert.Equal(
+            SettingsUILayout.DescriptionFontSize + UpdateConfirmationLayout.VersionLineHeightPadding,
+            descriptionText.LineHeight);
+        Assert.Equal(TextWrapping.Wrap, descriptionText.TextWrapping);
+        TextBlock restartNotice = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "Installation of update will cause app to restart.");
+        Assert.Equal(UpdateConfirmationLayout.ModalRestartNoticeMargin, restartNotice.Margin);
+        TextBlock titleText = Assert.Single(
+            prompt.GetVisualDescendants().OfType<TextBlock>(),
+            textBlock => textBlock.Text == "Proceed with update?");
+        Assert.Equal(UpdateConfirmationLayout.ModalTitleFontSize, titleText.FontSize);
+        Assert.Equal(FontWeight.SemiBold, titleText.FontWeight);
         prompt.Close();
         prompt.Dispose();
         prompt.Dispose();
 
         Assert.Null(prompt.Content);
+    });
+
+    [Fact]
+    public void UpdateOwnerBackdropWrapsExactOwnerContentAndRestoresIt() => AvaloniaTestHost.Run(() =>
+    {
+        CornerRadius ownerCornerRadius = new(8);
+        Border originalContent = new()
+        {
+            Background = Brushes.Red,
+            CornerRadius = ownerCornerRadius
+        };
+        Window owner = new()
+        {
+            Width = 300,
+            Height = 200,
+            Content = originalContent
+        };
+        owner.Show();
+        owner.UpdateLayout();
+        Color backdropColor = Color.FromArgb(0xA0, 0x10, 0x20, 0x30);
+
+        UpdatePromptOwnerBackdrop ownerBackdrop = Assert.IsType<UpdatePromptOwnerBackdrop>(
+            UpdatePromptOwnerBackdrop.Attach(owner, backdropColor));
+        Grid overlayHost = Assert.IsType<Grid>(owner.Content);
+        Border backdrop = Assert.Single(
+            overlayHost.Children.OfType<Border>(),
+            child => !ReferenceEquals(child, originalContent));
+        owner.UpdateLayout();
+
+        Assert.Same(originalContent, overlayHost.Children[0]);
+        SolidColorBrush brush = Assert.IsType<SolidColorBrush>(backdrop.Background);
+        Assert.Equal(backdropColor, brush.Color);
+        Assert.Equal(originalContent.Bounds.Size, backdrop.Bounds.Size);
+        Assert.Equal(ownerCornerRadius, backdrop.CornerRadius);
+        Assert.False(backdrop.Focusable);
+        Assert.False(backdrop.IsHitTestVisible);
+        Assert.Equal(int.MaxValue, backdrop.ZIndex);
+
+        ownerBackdrop.Dispose();
+        ownerBackdrop.Dispose();
+
+        Assert.Same(originalContent, owner.Content);
+        Assert.Empty(overlayHost.Children);
+        owner.Close();
     });
 
 #if DEBUG

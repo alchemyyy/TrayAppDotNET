@@ -2326,6 +2326,8 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
             Service = service,
             UpdateInfo = info,
             Palette = VolumeSettingsPalette.Create(AppServices.Theme, _settings, ResolveEffectiveIsLight()),
+            OwnerBackdrop = (AppServices.Theme ?? AppTheme.Default).FlyoutOverlayBackdrop.For(
+                ResolveEffectiveIsLight()),
             EnableRoundedCorners = _settings.EnableRoundedCorners,
             L = L,
             Log = static message => TADNLog.Log(message),
