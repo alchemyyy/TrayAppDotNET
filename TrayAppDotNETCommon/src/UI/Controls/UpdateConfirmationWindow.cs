@@ -383,7 +383,6 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         };
 
         TextBlock application = BuildModalDescriptionText(applicationText, palette, TextWrapping.Wrap);
-        Grid.SetColumnSpan(application, 2);
         description.Children.Add(application);
 
         TextBlock newVersion = BuildModalDescriptionText(
@@ -414,7 +413,6 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             TrayAppDotNETWebsitePageURI,
             palette,
             resources);
-        Grid.SetRow(websiteLink, 2);
         Grid.SetColumn(websiteLink, 1);
         description.Children.Add(websiteLink);
 

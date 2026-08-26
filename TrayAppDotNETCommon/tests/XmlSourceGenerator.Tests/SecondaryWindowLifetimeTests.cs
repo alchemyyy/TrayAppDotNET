@@ -113,7 +113,7 @@ public sealed class SecondaryWindowLifetimeTests
         Assert.Equal(1, Grid.GetRow(releasesLink));
         Assert.Equal(1, Grid.GetColumn(releasesLink));
         Assert.Equal(2, Grid.GetRow(currentVersionText));
-        Assert.Equal(2, Grid.GetRow(websiteLink));
+        Assert.Equal(0, Grid.GetRow(websiteLink));
         Assert.Equal(1, Grid.GetColumn(websiteLink));
         Assert.Equal(UpdateConfirmationLayout.ModalLinkMargin, releasesLink.Margin);
         Assert.Equal(UpdateConfirmationLayout.ModalLinkMargin, websiteLink.Margin);

@@ -15,14 +15,14 @@
 
     <Thickness x:Key="UpdateConfirmation.BodyMargin">16,8,20,20</Thickness>
     <!-- Modal update content -->
-    <Thickness x:Key="UpdateConfirmation.ModalBodyMargin">14,4,0,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ModalBodyMargin">16,8,0,0</Thickness>
     <sys:Double x:Key="UpdateConfirmation.ModalTitleFontSize">18</sys:Double>
     <Thickness x:Key="UpdateConfirmation.ModalDescriptionMargin">0,10,0,0</Thickness>
     <sys:Double x:Key="UpdateConfirmation.VersionLineHeightPadding">6</sys:Double>
     <sys:Double x:Key="UpdateConfirmation.ModalLinkColumnSpacing">8</sys:Double>
-    <Thickness x:Key="UpdateConfirmation.ModalLinkMargin">0,0,7,0</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ModalLinkMargin">0,0,18,0</Thickness>
     <Thickness x:Key="UpdateConfirmation.ModalRestartNoticeMargin">0,8,0,-4</Thickness>
-    <Thickness x:Key="UpdateConfirmation.ModalActionButtonsMargin">0,12,0,11</Thickness>
+    <Thickness x:Key="UpdateConfirmation.ModalActionButtonsMargin">-4,12,0,11</Thickness>
     <sys:Double x:Key="UpdateConfirmation.ModalActionButtonSpacing">6</sys:Double>
     <!-- Dialog actions -->
     <Thickness x:Key="UpdateConfirmation.ActionButtonPadding">14,6</Thickness>
