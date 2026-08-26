@@ -306,29 +306,22 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             body.Children.Add(modalFooterText);
         }
 
+        List<SettingsButton> actionButtons = [];
+
         SettingsButton install = TrayAppDotNETSettingsUI.Button(confirmText, palette);
         install.Padding = UpdateConfirmationLayout.ActionButtonPadding;
-        install.HorizontalAlignment = HorizontalAlignment.Left;
         install.Click += OnConfirmClick;
         resources.Add(() => install.Click -= OnConfirmClick);
 
-        StackPanel buttons = new()
-        {
-            Orientation = _useModalContentLayout ? Orientation.Horizontal : Orientation.Vertical,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        if (_useModalContentLayout)
-            buttons.Spacing = UpdateConfirmationLayout.ModalActionButtonSpacing;
         if (!string.IsNullOrWhiteSpace(alternateText))
         {
             SettingsButton alternate = TrayAppDotNETSettingsUI.Button(alternateText, palette);
             alternate.Padding = UpdateConfirmationLayout.ActionButtonPadding;
             if (!_useModalContentLayout)
                 alternate.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
-            alternate.HorizontalAlignment = HorizontalAlignment.Left;
             alternate.Click += OnAlternateClick;
             resources.Add(() => alternate.Click -= OnAlternateClick);
-            buttons.Children.Add(alternate);
+            actionButtons.Add(alternate);
         }
 
         SettingsButton? cancel = null;
@@ -338,20 +331,57 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
             cancel.Padding = UpdateConfirmationLayout.ActionButtonPadding;
             if (!_useModalContentLayout)
                 cancel.Margin = UpdateConfirmationLayout.SecondaryButtonMargin;
-            cancel.HorizontalAlignment = HorizontalAlignment.Left;
             cancel.Click += OnCancelClick;
             resources.Add(() => cancel.Click -= OnCancelClick);
         }
 
         if (!_useModalContentLayout && cancel != null)
-            buttons.Children.Add(cancel);
+            actionButtons.Add(cancel);
 
-        buttons.Children.Add(install);
+        actionButtons.Add(install);
         if (_useModalContentLayout && cancel != null)
-            buttons.Children.Add(cancel);
-        buttons.Margin = _useModalContentLayout
-            ? UpdateConfirmationLayout.ModalActionButtonsMargin
-            : UpdateConfirmationLayout.ActionButtonsMargin;
+            actionButtons.Add(cancel);
+
+        Panel buttons;
+        if (_useModalContentLayout)
+        {
+            Grid modalButtons = new()
+            {
+                ColumnSpacing = UpdateConfirmationLayout.ModalActionButtonSpacing,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = UpdateConfirmationLayout.ModalActionButtonsMargin
+            };
+            int lastButtonIndex = actionButtons.Count - 1;
+            for (int buttonIndex = 0; buttonIndex < actionButtons.Count; buttonIndex++)
+            {
+                bool fillsRemainingWidth = buttonIndex == lastButtonIndex;
+                modalButtons.ColumnDefinitions.Add(new ColumnDefinition(
+                    fillsRemainingWidth ? GridLength.Star : GridLength.Auto));
+                SettingsButton actionButton = actionButtons[buttonIndex];
+                actionButton.HorizontalAlignment = fillsRemainingWidth
+                    ? HorizontalAlignment.Stretch
+                    : HorizontalAlignment.Left;
+                Grid.SetColumn(actionButton, buttonIndex);
+                modalButtons.Children.Add(actionButton);
+            }
+            buttons = modalButtons;
+        }
+        else
+        {
+            StackPanel standardButtons = new()
+            {
+                Orientation = Orientation.Vertical,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = UpdateConfirmationLayout.ActionButtonsMargin
+            };
+            foreach (SettingsButton actionButton in actionButtons)
+            {
+                actionButton.HorizontalAlignment = HorizontalAlignment.Left;
+                standardButtons.Children.Add(actionButton);
+            }
+            buttons = standardButtons;
+        }
+
         Grid.SetRow(buttons, actionButtonsRow);
         body.Children.Add(buttons);
 

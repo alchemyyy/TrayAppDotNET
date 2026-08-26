@@ -63,23 +63,29 @@ public sealed class SecondaryWindowLifetimeTests
             prompt.GetVisualDescendants().OfType<SettingsButton>(),
             button => button.Text == "Close");
         Assert.Empty(prompt.GetVisualDescendants().OfType<TrayAppDotNETCaptionCloseButton>());
-        StackPanel actionButtons = Assert.Single(
-            prompt.GetVisualDescendants().OfType<StackPanel>(),
-            panel => panel.Children.Contains(alternateButton));
-        Assert.Equal(Orientation.Horizontal, actionButtons.Orientation);
-        Assert.Equal(HorizontalAlignment.Left, actionButtons.HorizontalAlignment);
-        Assert.Equal(UpdateConfirmationLayout.ModalActionButtonSpacing, actionButtons.Spacing);
+        Grid actionButtons = Assert.Single(
+            prompt.GetVisualDescendants().OfType<Grid>(),
+            grid => grid.Children.Contains(alternateButton));
+        Assert.Equal(HorizontalAlignment.Stretch, actionButtons.HorizontalAlignment);
+        Assert.Equal(UpdateConfirmationLayout.ModalActionButtonSpacing, actionButtons.ColumnSpacing);
         Assert.Equal(UpdateConfirmationLayout.ModalActionButtonsMargin, actionButtons.Margin);
+        Assert.Equal(
+            12d,
+            UpdateConfirmationLayout.ModalBodyMargin.Left + actionButtons.Margin.Left);
+        Assert.Equal(12d, actionButtons.Margin.Right);
         Assert.Equal(HorizontalAlignment.Left, alternateButton.HorizontalAlignment);
         Assert.Equal(HorizontalAlignment.Left, confirmButton.HorizontalAlignment);
-        Assert.Equal(HorizontalAlignment.Left, closeButton.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Stretch, closeButton.HorizontalAlignment);
         Assert.Equal(UpdateConfirmationLayout.ActionButtonPadding, alternateButton.Padding);
         Assert.Equal(UpdateConfirmationLayout.ActionButtonPadding, closeButton.Padding);
         Assert.Equal(3, actionButtons.Children.Count);
-        Assert.True(
-            actionButtons.Children.IndexOf(alternateButton) < actionButtons.Children.IndexOf(confirmButton));
-        Assert.True(
-            actionButtons.Children.IndexOf(confirmButton) < actionButtons.Children.IndexOf(closeButton));
+        Assert.Equal(3, actionButtons.ColumnDefinitions.Count);
+        Assert.Equal(GridLength.Auto, actionButtons.ColumnDefinitions[0].Width);
+        Assert.Equal(GridLength.Auto, actionButtons.ColumnDefinitions[1].Width);
+        Assert.Equal(GridLength.Star, actionButtons.ColumnDefinitions[2].Width);
+        Assert.Equal(0, Grid.GetColumn(alternateButton));
+        Assert.Equal(1, Grid.GetColumn(confirmButton));
+        Assert.Equal(2, Grid.GetColumn(closeButton));
         Assert.Single(
             prompt.GetVisualDescendants().OfType<Grid>(),
             grid => grid.Margin == UpdateConfirmationLayout.ModalBodyMargin);
