@@ -12,6 +12,8 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal abstract class DetailsGridControl : Control, IDisposable
 {
     private const double MetricEqualityTolerance = 0.01;
+    private const double ZoomRebuildBatchBudgetMilliseconds = 1.0;
+    private const int MaximumZoomRowsPerBatch = 8;
 
     private enum ZoomWorkKind : byte
     {
@@ -177,8 +179,7 @@ internal abstract class DetailsGridControl : Control, IDisposable
         while (!ShouldDropZoomWork(requestVersion, context))
         {
             bool hasMoreRows = await Dispatcher.UIThread.InvokeAsync(
-                () => !ShouldDropZoomWork(requestVersion, context)
-                      && RebuildNextZoomRow(workState),
+                () => RebuildZoomRowBatch(requestVersion, workState, context),
                 DispatcherPriority.Background);
             if (!hasMoreRows) return;
         }
@@ -215,8 +216,44 @@ internal abstract class DetailsGridControl : Control, IDisposable
             DispatcherPriority.Background);
     }
 
-    private bool RebuildNextZoomRow(ZoomRowWorkState workState)
+    private bool RebuildZoomRowBatch(
+        int requestVersion,
+        ZoomRowWorkState workState,
+        ThrottlerContext context)
     {
+        if (ShouldDropZoomWork(requestVersion, context)) return false;
+
+        long startTimestamp = Stopwatch.GetTimestamp();
+        int processedRowCount = 0;
+        bool paintedRowsChanged = false;
+        while (processedRowCount < MaximumZoomRowsPerBatch
+               && !ShouldDropZoomWork(requestVersion, context))
+        {
+            if (!TryRebuildNextZoomRow(workState, out bool paintedRowChanged)) break;
+
+            processedRowCount++;
+            paintedRowsChanged |= paintedRowChanged;
+            if (Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds
+                >= ZoomRebuildBatchBudgetMilliseconds)
+            {
+                break;
+            }
+        }
+
+        if (paintedRowsChanged && !ShouldDropZoomWork(requestVersion, context))
+            InvalidateDetailsGridRows();
+
+        return !_disposed
+               && _isZoomActive
+               && !ShouldDropZoomWork(requestVersion, context)
+               && workState.NextRow < workState.LastRowExclusive;
+    }
+
+    private bool TryRebuildNextZoomRow(
+        ZoomRowWorkState workState,
+        out bool paintedRowChanged)
+    {
+        paintedRowChanged = false;
         if (_disposed || !_isZoomActive) return false;
 
         if (!workState.IsInitialized)
@@ -234,14 +271,10 @@ internal abstract class DetailsGridControl : Control, IDisposable
         int rowIndex = workState.NextRow;
         workState.NextRow++;
         bool rebuiltDrawing = RebuildDetailsGridZoomRow(rowIndex);
-        if (rebuiltDrawing
-            && rowIndex >= workState.PaintedFirstRow
-            && rowIndex < workState.PaintedLastRowExclusive)
-        {
-            InvalidateDetailsGridRows();
-        }
-
-        return workState.NextRow < workState.LastRowExclusive;
+        paintedRowChanged = rebuiltDrawing
+                            && rowIndex >= workState.PaintedFirstRow
+                            && rowIndex < workState.PaintedLastRowExclusive;
+        return true;
     }
 
     private DetailsGridZoomRowRange ResolveZoomRowRange(bool includeRetainedOverscan)
