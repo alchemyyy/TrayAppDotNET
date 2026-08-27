@@ -111,6 +111,31 @@ public sealed class ProcessDataSchemaTests
     }
 
     [Fact]
+    public void AdditionalSearchColumnsAreStoredWithoutMakingThemVisibleInSettings()
+    {
+        List<ProcessColumnSetting> settings =
+        [
+            Setting(ProcessTableColumnKind.ProcessID, true),
+            Setting(ProcessTableColumnKind.CommandLine, false),
+            Setting(ProcessTableColumnKind.Lifetime, false)
+        ];
+        ulong searchColumnsMask = ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.CommandLine)
+                                  | ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.Lifetime);
+
+        ProcessDataSchema schema = ProcessDataSchema.Create(
+            settings,
+            searchColumnsMask);
+
+        Assert.True(schema.IsVisible(ProcessTableColumnKind.ProcessID));
+        Assert.True(schema.IsVisible(ProcessTableColumnKind.CommandLine));
+        Assert.True(schema.IsVisible(ProcessTableColumnKind.Lifetime));
+        Assert.True(schema.GetStaticTextSlot(ProcessTableColumnKind.CommandLine) >= 0);
+        Assert.True(schema.GetDynamicNumericSlot(ProcessTableColumnKind.Lifetime) >= 0);
+        Assert.False(settings[1].Visible);
+        Assert.False(settings[2].Visible);
+    }
+
+    [Fact]
     public void MutableNativeContextsUseDynamicStorage()
     {
         ProcessTableColumnDefinition jobObject = ProcessTableColumnCatalog.Get(ProcessTableColumnKind.JobObjectID);

@@ -9,4 +9,15 @@
   <!-- OpenType weight: 400 normal, 600 semibold, 700 bold -->
   <sys:Int32 x:Key="TaskManagerContextMenu.FontWeight">400</sys:Int32>
   <sys:Double x:Key="TaskManagerContextMenu.ItemHeight">24</sys:Double>
+
+  <!-- Process-search column autocomplete -->
+  <sys:Double x:Key="TaskManagerContextMenu.AutocompleteWidth">252</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.AutocompleteFontSize">12</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.AutocompleteItemHeight">22</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.AutocompleteVerticalOffset">3</sys:Double>
+  <Thickness x:Key="TaskManagerContextMenu.AutocompletePadding">3</Thickness>
+  <Thickness x:Key="TaskManagerContextMenu.AutocompleteItemPadding">8,0</Thickness>
+  <Thickness x:Key="TaskManagerContextMenu.AutocompleteBorderThickness">1</Thickness>
+  <CornerRadius x:Key="TaskManagerContextMenu.AutocompleteCornerRadius">5</CornerRadius>
+  <CornerRadius x:Key="TaskManagerContextMenu.AutocompleteItemCornerRadius">3</CornerRadius>
 </ResourceDictionary>

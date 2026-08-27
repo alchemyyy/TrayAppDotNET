@@ -139,6 +139,7 @@
   <sys:Double x:Key="ProcessTable.StatusColumnWidth">106</sys:Double>
   <sys:Double x:Key="ProcessTable.UserNameColumnWidth">140</sys:Double>
   <sys:Double x:Key="ProcessTable.CPUColumnWidth">68</sys:Double>
+  <sys:Double x:Key="ProcessTable.LifetimeColumnWidth">112</sys:Double>
   <sys:Double x:Key="ProcessTable.PrivateMemoryColumnWidth">136</sys:Double>
   <sys:Double x:Key="ProcessTable.WorkingSetColumnWidth">136</sys:Double>
   <sys:Double x:Key="ProcessTable.CommandLineColumnWidth">520</sys:Double>
