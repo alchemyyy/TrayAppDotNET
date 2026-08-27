@@ -9,7 +9,6 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
-using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -31,7 +30,7 @@ internal readonly record struct ProcessRowContextMenuRequest(
 }
 
 /// <summary>Composites bounded viewport drawing roots from shared visible-column fragments.</summary>
-internal sealed class ProcessDetailsCanvas : Control, IDisposable
+internal sealed class ProcessDetailsCanvas : DetailsGridControl
 {
     [Flags]
     private enum RenderLayerMask : byte
@@ -57,12 +56,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         Chrome,
         Header,
         HeaderInteraction
-    }
-
-    private enum GridZoomWorkKind : byte
-    {
-        VisibleRows,
-        Settle
     }
 
     private const int DynamicRefreshBatchSize = 16;
@@ -95,7 +88,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
-    private readonly AsyncThrottler<GridZoomWorkKind> _gridZoomThrottler = new(cooldownMs: 0);
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
     private readonly Dictionary<ProcessSharedCellKey, SharedCellDrawing> _sharedCellDrawings = new();
     private readonly List<SharedCellDrawing> _sharedCellBuffer = new(8);
@@ -143,7 +135,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private int _visibleRowCount;
     private int _cacheGeneration;
     private int _gridMetricsGeneration = 1;
-    private int _gridZoomRequestVersion;
     private int _filterProcessID = -1;
     private int _retainedFirstVisibleIndex = -1;
     private int _retainedLastVisibleIndexExclusive = -1;
@@ -152,7 +143,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private long _snapshotVersion = -1;
     private string _filterText = string.Empty;
     private string _unavailableText;
-    private Rect _effectiveViewport;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
     private ProcessInstanceKey? _selectedProcess;
     private IPointer? _capturedHeaderPointer;
@@ -173,13 +163,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private bool _sortDescending;
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
-    private bool _isGridZoomActive;
     private bool _groupProcesses;
     private double _axamlFontSize;
     private double _axamlRowHeight;
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
-    private volatile bool _disposed;
     private ProcessSnapshotService? _snapshotService;
 
     public ProcessDetailsCanvas(
@@ -271,7 +259,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         ClipToBounds = true;
         Focusable = true;
-        EffectiveViewportChanged += OnEffectiveViewportChanged;
         TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
         LocalizationManager.Instance.CultureChanged += OnCultureChanged;
     }
@@ -281,9 +268,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public event Action<double?>? SelectionRowTopChanged;
     public event Action<ProcessTableColumnKind>? ColumnPropertiesRequested;
     public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
-    public event Action<double, double>? GridMetricsChanged;
-    public event Action<int>? GridZoomRequested;
-    public event Action? GridZoomResetRequested;
     public event Action<ProcessEndTaskRequest>? EndTaskRequested;
     public event Action<ProcessRowContextMenuRequest>? RowContextMenuRequested;
 
@@ -292,6 +276,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     /// <summary>Returns the fixed retained visual stack rendered beneath the input canvas.</summary>
     public IReadOnlyList<Control> RenderLayers => _renderLayers;
+
+    protected override int DetailsGridRowCount => _visibleRowCount;
+    protected override double DetailsGridHeaderHeight => _metrics.HeaderHeight;
+    protected override double DetailsGridRowHeight => _metrics.RowHeight;
+    protected override double DetailsGridFontSize => _metrics.FontSize;
+    protected override double DetailsGridDefaultViewportHeight => _visualMetrics.DefaultViewportHeight;
+    protected override bool CanResetDetailsGridZoom => _headerInteraction == HeaderInteractionMode.None;
 
     /// <summary>Returns the structural state consumed by the render-thread row-hover sampler.</summary>
     public ProcessRowHoverGeometry RowHoverGeometry => CreateRowHoverGeometry();
@@ -322,7 +313,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     /// <summary>Copies the newest compact snapshot and updates only changed retained row roots.</summary>
     public void RefreshFrom(ProcessSnapshotService snapshotService)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         ArgumentNullException.ThrowIfNull(snapshotService);
 
         _snapshotService ??= snapshotService;
@@ -345,7 +336,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     public void SetFilter(string? filterText)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         string nextFilter = filterText?.Trim() ?? string.Empty;
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
@@ -369,7 +360,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         double width = double.IsFinite(availableSize.Width)
             ? Math.Max(contentWidth, availableSize.Width)
             : contentWidth;
-        return new Size(width, ProcessTableLayout.GetContentHeight(_visibleRowCount, _metrics));
+        return new Size(
+            width,
+            DetailsGridLayout.GetContentHeight(
+                _visibleRowCount,
+                _metrics.HeaderHeight,
+                _metrics.RowHeight));
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -383,7 +379,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        if (_disposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        if (IsDetailsGridDisposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
         // Keep every row and column position in Avalonia's render-data hit-test surface
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
@@ -391,7 +387,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void RenderLayer(DrawingContext context, RenderLayerKind layerKind)
     {
-        if (_disposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        if (IsDetailsGridDisposed || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
         switch (layerKind)
         {
@@ -442,6 +438,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     protected override void OnPointerPressed(PointerPressedEventArgs eventArgs)
     {
         base.OnPointerPressed(eventArgs);
+        if (eventArgs.Handled) return;
         if (_headerInteraction != HeaderInteractionMode.None) return;
 
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
@@ -460,7 +457,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         if (pointerPoint.Properties.IsRightButtonPressed)
         {
-            int contextVisibleIndex = ProcessTableLayout.HitTestRow(position.Y, _visibleRowCount, _metrics);
+            int contextVisibleIndex = DetailsGridLayout.HitTestRow(
+                position.Y,
+                _visibleRowCount,
+                _metrics.HeaderHeight,
+                _metrics.RowHeight);
             SelectVisibleRow(contextVisibleIndex);
             Focus();
             if (contextVisibleIndex >= 0 && SelectedTerminationTarget is { } target)
@@ -474,14 +475,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 RowContextMenuRequested?.Invoke(request);
             }
             eventArgs.Handled = contextVisibleIndex >= 0;
-            return;
-        }
-
-        if (pointerPoint.Properties.IsMiddleButtonPressed
-            && eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
-        {
-            GridZoomResetRequested?.Invoke();
-            eventArgs.Handled = true;
             return;
         }
 
@@ -518,7 +511,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             return;
         }
 
-        int visibleIndex = ProcessTableLayout.HitTestRow(position.Y, _visibleRowCount, _metrics);
+        int visibleIndex = DetailsGridLayout.HitTestRow(
+            position.Y,
+            _visibleRowCount,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight);
         if (pointerPoint.Properties.IsLeftButtonPressed
             && TryToggleTreeExpander(position, visibleIndex))
         {
@@ -558,15 +555,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         return eventArgs.GetPosition(this);
-    }
-
-    protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
-    {
-        base.OnPointerWheelChanged(eventArgs);
-        if (!eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control) || eventArgs.Delta.Y == 0) return;
-
-        GridZoomRequested?.Invoke(eventArgs.Delta.Y > 0 ? 1 : -1);
-        eventArgs.Handled = true;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs eventArgs)
@@ -619,7 +607,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     /// <summary>Switches between a flat sorted list and an allocation-free parent-process tree.</summary>
     public void SetGroupProcesses(bool groupProcesses)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         if (_groupProcesses == groupProcesses) return;
 
         _groupProcesses = groupProcesses;
@@ -635,35 +623,26 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     /// <summary>Shows the copy target preview requested by the active row context menu.</summary>
     public void SetContextCopyPreview(ProcessCopyPreviewMode previewMode)
     {
-        if (_disposed || _copyPreviewMode == previewMode) return;
+        if (IsDetailsGridDisposed || _copyPreviewMode == previewMode) return;
 
         _copyPreviewMode = previewMode;
         RebuildCopyPreview();
         InvalidateLayers(RenderLayerMask.CopyPreview);
     }
 
-    /// <summary>Applies new grid geometry and queues a latest-request-wins visible-row rebuild.</summary>
-    public void SetGridMetrics(double fontSize, double rowHeight)
+    protected override void ApplyDetailsGridMetrics(double fontSize, double rowHeight)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!double.IsFinite(fontSize) || fontSize <= 0) throw new ArgumentOutOfRangeException(nameof(fontSize));
-        if (!double.IsFinite(rowHeight) || rowHeight <= 0) throw new ArgumentOutOfRangeException(nameof(rowHeight));
-        if (Math.Abs(_metrics.FontSize - fontSize) < 0.01
-            && Math.Abs(_metrics.RowHeight - rowHeight) < 0.01)
-        {
-            return;
-        }
-
         AdvanceGridMetricsGeneration();
         _metrics = _metrics with { FontSize = fontSize, RowHeight = rowHeight };
-        _isGridZoomActive = true;
-        GridMetricsChanged?.Invoke(fontSize, rowHeight);
+    }
+
+    protected override void OnDetailsGridMetricsChanged()
+    {
         UpdateSelectionOverlay();
         PublishRowHoverGeometry();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
-        QueueGridZoomWork();
     }
 
     private void AdvanceGridMetricsGeneration()
@@ -681,78 +660,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _gridMetricsGeneration = 1;
     }
 
-    private void QueueGridZoomWork()
-    {
-        if (_disposed || !_isGridZoomActive) return;
-
-        int requestVersion = Interlocked.Increment(ref _gridZoomRequestVersion);
-        _ = _gridZoomThrottler.RunAsync(
-            GridZoomWorkKind.VisibleRows,
-            context => RebuildGridZoomRowsAsync(
-                requestVersion,
-                includeRetainedOverscan: false,
-                context));
-        _ = _gridZoomThrottler.RunAsync(
-            GridZoomWorkKind.Settle,
-            context => SettleGridZoomAsync(requestVersion, context));
-    }
-
-    private async Task RebuildGridZoomRowsAsync(
-        int requestVersion,
-        bool includeRetainedOverscan,
-        ThrottlerContext context)
-    {
-        GridZoomRowWorkState workState = new(includeRetainedOverscan);
-        while (!ShouldDropGridZoomWork(requestVersion, context))
-        {
-            bool hasMoreRows = await Dispatcher.UIThread.InvokeAsync(
-                () => !ShouldDropGridZoomWork(requestVersion, context)
-                      && RebuildNextGridZoomRow(workState),
-                DispatcherPriority.Background);
-            if (!hasMoreRows) return;
-        }
-    }
-
-    private async Task SettleGridZoomAsync(int requestVersion, ThrottlerContext context)
-    {
-        long startTimestamp = Stopwatch.GetTimestamp();
-        while (Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds
-               < TimeConstants.GridZoomSettleDelayMilliseconds)
-        {
-            if (ShouldDropGridZoomWork(requestVersion, context)) return;
-
-            double elapsedMilliseconds = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
-            int remainingMilliseconds = Math.Max(
-                1,
-                (int)Math.Ceiling(TimeConstants.GridZoomSettleDelayMilliseconds - elapsedMilliseconds));
-            int delayMilliseconds = Math.Min(
-                remainingMilliseconds,
-                TimeConstants.GridZoomReplacementPollMilliseconds);
-            await Task.Delay(delayMilliseconds, context.CancellationToken).ConfigureAwait(false);
-        }
-
-        if (ShouldDropGridZoomWork(requestVersion, context)) return;
-        await RebuildGridZoomRowsAsync(
-            requestVersion,
-            includeRetainedOverscan: true,
-            context).ConfigureAwait(false);
-        if (ShouldDropGridZoomWork(requestVersion, context)) return;
-
-        await Dispatcher.UIThread.InvokeAsync(
-            () => CompleteGridZoom(requestVersion, context),
-            DispatcherPriority.Background);
-    }
-
-    private bool ShouldDropGridZoomWork(int requestVersion, ThrottlerContext context) =>
-        _disposed
-        || context.CancellationToken.IsCancellationRequested
-        || context.HasReplacement
-        || Volatile.Read(ref _gridZoomRequestVersion) != requestVersion;
-
     /// <summary>Applies one column's display properties without changing the visible schema.</summary>
     public void ApplyColumnProperties(ProcessColumnSetting replacement)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         ArgumentNullException.ThrowIfNull(replacement);
         ApplyColumnLayout(ProcessColumnSettings.WithProperties(_columnSettings, replacement));
     }
@@ -793,9 +704,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
     }
 
-    private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs eventArgs)
+    protected override void OnDetailsGridViewportChanged()
     {
-        _effectiveViewport = eventArgs.EffectiveViewport;
         PublishRowHoverGeometry();
         PublishWarmProcesses();
         EnsureRetainedDrawingsForViewport();
@@ -992,12 +902,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void OnIconsChanged()
     {
-        if (!_disposed) InvalidateLayers(RenderLayerMask.Icons);
+        if (!IsDetailsGridDisposed) InvalidateLayers(RenderLayerMask.Icons);
     }
 
     private void OnAXAMLResourcesReloaded()
     {
-        if (_disposed) return;
+        if (IsDetailsGridDisposed) return;
 
         double nextAXAMLFontSize = _resources.AxamlProcessTable.FontSize;
         double nextAXAMLRowHeight = _resources.AxamlProcessTable.RowHeight;
@@ -1052,7 +962,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         if (rebuildRetainedRows && !rebuiltForColumnWidths)
             RebuildRetainedRowDrawings();
         if (gridMetricsChanged)
-            GridMetricsChanged?.Invoke(_metrics.FontSize, _metrics.RowHeight);
+            NotifyDetailsGridMetricsChanged(_metrics.FontSize, _metrics.RowHeight);
         UpdateSelectionOverlay();
         PublishRowHoverGeometry();
         RebuildCopyPreview();
@@ -1064,7 +974,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void OnCultureChanged(object? sender, EventArgs eventArgs)
     {
-        if (_disposed) return;
+        if (IsDetailsGridDisposed) return;
 
         string unavailableText = ResolveUnavailableText();
         if (string.Equals(_unavailableText, unavailableText, StringComparison.Ordinal)) return;
@@ -1152,23 +1062,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         || currentVisualMetrics.TreeIndentWidth != nextVisualMetrics.TreeIndentWidth
         || currentVisualMetrics.TreeExpanderWidth != nextVisualMetrics.TreeExpanderWidth;
 
-    private Rect ResolveViewport()
-    {
-        if (_effectiveViewport.Width > 0 && _effectiveViewport.Height > 0)
-        {
-            double left = Math.Clamp(_effectiveViewport.X, 0, Bounds.Width);
-            double right = Math.Clamp(_effectiveViewport.Right, left, Bounds.Width);
-            double top = Math.Clamp(_effectiveViewport.Y, 0, Bounds.Height);
-            double bottom = Math.Clamp(_effectiveViewport.Bottom, top, Bounds.Height);
-            return new Rect(left, top, right - left, bottom - top);
-        }
-
-        return new Rect(
-            0,
-            0,
-            Bounds.Width,
-            Math.Min(Bounds.Height, _visualMetrics.DefaultViewportHeight));
-    }
+    private Rect ResolveViewport() => ResolveDetailsGridViewport();
 
     private double ResolveStickyHeaderTop(Rect viewport) =>
         Math.Clamp(viewport.Y, 0, Math.Max(0, Bounds.Height - _metrics.HeaderHeight));
@@ -1176,10 +1070,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void DrawRetainedRows(DrawingContext context, ProcessTableColumnLifetime lifetime)
     {
         Rect viewport = ResolveViewport();
-        ProcessTableLayout.GetVisibleRowRange(
+        DetailsGridLayout.GetVisibleRowRange(
             viewport,
             _visibleRowCount,
-            _metrics,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
             out int firstRow,
             out int lastRowExclusive);
         for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
@@ -1209,10 +1104,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void DrawProcessIcons(DrawingContext context)
     {
         Rect viewport = ResolveViewport();
-        ProcessTableLayout.GetVisibleRowRange(
+        DetailsGridLayout.GetVisibleRowRange(
             viewport,
             _visibleRowCount,
-            _metrics,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
             out int firstRow,
             out int lastRowExclusive);
         for (int visibleIndex = firstRow; visibleIndex < lastRowExclusive; visibleIndex++)
@@ -1755,16 +1651,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void UpdateRetainedDrawings()
     {
-        if (_isGridZoomActive)
+        if (IsDetailsGridZoomActive)
         {
-            QueueGridZoomWork();
+            QueueDetailsGridZoomWork();
             return;
         }
 
-        ProcessTableLayout.GetRetainedRowRange(
+        DetailsGridLayout.GetRetainedRowRange(
             ResolveViewport(),
             _visibleRowCount,
-            _metrics,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
             out int firstVisibleIndex,
             out int lastVisibleIndexExclusive);
         UpdateRetainedDrawings(firstVisibleIndex, lastVisibleIndexExclusive);
@@ -1772,17 +1669,18 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void EnsureRetainedDrawingsForViewport()
     {
-        if (_disposed) return;
-        if (_isGridZoomActive)
+        if (IsDetailsGridDisposed) return;
+        if (IsDetailsGridZoomActive)
         {
-            QueueGridZoomWork();
+            QueueDetailsGridZoomWork();
             return;
         }
 
-        ProcessTableLayout.GetRetainedRowRange(
+        DetailsGridLayout.GetRetainedRowRange(
             ResolveViewport(),
             _visibleRowCount,
-            _metrics,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
             out int firstVisibleIndex,
             out int lastVisibleIndexExclusive);
         if (firstVisibleIndex == _retainedFirstVisibleIndex
@@ -1845,53 +1743,19 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         _retainedLastVisibleIndexExclusive = lastVisibleIndexExclusive;
     }
 
-    private bool RebuildNextGridZoomRow(GridZoomRowWorkState workState)
-    {
-        if (_disposed || !_isGridZoomActive) return false;
+    protected override void CommitDetailsGridRetainedRange(int firstRow, int lastRowExclusive) =>
+        CommitRetainedDrawingRange(firstRow, lastRowExclusive);
 
-        if (!workState.IsInitialized)
-        {
-            Rect viewport = ResolveViewport();
-            ProcessTableLayout.GetVisibleRowRange(
-                viewport,
-                _visibleRowCount,
-                _metrics,
-                out workState.PaintedFirstVisibleIndex,
-                out workState.PaintedLastVisibleIndexExclusive);
-            if (workState.IncludeRetainedOverscan)
-            {
-                ProcessTableLayout.GetRetainedRowRange(
-                    viewport,
-                    _visibleRowCount,
-                    _metrics,
-                    out workState.NextVisibleIndex,
-                    out workState.LastVisibleIndexExclusive);
-            }
-            else
-            {
-                workState.NextVisibleIndex = workState.PaintedFirstVisibleIndex;
-                workState.LastVisibleIndexExclusive = workState.PaintedLastVisibleIndexExclusive;
-            }
-
-            workState.IsInitialized = true;
-        }
-
-        if (workState.NextVisibleIndex >= workState.LastVisibleIndexExclusive) return false;
-
-        int visibleIndex = workState.NextVisibleIndex;
-        workState.NextVisibleIndex++;
-        bool rebuiltDrawing = EnsureRowDrawingsCurrent(
-            visibleIndex,
+    protected override bool RebuildDetailsGridZoomRow(int rowIndex) =>
+        EnsureRowDrawingsCurrent(
+            rowIndex,
             rebuildChangedDynamicDrawingImmediately: true);
-        if (rebuiltDrawing
-            && visibleIndex >= workState.PaintedFirstVisibleIndex
-            && visibleIndex < workState.PaintedLastVisibleIndexExclusive)
-        {
-            InvalidateLayers(RenderLayerMask.Rows);
-        }
 
-        return workState.NextVisibleIndex < workState.LastVisibleIndexExclusive;
-    }
+    protected override void InvalidateDetailsGridRows() =>
+        InvalidateLayers(RenderLayerMask.Rows);
+
+    protected override void OnDetailsGridZoomCompleted() =>
+        ScheduleWarmDynamicRefresh();
 
     private bool EnsureRowDrawingsCurrent(
         int visibleIndex,
@@ -1934,22 +1798,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
 
         return rebuiltDrawing;
-    }
-
-    private void CompleteGridZoom(int requestVersion, ThrottlerContext context)
-    {
-        if (ShouldDropGridZoomWork(requestVersion, context) || !_isGridZoomActive) return;
-
-        ProcessTableLayout.GetRetainedRowRange(
-            ResolveViewport(),
-            _visibleRowCount,
-            _metrics,
-            out int firstVisibleIndex,
-            out int lastVisibleIndexExclusive);
-        CommitRetainedDrawingRange(firstVisibleIndex, lastVisibleIndexExclusive);
-        _isGridZoomActive = false;
-        ScheduleWarmDynamicRefresh();
-        InvalidateLayers(RenderLayerMask.Rows);
     }
 
     private ProcessRowDrawing BuildRowDrawing(
@@ -2393,7 +2241,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void ScheduleWarmDynamicRefresh()
     {
-        if (_disposed || _isGridZoomActive || !_hasDynamicColumns) return;
+        if (IsDetailsGridDisposed || IsDetailsGridZoomActive || !_hasDynamicColumns) return;
 
         GetWarmVisibleRowRange(out _warmRefreshCursor, out _warmRefreshEnd);
         if (_warmRefreshCursor >= _warmRefreshEnd || _dynamicRefreshScheduled) return;
@@ -2405,7 +2253,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void RefreshWarmDynamicDrawings()
     {
         _dynamicRefreshScheduled = false;
-        if (_disposed) return;
+        if (IsDetailsGridDisposed) return;
 
         bool changed = false;
         int processed = 0;
@@ -2444,10 +2292,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void GetWarmVisibleRowRange(out int firstRow, out int lastRowExclusive)
     {
         Rect viewport = ResolveViewport();
-        ProcessTableLayout.GetVisibleRowRange(
+        DetailsGridLayout.GetVisibleRowRange(
             viewport,
             _visibleRowCount,
-            _metrics,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight,
             out int visibleFirst,
             out int visibleLastExclusive);
         firstRow = visibleFirst;
@@ -2630,12 +2479,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             _metrics.HeaderHeight,
             _metrics.RowHeight,
             ResolveStickyHeaderTop(viewport),
-            _headerInteraction == HeaderInteractionMode.None && !_disposed);
+            _headerInteraction == HeaderInteractionMode.None && !IsDetailsGridDisposed);
     }
 
     private void PublishRowHoverGeometry()
     {
-        if (_disposed) return;
+        if (IsDetailsGridDisposed) return;
 
         ProcessRowHoverGeometry geometry = CreateRowHoverGeometry();
         if (_hasPublishedRowHoverGeometry && geometry == _publishedRowHoverGeometry) return;
@@ -3223,18 +3072,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             textLayouts[layoutIndex].Dispose();
     }
 
-    public void Dispose()
+    protected override void DisposeDetailsGridResources()
     {
-        if (_disposed) return;
-
         if (_capturedHeaderPointer != null) ResetHeaderInteraction();
-        _disposed = true;
-        Interlocked.Increment(ref _gridZoomRequestVersion);
-        _gridZoomThrottler.Drop(GridZoomWorkKind.VisibleRows);
-        _gridZoomThrottler.Drop(GridZoomWorkKind.Settle);
-        _gridZoomThrottler.Dispose();
         _processIconService.IconsChanged -= OnIconsChanged;
-        EffectiveViewportChanged -= OnEffectiveViewportChanged;
         TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
         LocalizationManager.Instance.CultureChanged -= OnCultureChanged;
         SelectedProcessChanged = null;
@@ -3242,9 +3083,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         SelectionRowTopChanged = null;
         ColumnPropertiesRequested = null;
         ColumnLayoutChanged = null;
-        GridMetricsChanged = null;
-        GridZoomRequested = null;
-        GridZoomResetRequested = null;
         EndTaskRequested = null;
         RowContextMenuRequested = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
@@ -3384,16 +3222,6 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ProcessTableColumnKind Column,
         string Value,
         int TreeLayoutKey);
-
-    private sealed class GridZoomRowWorkState(bool includeRetainedOverscan)
-    {
-        public readonly bool IncludeRetainedOverscan = includeRetainedOverscan;
-        public bool IsInitialized;
-        public int NextVisibleIndex;
-        public int LastVisibleIndexExclusive;
-        public int PaintedFirstVisibleIndex;
-        public int PaintedLastVisibleIndexExclusive;
-    }
 
     private sealed class ProcessRowRenderCache
     {

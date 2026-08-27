@@ -1,4 +1,3 @@
-using Avalonia;
 using TaskManagerTrayAppDotNET.UI;
 using Xunit;
 
@@ -6,100 +5,6 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class ProcessTableLayoutTests
 {
-    private static readonly ProcessTableMetrics Metrics = new(
-        HeaderHeight: 32,
-        RowHeight: 26,
-        CellPadding: 7,
-        FontSize: 13,
-        HeaderFontSize: 13,
-        ProcessIconSize: 10,
-        ProcessIconGap: 8);
-
-    [Theory]
-    [InlineData(0, -1)]
-    [InlineData(31.9, -1)]
-    [InlineData(32, 0)]
-    [InlineData(57.9, 0)]
-    [InlineData(58, 1)]
-    [InlineData(291.9, 9)]
-    [InlineData(292, -1)]
-    public void HitTestRowMapsContentCoordinates(double y, int expectedRow)
-    {
-        int row = ProcessTableLayout.HitTestRow(y, rowCount: 10, Metrics);
-
-        Assert.Equal(expectedRow, row);
-    }
-
-    [Fact]
-    public void GetContentHeightIncludesOneHeaderAndAllRows()
-    {
-        double height = ProcessTableLayout.GetContentHeight(100, Metrics);
-
-        Assert.Equal(32 + 100 * 26, height);
-    }
-
-    [Fact]
-    public void VisibleRangeIncludesOneOverscanRowOnEachSide()
-    {
-        Rect viewport = new(0, 292, 800, 52);
-
-        ProcessTableLayout.GetVisibleRowRange(
-            viewport,
-            rowCount: 100,
-            Metrics,
-            out int firstRow,
-            out int lastRowExclusive);
-
-        Assert.Equal(9, firstRow);
-        Assert.Equal(13, lastRowExclusive);
-    }
-
-    [Theory]
-    [InlineData(32, 0, 35)]
-    [InlineData(13032, 467, 535)]
-    [InlineData(25980, 965, 1000)]
-    public void RetainedRangeAddsBoundedPrefetchRows(
-        double viewportY,
-        int expectedFirstRow,
-        int expectedLastRowExclusive)
-    {
-        Rect viewport = new(0, viewportY, 800, 52);
-
-        ProcessTableLayout.GetRetainedRowRange(
-            viewport,
-            rowCount: 1000,
-            Metrics,
-            out int firstRow,
-            out int lastRowExclusive);
-
-        Assert.Equal(expectedFirstRow, firstRow);
-        Assert.Equal(expectedLastRowExclusive, lastRowExclusive);
-    }
-
-    [Fact]
-    public void InteractiveZoomRangeExcludesSettledPrefetchRows()
-    {
-        Rect viewport = new(0, 13032, 800, 52);
-
-        ProcessTableLayout.GetVisibleRowRange(
-            viewport,
-            rowCount: 1000,
-            Metrics,
-            out int interactiveFirstRow,
-            out int interactiveLastRowExclusive);
-        ProcessTableLayout.GetRetainedRowRange(
-            viewport,
-            rowCount: 1000,
-            Metrics,
-            out int settledFirstRow,
-            out int settledLastRowExclusive);
-
-        Assert.Equal(499, interactiveFirstRow);
-        Assert.Equal(503, interactiveLastRowExclusive);
-        Assert.Equal(467, settledFirstRow);
-        Assert.Equal(535, settledLastRowExclusive);
-    }
-
     [Fact]
     public void HitTestColumnRejectsUnusedTrailingWidth()
     {

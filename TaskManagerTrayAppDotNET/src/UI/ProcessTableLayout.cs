@@ -1,5 +1,3 @@
-using Avalonia;
-
 namespace TaskManagerTrayAppDotNET.UI;
 
 public enum ProcessTableColumnKind : byte
@@ -264,23 +262,9 @@ internal static class ProcessTableColumnCatalog
     }
 }
 
-/// <summary>Pure fixed-row geometry for painting, hit-testing, and viewport culling.</summary>
+/// <summary>Provides Processes-specific column geometry.</summary>
 internal static class ProcessTableLayout
 {
-    private const int ViewportOverscanRows = 1;
-    private const int RetainedDrawingOverscanRows = 32;
-
-    public static double GetContentHeight(int rowCount, ProcessTableMetrics metrics) =>
-        metrics.HeaderHeight + Math.Max(0, rowCount) * metrics.RowHeight;
-
-    public static int HitTestRow(double y, int rowCount, ProcessTableMetrics metrics)
-    {
-        if (rowCount <= 0 || y < metrics.HeaderHeight) return -1;
-
-        int rowIndex = (int)Math.Floor((y - metrics.HeaderHeight) / metrics.RowHeight);
-        return rowIndex >= 0 && rowIndex < rowCount ? rowIndex : -1;
-    }
-
     public static int HitTestColumn(double x, ProcessTableColumn[] columns)
     {
         if (!double.IsFinite(x) || x < 0) return -1;
@@ -408,52 +392,4 @@ internal static class ProcessTableLayout
             : columns[^1].Right;
     }
 
-    public static void GetVisibleRowRange(
-        Rect viewport,
-        int rowCount,
-        ProcessTableMetrics metrics,
-        out int firstRow,
-        out int lastRowExclusive)
-    {
-        if (rowCount <= 0 || viewport.Height <= 0)
-        {
-            firstRow = 0;
-            lastRowExclusive = 0;
-            return;
-        }
-
-        double firstRowPosition = Math.Max(0, viewport.Y - metrics.HeaderHeight);
-        double lastRowPosition = Math.Max(0, viewport.Bottom - metrics.HeaderHeight);
-        int unclampedFirst = (int)Math.Floor(firstRowPosition / metrics.RowHeight) - ViewportOverscanRows;
-        int unclampedLast = (int)Math.Ceiling(lastRowPosition / metrics.RowHeight) + ViewportOverscanRows;
-        firstRow = Math.Clamp(unclampedFirst, 0, rowCount);
-        lastRowExclusive = Math.Clamp(unclampedLast, firstRow, rowCount);
-    }
-
-    /// <summary>Returns the visible rows plus a bounded retained-drawing prefetch margin.</summary>
-    public static void GetRetainedRowRange(
-        Rect viewport,
-        int rowCount,
-        ProcessTableMetrics metrics,
-        out int firstRow,
-        out int lastRowExclusive)
-    {
-        GetVisibleRowRange(
-            viewport,
-            rowCount,
-            metrics,
-            out int firstVisibleRow,
-            out int lastVisibleRowExclusive);
-        if (firstVisibleRow >= lastVisibleRowExclusive)
-        {
-            firstRow = firstVisibleRow;
-            lastRowExclusive = lastVisibleRowExclusive;
-            return;
-        }
-
-        firstRow = Math.Max(0, firstVisibleRow - RetainedDrawingOverscanRows);
-        lastRowExclusive = Math.Min(
-            rowCount,
-            lastVisibleRowExclusive + RetainedDrawingOverscanRows);
-    }
 }
