@@ -39,13 +39,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
     private readonly ProcessSnapshotService _snapshotService;
+    private readonly PerformanceSnapshotService _performanceSnapshotService;
     private readonly ProcessIconService _processIconService;
     private readonly ProcessTerminationService _processTerminationService;
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
     private TaskManagerPageLayout? _activePageLayout;
     private ProcessDetailsPage? _processDetailsPage;
-    private PerformancePage? _performancePage;
     private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
     private bool _exitRequested;
@@ -54,6 +54,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         AppSettings settings,
         AppTheme theme,
         ProcessSnapshotService snapshotService,
+        PerformanceSnapshotService performanceSnapshotService,
         ProcessIconService processIconService,
         ProcessTerminationService processTerminationService,
         Action exitApplication)
@@ -61,6 +62,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _settings = settings;
         _theme = theme;
         _snapshotService = snapshotService;
+        _performanceSnapshotService = performanceSnapshotService;
         _processIconService = processIconService;
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
@@ -221,14 +223,14 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private Control BuildPerformancePage()
     {
-        PerformancePage page = new(_settings, Palette, _taskManagerResources);
-        _performancePage = page;
+        PerformancePage page = new(
+            _settings,
+            Palette,
+            _taskManagerResources,
+            _performanceSnapshotService);
         _activePageLayout = page;
-        UpdatePerformanceSamplingState();
         AddPageCleanup(() =>
         {
-            if (ReferenceEquals(_performancePage, page))
-                _performancePage = null;
             if (ReferenceEquals(_activePageLayout, page))
                 _activePageLayout = null;
         });
@@ -344,9 +346,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
-        if (change.Property == IsVisibleProperty || change.Property == WindowStateProperty)
-            UpdatePerformanceSamplingState();
-
         if (_allowClose
             || !_settings.MinimizeToTray
             || change.Property != WindowStateProperty
@@ -358,9 +357,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         Hide();
         WindowState = WindowState.Normal;
     }
-
-    private void UpdatePerformanceSamplingState() =>
-        _performancePage?.SetSamplingActive(IsVisible && WindowState != WindowState.Minimized);
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
     {

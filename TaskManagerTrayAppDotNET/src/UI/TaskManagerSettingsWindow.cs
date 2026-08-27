@@ -201,6 +201,27 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     {
         SettingsPalette palette = Palette;
         StackPanel stack = PageStack("Performance", palette);
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("History and sampling", palette));
+        stack.Children.Add(IntCard(
+            "History length",
+            "Keep each Performance graph's samples for this many minutes.",
+            _settings.PerformanceHistoryLengthMinutes,
+            PerformanceSamplingSettings.MinimumHistoryLengthMinutes,
+            PerformanceSamplingSettings.MaximumHistoryLengthMinutes,
+            value => _settings.PerformanceHistoryLengthMinutes = value,
+            palette,
+            " min",
+            ["performance graph history retention minutes"]));
+        stack.Children.Add(IntCard(
+            "Sampling interval",
+            "Wait this many milliseconds between Performance samples.",
+            _settings.PerformanceSampleIntervalMilliseconds,
+            PerformanceSamplingSettings.MinimumSampleIntervalMilliseconds,
+            PerformanceSamplingSettings.MaximumSampleIntervalMilliseconds,
+            value => _settings.PerformanceSampleIntervalMilliseconds = value,
+            palette,
+            " ms",
+            ["performance refresh update rate frequency milliseconds"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Device column", palette));
         stack.Children.Add(BuildDevicePriorityCard(palette));
         return stack;

@@ -142,4 +142,20 @@ public sealed class PerformanceDevicePresentationTests
         Assert.Equal("Microsoft Storage Space Device", device.Subtitle);
         Assert.Equal("Microsoft Storage Space Device", device.HardwareName);
     }
+
+    [Theory]
+    [InlineData(1, "% Utilization over 1 minute")]
+    [InlineData(5, "% Utilization over 5 minutes")]
+    public void GraphLabelUsesConfiguredHistoryLength(
+        int historyLengthMinutes,
+        string expectedLabel)
+    {
+        PerformanceDevicePresentation CPU = PerformanceDevicePresentationFactory.Create(
+                PerformanceSnapshot.Empty,
+                historyLengthMinutes)
+            .Single(static candidate => candidate.Kind == PerformanceDeviceKind.CPU);
+
+        Assert.Equal(expectedLabel, CPU.GraphLabel);
+        Assert.DoesNotContain("60 seconds", CPU.GraphLabel, StringComparison.Ordinal);
+    }
 }

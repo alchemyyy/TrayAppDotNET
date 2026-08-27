@@ -152,6 +152,130 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void PerformanceSamplingSettingsDefaultAndClampAtAssignment()
+    {
+        AppSettings settings = new();
+
+        Assert.Equal(
+            PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
+            settings.PerformanceHistoryLengthMinutes);
+        Assert.Equal(
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+            settings.PerformanceSampleIntervalMilliseconds);
+
+        settings.PerformanceHistoryLengthMinutes = int.MinValue;
+        settings.PerformanceSampleIntervalMilliseconds = int.MaxValue;
+
+        Assert.Equal(
+            PerformanceSamplingSettings.MinimumHistoryLengthMinutes,
+            settings.PerformanceHistoryLengthMinutes);
+        Assert.Equal(
+            PerformanceSamplingSettings.MaximumSampleIntervalMilliseconds,
+            settings.PerformanceSampleIntervalMilliseconds);
+    }
+
+    [Fact]
+    public void PerformanceSamplingChangesRaiseNormalSettingsNotifications()
+    {
+        AppSettings settings = new() { Autosave = false };
+        List<string?> changedProperties = [];
+        int changedCount = 0;
+        settings.PropertyChanged += (_, eventArgs) =>
+            changedProperties.Add(eventArgs.PropertyName);
+        settings.Changed += () => changedCount++;
+
+        settings.PerformanceHistoryLengthMinutes = 5;
+        settings.PerformanceSampleIntervalMilliseconds = 2_000;
+
+        Assert.Equal(
+            [
+                nameof(AppSettings.PerformanceHistoryLengthMinutes),
+                nameof(AppSettings.PerformanceSampleIntervalMilliseconds)
+            ],
+            changedProperties);
+        Assert.Equal(2, changedCount);
+    }
+
+    [Fact]
+    public void PerformanceSamplingSettingsRoundTripThroughSettingsXml()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            AppSettings settings = new()
+            {
+                Autosave = false,
+                PerformanceHistoryLengthMinutes = 15,
+                PerformanceSampleIntervalMilliseconds = 2_500
+            };
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(15, loaded.PerformanceHistoryLengthMinutes);
+            Assert.Equal(2_500, loaded.PerformanceSampleIntervalMilliseconds);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void PerformanceSamplingSettingsNormalizeOutOfRangeXml()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <AppSettings>
+                  <PerformanceHistoryLengthMinutes>-100</PerformanceHistoryLengthMinutes>
+                  <PerformanceSampleIntervalMilliseconds>2147483647</PerformanceSampleIntervalMilliseconds>
+                </AppSettings>
+                """);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(
+                PerformanceSamplingSettings.MinimumHistoryLengthMinutes,
+                loaded.PerformanceHistoryLengthMinutes);
+            Assert.Equal(
+                PerformanceSamplingSettings.MaximumSampleIntervalMilliseconds,
+                loaded.PerformanceSampleIntervalMilliseconds);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LegacySettingsWithoutPerformanceSamplingValuesUseDefaults()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(path, "<AppSettings />");
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(
+                PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
+                loaded.PerformanceHistoryLengthMinutes);
+            Assert.Equal(
+                PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+                loaded.PerformanceSampleIntervalMilliseconds);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void PerformanceDeviceOrderingRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

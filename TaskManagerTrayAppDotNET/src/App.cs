@@ -40,6 +40,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private AppTheme? _theme;
     private ProcessIconService? _processIconService;
     private ProcessSnapshotService? _snapshotService;
+    private PerformanceSnapshotService? _performanceSnapshotService;
     private ProcessTerminationService? _processTerminationService;
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
@@ -87,14 +88,22 @@ internal sealed class TaskManagerAvaloniaApp : Application
             return;
         }
 
+        AppSettings settings = _settings
+            ?? throw new InvalidOperationException("Task Manager settings were not loaded.");
         StartWatcherMonitor();
         _processIconService = new ProcessIconService();
         _processTerminationService = new ProcessTerminationService(TADNLog.Log);
         _snapshotService = new ProcessSnapshotService();
         _snapshotService.SnapshotAvailable += OnSystemPerformanceSampleAvailable;
+        _performanceSnapshotService = new PerformanceSnapshotService(
+            settings.PerformanceSampleIntervalMilliseconds,
+            PerformanceSamplingSettings.CalculateMaximumHistoryCount(
+                settings.PerformanceHistoryLengthMinutes,
+                settings.PerformanceSampleIntervalMilliseconds));
         _trayIconRenderer = new TaskManagerTrayIcon();
         CreateTaskManagerWindow();
         _snapshotService.Start();
+        _performanceSnapshotService.Start();
         CreateTrayIcon();
         _taskManagerWindow!.ShowAtDefaultPositionAndActivateAfterFirstFrame();
         base.OnFrameworkInitializationCompleted();
@@ -158,6 +167,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _theme == null ||
             _processIconService == null ||
             _snapshotService == null ||
+            _performanceSnapshotService == null ||
             _processTerminationService == null)
         {
             throw new InvalidOperationException("Task Manager services must be loaded before creating the window.");
@@ -167,6 +177,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
             _settings,
             _theme,
             _snapshotService,
+            _performanceSnapshotService,
             _processIconService,
             _processTerminationService,
             ExitApplication);
@@ -316,6 +327,11 @@ internal sealed class TaskManagerAvaloniaApp : Application
             {
                 TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
                 TrayAppDotNETToolTip.ShowDelayMs = _settings.ToolTipShowDelayMs;
+                _performanceSnapshotService?.UpdateConfiguration(
+                    _settings.PerformanceSampleIntervalMilliseconds,
+                    PerformanceSamplingSettings.CalculateMaximumHistoryCount(
+                        _settings.PerformanceHistoryLengthMinutes,
+                        _settings.PerformanceSampleIntervalMilliseconds));
             }
 
             _taskManagerWindow?.RefreshTheme();
@@ -363,6 +379,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
                 _snapshotService.SnapshotAvailable -= OnSystemPerformanceSampleAvailable;
             Safe.Dispose(_snapshotService);
             _snapshotService = null;
+            Safe.Dispose(_performanceSnapshotService);
+            _performanceSnapshotService = null;
             Safe.Dispose(_processIconService);
             _processIconService = null;
             Safe.Dispose(_processTerminationService);

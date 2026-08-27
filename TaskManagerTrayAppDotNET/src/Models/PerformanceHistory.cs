@@ -5,8 +5,7 @@ namespace TaskManagerTrayAppDotNET.Models;
 /// <summary>Stores a fixed-duration normalized utilization history without per-sample allocation.</summary>
 internal sealed class PerformanceHistory
 {
-    public const int DefaultCapacity = 128;
-    public const int DefaultWindowSeconds = 60;
+    private const int SecondsPerMinute = 60;
 
     private readonly PerformanceHistorySample[] _samples;
     private readonly long _windowDurationTicks;
@@ -14,11 +13,37 @@ internal sealed class PerformanceHistory
     private long _currentTimestamp;
     private bool _hasCurrentTimestamp;
 
-    public PerformanceHistory(int capacity = DefaultCapacity)
+    public PerformanceHistory()
+        : this(
+            PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds)
+    {
+    }
+
+    public PerformanceHistory(int capacity)
+        : this(
+            capacity,
+            CalculateWindowDurationTicks(
+                PerformanceSamplingSettings.DefaultHistoryLengthMinutes))
+    {
+    }
+
+    public PerformanceHistory(int historyLengthMinutes, int sampleIntervalMilliseconds)
+        : this(
+            PerformanceSamplingSettings.CalculateMaximumHistoryCount(
+                historyLengthMinutes,
+                sampleIntervalMilliseconds),
+            CalculateWindowDurationTicks(
+                PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(historyLengthMinutes)))
+    {
+    }
+
+    private PerformanceHistory(int capacity, long windowDurationTicks)
     {
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+
         _samples = new PerformanceHistorySample[capacity];
-        _windowDurationTicks = checked(Stopwatch.Frequency * DefaultWindowSeconds);
+        _windowDurationTicks = windowDurationTicks;
     }
 
     public int Capacity => _samples.Length;
@@ -100,6 +125,9 @@ internal sealed class PerformanceHistory
 
     private int PhysicalIndex(int chronologicalIndex) =>
         (_oldestIndex + chronologicalIndex) % _samples.Length;
+
+    private static long CalculateWindowDurationTicks(int historyLengthMinutes) =>
+        checked((long)Stopwatch.Frequency * historyLengthMinutes * SecondsPerMinute);
 
     private readonly record struct PerformanceHistorySample(long Timestamp, double Value);
 }

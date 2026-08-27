@@ -3030,7 +3030,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         if (!_isTextFocused) return;
         if (IsSelfOrDescendant(e.Source as Visual)) return;
 
-        CancelTextEdit();
+        CommitFocusedTextEdit();
     }
 
     private bool IsSelfOrDescendant(Visual? visual)

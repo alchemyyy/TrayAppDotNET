@@ -56,7 +56,9 @@ public sealed class PerformanceHistoryTests
         PerformanceHistory history = new();
         long firstTimestamp = 10;
         long lastTimestamp = firstTimestamp
-                             + Stopwatch.Frequency * PerformanceHistory.DefaultWindowSeconds
+                             + Stopwatch.Frequency
+                             * PerformanceSamplingSettings.DefaultHistoryLengthMinutes
+                             * 60
                              + 1;
 
         history.Add(firstTimestamp, 10);
@@ -73,7 +75,9 @@ public sealed class PerformanceHistoryTests
         PerformanceHistory history = new();
         long firstTimestamp = 10;
         long currentTimestamp = firstTimestamp
-                                + Stopwatch.Frequency * PerformanceHistory.DefaultWindowSeconds
+                                + Stopwatch.Frequency
+                                * PerformanceSamplingSettings.DefaultHistoryLengthMinutes
+                                * 60
                                 + 1;
         history.Add(firstTimestamp, 25);
 
@@ -94,5 +98,38 @@ public sealed class PerformanceHistoryTests
         Assert.Equal(1, history.Count);
         Assert.Equal(20, history.CurrentTimestamp);
         Assert.Equal(10, history.GetTimestampChronological(0));
+    }
+
+    [Fact]
+    public void ConfiguredHistoryCapacityExactlyMatchesWindowDividedByInterval()
+    {
+        const int HistoryLengthMinutes = 5;
+        const int SampleIntervalMilliseconds = 2_500;
+        int expectedCapacity = PerformanceSamplingSettings.CalculateMaximumHistoryCount(
+            HistoryLengthMinutes,
+            SampleIntervalMilliseconds);
+        PerformanceHistory history = new(HistoryLengthMinutes, SampleIntervalMilliseconds);
+
+        Assert.Equal(120, expectedCapacity);
+        Assert.Equal(expectedCapacity, history.Capacity);
+        Assert.Equal(
+            (long)Stopwatch.Frequency * HistoryLengthMinutes * 60,
+            history.WindowDurationTicks);
+    }
+
+    [Fact]
+    public void ConfiguredHistoryNeverRetainsMoreThanItsDerivedCapacity()
+    {
+        const int HistoryLengthMinutes = 1;
+        const int SampleIntervalMilliseconds = 15_000;
+        PerformanceHistory history = new(HistoryLengthMinutes, SampleIntervalMilliseconds);
+
+        for (int sampleIndex = 0; sampleIndex < 5; sampleIndex++)
+            history.Add(sampleIndex * Stopwatch.Frequency, sampleIndex);
+
+        Assert.Equal(4, history.Capacity);
+        Assert.Equal(4, history.Count);
+        Assert.Equal(1, history.GetChronological(0));
+        Assert.Equal(4, history.GetChronological(3));
     }
 }

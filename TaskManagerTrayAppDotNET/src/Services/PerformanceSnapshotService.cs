@@ -3,13 +3,12 @@ using Avalonia.Threading;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
-/// <summary>Publishes one-second direct-OS snapshots for the Performance page.</summary>
+/// <summary>Retains and publishes direct-OS performance snapshots for the application lifetime.</summary>
 internal sealed class PerformanceSnapshotService : IDisposable
 {
-    private const int RefreshIntervalMilliseconds = 1_000;
-
     private readonly Lock _lifecycleGate = new();
     private readonly Lock _samplingGate = new();
+    private readonly Lock _historyGate = new();
     private readonly AutoResetEvent _refreshWake = new(false);
     private readonly SystemPerformanceSampler _systemSampler = new();
     private readonly SystemPerformanceMetadataReader _metadataReader = new();
@@ -17,13 +16,15 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private readonly DiskPerformanceSampler _diskSampler = new();
     private readonly GPUPerformanceSampler _gpuSampler = new();
     private readonly Thread _samplingThread;
-    private readonly Action _notifySnapshotAvailable;
+    private readonly Action _notifySnapshotUpdated;
+    private PerformanceSnapshot[] _snapshotHistory;
     private PerformanceSnapshot _latestSnapshot = PerformanceSnapshot.Empty;
-    private int _latestSnapshotGeneration;
+    private int _historyStartIndex;
+    private int _historyCount;
+    private int _sampleIntervalMilliseconds;
     private int _notificationPending;
+    private int _refreshRequested;
     private int _resetBaselinesPending;
-    private int _samplingActive;
-    private int _samplingGeneration;
     private int _started;
     private int _disposed;
     private int _resourcesDisposed;
@@ -34,8 +35,22 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private bool _gpuFailureLogged;
 
     public PerformanceSnapshotService()
+        : this(
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+            PerformanceSamplingSettings.CalculateMaximumHistoryCount(
+                PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
+                PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds))
     {
-        _notifySnapshotAvailable = NotifySnapshotAvailable;
+    }
+
+    public PerformanceSnapshotService(int sampleIntervalMilliseconds, int maximumHistoryCount)
+    {
+        ValidateMaximumHistoryCount(maximumHistoryCount);
+        _sampleIntervalMilliseconds =
+            PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
+                sampleIntervalMilliseconds);
+        _snapshotHistory = CreateHistoryBuffer(maximumHistoryCount);
+        _notifySnapshotUpdated = NotifySnapshotUpdated;
         _samplingThread = new Thread(SamplingLoop)
         {
             IsBackground = true,
@@ -44,9 +59,9 @@ internal sealed class PerformanceSnapshotService : IDisposable
         };
     }
 
-    public event Action? SnapshotAvailable;
+    public event EventHandler<PerformanceSnapshot>? SnapshotUpdated;
 
-    /// <summary>Starts the pre-created sampling thread once.</summary>
+    /// <summary>Starts application-lifetime sampling immediately and exactly once.</summary>
     public void Start()
     {
         lock (_lifecycleGate)
@@ -54,6 +69,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             if (_started != 0) return;
 
+            Interlocked.Exchange(ref _resetBaselinesPending, 1);
             _started = 1;
             try
             {
@@ -70,18 +86,74 @@ internal sealed class PerformanceSnapshotService : IDisposable
     /// <summary>Returns the latest immutable snapshot without blocking the sampling worker.</summary>
     public PerformanceSnapshot GetLatestSnapshot() => Volatile.Read(ref _latestSnapshot);
 
-    /// <summary>Starts or pauses periodic sampling without terminating the page-owned worker.</summary>
-    public void SetActive(bool isActive)
+    /// <summary>Returns a stable chronological copy of all retained snapshots.</summary>
+    public IReadOnlyList<PerformanceSnapshot> GetSnapshotHistory()
     {
+        lock (_historyGate)
+        {
+            if (_historyCount == 0) return Array.Empty<PerformanceSnapshot>();
+
+            PerformanceSnapshot[] snapshots = new PerformanceSnapshot[_historyCount];
+            for (int historyIndex = 0; historyIndex < _historyCount; historyIndex++)
+            {
+                int sourceIndex = (_historyStartIndex + historyIndex) % _snapshotHistory.Length;
+                snapshots[historyIndex] = _snapshotHistory[sourceIndex];
+            }
+
+            return snapshots;
+        }
+    }
+
+    /// <summary>Returns retained snapshots newer than a monotonic capture timestamp.</summary>
+    public IReadOnlyList<PerformanceSnapshot> GetSnapshotHistoryAfter(long capturedTimestamp)
+    {
+        lock (_historyGate)
+        {
+            int firstMatchingIndex = 0;
+            while (firstMatchingIndex < _historyCount)
+            {
+                int sourceIndex = (
+                    _historyStartIndex
+                    + firstMatchingIndex) % _snapshotHistory.Length;
+                if (_snapshotHistory[sourceIndex].CapturedTimestamp > capturedTimestamp) break;
+                firstMatchingIndex++;
+            }
+
+            int matchingCount = _historyCount - firstMatchingIndex;
+            if (matchingCount == 0) return Array.Empty<PerformanceSnapshot>();
+
+            PerformanceSnapshot[] snapshots = new PerformanceSnapshot[matchingCount];
+            for (int matchingIndex = 0; matchingIndex < matchingCount; matchingIndex++)
+            {
+                int sourceIndex = (
+                    _historyStartIndex
+                    + firstMatchingIndex
+                    + matchingIndex) % _snapshotHistory.Length;
+                snapshots[matchingIndex] = _snapshotHistory[sourceIndex];
+            }
+
+            return snapshots;
+        }
+    }
+
+    /// <summary>Applies live sampling and retention settings without discarding retained data.</summary>
+    public void UpdateConfiguration(int sampleIntervalMilliseconds, int maximumHistoryCount)
+    {
+        ValidateMaximumHistoryCount(maximumHistoryCount);
+        int normalizedSampleInterval =
+            PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
+                sampleIntervalMilliseconds);
+
         lock (_lifecycleGate)
         {
             if (Volatile.Read(ref _disposed) != 0) return;
 
-            int activeValue = isActive ? 1 : 0;
-            if (Interlocked.Exchange(ref _samplingActive, activeValue) == activeValue) return;
-            Interlocked.Increment(ref _samplingGeneration);
-            if (isActive) Interlocked.Exchange(ref _resetBaselinesPending, 1);
-            if (_started != 0) _refreshWake.Set();
+            ResizeHistory(maximumHistoryCount);
+            int previousSampleInterval = Interlocked.Exchange(
+                ref _sampleIntervalMilliseconds,
+                normalizedSampleInterval);
+            if (_started != 0 && previousSampleInterval != normalizedSampleInterval)
+                _refreshWake.Set();
         }
     }
 
@@ -91,6 +163,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         lock (_lifecycleGate)
         {
             if (Volatile.Read(ref _disposed) != 0 || _started == 0) return;
+            Interlocked.Exchange(ref _refreshRequested, 1);
             _refreshWake.Set();
         }
     }
@@ -103,63 +176,59 @@ internal sealed class PerformanceSnapshotService : IDisposable
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
             snapshot = CaptureSnapshot(Stopwatch.GetTimestamp());
+            StoreSnapshot(snapshot);
         }
-        Volatile.Write(ref _latestSnapshot, snapshot);
         return snapshot;
     }
 
     private void SamplingLoop()
     {
+        long previousSamplingTimestamp = 0;
         try
         {
             while (Volatile.Read(ref _disposed) == 0)
             {
-                if (Volatile.Read(ref _samplingActive) == 0)
+                bool refreshRequested = Interlocked.Exchange(ref _refreshRequested, 0) != 0;
+                if (!refreshRequested && previousSamplingTimestamp > 0)
                 {
-                    _refreshWake.WaitOne();
-                    continue;
+                    int sampleIntervalMilliseconds = Volatile.Read(
+                        ref _sampleIntervalMilliseconds);
+                    int waitMilliseconds = CalculateWaitMilliseconds(
+                        previousSamplingTimestamp,
+                        sampleIntervalMilliseconds);
+                    if (waitMilliseconds > 0)
+                    {
+                        _refreshWake.WaitOne(waitMilliseconds);
+                        continue;
+                    }
                 }
 
-                long samplingTimestamp = 0;
                 try
                 {
-                    PerformanceSnapshot? snapshot = null;
-                    int samplingGeneration = Volatile.Read(ref _samplingGeneration);
                     lock (_samplingGate)
                     {
-                        if (Volatile.Read(ref _disposed) == 0
-                            && Volatile.Read(ref _samplingActive) != 0
-                            && samplingGeneration == Volatile.Read(ref _samplingGeneration))
+                        if (Volatile.Read(ref _disposed) == 0)
                         {
+                            long samplingTimestamp = Stopwatch.GetTimestamp();
+                            previousSamplingTimestamp = samplingTimestamp;
                             if (Interlocked.Exchange(ref _resetBaselinesPending, 0) != 0)
                                 ResetSamplingBaselines();
-                            samplingTimestamp = Stopwatch.GetTimestamp();
-                            snapshot = CaptureSnapshot(samplingTimestamp);
+                            PerformanceSnapshot snapshot = CaptureSnapshot(samplingTimestamp);
+                            if (Volatile.Read(ref _disposed) == 0)
+                                Publish(snapshot);
                         }
-                    }
-
-                    if (snapshot != null
-                        && Volatile.Read(ref _disposed) == 0
-                        && Volatile.Read(ref _samplingActive) != 0
-                        && samplingGeneration == Volatile.Read(ref _samplingGeneration))
-                    {
-                        Publish(snapshot, samplingGeneration);
                     }
                 }
                 catch (Exception exception)
                 {
                     TADNLog.Log($"PerformanceSnapshotService.CaptureSnapshot: {exception}");
                 }
-
-                if (Volatile.Read(ref _disposed) != 0) continue;
-                int waitMilliseconds = CalculateWaitMilliseconds(samplingTimestamp);
-                _refreshWake.WaitOne(waitMilliseconds);
             }
         }
         finally
         {
             Interlocked.Exchange(ref _disposed, 1);
-            SnapshotAvailable = null;
+            SnapshotUpdated = null;
             DisposeSamplingResources();
         }
     }
@@ -330,32 +399,92 @@ internal sealed class PerformanceSnapshotService : IDisposable
             metadata.HasPerformanceInformation ? information.NonPagedPoolBytes : 0);
     }
 
-    private void Publish(PerformanceSnapshot snapshot, int samplingGeneration)
+    private void Publish(PerformanceSnapshot snapshot)
     {
-        Volatile.Write(ref _latestSnapshot, snapshot);
-        Volatile.Write(ref _latestSnapshotGeneration, samplingGeneration);
+        StoreSnapshot(snapshot);
+        if (SnapshotUpdated == null) return;
         if (Interlocked.Exchange(ref _notificationPending, 1) != 0) return;
-        Dispatcher.UIThread.Post(_notifySnapshotAvailable, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(_notifySnapshotUpdated, DispatcherPriority.Background);
     }
 
-    private void NotifySnapshotAvailable()
+    private void NotifySnapshotUpdated()
     {
         Interlocked.Exchange(ref _notificationPending, 0);
-        if (Volatile.Read(ref _disposed) != 0
-            || Volatile.Read(ref _samplingActive) == 0
-            || Volatile.Read(ref _latestSnapshotGeneration)
-            != Volatile.Read(ref _samplingGeneration))
-        {
-            return;
-        }
+        if (Volatile.Read(ref _disposed) != 0) return;
 
         try
         {
-            SnapshotAvailable?.Invoke();
+            SnapshotUpdated?.Invoke(this, GetLatestSnapshot());
         }
         catch (Exception exception)
         {
-            TADNLog.Log($"PerformanceSnapshotService.SnapshotAvailable: {exception}");
+            TADNLog.Log($"PerformanceSnapshotService.SnapshotUpdated: {exception}");
+        }
+    }
+
+    private void StoreSnapshot(PerformanceSnapshot snapshot)
+    {
+        lock (_historyGate)
+        {
+            int destinationIndex;
+            if (_historyCount < _snapshotHistory.Length)
+            {
+                destinationIndex = (_historyStartIndex + _historyCount) % _snapshotHistory.Length;
+                _historyCount++;
+            }
+            else
+            {
+                destinationIndex = _historyStartIndex;
+                _historyStartIndex = (_historyStartIndex + 1) % _snapshotHistory.Length;
+            }
+
+            _snapshotHistory[destinationIndex] = snapshot;
+            Volatile.Write(ref _latestSnapshot, snapshot);
+        }
+    }
+
+    private void ResizeHistory(int maximumHistoryCount)
+    {
+        lock (_historyGate)
+        {
+            if (_snapshotHistory.Length == maximumHistoryCount) return;
+
+            PerformanceSnapshot[] resizedHistory = CreateHistoryBuffer(maximumHistoryCount);
+            int retainedCount = Math.Min(_historyCount, maximumHistoryCount);
+            int skippedCount = _historyCount - retainedCount;
+            for (int historyIndex = 0; historyIndex < retainedCount; historyIndex++)
+            {
+                int sourceIndex = (
+                    _historyStartIndex
+                    + skippedCount
+                    + historyIndex) % _snapshotHistory.Length;
+                resizedHistory[historyIndex] = _snapshotHistory[sourceIndex];
+            }
+
+            _snapshotHistory = resizedHistory;
+            _historyStartIndex = 0;
+            _historyCount = retainedCount;
+        }
+    }
+
+    private static PerformanceSnapshot[] CreateHistoryBuffer(int maximumHistoryCount)
+    {
+        PerformanceSnapshot[] history = new PerformanceSnapshot[maximumHistoryCount];
+        Array.Fill(history, PerformanceSnapshot.Empty);
+        return history;
+    }
+
+    private static void ValidateMaximumHistoryCount(int maximumHistoryCount)
+    {
+        int supportedMaximum = PerformanceSamplingSettings.CalculateMaximumHistoryCount(
+            PerformanceSamplingSettings.MaximumHistoryLengthMinutes,
+            PerformanceSamplingSettings.MinimumSampleIntervalMilliseconds);
+        if (maximumHistoryCount < 1 || maximumHistoryCount > supportedMaximum)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumHistoryCount),
+                maximumHistoryCount,
+                $"History capacity must be between 1 and {supportedMaximum} snapshots.");
         }
     }
 
@@ -378,12 +507,15 @@ internal sealed class PerformanceSnapshotService : IDisposable
         TADNLog.Log($"PerformanceSnapshotService {provider} provider: {exception}");
     }
 
-    private static int CalculateWaitMilliseconds(long samplingTimestamp)
+    private static int CalculateWaitMilliseconds(
+        long samplingTimestamp,
+        int sampleIntervalMilliseconds)
     {
-        if (samplingTimestamp <= 0) return RefreshIntervalMilliseconds;
+        if (samplingTimestamp <= 0) return sampleIntervalMilliseconds;
 
         long elapsedTicks = Stopwatch.GetTimestamp() - samplingTimestamp;
-        long intervalTicks = Stopwatch.Frequency;
+        long intervalTicks = (long)Math.Ceiling(
+            Stopwatch.Frequency * sampleIntervalMilliseconds / 1_000.0);
         if (elapsedTicks >= intervalTicks) return 0;
 
         double remainingMilliseconds = (intervalTicks - elapsedTicks)
@@ -395,18 +527,27 @@ internal sealed class PerformanceSnapshotService : IDisposable
     public void Dispose()
     {
         bool disposeResourcesSynchronously;
+        bool waitForSamplingThread;
         lock (_lifecycleGate)
         {
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
-            SnapshotAvailable = null;
-            Interlocked.Exchange(ref _samplingActive, 0);
+            SnapshotUpdated = null;
             disposeResourcesSynchronously = _started == 0;
+            waitForSamplingThread = !disposeResourcesSynchronously
+                                    && Thread.CurrentThread != _samplingThread;
             if (!disposeResourcesSynchronously) _refreshWake.Set();
         }
 
         // A running worker owns provider cleanup so native handles cannot be freed mid-sample
-        if (disposeResourcesSynchronously) DisposeSamplingResources();
+        if (disposeResourcesSynchronously)
+        {
+            DisposeSamplingResources();
+            return;
+        }
+
+        if (waitForSamplingThread && !_samplingThread.Join(TimeSpan.FromSeconds(5)))
+            TADNLog.Log("PerformanceSnapshotService worker did not stop within five seconds.");
     }
 
     private void DisposeSamplingResources()

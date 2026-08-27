@@ -120,6 +120,22 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, Math.Clamp(value, GridRowHeightMinimum, GridRowHeightMaximum));
     } = GridRowHeightDefault;
 
+    public int PerformanceHistoryLengthMinutes
+    {
+        get;
+        set => SetField(
+            ref field,
+            PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(value));
+    } = PerformanceSamplingSettings.DefaultHistoryLengthMinutes;
+
+    public int PerformanceSampleIntervalMilliseconds
+    {
+        get;
+        set => SetField(
+            ref field,
+            PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(value));
+    } = PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds;
+
     [XmlArray("ProcessHeaderButtonOrder")]
     [XmlArrayItem("Button")]
     public List<ProcessHeaderButtonKind> ProcessHeaderButtonOrder
@@ -154,6 +170,12 @@ public sealed class AppSettings : AppSettingsCommon
 
     public override void OnTrayXmlDeserialized()
     {
+        PerformanceHistoryLengthMinutes =
+            PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
+                PerformanceHistoryLengthMinutes);
+        PerformanceSampleIntervalMilliseconds =
+            PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
+                PerformanceSampleIntervalMilliseconds);
         ProcessHeaderButtonOrder = ProcessHeaderButtonSettings.Normalize(ProcessHeaderButtonOrder);
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
         PerformanceDevicePriority = PerformanceDeviceOrdering.NormalizePriority(PerformanceDevicePriority);

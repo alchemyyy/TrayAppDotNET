@@ -79,6 +79,7 @@
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <TrayAppDotNETDefaultGCHeapHardLimitBytes>104857600</TrayAppDotNETDefaultGCHeapHardLimitBytes>
     <TrayAppDotNETDefaultGCHeapHardLimitBytes Condition="'$(MSBuildProjectName)' == 'FanControlTrayAppDotNET'">157286400</TrayAppDotNETDefaultGCHeapHardLimitBytes>
+    <TrayAppDotNETDefaultGCHeapHardLimitBytes Condition="'$(MSBuildProjectName)' == 'TaskManagerTrayAppDotNET'">209715200</TrayAppDotNETDefaultGCHeapHardLimitBytes>
     <TrayAppDotNETGCHeapHardLimitBytes Condition="'$(TrayAppDotNETGCHeapHardLimitBytes)' == ''">$(TrayAppDotNETDefaultGCHeapHardLimitBytes)</TrayAppDotNETGCHeapHardLimitBytes>
   </PropertyGroup>
 

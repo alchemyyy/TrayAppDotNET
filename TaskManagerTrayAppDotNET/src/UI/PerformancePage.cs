@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -15,7 +16,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly AppSettings _settings;
     private readonly SettingsPalette _palette;
     private readonly TaskManagerWindowResources _resources;
-    private readonly PerformanceSnapshotService _snapshotService = new();
+    private readonly PerformanceSnapshotService _snapshotService;
     private readonly PerformanceDeviceColumn _deviceColumn;
     private readonly Dictionary<string, PerformanceDevicePresentation> _devices =
         new(StringComparer.Ordinal);
@@ -27,6 +28,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock _detailTitle;
     private readonly TextBlock _detailHardwareName;
     private readonly TextBlock _detailGraphLabel;
+    private readonly TextBlock _graphWindowLabel;
     private readonly PerformanceHistoryGraph _detailGraph;
     private readonly Grid _cpuLogicalProcessorGrid;
     private readonly List<PerformanceHistory> _cpuLogicalProcessorHistories = [];
@@ -37,20 +39,29 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock[] _statisticLabels = new TextBlock[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
     private string? _selectedDeviceID;
+    private int _historyLengthMinutes;
+    private int _sampleIntervalMilliseconds;
+    private long _lastProcessedTimestamp;
     private int _configuredStatisticCount = -1;
     private int _configuredPrimaryStatisticCount = -1;
-    private bool _samplingActive;
+    private bool _hasProcessedSnapshot;
     private bool _disposed;
 
     public PerformancePage(
         AppSettings settings,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        PerformanceSnapshotService snapshotService)
         : base("Performance", palette, resources)
     {
         _settings = settings;
         _palette = palette;
         _resources = resources;
+        _snapshotService = snapshotService;
+        _historyLengthMinutes = PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
+            settings.PerformanceHistoryLengthMinutes);
+        _sampleIntervalMilliseconds = PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
+            settings.PerformanceSampleIntervalMilliseconds);
 
         MainContent.Margin = resources.AxamlTaskManagerPerformance.BodyMargin;
         MainContent.ColumnDefinitions.Add(new ColumnDefinition(
@@ -121,7 +132,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         details.Children.Add(detailHeader);
 
         _detailGraphLabel = TrayAppDotNETSettingsUI.Text(
-            "% Utilization over 60 seconds",
+            string.Concat(
+                "% Utilization over ",
+                PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             FontWeight.Normal);
@@ -143,7 +156,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         graphHeader.Children.Add(_detailGraphLabel);
         Grid.SetColumn(graphMaximumLabel, 1);
         graphHeader.Children.Add(graphMaximumLabel);
-        PerformanceHistory initialHistory = new();
+        PerformanceHistory initialHistory = CreateHistory();
         _detailGraph = new PerformanceHistoryGraph(
             initialHistory,
             PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU),
@@ -188,8 +201,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         graphArea.Children.Add(graphHeader);
         Grid.SetRow(graphSurface, 1);
         graphArea.Children.Add(graphSurface);
-        TextBlock graphWindowLabel = TrayAppDotNETSettingsUI.Text(
-            "60 seconds",
+        _graphWindowLabel = TrayAppDotNETSettingsUI.Text(
+            PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             FontWeight.Normal);
@@ -208,7 +221,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 new ColumnDefinition(GridLength.Auto)
             }
         };
-        graphFooter.Children.Add(graphWindowLabel);
+        graphFooter.Children.Add(_graphWindowLabel);
         Grid.SetColumn(graphMinimumLabel, 1);
         graphFooter.Children.Add(graphMinimumLabel);
         Grid.SetRow(graphFooter, 2);
@@ -268,22 +281,210 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         Grid.SetRow(statistics, 2);
         details.Children.Add(statistics);
 
-        ApplySnapshot(PerformanceSnapshot.Empty);
-        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
-        _snapshotService.Start();
+        _settings.PropertyChanged += OnSettingsPropertyChanged;
+        _snapshotService.SnapshotUpdated += OnSnapshotUpdated;
+        try
+        {
+            RebuildHistoriesFromSnapshotArchive();
+        }
+        catch
+        {
+            _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+            throw;
+        }
     }
 
-    private void OnSnapshotAvailable()
+    private void OnSnapshotUpdated(object? sender, PerformanceSnapshot snapshot)
     {
         if (_disposed) return;
-        ApplySnapshot(_snapshotService.GetLatestSnapshot());
+        SynchronizeSnapshotHistory(snapshot);
     }
 
-    private void ApplySnapshot(PerformanceSnapshot snapshot)
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        UpdateCPULogicalProcessorHistories(snapshot.CPU, snapshot.CapturedTimestamp);
+        if (_disposed
+            || eventArgs.PropertyName is not nameof(AppSettings.PerformanceHistoryLengthMinutes)
+                and not nameof(AppSettings.PerformanceSampleIntervalMilliseconds))
+        {
+            return;
+        }
+
+        int historyLengthMinutes = PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
+            _settings.PerformanceHistoryLengthMinutes);
+        int sampleIntervalMilliseconds = PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
+            _settings.PerformanceSampleIntervalMilliseconds);
+        if (historyLengthMinutes == _historyLengthMinutes
+            && sampleIntervalMilliseconds == _sampleIntervalMilliseconds)
+        {
+            return;
+        }
+
+        _historyLengthMinutes = historyLengthMinutes;
+        _sampleIntervalMilliseconds = sampleIntervalMilliseconds;
+        _graphWindowLabel.Text = PerformanceDevicePresentationFactory.FormatHistoryWindow(
+            historyLengthMinutes);
+        RebuildHistoriesFromSnapshotArchive();
+    }
+
+    /// <summary>Ingests every retained sample newer than the latest page-local sample.</summary>
+    private void SynchronizeSnapshotHistory(PerformanceSnapshot wakeSnapshot)
+    {
+        IReadOnlyList<PerformanceSnapshot> pendingSnapshots = _hasProcessedSnapshot
+            ? _snapshotService.GetSnapshotHistoryAfter(_lastProcessedTimestamp)
+            : _snapshotService.GetSnapshotHistory();
+        if (pendingSnapshots.Count == 0)
+        {
+            if (_hasProcessedSnapshot
+                && wakeSnapshot.CapturedTimestamp <= _lastProcessedTimestamp)
+            {
+                return;
+            }
+
+            pendingSnapshots = new PerformanceSnapshot[] { wakeSnapshot };
+        }
+
+        if (RequiresFullHistoryRebuild(pendingSnapshots))
+        {
+            RebuildHistoriesFromSnapshotArchive();
+            return;
+        }
+
+        PerformanceSnapshot? latestSnapshot = null;
+        for (int snapshotIndex = 0; snapshotIndex < pendingSnapshots.Count; snapshotIndex++)
+        {
+            PerformanceSnapshot snapshot = pendingSnapshots[snapshotIndex];
+            if (_hasProcessedSnapshot && snapshot.CapturedTimestamp <= _lastProcessedTimestamp)
+                continue;
+
+            AppendSnapshotHistories(snapshot);
+            _lastProcessedTimestamp = snapshot.CapturedTimestamp;
+            _hasProcessedSnapshot = true;
+            latestSnapshot = snapshot;
+        }
+
+        if (latestSnapshot != null)
+            ApplySnapshotPresentation(latestSnapshot);
+    }
+
+    /// <summary>Rebuilds bounded page-local histories from the application-lifetime archive.</summary>
+    private void RebuildHistoriesFromSnapshotArchive()
+    {
+        IReadOnlyList<PerformanceSnapshot> archivedSnapshots = _snapshotService.GetSnapshotHistory();
+        PerformanceSnapshot latestSnapshot = _snapshotService.GetLatestSnapshot();
+        if (archivedSnapshots.Count > 0
+            && archivedSnapshots[^1].CapturedTimestamp > latestSnapshot.CapturedTimestamp)
+        {
+            latestSnapshot = archivedSnapshots[^1];
+        }
+
+        int logicalProcessorCount = GetLogicalProcessorCount(latestSnapshot.CPU);
+        if (logicalProcessorCount == 0)
+        {
+            for (int snapshotIndex = archivedSnapshots.Count - 1;
+                 snapshotIndex >= 0;
+                 snapshotIndex--)
+            {
+                logicalProcessorCount = GetLogicalProcessorCount(
+                    archivedSnapshots[snapshotIndex].CPU);
+                if (logicalProcessorCount > 0) break;
+            }
+        }
+
+        _histories.Clear();
+        RebuildCPULogicalProcessorGraphs(logicalProcessorCount);
+        _hasProcessedSnapshot = false;
+        _lastProcessedTimestamp = 0;
+
+        for (int snapshotIndex = 0; snapshotIndex < archivedSnapshots.Count; snapshotIndex++)
+        {
+            PerformanceSnapshot snapshot = archivedSnapshots[snapshotIndex];
+            AppendSnapshotHistories(snapshot);
+            _lastProcessedTimestamp = snapshot.CapturedTimestamp;
+            _hasProcessedSnapshot = true;
+        }
+
+        if (!_hasProcessedSnapshot
+            || latestSnapshot.CapturedTimestamp > _lastProcessedTimestamp)
+        {
+            AppendSnapshotHistories(latestSnapshot);
+            _lastProcessedTimestamp = latestSnapshot.CapturedTimestamp;
+            _hasProcessedSnapshot = true;
+        }
+
+        ApplySnapshotPresentation(latestSnapshot);
+    }
+
+    /// <summary>Appends one raw snapshot without reconciling live cards or removing stale histories.</summary>
+    private void AppendSnapshotHistories(PerformanceSnapshot snapshot)
+    {
+        long capturedTimestamp = snapshot.CapturedTimestamp;
+        AppendDeviceHistory(
+            snapshot.CPU.DeviceID,
+            capturedTimestamp,
+            snapshot.CPU.HasUtilizationSample,
+            snapshot.CPU.UtilizationPercent);
+        AppendDeviceHistory(
+            snapshot.Memory.DeviceID,
+            capturedTimestamp,
+            snapshot.Memory.HasMemoryData,
+            snapshot.Memory.UtilizationPercent);
+
+        ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
+        for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
+        {
+            GPUPerformanceSnapshot GPU = GPUs[GPUIndex];
+            AppendDeviceHistory(
+                GPU.DeviceID,
+                capturedTimestamp,
+                GPU.HasUtilizationSample,
+                GPU.UtilizationPercent);
+        }
+
+        ReadOnlySpan<NetworkPerformanceSnapshot> networks = snapshot.Networks.Span;
+        for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
+        {
+            NetworkPerformanceSnapshot network = networks[networkIndex];
+            bool hasUtilization = PerformanceDevicePresentationFactory.TryGetNetworkUtilization(
+                network,
+                out double utilizationPercent);
+            AppendDeviceHistory(
+                network.DeviceID,
+                capturedTimestamp,
+                hasUtilization,
+                utilizationPercent);
+        }
+
+        ReadOnlySpan<DiskPerformanceSnapshot> disks = snapshot.Disks.Span;
+        for (int diskIndex = 0; diskIndex < disks.Length; diskIndex++)
+        {
+            DiskPerformanceSnapshot disk = disks[diskIndex];
+            AppendDeviceHistory(
+                disk.DeviceID,
+                capturedTimestamp,
+                disk.HasPerformanceSample,
+                disk.ActiveTimePercent);
+        }
+
+        AppendCPULogicalProcessorHistories(snapshot.CPU, capturedTimestamp);
+    }
+
+    private void AppendDeviceHistory(
+        string deviceID,
+        long capturedTimestamp,
+        bool hasUtilizationSample,
+        double utilizationPercent)
+    {
+        PerformanceHistory history = GetOrCreateHistory(deviceID);
+        history.AdvanceTo(capturedTimestamp);
+        if (hasUtilizationSample)
+            history.Add(capturedTimestamp, utilizationPercent);
+    }
+
+    private void ApplySnapshotPresentation(PerformanceSnapshot snapshot)
+    {
         List<PerformanceDevicePresentation> liveDevices =
-            PerformanceDevicePresentationFactory.Create(snapshot);
+            PerformanceDevicePresentationFactory.Create(snapshot, _historyLengthMinutes);
         _devices.Clear();
         List<PerformanceDeviceOrderItem> orderItems = new(liveDevices.Count);
         for (int deviceIndex = 0; deviceIndex < liveDevices.Count; deviceIndex++)
@@ -292,10 +493,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             if (!_devices.TryAdd(device.DeviceID, device)) continue;
 
             orderItems.Add(device.OrderItem);
-            PerformanceHistory history = GetOrCreateHistory(device.DeviceID);
-            history.AdvanceTo(snapshot.CapturedTimestamp);
-            if (device.HasUtilizationSample)
-                history.Add(snapshot.CapturedTimestamp, device.UtilizationPercent);
         }
 
         List<PerformanceDeviceOrderItem> orderedItems = PerformanceDeviceOrdering.Resolve(
@@ -315,7 +512,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
             else
             {
-                card.Update(device);
+                card.Update(device, history);
             }
             rows.Add(new PerformanceDeviceColumnRow(orderItem.ID, card));
         }
@@ -326,27 +523,82 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _selectedDeviceID = orderedItems.Count == 0 ? null : orderedItems[0].ID;
 
         UpdateSelectionAndDetails();
+        RefreshVisibleLogicalProcessorGraphs();
+    }
+
+    /// <summary>Repaints expanded CPU graphs after their shared history batch changes.</summary>
+    private void RefreshVisibleLogicalProcessorGraphs()
+    {
+        if (!_cpuLogicalProcessorGrid.IsVisible) return;
+
+        for (int graphIndex = 0; graphIndex < _cpuLogicalProcessorGraphs.Count; graphIndex++)
+            _cpuLogicalProcessorGraphs[graphIndex].Refresh();
     }
 
     private PerformanceHistory GetOrCreateHistory(string deviceID)
     {
         if (_histories.TryGetValue(deviceID, out PerformanceHistory? history)) return history;
 
-        history = new PerformanceHistory();
+        history = CreateHistory();
         _histories.Add(deviceID, history);
         return history;
     }
 
-    /// <summary>Advances every logical-processor trace on the aggregate snapshot timeline.</summary>
-    private void UpdateCPULogicalProcessorHistories(
+    private PerformanceHistory CreateHistory() =>
+        new(_historyLengthMinutes, _sampleIntervalMilliseconds);
+
+    private bool RequiresFullHistoryRebuild(IReadOnlyList<PerformanceSnapshot> snapshots)
+    {
+        for (int snapshotIndex = 0; snapshotIndex < snapshots.Count; snapshotIndex++)
+        {
+            PerformanceSnapshot snapshot = snapshots[snapshotIndex];
+            if (ContainsUnknownDevice(snapshot)) return true;
+        }
+
+        CPUPerformanceSnapshot latestCPU = snapshots[^1].CPU;
+        int logicalProcessorCount = GetLogicalProcessorCount(latestCPU);
+        return logicalProcessorCount > 0
+               && logicalProcessorCount != _cpuLogicalProcessorHistories.Count;
+    }
+
+    private bool ContainsUnknownDevice(PerformanceSnapshot snapshot)
+    {
+        if (!_histories.ContainsKey(snapshot.CPU.DeviceID)
+            || !_histories.ContainsKey(snapshot.Memory.DeviceID))
+        {
+            return true;
+        }
+
+        ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
+        for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
+        {
+            if (!_histories.ContainsKey(GPUs[GPUIndex].DeviceID)) return true;
+        }
+
+        ReadOnlySpan<NetworkPerformanceSnapshot> networks = snapshot.Networks.Span;
+        for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
+        {
+            if (!_histories.ContainsKey(networks[networkIndex].DeviceID)) return true;
+        }
+
+        ReadOnlySpan<DiskPerformanceSnapshot> disks = snapshot.Disks.Span;
+        for (int diskIndex = 0; diskIndex < disks.Length; diskIndex++)
+        {
+            if (!_histories.ContainsKey(disks[diskIndex].DeviceID)) return true;
+        }
+
+        return false;
+    }
+
+    private static int GetLogicalProcessorCount(CPUPerformanceSnapshot snapshot) =>
+        Math.Max(snapshot.LogicalProcessorCount, snapshot.LogicalProcessorUtilizationPercents.Length);
+
+    /// <summary>Appends every logical-processor trace on the aggregate snapshot timeline.</summary>
+    private void AppendCPULogicalProcessorHistories(
         CPUPerformanceSnapshot snapshot,
         long capturedTimestamp)
     {
         ReadOnlySpan<double> processorUtilization = snapshot.LogicalProcessorUtilizationPercents.Span;
-        int processorCount = Math.Max(snapshot.LogicalProcessorCount, processorUtilization.Length);
-        if (processorCount > 0 && processorCount != _cpuLogicalProcessorHistories.Count)
-            RebuildCPULogicalProcessorGraphs(processorCount);
-
         for (int processorIndex = 0;
              processorIndex < _cpuLogicalProcessorHistories.Count;
              processorIndex++)
@@ -355,8 +607,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             history.AdvanceTo(capturedTimestamp);
             if (snapshot.HasUtilizationSample && processorIndex < processorUtilization.Length)
                 history.Add(capturedTimestamp, processorUtilization[processorIndex]);
-            if (_cpuLogicalProcessorGrid.IsVisible)
-                _cpuLogicalProcessorGraphs[processorIndex].Refresh();
         }
     }
 
@@ -380,7 +630,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
         for (int processorIndex = 0; processorIndex < processorCount; processorIndex++)
         {
-            PerformanceHistory history = new();
+            PerformanceHistory history = CreateHistory();
             PerformanceHistoryGraph graph = new(history, accent, _palette, _resources)
             {
                 HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -432,26 +682,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _deviceCards.Remove(deviceID);
             _histories.Remove(deviceID);
         }
-    }
-
-    /// <summary>Pauses direct-OS sampling while the owning Task Manager window is not visible.</summary>
-    internal void SetSamplingActive(bool isActive)
-    {
-        if (_disposed || _samplingActive == isActive) return;
-
-        _samplingActive = isActive;
-        _snapshotService.SetActive(isActive);
-        if (isActive) return;
-
-        foreach (PerformanceHistory history in _histories.Values)
-            history.Clear();
-        foreach (PerformanceHistory history in _cpuLogicalProcessorHistories)
-            history.Clear();
-        foreach (PerformanceDeviceCard card in _deviceCards.Values)
-            card.RefreshHistory();
-        foreach (PerformanceHistoryGraph graph in _cpuLogicalProcessorGraphs)
-            graph.Refresh();
-        _detailGraph.Refresh();
     }
 
     private void OnDeviceSelected(string deviceID)
@@ -586,9 +816,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_disposed) return;
 
         _disposed = true;
-        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
+        _settings.PropertyChanged -= OnSettingsPropertyChanged;
+        _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
         _deviceColumn.Dispose();
-        _snapshotService.Dispose();
         _devices.Clear();
         _deviceCards.Clear();
         _histories.Clear();
@@ -677,7 +907,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             UpdateSurface();
         }
 
-        public void Update(PerformanceDevicePresentation device)
+        public void Update(
+            PerformanceDevicePresentation device,
+            PerformanceHistory history)
         {
             if (_accent != device.Accent)
             {
@@ -690,7 +922,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _summary.Text = device.Summary;
             _summary.IsVisible = !string.IsNullOrWhiteSpace(device.Summary);
             _graph.SetAccent(device.Accent);
-            _graph.Refresh();
+            _graph.SetHistory(history);
             UpdateSurface();
         }
 
@@ -700,8 +932,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _isSelected = isSelected;
             UpdateSurface();
         }
-
-        public void RefreshHistory() => _graph.Refresh();
 
         private static bool ShouldShowSubtitle(PerformanceDevicePresentation device) =>
             device.Kind is not PerformanceDeviceKind.CPU and not PerformanceDeviceKind.Memory

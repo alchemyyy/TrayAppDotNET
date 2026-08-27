@@ -7,20 +7,71 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class PerformanceSnapshotServiceTests
 {
     [Fact]
-    public void PeriodicSamplingStopsWhileInactive()
+    public void PeriodicSamplingRunsUntilDisposalAndAcceptsLiveConfiguration()
     {
-        using PerformanceSnapshotService service = new();
+        using PerformanceSnapshotService service = new(
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+            maximumHistoryCount: 8);
         service.Start();
-        service.SetActive(true);
         Assert.True(SpinWait.SpinUntil(
             () => service.GetLatestSnapshot().CapturedAt != DateTimeOffset.MinValue,
             TimeSpan.FromSeconds(5)));
 
-        service.SetActive(false);
-        DateTimeOffset pausedSnapshotTime = service.GetLatestSnapshot().CapturedAt;
-        Thread.Sleep(TimeSpan.FromMilliseconds(1_200));
+        service.UpdateConfiguration(
+            PerformanceSamplingSettings.MinimumSampleIntervalMilliseconds,
+            maximumHistoryCount: 3);
+        Assert.True(SpinWait.SpinUntil(
+            () => service.GetSnapshotHistory().Count >= 3,
+            TimeSpan.FromSeconds(5)));
+        IReadOnlyList<PerformanceSnapshot> retainedHistory = service.GetSnapshotHistory();
+        Assert.Equal(3, retainedHistory.Count);
+        Assert.True(retainedHistory[0].CapturedTimestamp < retainedHistory[1].CapturedTimestamp);
+        Assert.True(retainedHistory[1].CapturedTimestamp < retainedHistory[2].CapturedTimestamp);
 
-        Assert.Equal(pausedSnapshotTime, service.GetLatestSnapshot().CapturedAt);
+        service.Dispose();
+        DateTimeOffset disposedSnapshotTime = service.GetLatestSnapshot().CapturedAt;
+        Thread.Sleep(TimeSpan.FromMilliseconds(500));
+
+        Assert.Equal(disposedSnapshotTime, service.GetLatestSnapshot().CapturedAt);
+    }
+
+    [Fact]
+    public void SnapshotHistoryRetainsNewestSamplesAcrossCapacityChanges()
+    {
+        using PerformanceSnapshotService service = new(
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+            maximumHistoryCount: 2);
+
+        _ = service.SampleNow();
+        PerformanceSnapshot secondSnapshot = service.SampleNow();
+        PerformanceSnapshot thirdSnapshot = service.SampleNow();
+
+        IReadOnlyList<PerformanceSnapshot> retainedHistory = service.GetSnapshotHistory();
+        Assert.Equal(2, retainedHistory.Count);
+        Assert.Equal(secondSnapshot.CapturedTimestamp, retainedHistory[0].CapturedTimestamp);
+        Assert.Equal(thirdSnapshot.CapturedTimestamp, retainedHistory[1].CapturedTimestamp);
+
+        service.UpdateConfiguration(
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+            maximumHistoryCount: 1);
+        retainedHistory = service.GetSnapshotHistory();
+        Assert.Single(retainedHistory);
+        Assert.Equal(thirdSnapshot.CapturedTimestamp, retainedHistory[0].CapturedTimestamp);
+
+        service.UpdateConfiguration(
+            PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
+            maximumHistoryCount: 3);
+        PerformanceSnapshot fourthSnapshot = service.SampleNow();
+        retainedHistory = service.GetSnapshotHistory();
+        Assert.Equal(2, retainedHistory.Count);
+        Assert.Equal(thirdSnapshot.CapturedTimestamp, retainedHistory[0].CapturedTimestamp);
+        Assert.Equal(fourthSnapshot.CapturedTimestamp, retainedHistory[1].CapturedTimestamp);
+
+        IReadOnlyList<PerformanceSnapshot> incrementalHistory =
+            service.GetSnapshotHistoryAfter(thirdSnapshot.CapturedTimestamp);
+        Assert.Single(incrementalHistory);
+        Assert.Equal(fourthSnapshot.CapturedTimestamp, incrementalHistory[0].CapturedTimestamp);
+        Assert.Empty(service.GetSnapshotHistoryAfter(fourthSnapshot.CapturedTimestamp));
     }
 
     [Fact]

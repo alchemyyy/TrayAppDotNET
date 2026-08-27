@@ -76,9 +76,9 @@
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridRows">4</sys:Int32>
   <sys:Double x:Key="TaskManagerPerformance.DeviceColumnWidth">207</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceColumnSpacing">2</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.DeviceCardHeight">66</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.DeviceGraphWidth">46</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.DeviceGraphHeight">46</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceCardHeight">64</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceGraphWidth">56</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceGraphHeight">48</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceTitleFontSize">15</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceSubtitleFontSize">10.5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceSummaryFontSize">10.5</sys:Double>
