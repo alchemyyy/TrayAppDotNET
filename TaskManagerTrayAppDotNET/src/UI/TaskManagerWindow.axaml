@@ -12,6 +12,13 @@
   <sys:Double x:Key="TaskManagerWindow.SidebarWidth">250</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarCollapseThreshold">750</sys:Double>
 
+  <!-- General page layout -->
+  <sys:Double x:Key="TaskManagerPage.HeaderOverlayHeight">32</sys:Double>
+  <sys:Double x:Key="TaskManagerPage.TitleFontSize">20</sys:Double>
+  <sys:Double x:Key="TaskManagerPage.HeaderSpacing">8</sys:Double>
+  <Thickness x:Key="TaskManagerPage.HeaderOverlayMargin">0,4,0,0</Thickness>
+  <Thickness x:Key="TaskManagerPage.HeaderMargin">0,8,20,0</Thickness>
+
   <!-- Details page -->
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.ToolbarFontSize">13</sys:Double>
@@ -30,6 +37,56 @@
   <!-- Task Manager settings -->
   <Thickness x:Key="TaskManagerSettings.WindowManagementOptionsMargin">0,8,0,0</Thickness>
   <sys:Double x:Key="TaskManagerSettings.WindowManagementOptionSpacing">6</sys:Double>
+  <Thickness x:Key="TaskManagerSettings.DevicePriorityContentMargin">0,8,0,0</Thickness>
+  <Thickness x:Key="TaskManagerSettings.DevicePriorityRowPadding">10,8</Thickness>
+  <CornerRadius x:Key="TaskManagerSettings.DevicePriorityRowCornerRadius">4</CornerRadius>
+  <sys:Double x:Key="TaskManagerSettings.DevicePriorityRowSpacing">6</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.DevicePriorityButtonSpacing">6</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.DevicePriorityRankWidth">24</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.DevicePriorityFontSize">13</sys:Double>
+
+  <!-- Performance graphs -->
+  <sys:Double x:Key="TaskManagerPerformance.GraphLineThickness">1.25</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">1</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
+  <sys:Int32 x:Key="TaskManagerPerformance.GraphGridColumns">10</sys:Int32>
+  <sys:Int32 x:Key="TaskManagerPerformance.GraphGridRows">4</sys:Int32>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceColumnWidth">207</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceColumnSpacing">2</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceCardHeight">66</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceGraphWidth">46</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceGraphHeight">46</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceTitleFontSize">15</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceSubtitleFontSize">10.5</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceSummaryFontSize">10.5</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailTitleFontSize">36</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailDeviceNameFontSize">16</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailGraphLabelFontSize">11.5</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailGraphMinimumHeight">260</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticWidth">132</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailMetadataStatisticLabelWidth">112</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsColumnSpacing">24</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsPrimaryRatio">2</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsMetadataRatio">1</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticLabelFontSize">11</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticValueFontSize">25</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticValueFontSize">14</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGraphSpacing">5</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGridAspectRatio">1.3333333333333333</sys:Double>
+  <Thickness x:Key="TaskManagerPerformance.BodyMargin">8,8,16,16</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DeviceColumnPadding">4,0,12,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DeviceCardPadding">7,5</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DeviceGraphMargin">0,0,10,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailMargin">18,0,0,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailHeaderMargin">0,0,0,4</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailGraphLabelMargin">0,0,0,5</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailGraphScaleMargin">0,3,0,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailGraphMargin">0,0,0,12</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailPrimaryStatisticMargin">0,0,14,9</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DetailMetadataStatisticMargin">0,0,0,3</Thickness>
+  <CornerRadius x:Key="TaskManagerPerformance.DeviceCardCornerRadius">0</CornerRadius>
+  <Thickness x:Key="TaskManagerPerformance.DeviceCardBorderThickness">0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DeviceColumnBorderThickness">0</Thickness>
 
   <!-- Painted process table -->
   <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>

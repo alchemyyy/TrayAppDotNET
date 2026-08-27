@@ -43,7 +43,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessTerminationService _processTerminationService;
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
+    private TaskManagerPageLayout? _activePageLayout;
     private ProcessDetailsPage? _processDetailsPage;
+    private PerformancePage? _performancePage;
     private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
     private bool _exitRequested;
@@ -89,9 +91,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool UsePageContentTitleBarDragZone => false;
     protected override bool UseProminentConfirmationDialog => true;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
-    protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Processes;
+    protected override bool PageOwnsScrolling(TaskManagerPage pageKey) =>
+        pageKey is TaskManagerPage.Processes or TaskManagerPage.Performance;
     protected override Control? ResolvePageOverlay(Control pageRoot) =>
-        pageRoot is ProcessDetailsPage page ? page.SearchBox : null;
+        pageRoot is TaskManagerPageLayout page ? page.PageOverlay : null;
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
@@ -118,7 +121,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override IReadOnlyList<SettingsPageDescriptor<TaskManagerPage>> CreatePageDescriptors() =>
     [
         new(TaskManagerPage.Processes, "Processes", BuildProcessesPage, ProcessesGlyph),
-        new(TaskManagerPage.Performance, "Performance", () => BuildPlaceholderPage("Performance"), PerformanceGlyph),
+        new(TaskManagerPage.Performance, "Performance", BuildPerformancePage, PerformanceGlyph),
         new(TaskManagerPage.AppHistory, "App history", () => BuildPlaceholderPage("App history"), AppHistoryGlyph),
         new(TaskManagerPage.StartupApps, "Startup apps", () => BuildPlaceholderPage("Startup apps"), StartupAppsGlyph),
         new(TaskManagerPage.Users, "Users", () => BuildPlaceholderPage("Users"), UsersGlyph),
@@ -205,25 +208,43 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             ReportMessage,
             StartProcess);
         _processDetailsPage = page;
+        _activePageLayout = page;
         AddPageCleanup(() =>
         {
             if (ReferenceEquals(_processDetailsPage, page))
                 _processDetailsPage = null;
+            if (ReferenceEquals(_activePageLayout, page))
+                _activePageLayout = null;
+        });
+        return OwnPageResource(page);
+    }
+
+    private Control BuildPerformancePage()
+    {
+        PerformancePage page = new(_settings, Palette, _taskManagerResources);
+        _performancePage = page;
+        _activePageLayout = page;
+        UpdatePerformanceSamplingState();
+        AddPageCleanup(() =>
+        {
+            if (ReferenceEquals(_performancePage, page))
+                _performancePage = null;
+            if (ReferenceEquals(_activePageLayout, page))
+                _activePageLayout = null;
         });
         return OwnPageResource(page);
     }
 
     private void OnHeaderBackgroundPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
-        ProcessDetailsPage? page = _processDetailsPage;
+        TaskManagerPageLayout? page = _activePageLayout;
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
         if (eventArgs.Handled
             || page == null
-            || CurrentPageKey != TaskManagerPage.Processes
             || !pointerPoint.Properties.IsLeftButtonPressed
             || (eventArgs.KeyModifiers & KeyModifiers.Control) != 0
-            || !page.TryGetTableTop(this, out double tableTop)
-            || pointerPoint.Position.Y >= tableTop
+            || !page.TryGetMainContentTop(this, out double contentTop)
+            || pointerPoint.Position.Y >= contentTop
             || IsInteractiveHeaderControl(eventArgs.Source))
         {
             return;
@@ -268,16 +289,25 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return stack;
     }
 
-    private StackPanel BuildPlaceholderPage(string pageName)
+    private TaskManagerPageLayout BuildPlaceholderPage(string pageName)
     {
         SettingsPalette palette = Palette;
-        StackPanel stack = PageStack(pageName, palette);
+        TaskManagerPageLayout page = new(pageName, palette, _taskManagerResources);
+        _activePageLayout = page;
+        AddPageCleanup(() =>
+        {
+            if (ReferenceEquals(_activePageLayout, page))
+                _activePageLayout = null;
+        });
+
+        StackPanel stack = new();
         stack.Margin = _taskManagerResources.AxamlTaskManagerDetails.PlaceholderMargin;
         TextBlock description = TrayAppDotNETSettingsUI.DescriptionText(
             "This page is intentionally a shell in the initial implementation.",
             palette);
         stack.Children.Add(RawCard(description, palette));
-        return stack;
+        page.MainContent.Children.Add(stack);
+        return page;
     }
 
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
@@ -314,6 +344,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
+        if (change.Property == IsVisibleProperty || change.Property == WindowStateProperty)
+            UpdatePerformanceSamplingState();
+
         if (_allowClose
             || !_settings.MinimizeToTray
             || change.Property != WindowStateProperty
@@ -325,6 +358,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         Hide();
         WindowState = WindowState.Normal;
     }
+
+    private void UpdatePerformanceSamplingState() =>
+        _performancePage?.SetSamplingActive(IsVisible && WindowState != WindowState.Minimized);
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs eventArgs)
     {

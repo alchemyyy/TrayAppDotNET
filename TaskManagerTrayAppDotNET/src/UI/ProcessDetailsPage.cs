@@ -9,7 +9,7 @@ using TaskManagerTrayAppDotNET.Services;
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Builds the Processes toolbar around the allocation-light painted process table.</summary>
-internal sealed class ProcessDetailsPage : Grid, IDisposable
+internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 {
     private const double GridFontZoomStep = 0.5;
     private const int GridRowHeightZoomStep = 1;
@@ -55,6 +55,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
+        : base("Processes", palette, resources)
     {
         _snapshotService = snapshotService;
         _settings = settings;
@@ -67,10 +68,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _startProcess = startProcess;
         ProcessDataSchema schema = ProcessDataSchema.Create(settings.DetailsColumns);
         _snapshotService.SetActiveSchema(schema);
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         _processCanvas = new ProcessDetailsCanvas(
             processIconService,
@@ -125,15 +124,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         _searchBox.TextChanged += OnSearchTextChanged;
 
-        Grid searchBar = BuildSearchBar();
-        searchBar.Background = Brushes.Transparent;
-        searchBar.Margin = resources.AxamlTaskManagerDetails.HeaderMargin;
-        Children.Add(searchBar);
-
-        Grid actionBar = BuildActionBar(palette, resources);
-        actionBar.Margin = resources.AxamlTaskManagerDetails.ActionsMargin;
-        Grid.SetRow(actionBar, 1);
-        Children.Add(actionBar);
+        PopulateHeaderActions(palette, resources);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -149,8 +140,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _runPanel = BuildRunPanel(palette, resources);
         _runPanel.IsVisible = false;
         _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
-        Grid.SetRow(_runPanel, 2);
-        Children.Add(_runPanel);
+        MainContent.Children.Add(_runPanel);
 
         SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
         TrayMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
@@ -187,8 +177,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
-        Grid.SetRow(_tableScrollViewport, 3);
-        Children.Add(_tableScrollViewport);
+        Grid.SetRow(_tableScrollViewport, 1);
+        MainContent.Children.Add(_tableScrollViewport);
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
         TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
@@ -197,23 +187,10 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     }
 
     /// <summary>Gets the search box rendered by the full-window page overlay.</summary>
-    internal TextBox SearchBox => _searchBox;
+    internal override Control? PageOverlay => _searchBox;
 
-    private Grid BuildSearchBar() =>
-        new()
-        {
-            Height = _searchBox.Height
-        };
-
-    private Grid BuildActionBar(SettingsPalette palette, TaskManagerWindowResources resources)
+    private void PopulateHeaderActions(SettingsPalette palette, TaskManagerWindowResources resources)
     {
-        TextBlock title = TrayAppDotNETSettingsUI.Text(
-            "Processes",
-            palette,
-            resources.AxamlTaskManagerDetails.TitleFontSize,
-            FontWeight.SemiBold);
-        title.VerticalAlignment = VerticalAlignment.Center;
-
         TextBlock groupProcessesLabel = TrayAppDotNETSettingsUI.Text(
             "Group processes",
             palette,
@@ -228,27 +205,10 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             Children = { groupProcessesLabel, _groupProcessesToggle }
         };
 
-        StackPanel actions = new()
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { groupProcesses, _runTaskButton, _columnsButton, _endTaskButton }
-        };
-
-        Grid actionBar = new()
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
-        };
-        actionBar.Children.Add(title);
-        Grid.SetColumn(actions, 1);
-        actionBar.Children.Add(actions);
-        return actionBar;
+        HeaderActions.Children.Add(groupProcesses);
+        HeaderActions.Children.Add(_runTaskButton);
+        HeaderActions.Children.Add(_columnsButton);
+        HeaderActions.Children.Add(_endTaskButton);
     }
 
     private Border BuildRunPanel(SettingsPalette palette, TaskManagerWindowResources resources)

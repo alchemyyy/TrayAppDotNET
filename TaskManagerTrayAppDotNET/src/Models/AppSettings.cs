@@ -128,9 +128,27 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, ProcessColumnSettings.Normalize(value));
     } = ProcessColumnSettings.CreateDefault();
 
+    [XmlArray("PerformanceDevicePriority")]
+    [XmlArrayItem("Kind")]
+    public List<PerformanceDeviceKind> PerformanceDevicePriority
+    {
+        get;
+        set => SetField(ref field, PerformanceDeviceOrdering.NormalizePriority(value));
+    } = PerformanceDeviceOrdering.CreateDefaultPriority();
+
+    [XmlArray("PerformanceDeviceOrder")]
+    [XmlArrayItem("DeviceID")]
+    public List<string> PerformanceDeviceOrder
+    {
+        get;
+        set => SetField(ref field, PerformanceDeviceOrdering.NormalizeExplicitOrder(value));
+    } = [];
+
     public override void OnTrayXmlDeserialized()
     {
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
+        PerformanceDevicePriority = PerformanceDeviceOrdering.NormalizePriority(PerformanceDevicePriority);
+        PerformanceDeviceOrder = PerformanceDeviceOrdering.NormalizeExplicitOrder(PerformanceDeviceOrder);
         base.OnTrayXmlDeserialized();
     }
 
@@ -144,6 +162,25 @@ public sealed class AppSettings : AppSettingsCommon
         try
         {
             DetailsColumns = columns;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists an already-applied Performance device reorder without rebuilding the app shell.</summary>
+    internal void UpdatePerformanceDeviceOrder(List<string> deviceIDs)
+    {
+        ArgumentNullException.ThrowIfNull(deviceIDs);
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            PerformanceDeviceOrder = deviceIDs;
         }
         finally
         {
