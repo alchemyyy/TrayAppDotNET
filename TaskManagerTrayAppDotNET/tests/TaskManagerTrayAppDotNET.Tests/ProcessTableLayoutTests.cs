@@ -77,6 +77,30 @@ public sealed class ProcessTableLayoutTests
     }
 
     [Fact]
+    public void InteractiveZoomRangeExcludesSettledPrefetchRows()
+    {
+        Rect viewport = new(0, 13032, 800, 52);
+
+        ProcessTableLayout.GetVisibleRowRange(
+            viewport,
+            rowCount: 1000,
+            Metrics,
+            out int interactiveFirstRow,
+            out int interactiveLastRowExclusive);
+        ProcessTableLayout.GetRetainedRowRange(
+            viewport,
+            rowCount: 1000,
+            Metrics,
+            out int settledFirstRow,
+            out int settledLastRowExclusive);
+
+        Assert.Equal(499, interactiveFirstRow);
+        Assert.Equal(503, interactiveLastRowExclusive);
+        Assert.Equal(467, settledFirstRow);
+        Assert.Equal(535, settledLastRowExclusive);
+    }
+
+    [Fact]
     public void HitTestColumnRejectsUnusedTrailingWidth()
     {
         ProcessTableColumn[] columns =

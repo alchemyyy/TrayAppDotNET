@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Visuals;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -58,6 +59,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         HeaderInteraction
     }
 
+    private enum GridZoomWorkKind : byte
+    {
+        VisibleRows,
+        Settle
+    }
+
     private const int DynamicRefreshBatchSize = 16;
     private const int MaximumTextLayoutCharacters = 2_048;
     private const string TextEllipsis = "\u2026";
@@ -88,6 +95,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private readonly bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
+    private readonly AsyncThrottler<GridZoomWorkKind> _gridZoomThrottler = new(cooldownMs: 0);
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
     private readonly Dictionary<ProcessSharedCellKey, SharedCellDrawing> _sharedCellDrawings = new();
     private readonly List<SharedCellDrawing> _sharedCellBuffer = new(8);
@@ -134,6 +142,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private int _rowCount;
     private int _visibleRowCount;
     private int _cacheGeneration;
+    private int _gridMetricsGeneration = 1;
+    private int _gridZoomRequestVersion;
     private int _filterProcessID = -1;
     private int _retainedFirstVisibleIndex = -1;
     private int _retainedLastVisibleIndexExclusive = -1;
@@ -163,12 +173,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private bool _sortDescending;
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
+    private bool _isGridZoomActive;
     private bool _groupProcesses;
     private double _axamlFontSize;
     private double _axamlRowHeight;
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
-    private bool _disposed;
+    private volatile bool _disposed;
     private ProcessSnapshotService? _snapshotService;
 
     public ProcessDetailsCanvas(
@@ -631,7 +642,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         InvalidateLayers(RenderLayerMask.CopyPreview);
     }
 
-    /// <summary>Rebuilds retained row text at a new font size and row height.</summary>
+    /// <summary>Applies new grid geometry and queues a latest-request-wins visible-row rebuild.</summary>
     public void SetGridMetrics(double fontSize, double rowHeight)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -643,18 +654,100 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             return;
         }
 
+        AdvanceGridMetricsGeneration();
         _metrics = _metrics with { FontSize = fontSize, RowHeight = rowHeight };
-        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
-            ReleaseRenderCache(cache);
-        _sharedCellDrawings.Clear();
-        UpdateRetainedDrawings();
+        _isGridZoomActive = true;
         GridMetricsChanged?.Invoke(fontSize, rowHeight);
         UpdateSelectionOverlay();
         PublishRowHoverGeometry();
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
+        QueueGridZoomWork();
     }
+
+    private void AdvanceGridMetricsGeneration()
+    {
+        int nextGeneration = unchecked(_gridMetricsGeneration + 1);
+        if (nextGeneration != 0)
+        {
+            _gridMetricsGeneration = nextGeneration;
+            return;
+        }
+
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            ReleaseRenderCache(cache);
+        _sharedCellDrawings.Clear();
+        _gridMetricsGeneration = 1;
+    }
+
+    private void QueueGridZoomWork()
+    {
+        if (_disposed || !_isGridZoomActive) return;
+
+        int requestVersion = Interlocked.Increment(ref _gridZoomRequestVersion);
+        _ = _gridZoomThrottler.RunAsync(
+            GridZoomWorkKind.VisibleRows,
+            context => RebuildGridZoomRowsAsync(
+                requestVersion,
+                includeRetainedOverscan: false,
+                context));
+        _ = _gridZoomThrottler.RunAsync(
+            GridZoomWorkKind.Settle,
+            context => SettleGridZoomAsync(requestVersion, context));
+    }
+
+    private async Task RebuildGridZoomRowsAsync(
+        int requestVersion,
+        bool includeRetainedOverscan,
+        ThrottlerContext context)
+    {
+        GridZoomRowWorkState workState = new(includeRetainedOverscan);
+        while (!ShouldDropGridZoomWork(requestVersion, context))
+        {
+            bool hasMoreRows = await Dispatcher.UIThread.InvokeAsync(
+                () => !ShouldDropGridZoomWork(requestVersion, context)
+                      && RebuildNextGridZoomRow(workState),
+                DispatcherPriority.Background);
+            if (!hasMoreRows) return;
+        }
+    }
+
+    private async Task SettleGridZoomAsync(int requestVersion, ThrottlerContext context)
+    {
+        long startTimestamp = Stopwatch.GetTimestamp();
+        while (Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds
+               < TimeConstants.GridZoomSettleDelayMilliseconds)
+        {
+            if (ShouldDropGridZoomWork(requestVersion, context)) return;
+
+            double elapsedMilliseconds = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+            int remainingMilliseconds = Math.Max(
+                1,
+                (int)Math.Ceiling(TimeConstants.GridZoomSettleDelayMilliseconds - elapsedMilliseconds));
+            int delayMilliseconds = Math.Min(
+                remainingMilliseconds,
+                TimeConstants.GridZoomReplacementPollMilliseconds);
+            await Task.Delay(delayMilliseconds, context.CancellationToken).ConfigureAwait(false);
+        }
+
+        if (ShouldDropGridZoomWork(requestVersion, context)) return;
+        await RebuildGridZoomRowsAsync(
+            requestVersion,
+            includeRetainedOverscan: true,
+            context).ConfigureAwait(false);
+        if (ShouldDropGridZoomWork(requestVersion, context)) return;
+
+        await Dispatcher.UIThread.InvokeAsync(
+            () => CompleteGridZoom(requestVersion, context),
+            DispatcherPriority.Background);
+    }
+
+    private bool ShouldDropGridZoomWork(int requestVersion, ThrottlerContext context) =>
+        _disposed
+        || context.CancellationToken.IsCancellationRequested
+        || context.HasReplacement
+        || Volatile.Read(ref _gridZoomRequestVersion) != requestVersion;
 
     /// <summary>Applies one column's display properties without changing the visible schema.</summary>
     public void ApplyColumnProperties(ProcessColumnSetting replacement)
@@ -1249,8 +1342,14 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void EnsureDynamicDrawingCurrent(int rowIndex, ProcessStaticData row)
     {
         if (!_hasDynamicColumns
-            || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache)
-            || cache.DynamicDrawing != null
+            || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
+        {
+            return;
+        }
+
+        cache.PendingDynamicFingerprint = CalculateDynamicFingerprint(rowIndex);
+        if (cache.DynamicDrawing != null
+            && cache.DynamicMetricsGeneration == _gridMetricsGeneration
             && cache.DynamicFingerprint == cache.PendingDynamicFingerprint)
         {
             return;
@@ -1369,7 +1468,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             lifetime);
     }
 
-    private static void DrawRetainedRowSegment(
+    private void DrawRetainedRowSegment(
         DrawingContext context,
         ProcessRowRenderCache cache,
         Rect clip,
@@ -1391,20 +1490,40 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         }
     }
 
-    private static void DrawRetainedRowDrawing(
+    private void DrawRetainedRowDrawing(
         DrawingContext context,
         ProcessRowRenderCache cache,
         ProcessTableColumnLifetime lifetime)
     {
+        ProcessRowDrawing? rowDrawing;
+        int metricsGeneration;
         switch (lifetime)
         {
             case ProcessTableColumnLifetime.Static:
-                cache.StaticDrawing?.Drawing.Draw(context);
-                return;
+                rowDrawing = cache.StaticDrawing;
+                metricsGeneration = cache.StaticMetricsGeneration;
+                break;
             case ProcessTableColumnLifetime.Dynamic:
-                cache.DynamicDrawing?.Drawing.Draw(context);
+                rowDrawing = cache.DynamicDrawing;
+                metricsGeneration = cache.DynamicMetricsGeneration;
+                break;
+            default:
                 return;
         }
+
+        if (rowDrawing == null) return;
+        if (metricsGeneration == _gridMetricsGeneration)
+        {
+            rowDrawing.Drawing.Draw(context);
+            return;
+        }
+
+        // Keep the previous generation readable while the throttled visible-row rebuild catches up
+        Rect rowClip = new(0, 0, Bounds.Width, _metrics.RowHeight);
+        double verticalOffset = (_metrics.RowHeight - rowDrawing.RowHeight) / 2;
+        using (context.PushClip(rowClip))
+        using (context.PushTransform(Matrix.CreateTranslation(0, verticalOffset)))
+            rowDrawing.Drawing.Draw(context);
     }
 
     private void DrawProcessIcon(
@@ -1636,6 +1755,12 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void UpdateRetainedDrawings()
     {
+        if (_isGridZoomActive)
+        {
+            QueueGridZoomWork();
+            return;
+        }
+
         ProcessTableLayout.GetRetainedRowRange(
             ResolveViewport(),
             _visibleRowCount,
@@ -1648,6 +1773,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private void EnsureRetainedDrawingsForViewport()
     {
         if (_disposed) return;
+        if (_isGridZoomActive)
+        {
+            QueueGridZoomWork();
+            return;
+        }
 
         ProcessTableLayout.GetRetainedRowRange(
             ResolveViewport(),
@@ -1666,6 +1796,24 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     }
 
     private void UpdateRetainedDrawings(
+        int firstVisibleIndex,
+        int lastVisibleIndexExclusive)
+    {
+        CommitRetainedDrawingRange(firstVisibleIndex, lastVisibleIndexExclusive);
+
+        for (int visibleIndex = firstVisibleIndex;
+             visibleIndex < lastVisibleIndexExclusive;
+             visibleIndex++)
+        {
+            EnsureRowDrawingsCurrent(
+                visibleIndex,
+                rebuildChangedDynamicDrawingImmediately: false);
+        }
+
+        ScheduleWarmDynamicRefresh();
+    }
+
+    private void CommitRetainedDrawingRange(
         int firstVisibleIndex,
         int lastVisibleIndexExclusive)
     {
@@ -1693,36 +1841,115 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             }
         }
 
-        for (int visibleIndex = firstVisibleIndex;
-             visibleIndex < lastVisibleIndexExclusive;
-             visibleIndex++)
-        {
-            int rowIndex = _visibleRowIndexes[visibleIndex];
-            ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row == null || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
-                continue;
-
-            int treeLayoutKey = GetTreeLayoutKey(rowIndex);
-            if (cache.StaticDrawing == null || cache.StaticTreeLayoutKey != treeLayoutKey)
-            {
-                ProcessRowDrawing? previousDrawing = cache.StaticDrawing;
-                cache.StaticDrawing = null;
-                ReleaseRowDrawing(previousDrawing);
-                cache.StaticDrawing = BuildRowDrawing(
-                    rowIndex,
-                    ProcessTableColumnLifetime.Static);
-                cache.StaticTreeLayoutKey = treeLayoutKey;
-            }
-            if (!_hasDynamicColumns) continue;
-
-            cache.PendingDynamicFingerprint = CalculateDynamicFingerprint(rowIndex);
-            if (cache.DynamicDrawing == null)
-                RebuildDynamicDrawing(cache, rowIndex);
-        }
-
         _retainedFirstVisibleIndex = firstVisibleIndex;
         _retainedLastVisibleIndexExclusive = lastVisibleIndexExclusive;
+    }
+
+    private bool RebuildNextGridZoomRow(GridZoomRowWorkState workState)
+    {
+        if (_disposed || !_isGridZoomActive) return false;
+
+        if (!workState.IsInitialized)
+        {
+            Rect viewport = ResolveViewport();
+            ProcessTableLayout.GetVisibleRowRange(
+                viewport,
+                _visibleRowCount,
+                _metrics,
+                out workState.PaintedFirstVisibleIndex,
+                out workState.PaintedLastVisibleIndexExclusive);
+            if (workState.IncludeRetainedOverscan)
+            {
+                ProcessTableLayout.GetRetainedRowRange(
+                    viewport,
+                    _visibleRowCount,
+                    _metrics,
+                    out workState.NextVisibleIndex,
+                    out workState.LastVisibleIndexExclusive);
+            }
+            else
+            {
+                workState.NextVisibleIndex = workState.PaintedFirstVisibleIndex;
+                workState.LastVisibleIndexExclusive = workState.PaintedLastVisibleIndexExclusive;
+            }
+
+            workState.IsInitialized = true;
+        }
+
+        if (workState.NextVisibleIndex >= workState.LastVisibleIndexExclusive) return false;
+
+        int visibleIndex = workState.NextVisibleIndex;
+        workState.NextVisibleIndex++;
+        bool rebuiltDrawing = EnsureRowDrawingsCurrent(
+            visibleIndex,
+            rebuildChangedDynamicDrawingImmediately: true);
+        if (rebuiltDrawing
+            && visibleIndex >= workState.PaintedFirstVisibleIndex
+            && visibleIndex < workState.PaintedLastVisibleIndexExclusive)
+        {
+            InvalidateLayers(RenderLayerMask.Rows);
+        }
+
+        return workState.NextVisibleIndex < workState.LastVisibleIndexExclusive;
+    }
+
+    private bool EnsureRowDrawingsCurrent(
+        int visibleIndex,
+        bool rebuildChangedDynamicDrawingImmediately)
+    {
+        if ((uint)visibleIndex >= (uint)_visibleRowCount) return false;
+
+        int rowIndex = _visibleRowIndexes[visibleIndex];
+        ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+        if (row == null || !_renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache))
+            return false;
+
+        bool rebuiltDrawing = false;
+        int treeLayoutKey = GetTreeLayoutKey(rowIndex);
+        if (cache.StaticDrawing == null
+            || cache.StaticMetricsGeneration != _gridMetricsGeneration
+            || cache.StaticTreeLayoutKey != treeLayoutKey)
+        {
+            ProcessRowDrawing replacementDrawing = BuildRowDrawing(
+                rowIndex,
+                ProcessTableColumnLifetime.Static);
+            ProcessRowDrawing? previousDrawing = cache.StaticDrawing;
+            cache.StaticDrawing = replacementDrawing;
+            cache.StaticMetricsGeneration = _gridMetricsGeneration;
+            cache.StaticTreeLayoutKey = treeLayoutKey;
+            ReleaseRowDrawing(previousDrawing);
+            rebuiltDrawing = true;
+        }
+
+        if (!_hasDynamicColumns) return rebuiltDrawing;
+
+        cache.PendingDynamicFingerprint = CalculateDynamicFingerprint(rowIndex);
+        if (cache.DynamicDrawing == null
+            || cache.DynamicMetricsGeneration != _gridMetricsGeneration
+            || rebuildChangedDynamicDrawingImmediately
+            && cache.DynamicFingerprint != cache.PendingDynamicFingerprint)
+        {
+            RebuildDynamicDrawing(cache, rowIndex);
+            rebuiltDrawing = true;
+        }
+
+        return rebuiltDrawing;
+    }
+
+    private void CompleteGridZoom(int requestVersion, ThrottlerContext context)
+    {
+        if (ShouldDropGridZoomWork(requestVersion, context) || !_isGridZoomActive) return;
+
+        ProcessTableLayout.GetRetainedRowRange(
+            ResolveViewport(),
+            _visibleRowCount,
+            _metrics,
+            out int firstVisibleIndex,
+            out int lastVisibleIndexExclusive);
+        CommitRetainedDrawingRange(firstVisibleIndex, lastVisibleIndexExclusive);
+        _isGridZoomActive = false;
         ScheduleWarmDynamicRefresh();
+        InvalidateLayers(RenderLayerMask.Rows);
     }
 
     private ProcessRowDrawing BuildRowDrawing(
@@ -1751,7 +1978,11 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                     if (ShouldShareCell(column.Kind, display))
                     {
                         int cellTreeLayoutKey = column.Kind == ProcessTableColumnKind.Name ? treeLayoutKey : 0;
-                        ProcessSharedCellKey key = new(column.Kind, display, cellTreeLayoutKey);
+                        ProcessSharedCellKey key = new(
+                            _gridMetricsGeneration,
+                            column.Kind,
+                            display,
+                            cellTreeLayoutKey);
                         SharedCellDrawing sharedCell = AcquireSharedCellDrawing(column, key);
                         _sharedCellBuffer.Add(sharedCell);
                         children.Add(sharedCell.Drawing);
@@ -1780,7 +2011,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
                 ? []
                 : _textLayoutBuffer.ToArray();
             DrawingGroup drawing = new() { Children = children };
-            return new ProcessRowDrawing(drawing, sharedCells, textLayouts);
+            return new ProcessRowDrawing(drawing, sharedCells, textLayouts, _metrics.RowHeight);
         }
         catch
         {
@@ -1889,13 +2120,14 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void RebuildDynamicDrawing(ProcessRowRenderCache cache, int rowIndex)
     {
-        ProcessRowDrawing? previousDrawing = cache.DynamicDrawing;
-        cache.DynamicDrawing = null;
-        ReleaseRowDrawing(previousDrawing);
-        cache.DynamicDrawing = BuildRowDrawing(
+        ProcessRowDrawing replacementDrawing = BuildRowDrawing(
             rowIndex,
             ProcessTableColumnLifetime.Dynamic);
+        ProcessRowDrawing? previousDrawing = cache.DynamicDrawing;
+        cache.DynamicDrawing = replacementDrawing;
+        cache.DynamicMetricsGeneration = _gridMetricsGeneration;
         cache.DynamicFingerprint = cache.PendingDynamicFingerprint;
+        ReleaseRowDrawing(previousDrawing);
     }
 
     private int CalculateDynamicFingerprint(int rowIndex)
@@ -2161,7 +2393,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
     private void ScheduleWarmDynamicRefresh()
     {
-        if (_disposed || !_hasDynamicColumns) return;
+        if (_disposed || _isGridZoomActive || !_hasDynamicColumns) return;
 
         GetWarmVisibleRowRange(out _warmRefreshCursor, out _warmRefreshEnd);
         if (_warmRefreshCursor >= _warmRefreshEnd || _dynamicRefreshScheduled) return;
@@ -2185,6 +2417,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             if (row != null
                 && _renderCaches.TryGetValue(row.InstanceKey, out ProcessRowRenderCache? cache)
                 && (cache.DynamicDrawing == null
+                    || cache.DynamicMetricsGeneration != _gridMetricsGeneration
                     || cache.DynamicFingerprint != cache.PendingDynamicFingerprint))
             {
                 RebuildDynamicDrawing(cache, rowIndex);
@@ -2642,6 +2875,8 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         ProcessRowDrawing? dynamicDrawing = cache.DynamicDrawing;
         cache.StaticDrawing = null;
         cache.DynamicDrawing = null;
+        cache.StaticMetricsGeneration = 0;
+        cache.DynamicMetricsGeneration = 0;
         ReleaseRowDrawing(staticDrawing);
         ReleaseRowDrawing(dynamicDrawing);
     }
@@ -2994,6 +3229,10 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
 
         if (_capturedHeaderPointer != null) ResetHeaderInteraction();
         _disposed = true;
+        Interlocked.Increment(ref _gridZoomRequestVersion);
+        _gridZoomThrottler.Drop(GridZoomWorkKind.VisibleRows);
+        _gridZoomThrottler.Drop(GridZoomWorkKind.Settle);
+        _gridZoomThrottler.Dispose();
         _processIconService.IconsChanged -= OnIconsChanged;
         EffectiveViewportChanged -= OnEffectiveViewportChanged;
         TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
@@ -3141,15 +3380,28 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     }
 
     private readonly record struct ProcessSharedCellKey(
+        int MetricsGeneration,
         ProcessTableColumnKind Column,
         string Value,
         int TreeLayoutKey);
+
+    private sealed class GridZoomRowWorkState(bool includeRetainedOverscan)
+    {
+        public readonly bool IncludeRetainedOverscan = includeRetainedOverscan;
+        public bool IsInitialized;
+        public int NextVisibleIndex;
+        public int LastVisibleIndexExclusive;
+        public int PaintedFirstVisibleIndex;
+        public int PaintedLastVisibleIndexExclusive;
+    }
 
     private sealed class ProcessRowRenderCache
     {
         public int LastSeenGeneration;
         public int DynamicFingerprint;
         public int PendingDynamicFingerprint;
+        public int StaticMetricsGeneration;
+        public int DynamicMetricsGeneration;
         public int StaticTreeLayoutKey;
         public bool IsDrawingRetained;
         public ProcessRowDrawing? StaticDrawing;
@@ -3159,11 +3411,13 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     private sealed class ProcessRowDrawing(
         DrawingGroup drawing,
         SharedCellDrawing[] sharedCells,
-        TextLayout[] textLayouts)
+        TextLayout[] textLayouts,
+        double rowHeight)
     {
         public DrawingGroup Drawing { get; } = drawing;
         public SharedCellDrawing[] SharedCells { get; } = sharedCells;
         public TextLayout[] TextLayouts { get; } = textLayouts;
+        public double RowHeight { get; } = rowHeight;
     }
 
     private sealed class SharedCellDrawing(
