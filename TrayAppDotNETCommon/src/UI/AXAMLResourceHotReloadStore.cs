@@ -137,6 +137,10 @@ public sealed class AXAMLResourceHotReloadStore<TResource>
         "Trimming",
         "IL2026",
         Justification = "This Debug-only loader uses types rooted by the matching compiled AXAML.")]
+    [UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "This Debug-only hot-reload path intentionally uses runtime XAML compilation and is excluded from AOT releases.")]
     private void Reload()
     {
         try

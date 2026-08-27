@@ -54,6 +54,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Grid? _sidebar;
     private ColumnDefinition? _sidebarColumn;
     private SettingsSidebarResizeHandle? _sidebarResizeHandle;
+    private Grid? _pageOverlayHost;
+    private Border? _titleBarDragZone;
     private double _currentSidebarWidth;
     private TaskCompletionSource<bool>? _confirmTcs;
     private Border? _confirmOverlay;
@@ -101,8 +103,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual bool UseWindows11SettingsNavigation => false;
     protected virtual bool ShowSettingsSearchBox => true;
     protected virtual bool UseExtendedTitleBarDragZone => true;
+    protected virtual bool PageContentExtendsIntoTitleBar => false;
+    protected virtual bool UsePageContentTitleBarDragZone => true;
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
+
+    /// <summary>Returns page content that must render above the full window instead of its content column.</summary>
+    protected virtual Control? ResolvePageOverlay(Control pageRoot) => null;
 
     /// <summary>Gets whether the navigation sidebar automatically hides below its collapse threshold.</summary>
     protected virtual bool EnableResponsiveSidebarCollapse => false;
@@ -550,10 +557,18 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _sidebarColumn = new ColumnDefinition(new GridLength(_currentSidebarWidth));
         body.ColumnDefinitions.Add(_sidebarColumn);
         body.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        Grid.SetRow(body, 1);
+        Grid.SetRow(body, PageContentExtendsIntoTitleBar ? 0 : 1);
+        if (PageContentExtendsIntoTitleBar)
+            Grid.SetRowSpan(body, 2);
         root.Children.Add(body);
 
-        _sidebar = new Grid { Background = Brushes.Transparent };
+        _sidebar = new Grid
+        {
+            Background = Brushes.Transparent,
+            Margin = PageContentExtendsIntoTitleBar
+                ? new Thickness(0, _settingsResources.AxamlSettingsWindow.TitleBarHeight, 0, 0)
+                : default
+        };
         _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -610,9 +625,22 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 PreviewSidebarWidth,
                 PersistSidebarWidth,
                 ResetSidebarWidth);
+            if (PageContentExtendsIntoTitleBar)
+            {
+                _sidebarResizeHandle.Margin = new Thickness(
+                    0,
+                    _settingsResources.AxamlSettingsWindow.TitleBarHeight,
+                    0,
+                    0);
+            }
             Grid.SetColumn(_sidebarResizeHandle, 0);
             body.Children.Add(_sidebarResizeHandle);
         }
+
+        _pageOverlayHost = new Grid();
+        Grid.SetRow(_pageOverlayHost, 0);
+        Grid.SetRowSpan(_pageOverlayHost, 2);
+        root.Children.Add(_pageOverlayHost);
 
         Control titleBar = BuildTitleBar(palette);
         Grid.SetRow(titleBar, 0);
@@ -655,7 +683,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         Grid titleBar = new()
         {
-            Background = Brushes.Transparent,
+            Background = PageContentExtendsIntoTitleBar ? null : Brushes.Transparent,
             Height = UseExtendedTitleBarDragZone
                 ? _settingsResources.AxamlSettingsWindow.TitleBarDragZoneHeight
                 : _settingsResources.AxamlSettingsWindow.TitleBarHeight,
@@ -663,13 +691,22 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         };
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         titleBar.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        titleBar.PointerPressed += (_, e) =>
+
+        if (PageContentExtendsIntoTitleBar && UsePageContentTitleBarDragZone)
         {
-            if (e.Source is SettingsButton) return;
-            if (!e.GetCurrentPoint(titleBar).Properties.IsLeftButtonPressed) return;
-            if (e.ClickCount == 2) ToggleMaximize();
-            else BeginMoveDrag(e);
-        };
+            _titleBarDragZone = new Border
+            {
+                Background = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            AttachTitleBarDrag(_titleBarDragZone);
+            titleBar.Children.Add(_titleBarDragZone);
+        }
+        else
+        {
+            AttachTitleBarDrag(titleBar);
+        }
 
         StackPanel buttons = new()
         {
@@ -699,6 +736,31 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid.SetColumn(buttons, 1);
         titleBar.Children.Add(buttons);
         return titleBar;
+    }
+
+    private void AttachTitleBarDrag(Control dragControl)
+    {
+        dragControl.PointerPressed += (_, eventArgs) =>
+        {
+            if (eventArgs.Source is SettingsButton) return;
+            if (!eventArgs.GetCurrentPoint(dragControl).Properties.IsLeftButtonPressed) return;
+            if (eventArgs.ClickCount == 2) ToggleMaximize();
+            else BeginMoveDrag(eventArgs);
+        };
+    }
+
+    private void ApplyPageOverlay(Control? pageRoot)
+    {
+        Grid? overlayHost = _pageOverlayHost;
+        if (overlayHost == null) return;
+
+        Control? overlay = pageRoot == null ? null : ResolvePageOverlay(pageRoot);
+        overlayHost.Children.Clear();
+        if (overlay != null)
+        {
+            ControlNames.AssignLogicalSubtree(overlay, this);
+            overlayHost.Children.Add(overlay);
+        }
     }
 
     private SettingsButton CaptionButton(
@@ -857,6 +919,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             _content.Content = replacement.Root;
+            ApplyPageOverlay(replacement.Root);
             _scrollHost?.SetContentScrollingEnabled(!PageOwnsScrolling(key));
             _pageGeneration = replacement;
             _settingsSearchView = null;
@@ -891,6 +954,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid? previousSidebar = _sidebar;
         ColumnDefinition? previousSidebarColumn = _sidebarColumn;
         SettingsSidebarResizeHandle? previousSidebarResizeHandle = _sidebarResizeHandle;
+        Grid? previousPageOverlayHost = _pageOverlayHost;
+        Border? previousTitleBarDragZone = _titleBarDragZone;
         double previousCurrentSidebarWidth = _currentSidebarWidth;
         SettingsSearchBox? previousSettingsSearchBox = _settingsSearchBox;
         Border? previousConfirmOverlay = _confirmOverlay;
@@ -919,6 +984,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebar = null;
             _sidebarColumn = null;
             _sidebarResizeHandle = null;
+            _pageOverlayHost = null;
+            _titleBarDragZone = null;
             _settingsSearchBox = null;
             _confirmOverlay = null;
             _confirmTitle = null;
@@ -934,6 +1001,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
             replacementPageGeneration = BuildPageGeneration(selectedPageKey, selectedPageFactory);
             _content.Content = replacementPageGeneration.Root;
+            ApplyPageOverlay(replacementPageGeneration.Root);
             _scrollHost?.SetContentScrollingEnabled(!PageOwnsScrolling(selectedPageKey));
             foreach ((TPageKey navKey, SettingsNavItem item) in _navItems)
                 item.IsSelected = EqualityComparer<TPageKey>.Default.Equals(navKey, selectedPageKey);
@@ -983,6 +1051,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebar = previousSidebar;
             _sidebarColumn = previousSidebarColumn;
             _sidebarResizeHandle = previousSidebarResizeHandle;
+            _pageOverlayHost = previousPageOverlayHost;
+            _titleBarDragZone = previousTitleBarDragZone;
             _currentSidebarWidth = previousCurrentSidebarWidth;
             _settingsSearchBox = previousSettingsSearchBox;
             _confirmOverlay = previousConfirmOverlay;
@@ -1051,6 +1121,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         try
         {
             _content.Content = previousRoot;
+            ApplyPageOverlay(previousRoot);
         }
         catch (Exception rollbackException)
         {
@@ -1259,6 +1330,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _sidebar = null;
         _sidebarColumn = null;
         _sidebarResizeHandle = null;
+        _pageOverlayHost = null;
+        _titleBarDragZone = null;
         _currentSidebarWidth = 0;
         _confirmOverlay = null;
         _confirmTitle = null;
@@ -1290,6 +1363,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (_sidebarResizeHandle != null)
             _sidebarResizeHandle.IsVisible = !isCollapsed;
         sidebarColumn.Width = new GridLength(isCollapsed ? 0 : displayedWidth);
+        if (_titleBarDragZone != null)
+        {
+            _titleBarDragZone.Width = isCollapsed
+                ? _settingsResources.AxamlSettingsWindow.TitleBarHeight
+                : displayedWidth;
+        }
     }
 
     private double ResolveWindowWidth()

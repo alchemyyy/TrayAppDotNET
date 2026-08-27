@@ -113,16 +113,18 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
-        _searchBox.Width = double.NaN;
         _searchBox.PlaceholderText = "Type a name, user, or PID to search";
-        _searchBox.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _searchBox.HorizontalAlignment = HorizontalAlignment.Center;
+        _searchBox.VerticalAlignment = VerticalAlignment.Top;
+        _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         _searchBox.TextChanged += OnSearchTextChanged;
 
-        Grid titleBar = BuildTitleBar(palette, resources);
-        titleBar.Margin = resources.AxamlTaskManagerDetails.HeaderMargin;
-        Children.Add(titleBar);
+        Grid searchBar = BuildSearchBar();
+        searchBar.Background = Brushes.Transparent;
+        searchBar.Margin = resources.AxamlTaskManagerDetails.HeaderMargin;
+        Children.Add(searchBar);
 
-        StackPanel actionBar = BuildActionBar(palette, resources);
+        Grid actionBar = BuildActionBar(palette, resources);
         actionBar.Margin = resources.AxamlTaskManagerDetails.ActionsMargin;
         Grid.SetRow(actionBar, 1);
         Children.Add(actionBar);
@@ -188,37 +190,24 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.RefreshFrom(_snapshotService);
     }
 
-    private Grid BuildTitleBar(SettingsPalette palette, TaskManagerWindowResources resources)
-    {
-        ColumnDefinition searchColumn = new(GridLength.Star)
+    /// <summary>Gets the search box rendered by the full-window page overlay.</summary>
+    internal TextBox SearchBox => _searchBox;
+
+    private Grid BuildSearchBar() =>
+        new()
         {
-            MaxWidth = resources.AxamlTaskManagerDetails.SearchWidth
-        };
-        Grid titleBar = new()
-        {
-            ColumnSpacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                searchColumn
-            }
+            Height = _searchBox.Height
         };
 
+    private Grid BuildActionBar(SettingsPalette palette, TaskManagerWindowResources resources)
+    {
         TextBlock title = TrayAppDotNETSettingsUI.Text(
             "Processes",
             palette,
             resources.AxamlTaskManagerDetails.TitleFontSize,
             FontWeight.SemiBold);
         title.VerticalAlignment = VerticalAlignment.Center;
-        titleBar.Children.Add(title);
 
-        Grid.SetColumn(_searchBox, 1);
-        titleBar.Children.Add(_searchBox);
-        return titleBar;
-    }
-
-    private StackPanel BuildActionBar(SettingsPalette palette, TaskManagerWindowResources resources)
-    {
         TextBlock groupProcessesLabel = TrayAppDotNETSettingsUI.Text(
             "Group processes",
             palette,
@@ -233,7 +222,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             Children = { groupProcessesLabel, _groupProcessesToggle }
         };
 
-        return new StackPanel
+        StackPanel actions = new()
         {
             Orientation = Orientation.Horizontal,
             Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
@@ -241,6 +230,19 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             VerticalAlignment = VerticalAlignment.Center,
             Children = { groupProcesses, _runTaskButton, _columnsButton, _endTaskButton }
         };
+
+        Grid actionBar = new()
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        actionBar.Children.Add(title);
+        Grid.SetColumn(actions, 1);
+        actionBar.Children.Add(actions);
+        return actionBar;
     }
 
     private Border BuildRunPanel(SettingsPalette palette, TaskManagerWindowResources resources)
@@ -451,6 +453,20 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs) =>
         _processCanvas.SetFilter(_searchBox.Text);
+
+    /// <summary>Gets the process-grid top edge in the requested control's coordinate space.</summary>
+    internal bool TryGetTableTop(Control relativeTo, out double tableTop)
+    {
+        Point? tableOrigin = _tableScrollViewport.TranslatePoint(default, relativeTo);
+        if (!tableOrigin.HasValue)
+        {
+            tableTop = 0;
+            return false;
+        }
+
+        tableTop = tableOrigin.Value.Y;
+        return true;
+    }
 
     private void OnRunTaskClick(object? sender, EventArgs eventArgs)
     {

@@ -1,8 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
 
@@ -36,6 +39,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessTerminationService _processTerminationService;
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
+    private ProcessDetailsPage? _processDetailsPage;
     private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
     private bool _exitRequested;
@@ -64,6 +68,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         Topmost = settings.AlwaysOnTop;
         Closing += OnWindowClosing;
         PropertyChanged += OnWindowPropertyChanged;
+        AddHandler(
+            PointerPressedEvent,
+            OnHeaderBackgroundPointerPressed,
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         InitializeSettingsShell();
     }
 
@@ -72,8 +81,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
     protected override bool ShowSettingsSearchBox => false;
     protected override bool UseExtendedTitleBarDragZone => false;
+    protected override bool PageContentExtendsIntoTitleBar => true;
+    protected override bool UsePageContentTitleBarDragZone => false;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
     protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Processes;
+    protected override Control? ResolvePageOverlay(Control pageRoot) =>
+        pageRoot is ProcessDetailsPage page ? page.SearchBox : null;
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
@@ -112,6 +125,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         Closing -= OnWindowClosing;
         PropertyChanged -= OnWindowPropertyChanged;
+        RemoveHandler(PointerPressedEvent, OnHeaderBackgroundPointerPressed);
         base.OnSettingsWindowClosed();
     }
 
@@ -182,7 +196,53 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             TryTerminateProcess,
             ReportMessage,
             StartProcess);
+        _processDetailsPage = page;
+        AddPageCleanup(() =>
+        {
+            if (ReferenceEquals(_processDetailsPage, page))
+                _processDetailsPage = null;
+        });
         return OwnPageResource(page);
+    }
+
+    private void OnHeaderBackgroundPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
+    {
+        ProcessDetailsPage? page = _processDetailsPage;
+        PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
+        if (eventArgs.Handled
+            || page == null
+            || CurrentPageKey != TaskManagerPage.Processes
+            || !pointerPoint.Properties.IsLeftButtonPressed
+            || (eventArgs.KeyModifiers & KeyModifiers.Control) != 0
+            || !page.TryGetTableTop(this, out double tableTop)
+            || pointerPoint.Position.Y >= tableTop
+            || IsInteractiveHeaderControl(eventArgs.Source))
+        {
+            return;
+        }
+
+        if (eventArgs.ClickCount == 2)
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+        else
+            BeginMoveDrag(eventArgs);
+        eventArgs.Handled = true;
+    }
+
+    private static bool IsInteractiveHeaderControl(object? source)
+    {
+        if (source is not Visual visual) return false;
+
+        Visual? current = visual;
+        while (current != null)
+        {
+            if (current is TextBox or SettingsButton or SettingsToggle or SettingsNavItem)
+                return true;
+            current = current.GetVisualParent();
+        }
+
+        return false;
     }
 
     private StackPanel BuildSettingsPage()
