@@ -14,10 +14,39 @@ public sealed class SystemPerformanceSamplerTests
         _ = sampler.Sample();
         Thread.Sleep(25);
         SystemPerformanceSample sample = sampler.Sample();
+        int logicalProcessorCount = sampler.LastLogicalProcessorCount;
+        double[] logicalProcessorPercents = new double[logicalProcessorCount];
+        int copiedProcessorCount = sampler.CopyLastLogicalProcessorPercents(
+            logicalProcessorPercents);
+        SystemMemoryStatus memoryStatus = sampler.GetLastMemoryStatus();
 
         Assert.InRange(sample.CPUAveragePercent, 0, 100);
         Assert.InRange(sample.CPUHighestCorePercent, 0, 100);
         Assert.InRange(sample.MemoryPercent, 0.01, 100);
+        Assert.True(sampler.LastProcessorSampleAvailable);
+        Assert.True(sampler.LastMemorySampleAvailable);
+        Assert.True(logicalProcessorCount > 0);
+        Assert.Equal(logicalProcessorCount, copiedProcessorCount);
+        Assert.All(logicalProcessorPercents, static percent => Assert.InRange(percent, 0, 100));
+        Assert.True(memoryStatus.TotalPhysicalBytes > 0);
+        Assert.True(memoryStatus.AvailablePhysicalBytes <= memoryStatus.TotalPhysicalBytes);
+    }
+
+    [Fact]
+    public void ResetProcessorBaselineSuppressesTheNextDelta()
+    {
+        using SystemPerformanceSampler sampler = new();
+        _ = sampler.Sample();
+        Thread.Sleep(25);
+        _ = sampler.Sample();
+        Assert.True(sampler.LastProcessorSampleAvailable);
+
+        sampler.ResetProcessorBaseline();
+        SystemPerformanceSample baselineSample = sampler.Sample();
+
+        Assert.False(sampler.LastProcessorSampleAvailable);
+        Assert.Equal(0, baselineSample.CPUAveragePercent);
+        Assert.Equal(0, baselineSample.CPUHighestCorePercent);
     }
 
     [Theory]

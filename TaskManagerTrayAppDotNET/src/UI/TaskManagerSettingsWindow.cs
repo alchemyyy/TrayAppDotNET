@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using System.ComponentModel;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
 
@@ -10,6 +11,7 @@ public enum TaskManagerSettingsPage
 {
     General,
     TrayIcon,
+    Performance,
     Theme,
     About
 }
@@ -23,6 +25,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     private readonly AppSettings _settings;
     private readonly Action<string, InstallScope> _showUninstaller;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
+    private SettingsButton? _resetPerformanceDeviceOrderButton;
 
     public TaskManagerSettingsWindow(
         AppSettings settings,
@@ -33,6 +36,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
 
         _settings = settings;
         _showUninstaller = showUninstaller;
+        _settings.PropertyChanged += OnSettingsPropertyChanged;
         ConfigureCompactSettingsWindow("Task Manager settings", icon: null);
         Topmost = settings.AlwaysOnTop;
         InitializeSettingsShell();
@@ -75,6 +79,11 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             () => NamePage(TaskManagerSettingsPage.TrayIcon, BuildTrayIconPage()),
             SettingsNavigationGlyphs.TrayIcon),
         new(
+            TaskManagerSettingsPage.Performance,
+            "Performance",
+            () => NamePage(TaskManagerSettingsPage.Performance, BuildPerformancePage()),
+            SettingsNavigationGlyphs.Devices),
+        new(
             TaskManagerSettingsPage.Theme,
             "Appearance",
             () => NamePage(TaskManagerSettingsPage.Theme, BuildThemePage()),
@@ -87,6 +96,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
     ];
 
     protected override void Save() => _settings.Save();
+
+    protected override void OnSettingsWindowClosed()
+    {
+        _settings.PropertyChanged -= OnSettingsPropertyChanged;
+        _resetPerformanceDeviceOrderButton = null;
+        base.OnSettingsWindowClosed();
+    }
 
     private StackPanel BuildGeneralPage()
     {
@@ -180,6 +196,170 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             searchKeywords: ["CPU processor core memory RAM metric"]));
         return stack;
     }
+
+    private StackPanel BuildPerformancePage()
+    {
+        SettingsPalette palette = Palette;
+        StackPanel stack = PageStack("Performance", palette);
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Device column", palette));
+        stack.Children.Add(BuildDevicePriorityCard(palette));
+        return stack;
+    }
+
+    private Border BuildDevicePriorityCard(SettingsPalette palette)
+    {
+        List<PerformanceDeviceKind> priority =
+            PerformanceDeviceOrdering.NormalizePriority(_settings.PerformanceDevicePriority);
+        StackPanel rows = new()
+        {
+            Margin = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityContentMargin,
+            Spacing = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityRowSpacing
+        };
+        for (int priorityIndex = 0; priorityIndex < priority.Count; priorityIndex++)
+        {
+            PerformanceDeviceKind kind = priority[priorityIndex];
+            rows.Children.Add(BuildDevicePriorityRow(
+                kind,
+                priorityIndex,
+                priority.Count,
+                palette));
+        }
+
+        SettingsButton resetButton = TrayAppDotNETSettingsUI.Button("Reset default priority", palette);
+        resetButton.IsEnabled = !priority.SequenceEqual(PerformanceDeviceOrdering.DefaultPriority);
+        resetButton.Click += (_, _) => ResetPerformanceDevicePriority();
+        SettingsButton resetDeviceOrderButton = TrayAppDotNETSettingsUI.Button(
+            "Clear dragged device order",
+            palette);
+        _resetPerformanceDeviceOrderButton = resetDeviceOrderButton;
+        resetDeviceOrderButton.IsEnabled = _settings.PerformanceDeviceOrder.Count > 0;
+        resetDeviceOrderButton.Click += (_, _) => ResetPerformanceDeviceOrder();
+        StackPanel resetActions = new()
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityButtonSpacing,
+            Children = { resetButton, resetDeviceOrderButton }
+        };
+        rows.Children.Add(resetActions);
+
+        StackPanel content = new();
+        content.Children.Add(TrayAppDotNETSettingsUI.TitleText("Default device priority", palette));
+        content.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
+            "Sets the category order for newly detected devices and devices that have not been reordered on the Performance page.",
+            palette));
+        content.Children.Add(rows);
+        return RawCard(
+            content,
+            palette,
+            ["CPU memory GPU network disk order new device"]);
+    }
+
+    private Border BuildDevicePriorityRow(
+        PerformanceDeviceKind kind,
+        int priorityIndex,
+        int priorityCount,
+        SettingsPalette palette)
+    {
+        TextBlock rank = TrayAppDotNETSettingsUI.Text(
+            (priorityIndex + 1).ToString(),
+            palette,
+            _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityFontSize,
+            FontWeight.Normal);
+        rank.Width = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityRankWidth;
+        rank.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+
+        TextBlock label = TrayAppDotNETSettingsUI.Text(
+            PerformanceDeviceLabel(kind),
+            palette,
+            _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityFontSize,
+            FontWeight.SemiBold);
+        label.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+
+        SettingsButton moveUp = TrayAppDotNETSettingsUI.Button("Move up", palette);
+        moveUp.IsEnabled = priorityIndex > 0;
+        moveUp.Click += (_, _) => MovePerformanceDevicePriority(kind, -1);
+        SettingsButton moveDown = TrayAppDotNETSettingsUI.Button("Move down", palette);
+        moveDown.IsEnabled = priorityIndex + 1 < priorityCount;
+        moveDown.Click += (_, _) => MovePerformanceDevicePriority(kind, 1);
+        StackPanel actions = new()
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Spacing = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityButtonSpacing,
+            Children = { moveUp, moveDown }
+        };
+
+        Grid row = new()
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        row.Children.Add(rank);
+        Grid.SetColumn(label, 1);
+        row.Children.Add(label);
+        Grid.SetColumn(actions, 2);
+        row.Children.Add(actions);
+        return new Border
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
+            CornerRadius = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityRowCornerRadius,
+            Padding = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityRowPadding,
+            Child = row
+        };
+    }
+
+    private void MovePerformanceDevicePriority(PerformanceDeviceKind kind, int offset)
+    {
+        List<PerformanceDeviceKind> priority =
+            PerformanceDeviceOrdering.NormalizePriority(_settings.PerformanceDevicePriority);
+        int sourceIndex = priority.IndexOf(kind);
+        int targetIndex = sourceIndex + offset;
+        if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= priority.Count) return;
+
+        priority.RemoveAt(sourceIndex);
+        priority.Insert(targetIndex, kind);
+        _settings.PerformanceDevicePriority = priority;
+        Save();
+        RebuildShell(TaskManagerSettingsPage.Performance);
+    }
+
+    private void ResetPerformanceDevicePriority()
+    {
+        _settings.PerformanceDevicePriority = PerformanceDeviceOrdering.CreateDefaultPriority();
+        Save();
+        RebuildShell(TaskManagerSettingsPage.Performance);
+    }
+
+    private void ResetPerformanceDeviceOrder()
+    {
+        _settings.PerformanceDeviceOrder = [];
+        Save();
+        RebuildShell(TaskManagerSettingsPage.Performance);
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName != nameof(AppSettings.PerformanceDeviceOrder)
+            || _resetPerformanceDeviceOrderButton == null)
+        {
+            return;
+        }
+
+        _resetPerformanceDeviceOrderButton.IsEnabled = _settings.PerformanceDeviceOrder.Count > 0;
+    }
+
+    private static string PerformanceDeviceLabel(PerformanceDeviceKind kind) => kind switch
+    {
+        PerformanceDeviceKind.CPU => "CPU",
+        PerformanceDeviceKind.Memory => "Memory",
+        PerformanceDeviceKind.GPU => "GPU",
+        PerformanceDeviceKind.Network => "Network",
+        PerformanceDeviceKind.Disk => "Disk",
+        _ => kind.ToString()
+    };
 
     private Border BuildWindowManagementCard(SettingsPalette palette)
     {

@@ -10,7 +10,7 @@ using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Builds the Processes toolbar around the allocation-light painted process table.</summary>
-internal sealed class ProcessDetailsPage : Grid, IDisposable
+internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 {
     private const double GridFontZoomStep = 0.5;
     private const int GridRowHeightZoomStep = 1;
@@ -37,7 +37,6 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly SettingsButton _cancelRunButton;
     private readonly SettingsToggle _groupProcessesToggle;
     private readonly StackPanel _groupProcessesHeaderControl;
-    private readonly StackPanel _headerActions;
     private readonly SettingsScrollViewport _tableScrollViewport;
     private readonly TaskManagerResizeGrip _resizeGrip;
     private readonly ProcessRowHoverVisual _hoverHighlight;
@@ -61,6 +60,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
+        : base("Processes", palette, resources)
     {
         _snapshotService = snapshotService;
         _settings = settings;
@@ -73,10 +73,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _startProcess = startProcess;
         ProcessDataSchema schema = ProcessDataSchema.Create(settings.DetailsColumns);
         _snapshotService.SetActiveSchema(schema);
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Star));
+        MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         _processCanvas = new ProcessDetailsCanvas(
             processIconService,
@@ -131,13 +129,6 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         TrayAppDotNETToolTip.SetTip(_moreActionsButton, "More");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_moreActionsButton);
         _groupProcessesHeaderControl = BuildGroupProcessesHeaderControl(palette, resources);
-        _headerActions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
         PopulateHeaderActions();
 
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
@@ -148,16 +139,6 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         _searchBox.TextChanged += OnSearchTextChanged;
-
-        Grid searchBar = BuildSearchBar();
-        searchBar.Background = Brushes.Transparent;
-        searchBar.Margin = resources.AxamlTaskManagerDetails.HeaderMargin;
-        Children.Add(searchBar);
-
-        Grid actionBar = BuildActionBar(palette, resources);
-        actionBar.Margin = resources.AxamlTaskManagerDetails.ActionsMargin;
-        Grid.SetRow(actionBar, 1);
-        Children.Add(actionBar);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -173,8 +154,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _runPanel = BuildRunPanel(palette, resources);
         _runPanel.IsVisible = false;
         _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
-        Grid.SetRow(_runPanel, 2);
-        Children.Add(_runPanel);
+        MainContent.Children.Add(_runPanel);
 
         SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
         TrayMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
@@ -211,8 +191,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         {
             Margin = resources.AxamlTaskManagerDetails.TableMargin
         };
-        Grid.SetRow(_tableScrollViewport, 3);
-        Children.Add(_tableScrollViewport);
+        Grid.SetRow(_tableScrollViewport, 1);
+        MainContent.Children.Add(_tableScrollViewport);
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
         TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
@@ -221,36 +201,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     }
 
     /// <summary>Gets the search box rendered by the full-window page overlay.</summary>
-    internal TextBox SearchBox => _searchBox;
-
-    private Grid BuildSearchBar() =>
-        new()
-        {
-            Height = _searchBox.Height
-        };
-
-    private Grid BuildActionBar(SettingsPalette palette, TaskManagerWindowResources resources)
-    {
-        TextBlock title = TrayAppDotNETSettingsUI.Text(
-            "Processes",
-            palette,
-            resources.AxamlTaskManagerDetails.TitleFontSize,
-            FontWeight.SemiBold);
-        title.VerticalAlignment = VerticalAlignment.Center;
-
-        Grid actionBar = new()
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
-        };
-        actionBar.Children.Add(title);
-        Grid.SetColumn(_headerActions, 1);
-        actionBar.Children.Add(_headerActions);
-        return actionBar;
-    }
+    internal override Control? PageOverlay => _searchBox;
 
     private StackPanel BuildGroupProcessesHeaderControl(
         SettingsPalette palette,
@@ -273,8 +224,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void PopulateHeaderActions()
     {
-        _headerActions.Children.Clear();
-        _headerActions.Children.Add(_groupProcessesHeaderControl);
+        HeaderActions.Children.Clear();
+        HeaderActions.Children.Add(_groupProcessesHeaderControl);
         foreach (ProcessHeaderButtonKind buttonKind in
                  ProcessHeaderButtonSettings.Normalize(_settings.ProcessHeaderButtonOrder))
         {
@@ -288,10 +239,10 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
                     buttonKind,
                     "Unknown header button kind.")
             };
-            _headerActions.Children.Add(button);
+            HeaderActions.Children.Add(button);
         }
 
-        _headerActions.Children.Add(_moreActionsButton);
+        HeaderActions.Children.Add(_moreActionsButton);
     }
 
     private Border BuildRunPanel(SettingsPalette palette, TaskManagerWindowResources resources)

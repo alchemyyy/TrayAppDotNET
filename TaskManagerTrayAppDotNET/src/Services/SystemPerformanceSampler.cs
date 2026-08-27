@@ -16,13 +16,19 @@ internal sealed class SystemPerformanceSampler : IDisposable
 
     private ProcessorTimes[] _currentProcessorTimes = [];
     private ProcessorTimes[] _previousProcessorTimes = [];
+    private double[] _lastLogicalProcessorPercents = [];
     private IntPtr _processorBuffer;
     private int _processorBufferSize;
     private int _previousProcessorCount;
     private double _lastCPUAveragePercent;
     private double _lastCPUHighestCorePercent;
     private double _lastMemoryPercent;
+    private ulong _lastTotalPhysicalMemoryBytes;
+    private ulong _lastAvailablePhysicalMemoryBytes;
+    private int _lastLogicalProcessorCount;
     private bool _hasPreviousProcessorTimes;
+    private bool _lastProcessorSampleAvailable;
+    private bool _lastMemorySampleAvailable;
     private bool _disposed;
 
     /// <summary>Captures the current system utilization percentages.</summary>
@@ -30,8 +36,14 @@ internal sealed class SystemPerformanceSampler : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (TryReadMemoryPercent(out double memoryPercent))
-            _lastMemoryPercent = memoryPercent;
+        _lastProcessorSampleAvailable = false;
+        _lastMemorySampleAvailable = TryReadMemoryStatus(out SystemMemoryStatus memoryStatus);
+        if (_lastMemorySampleAvailable)
+        {
+            _lastMemoryPercent = memoryStatus.UtilizationPercent;
+            _lastTotalPhysicalMemoryBytes = memoryStatus.TotalPhysicalBytes;
+            _lastAvailablePhysicalMemoryBytes = memoryStatus.AvailablePhysicalBytes;
+        }
 
         if (!TryReadProcessorTimes(out int processorCount))
         {
@@ -44,11 +56,17 @@ internal sealed class SystemPerformanceSampler : IDisposable
         if (!_hasPreviousProcessorTimes || processorCount != _previousProcessorCount)
         {
             SaveCurrentProcessorTimes(processorCount);
+            EnsureLogicalProcessorCapacity(processorCount);
+            Array.Clear(_lastLogicalProcessorPercents, 0, processorCount);
+            _lastLogicalProcessorCount = processorCount;
             _lastCPUAveragePercent = 0;
             _lastCPUHighestCorePercent = 0;
             return new SystemPerformanceSample(0, 0, _lastMemoryPercent);
         }
 
+        EnsureLogicalProcessorCapacity(processorCount);
+        Array.Clear(_lastLogicalProcessorPercents, 0, processorCount);
+        _lastLogicalProcessorCount = processorCount;
         double aggregateIdleDelta = 0;
         double aggregateTotalDelta = 0;
         double highestCorePercent = 0;
@@ -66,9 +84,9 @@ internal sealed class SystemPerformanceSampler : IDisposable
 
             aggregateIdleDelta += idleDelta;
             aggregateTotalDelta += totalDelta;
-            highestCorePercent = Math.Max(
-                highestCorePercent,
-                CalculateCPUUsagePercent(idleDelta, totalDelta));
+            double processorPercent = CalculateCPUUsagePercent(idleDelta, totalDelta);
+            _lastLogicalProcessorPercents[processorIndex] = processorPercent;
+            highestCorePercent = Math.Max(highestCorePercent, processorPercent);
             validProcessorCount++;
         }
 
@@ -79,12 +97,51 @@ internal sealed class SystemPerformanceSampler : IDisposable
                 aggregateIdleDelta,
                 aggregateTotalDelta);
             _lastCPUHighestCorePercent = highestCorePercent;
+            _lastProcessorSampleAvailable = true;
         }
 
         return new SystemPerformanceSample(
             _lastCPUAveragePercent,
             _lastCPUHighestCorePercent,
             _lastMemoryPercent);
+    }
+
+    /// <summary>Gets whether the last call produced a fresh processor delta.</summary>
+    internal bool LastProcessorSampleAvailable => _lastProcessorSampleAvailable;
+
+    /// <summary>Gets whether the last call produced fresh physical-memory counters.</summary>
+    internal bool LastMemorySampleAvailable => _lastMemorySampleAvailable;
+
+    /// <summary>Gets the number of logical processors represented by the last processor read.</summary>
+    internal int LastLogicalProcessorCount => _lastLogicalProcessorCount;
+
+    /// <summary>Copies the last per-logical-processor percentages into caller-owned storage.</summary>
+    internal int CopyLastLogicalProcessorPercents(double[] destination)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(destination);
+
+        int count = Math.Min(destination.Length, _lastLogicalProcessorCount);
+        Array.Copy(_lastLogicalProcessorPercents, destination, count);
+        return count;
+    }
+
+    /// <summary>Gets the latest direct physical-memory values.</summary>
+    internal SystemMemoryStatus GetLastMemoryStatus() => new(
+        _lastTotalPhysicalMemoryBytes,
+        _lastAvailablePhysicalMemoryBytes,
+        _lastMemoryPercent);
+
+    /// <summary>Discards processor deltas so the next capture only establishes a fresh baseline.</summary>
+    internal void ResetProcessorBaseline()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _hasPreviousProcessorTimes = false;
+        _previousProcessorCount = 0;
+        _lastProcessorSampleAvailable = false;
+        _lastCPUAveragePercent = 0;
+        _lastCPUHighestCorePercent = 0;
+        Array.Clear(_lastLogicalProcessorPercents);
     }
 
     /// <summary>Calculates busy time from deltas where kernel time includes idle time.</summary>
@@ -181,6 +238,12 @@ internal sealed class SystemPerformanceSampler : IDisposable
         values = new ProcessorTimes[count];
     }
 
+    private void EnsureLogicalProcessorCapacity(int count)
+    {
+        if (_lastLogicalProcessorPercents.Length >= count) return;
+        _lastLogicalProcessorPercents = new double[count];
+    }
+
     private static bool TryCalculateTimeDeltas(
         ProcessorTimes previous,
         ProcessorTimes current,
@@ -203,25 +266,28 @@ internal sealed class SystemPerformanceSampler : IDisposable
         return totalDelta > 0;
     }
 
-    private static bool TryReadMemoryPercent(out double memoryPercent)
+    private static bool TryReadMemoryStatus(out SystemMemoryStatus memoryStatus)
     {
-        MEMORYSTATUSEX memoryStatus = new()
+        MEMORYSTATUSEX nativeMemoryStatus = new()
         {
             Length = (uint)Marshal.SizeOf<MEMORYSTATUSEX>()
         };
-        if (!GlobalMemoryStatusEx(ref memoryStatus) || memoryStatus.TotalPhysicalMemory == 0)
+        if (!GlobalMemoryStatusEx(ref nativeMemoryStatus) || nativeMemoryStatus.TotalPhysicalMemory == 0)
         {
-            memoryPercent = 0;
+            memoryStatus = default;
             return false;
         }
 
         ulong availableMemory = Math.Min(
-            memoryStatus.AvailablePhysicalMemory,
-            memoryStatus.TotalPhysicalMemory);
-        memoryPercent = (memoryStatus.TotalPhysicalMemory - availableMemory)
-                        / (double)memoryStatus.TotalPhysicalMemory
-                        * 100.0;
-        memoryPercent = Math.Clamp(memoryPercent, 0, 100);
+            nativeMemoryStatus.AvailablePhysicalMemory,
+            nativeMemoryStatus.TotalPhysicalMemory);
+        double memoryPercent = (nativeMemoryStatus.TotalPhysicalMemory - availableMemory)
+                               / (double)nativeMemoryStatus.TotalPhysicalMemory
+                               * 100.0;
+        memoryStatus = new SystemMemoryStatus(
+            nativeMemoryStatus.TotalPhysicalMemory,
+            availableMemory,
+            Math.Clamp(memoryPercent, 0, 100));
         return true;
     }
 
@@ -242,6 +308,7 @@ internal sealed class SystemPerformanceSampler : IDisposable
 
         _currentProcessorTimes = [];
         _previousProcessorTimes = [];
+        _lastLogicalProcessorPercents = [];
     }
 
     [DllImport("ntdll.dll")]
@@ -288,3 +355,9 @@ internal sealed class SystemPerformanceSampler : IDisposable
         long KernelTime,
         long UserTime);
 }
+
+/// <summary>Direct physical-memory counters retained with a system sample.</summary>
+internal readonly record struct SystemMemoryStatus(
+    ulong TotalPhysicalBytes,
+    ulong AvailablePhysicalBytes,
+    double UtilizationPercent);

@@ -143,6 +143,132 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void PerformanceDeviceOrderingDefaultsToPriorityWithoutAnExplicitOrder()
+    {
+        AppSettings settings = new();
+
+        Assert.Equal(PerformanceDeviceOrdering.DefaultPriority, settings.PerformanceDevicePriority);
+        Assert.Empty(settings.PerformanceDeviceOrder);
+    }
+
+    [Fact]
+    public void PerformanceDeviceOrderingRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        settings.PerformanceDevicePriority =
+        [
+            PerformanceDeviceKind.Disk,
+            PerformanceDeviceKind.Network,
+            PerformanceDeviceKind.GPU,
+            PerformanceDeviceKind.Memory,
+            PerformanceDeviceKind.CPU
+        ];
+        settings.PerformanceDeviceOrder = ["disk:1", "cpu", "gpu:0"];
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(settings.PerformanceDevicePriority, loaded.PerformanceDevicePriority);
+            Assert.Equal(settings.PerformanceDeviceOrder, loaded.PerformanceDeviceOrder);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void PerformanceDeviceOrderingNormalizesCorruptSettingsXml()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <AppSettings>
+                  <PerformanceDevicePriority>
+                    <Kind>Disk</Kind>
+                    <Kind>2147483647</Kind>
+                    <Kind>Disk</Kind>
+                    <Kind>CPU</Kind>
+                  </PerformanceDevicePriority>
+                  <PerformanceDeviceOrder>
+                    <DeviceID> gpu:0 </DeviceID>
+                    <DeviceID></DeviceID>
+                    <DeviceID>gpu:0</DeviceID>
+                    <DeviceID>disk:0</DeviceID>
+                  </PerformanceDeviceOrder>
+                </AppSettings>
+                """);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(
+                [
+                    PerformanceDeviceKind.Disk,
+                    PerformanceDeviceKind.CPU,
+                    PerformanceDeviceKind.Memory,
+                    PerformanceDeviceKind.GPU,
+                    PerformanceDeviceKind.Network
+                ],
+                loaded.PerformanceDevicePriority);
+            Assert.Equal(["gpu:0", "disk:0"], loaded.PerformanceDeviceOrder);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LegacyAndExplicitlyEmptyPriorityXmlUseTheCompleteDefault()
+    {
+        string legacyPath = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        string emptyPath = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(legacyPath, "<AppSettings />");
+            File.WriteAllText(
+                emptyPath,
+                "<AppSettings><PerformanceDevicePriority /></AppSettings>");
+
+            AppSettings legacy = AppSettings.LoadOrDefault(legacyPath);
+            AppSettings explicitlyEmpty = AppSettings.LoadOrDefault(emptyPath);
+
+            Assert.Equal(PerformanceDeviceOrdering.DefaultPriority, legacy.PerformanceDevicePriority);
+            Assert.Equal(PerformanceDeviceOrdering.DefaultPriority, explicitlyEmpty.PerformanceDevicePriority);
+        }
+        finally
+        {
+            if (File.Exists(legacyPath)) File.Delete(legacyPath);
+            if (File.Exists(emptyPath)) File.Delete(emptyPath);
+        }
+    }
+
+    [Fact]
+    public void AppliedPerformanceDeviceOrderDoesNotRaiseAGlobalSettingsRefresh()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int changedCount = 0;
+        settings.Changed += () => changedCount++;
+
+        settings.UpdatePerformanceDeviceOrder(["disk:0", "cpu", "memory"]);
+
+        Assert.Equal(0, changedCount);
+        Assert.Equal(["disk:0", "cpu", "memory"], settings.PerformanceDeviceOrder);
+    }
+
+    [Fact]
     public void TrayGraphSettingsNormalizeAndRoundTripThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };
