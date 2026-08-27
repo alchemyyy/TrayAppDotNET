@@ -25,6 +25,10 @@ public enum TaskManagerPage
 /// <summary>The Task Manager shell, built on the shared TrayAppDotNET settings-window chrome.</summary>
 internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 {
+    private const string EndTaskConfirmationMessage =
+        "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
+        "If you end a system process, it might result in system instability. Are you sure you want to continue?";
+
     private static readonly Glyph ProcessesGlyph = Glyph.Fluent("\uECAA");
     private static readonly Glyph PerformanceGlyph = Glyph.Fluent("\uE9D9");
     private static readonly Glyph AppHistoryGlyph = Glyph.Fluent("\uE81C");
@@ -83,6 +87,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool UseExtendedTitleBarDragZone => false;
     protected override bool PageContentExtendsIntoTitleBar => true;
     protected override bool UsePageContentTitleBarDragZone => false;
+    protected override bool UseProminentConfirmationDialog => true;
     protected override bool IsFooterNavigationPage(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Settings;
     protected override bool PageOwnsScrolling(TaskManagerPage pageKey) => pageKey == TaskManagerPage.Processes;
     protected override Control? ResolvePageOverlay(Control pageRoot) =>
@@ -102,6 +107,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override string HeaderText => Constants.DisplayName;
     protected override string OpenSettingsFolderText => "Open Task Manager settings folder";
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
+    protected override Color ConfirmOverlayBackdrop =>
+        _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
 
     protected override SettingsPalette ResolvePalette() =>
         VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLight());
@@ -194,6 +201,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _taskManagerResources,
             _processTerminationService.Arm,
             TryTerminateProcess,
+            ConfirmEndTaskAsync,
             ReportMessage,
             StartProcess);
         _processDetailsPage = page;
@@ -274,6 +282,18 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
         _processTerminationService.TryTerminate(target, out errorMessage);
+
+    private Task<bool> ConfirmEndTaskAsync(ProcessEndTaskRequest request)
+    {
+        string processName = string.IsNullOrWhiteSpace(request.ProcessName)
+            ? $"PID {request.Target.ProcessID}"
+            : request.ProcessName;
+        return ConfirmAsync(
+            $"Do you want to end {processName}?",
+            EndTaskConfirmationMessage,
+            "End process",
+            "Cancel");
+    }
 
     private void ReportMessage(string title, string message) => _ = ShowMessage(title, message);
 

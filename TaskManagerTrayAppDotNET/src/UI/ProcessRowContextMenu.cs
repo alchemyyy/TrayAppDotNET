@@ -22,6 +22,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     private readonly bool _enableRoundedCorners;
     private readonly ITrayAppDotNETTrayMenuSettings _trayMenuSettings;
     private readonly TryTerminateProcessAction _terminateProcess;
+    private readonly Action<ProcessEndTaskRequest> _requestEndTask;
     private readonly Action _requestRefresh;
     private readonly Action<string, string> _reportError;
     private readonly Action<ProcessCopyPreviewMode> _setCopyPreview;
@@ -38,6 +39,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         bool enableRoundedCorners,
         ITrayAppDotNETTrayMenuSettings trayMenuSettings,
         TryTerminateProcessAction terminateProcess,
+        Action<ProcessEndTaskRequest> requestEndTask,
         Action requestRefresh,
         Action<string, string> reportError,
         Action<ProcessCopyPreviewMode> setCopyPreview,
@@ -46,6 +48,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(trayMenuSettings);
         ArgumentNullException.ThrowIfNull(terminateProcess);
+        ArgumentNullException.ThrowIfNull(requestEndTask);
         ArgumentNullException.ThrowIfNull(requestRefresh);
         ArgumentNullException.ThrowIfNull(reportError);
         ArgumentNullException.ThrowIfNull(setCopyPreview);
@@ -54,6 +57,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         _enableRoundedCorners = enableRoundedCorners;
         _trayMenuSettings = trayMenuSettings;
         _terminateProcess = terminateProcess;
+        _requestEndTask = requestEndTask;
         _requestRefresh = requestRefresh;
         _reportError = reportError;
         _setCopyPreview = setCopyPreview;
@@ -86,7 +90,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered)
         });
         entries.AddSeparator();
-        entries.Add("End task", () => ExecuteEndTask(target));
+        entries.Add("End task", () => _requestEndTask(request.EndTaskRequest));
         entries.Add("End process tree", () => ExecuteEndProcessTree(target));
         entries.AddSeparator();
         entries.AddSubmenu("Set priority", () => BuildPriorityEntries(target));
@@ -204,18 +208,6 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         {
             TrailingGlyph = priority == currentPriority ? SelectedGlyph : null
         });
-    }
-
-    private void ExecuteEndTask(ProcessTerminationTarget target)
-    {
-        // ProcessTerminationService owns the currently armed handle and is UI-thread coordinated
-        if (!_terminateProcess(target, out string errorMessage))
-        {
-            _reportError("End task failed", errorMessage);
-            return;
-        }
-
-        _requestRefresh();
     }
 
     private void ExecuteEndProcessTree(ProcessTerminationTarget target) =>

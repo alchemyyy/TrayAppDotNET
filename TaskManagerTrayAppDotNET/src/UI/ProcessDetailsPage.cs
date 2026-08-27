@@ -17,6 +17,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly ProcessSnapshotService _snapshotService;
     private readonly Action<ProcessTerminationTarget?> _armTerminationTarget;
     private readonly TryTerminateProcessAction _terminateProcess;
+    private readonly Func<ProcessEndTaskRequest, Task<bool>> _confirmEndTask;
     private readonly Action<string, string> _reportMessage;
     private readonly Func<string, bool> _startProcess;
     private readonly AppSettings _settings;
@@ -40,6 +41,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly TranslateTransform _selectionTransform = new();
     private readonly Dictionary<ProcessTableColumnKind, ProcessColumnPropertiesWindow> _columnPropertyWindows = [];
     private ProcessColumnChooserWindow? _columnChooserWindow;
+    private bool _isEndTaskConfirmationPending;
     private bool _disposed;
 
     public ProcessDetailsPage(
@@ -50,6 +52,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         TaskManagerWindowResources resources,
         Action<ProcessTerminationTarget?> armTerminationTarget,
         TryTerminateProcessAction terminateProcess,
+        Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
     {
@@ -59,6 +62,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _resources = resources;
         _armTerminationTarget = armTerminationTarget;
         _terminateProcess = terminateProcess;
+        _confirmEndTask = confirmEndTask;
         _reportMessage = reportMessage;
         _startProcess = startProcess;
         ProcessDataSchema schema = ProcessDataSchema.Create(settings.DetailsColumns);
@@ -86,6 +90,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.GridMetricsChanged += OnGridMetricsChanged;
         _processCanvas.GridZoomRequested += OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested += OnGridZoomResetRequested;
+        _processCanvas.EndTaskRequested += RequestEndTask;
         _processCanvas.RowContextMenuRequested += OnRowContextMenuRequested;
 
         _rowContextMenuController = new ProcessRowContextMenuController(
@@ -93,6 +98,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             settings.EnableRoundedCorners,
             settings,
             terminateProcess,
+            RequestEndTask,
             _snapshotService.RequestRefresh,
             reportMessage,
             _processCanvas.SetContextCopyPreview,
@@ -477,15 +483,39 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void OnEndTaskClick(object? sender, EventArgs eventArgs)
     {
-        ProcessTerminationTarget? target = _processCanvas.SelectedTerminationTarget;
-        if (!target.HasValue) return;
-        if (!_terminateProcess(target.Value, out string errorMessage))
-        {
-            _reportMessage("End task failed", errorMessage);
-            return;
-        }
+        if (_processCanvas.SelectedEndTaskRequest is { } request)
+            RequestEndTask(request);
+    }
 
-        _snapshotService.RequestRefresh();
+    private void RequestEndTask(ProcessEndTaskRequest request) => _ = EndTaskAsync(request);
+
+    private async Task EndTaskAsync(ProcessEndTaskRequest request)
+    {
+        if (_disposed || _isEndTaskConfirmationPending) return;
+
+        _isEndTaskConfirmationPending = true;
+        try
+        {
+            bool confirmed = await _confirmEndTask(request);
+            if (_disposed || !confirmed) return;
+
+            if (!_terminateProcess(request.Target, out string errorMessage))
+            {
+                _reportMessage("End task failed", errorMessage);
+                return;
+            }
+
+            _snapshotService.RequestRefresh();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"End task confirmation failed: {exception}");
+            if (!_disposed) _reportMessage("End task failed", exception.Message);
+        }
+        finally
+        {
+            _isEndTaskConfirmationPending = false;
+        }
     }
 
     private void OnSubmitRunClick(object? sender, EventArgs eventArgs) => SubmitRunTask();
@@ -539,6 +569,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _processCanvas.GridMetricsChanged -= OnGridMetricsChanged;
         _processCanvas.GridZoomRequested -= OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested -= OnGridZoomResetRequested;
+        _processCanvas.EndTaskRequested -= RequestEndTask;
         _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
         _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;
         _searchBox.TextChanged -= OnSearchTextChanged;

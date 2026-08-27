@@ -63,6 +63,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private TextBlock? _confirmMessage;
     private SettingsButton? _confirmOk;
     private SettingsButton? _confirmCancel;
+    private Control? _confirmPreviousFocus;
     private readonly Win32Properties.CustomWndProcHookCallback _wndProcHook;
     private bool _shellInitialized;
     private bool _hasShownPage;
@@ -94,6 +95,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
+    protected virtual bool UseProminentConfirmationDialog => false;
     protected virtual double SidebarWidth => _settingsResources.AxamlSettingsWindow.DefaultSidebarWidth;
 
     /// <summary>Gets the app settings object that owns the optional custom navigation width.</summary>
@@ -206,12 +208,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     public Task<bool> ConfirmAsync(string title, string message, string confirmText, string cancelText)
     {
         CancelPendingConfirm();
+        _confirmPreviousFocus = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
         _confirmTitle!.Text = title;
         _confirmMessage!.Text = message;
         _confirmOk!.Text = confirmText;
         _confirmCancel!.Text = cancelText;
         _confirmOverlay!.IsVisible = true;
         _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _confirmOk.Focus();
         return _confirmTcs.Task;
     }
 
@@ -649,7 +653,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         _confirmOverlay = BuildConfirmOverlay();
         _confirmOverlay.IsVisible = false;
-        Grid.SetRow(_confirmOverlay, 1);
+        Grid.SetRow(_confirmOverlay, UseProminentConfirmationDialog ? 0 : 1);
+        Grid.SetRowSpan(_confirmOverlay, UseProminentConfirmationDialog ? 2 : 1);
         root.Children.Add(_confirmOverlay);
 
         UpdateSidebarLayout();
@@ -1184,24 +1189,63 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private Border BuildConfirmOverlay()
     {
         SettingsPalette palette = Palette;
+        double titleFontSize = UseProminentConfirmationDialog
+            ? _settingsResources.AxamlSettingsWindow.ConfirmProminentTitleFontSize
+            : _settingsResources.AxamlSettingsWindow.ConfirmTitleFontSize;
         _confirmTitle = TrayAppDotNETSettingsUI.Text(
             L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_DefaultTitle)),
             palette,
-            _settingsResources.AxamlSettingsWindow.ConfirmTitleFontSize,
+            titleFontSize,
             FontWeight.SemiBold);
         _confirmTitle.TextWrapping = TextWrapping.Wrap;
-        _confirmTitle.Margin = _settingsResources.AxamlSettingsWindow.ConfirmTitleMargin;
-        _confirmMessage = TrayAppDotNETSettingsUI.DescriptionText(
-            L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
-            palette,
-            _settingsResources.AxamlSettingsWindow.ConfirmMessageMargin);
-        _confirmOk = Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Confirm)), palette);
-        _confirmCancel = Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)), palette);
-        _confirmCancel.Margin = _settingsResources.AxamlSettingsWindow.ConfirmCancelMargin;
-        _confirmOk.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
-        _confirmCancel.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
+        _confirmTitle.Margin = UseProminentConfirmationDialog
+            ? _settingsResources.AxamlSettingsWindow.ConfirmProminentTitleMargin
+            : _settingsResources.AxamlSettingsWindow.ConfirmTitleMargin;
+        _confirmMessage = UseProminentConfirmationDialog
+            ? TrayAppDotNETSettingsUI.Text(
+                L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
+                palette,
+                _settingsResources.AxamlSettingsWindow.ConfirmProminentMessageFontSize)
+            : TrayAppDotNETSettingsUI.DescriptionText(
+                L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_DefaultMessage)),
+                palette,
+                _settingsResources.AxamlSettingsWindow.ConfirmMessageMargin);
+        _confirmMessage.TextWrapping = TextWrapping.Wrap;
+        _confirmOk = UseProminentConfirmationDialog
+            ? BuildProminentConfirmButton(
+                L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Confirm)),
+                palette)
+            : Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Confirm)), palette);
+        _confirmCancel = UseProminentConfirmationDialog
+            ? BuildProminentConfirmButton(
+                L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)),
+                palette)
+            : Button(L(nameof(CommonStrings.SettingsWindow_ConfirmOverlay_Cancel)), palette);
         _confirmOk.Click += (_, _) => CompleteConfirm(true);
         _confirmCancel.Click += (_, _) => CompleteConfirm(false);
+
+        return UseProminentConfirmationDialog
+            ? BuildProminentConfirmOverlay(palette)
+            : BuildCompactConfirmOverlay(palette);
+    }
+
+    private static SettingsButton BuildProminentConfirmButton(string text, SettingsPalette palette) =>
+        new(
+            text,
+            palette,
+            palette.ControlBackgroundDeep,
+            palette.HoverDeep,
+            palette.PressedDeep);
+
+    private Border BuildCompactConfirmOverlay(SettingsPalette palette)
+    {
+        TextBlock confirmTitle = _confirmTitle
+            ?? throw new InvalidOperationException("The confirmation title was not initialized.");
+        TextBlock confirmMessage = _confirmMessage
+            ?? throw new InvalidOperationException("The confirmation message was not initialized.");
+        _confirmCancel!.Margin = _settingsResources.AxamlSettingsWindow.ConfirmCancelMargin;
+        _confirmOk!.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
+        _confirmCancel.MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmButtonMinWidth;
 
         StackPanel buttons = new()
         {
@@ -1221,9 +1265,80 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             MaxWidth = _settingsResources.AxamlSettingsWindow.ConfirmDialogMaxWidth,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new StackPanel { Children = { _confirmTitle, _confirmMessage, buttons } }
+            Child = new StackPanel { Children = { confirmTitle, confirmMessage, buttons } }
         };
         return new Border { Background = TrayAppDotNETSettingsUI.Brush(ConfirmOverlayBackdrop), Child = dialog };
+    }
+
+    private Border BuildProminentConfirmOverlay(SettingsPalette palette)
+    {
+        _confirmOk!.Height = _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonHeight;
+        _confirmCancel!.Height = _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonHeight;
+        CornerRadius buttonCornerRadius = RoundedCornerRadius(
+            _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonCornerRadius);
+        _confirmOk.CornerRadius = buttonCornerRadius;
+        _confirmCancel.CornerRadius = buttonCornerRadius;
+        _confirmOk.Label.FontSize = _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonFontSize;
+        _confirmCancel.Label.FontSize = _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonFontSize;
+        _confirmOk.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _confirmCancel.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        Grid buttons = new()
+        {
+            ColumnSpacing = _settingsResources.AxamlSettingsWindow.ConfirmProminentButtonSpacing,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Star)
+            }
+        };
+        buttons.Children.Add(_confirmOk);
+        Grid.SetColumn(_confirmCancel, 1);
+        buttons.Children.Add(_confirmCancel);
+
+        Border body = new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(palette.CardBackground),
+            Padding = _settingsResources.AxamlSettingsWindow.ConfirmProminentBodyPadding,
+            Child = new StackPanel { Children = { _confirmTitle!, _confirmMessage! } }
+        };
+        Border footer = new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(palette.FooterBackground),
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+            BorderThickness = _settingsResources.AxamlSettingsWindow.ConfirmProminentFooterBorderThickness,
+            Padding = _settingsResources.AxamlSettingsWindow.ConfirmProminentFooterPadding,
+            Child = buttons
+        };
+        Grid.SetRow(footer, 1);
+
+        Grid content = new()
+        {
+            RowDefinitions =
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto)
+            },
+            Children = { body, footer }
+        };
+        // FlyoutFrame preserves the outer border while an opaque inner surface clips rounded content
+        FlyoutFrame dialog = new(
+            content,
+            palette.CardBackground,
+            palette.Border,
+            EnableRoundedCorners)
+        {
+            Margin = _settingsResources.AxamlSettingsWindow.ConfirmProminentDialogMargin,
+            MinWidth = _settingsResources.AxamlSettingsWindow.ConfirmProminentDialogMinWidth,
+            MaxWidth = _settingsResources.AxamlSettingsWindow.ConfirmProminentDialogMaxWidth,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        return new Border
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(ConfirmOverlayBackdrop),
+            Child = dialog
+        };
     }
 
     private void CompleteConfirm(bool result)
@@ -1231,6 +1346,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmOverlay!.IsVisible = false;
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
+        RestoreConfirmFocus();
         tcs?.TrySetResult(result);
     }
 
@@ -1239,7 +1355,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmOverlay?.IsVisible = false;
         TaskCompletionSource<bool>? tcs = _confirmTcs;
         _confirmTcs = null;
+        RestoreConfirmFocus();
         tcs?.TrySetResult(false);
+    }
+
+    private void RestoreConfirmFocus()
+    {
+        Control? previousFocus = _confirmPreviousFocus;
+        _confirmPreviousFocus = null;
+        previousFocus?.Focus();
     }
 
     private void OnWindowOpened(object? sender, EventArgs e)
@@ -1263,6 +1387,35 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs eventArgs)
     {
+        if (_confirmTcs != null)
+        {
+            switch (eventArgs.Key)
+            {
+                case Key.Escape:
+                    CompleteConfirm(false);
+                    eventArgs.Handled = true;
+                    return;
+                case Key.Tab:
+                case Key.Left:
+                case Key.Right:
+                    Control? focusedElement = TopLevel.GetTopLevel(this)?
+                        .FocusManager?
+                        .GetFocusedElement() as Control;
+                    SettingsButton? nextButton = ReferenceEquals(focusedElement, _confirmOk)
+                        ? _confirmCancel
+                        : _confirmOk;
+                    nextButton?.Focus();
+                    eventArgs.Handled = true;
+                    return;
+                case Key.Enter:
+                case Key.Space:
+                    return;
+                default:
+                    eventArgs.Handled = true;
+                    return;
+            }
+        }
+
         bool isControlModifierDown = eventArgs.Key is Key.LeftCtrl or Key.RightCtrl
                                      || (eventArgs.KeyModifiers & KeyModifiers.Control) != 0;
         _sidebarResizeHandle?.SetControlModifierDown(isControlModifierDown);
@@ -1338,6 +1491,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmMessage = null;
         _confirmOk = null;
         _confirmCancel = null;
+        _confirmPreviousFocus = null;
         _windowResources.Dispose();
     }
 

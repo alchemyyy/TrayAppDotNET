@@ -32,6 +32,13 @@
     <sys:Double x:Key="SettingsWindow.ConfirmButtonMinWidth">96</sys:Double>
     <sys:Double x:Key="SettingsWindow.ConfirmDialogMinWidth">360</sys:Double>
     <sys:Double x:Key="SettingsWindow.ConfirmDialogMaxWidth">460</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentTitleFontSize">20</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentMessageFontSize">14</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentButtonFontSize">14</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentButtonHeight">32</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentButtonSpacing">8</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentDialogMinWidth">400</sys:Double>
+    <sys:Double x:Key="SettingsWindow.ConfirmProminentDialogMaxWidth">480</sys:Double>
 
     <!-- Work area fallback -->
     <sys:Double x:Key="SettingsWindow.PixelMinSize">1</sys:Double>
@@ -45,6 +52,7 @@
     <CornerRadius x:Key="SettingsWindow.RadiusTiny">1.5</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.RadiusMedium">4</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.RadiusLarge">6</CornerRadius>
+    <CornerRadius x:Key="SettingsWindow.ConfirmProminentButtonCornerRadius">4</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.OuterCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="SettingsWindow.InnerCornerRadius">7</CornerRadius>
 
@@ -61,4 +69,9 @@
     <Thickness x:Key="SettingsWindow.ConfirmCancelMargin">0,0,8,0</Thickness>
     <Thickness x:Key="SettingsWindow.ConfirmDialogBorderThickness">1</Thickness>
     <Thickness x:Key="SettingsWindow.ConfirmDialogPadding">24</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmProminentTitleMargin">0,0,0,12</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmProminentBodyPadding">24,28</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmProminentFooterPadding">24,20</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmProminentFooterBorderThickness">0,1,0,0</Thickness>
+    <Thickness x:Key="SettingsWindow.ConfirmProminentDialogMargin">16,0</Thickness>
 </ResourceDictionary>

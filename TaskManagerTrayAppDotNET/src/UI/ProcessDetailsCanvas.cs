@@ -21,10 +21,13 @@ internal enum ProcessCopyPreviewMode : byte
 }
 
 internal readonly record struct ProcessRowContextMenuRequest(
-    ProcessTerminationTarget Target,
+    ProcessEndTaskRequest EndTaskRequest,
     PixelPoint ScreenPosition,
     string CellCopyText,
-    string RowCopyText);
+    string RowCopyText)
+{
+    public ProcessTerminationTarget Target => EndTaskRequest.Target;
+}
 
 /// <summary>Composites bounded viewport drawing roots from shared visible-column fragments.</summary>
 internal sealed class ProcessDetailsCanvas : Control, IDisposable
@@ -270,6 +273,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public event Action<double, double>? GridMetricsChanged;
     public event Action<int>? GridZoomRequested;
     public event Action? GridZoomResetRequested;
+    public event Action<ProcessEndTaskRequest>? EndTaskRequested;
     public event Action<ProcessRowContextMenuRequest>? RowContextMenuRequested;
 
     private ProcessTableColumn[] DisplayColumns =>
@@ -286,6 +290,23 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     public ProcessTerminationTarget? SelectedTerminationTarget => _selectedProcess is { } process
         ? new ProcessTerminationTarget(process.ProcessID, process.CreationTimeTicks)
         : null;
+
+    public ProcessEndTaskRequest? SelectedEndTaskRequest
+    {
+        get
+        {
+            if (_selectedProcess is not { } selectedProcess) return null;
+
+            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+            {
+                ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
+                if (row?.InstanceKey == selectedProcess)
+                    return CreateEndTaskRequest(row);
+            }
+
+            return null;
+        }
+    }
 
     /// <summary>Copies the newest compact snapshot and updates only changed retained row roots.</summary>
     public void RefreshFrom(ProcessSnapshotService snapshotService)
@@ -666,10 +687,17 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
     protected override void OnKeyDown(KeyEventArgs eventArgs)
     {
         base.OnKeyDown(eventArgs);
-        if (eventArgs.Key != Key.Escape || _headerInteraction == HeaderInteractionMode.None) return;
-
-        ResetHeaderInteraction();
-        eventArgs.Handled = true;
+        switch (eventArgs.Key)
+        {
+            case Key.Delete when SelectedEndTaskRequest is { } request:
+                EndTaskRequested?.Invoke(request);
+                eventArgs.Handled = true;
+                return;
+            case Key.Escape when _headerInteraction != HeaderInteractionMode.None:
+                ResetHeaderInteraction();
+                eventArgs.Handled = true;
+                return;
+        }
     }
 
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs eventArgs)
@@ -1161,11 +1189,16 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
             ? _contextCopyValuesByColumn[(int)_contextCopyColumn.Value] ?? string.Empty
             : string.Empty;
         return new ProcessRowContextMenuRequest(
-            target,
+            new ProcessEndTaskRequest(target, row.Image.Name),
             screenPosition,
             cellCopyText,
             CreateRowCopyText(columns));
     }
+
+    private static ProcessEndTaskRequest CreateEndTaskRequest(ProcessStaticData row) =>
+        new(
+            new ProcessTerminationTarget(row.ProcessID, row.InstanceKey.CreationTimeTicks),
+            row.Image.Name);
 
     private string CreateRowCopyText(ProcessTableColumn[] columns)
     {
@@ -2973,6 +3006,7 @@ internal sealed class ProcessDetailsCanvas : Control, IDisposable
         GridMetricsChanged = null;
         GridZoomRequested = null;
         GridZoomResetRequested = null;
+        EndTaskRequested = null;
         RowContextMenuRequested = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
