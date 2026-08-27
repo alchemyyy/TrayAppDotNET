@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -31,9 +32,12 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly SettingsButton _runTaskButton;
     private readonly SettingsButton _columnsButton;
     private readonly SettingsButton _endTaskButton;
+    private readonly SettingsButton _moreActionsButton;
     private readonly SettingsButton _submitRunButton;
     private readonly SettingsButton _cancelRunButton;
     private readonly SettingsToggle _groupProcessesToggle;
+    private readonly StackPanel _groupProcessesHeaderControl;
+    private readonly StackPanel _headerActions;
     private readonly SettingsScrollViewport _tableScrollViewport;
     private readonly TaskManagerResizeGrip _resizeGrip;
     private readonly ProcessRowHoverVisual _hoverHighlight;
@@ -41,6 +45,8 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private readonly TranslateTransform _selectionTransform = new();
     private readonly Dictionary<ProcessTableColumnKind, ProcessColumnPropertiesWindow> _columnPropertyWindows = [];
     private ProcessColumnChooserWindow? _columnChooserWindow;
+    private ProcessHeaderButtonArrangementWindow? _headerButtonArrangementWindow;
+    private TaskManagerContextMenuWindow? _headerActionsMenuWindow;
     private bool _isEndTaskConfirmationPending;
     private bool _disposed;
 
@@ -115,6 +121,24 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             palette,
             settings.GroupProcesses,
             OnGroupProcessesChanged);
+        _moreActionsButton = TrayAppDotNETSettingsUI.Button(TaskManagerGlyphCatalog.MORE, palette);
+        _moreActionsButton.Width = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
+        _moreActionsButton.Height = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
+        _moreActionsButton.MinHeight = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
+        _moreActionsButton.Padding = resources.AxamlTaskManagerReorderDialog.MoreButtonPadding;
+        _moreActionsButton.Label.FontSize = resources.AxamlTaskManagerReorderDialog.MoreGlyphFontSize;
+        _moreActionsButton.Click += OnMoreActionsClick;
+        TrayAppDotNETToolTip.SetTip(_moreActionsButton, "More");
+        TrayAppDotNETToolTip.SuppressWhileEngaged(_moreActionsButton);
+        _groupProcessesHeaderControl = BuildGroupProcessesHeaderControl(palette, resources);
+        _headerActions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        PopulateHeaderActions();
 
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
@@ -214,29 +238,6 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             FontWeight.SemiBold);
         title.VerticalAlignment = VerticalAlignment.Center;
 
-        TextBlock groupProcessesLabel = TrayAppDotNETSettingsUI.Text(
-            "Group processes",
-            palette,
-            resources.AxamlTaskManagerDetails.ToolbarFontSize,
-            FontWeight.Normal);
-        groupProcessesLabel.VerticalAlignment = VerticalAlignment.Center;
-        StackPanel groupProcesses = new()
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { groupProcessesLabel, _groupProcessesToggle }
-        };
-
-        StackPanel actions = new()
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { groupProcesses, _runTaskButton, _columnsButton, _endTaskButton }
-        };
-
         Grid actionBar = new()
         {
             ColumnDefinitions =
@@ -246,9 +247,51 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
             }
         };
         actionBar.Children.Add(title);
-        Grid.SetColumn(actions, 1);
-        actionBar.Children.Add(actions);
+        Grid.SetColumn(_headerActions, 1);
+        actionBar.Children.Add(_headerActions);
         return actionBar;
+    }
+
+    private StackPanel BuildGroupProcessesHeaderControl(
+        SettingsPalette palette,
+        TaskManagerWindowResources resources)
+    {
+        TextBlock label = TrayAppDotNETSettingsUI.Text(
+            "Group processes",
+            palette,
+            resources.AxamlTaskManagerDetails.ToolbarFontSize,
+            FontWeight.Normal);
+        label.VerticalAlignment = VerticalAlignment.Center;
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { label, _groupProcessesToggle }
+        };
+    }
+
+    private void PopulateHeaderActions()
+    {
+        _headerActions.Children.Clear();
+        _headerActions.Children.Add(_groupProcessesHeaderControl);
+        foreach (ProcessHeaderButtonKind buttonKind in
+                 ProcessHeaderButtonSettings.Normalize(_settings.ProcessHeaderButtonOrder))
+        {
+            SettingsButton button = buttonKind switch
+            {
+                ProcessHeaderButtonKind.RunNewTask => _runTaskButton,
+                ProcessHeaderButtonKind.Columns => _columnsButton,
+                ProcessHeaderButtonKind.EndTask => _endTaskButton,
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(buttonKind),
+                    buttonKind,
+                    "Unknown header button kind.")
+            };
+            _headerActions.Children.Add(button);
+        }
+
+        _headerActions.Children.Add(_moreActionsButton);
     }
 
     private Border BuildRunPanel(SettingsPalette palette, TaskManagerWindowResources resources)
@@ -416,6 +459,81 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
     private void OnColumnLayoutChanged(List<ProcessColumnSetting> settings) =>
         _settings.UpdateDetailsColumnLayout(settings);
 
+    private void OnMoreActionsClick(object? sender, EventArgs eventArgs) => ShowHeaderActionsMenu();
+
+    private void ShowHeaderActionsMenu()
+    {
+        if (_disposed || TopLevel.GetTopLevel(this) is not Window owner) return;
+
+        CloseHeaderActionsMenu();
+        TrayMenuEntryBuilder entries = new();
+        entries.Add("Arrange buttons", ShowHeaderButtonArrangement);
+        TaskManagerContextMenuWindow menuWindow = new(
+            entries.ToList(),
+            _palette,
+            _settings.EnableRoundedCorners,
+            _settings);
+        _headerActionsMenuWindow = menuWindow;
+        menuWindow.Closed += OnHeaderActionsMenuClosed;
+        menuWindow.ShowOver(_moreActionsButton, _moreActionsButton, owner);
+    }
+
+    private void CloseHeaderActionsMenu()
+    {
+        TaskManagerContextMenuWindow? menuWindow = _headerActionsMenuWindow;
+        if (menuWindow == null) return;
+
+        _headerActionsMenuWindow = null;
+        menuWindow.Closed -= OnHeaderActionsMenuClosed;
+        menuWindow.Close();
+    }
+
+    private void OnHeaderActionsMenuClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is TaskManagerContextMenuWindow menuWindow)
+            menuWindow.Closed -= OnHeaderActionsMenuClosed;
+        if (ReferenceEquals(sender, _headerActionsMenuWindow))
+            _headerActionsMenuWindow = null;
+    }
+
+    private void ShowHeaderButtonArrangement()
+    {
+        if (_disposed) return;
+        if (_headerButtonArrangementWindow != null)
+        {
+            _headerButtonArrangementWindow.Activate();
+            return;
+        }
+
+        ProcessHeaderButtonArrangementWindow arrangementWindow = new(
+            _settings,
+            _palette,
+            _resources,
+            ApplyHeaderButtonOrder);
+        _headerButtonArrangementWindow = arrangementWindow;
+        arrangementWindow.Closed += OnHeaderButtonArrangementClosed;
+        if (TopLevel.GetTopLevel(this) is Window owner)
+            _ = arrangementWindow.ShowDialog(owner);
+        else
+            arrangementWindow.Show();
+    }
+
+    private void OnHeaderButtonArrangementClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is ProcessHeaderButtonArrangementWindow arrangementWindow)
+            arrangementWindow.Closed -= OnHeaderButtonArrangementClosed;
+        if (ReferenceEquals(sender, _headerButtonArrangementWindow))
+            _headerButtonArrangementWindow = null;
+    }
+
+    private void ApplyHeaderButtonOrder(IReadOnlyList<ProcessHeaderButtonKind> buttonOrder)
+    {
+        if (_disposed) return;
+
+        _settings.UpdateProcessHeaderButtonOrder(buttonOrder);
+        PopulateHeaderActions();
+    }
+
     private void OnColumnsClick(object? sender, EventArgs eventArgs) => ShowColumnChooser();
 
     private void ShowColumnChooser()
@@ -427,11 +545,13 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         }
 
         _columnChooserWindow = new ProcessColumnChooserWindow(
-            _settings.DetailsColumns,
+            _settings,
+            _palette,
+            _resources,
             ApplyColumnSettings);
         _columnChooserWindow.Closed += OnColumnChooserClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)
-            _columnChooserWindow.Show(owner);
+            _ = _columnChooserWindow.ShowDialog(owner);
         else
             _columnChooserWindow.Show();
     }
@@ -446,7 +566,7 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
 
     private void ApplyColumnSettings(List<ProcessColumnSetting> settings)
     {
-        _settings.DetailsColumns = settings;
+        _settings.UpdateDetailsColumnLayout(settings);
         Dispatcher.UIThread.Post(RefreshColumnsAfterApply, DispatcherPriority.Background);
     }
 
@@ -577,8 +697,16 @@ internal sealed class ProcessDetailsPage : Grid, IDisposable
         _runTaskButton.Click -= OnRunTaskClick;
         _columnsButton.Click -= OnColumnsClick;
         _endTaskButton.Click -= OnEndTaskClick;
+        _moreActionsButton.Click -= OnMoreActionsClick;
         _submitRunButton.Click -= OnSubmitRunClick;
         _cancelRunButton.Click -= OnCancelRunClick;
+        CloseHeaderActionsMenu();
+        if (_headerButtonArrangementWindow != null)
+        {
+            _headerButtonArrangementWindow.Closed -= OnHeaderButtonArrangementClosed;
+            _headerButtonArrangementWindow.Close();
+            _headerButtonArrangementWindow = null;
+        }
         if (_columnChooserWindow != null)
         {
             _columnChooserWindow.Closed -= OnColumnChooserClosed;

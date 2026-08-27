@@ -28,6 +28,12 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph TASK_MANAGER_APP => Glyph("TaskManagerApp");
 
+    public static Glyph MORE => Glyph("More");
+
+    public new static Glyph CHEVRON_UP_BIG => Glyph("ChevronUpBig");
+
+    public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");
+
     /// <summary>
     /// Returns the PC1 glyph with TaskManagerApp fitted to its monitor frame.
     /// </summary>

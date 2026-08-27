@@ -1,0 +1,24 @@
+<ResourceDictionary
+    x:Class="TaskManagerTrayAppDotNET.UI.TaskManagerReorderResources"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+  <!-- Reorder rows -->
+  <sys:Double x:Key="TaskManagerReorder.DragThreshold">4</sys:Double>
+  <sys:Double x:Key="TaskManagerReorder.RowMinHeight">32</sys:Double>
+  <Thickness x:Key="TaskManagerReorder.RowHitSlotPadding">0,0,0,3</Thickness>
+  <Thickness x:Key="TaskManagerReorder.PrimaryContentMargin">0,0,8,0</Thickness>
+  <sys:Double x:Key="TaskManagerReorder.DraggingOpacity">0.82</sys:Double>
+  <sys:Double x:Key="TaskManagerReorder.AutoScrollEdgeSize">36</sys:Double>
+  <sys:Double x:Key="TaskManagerReorder.AutoScrollStep">12</sys:Double>
+  <sys:Int32 x:Key="TaskManagerReorder.AutoScrollIntervalMilliseconds">16</sys:Int32>
+  <sys:Int32 x:Key="TaskManagerReorder.NormalZIndex">0</sys:Int32>
+  <sys:Int32 x:Key="TaskManagerReorder.DraggingZIndex">10</sys:Int32>
+
+  <!-- Reorder buttons -->
+  <sys:Double x:Key="TaskManagerReorder.ButtonSize">32</sys:Double>
+  <sys:Double x:Key="TaskManagerReorder.ButtonSpacing">4</sys:Double>
+  <sys:Double x:Key="TaskManagerReorder.ButtonGlyphFontSize">11</sys:Double>
+  <Thickness x:Key="TaskManagerReorder.ButtonPadding">0</Thickness>
+</ResourceDictionary>

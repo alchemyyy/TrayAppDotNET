@@ -120,6 +120,14 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, Math.Clamp(value, GridRowHeightMinimum, GridRowHeightMaximum));
     } = GridRowHeightDefault;
 
+    [XmlArray("ProcessHeaderButtonOrder")]
+    [XmlArrayItem("Button")]
+    public List<ProcessHeaderButtonKind> ProcessHeaderButtonOrder
+    {
+        get;
+        set => SetField(ref field, ProcessHeaderButtonSettings.Normalize(value));
+    } = ProcessHeaderButtonSettings.CreateDefault();
+
     [XmlArray("DetailsColumns")]
     [XmlArrayItem("Column")]
     public List<ProcessColumnSetting> DetailsColumns
@@ -130,8 +138,30 @@ public sealed class AppSettings : AppSettingsCommon
 
     public override void OnTrayXmlDeserialized()
     {
+        ProcessHeaderButtonOrder = ProcessHeaderButtonSettings.Normalize(ProcessHeaderButtonOrder);
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
         base.OnTrayXmlDeserialized();
+    }
+
+    /// <summary>Persists an already-applied header-button order without rebuilding the app shell.</summary>
+    internal void UpdateProcessHeaderButtonOrder(IReadOnlyList<ProcessHeaderButtonKind> buttonOrder)
+    {
+        ArgumentNullException.ThrowIfNull(buttonOrder);
+        List<ProcessHeaderButtonKind> normalized = ProcessHeaderButtonSettings.Normalize(buttonOrder);
+        if (ProcessHeaderButtonOrder.SequenceEqual(normalized)) return;
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            ProcessHeaderButtonOrder = normalized;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
     }
 
     /// <summary>Persists an already-applied width or order change without rebuilding the app shell.</summary>

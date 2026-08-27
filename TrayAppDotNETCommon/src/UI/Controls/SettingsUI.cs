@@ -1148,6 +1148,123 @@ public sealed class SettingsScrollHost : Grid, IDisposable
 
 }
 
+/// <summary>Vertical scroll viewport with a reserved right track and a TADN-painted scrollbar.</summary>
+public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
+{
+    private readonly Border _contentHost;
+    private readonly ScrollViewer _scrollViewer;
+    private readonly SettingsScrollBar _scrollBar;
+    private double _lastVerticalOffset;
+    private int _disposed;
+
+    public SettingsVerticalScrollViewport(
+        Control content,
+        Thickness padding,
+        Color background,
+        SettingsScrollBarStyle scrollBarStyle,
+        TrayMenuWindowOptions contextMenuOptions)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
+        if (scrollBarStyle.TrackThickness <= 0)
+            throw new ArgumentOutOfRangeException(nameof(scrollBarStyle), "Track thickness must be positive.");
+
+        IBrush backgroundBrush = TrayAppDotNETSettingsUI.Brush(background);
+        Background = backgroundBrush;
+        ClipToBounds = true;
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+        ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        RowDefinitions.Add(new RowDefinition(GridLength.Star));
+
+        _contentHost = new Border
+        {
+            Background = backgroundBrush,
+            Padding = padding,
+            Child = content
+        };
+        _scrollViewer = new ScrollViewer
+        {
+            Background = backgroundBrush,
+            Content = _contentHost,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
+        };
+        _scrollViewer.ScrollChanged += OnScrollViewerScrollChanged;
+        Children.Add(_scrollViewer);
+
+        _scrollBar = new SettingsScrollBar(
+            Orientation.Vertical,
+            scrollBarStyle,
+            TrayAppDotNETCursors.Arrow,
+            contextMenuOptions);
+        _scrollBar.Attach(_scrollViewer);
+        Grid.SetColumn(_scrollBar, 1);
+        Children.Add(_scrollBar);
+    }
+
+    public double VerticalOffset => _scrollViewer.Offset.Y;
+
+    public double ViewportHeight => _scrollViewer.Viewport.Height;
+
+    /// <summary>Raised after wheel, thumb, or programmatic scrolling changes the vertical offset.</summary>
+    public event EventHandler? VerticalOffsetChanged;
+
+    /// <summary>Moves the viewport to a clamped vertical offset.</summary>
+    public void SetVerticalOffset(double offset)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        double maximumOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double nextOffset = maximumOffset <= 0 ? 0 : Math.Clamp(offset, 0, maximumOffset);
+        _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextOffset);
+    }
+
+    /// <summary>Applies new painted-scrollbar visuals without replacing the scroll viewport.</summary>
+    public void SetScrollBarStyle(SettingsScrollBarStyle scrollBarStyle)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _scrollBar.SetStyle(scrollBarStyle);
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
+    {
+        double maximumOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        if (maximumOffset <= 0)
+        {
+            base.OnPointerWheelChanged(eventArgs);
+            return;
+        }
+
+        double nextOffset = Math.Clamp(
+            _scrollViewer.Offset.Y - eventArgs.Delta.Y * SettingsUILayout.ScrollWheelStep,
+            0,
+            maximumOffset);
+        _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextOffset);
+        eventArgs.Handled = true;
+    }
+
+    private void OnScrollViewerScrollChanged(object? sender, ScrollChangedEventArgs eventArgs)
+    {
+        double verticalOffset = _scrollViewer.Offset.Y;
+        if (verticalOffset.Equals(_lastVerticalOffset)) return;
+
+        _lastVerticalOffset = verticalOffset;
+        VerticalOffsetChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
+        TextBlockLayoutLifetime.ReleaseForRetirement(this);
+        _scrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
+        VerticalOffsetChanged = null;
+        _scrollBar.Dispose();
+        _contentHost.Child = null;
+        _scrollViewer.Content = null;
+        Children.Clear();
+    }
+}
+
 /// <summary>Two-axis scroll viewport with reserved tracks and TADN-painted scrollbars.</summary>
 public sealed class SettingsScrollViewport : Grid, IDisposable
 {

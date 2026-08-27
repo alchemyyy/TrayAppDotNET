@@ -27,6 +27,29 @@
   <Thickness x:Key="TaskManagerDetails.TableMargin">0,10,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
 
+  <!-- Reorder dialogs -->
+  <sys:Double x:Key="TaskManagerReorderDialog.TitleBarHeight">40</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.TitleFontSize">13</sys:Double>
+  <Thickness x:Key="TaskManagerReorderDialog.TitleMargin">16,0,8,0</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.HeaderPadding">16,12,16,12</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.SearchMargin">0,0,0,10</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.CheckBoxLabelMargin">8,0,0,0</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.ListPadding">16,0,8,0</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.UnscrolledListMargin">16,0,16,0</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.FooterBorderThickness">0,1,0,0</Thickness>
+  <Thickness x:Key="TaskManagerReorderDialog.FooterPadding">16,12</Thickness>
+  <sys:Double x:Key="TaskManagerReorderDialog.FooterButtonSpacing">8</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.WorkAreaMargin">24</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.ColumnWindowWidth">560</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.ColumnWindowHeight">720</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.ColumnWindowMinHeight">420</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.HeaderWindowWidth">460</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.HeaderWindowHeight">380</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.SearchWidthRatio">0.6666666666666666</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.MoreButtonSize">32</sys:Double>
+  <sys:Double x:Key="TaskManagerReorderDialog.MoreGlyphFontSize">16</sys:Double>
+  <Thickness x:Key="TaskManagerReorderDialog.MoreButtonPadding">0</Thickness>
+
   <!-- Task Manager settings -->
   <Thickness x:Key="TaskManagerSettings.WindowManagementOptionsMargin">0,8,0,0</Thickness>
   <sys:Double x:Key="TaskManagerSettings.WindowManagementOptionSpacing">6</sys:Double>

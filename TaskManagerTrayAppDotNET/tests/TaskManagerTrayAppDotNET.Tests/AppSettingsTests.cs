@@ -24,6 +24,125 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void ProcessHeaderButtonsDefaultToCurrentLeftToRightOrder()
+    {
+        AppSettings settings = new();
+
+        Assert.Equal(
+            [
+                ProcessHeaderButtonKind.RunNewTask,
+                ProcessHeaderButtonKind.Columns,
+                ProcessHeaderButtonKind.EndTask
+            ],
+            settings.ProcessHeaderButtonOrder);
+    }
+
+    [Fact]
+    public void ProcessHeaderButtonNormalizationRemovesInvalidDuplicatesAndAppendsMissingButtons()
+    {
+        List<ProcessHeaderButtonKind> normalized = ProcessHeaderButtonSettings.Normalize(
+        [
+            ProcessHeaderButtonKind.EndTask,
+            (ProcessHeaderButtonKind)int.MaxValue,
+            ProcessHeaderButtonKind.EndTask
+        ]);
+
+        Assert.Equal(
+            [
+                ProcessHeaderButtonKind.EndTask,
+                ProcessHeaderButtonKind.RunNewTask,
+                ProcessHeaderButtonKind.Columns
+            ],
+            normalized);
+    }
+
+    [Fact]
+    public void EquivalentProcessHeaderButtonOrderDoesNotRaiseChangeNotifications()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int propertyChangedCount = 0;
+        int changedCount = 0;
+        settings.PropertyChanged += (_, _) => propertyChangedCount++;
+        settings.Changed += () => changedCount++;
+
+        settings.UpdateProcessHeaderButtonOrder(ProcessHeaderButtonSettings.CreateDefault());
+
+        Assert.Equal(0, propertyChangedCount);
+        Assert.Equal(0, changedCount);
+    }
+
+    [Fact]
+    public void UpdatedProcessHeaderButtonOrderSuppressesGlobalShellChangeNotification()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int propertyChangedCount = 0;
+        int changedCount = 0;
+        settings.PropertyChanged += (_, _) => propertyChangedCount++;
+        settings.Changed += () => changedCount++;
+
+        settings.UpdateProcessHeaderButtonOrder(
+        [
+            ProcessHeaderButtonKind.EndTask,
+            ProcessHeaderButtonKind.Columns,
+            ProcessHeaderButtonKind.RunNewTask
+        ]);
+
+        Assert.Equal(1, propertyChangedCount);
+        Assert.Equal(0, changedCount);
+        Assert.Equal(ProcessHeaderButtonKind.EndTask, settings.ProcessHeaderButtonOrder[0]);
+    }
+
+    [Fact]
+    public void ProcessHeaderButtonOrderRoundTripsThroughSettingsXml()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            AppSettings settings = new() { Autosave = false };
+            settings.ProcessHeaderButtonOrder =
+            [
+                ProcessHeaderButtonKind.EndTask,
+                ProcessHeaderButtonKind.Columns,
+                ProcessHeaderButtonKind.RunNewTask
+            ];
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(settings.ProcessHeaderButtonOrder, loaded.ProcessHeaderButtonOrder);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LegacySettingsWithoutProcessHeaderButtonOrderUseDefaults()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <AppSettings>
+                  <AlwaysOnTop>true</AlwaysOnTop>
+                </AppSettings>
+                """);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(ProcessHeaderButtonSettings.CreateDefault(), loaded.ProcessHeaderButtonOrder);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void TrayGraphSettingsNormalizeAndRoundTripThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

@@ -1,184 +1,139 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Configures Processes-column visibility and ordering.</summary>
-internal sealed class ProcessColumnChooserWindow : Window
+/// <summary>Configures Processes-column visibility and left-to-right ordering.</summary>
+internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<ProcessColumnSetting>
 {
-    private const double WindowWidth = 560;
-    private const double WindowHeight = 720;
-    private const double RowSpacing = 6;
-    private const double ButtonSpacing = 8;
-    private const double ContentPadding = 16;
-
-    private readonly Action<List<ProcessColumnSetting>> _apply;
-    private readonly List<ProcessColumnSetting> _settings;
-    private readonly StackPanel _rows = new() { Spacing = RowSpacing };
+    private const int RedLuminanceWeight = 299;
+    private const int GreenLuminanceWeight = 587;
+    private const int BlueLuminanceWeight = 114;
+    private const int LuminanceDivisor = 1000;
+    private const int LightSurfaceThreshold = 128;
 
     public ProcessColumnChooserWindow(
-        IReadOnlyList<ProcessColumnSetting> settings,
+        AppSettings settings,
+        SettingsPalette palette,
+        TaskManagerWindowResources resources,
         Action<List<ProcessColumnSetting>> apply)
+        : this(
+            ProcessColumnSettings.CloneList(settings?.DetailsColumns),
+            settings ?? throw new ArgumentNullException(nameof(settings)),
+            palette ?? throw new ArgumentNullException(nameof(palette)),
+            resources ?? throw new ArgumentNullException(nameof(resources)),
+            ResolveBackground(palette),
+            apply)
     {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(apply);
-
-        _apply = apply;
-        _settings = ProcessColumnSettings.CloneList(settings);
-        Title = "Select Processes columns";
-        Width = WindowWidth;
-        Height = WindowHeight;
-        MinWidth = WindowWidth;
-        MinHeight = 480;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Content = BuildContent();
-        RebuildRows();
     }
 
-    private Control BuildContent()
+    private ProcessColumnChooserWindow(
+        List<ProcessColumnSetting> items,
+        AppSettings settings,
+        SettingsPalette palette,
+        TaskManagerWindowResources resources,
+        Color background,
+        Action<List<ProcessColumnSetting>> apply)
+        : base(
+            "Select Processes columns",
+            "Choose visible columns and arrange their left-to-right order.",
+            items,
+            GetSearchText,
+            setting => BuildVisibilityCheckBox(setting, palette, resources),
+            ProcessColumnSettings.CreateDefault,
+            orderedItems => apply(ProcessColumnSettings.CloneList(orderedItems)),
+            palette,
+            settings.EnableRoundedCorners,
+            resources,
+            background,
+            resources.AxamlTaskManagerReorderDialog.ColumnWindowWidth,
+            resources.AxamlTaskManagerReorderDialog.ColumnWindowHeight,
+            resources.AxamlTaskManagerReorderDialog.ColumnWindowMinHeight,
+            showSearch: true,
+            searchPlaceholder: "Search columns",
+            CreateScrollBarStyle(resources, background),
+            TaskManagerContextMenuWindow.CreateOptions(
+                palette,
+                settings.EnableRoundedCorners,
+                settings),
+            ToggleVisibility)
     {
-        Grid root = new()
+        ArgumentNullException.ThrowIfNull(palette);
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(apply);
+    }
+
+    private static string GetSearchText(ProcessColumnSetting setting)
+    {
+        ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
+        return string.IsNullOrWhiteSpace(setting.Nickname)
+            ? definition.Title
+            : definition.Title + " " + setting.Nickname;
+    }
+
+    private static Control BuildVisibilityCheckBox(
+        ProcessColumnSetting setting,
+        SettingsPalette palette,
+        TaskManagerWindowResources resources)
+    {
+        ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
+        CheckBox visibility = new()
         {
-            Margin = new Thickness(ContentPadding),
-            RowDefinitions =
+            Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+            IsChecked = setting.Visible,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        visibility.IsCheckedChanged += (_, _) => setting.Visible = visibility.IsChecked == true;
+
+        TextBlock label = TrayAppDotNETSettingsUI.Text(definition.Title, palette);
+        label.IsHitTestVisible = false;
+        label.Margin = resources.AxamlTaskManagerReorderDialog.CheckBoxLabelMargin;
+        label.VerticalAlignment = VerticalAlignment.Center;
+
+        Grid content = new()
+        {
+            Background = Brushes.Transparent,
+            ColumnDefinitions =
             {
-                new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star),
-                new RowDefinition(GridLength.Auto)
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Star)
             }
         };
-
-        TextBlock explanation = new()
-        {
-            Text = "Choose visible columns and arrange their left-to-right order.",
-            Margin = new Thickness(0, 0, 0, ContentPadding)
-        };
-        root.Children.Add(explanation);
-
-        ScrollViewer scrollViewer = new()
-        {
-            Content = _rows,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-        Grid.SetRow(scrollViewer, 1);
-        root.Children.Add(scrollViewer);
-
-        StackPanel buttons = new()
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Spacing = ButtonSpacing,
-            Margin = new Thickness(0, ContentPadding, 0, 0)
-        };
-        Button resetButton = new() { Content = "Reset" };
-        resetButton.Click += OnResetClick;
-        Button cancelButton = new() { Content = "Cancel" };
-        cancelButton.Click += OnCancelClick;
-        Button applyButton = new() { Content = "Apply" };
-        applyButton.Click += OnApplyClick;
-        buttons.Children.Add(resetButton);
-        buttons.Children.Add(cancelButton);
-        buttons.Children.Add(applyButton);
-        Grid.SetRow(buttons, 2);
-        root.Children.Add(buttons);
-        return root;
+        content.Children.Add(visibility);
+        Grid.SetColumn(label, 1);
+        content.Children.Add(label);
+        return content;
     }
 
-    private void RebuildRows()
+    private static void ToggleVisibility(ProcessColumnSetting setting) => setting.Visible = !setting.Visible;
+
+    private static Color ResolveBackground(SettingsPalette palette)
     {
-        _rows.Children.Clear();
-        for (int settingIndex = 0; settingIndex < _settings.Count; settingIndex++)
-        {
-            ProcessColumnSetting setting = _settings[settingIndex];
-            ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
-            Grid row = new()
-            {
-                ColumnDefinitions =
-                {
-                    new ColumnDefinition(GridLength.Star),
-                    new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Auto)
-                }
-            };
-            CheckBox visibility = new()
-            {
-                Content = definition.Title,
-                IsChecked = setting.Visible,
-                VerticalAlignment = VerticalAlignment.Center,
-                Tag = setting
-            };
-            visibility.IsCheckedChanged += OnVisibilityChanged;
-            row.Children.Add(visibility);
-
-            Button upButton = new()
-            {
-                Content = "Up",
-                IsEnabled = settingIndex > 0,
-                Tag = setting,
-                Margin = new Thickness(ButtonSpacing, 0, 0, 0)
-            };
-            upButton.Click += OnMoveUpClick;
-            Grid.SetColumn(upButton, 1);
-            row.Children.Add(upButton);
-
-            Button downButton = new()
-            {
-                Content = "Down",
-                IsEnabled = settingIndex < _settings.Count - 1,
-                Tag = setting,
-                Margin = new Thickness(ButtonSpacing, 0, 0, 0)
-            };
-            downButton.Click += OnMoveDownClick;
-            Grid.SetColumn(downButton, 2);
-            row.Children.Add(downButton);
-            _rows.Children.Add(row);
-        }
+        Color paletteBackground = palette.Background;
+        int luminance = (paletteBackground.R * RedLuminanceWeight
+                         + paletteBackground.G * GreenLuminanceWeight
+                         + paletteBackground.B * BlueLuminanceWeight)
+                        / LuminanceDivisor;
+        return luminance >= LightSurfaceThreshold
+            ? TaskManagerWindowResources.ProcessColumnChooserLightBackgroundColor
+            : TaskManagerWindowResources.ProcessColumnChooserDarkBackgroundColor;
     }
 
-    private void OnVisibilityChanged(object? sender, RoutedEventArgs eventArgs)
-    {
-        if (sender is CheckBox { Tag: ProcessColumnSetting setting } checkBox)
-            setting.Visible = checkBox.IsChecked == true;
-    }
-
-    private void OnMoveUpClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        if (sender is not Button { Tag: ProcessColumnSetting setting }) return;
-        int index = _settings.IndexOf(setting);
-        if (index <= 0) return;
-
-        _settings.RemoveAt(index);
-        _settings.Insert(index - 1, setting);
-        RebuildRows();
-    }
-
-    private void OnMoveDownClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        if (sender is not Button { Tag: ProcessColumnSetting setting }) return;
-        int index = _settings.IndexOf(setting);
-        if (index < 0 || index >= _settings.Count - 1) return;
-
-        _settings.RemoveAt(index);
-        _settings.Insert(index + 1, setting);
-        RebuildRows();
-    }
-
-    private void OnResetClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        _settings.Clear();
-        _settings.AddRange(ProcessColumnSettings.CreateDefault());
-        RebuildRows();
-    }
-
-    private void OnCancelClick(object? sender, RoutedEventArgs eventArgs) => Close();
-
-    private void OnApplyClick(object? sender, RoutedEventArgs eventArgs)
-    {
-        _apply(ProcessColumnSettings.CloneList(_settings));
-        Close();
-    }
+    private static SettingsScrollBarStyle CreateScrollBarStyle(
+        TaskManagerWindowResources resources,
+        Color background) =>
+        new(
+            resources.AxamlProcessTable.ScrollBarTrackThickness,
+            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
+            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
+            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
+            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
+            background,
+            TaskManagerWindowResources.ProcessGridScrollThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            ShowButtonsOnHover: true);
 }
