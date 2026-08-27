@@ -94,6 +94,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             getSearchText,
             buildPrimaryContent,
             palette,
+            enableRoundedCorners,
             activateItem);
 
         _searchBox = showSearch

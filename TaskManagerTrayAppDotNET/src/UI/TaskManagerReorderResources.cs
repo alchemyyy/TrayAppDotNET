@@ -10,6 +10,8 @@ public sealed partial class TaskManagerReorderResources : ResourceDictionary
     private const string DragThresholdKey = "TaskManagerReorder.DragThreshold";
     private const string RowMinHeightKey = "TaskManagerReorder.RowMinHeight";
     private const string RowHitSlotPaddingKey = "TaskManagerReorder.RowHitSlotPadding";
+    private const string RowCornerRadiusKey = "TaskManagerReorder.RowCornerRadius";
+    private const string RowHighlightPaddingKey = "TaskManagerReorder.RowHighlightPadding";
     private const string PrimaryContentMarginKey = "TaskManagerReorder.PrimaryContentMargin";
     private const string DraggingOpacityKey = "TaskManagerReorder.DraggingOpacity";
     private const string AutoScrollEdgeSizeKey = "TaskManagerReorder.AutoScrollEdgeSize";
@@ -84,6 +86,8 @@ public sealed partial class TaskManagerReorderResources : ResourceDictionary
     internal double DragThreshold => Get<double>(DragThresholdKey);
     internal double RowMinHeight => Get<double>(RowMinHeightKey);
     internal Thickness RowHitSlotPadding => Get<Thickness>(RowHitSlotPaddingKey);
+    internal CornerRadius RowCornerRadius => Get<CornerRadius>(RowCornerRadiusKey);
+    internal Thickness RowHighlightPadding => Get<Thickness>(RowHighlightPaddingKey);
     internal Thickness PrimaryContentMargin => Get<Thickness>(PrimaryContentMarginKey);
     internal double DraggingOpacity => Get<double>(DraggingOpacityKey);
     internal double AutoScrollEdgeSize => Get<double>(AutoScrollEdgeSizeKey);

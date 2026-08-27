@@ -96,6 +96,32 @@ public sealed class TaskManagerReorderListLogicTests
         Assert.Equal(expectedTargetIndex, targetIndex);
     }
 
+    [Theory]
+    [InlineData(0, 2, 0, 35, 0)]
+    [InlineData(0, 2, 1, 35, -35)]
+    [InlineData(0, 2, 2, 35, -35)]
+    [InlineData(0, 2, 3, 35, 0)]
+    [InlineData(2, 0, 0, 35, 35)]
+    [InlineData(2, 0, 1, 35, 35)]
+    [InlineData(2, 0, 2, 35, 0)]
+    [InlineData(2, 0, 3, 35, 0)]
+    [InlineData(1, 1, 0, 35, 0)]
+    public void ResolvePreviewOffsetMovesOnlyDisplacedSiblings(
+        int sourceIndex,
+        int targetIndex,
+        int rowIndex,
+        double displacement,
+        double expectedOffset)
+    {
+        double offset = TaskManagerReorderListLogic.ResolvePreviewOffset(
+            rowIndex,
+            sourceIndex,
+            targetIndex,
+            displacement);
+
+        Assert.Equal(expectedOffset, offset);
+    }
+
     private sealed class ReorderItem(string name)
     {
         public string Name { get; } = name;

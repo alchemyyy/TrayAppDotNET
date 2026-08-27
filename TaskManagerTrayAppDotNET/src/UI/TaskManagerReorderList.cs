@@ -2,6 +2,7 @@ using System.Collections;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -23,6 +24,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     private readonly Func<TItem, string> _getSearchText;
     private readonly Func<TItem, Control> _buildPrimaryContent;
     private readonly SettingsPalette _palette;
+    private readonly bool _enableRoundedCorners;
     private readonly Action<TItem>? _activateItem;
     private readonly StackPanel _rows;
     private readonly DispatcherTimer _autoScrollTimer;
@@ -43,6 +45,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     private bool _isResettingCapture;
     private SettingsVerticalScrollViewport? _scrollViewport;
     private double _lastViewportOffset;
+    private TItem? _selectedItem;
     private int _disposed;
 
     public TaskManagerReorderList(
@@ -50,6 +53,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         Func<TItem, string> getSearchText,
         Func<TItem, Control> buildPrimaryContent,
         SettingsPalette palette,
+        bool enableRoundedCorners,
         Action<TItem>? activateItem = null)
     {
         ArgumentNullException.ThrowIfNull(items);
@@ -64,6 +68,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _getSearchText = getSearchText;
         _buildPrimaryContent = buildPrimaryContent;
         _palette = palette;
+        _enableRoundedCorners = enableRoundedCorners;
         _activateItem = activateItem;
         _rows = new StackPanel
         {
@@ -127,6 +132,12 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
 
     private void RebuildRows()
     {
+        if (_selectedItem != null
+            && TaskManagerReorderListLogic.IndexOfReference(_readOnlyItems, _selectedItem) < 0)
+        {
+            _selectedItem = null;
+        }
+
         List<TItem> visibleItems = TaskManagerReorderListLogic.FilterItems(
             _items,
             _filter,
@@ -202,19 +213,36 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         Grid.SetColumn(buttons, 1);
         rowContent.Children.Add(buttons);
 
+        Border highlightSurface = new()
+        {
+            Background = Brushes.Transparent,
+            CornerRadius = _enableRoundedCorners ? resources.RowCornerRadius : default,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = resources.RowHighlightPadding,
+            Child = rowContent
+        };
+
         Border slot = new()
         {
             Background = Brushes.Transparent,
             Cursor = TrayAppDotNETCursors.Hand,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = isLast ? default : resources.RowHitSlotPadding,
-            Child = rowContent
+            Child = highlightSurface
         };
-        slot.PointerPressed += (_, eventArgs) => OnRowPointerPressed(item, slot, eventArgs);
+        ReorderRow row = new(item, slot, highlightSurface);
+        slot.PointerEntered += (_, _) => OnRowPointerEntered(row);
+        slot.PointerExited += (_, _) => OnRowPointerExited(row);
+        slot.AddHandler(
+            InputElement.PointerPressedEvent,
+            (_, eventArgs) => OnRowPointerPressed(item, slot, eventArgs),
+            RoutingStrategies.Tunnel,
+            handledEventsToo: true);
         slot.PointerMoved += (_, eventArgs) => OnRowPointerMoved(slot, eventArgs);
         slot.PointerReleased += (_, eventArgs) => OnRowPointerReleased(slot, eventArgs);
         slot.PointerCaptureLost += (_, eventArgs) => OnRowPointerCaptureLost(slot, eventArgs);
-        return new ReorderRow(item, slot);
+        UpdateRowHighlight(row);
+        return row;
     }
 
     private SettingsButton BuildMoveButton(
@@ -241,6 +269,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     {
         if (Volatile.Read(ref _disposed) != 0 || direction == 0) return;
 
+        SelectItem(item);
         int sourceVisibleIndex = TaskManagerReorderListLogic.IndexOfReference(_visibleItems, item);
         if (sourceVisibleIndex < 0) return;
 
@@ -258,6 +287,37 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         OrderChanged?.Invoke();
     }
 
+    private void OnRowPointerEntered(ReorderRow row)
+    {
+        row.IsPointerOver = true;
+        UpdateRowHighlight(row);
+    }
+
+    private void OnRowPointerExited(ReorderRow row)
+    {
+        row.IsPointerOver = false;
+        UpdateRowHighlight(row);
+    }
+
+    private void SelectItem(TItem item)
+    {
+        if (ReferenceEquals(_selectedItem, item)) return;
+
+        _selectedItem = item;
+        foreach (ReorderRow row in _visibleRows)
+            UpdateRowHighlight(row);
+    }
+
+    private void UpdateRowHighlight(ReorderRow row)
+    {
+        Color background = ReferenceEquals(row.Item, _selectedItem)
+            ? _palette.SearchListItemSelected
+            : row.IsPointerOver
+                ? _palette.SearchListItemHover
+                : Colors.Transparent;
+        row.HighlightSurface.Background = TrayAppDotNETSettingsUI.Brush(background);
+    }
+
     private void OnRowPointerPressed(
         TItem item,
         Border slot,
@@ -265,6 +325,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     {
         if (Volatile.Read(ref _disposed) != 0) return;
         if (!eventArgs.GetCurrentPoint(slot).Properties.IsLeftButtonPressed) return;
+        SelectItem(item);
         if (IsInteractiveDescendant(eventArgs.Source as Visual, slot)) return;
         if (_capturedPointer != null)
         {
@@ -446,9 +507,42 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _dropInsertionIndex = CalculateInsertionIndex(
             _dragMidpoints,
             DraggedRowMidpoint(pointerPosition.Y));
+        ApplyDragPreview();
         draggedSlot.RenderTransform = new TranslateTransform(
             0,
             pointerPosition.Y - _dragStart.Y);
+    }
+
+    private void ApplyDragPreview()
+    {
+        TItem? draggedItem = _draggedItem;
+        Border? draggedSlot = _draggedSlot;
+        if (!_isDragging || draggedItem == null || draggedSlot == null) return;
+
+        int sourceVisibleIndex = TaskManagerReorderListLogic.IndexOfReference(
+            _visibleItems,
+            draggedItem);
+        if (sourceVisibleIndex < 0) return;
+
+        int targetVisibleIndex = TaskManagerReorderListLogic.ResolveDropTargetIndex(
+            sourceVisibleIndex,
+            _dropInsertionIndex,
+            _visibleRows.Count);
+        double displacement = Math.Max(1, draggedSlot.Bounds.Height);
+        for (int rowIndex = 0; rowIndex < _visibleRows.Count; rowIndex++)
+        {
+            Border slot = _visibleRows[rowIndex].Slot;
+            if (ReferenceEquals(slot, draggedSlot)) continue;
+
+            double offset = TaskManagerReorderListLogic.ResolvePreviewOffset(
+                rowIndex,
+                sourceVisibleIndex,
+                targetVisibleIndex,
+                displacement);
+            slot.RenderTransform = offset.Equals(0)
+                ? null
+                : new TranslateTransform(0, offset);
+        }
     }
 
     private void UpdateAutoScrollDirection(PointerEventArgs eventArgs)
@@ -548,6 +642,11 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         Border? draggedSlot = _draggedSlot;
         if (draggedSlot == null) return;
 
+        foreach (ReorderRow row in _visibleRows)
+        {
+            if (!ReferenceEquals(row.Slot, draggedSlot))
+                row.Slot.RenderTransform = null;
+        }
         draggedSlot.RenderTransform = null;
         ApplyDraggingVisual(draggedSlot, false);
     }
@@ -618,10 +717,12 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         OrderChanged = null;
     }
 
-    private sealed class ReorderRow(TItem item, Border slot)
+    private sealed class ReorderRow(TItem item, Border slot, Border highlightSurface)
     {
         public TItem Item { get; } = item;
         public Border Slot { get; } = slot;
+        public Border HighlightSurface { get; } = highlightSurface;
+        public bool IsPointerOver { get; set; }
     }
 
     private sealed class ReadOnlyListView(IList<TItem> items) : IReadOnlyList<TItem>
@@ -723,6 +824,20 @@ internal static class TaskManagerReorderListLogic
             ? clampedInsertionIndex - 1
             : clampedInsertionIndex;
         return Math.Clamp(targetVisibleIndex, 0, visibleCount - 1);
+    }
+
+    /// <summary>Resolves one sibling row's vertical displacement for a reorder preview.</summary>
+    internal static double ResolvePreviewOffset(
+        int rowIndex,
+        int sourceIndex,
+        int targetIndex,
+        double displacement)
+    {
+        if (displacement <= 0 || rowIndex == sourceIndex || sourceIndex == targetIndex) return 0;
+        if (targetIndex < sourceIndex)
+            return rowIndex >= targetIndex && rowIndex < sourceIndex ? displacement : 0;
+
+        return rowIndex > sourceIndex && rowIndex <= targetIndex ? -displacement : 0;
     }
 
     /// <summary>Finds an item by object identity rather than value equality.</summary>
