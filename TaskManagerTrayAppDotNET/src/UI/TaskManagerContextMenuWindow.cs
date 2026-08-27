@@ -1,3 +1,5 @@
+using Avalonia.Media;
+
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Hosts Task Manager content context menus without changing the app's tray-menu visuals.</summary>
@@ -25,9 +27,9 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
         {
             Palette = palette,
             Rounded = enableRoundedCorners,
-            FontSize = resources.ItemFontSize,
-            FontWeight = resources.ItemFontWeight,
-            ItemHeight = resources.ItemHeight,
+            FontSize = resources.AxamlTaskManagerContextMenu.FontSize,
+            FontWeight = (FontWeight)resources.AxamlTaskManagerContextMenu.FontWeight,
+            ItemHeight = resources.AxamlTaskManagerContextMenu.ItemHeight,
             TrayMenuSettings = trayMenuSettings
         };
     }

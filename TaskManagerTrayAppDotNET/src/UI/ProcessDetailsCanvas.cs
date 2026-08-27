@@ -70,7 +70,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
 
     private readonly ProcessIconService _processIconService;
-    private readonly ProcessDataSchema _schema;
+    private ProcessDataSchema _schema;
     private readonly TaskManagerWindowResources _resources;
     private readonly Typeface _tableTypeface;
     private readonly ProcessTableRenderLayer _staticRowsLayer;
@@ -110,6 +110,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private double _sortCaretRightMargin;
     private readonly long _totalPhysicalMemoryBytes;
     private readonly Action _refreshWarmDynamicDrawings;
+    private readonly ProcessSearchValueResolver _resolveSearchValue;
     private readonly ProcessTableColumn[]? _liveResizeColumns;
     private readonly TextUnderlineSegment[] _textUnderlineSegments;
     private readonly string?[] _contextCopyValuesByColumn;
@@ -135,13 +136,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private int _visibleRowCount;
     private int _cacheGeneration;
     private int _gridMetricsGeneration = 1;
-    private int _filterProcessID = -1;
     private int _retainedFirstVisibleIndex = -1;
     private int _retainedLastVisibleIndexExclusive = -1;
     private int _warmRefreshCursor;
     private int _warmRefreshEnd;
     private long _snapshotVersion = -1;
     private string _filterText = string.Empty;
+    private ProcessSearchQuery _filterQuery;
     private string _unavailableText;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
     private ProcessInstanceKey? _selectedProcess;
@@ -202,6 +203,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _axamlRowHeight = resources.AxamlProcessTable.RowHeight;
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
+        _filterQuery = ProcessSearchQuery.Parse(null, _columnSettings);
+        _resolveSearchValue = GetSearchColumnValue;
         _columns = CreateColumns(_columnSettings);
         _hasDynamicColumns = ContainsLifetime(_columns, ProcessTableColumnLifetime.Dynamic);
         _enableLiveColumnResizing = enableLiveColumnResizing;
@@ -341,9 +344,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
         _filterText = nextFilter;
-        _filterProcessID = int.TryParse(nextFilter, NumberStyles.None, CultureInfo.InvariantCulture, out int processID)
-            ? processID
-            : -1;
+        _filterQuery = ProcessSearchQuery.Parse(nextFilter, _columnSettings);
+        ProcessDataSchema nextSchema = ProcessDataSchema.Create(
+            _columnSettings,
+            _filterQuery.RequiredColumnMask);
+        if (ApplySearchSchema(nextSchema)) return;
+
         RebuildVisibleRows();
         PublishWarmProcesses();
         UpdateRetainedDrawings();
@@ -351,6 +357,41 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         RebuildCopyPreview();
         InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
+    }
+
+    private bool ApplySearchSchema(ProcessDataSchema schema)
+    {
+        if (_schema.VisibleMask == schema.VisibleMask) return false;
+
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            ReleaseRenderCache(cache);
+        _renderCaches.Clear();
+        foreach (SharedCellDrawing sharedCell in _sharedCellDrawings.Values)
+            sharedCell.Dispose();
+        _sharedCellDrawings.Clear();
+
+        _schema = schema;
+        _rowComparer.SetSchema(schema);
+        _snapshot.Reset();
+        _snapshotVersion = -1;
+        _rowCount = 0;
+        _visibleRowCount = 0;
+        _cacheGeneration = 0;
+        _retainedFirstVisibleIndex = -1;
+        _retainedLastVisibleIndexExclusive = -1;
+        _warmRefreshCursor = 0;
+        _warmRefreshEnd = 0;
+        _rowIndexByProcessID.Clear();
+        Array.Clear(_contextCopyValuesByColumn);
+
+        _snapshotService?.SetActiveSchema(schema);
+        PublishWarmProcesses();
+        UpdateSelectionOverlay();
+        RebuildCopyPreview();
+        InvalidateMeasure();
+        PublishRowHoverGeometry();
+        InvalidateLayers(RenderLayerMask.All);
+        return true;
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -2007,6 +2048,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 case ProcessTableColumnKind.CPUTime:
                     hash.Add(value / TimeSpan.TicksPerSecond);
                     break;
+                case ProcessTableColumnKind.Lifetime:
+                    hash.Add(value < 0 ? ProcessLifetime.UnavailableTicks : value / TimeSpan.TicksPerSecond);
+                    break;
                 case ProcessTableColumnKind.WorkingSet:
                 case ProcessTableColumnKind.PeakWorkingSet:
                 case ProcessTableColumnKind.ActivePrivateWorkingSet:
@@ -2037,6 +2081,87 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessTableColumnCatalog.Get(kind).Lifetime == ProcessTableColumnLifetime.Static
             ? GetStaticDisplayValue(rowIndex, kind)
             : GetDynamicDisplayValue(rowIndex, kind);
+
+    private ProcessSearchColumnValue GetSearchColumnValue(
+        int rowIndex,
+        ProcessTableColumnKind kind)
+    {
+        string displayText = GetCellDisplayValue(rowIndex, kind);
+        if (ProcessTableColumnCatalog.Get(kind).Lifetime == ProcessTableColumnLifetime.Static)
+        {
+            ProcessStaticData row = _snapshot.StaticRows[rowIndex]
+                ?? throw new InvalidOperationException("A published process row is missing static data.");
+            return kind switch
+            {
+                ProcessTableColumnKind.ProcessID => ProcessSearchColumnValue.Numeric(displayText, row.ProcessID),
+                ProcessTableColumnKind.SessionID => CreateSignedSearchValue(
+                    displayText,
+                    row.NumericValues[_schema.GetStaticNumericSlot(kind)],
+                    false),
+                _ => ProcessSearchColumnValue.TextOnly(displayText)
+            };
+        }
+
+        if (ProcessDataSchema.StoresText(kind))
+            return ProcessSearchColumnValue.TextOnly(displayText);
+
+        long numericValue = _snapshot.GetDynamicNumeric(rowIndex, kind);
+        return kind switch
+        {
+            ProcessTableColumnKind.Status
+                or ProcessTableColumnKind.UACVirtualization
+                or ProcessTableColumnKind.IOPriority
+                or ProcessTableColumnKind.PowerThrottling
+                or ProcessTableColumnKind.DPIAwareness => ProcessSearchColumnValue.TextOnly(displayText),
+            ProcessTableColumnKind.CPU
+                or ProcessTableColumnKind.GPU
+                or ProcessTableColumnKind.NPU
+                or ProcessTableColumnKind.CPUUtility => CreatePercentageSearchValue(displayText, numericValue),
+            ProcessTableColumnKind.CPUTime
+                or ProcessTableColumnKind.Lifetime
+                or ProcessTableColumnKind.JobObjectID => CreateSignedSearchValue(
+                    displayText,
+                    numericValue,
+                    false),
+            ProcessTableColumnKind.Cycle
+                or ProcessTableColumnKind.PageFaults
+                or ProcessTableColumnKind.Handles
+                or ProcessTableColumnKind.Threads
+                or ProcessTableColumnKind.UserObjects
+                or ProcessTableColumnKind.GDIObjects
+                or ProcessTableColumnKind.IOReads
+                or ProcessTableColumnKind.IOWrites
+                or ProcessTableColumnKind.IOOther
+                or ProcessTableColumnKind.IOReadBytes
+                or ProcessTableColumnKind.IOWriteBytes
+                or ProcessTableColumnKind.IOOtherBytes => ProcessSearchColumnValue.Numeric(
+                    displayText,
+                    unchecked((ulong)numericValue)),
+            ProcessTableColumnKind.WorkingSetDelta
+                or ProcessTableColumnKind.PageFaultDelta
+                or ProcessTableColumnKind.BasePriority => CreateSignedSearchValue(
+                    displayText,
+                    numericValue,
+                    true),
+            _ => CreateSignedSearchValue(displayText, numericValue, false)
+        };
+    }
+
+    private static ProcessSearchColumnValue CreatePercentageSearchValue(string displayText, long value)
+    {
+        double percentage = BitConverter.Int64BitsToDouble(value);
+        return double.IsFinite(percentage) && percentage >= 0
+            ? ProcessSearchColumnValue.Numeric(displayText, percentage)
+            : ProcessSearchColumnValue.TextOnly(displayText);
+    }
+
+    private static ProcessSearchColumnValue CreateSignedSearchValue(
+        string displayText,
+        long value,
+        bool allowsNegative) =>
+        allowsNegative || value >= 0
+            ? ProcessSearchColumnValue.Numeric(displayText, value)
+            : ProcessSearchColumnValue.TextOnly(displayText);
 
     private string GetStaticDisplayValue(int rowIndex, ProcessTableColumnKind kind)
     {
@@ -2097,6 +2222,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessTableColumnKind.JobObjectID => FormatJobObjectID(value),
             ProcessTableColumnKind.CPU => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
             ProcessTableColumnKind.CPUTime => FormatCPUTime(value),
+            ProcessTableColumnKind.Lifetime => value < 0
+                ? _unavailableText
+                : ProcessLifetime.Format(value),
             ProcessTableColumnKind.Cycle => FormatUnsigned(value),
             ProcessTableColumnKind.WorkingSet => FormatMemory(value, setting, false),
             ProcessTableColumnKind.PeakWorkingSet => FormatMemory(value, setting, false),
@@ -2308,7 +2436,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (_snapshotService == null) return;
 
         bool sampleEveryProcess = ProcessTableColumnCatalog.Get(_sortColumn).Lifetime
-                                  == ProcessTableColumnLifetime.Dynamic;
+                                  == ProcessTableColumnLifetime.Dynamic
+                                  || _filterQuery.RequiresAllProcessSamples;
         if (sampleEveryProcess)
         {
             _snapshotService.SetWarmProcesses(_schema.VisibleMask, _warmProcessIDs, 0, true);
@@ -2372,6 +2501,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
+        _filterQuery = ProcessSearchQuery.Parse(_filterText, normalized);
+        ApplySearchSchema(ProcessDataSchema.Create(normalized, _filterQuery.RequiredColumnMask));
         ApplyDisplayColumnLayout(columns);
         ColumnLayoutChanged?.Invoke(normalized);
     }
@@ -2519,7 +2650,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
         {
             ProcessStaticData? row = _snapshot.StaticRows[rowIndex];
-            if (row == null || !MatchesFilter(row)) continue;
+            if (row == null || !MatchesFilter(rowIndex)) continue;
             _visibleRowIndexes[writeIndex] = rowIndex;
             writeIndex++;
         }
@@ -2533,12 +2664,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         PublishRowHoverGeometry();
     }
 
-    private bool MatchesFilter(ProcessStaticData row)
+    private bool MatchesFilter(int rowIndex)
     {
-        if (_filterText.Length == 0) return true;
-        if (_filterProcessID >= 0 && row.ProcessID == _filterProcessID) return true;
-        if (row.Image.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase)) return true;
-        return row.UserName.Contains(_filterText, StringComparison.OrdinalIgnoreCase);
+        if (_filterQuery.IsEmpty) return true;
+        return _filterQuery.Matches(rowIndex, _resolveSearchValue);
     }
 
     private void SortVisibleRows()
@@ -2840,6 +2969,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             resources.AxamlProcessTable.StatusColumnWidth,
             resources.AxamlProcessTable.UserNameColumnWidth,
             resources.AxamlProcessTable.CPUColumnWidth,
+            resources.AxamlProcessTable.LifetimeColumnWidth,
             resources.AxamlProcessTable.PrivateMemoryColumnWidth,
             resources.AxamlProcessTable.WorkingSetColumnWidth,
             resources.AxamlProcessTable.CommandLineColumnWidth);
@@ -3187,6 +3317,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double Status,
         double UserName,
         double CPU,
+        double Lifetime,
         double PrivateMemory,
         double WorkingSet,
         double CommandLine)
@@ -3200,6 +3331,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 ProcessTableColumnKind.Status => Status,
                 ProcessTableColumnKind.UserName => UserName,
                 ProcessTableColumnKind.CPU => CPU,
+                ProcessTableColumnKind.Lifetime => Lifetime,
                 ProcessTableColumnKind.PrivateMemory => PrivateMemory,
                 ProcessTableColumnKind.WorkingSet or ProcessTableColumnKind.SharedWorkingSet => WorkingSet,
                 ProcessTableColumnKind.CommandLine => CommandLine,
@@ -3272,9 +3404,17 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessSnapshotBuffer snapshot,
         ProcessDataSchema schema) : IComparer<int>
     {
+        private ProcessDataSchema _schema = schema;
+
         public ProcessTableColumnKind Column { get; set; }
         public bool IsDescending { get; set; }
         public bool ShowUserNamePrefix { get; set; }
+
+        public void SetSchema(ProcessDataSchema nextSchema)
+        {
+            ArgumentNullException.ThrowIfNull(nextSchema);
+            _schema = nextSchema;
+        }
 
         public int Compare(int leftIndex, int rightIndex)
         {
@@ -3324,7 +3464,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 string rightText;
                 if (definition.Lifetime == ProcessTableColumnLifetime.Static)
                 {
-                    int slot = schema.GetStaticTextSlot(column);
+                    int slot = _schema.GetStaticTextSlot(column);
                     leftText = left.TextValues[slot] ?? string.Empty;
                     rightText = right.TextValues[slot] ?? string.Empty;
                 }
@@ -3341,7 +3481,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             long rightValue;
             if (definition.Lifetime == ProcessTableColumnLifetime.Static)
             {
-                int slot = schema.GetStaticNumericSlot(column);
+                int slot = _schema.GetStaticNumericSlot(column);
                 leftValue = left.NumericValues[slot];
                 rightValue = right.NumericValues[slot];
             }

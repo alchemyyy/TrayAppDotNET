@@ -27,6 +27,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private readonly ProcessDetailsCanvas _processCanvas;
     private readonly ProcessRowContextMenuController _rowContextMenuController;
     private readonly TextBox _searchBox;
+    private readonly Grid _searchOverlay;
+    private readonly ProcessSearchAutocompleteController _searchAutocomplete;
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
     private readonly SettingsButton _runTaskButton;
@@ -71,7 +73,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _confirmEndTask = confirmEndTask;
         _reportMessage = reportMessage;
         _startProcess = startProcess;
-        ProcessDataSchema schema = ProcessDataSchema.Create(settings.DetailsColumns);
+        ProcessDataSchema schema = ProcessDataSchema.Create(
+            settings.DetailsColumns,
+            ProcessTableColumnKind.Name);
         _snapshotService.SetActiveSchema(schema);
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
@@ -134,11 +138,24 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
-        _searchBox.PlaceholderText = "Type a name, user, or PID to search";
+        _searchBox.PlaceholderText = "Search name/PID or enter an expression";
         _searchBox.HorizontalAlignment = HorizontalAlignment.Center;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         _searchBox.TextChanged += OnSearchTextChanged;
+        TrayAppDotNETToolTip.SetTip(
+            _searchBox,
+            "Name/PID contains search is the default. Expressions support =, !=, <, <=, >, >=, &&, and ||.\n"
+            + "Regex uses =~ or !~. Example: {Name}=~\"^(chrome|firefox)\\.exe$\".\n"
+            + "Lifetime example: {Lifetime}>=1h&&{Lifetime}<2h. Type { and press Tab to complete a column.");
+        _searchAutocomplete = new ProcessSearchAutocompleteController(
+            _searchBox,
+            settings.DetailsColumns,
+            palette,
+            settings.EnableRoundedCorners);
+        _searchOverlay = new Grid();
+        _searchOverlay.Children.Add(_searchBox);
+        _searchOverlay.Children.Add(_searchAutocomplete.Popup);
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -201,7 +218,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     }
 
     /// <summary>Gets the search box rendered by the full-window page overlay.</summary>
-    internal override Control? PageOverlay => _searchBox;
+    internal override Control? PageOverlay => _searchOverlay;
 
     private StackPanel BuildGroupProcessesHeaderControl(
         SettingsPalette palette,
@@ -407,8 +424,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             _columnPropertyWindows.Remove(closedColumn.Value);
     }
 
-    private void OnColumnLayoutChanged(List<ProcessColumnSetting> settings) =>
+    private void OnColumnLayoutChanged(List<ProcessColumnSetting> settings)
+    {
         _settings.UpdateDetailsColumnLayout(settings);
+        _searchAutocomplete.SetColumnSettings(settings);
+    }
 
     private void OnMoreActionsClick(object? sender, EventArgs eventArgs) => ShowHeaderActionsMenu();
 
@@ -644,6 +664,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
         _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;
         _searchBox.TextChanged -= OnSearchTextChanged;
+        _searchAutocomplete.Dispose();
         _runInput.KeyDown -= OnRunInputKeyDown;
         _runTaskButton.Click -= OnRunTaskClick;
         _columnsButton.Click -= OnColumnsClick;

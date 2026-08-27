@@ -2,7 +2,7 @@ using TaskManagerTrayAppDotNET.UI;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
-/// <summary>Compact storage map containing only the currently visible Processes columns.</summary>
+/// <summary>Compact storage map containing visible columns plus active search columns.</summary>
 internal sealed class ProcessDataSchema
 {
     private readonly int[] _staticNumericSlots;
@@ -46,16 +46,40 @@ internal sealed class ProcessDataSchema
     public int GetDynamicNumericSlot(ProcessTableColumnKind column) => _dynamicNumericSlots[(int)column];
     public int GetDynamicTextSlot(ProcessTableColumnKind column) => _dynamicTextSlots[(int)column];
 
-    public static ProcessDataSchema Create(IReadOnlyList<ProcessColumnSetting> settings)
+    public static ProcessDataSchema Create(
+        IReadOnlyList<ProcessColumnSetting> settings,
+        ProcessTableColumnKind? additionalColumn = null)
+    {
+        ulong additionalColumnsMask = 0;
+        if (additionalColumn.HasValue)
+        {
+            if (!Enum.IsDefined(additionalColumn.Value))
+                throw new ArgumentOutOfRangeException(nameof(additionalColumn));
+            additionalColumnsMask = ProcessTableColumnCatalog.GetMask(additionalColumn.Value);
+        }
+
+        return Create(settings, additionalColumnsMask);
+    }
+
+    /// <summary>Creates storage for visible columns and every column required by the active search.</summary>
+    public static ProcessDataSchema Create(
+        IReadOnlyList<ProcessColumnSetting> settings,
+        ulong additionalColumnsMask)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
         int columnCount = ProcessTableColumnCatalog.Definitions.Length;
+        ulong knownColumnsMask = columnCount == sizeof(ulong) * 8
+            ? ulong.MaxValue
+            : (1UL << columnCount) - 1;
+        if ((additionalColumnsMask & ~knownColumnsMask) != 0)
+            throw new ArgumentOutOfRangeException(nameof(additionalColumnsMask));
+
         int[] staticNumericSlots = CreateEmptySlots(columnCount);
         int[] staticTextSlots = CreateEmptySlots(columnCount);
         int[] dynamicNumericSlots = CreateEmptySlots(columnCount);
         int[] dynamicTextSlots = CreateEmptySlots(columnCount);
-        ulong visibleMask = ProcessTableColumnCatalog.CreateVisibleMask(settings);
+        ulong visibleMask = ProcessTableColumnCatalog.CreateVisibleMask(settings) | additionalColumnsMask;
         int staticNumericCount = 0;
         int staticTextCount = 0;
         int dynamicNumericCount = 0;

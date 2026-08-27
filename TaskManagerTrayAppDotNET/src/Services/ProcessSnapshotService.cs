@@ -119,7 +119,7 @@ internal sealed class ProcessSnapshotService : IDisposable
 
     public event Action? SnapshotAvailable;
 
-    /// <summary>Replaces the active storage schema; hidden columns are discarded on the next sample.</summary>
+    /// <summary>Replaces the active storage schema; inactive columns are discarded on the next sample.</summary>
     public void SetActiveSchema(ProcessDataSchema schema)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
@@ -225,6 +225,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private void RefreshCore()
     {
         long sampleTimestamp = Stopwatch.GetTimestamp();
+        long sampleTimeTicks = DateTime.UtcNow.ToFileTimeUtc();
         SystemPerformanceSample systemPerformanceSample = _systemPerformanceSampler.Sample();
         CopySamplingPolicy(
             out ProcessDataSchema schema,
@@ -252,12 +253,14 @@ internal sealed class ProcessSnapshotService : IDisposable
                 warmProcessCount,
                 sampleEveryProcess,
                 sampleTimestamp,
+                sampleTimeTicks,
                 generation)
             : RefreshFromProcessObjects(
                 schema,
                 warmProcessCount,
                 sampleEveryProcess,
                 sampleTimestamp,
+                sampleTimeTicks,
                 generation);
 
         _stagingBuffer.CompleteWrite(count);
@@ -270,6 +273,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         int warmProcessCount,
         bool sampleEveryProcess,
         long sampleTimestamp,
+        long sampleTimeTicks,
         int generation)
     {
         int requestedCapacity = Math.Min(_systemProcessData.Count, MaximumProcessCount);
@@ -292,6 +296,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     warmProcessCount,
                     sampleEveryProcess,
                     sampleTimestamp,
+                    sampleTimeTicks,
                     generation,
                     count))
             {
@@ -307,6 +312,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         int warmProcessCount,
         bool sampleEveryProcess,
         long sampleTimestamp,
+        long sampleTimeTicks,
         int generation)
     {
         Process[] processes = Process.GetProcesses();
@@ -337,6 +343,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                         warmProcessCount,
                         sampleEveryProcess,
                         sampleTimestamp,
+                        sampleTimeTicks,
                         generation,
                         count))
                 {
@@ -362,6 +369,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         int warmProcessCount,
         bool sampleEveryProcess,
         long sampleTimestamp,
+        long sampleTimeTicks,
         int generation,
         int rowIndex)
     {
@@ -394,7 +402,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 process,
                 processHandle,
                 processID,
-                sampleTimestamp,
+                sampleTimeTicks,
                 hasSystemProcessData,
                 systemProcessData,
                 schema,
@@ -408,6 +416,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     hasSystemProcessData,
                     systemProcessData,
                     sampleTimestamp,
+                    sampleTimeTicks,
                     schema,
                     isWarm);
             }
@@ -496,7 +505,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         Process? process,
         IntPtr processHandle,
         int processID,
-        long sampleTimestamp,
+        long sampleTimeTicks,
         bool hasSystemProcessData,
         SystemProcessData systemProcessData,
         ProcessDataSchema schema,
@@ -505,7 +514,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool hadHistory = _history.TryGetValue(processID, out ProcessHistoryEntry? history);
         long fallbackCreationTime = hadHistory
             ? history!.StaticData.InstanceKey.CreationTimeTicks
-            : sampleTimestamp;
+            : sampleTimeTicks;
         long creationTime = hasSystemProcessData
             ? systemProcessData.CreationTimeTicks
             : processHandle == IntPtr.Zero
@@ -699,10 +708,19 @@ internal sealed class ProcessSnapshotService : IDisposable
         bool hasSystemProcessData,
         SystemProcessData systemProcessData,
         long sampleTimestamp,
+        long sampleTimeTicks,
         ProcessDataSchema schema,
         bool isWarm)
     {
         ulong activeMask = schema.VisibleMask;
+        if (schema.IsVisible(ProcessTableColumnKind.Lifetime))
+        {
+            long lifetimeTicks = ProcessLifetime.CalculateTicks(
+                history.StaticData.InstanceKey.CreationTimeTicks,
+                sampleTimeTicks);
+            SetDynamicNumeric(schema, history, ProcessTableColumnKind.Lifetime, lifetimeTicks);
+        }
+
         if (HasAnyColumn(activeMask, ProcessorColumnsMask))
         {
             long totalProcessorTicks = hasSystemProcessData
