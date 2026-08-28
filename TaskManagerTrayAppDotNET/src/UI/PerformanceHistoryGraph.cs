@@ -17,6 +17,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private readonly IBrush _hoverTextBrush;
     private readonly Typeface _hoverTypeface;
     private readonly double _hoverFontSize;
+    private readonly double _hoverLineClipPadding;
     private readonly double _hoverTextInset;
     private readonly double _lineThickness;
     private readonly int _gridColumns;
@@ -63,6 +64,8 @@ internal sealed class PerformanceHistoryGraph : Control
         _hoverTextBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _hoverTypeface = new Typeface(TrayAppDotNETSettingsUI.UIFont);
         _hoverFontSize = resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize;
+        _hoverLineClipPadding =
+            resources.AxamlTaskManagerPerformance.GraphHoverLineClipPadding;
         _hoverTextInset = resources.AxamlTaskManagerPerformance.GraphHoverTextInset;
         _lineThickness = resources.AxamlTaskManagerPerformance.GraphLineThickness;
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
@@ -241,8 +244,8 @@ internal sealed class PerformanceHistoryGraph : Control
         double height,
         Rect metricBounds)
     {
-        double upperLineEnd = Math.Clamp(metricBounds.Top - _hoverTextInset, 0, height);
-        double lowerLineStart = Math.Clamp(metricBounds.Bottom + _hoverTextInset, 0, height);
+        double upperLineEnd = Math.Clamp(metricBounds.Top - _hoverLineClipPadding, 0, height);
+        double lowerLineStart = Math.Clamp(metricBounds.Bottom + _hoverLineClipPadding, 0, height);
         if (upperLineEnd > 0)
         {
             context.DrawLine(

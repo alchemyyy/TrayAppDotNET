@@ -74,6 +74,7 @@
   <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineOpacity">0.58</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineClipPadding">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverTextInset">3</sys:Double>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridColumns">10</sys:Int32>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridRows">4</sys:Int32>
