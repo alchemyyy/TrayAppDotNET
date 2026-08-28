@@ -29,7 +29,7 @@ internal readonly record struct ProcessRowContextMenuRequest(
     public ProcessTerminationTarget Target => EndTaskRequest.Target;
 }
 
-/// <summary>Composites bounded viewport drawing roots from shared visible-column fragments.</summary>
+/// <summary>Composites bounded viewport rows from shared visible-column text layouts.</summary>
 internal sealed class ProcessDetailsCanvas : DetailsGridControl
 {
     [Flags]
@@ -89,9 +89,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
-    private readonly Dictionary<ProcessSharedCellKey, SharedCellDrawing> _sharedCellDrawings = new();
-    private readonly List<SharedCellDrawing> _sharedCellBuffer = new(8);
-    private readonly List<TextLayout> _textLayoutBuffer = new(8);
+    private readonly Dictionary<ProcessSharedCellKey, SharedCellLayout> _sharedCellLayouts = new();
+    private readonly List<SharedCellLayout> _sharedCellBuffer = new(8);
+    private readonly List<CellTextLayout> _cellTextLayoutBuffer = new(8);
     private readonly List<ProcessInstanceKey> _staleProcessKeys = new(256);
     private readonly HashSet<ProcessInstanceKey> _collapsedProcesses = [];
     private readonly Dictionary<int, int> _rowIndexByProcessID = new(1_024);
@@ -366,9 +366,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
         _renderCaches.Clear();
-        foreach (SharedCellDrawing sharedCell in _sharedCellDrawings.Values)
+        foreach (SharedCellLayout sharedCell in _sharedCellLayouts.Values)
             sharedCell.Dispose();
-        _sharedCellDrawings.Clear();
+        _sharedCellLayouts.Clear();
 
         _schema = schema;
         _rowComparer.SetSchema(schema);
@@ -697,7 +697,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
-        _sharedCellDrawings.Clear();
+        _sharedCellLayouts.Clear();
         _gridMetricsGeneration = 1;
     }
 
@@ -1046,7 +1046,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
-        _sharedCellDrawings.Clear();
+        _sharedCellLayouts.Clear();
         UpdateRetainedDrawings();
     }
 
@@ -1451,7 +1451,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (rowDrawing == null) return;
         if (metricsGeneration == _gridMetricsGeneration)
         {
-            rowDrawing.Drawing.Draw(context);
+            rowDrawing.Draw(context);
             return;
         }
 
@@ -1460,7 +1460,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double verticalOffset = (_metrics.RowHeight - rowDrawing.RowHeight) / 2;
         using (context.PushClip(rowClip))
         using (context.PushTransform(Matrix.CreateTranslation(0, verticalOffset)))
-            rowDrawing.Drawing.Draw(context);
+            rowDrawing.Draw(context);
     }
 
     private void DrawProcessIcon(
@@ -1846,93 +1846,88 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessTableColumnLifetime lifetime)
     {
         _sharedCellBuffer.Clear();
-        _textLayoutBuffer.Clear();
+        _cellTextLayoutBuffer.Clear();
         int treeLayoutKey = GetTreeLayoutKey(rowIndex);
-        DrawingGroup uniqueDrawing = new();
-        DrawingCollection children = new() { Capacity = _columns.Length + 1 };
-        bool hasUniqueDrawing = false;
         try
         {
-            using (DrawingContext uniqueContext = uniqueDrawing.Open())
+            for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
             {
-                for (int columnIndex = 0; columnIndex < _columns.Length; columnIndex++)
+                ProcessTableColumn column = _columns[columnIndex];
+                ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(column.Kind);
+                if (definition.Lifetime != lifetime) continue;
+
+                string display = GetCellDisplayValue(rowIndex, column.Kind);
+                if (display.Length == 0) continue;
+
+                if (ShouldShareCell(column.Kind, display))
                 {
-                    ProcessTableColumn column = _columns[columnIndex];
-                    ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(column.Kind);
-                    if (definition.Lifetime != lifetime) continue;
-
-                    string display = GetCellDisplayValue(rowIndex, column.Kind);
-                    if (display.Length == 0) continue;
-
-                    if (ShouldShareCell(column.Kind, display))
-                    {
-                        int cellTreeLayoutKey = column.Kind == ProcessTableColumnKind.Name ? treeLayoutKey : 0;
-                        ProcessSharedCellKey key = new(
-                            _gridMetricsGeneration,
-                            column.Kind,
-                            display,
-                            cellTreeLayoutKey);
-                        SharedCellDrawing sharedCell = AcquireSharedCellDrawing(column, key);
-                        _sharedCellBuffer.Add(sharedCell);
-                        children.Add(sharedCell.Drawing);
-                        continue;
-                    }
-
-                    TextLayout textLayout = DrawCell(uniqueContext, column, display, treeLayoutKey);
+                    int cellTreeLayoutKey = column.Kind == ProcessTableColumnKind.Name ? treeLayoutKey : 0;
+                    ProcessSharedCellKey key = new(
+                        _gridMetricsGeneration,
+                        column.Kind,
+                        display,
+                        cellTreeLayoutKey);
+                    SharedCellLayout sharedCell = AcquireSharedCellLayout(column, key);
                     try
                     {
-                        _textLayoutBuffer.Add(textLayout);
+                        _sharedCellBuffer.Add(sharedCell);
                     }
                     catch
                     {
-                        textLayout.Dispose();
+                        ReleaseSharedCellLayout(sharedCell);
                         throw;
                     }
-                    hasUniqueDrawing = true;
+                    continue;
+                }
+
+                CellTextLayout cellTextLayout = CreateCellTextLayout(column, display, treeLayoutKey);
+                try
+                {
+                    _cellTextLayoutBuffer.Add(cellTextLayout);
+                }
+                catch
+                {
+                    cellTextLayout.Dispose();
+                    throw;
                 }
             }
 
-            if (hasUniqueDrawing) children.Insert(0, uniqueDrawing);
-            SharedCellDrawing[] sharedCells = _sharedCellBuffer.Count == 0
+            SharedCellLayout[] sharedCells = _sharedCellBuffer.Count == 0
                 ? []
                 : _sharedCellBuffer.ToArray();
-            TextLayout[] textLayouts = _textLayoutBuffer.Count == 0
+            CellTextLayout[] cellTextLayouts = _cellTextLayoutBuffer.Count == 0
                 ? []
-                : _textLayoutBuffer.ToArray();
-            DrawingGroup drawing = new() { Children = children };
-            return new ProcessRowDrawing(drawing, sharedCells, textLayouts, _metrics.RowHeight);
+                : _cellTextLayoutBuffer.ToArray();
+            return new ProcessRowDrawing(sharedCells, cellTextLayouts, _metrics.RowHeight);
         }
         catch
         {
             for (int cellIndex = 0; cellIndex < _sharedCellBuffer.Count; cellIndex++)
-                ReleaseSharedCellDrawing(_sharedCellBuffer[cellIndex]);
-            for (int layoutIndex = 0; layoutIndex < _textLayoutBuffer.Count; layoutIndex++)
-                _textLayoutBuffer[layoutIndex].Dispose();
+                ReleaseSharedCellLayout(_sharedCellBuffer[cellIndex]);
+            for (int layoutIndex = 0; layoutIndex < _cellTextLayoutBuffer.Count; layoutIndex++)
+                _cellTextLayoutBuffer[layoutIndex].Dispose();
             throw;
         }
         finally
         {
             _sharedCellBuffer.Clear();
-            _textLayoutBuffer.Clear();
+            _cellTextLayoutBuffer.Clear();
         }
     }
 
-    private SharedCellDrawing AcquireSharedCellDrawing(ProcessTableColumn column, ProcessSharedCellKey key)
+    private SharedCellLayout AcquireSharedCellLayout(ProcessTableColumn column, ProcessSharedCellKey key)
     {
-        if (_sharedCellDrawings.TryGetValue(key, out SharedCellDrawing? existing))
+        if (_sharedCellLayouts.TryGetValue(key, out SharedCellLayout? existing))
         {
             existing.ReferenceCount++;
             return existing;
         }
 
-        DrawingGroup drawing = new();
-        TextLayout textLayout;
-        using (DrawingContext context = drawing.Open())
-            textLayout = DrawCell(context, column, key.Value, key.TreeLayoutKey);
-        SharedCellDrawing sharedCell = new(key, drawing, textLayout);
+        CellTextLayout cellTextLayout = CreateCellTextLayout(column, key.Value, key.TreeLayoutKey);
+        SharedCellLayout sharedCell = new(key, cellTextLayout);
         try
         {
-            _sharedCellDrawings.Add(key, sharedCell);
+            _sharedCellLayouts.Add(key, sharedCell);
         }
         catch
         {
@@ -1942,46 +1937,27 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         return sharedCell;
     }
 
-    private void ReleaseSharedCellDrawings(SharedCellDrawing[] sharedCells)
+    private void ReleaseSharedCellLayouts(SharedCellLayout[] sharedCells)
     {
         for (int cellIndex = 0; cellIndex < sharedCells.Length; cellIndex++)
-            ReleaseSharedCellDrawing(sharedCells[cellIndex]);
+            ReleaseSharedCellLayout(sharedCells[cellIndex]);
     }
 
     private void ReleaseRowDrawing(ProcessRowDrawing? rowDrawing)
     {
         if (rowDrawing == null) return;
 
-        ReleaseSharedCellDrawings(rowDrawing.SharedCells);
-        DisposeTextLayouts(rowDrawing.TextLayouts);
+        ReleaseSharedCellLayouts(rowDrawing.SharedCells);
+        DisposeCellTextLayouts(rowDrawing.CellTextLayouts);
     }
 
-    private void ReleaseSharedCellDrawing(SharedCellDrawing sharedCell)
+    private void ReleaseSharedCellLayout(SharedCellLayout sharedCell)
     {
         sharedCell.ReferenceCount--;
         if (sharedCell.ReferenceCount > 0) return;
 
-        _sharedCellDrawings.Remove(sharedCell.Key);
+        _sharedCellLayouts.Remove(sharedCell.Key);
         sharedCell.Dispose();
-    }
-
-    private TextLayout DrawCell(
-        DrawingContext context,
-        ProcessTableColumn column,
-        string display,
-        int treeLayoutKey)
-    {
-        CellTextLayout layout = CreateCellTextLayout(column, display, treeLayoutKey);
-        try
-        {
-            layout.Text.Draw(context, new Point(layout.Left, layout.Top));
-            return layout.Text;
-        }
-        catch
-        {
-            layout.Dispose();
-            throw;
-        }
     }
 
     private CellTextLayout CreateCellTextLayout(
@@ -2515,7 +2491,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
-        _sharedCellDrawings.Clear();
+        _sharedCellLayouts.Clear();
         UpdateRetainedDrawings();
         PublishWarmProcesses();
         UpdateSelectionOverlay();
@@ -3196,10 +3172,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             headerTexts[headerIndex].Dispose();
     }
 
-    private static void DisposeTextLayouts(ReadOnlySpan<TextLayout> textLayouts)
+    private static void DisposeCellTextLayouts(ReadOnlySpan<CellTextLayout> cellTextLayouts)
     {
-        for (int layoutIndex = 0; layoutIndex < textLayouts.Length; layoutIndex++)
-            textLayouts[layoutIndex].Dispose();
+        for (int layoutIndex = 0; layoutIndex < cellTextLayouts.Length; layoutIndex++)
+            cellTextLayouts[layoutIndex].Dispose();
     }
 
     protected override void DisposeDetailsGridResources()
@@ -3218,11 +3194,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
         _renderCaches.Clear();
-        foreach (SharedCellDrawing sharedCell in _sharedCellDrawings.Values)
+        foreach (SharedCellLayout sharedCell in _sharedCellLayouts.Values)
             sharedCell.Dispose();
-        _sharedCellDrawings.Clear();
+        _sharedCellLayouts.Clear();
         _sharedCellBuffer.Clear();
-        _textLayoutBuffer.Clear();
+        _cellTextLayoutBuffer.Clear();
         _staleProcessKeys.Clear();
         _collapsedProcesses.Clear();
         _rowIndexByProcessID.Clear();
@@ -3261,6 +3237,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double Top,
         double AvailableWidth) : IDisposable
     {
+        public void Draw(DrawingContext context) => Text.Draw(context, new Point(Left, Top));
+
         public void Dispose() => Text.Dispose();
     }
 
@@ -3369,34 +3347,42 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     }
 
     private sealed class ProcessRowDrawing(
-        DrawingGroup drawing,
-        SharedCellDrawing[] sharedCells,
-        TextLayout[] textLayouts,
+        SharedCellLayout[] sharedCells,
+        CellTextLayout[] cellTextLayouts,
         double rowHeight)
     {
-        public DrawingGroup Drawing { get; } = drawing;
-        public SharedCellDrawing[] SharedCells { get; } = sharedCells;
-        public TextLayout[] TextLayouts { get; } = textLayouts;
+        public SharedCellLayout[] SharedCells { get; } = sharedCells;
+        public CellTextLayout[] CellTextLayouts { get; } = cellTextLayouts;
         public double RowHeight { get; } = rowHeight;
+
+        public void Draw(DrawingContext context)
+        {
+            // Draw into Avalonia's render context so it owns immutable glyph references
+            // Intermediate DrawingGroups retain GlyphRun objects across TextLayout disposal
+            for (int layoutIndex = 0; layoutIndex < CellTextLayouts.Length; layoutIndex++)
+                CellTextLayouts[layoutIndex].Draw(context);
+            for (int sharedCellIndex = 0; sharedCellIndex < SharedCells.Length; sharedCellIndex++)
+                SharedCells[sharedCellIndex].Draw(context);
+        }
     }
 
-    private sealed class SharedCellDrawing(
+    private sealed class SharedCellLayout(
         ProcessSharedCellKey key,
-        Drawing drawing,
-        TextLayout textLayout) : IDisposable
+        CellTextLayout cellTextLayout) : IDisposable
     {
         private bool _disposed;
 
         public ProcessSharedCellKey Key { get; } = key;
-        public Drawing Drawing { get; } = drawing;
         public int ReferenceCount { get; set; } = 1;
+
+        public void Draw(DrawingContext context) => cellTextLayout.Draw(context);
 
         public void Dispose()
         {
             if (_disposed) return;
 
             _disposed = true;
-            textLayout.Dispose();
+            cellTextLayout.Dispose();
         }
     }
 
