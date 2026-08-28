@@ -71,10 +71,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             new GridLength(resources.AxamlTaskManagerPerformance.DeviceColumnWidth)));
         MainContent.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        _deviceColumn = new PerformanceDeviceColumn(OnDeviceSelected, OnDeviceOrderChanged)
-        {
-            Spacing = resources.AxamlTaskManagerPerformance.DeviceColumnSpacing
-        };
+        _deviceColumn = new PerformanceDeviceColumn(OnDeviceSelected, OnDeviceOrderChanged);
         ScrollViewer deviceScroll = new()
         {
             Content = _deviceColumn,
@@ -172,8 +169,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         };
         _cpuLogicalProcessorGrid = new Grid
         {
-            ColumnSpacing = resources.AxamlTaskManagerPerformance.LogicalProcessorGraphSpacing,
-            RowSpacing = resources.AxamlTaskManagerPerformance.LogicalProcessorGraphSpacing,
+            Background = Brushes.Transparent,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
             IsVisible = false
@@ -634,10 +630,27 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
         int columnCount = CalculateLogicalProcessorColumnCount(processorCount);
         int rowCount = (processorCount + columnCount - 1) / columnCount;
+        double graphSpacing = Math.Max(
+            0,
+            _resources.AxamlTaskManagerPerformance.LogicalProcessorGraphSpacing);
         for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
+        {
             _cpuLogicalProcessorGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
+            if (columnIndex < columnCount - 1)
+            {
+                _cpuLogicalProcessorGrid.ColumnDefinitions.Add(new ColumnDefinition(
+                    new GridLength(graphSpacing)));
+            }
+        }
         for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
+        {
             _cpuLogicalProcessorGrid.RowDefinitions.Add(new RowDefinition(GridLength.Star));
+            if (rowIndex < rowCount - 1)
+            {
+                _cpuLogicalProcessorGrid.RowDefinitions.Add(new RowDefinition(
+                    new GridLength(graphSpacing)));
+            }
+        }
 
         Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
         for (int processorIndex = 0; processorIndex < processorCount; processorIndex++)
@@ -648,11 +661,21 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             };
+            int graphColumn = processorIndex % columnCount;
+            int graphRow = processorIndex / columnCount;
+            double trailingHitTestWidth = graphColumn < columnCount - 1 ? graphSpacing : 0;
+            double trailingHitTestHeight = graphRow < rowCount - 1 ? graphSpacing : 0;
+            PerformanceHistoryGraphHitTarget hitTarget = new(
+                graph,
+                trailingHitTestWidth,
+                trailingHitTestHeight);
             _cpuLogicalProcessorHistories.Add(history);
             _cpuLogicalProcessorGraphs.Add(graph);
-            Grid.SetColumn(graph, processorIndex % columnCount);
-            Grid.SetRow(graph, processorIndex / columnCount);
-            _cpuLogicalProcessorGrid.Children.Add(graph);
+            Grid.SetColumn(hitTarget, graphColumn * 2);
+            Grid.SetRow(hitTarget, graphRow * 2);
+            if (trailingHitTestWidth > 0) Grid.SetColumnSpan(hitTarget, 2);
+            if (trailingHitTestHeight > 0) Grid.SetRowSpan(hitTarget, 2);
+            _cpuLogicalProcessorGrid.Children.Add(hitTarget);
         }
     }
 
@@ -842,6 +865,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private sealed class PerformanceDeviceCard : Border
     {
         private readonly SettingsPalette _palette;
+        private readonly Border _surface;
         private readonly TextBlock _title;
         private readonly TextBlock _subtitle;
         private readonly TextBlock _summary;
@@ -860,11 +884,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _palette = palette;
             _accent = device.Accent;
             _accentBrush = new SolidColorBrush(device.Accent);
-            Height = resources.AxamlTaskManagerPerformance.DeviceCardHeight;
-            Padding = resources.AxamlTaskManagerPerformance.DeviceCardPadding;
-            CornerRadius = resources.AxamlTaskManagerPerformance.DeviceCardCornerRadius;
-            BorderThickness = resources.AxamlTaskManagerPerformance.DeviceCardBorderThickness;
-            ClipToBounds = true;
+            double trailingHitTestHeight = Math.Max(
+                0,
+                resources.AxamlTaskManagerPerformance.DeviceColumnSpacing);
+            Height = resources.AxamlTaskManagerPerformance.DeviceCardHeight + trailingHitTestHeight;
+            Background = Brushes.Transparent;
             Cursor = TrayAppDotNETCursors.Hand;
 
             _graph = new PerformanceHistoryGraph(history, device.Accent, palette, resources)
@@ -911,7 +935,16 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             content.Children.Add(_graph);
             Grid.SetColumn(labels, 1);
             content.Children.Add(labels);
-            Child = content;
+            _surface = new Border
+            {
+                Margin = new Thickness(0, 0, 0, trailingHitTestHeight),
+                Padding = resources.AxamlTaskManagerPerformance.DeviceCardPadding,
+                CornerRadius = resources.AxamlTaskManagerPerformance.DeviceCardCornerRadius,
+                BorderThickness = resources.AxamlTaskManagerPerformance.DeviceCardBorderThickness,
+                ClipToBounds = true,
+                Child = content
+            };
+            Child = _surface;
 
             PointerEntered += OnPointerEntered;
             PointerExited += OnPointerExited;
@@ -963,15 +996,51 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
         private void UpdateSurface()
         {
-            Background = TrayAppDotNETSettingsUI.Brush(
+            _surface.Background = TrayAppDotNETSettingsUI.Brush(
                 _isSelected
                     ? _palette.SearchListItemSelected
                     : _isPointerOver
                         ? _palette.HoverDeep
                         : _palette.Background);
-            BorderBrush = _isSelected
+            _surface.BorderBrush = _isSelected
                 ? _accentBrush
                 : TrayAppDotNETSettingsUI.Brush(_palette.Border);
+        }
+    }
+
+    /// <summary>Owns the visual graph plus the invisible spacing after it.</summary>
+    private sealed class PerformanceHistoryGraphHitTarget : Border
+    {
+        private readonly PerformanceHistoryGraph _graph;
+
+        public PerformanceHistoryGraphHitTarget(
+            PerformanceHistoryGraph graph,
+            double trailingHitTestWidth,
+            double trailingHitTestHeight)
+        {
+            _graph = graph;
+            _graph.IsHitTestVisible = false;
+            Background = Brushes.Transparent;
+            Padding = new Thickness(0, 0, trailingHitTestWidth, trailingHitTestHeight);
+            Child = graph;
+        }
+
+        protected override void OnPointerEntered(PointerEventArgs eventArgs)
+        {
+            base.OnPointerEntered(eventArgs);
+            _graph.TrackPointer(eventArgs.GetPosition(_graph));
+        }
+
+        protected override void OnPointerMoved(PointerEventArgs eventArgs)
+        {
+            base.OnPointerMoved(eventArgs);
+            _graph.TrackPointer(eventArgs.GetPosition(_graph));
+        }
+
+        protected override void OnPointerExited(PointerEventArgs eventArgs)
+        {
+            base.OnPointerExited(eventArgs);
+            _graph.ClearPointer();
         }
     }
 }

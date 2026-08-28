@@ -204,6 +204,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
     {
         Grid host = new()
         {
+            Background = Brushes.Transparent,
             Focusable = true
         };
         host.Children.Add(row.Content);

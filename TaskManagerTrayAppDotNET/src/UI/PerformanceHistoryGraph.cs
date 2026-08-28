@@ -110,18 +110,34 @@ internal sealed class PerformanceHistoryGraph : Control
     protected override void OnPointerEntered(PointerEventArgs eventArgs)
     {
         base.OnPointerEntered(eventArgs);
-        UpdateHover(eventArgs.GetPosition(this));
+        TrackPointer(eventArgs.GetPosition(this));
     }
 
     protected override void OnPointerMoved(PointerEventArgs eventArgs)
     {
         base.OnPointerMoved(eventArgs);
-        UpdateHover(eventArgs.GetPosition(this));
+        TrackPointer(eventArgs.GetPosition(this));
     }
 
     protected override void OnPointerExited(PointerEventArgs eventArgs)
     {
         base.OnPointerExited(eventArgs);
+        ClearPointer();
+    }
+
+    /// <summary>Tracks a pointer supplied by this graph or an enclosing hit target.</summary>
+    internal void TrackPointer(Point pointerPosition)
+    {
+        if (_isPointerOver && _hoverPointerPosition == pointerPosition) return;
+
+        _isPointerOver = true;
+        _hoverPointerPosition = pointerPosition;
+        InvalidateVisual();
+    }
+
+    /// <summary>Clears hover state when the pointer leaves this graph's full hit target.</summary>
+    internal void ClearPointer()
+    {
         if (!_isPointerOver) return;
 
         _isPointerOver = false;
@@ -167,16 +183,6 @@ internal sealed class PerformanceHistoryGraph : Control
         }
 
         DrawHover(context, width, height);
-    }
-
-    /// <summary>Tracks the pointer so the metric label follows it within the graph.</summary>
-    private void UpdateHover(Point pointerPosition)
-    {
-        if (_isPointerOver && _hoverPointerPosition == pointerPosition) return;
-
-        _isPointerOver = true;
-        _hoverPointerPosition = pointerPosition;
-        InvalidateVisual();
     }
 
     /// <summary>Draws the hovered sample marker and its bounded percentage label.</summary>
