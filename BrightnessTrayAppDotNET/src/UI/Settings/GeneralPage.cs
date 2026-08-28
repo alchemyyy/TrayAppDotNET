@@ -1,7 +1,6 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
@@ -272,12 +271,6 @@ public sealed partial class BrightnessSettingsWindow
         label.VerticalAlignment = VerticalAlignment.Center;
         TextBox nameBox = TrayAppDotNETSettingsUI.TextBox(p, 220, entry.Name);
         nameBox.LostFocus += (_, _) => CommitProfileName(entry, nameBox.Text);
-        nameBox.KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Enter) return;
-            CommitProfileName(entry, nameBox.Text);
-            e.Handled = true;
-        };
         SettingsButton up = Button(GlyphCatalog.CHEVRON_UP.Text, p);
         SettingsButton down = Button(GlyphCatalog.CHEVRON_DOWN.Text, p);
         up.Width = 32;

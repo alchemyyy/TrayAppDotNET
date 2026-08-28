@@ -254,6 +254,57 @@ public sealed class SettingsWindowLifetimeTests
         Assert.Equal(Colors.Red, brush.Color);
     });
 
+    [Fact]
+    public void FocusedNumberEditPublishesImmediatelyAndEnterBlurs() => AvaloniaTestHost.Run(() =>
+    {
+        EditorSettingsWindow window = new();
+        window.Show();
+        window.UpdateLayout();
+
+        SettingsNumberBox numberBox = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsNumberBox>());
+        TextBox textBox = Assert.Single(numberBox.GetVisualDescendants().OfType<TextBox>());
+        textBox.Focus();
+        textBox.SelectAll();
+        window.KeyTextInput("750");
+
+        Assert.Equal(750, window.PersistedValue);
+        Assert.Equal(1, window.SaveCount);
+        Assert.Same(textBox, window.FocusManager?.GetFocusedElement());
+
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+
+        Assert.Null(window.FocusManager?.GetFocusedElement());
+        window.Close();
+
+        Assert.Equal(750, window.PersistedValue);
+        Assert.Equal(1, window.SaveCount);
+    });
+
+    [Fact]
+    public void StandardTextBoxEnterSavesThroughLostFocusAndBlurs() => AvaloniaTestHost.Run(() =>
+    {
+        EditorSettingsWindow window = new();
+        window.Show();
+        window.UpdateLayout();
+
+        TextBox textBox = window.TextEditor;
+        textBox.Focus();
+        textBox.SelectAll();
+        window.KeyTextInput("updated");
+
+        Assert.Equal("initial", window.PersistedText);
+        Assert.Same(textBox, window.FocusManager?.GetFocusedElement());
+
+        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        window.KeyRelease(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+
+        Assert.Equal("updated", window.PersistedText);
+        Assert.Equal(1, window.SaveCount);
+        Assert.Null(window.FocusManager?.GetFocusedElement());
+        window.Close();
+    });
+
     private enum TestPage
     {
         Stable,
@@ -419,6 +470,61 @@ public sealed class SettingsWindowLifetimeTests
             Border contentSurface = Assert.IsType<Border>(root.Child);
             Grid shell = Assert.IsType<Grid>(contentSurface.Child);
             return Assert.Single(shell.Children.OfType<Grid>(), child => Grid.GetRow(child) == 1);
+        }
+    }
+
+    private sealed class EditorSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public EditorSettingsWindow()
+        {
+            ConfigureSettingsWindow("Editor Test", null);
+            InitializeSettingsShell();
+        }
+
+        public int PersistedValue { get; private set; } = 60_000;
+        public string PersistedText { get; private set; } = "initial";
+        public TextBox TextEditor { get; private set; } = null!;
+        public int SaveCount { get; private set; }
+
+        protected override bool EnableRoundedCorners => false;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => TestPalette;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", BuildPage)
+        ];
+
+        protected override void Save() => SaveCount++;
+
+        private StackPanel BuildPage()
+        {
+            StackPanel stack = PageStack("Test", Palette);
+            stack.Children.Add(IntCard(
+                "Sampling interval",
+                "Test value",
+                PersistedValue,
+                1,
+                60_000,
+                value => PersistedValue = value,
+                Palette));
+            TextEditor = TrayAppDotNETSettingsUI.TextBox(Palette, 120, PersistedText);
+            TextEditor.LostFocus += (_, _) =>
+            {
+                PersistedText = TextEditor.Text ?? string.Empty;
+                Save();
+            };
+            stack.Children.Add(Card(
+                "Text value",
+                "Test text",
+                TextEditor,
+                Palette));
+            return stack;
         }
     }
 

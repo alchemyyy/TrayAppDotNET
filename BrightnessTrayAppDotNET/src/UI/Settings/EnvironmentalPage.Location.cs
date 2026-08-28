@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Avalonia.Controls;
-using Avalonia.Input;
 using BrightnessTrayAppDotNET.UI.Settings.Environmental;
 using TrayAppDotNETCommon.UI.Controls;
 
@@ -8,13 +7,6 @@ namespace BrightnessTrayAppDotNET.UI.Settings;
 
 public sealed partial class BrightnessSettingsWindow
 {
-    private void OnEnvironmentalCoordinateKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        CommitEnvironmentalCoordinates();
-        e.Handled = true;
-    }
-
     private void CommitEnvironmentalCoordinates()
     {
         if (_suppressEnvironmentalEvents) return;

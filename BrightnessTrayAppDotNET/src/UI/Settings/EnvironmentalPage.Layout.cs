@@ -159,8 +159,6 @@ public sealed partial class BrightnessSettingsWindow
 
         _disabledPeriodStartBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(isStart: true);
         _disabledPeriodEndBox.LostFocus += (_, _) => CommitEnvironmentalDisabledPeriodTime(isStart: false);
-        _disabledPeriodStartBox.KeyDown += OnDisabledPeriodTimeKeyDown;
-        _disabledPeriodEndBox.KeyDown += OnDisabledPeriodTimeKeyDown;
 
         return panel;
     }
@@ -262,10 +260,6 @@ public sealed partial class BrightnessSettingsWindow
                     StepEnvironmentalSunOverlayDate(e.KeyModifiers.HasFlag(KeyModifiers.Control)
                         ? d => d.AddMonths(-1)
                         : d => d.AddDays(-1));
-                    e.Handled = true;
-                    break;
-                case Key.Enter:
-                    CommitEnvironmentalSunOverlayDate();
                     e.Handled = true;
                     break;
             }
@@ -453,8 +447,6 @@ public sealed partial class BrightnessSettingsWindow
 
         _latitudeBox.LostFocus += (_, _) => CommitEnvironmentalCoordinates();
         _longitudeBox.LostFocus += (_, _) => CommitEnvironmentalCoordinates();
-        _latitudeBox.KeyDown += OnEnvironmentalCoordinateKeyDown;
-        _longitudeBox.KeyDown += OnEnvironmentalCoordinateKeyDown;
 
         return CompactEnvironmentalCard(panel, p, new Thickness(14, 10), new Thickness(0, 2, 0, 0));
     }

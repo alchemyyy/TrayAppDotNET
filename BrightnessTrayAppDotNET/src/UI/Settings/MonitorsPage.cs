@@ -1,7 +1,6 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using TrayAppDotNETCommon.UI.Controls;
 
@@ -180,13 +179,6 @@ public sealed partial class BrightnessSettingsWindow
         {
             set(box.Text ?? string.Empty);
             Save();
-        };
-        box.KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Enter) return;
-            set(box.Text ?? string.Empty);
-            Save();
-            e.Handled = true;
         };
         cell.Children.Add(box);
         Grid.SetRow(cell, row);

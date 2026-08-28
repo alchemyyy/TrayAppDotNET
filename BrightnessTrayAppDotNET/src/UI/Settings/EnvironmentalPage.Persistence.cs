@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.Controls;
 
@@ -74,13 +73,6 @@ public sealed partial class BrightnessSettingsWindow
         _profileManager?.Save();
         ApplyEnvironmentalPreviewState(_environmentalSunOverlayDate);
         NotifyRuntimeCurveChanged();
-    }
-
-    private void OnDisabledPeriodTimeKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        CommitEnvironmentalDisabledPeriodTime(ReferenceEquals(sender, _disabledPeriodStartBox));
-        e.Handled = true;
     }
 
     private void OnEnvironmentalDisabledPeriodChanged(double start, double end)

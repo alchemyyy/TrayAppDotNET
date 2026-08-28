@@ -2778,6 +2778,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         {
             UpdateSuffixOpacity();
             UpdateAutoWidth();
+            PublishFocusedTextValue();
         };
         _textBox.KeyDown += (_, e) =>
         {
@@ -2793,6 +2794,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
                     break;
                 case Key.Enter:
                     CommitFocusedTextEdit();
+                    TrayAppDotNETSettingsUI.BlurTextEditor(_textBox);
                     e.Handled = true;
                     break;
                 case Key.Escape:
@@ -2989,6 +2991,32 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         }
 
         UpdateText();
+    }
+
+    private void PublishFocusedTextValue()
+    {
+        if (!_isTextFocused) return;
+
+        string text = _textBox.Text ?? string.Empty;
+        if (!TryParseNumber(text, out double parsedValue)) return;
+
+        double roundedValue = Math.Round(
+            parsedValue,
+            DecimalPlaces,
+            MidpointRounding.AwayFromZero);
+        if (!double.IsFinite(roundedValue)
+            || roundedValue < Minimum
+            || roundedValue > Maximum
+            || _value == roundedValue)
+        {
+            return;
+        }
+
+        double? oldValue = _value;
+        _value = roundedValue;
+        ValueChanged?.Invoke(
+            this,
+            new SettingsNumberValueChangedEventArgs(oldValue, roundedValue));
     }
 
     private void CancelTextEdit()
@@ -3478,14 +3506,18 @@ public static class TrayAppDotNETSettingsUI
     public static string? SelectedTag(SettingsComboBox combo) =>
         combo.SelectedItem?.Tag?.ToString();
 
-    public static TextBox TextBox(SettingsPalette palette, double width, string text = "") =>
-        TextBox(
+    public static TextBox TextBox(SettingsPalette palette, double width, string text = "")
+    {
+        TextBox textBox = TextBox(
             palette,
             width,
             text,
             palette.ControlBackground,
             palette.Hover,
             palette.TextBoxFocused);
+        textBox.KeyUp += OnStandardTextBoxKeyUp;
+        return textBox;
+    }
 
     /// <summary>Creates a search text box using the deep surface-state colors.</summary>
     public static TextBox SearchTextBox(SettingsPalette palette, double width, string text = "") =>
@@ -3537,6 +3569,20 @@ public static class TrayAppDotNETSettingsUI
             focusedBackground);
         DebugUIProvenance.RecordBuilder(textBox);
         return textBox;
+    }
+
+    /// <summary>Removes keyboard focus from an editor so its caret and focused visuals clear.</summary>
+    internal static void BlurTextEditor(TextBox textBox)
+    {
+        ArgumentNullException.ThrowIfNull(textBox);
+        textBox.ClearSelection();
+        TopLevel.GetTopLevel(textBox)?.FocusManager?.Focus(null);
+    }
+
+    private static void OnStandardTextBoxKeyUp(object? sender, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key != Key.Enter || sender is not TextBox textBox) return;
+        BlurTextEditor(textBox);
     }
 
     public static void ApplyTextBoxResources(
