@@ -45,7 +45,49 @@ public sealed class PerformanceDevicePresentationTests
         Assert.True(device.HasUtilizationSample);
         Assert.Equal(40, device.UtilizationPercent, precision: 8);
         Assert.Equal("Ethernet", device.Title);
-        Assert.Equal("Ethernet 3", device.Subtitle);
+        Assert.Equal("Ethernet 3 - Test adapter", device.Subtitle);
+        Assert.Equal("Test adapter", device.HardwareName);
+    }
+
+    [Fact]
+    public void NetworkMenuEntryUsesTheReplacedHardwareAdapterName()
+    {
+        NetworkPerformanceSnapshot network = new(
+            "network:test",
+            PerformanceDeviceKind.Network,
+            0,
+            "Ethernet 3",
+            "Intel(R) Ethernet Converged Network Adapter X540-T2",
+            "Ethernet",
+            true,
+            true,
+            ReceiveBytesPerSecond: 50_000_000,
+            SendBytesPerSecond: 10_000_000,
+            LinkSpeedBitsPerSecond: 1_000_000_000,
+            TotalBytesReceived: 1_000_000_000,
+            TotalBytesSent: 500_000_000);
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
+        {
+            Networks = new NetworkPerformanceSnapshot[] { network }
+        };
+        PerformanceHardwareNameResolver resolver = PerformanceHardwareNameResolver.Create(
+        [
+            new PerformanceHardwareNameReplacementRule
+            {
+                DeviceKind = PerformanceDeviceKind.Network,
+                MatchPattern = "^Intel\\(R\\) Ethernet Converged Network Adapter (?<Model>.+)$",
+                Replacement = "Intel Ethernet ${Model}"
+            }
+        ]);
+
+        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(
+                snapshot,
+                PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
+                resolver)
+            .Single(static candidate => candidate.DeviceID == "network:test");
+
+        Assert.Equal("Ethernet 3 - Intel Ethernet X540-T2", device.Subtitle);
+        Assert.Equal("Intel Ethernet X540-T2", device.HardwareName);
     }
 
     [Fact]

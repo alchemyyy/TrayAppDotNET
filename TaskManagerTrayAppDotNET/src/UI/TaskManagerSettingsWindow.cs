@@ -4,6 +4,7 @@ using Avalonia.Media;
 using System.ComponentModel;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -224,7 +225,223 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             ["performance refresh update rate frequency milliseconds"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Device column", palette));
         stack.Children.Add(BuildDevicePriorityCard(palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Hardware names", palette));
+        stack.Children.Add(BuildHardwareNameReplacementCard(palette));
         return stack;
+    }
+
+    private Border BuildHardwareNameReplacementCard(SettingsPalette palette)
+    {
+        StackPanel content = new();
+        content.Children.Add(TrayAppDotNETSettingsUI.TitleText(
+            "Hardware name replacements",
+            palette));
+        content.Children.Add(TrayAppDotNETSettingsUI.DescriptionText(
+            "Apply case-insensitive .NET regular expression replacements to device hardware names. "
+            + "Rules run from top to bottom, and replacements support $1 and ${name} captures.",
+            palette));
+
+        SettingsButton addButton = Button("+ Add replacement", palette);
+        addButton.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+        addButton.Margin = _taskManagerResources.AxamlTaskManagerSettings
+            .HardwareNameRulesActionMargin;
+        addButton.Click += (_, _) => AddHardwareNameReplacementRule();
+        content.Children.Add(addButton);
+
+        StackPanel rows = new()
+        {
+            Margin = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRulesContentMargin,
+            Spacing = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleRowSpacing
+        };
+        List<PerformanceHardwareNameReplacementRule> rules =
+            _settings.PerformanceHardwareNameReplacementRules;
+        for (int ruleIndex = 0; ruleIndex < rules.Count; ruleIndex++)
+        {
+            rows.Children.Add(BuildHardwareNameReplacementRow(
+                ruleIndex,
+                rules[ruleIndex],
+                palette));
+        }
+
+        content.Children.Add(rows);
+        return RawCard(
+            content,
+            palette,
+            ["device hardware adapter rename regex match replace captures CPU GPU network disk"]);
+    }
+
+    private Border BuildHardwareNameReplacementRow(
+        int ruleIndex,
+        PerformanceHardwareNameReplacementRule rule,
+        SettingsPalette palette)
+    {
+        SettingsComboBox deviceKind = TrayAppDotNETSettingsUI.ComboBox(
+            palette,
+            _taskManagerResources.AxamlTaskManagerSettings.HardwareNameRuleDeviceTypeWidth);
+        foreach (PerformanceDeviceKind kind in Enum.GetValues<PerformanceDeviceKind>())
+        {
+            deviceKind.Items.Add(new SettingsComboBoxItem(
+                kind,
+                PerformanceDeviceLabel(kind),
+                palette));
+        }
+
+        foreach (SettingsComboBoxItem item in deviceKind.Items)
+        {
+            if (item.Tag is not PerformanceDeviceKind kind || kind != rule.DeviceKind) continue;
+            deviceKind.SelectedItem = item;
+            break;
+        }
+
+        deviceKind.SelectionChanged += (_, _) =>
+        {
+            if (deviceKind.SelectedItem?.Tag is PerformanceDeviceKind kind)
+                UpdateHardwareNameReplacementDeviceKind(ruleIndex, kind);
+        };
+
+        TextBox matchPattern = TrayAppDotNETSettingsUI.TextBox(
+            palette,
+            double.NaN,
+            rule.MatchPattern);
+        matchPattern.MinWidth = _taskManagerResources.AxamlTaskManagerSettings
+            .HardwareNameRuleTextMinimumWidth;
+        matchPattern.PlaceholderText = "Regex match";
+        matchPattern.TextChanged += (_, _) => UpdateHardwareNameReplacementMatchPattern(
+            ruleIndex,
+            matchPattern.Text ?? string.Empty);
+        TrayAppDotNETToolTip.SetTip(
+            matchPattern,
+            "Case-insensitive .NET regular expression matched against the hardware name.");
+
+        TextBox replacement = TrayAppDotNETSettingsUI.TextBox(
+            palette,
+            double.NaN,
+            rule.Replacement);
+        replacement.MinWidth = _taskManagerResources.AxamlTaskManagerSettings
+            .HardwareNameRuleTextMinimumWidth;
+        replacement.PlaceholderText = "Replacement ($1)";
+        replacement.TextChanged += (_, _) => UpdateHardwareNameReplacementValue(
+            ruleIndex,
+            replacement.Text ?? string.Empty);
+        TrayAppDotNETToolTip.SetTip(
+            replacement,
+            "Replacement text. Use $1 or ${name} to insert a regex capture.");
+
+        SettingsButton deleteButton = new(
+            TaskManagerGlyphCatalog.CLOSE,
+            palette,
+            transparentBase: true)
+        {
+            Width = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleDeleteButtonSize,
+            Height = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleDeleteButtonSize,
+            MinHeight = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleDeleteButtonSize,
+            Padding = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleDeleteButtonPadding
+        };
+        deleteButton.Click += (_, _) => DeleteHardwareNameReplacementRule(ruleIndex);
+        TrayAppDotNETToolTip.SetTip(deleteButton, "Delete replacement");
+
+        Grid row = new()
+        {
+            ColumnSpacing = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleColumnSpacing,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        row.Children.Add(deviceKind);
+        Grid.SetColumn(matchPattern, 1);
+        row.Children.Add(matchPattern);
+        Grid.SetColumn(replacement, 2);
+        row.Children.Add(replacement);
+        Grid.SetColumn(deleteButton, 3);
+        row.Children.Add(deleteButton);
+
+        return new Border
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
+            CornerRadius = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleRowCornerRadius,
+            Padding = _taskManagerResources.AxamlTaskManagerSettings
+                .HardwareNameRuleRowPadding,
+            Child = row
+        };
+    }
+
+    private void AddHardwareNameReplacementRule()
+    {
+        List<PerformanceHardwareNameReplacementRule> rules =
+            PerformanceHardwareNameReplacementRuleCollection.Normalize(
+                _settings.PerformanceHardwareNameReplacementRules);
+        rules.Add(new PerformanceHardwareNameReplacementRule());
+        _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
+        RebuildShell(TaskManagerSettingsPage.Performance);
+    }
+
+    private void DeleteHardwareNameReplacementRule(int ruleIndex)
+    {
+        List<PerformanceHardwareNameReplacementRule> rules =
+            PerformanceHardwareNameReplacementRuleCollection.Normalize(
+                _settings.PerformanceHardwareNameReplacementRules);
+        if ((uint)ruleIndex >= (uint)rules.Count) return;
+
+        rules.RemoveAt(ruleIndex);
+        _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
+        RebuildShell(TaskManagerSettingsPage.Performance);
+    }
+
+    private void UpdateHardwareNameReplacementDeviceKind(
+        int ruleIndex,
+        PerformanceDeviceKind deviceKind)
+    {
+        if (!Enum.IsDefined(deviceKind)) return;
+
+        List<PerformanceHardwareNameReplacementRule> rules =
+            PerformanceHardwareNameReplacementRuleCollection.Normalize(
+                _settings.PerformanceHardwareNameReplacementRules);
+        if ((uint)ruleIndex >= (uint)rules.Count || rules[ruleIndex].DeviceKind == deviceKind) return;
+
+        rules[ruleIndex].DeviceKind = deviceKind;
+        _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
+    }
+
+    private void UpdateHardwareNameReplacementMatchPattern(int ruleIndex, string matchPattern)
+    {
+        List<PerformanceHardwareNameReplacementRule> rules =
+            PerformanceHardwareNameReplacementRuleCollection.Normalize(
+                _settings.PerformanceHardwareNameReplacementRules);
+        if ((uint)ruleIndex >= (uint)rules.Count
+            || string.Equals(rules[ruleIndex].MatchPattern, matchPattern, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        rules[ruleIndex].MatchPattern = matchPattern;
+        _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
+    }
+
+    private void UpdateHardwareNameReplacementValue(int ruleIndex, string replacement)
+    {
+        List<PerformanceHardwareNameReplacementRule> rules =
+            PerformanceHardwareNameReplacementRuleCollection.Normalize(
+                _settings.PerformanceHardwareNameReplacementRules);
+        if ((uint)ruleIndex >= (uint)rules.Count
+            || string.Equals(rules[ruleIndex].Replacement, replacement, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        rules[ruleIndex].Replacement = replacement;
+        _settings.UpdatePerformanceHardwareNameReplacementRules(rules);
     }
 
     private Border BuildDevicePriorityCard(SettingsPalette palette)

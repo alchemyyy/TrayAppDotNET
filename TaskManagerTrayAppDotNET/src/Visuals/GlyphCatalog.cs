@@ -30,6 +30,8 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph MORE => Glyph("More");
 
+    public static Glyph CLOSE => CHROME_CLOSE;
+
     public new static Glyph CHEVRON_UP_BIG => Glyph("ChevronUpBig");
 
     public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");

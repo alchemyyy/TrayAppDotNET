@@ -168,6 +168,14 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, PerformanceDeviceOrdering.NormalizeExplicitOrder(value));
     } = [];
 
+    [XmlArray("PerformanceHardwareNameReplacementRules")]
+    [XmlArrayItem("Rule")]
+    public List<PerformanceHardwareNameReplacementRule> PerformanceHardwareNameReplacementRules
+    {
+        get;
+        set => SetField(ref field, PerformanceHardwareNameReplacementRuleCollection.Normalize(value));
+    } = [];
+
     public override void OnTrayXmlDeserialized()
     {
         PerformanceHistoryLengthMinutes =
@@ -180,6 +188,9 @@ public sealed class AppSettings : AppSettingsCommon
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
         PerformanceDevicePriority = PerformanceDeviceOrdering.NormalizePriority(PerformanceDevicePriority);
         PerformanceDeviceOrder = PerformanceDeviceOrdering.NormalizeExplicitOrder(PerformanceDeviceOrder);
+        PerformanceHardwareNameReplacementRules =
+            PerformanceHardwareNameReplacementRuleCollection.Normalize(
+                PerformanceHardwareNameReplacementRules);
         base.OnTrayXmlDeserialized();
     }
 
@@ -233,6 +244,26 @@ public sealed class AppSettings : AppSettingsCommon
         try
         {
             PerformanceDeviceOrder = deviceIDs;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
+    /// <summary>Persists live Performance hardware-name rules without rebuilding the app shell.</summary>
+    internal void UpdatePerformanceHardwareNameReplacementRules(
+        List<PerformanceHardwareNameReplacementRule> rules)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            PerformanceHardwareNameReplacementRules = rules;
         }
         finally
         {

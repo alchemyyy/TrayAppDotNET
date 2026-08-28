@@ -34,6 +34,7 @@ internal static class PerformanceDevicePresentationFactory
     private const double BytesPerTebibyte = BytesPerGibibyte * 1_024;
     private const double BitsPerMegabit = 1_000_000;
     private const double HertzPerGigahertz = 1_000_000_000;
+    private const string NetworkDeviceNameSeparator = " - ";
 
     private static readonly Color CPUAccent = Color.FromRgb(0x32, 0xB5, 0xE5);
     private static readonly Color MemoryAccent = Color.FromRgb(0x58, 0x83, 0xD0);
@@ -43,32 +44,43 @@ internal static class PerformanceDevicePresentationFactory
 
     /// <summary>Projects one immutable snapshot into the complete live device list.</summary>
     public static List<PerformanceDevicePresentation> Create(PerformanceSnapshot snapshot) =>
-        Create(snapshot, PerformanceSamplingSettings.DefaultHistoryLengthMinutes);
+        Create(
+            snapshot,
+            PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
+            PerformanceHardwareNameResolver.Empty);
 
     /// <summary>Projects one immutable snapshot using the configured graph window label.</summary>
     public static List<PerformanceDevicePresentation> Create(
         PerformanceSnapshot snapshot,
-        int historyLengthMinutes)
+        int historyLengthMinutes) =>
+        Create(snapshot, historyLengthMinutes, PerformanceHardwareNameResolver.Empty);
+
+    /// <summary>Projects one immutable snapshot using the configured hardware-name replacements.</summary>
+    public static List<PerformanceDevicePresentation> Create(
+        PerformanceSnapshot snapshot,
+        int historyLengthMinutes,
+        PerformanceHardwareNameResolver hardwareNameResolver)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(hardwareNameResolver);
 
         string graphWindow = FormatHistoryWindow(historyLengthMinutes);
         int capacity = 2 + snapshot.GPUs.Length + snapshot.Networks.Length + snapshot.Disks.Length;
         List<PerformanceDevicePresentation> devices = new(capacity);
-        devices.Add(CreateCPU(snapshot.CPU, graphWindow));
-        devices.Add(CreateMemory(snapshot.Memory, graphWindow));
+        devices.Add(CreateCPU(snapshot.CPU, graphWindow, hardwareNameResolver));
+        devices.Add(CreateMemory(snapshot.Memory, graphWindow, hardwareNameResolver));
 
         ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
         for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
-            devices.Add(CreateGPU(GPUs[GPUIndex], graphWindow));
+            devices.Add(CreateGPU(GPUs[GPUIndex], graphWindow, hardwareNameResolver));
 
         ReadOnlySpan<NetworkPerformanceSnapshot> networks = snapshot.Networks.Span;
         for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
-            devices.Add(CreateNetwork(networks[networkIndex], graphWindow));
+            devices.Add(CreateNetwork(networks[networkIndex], graphWindow, hardwareNameResolver));
 
         ReadOnlySpan<DiskPerformanceSnapshot> disks = snapshot.Disks.Span;
         for (int diskIndex = 0; diskIndex < disks.Length; diskIndex++)
-            devices.Add(CreateDisk(disks[diskIndex], graphWindow));
+            devices.Add(CreateDisk(disks[diskIndex], graphWindow, hardwareNameResolver));
 
         return devices;
     }
@@ -116,8 +128,10 @@ internal static class PerformanceDevicePresentationFactory
 
     private static PerformanceDevicePresentation CreateCPU(
         CPUPerformanceSnapshot sample,
-        string graphWindow)
+        string graphWindow,
+        PerformanceHardwareNameResolver hardwareNameResolver)
     {
+        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Name);
         string utilization = FormatPercent(sample.HasUtilizationSample, sample.UtilizationPercent);
         string speed = sample.HasFrequencyData
             ? FormatHertz(sample.CurrentSpeedHertz)
@@ -152,9 +166,9 @@ internal static class PerformanceDevicePresentationFactory
             sample.Kind,
             sample.SortKey,
             "CPU",
-            sample.Name,
+            hardwareName,
             summary,
-            sample.Name,
+            hardwareName,
             string.Concat("% Utilization over ", graphWindow),
             sample.HasUtilizationSample,
             sample.UtilizationPercent,
@@ -164,8 +178,10 @@ internal static class PerformanceDevicePresentationFactory
 
     private static PerformanceDevicePresentation CreateMemory(
         MemoryPerformanceSnapshot sample,
-        string graphWindow)
+        string graphWindow,
+        PerformanceHardwareNameResolver hardwareNameResolver)
     {
+        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, "Physical memory");
         string used = sample.HasMemoryData ? FormatBytes(sample.UsedPhysicalBytes) : "Unavailable";
         string total = sample.HasMemoryData ? FormatBytes(sample.TotalPhysicalBytes) : "Unavailable";
         string summary = sample.HasMemoryData
@@ -197,7 +213,7 @@ internal static class PerformanceDevicePresentationFactory
             "Memory",
             total,
             summary,
-            "Physical memory",
+            hardwareName,
             string.Concat("Memory use over ", graphWindow),
             sample.HasMemoryData,
             sample.UtilizationPercent,
@@ -207,8 +223,10 @@ internal static class PerformanceDevicePresentationFactory
 
     private static PerformanceDevicePresentation CreateGPU(
         GPUPerformanceSnapshot sample,
-        string graphWindow)
+        string graphWindow,
+        PerformanceHardwareNameResolver hardwareNameResolver)
     {
+        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Name);
         string utilization = FormatPercent(sample.HasUtilizationSample, sample.UtilizationPercent);
         string dedicatedMemory = sample.HasDedicatedMemoryData
             ? string.Concat(
@@ -241,9 +259,9 @@ internal static class PerformanceDevicePresentationFactory
             sample.Kind,
             sample.SortKey,
             string.Concat("GPU ", sample.SortKey.ToString(CultureInfo.CurrentCulture)),
-            sample.Name,
+            hardwareName,
             utilization,
-            sample.Name,
+            hardwareName,
             string.Concat("% Utilization over ", graphWindow),
             sample.HasUtilizationSample,
             sample.UtilizationPercent,
@@ -253,8 +271,10 @@ internal static class PerformanceDevicePresentationFactory
 
     private static PerformanceDevicePresentation CreateNetwork(
         NetworkPerformanceSnapshot sample,
-        string graphWindow)
+        string graphWindow,
+        PerformanceHardwareNameResolver hardwareNameResolver)
     {
+        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Description);
         bool hasNormalizedUtilization = TryGetNetworkUtilization(
             sample,
             out double utilizationPercent);
@@ -282,9 +302,9 @@ internal static class PerformanceDevicePresentationFactory
             sample.Kind,
             sample.SortKey,
             FormatNetworkTitle(sample.InterfaceType),
-            sample.Name,
+            FormatNetworkSubtitle(sample.Name, hardwareName),
             summary,
-            sample.Description,
+            hardwareName,
             string.Concat("% Link utilization over ", graphWindow),
             hasNormalizedUtilization,
             utilizationPercent,
@@ -294,8 +314,10 @@ internal static class PerformanceDevicePresentationFactory
 
     private static PerformanceDevicePresentation CreateDisk(
         DiskPerformanceSnapshot sample,
-        string graphWindow)
+        string graphWindow,
+        PerformanceHardwareNameResolver hardwareNameResolver)
     {
+        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Name);
         string utilization = FormatPercent(sample.HasPerformanceSample, sample.ActiveTimePercent);
         string title = string.Concat(
             "Disk ",
@@ -334,9 +356,9 @@ internal static class PerformanceDevicePresentationFactory
             sample.Kind,
             sample.SortKey,
             title,
-            sample.Name,
+            hardwareName,
             summary,
-            sample.Name,
+            hardwareName,
             string.Concat("% Active time over ", graphWindow),
             sample.HasPerformanceSample,
             sample.ActiveTimePercent,
@@ -371,6 +393,18 @@ internal static class PerformanceDevicePresentationFactory
             NetworkInterfaceType.Ppp => "VPN",
             _ => "Network"
         };
+    }
+
+    private static string FormatNetworkSubtitle(string interfaceName, string hardwareName)
+    {
+        if (string.IsNullOrWhiteSpace(interfaceName)) return hardwareName;
+        if (string.IsNullOrWhiteSpace(hardwareName)
+            || string.Equals(interfaceName, hardwareName, StringComparison.OrdinalIgnoreCase))
+        {
+            return interfaceName;
+        }
+
+        return string.Concat(interfaceName, NetworkDeviceNameSeparator, hardwareName);
     }
 
     private static string FormatPercent(bool isAvailable, double value) =>

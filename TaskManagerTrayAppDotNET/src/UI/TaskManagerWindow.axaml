@@ -67,6 +67,16 @@
   <sys:Double x:Key="TaskManagerSettings.DevicePriorityButtonSpacing">6</sys:Double>
   <sys:Double x:Key="TaskManagerSettings.DevicePriorityRankWidth">24</sys:Double>
   <sys:Double x:Key="TaskManagerSettings.DevicePriorityFontSize">13</sys:Double>
+  <Thickness x:Key="TaskManagerSettings.HardwareNameRulesActionMargin">0,10,0,0</Thickness>
+  <Thickness x:Key="TaskManagerSettings.HardwareNameRulesContentMargin">0,8,0,0</Thickness>
+  <Thickness x:Key="TaskManagerSettings.HardwareNameRuleRowPadding">8</Thickness>
+  <Thickness x:Key="TaskManagerSettings.HardwareNameRuleDeleteButtonPadding">0</Thickness>
+  <CornerRadius x:Key="TaskManagerSettings.HardwareNameRuleRowCornerRadius">4</CornerRadius>
+  <sys:Double x:Key="TaskManagerSettings.HardwareNameRuleRowSpacing">6</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.HardwareNameRuleColumnSpacing">6</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.HardwareNameRuleDeviceTypeWidth">105</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.HardwareNameRuleTextMinimumWidth">80</sys:Double>
+  <sys:Double x:Key="TaskManagerSettings.HardwareNameRuleDeleteButtonSize">32</sys:Double>
 
   <!-- Performance graphs -->
   <sys:Double x:Key="TaskManagerPerformance.GraphLineThickness">1.25</sys:Double>

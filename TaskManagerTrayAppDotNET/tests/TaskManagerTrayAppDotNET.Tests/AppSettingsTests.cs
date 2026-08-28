@@ -393,6 +393,89 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void PerformanceHardwareNameReplacementRulesRoundTripThroughSettingsXml()
+    {
+        AppSettings settings = new()
+        {
+            Autosave = false,
+            PerformanceHardwareNameReplacementRules =
+            [
+                new PerformanceHardwareNameReplacementRule
+                {
+                    DeviceKind = PerformanceDeviceKind.Network,
+                    MatchPattern = "^Intel\\(R\\) (.+)$",
+                    Replacement = "$1"
+                },
+                new PerformanceHardwareNameReplacementRule
+                {
+                    DeviceKind = PerformanceDeviceKind.GPU,
+                    MatchPattern = "^NVIDIA GeForce (.+)$",
+                    Replacement = "GeForce $1"
+                }
+            ]
+        };
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Collection(
+                loaded.PerformanceHardwareNameReplacementRules,
+                rule =>
+                {
+                    Assert.Equal(PerformanceDeviceKind.Network, rule.DeviceKind);
+                    Assert.Equal("^Intel\\(R\\) (.+)$", rule.MatchPattern);
+                    Assert.Equal("$1", rule.Replacement);
+                },
+                rule =>
+                {
+                    Assert.Equal(PerformanceDeviceKind.GPU, rule.DeviceKind);
+                    Assert.Equal("^NVIDIA GeForce (.+)$", rule.MatchPattern);
+                    Assert.Equal("GeForce $1", rule.Replacement);
+                });
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LiveHardwareNameRuleUpdatesAvoidAGlobalSettingsRefresh()
+    {
+        AppSettings settings = new() { Autosave = false };
+        List<string?> changedProperties = [];
+        int changedCount = 0;
+        settings.PropertyChanged += (_, eventArgs) =>
+            changedProperties.Add(eventArgs.PropertyName);
+        settings.Changed += () => changedCount++;
+
+        settings.UpdatePerformanceHardwareNameReplacementRules(
+        [
+            new PerformanceHardwareNameReplacementRule
+            {
+                DeviceKind = PerformanceDeviceKind.Network,
+                MatchPattern = "Adapter",
+                Replacement = "NIC"
+            }
+        ]);
+
+        Assert.Equal(0, changedCount);
+        Assert.Equal(
+            [nameof(AppSettings.PerformanceHardwareNameReplacementRules)],
+            changedProperties);
+        PerformanceHardwareNameReplacementRule rule =
+            Assert.Single(settings.PerformanceHardwareNameReplacementRules);
+        Assert.Equal(PerformanceDeviceKind.Network, rule.DeviceKind);
+        Assert.Equal("Adapter", rule.MatchPattern);
+        Assert.Equal("NIC", rule.Replacement);
+    }
+
+    [Fact]
     public void TrayGraphSettingsNormalizeAndRoundTripThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

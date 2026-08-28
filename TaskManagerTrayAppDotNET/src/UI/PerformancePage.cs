@@ -38,6 +38,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly StackPanel[] _statisticContainers = new StackPanel[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticLabels = new TextBlock[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
+    private PerformanceHardwareNameResolver _hardwareNameResolver;
     private string? _selectedDeviceID;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
@@ -62,6 +63,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             settings.PerformanceHistoryLengthMinutes);
         _sampleIntervalMilliseconds = PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
             settings.PerformanceSampleIntervalMilliseconds);
+        _hardwareNameResolver = PerformanceHardwareNameResolver.Create(
+            settings.PerformanceHardwareNameReplacementRules);
 
         MainContent.Margin = resources.AxamlTaskManagerPerformance.BodyMargin;
         MainContent.ColumnDefinitions.Add(new ColumnDefinition(
@@ -303,12 +306,18 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        if (_disposed
-            || eventArgs.PropertyName is not nameof(AppSettings.PerformanceHistoryLengthMinutes)
-                and not nameof(AppSettings.PerformanceSampleIntervalMilliseconds))
+        if (_disposed) return;
+
+        if (eventArgs.PropertyName == nameof(AppSettings.PerformanceHardwareNameReplacementRules))
         {
+            _hardwareNameResolver = PerformanceHardwareNameResolver.Create(
+                _settings.PerformanceHardwareNameReplacementRules);
+            ApplySnapshotPresentation(_snapshotService.GetLatestSnapshot());
             return;
         }
+
+        if (eventArgs.PropertyName is not nameof(AppSettings.PerformanceHistoryLengthMinutes)
+            and not nameof(AppSettings.PerformanceSampleIntervalMilliseconds)) return;
 
         int historyLengthMinutes = PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
             _settings.PerformanceHistoryLengthMinutes);
@@ -484,7 +493,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private void ApplySnapshotPresentation(PerformanceSnapshot snapshot)
     {
         List<PerformanceDevicePresentation> liveDevices =
-            PerformanceDevicePresentationFactory.Create(snapshot, _historyLengthMinutes);
+            PerformanceDevicePresentationFactory.Create(
+                snapshot,
+                _historyLengthMinutes,
+                _hardwareNameResolver);
         _devices.Clear();
         List<PerformanceDeviceOrderItem> orderItems = new(liveDevices.Count);
         for (int deviceIndex = 0; deviceIndex < liveDevices.Count; deviceIndex++)
