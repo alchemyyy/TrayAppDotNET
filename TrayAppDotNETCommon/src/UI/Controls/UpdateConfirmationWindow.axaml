@@ -7,6 +7,7 @@
     <!-- Window geometry and chrome -->
     <sys:Double x:Key="UpdateConfirmation.WindowWidth">320</sys:Double>
     <sys:Double x:Key="UpdateConfirmation.WindowMinWidth">200</sys:Double>
+    <sys:Double x:Key="UpdateConfirmation.FlyoutVerticalAnchorRatio">0.3333333333333333</sys:Double>
     <Thickness x:Key="UpdateConfirmation.RootBorderThickness">1</Thickness>
     <CornerRadius x:Key="UpdateConfirmation.RootCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="UpdateConfirmation.ZeroCornerRadius">0</CornerRadius>

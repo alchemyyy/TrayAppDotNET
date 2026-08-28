@@ -202,6 +202,24 @@ public sealed class SecondaryWindowLifetimeTests
         owner.Close();
     });
 
+    [Fact]
+    public void FlyoutUpdatePromptUsesOwnerUpperThirdAndStaysInWorkArea() => AvaloniaTestHost.Run(() =>
+    {
+        PixelPoint upperThirdPosition = UpdateConfirmationPositioning.ResolveOwnerPosition(
+            new PixelRect(100, 120, 360, 600),
+            new PixelSize(320, 240),
+            new PixelRect(0, 0, 1_920, 1_080),
+            UpdateConfirmationLayout.FlyoutVerticalAnchorRatio);
+        PixelPoint bottomClampedPosition = UpdateConfirmationPositioning.ResolveOwnerPosition(
+            new PixelRect(-1_900, 850, 350, 300),
+            new PixelSize(320, 260),
+            new PixelRect(-1_920, 0, 1_920, 1_040),
+            UpdateConfirmationLayout.FlyoutVerticalAnchorRatio);
+
+        Assert.Equal(new PixelPoint(120, 200), upperThirdPosition);
+        Assert.Equal(new PixelPoint(-1_885, 780), bottomClampedPosition);
+    });
+
 #if DEBUG
     [Fact]
     public void ConfirmationRebuildsAfterAXAMLResourceReload() => AvaloniaTestHost.Run(() =>

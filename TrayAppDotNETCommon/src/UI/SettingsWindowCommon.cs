@@ -882,6 +882,13 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             page.NavigationIconTransform);
         item.Click += (_, _) =>
         {
+            if (item.IsSelected)
+            {
+                _pageScrollOffsets[page.Key] = 0;
+                _scrollHost?.SetVerticalOffset(0);
+                return;
+            }
+
             if (!HandleNavigationRequest(page.Key))
                 NavigateToSettingsPage(page.Key);
         };

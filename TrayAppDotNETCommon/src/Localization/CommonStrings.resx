@@ -260,7 +260,7 @@ centered|centred|center aligned|middle aligned</value>
     <value>Build</value>
   </data>
   <data name="Settings_About_CommitHashLabel" xml:space="preserve">
-    <value>Commit hash</value>
+    <value>Commit</value>
   </data>
   <data name="Settings_About_CommitHashUnavailable" xml:space="preserve">
     <value>Unavailable</value>

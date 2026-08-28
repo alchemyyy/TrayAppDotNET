@@ -247,6 +247,9 @@ public static class TrayAppDotNETUpdatePromptPresenter
         TrayAppDotNETUpdatePromptOptions options,
         TrayAppDotNETUpdateConfirmationWindow dialog)
     {
+        if (options.Owner is FlyoutWindowCommon)
+            dialog.PlaceOverOwnerUpperThird(options.Owner);
+
         options.SetPromptOpen?.Invoke(true);
         UpdatePromptOwnerBackdrop? ownerBackdrop = null;
         try

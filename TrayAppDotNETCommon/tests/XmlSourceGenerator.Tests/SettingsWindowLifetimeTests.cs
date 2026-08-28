@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using System.Reflection;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
@@ -239,6 +240,42 @@ public sealed class SettingsWindowLifetimeTests
         Assert.False(window.AlphaCard.IsVisible);
         Assert.False(window.BetaPageRoot.IsVisible);
         window.Close();
+    });
+
+    [Fact]
+    public void ClickingSelectedNavigationItemScrollsCurrentPageToTop() => AvaloniaTestHost.Run(() =>
+    {
+        TestSettingsWindow window = new();
+        window.Show();
+        try
+        {
+            window.UpdateLayout();
+            FieldInfo pageScrollOffsetsField = typeof(SettingsWindowCommon<TestPage>).GetField(
+                "_pageScrollOffsets",
+                BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("The settings scroll-offset store is unavailable.");
+            Dictionary<TestPage, double> pageScrollOffsets = Assert.IsType<Dictionary<TestPage, double>>(
+                pageScrollOffsetsField.GetValue(window));
+            pageScrollOffsets[TestPage.Stable] = 300;
+
+            SettingsNavItem selectedNavigationItem = Assert.Single(
+                window.GetVisualDescendants().OfType<SettingsNavItem>(),
+                navigationItem => navigationItem.IsSelected);
+            Point navigationItemCenter = new(
+                selectedNavigationItem.Bounds.Width / 2,
+                selectedNavigationItem.Bounds.Height / 2);
+            Point windowPoint = selectedNavigationItem.TranslatePoint(navigationItemCenter, window)
+                                ?? throw new InvalidOperationException(
+                                    "The selected navigation item is not attached to the test window.");
+            window.MouseDown(windowPoint, MouseButton.Left, RawInputModifiers.None);
+            window.MouseUp(windowPoint, MouseButton.Left, RawInputModifiers.None);
+
+            Assert.Equal(0, pageScrollOffsets[TestPage.Stable]);
+        }
+        finally
+        {
+            window.Close();
+        }
     });
 
     [Fact]

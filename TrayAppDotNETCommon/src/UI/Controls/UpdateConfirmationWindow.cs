@@ -16,6 +16,8 @@ internal static class UpdateConfirmationLayout
 
     public static double WindowWidth => AXAMLResources.AxamlUpdateConfirmation.WindowWidth;
     public static double WindowMinWidth => AXAMLResources.AxamlUpdateConfirmation.WindowMinWidth;
+    public static double FlyoutVerticalAnchorRatio =>
+        AXAMLResources.AxamlUpdateConfirmation.FlyoutVerticalAnchorRatio;
     public static Thickness RootBorderThickness => AXAMLResources.AxamlUpdateConfirmation.RootBorderThickness;
     public static CornerRadius RootCornerRadius => AXAMLResources.AxamlUpdateConfirmation.RootCornerRadius;
     public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlUpdateConfirmation.ZeroCornerRadius;
@@ -41,6 +43,36 @@ internal static class UpdateConfirmationLayout
     public static Thickness ActionButtonPadding => AXAMLResources.AxamlUpdateConfirmation.ActionButtonPadding;
     public static Thickness SecondaryButtonMargin => AXAMLResources.AxamlUpdateConfirmation.SecondaryButtonMargin;
     public static Thickness ActionButtonsMargin => AXAMLResources.AxamlUpdateConfirmation.ActionButtonsMargin;
+}
+
+internal static class UpdateConfirmationPositioning
+{
+    private const double PromptCenterRatio = 0.5;
+
+    /// <summary>Centers a prompt horizontally and places its center at the requested owner-height ratio.</summary>
+    public static PixelPoint ResolveOwnerPosition(
+        PixelRect ownerBounds,
+        PixelSize promptSize,
+        PixelRect workArea,
+        double verticalAnchorRatio)
+    {
+        if (!double.IsFinite(verticalAnchorRatio) || verticalAnchorRatio is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(verticalAnchorRatio));
+
+        int promptWidth = Math.Max(1, promptSize.Width);
+        int promptHeight = Math.Max(1, promptSize.Height);
+        int targetLeft = ownerBounds.X + (ownerBounds.Width - promptWidth) / 2;
+        int targetTop = (int)Math.Round(
+            ownerBounds.Y
+            + ownerBounds.Height * verticalAnchorRatio
+            - promptHeight * PromptCenterRatio,
+            MidpointRounding.AwayFromZero);
+        int maximumLeft = Math.Max(workArea.X, workArea.Right - promptWidth);
+        int maximumTop = Math.Max(workArea.Y, workArea.Bottom - promptHeight);
+        return new PixelPoint(
+            Math.Clamp(targetLeft, workArea.X, maximumLeft),
+            Math.Clamp(targetTop, workArea.Y, maximumTop));
+    }
 }
 
 public enum TrayAppDotNETUpdatePromptResult
@@ -74,6 +106,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
     private readonly bool _rounded;
     private readonly UIResourceScope _windowResources;
     private UIContentGeneration? _contentGeneration;
+    private Window? _upperThirdPlacementOwner;
     private int _disposeState;
     private bool _closed;
 
@@ -168,6 +201,74 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         ApplyWindowLayout();
         RebuildContent();
+        PositionOverOwnerUpperThird();
+    }
+
+    /// <summary>Places this prompt over the upper third of a flyout owner after final layout.</summary>
+    internal void PlaceOverOwnerUpperThird(Window owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (ReferenceEquals(_upperThirdPlacementOwner, owner)) return;
+        if (_upperThirdPlacementOwner != null)
+            throw new InvalidOperationException("The update prompt already has a placement owner.");
+
+        _upperThirdPlacementOwner = owner;
+        Opened += OnUpperThirdPlacementOpened;
+        _windowResources.Add(() => Opened -= OnUpperThirdPlacementOpened);
+    }
+
+    private void OnUpperThirdPlacementOpened(object? sender, EventArgs eventArgs) =>
+        PositionOverOwnerUpperThird();
+
+    private void PositionOverOwnerUpperThird()
+    {
+        Window? owner = _upperThirdPlacementOwner;
+        if (owner == null || !IsVisible) return;
+
+        UpdateLayout();
+        PixelRect ownerBounds = ResolveWindowPixelBounds(owner);
+        PixelRect promptBounds = ResolveWindowPixelBounds(this);
+        PixelRect workArea = Screens.ScreenFromWindow(owner)?.WorkingArea
+                             ?? Screens.ScreenFromBounds(ownerBounds)?.WorkingArea
+                             ?? ownerBounds;
+        Position = UpdateConfirmationPositioning.ResolveOwnerPosition(
+            ownerBounds,
+            new PixelSize(promptBounds.Width, promptBounds.Height),
+            workArea,
+            UpdateConfirmationLayout.FlyoutVerticalAnchorRatio);
+    }
+
+    private static PixelRect ResolveWindowPixelBounds(Window window)
+    {
+        double renderScaling = double.IsFinite(window.RenderScaling) && window.RenderScaling > 0
+            ? window.RenderScaling
+            : 1;
+        double logicalWidth = ResolveLogicalLength(
+            window.ClientSize.Width,
+            window.Bounds.Width,
+            window.Width,
+            window.MinWidth);
+        double logicalHeight = ResolveLogicalLength(
+            window.ClientSize.Height,
+            window.Bounds.Height,
+            window.Height,
+            window.MinHeight);
+        int pixelWidth = Math.Max(1, (int)Math.Ceiling(logicalWidth * renderScaling));
+        int pixelHeight = Math.Max(1, (int)Math.Ceiling(logicalHeight * renderScaling));
+        return new PixelRect(window.Position.X, window.Position.Y, pixelWidth, pixelHeight);
+    }
+
+    private static double ResolveLogicalLength(
+        double clientLength,
+        double boundsLength,
+        double requestedLength,
+        double minimumLength)
+    {
+        if (double.IsFinite(clientLength) && clientLength > 0) return clientLength;
+        if (double.IsFinite(boundsLength) && boundsLength > 0) return boundsLength;
+        if (double.IsFinite(requestedLength) && requestedLength > 0) return requestedLength;
+        if (double.IsFinite(minimumLength) && minimumLength > 0) return minimumLength;
+        return 1;
     }
 
     private void ApplyWindowLayout()
@@ -612,6 +713,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
 
         _closed = true;
         _windowResources.Dispose();
+        _upperThirdPlacementOwner = null;
         UIContentGeneration? contentGeneration = Interlocked.Exchange(ref _contentGeneration, null);
         if (contentGeneration == null) return;
 
