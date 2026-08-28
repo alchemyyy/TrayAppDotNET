@@ -10,14 +10,18 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Paints an allocation-light, Task Manager-style utilization history.</summary>
 internal sealed class PerformanceHistoryGraph : Control
 {
+    private const double HoverLineDashGapLength = 2;
+
     private readonly IBrush _backgroundBrush;
     private readonly Pen _borderPen;
     private readonly Pen _gridPen;
     private readonly Pen _hoverLinePen;
+    private readonly Pen _hoverLineTerminalPen;
     private readonly IBrush _hoverTextBrush;
     private readonly Typeface _hoverTypeface;
     private readonly double _hoverFontSize;
     private readonly double _hoverLineClipPadding;
+    private readonly double _hoverTextCursorGap;
     private readonly double _hoverTextInset;
     private readonly double _lineThickness;
     private readonly int _gridColumns;
@@ -53,19 +57,24 @@ internal sealed class PerformanceHistoryGraph : Control
                 resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,
                 0,
                 1));
+        IBrush hoverLineBrush = new SolidColorBrush(Color.FromArgb(
+            hoverLineAlpha,
+            byte.MaxValue,
+            byte.MaxValue,
+            byte.MaxValue));
+        double hoverLineThickness =
+            resources.AxamlTaskManagerPerformance.GraphHoverLineThickness;
         _hoverLinePen = new Pen(
-            new SolidColorBrush(Color.FromArgb(
-                hoverLineAlpha,
-                byte.MaxValue,
-                byte.MaxValue,
-                byte.MaxValue)),
-            resources.AxamlTaskManagerPerformance.GraphHoverLineThickness,
+            hoverLineBrush,
+            hoverLineThickness,
             DashStyle.Dash);
+        _hoverLineTerminalPen = new Pen(hoverLineBrush, hoverLineThickness);
         _hoverTextBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _hoverTypeface = new Typeface(TrayAppDotNETSettingsUI.UIFont);
         _hoverFontSize = resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize;
         _hoverLineClipPadding =
             resources.AxamlTaskManagerPerformance.GraphHoverLineClipPadding;
+        _hoverTextCursorGap = resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap;
         _hoverTextInset = resources.AxamlTaskManagerPerformance.GraphHoverTextInset;
         _lineThickness = resources.AxamlTaskManagerPerformance.GraphLineThickness;
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
@@ -212,14 +221,23 @@ internal sealed class PerformanceHistoryGraph : Control
             width,
             metricText.Width);
         double preferredTextTop = _hoverPointerPosition.Y
-                                  - _hoverTextInset
+                                  - _hoverTextCursorGap
                                   - metricText.Height;
         double textTop = ClampMetricCoordinate(
             preferredTextTop,
             height,
             metricText.Height);
         Rect textBounds = new(textLeft, textTop, metricText.Width, metricText.Height);
-        DrawHoverLineAroundMetric(context, sample.PositionX, height, textBounds);
+        double metricInkBottom = textBounds.Top
+                                 + metricText.Height
+                                 + metricText.OverhangAfter;
+        double metricInkTop = metricInkBottom - metricText.Extent;
+        DrawHoverLineAroundMetric(
+            context,
+            sample.PositionX,
+            height,
+            metricInkTop,
+            metricInkBottom);
         metricText.Draw(context, textBounds.TopLeft);
     }
 
@@ -242,15 +260,23 @@ internal sealed class PerformanceHistoryGraph : Control
         DrawingContext context,
         double positionX,
         double height,
-        Rect metricBounds)
+        double metricInkTop,
+        double metricInkBottom)
     {
-        double upperLineEnd = Math.Clamp(metricBounds.Top - _hoverLineClipPadding, 0, height);
-        double lowerLineStart = Math.Clamp(metricBounds.Bottom + _hoverLineClipPadding, 0, height);
+        double upperLineEnd = Math.Clamp(metricInkTop - _hoverLineClipPadding, 0, height);
+        double lowerLineStart = Math.Clamp(metricInkBottom + _hoverLineClipPadding, 0, height);
         if (upperLineEnd > 0)
         {
             context.DrawLine(
                 _hoverLinePen,
                 new Point(positionX, 0),
+                new Point(positionX, upperLineEnd));
+            double terminalStart = Math.Max(
+                0,
+                upperLineEnd - _hoverLineTerminalPen.Thickness * HoverLineDashGapLength);
+            context.DrawLine(
+                _hoverLineTerminalPen,
+                new Point(positionX, terminalStart),
                 new Point(positionX, upperLineEnd));
         }
         if (lowerLineStart < height)
