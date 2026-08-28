@@ -79,8 +79,8 @@
   <sys:Double x:Key="TaskManagerSettings.HardwareNameRuleDeleteButtonSize">32</sys:Double>
 
   <!-- Performance graphs -->
-  <sys:Double x:Key="TaskManagerPerformance.GraphLineThickness">1.25</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">1</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphLineThickness">0.85</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">0.75</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineOpacity">0.58</sys:Double>

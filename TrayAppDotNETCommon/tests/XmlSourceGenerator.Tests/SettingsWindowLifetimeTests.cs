@@ -342,6 +342,63 @@ public sealed class SettingsWindowLifetimeTests
         window.Close();
     });
 
+    [Fact]
+    public void ClickingOutsideNumberBoxCommitsAndBlurs() => AvaloniaTestHost.Run(() =>
+    {
+        EditorSettingsWindow window = new();
+        window.Show();
+        window.UpdateLayout();
+
+        SettingsNumberBox numberBox = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsNumberBox>());
+        TextBox textBox = Assert.Single(numberBox.GetVisualDescendants().OfType<TextBox>());
+        textBox.Focus();
+        textBox.SelectAll();
+        window.KeyTextInput("750");
+
+        ClickSelectedNavigationItem(window);
+
+        Assert.Equal(750, window.PersistedValue);
+        Assert.Equal(1, window.SaveCount);
+        Assert.NotSame(textBox, window.FocusManager?.GetFocusedElement());
+        window.Close();
+    });
+
+    [Fact]
+    public void ClickingOutsideStandardTextBoxSavesAndBlurs() => AvaloniaTestHost.Run(() =>
+    {
+        EditorSettingsWindow window = new();
+        window.Show();
+        window.UpdateLayout();
+
+        TextBox textBox = window.TextEditor;
+        textBox.Focus();
+        textBox.SelectAll();
+        window.KeyTextInput("updated");
+
+        ClickSelectedNavigationItem(window);
+
+        Assert.Equal("updated", window.PersistedText);
+        Assert.Equal(1, window.SaveCount);
+        Assert.NotSame(textBox, window.FocusManager?.GetFocusedElement());
+        window.Close();
+    });
+
+    private static void ClickSelectedNavigationItem(EditorSettingsWindow window)
+    {
+        SettingsNavItem selectedNavigationItem = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsNavItem>(),
+            navigationItem => navigationItem.IsSelected);
+        Point navigationItemCenter = new(
+            selectedNavigationItem.Bounds.Width / 2,
+            selectedNavigationItem.Bounds.Height / 2);
+        Point windowPoint = selectedNavigationItem.TranslatePoint(navigationItemCenter, window)
+                            ?? throw new InvalidOperationException(
+                                "The selected navigation item is not attached to the test window.");
+        window.MouseDown(windowPoint, MouseButton.Left, RawInputModifiers.None);
+        window.MouseUp(windowPoint, MouseButton.Left, RawInputModifiers.None);
+    }
+
     private enum TestPage
     {
         Stable,

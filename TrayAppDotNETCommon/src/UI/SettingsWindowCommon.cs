@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Rendering.Composition;
 using Avalonia.Rendering.Composition.Transport;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
@@ -134,6 +135,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Deactivated += OnWindowDeactivated;
         PositionChanged += OnWindowPositionChanged;
         Resized += OnWindowResized;
+        AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerMovedEvent, OnWindowPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -142,6 +144,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _windowResources.Add(() => RemoveHandler(KeyUpEvent, OnWindowKeyUp));
         _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnWindowKeyDown));
         _windowResources.Add(() => RemoveHandler(PointerMovedEvent, OnWindowPointerMoved));
+        _windowResources.Add(() => RemoveHandler(PointerPressedEvent, OnWindowPointerPressed));
         _windowResources.Add(DetachWndProcHook);
         _windowResources.Add(() => Resized -= OnWindowResized);
         _windowResources.Add(() => PositionChanged -= OnWindowPositionChanged);
@@ -217,6 +220,24 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _confirmOk.Focus();
         return _confirmTcs.Task;
+    }
+
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
+    {
+        if (FocusManager?.GetFocusedElement() is not TextBox focusedTextBox) return;
+
+        SettingsNumberBox? numberBox = focusedTextBox.GetVisualAncestors()
+                                                        .OfType<SettingsNumberBox>()
+                                                        .FirstOrDefault();
+        Visual editorBoundary = numberBox is not null ? numberBox : focusedTextBox;
+        if (eventArgs.Source is Visual source
+            && (ReferenceEquals(source, editorBoundary)
+                || source.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, editorBoundary))))
+        {
+            return;
+        }
+
+        TrayAppDotNETSettingsUI.BlurTextEditor(focusedTextBox);
     }
 
     public void ShowAtDefaultPositionAndActivate()
