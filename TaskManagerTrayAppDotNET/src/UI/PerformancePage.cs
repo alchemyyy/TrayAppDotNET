@@ -836,7 +836,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     {
         int requestedCount = deviceKind switch
         {
-            PerformanceDeviceKind.CPU => 7,
+            PerformanceDeviceKind.CPU => 8,
             PerformanceDeviceKind.Memory => 2,
             PerformanceDeviceKind.GPU => 3,
             PerformanceDeviceKind.Network => 2,

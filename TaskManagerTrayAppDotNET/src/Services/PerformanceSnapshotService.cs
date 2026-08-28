@@ -28,6 +28,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private int _started;
     private int _disposed;
     private int _resourcesDisposed;
+    private ulong _highestRecordedCPUSpeedHertz;
     private bool _systemFailureLogged;
     private bool _metadataFailureLogged;
     private bool _networkFailureLogged;
@@ -255,6 +256,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private void ResetSamplingBaselines()
     {
         _systemSampler.ResetProcessorBaseline();
+        _metadataReader.ResetFrequencyBaseline();
         _networkSampler.ResetCounterBaselines();
         _diskSampler.ResetCounterBaselines();
         _gpuSampler.ResetCounterBaseline();
@@ -350,6 +352,12 @@ internal sealed class PerformanceSnapshotService : IDisposable
             Array.Resize(ref logicalProcessorPercents, copiedProcessorCount);
 
         SystemPerformanceInformation information = metadata.PerformanceInformation;
+        if (metadata.HasFrequencyData)
+        {
+            _highestRecordedCPUSpeedHertz = Math.Max(
+                _highestRecordedCPUSpeedHertz,
+                metadata.HighestCurrentSpeedHertz);
+        }
         return new CPUPerformanceSnapshot(
             CPUPerformanceSnapshot.StableDeviceID,
             PerformanceDeviceKind.CPU,
@@ -360,8 +368,9 @@ internal sealed class PerformanceSnapshotService : IDisposable
             systemSample.CPUHighestCorePercent,
             logicalProcessorPercents,
             metadata.HasFrequencyData,
-            metadata.CurrentSpeedHertz,
-            metadata.MaximumSpeedHertz,
+            metadata.HighestCurrentSpeedHertz,
+            metadata.BaseSpeedHertz,
+            _highestRecordedCPUSpeedHertz,
             metadata.SocketCount,
             metadata.CoreCount,
             logicalProcessorCount,
@@ -572,6 +581,15 @@ internal sealed class PerformanceSnapshotService : IDisposable
             catch (Exception exception)
             {
                 TADNLog.Log($"PerformanceSnapshotService system disposal: {exception}");
+            }
+
+            try
+            {
+                _metadataReader.Dispose();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"PerformanceSnapshotService metadata disposal: {exception}");
             }
 
             try

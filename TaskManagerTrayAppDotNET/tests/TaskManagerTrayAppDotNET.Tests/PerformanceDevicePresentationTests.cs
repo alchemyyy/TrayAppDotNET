@@ -18,6 +18,53 @@ public sealed class PerformanceDevicePresentationTests
     }
 
     [Fact]
+    public void CPUUsesHighestTurboSpeedAndUpdatedMetricLabels()
+    {
+        CPUPerformanceSnapshot CPU = CPUPerformanceSnapshot.Empty with
+        {
+            HasUtilizationSample = true,
+            UtilizationPercent = 42,
+            HighestLogicalProcessorPercent = 73,
+            HasFrequencyData = true,
+            HighestCurrentSpeedHertz = 5_400_000_000,
+            BaseSpeedHertz = 4_200_000_000,
+            HighestRecordedSpeedHertz = 5_700_000_000,
+            CoreCount = 16,
+            LogicalProcessorCount = 32
+        };
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { CPU = CPU };
+
+        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
+            .Single(static candidate => candidate.Kind == PerformanceDeviceKind.CPU);
+        PerformanceStatistic[] statistics = device.Statistics.ToArray();
+        Dictionary<string, string> valuesByLabel = statistics.ToDictionary(
+            static statistic => statistic.Label,
+            static statistic => statistic.Value);
+
+        Assert.Equal("42%  5.40 GHz", device.Summary);
+        Assert.Equal("5.40 GHz", valuesByLabel["Speed"]);
+        Assert.Equal("5.70 GHz", valuesByLabel["Highest recorded speed"]);
+        Assert.Equal("4.20 GHz", valuesByLabel["Base speed"]);
+        Assert.Equal("73%", valuesByLabel["Highest logical processor"]);
+        Assert.Equal("16", valuesByLabel["Physical cores"]);
+        Assert.Equal("32", valuesByLabel["Logical processors"]);
+        Assert.Equal(
+            [
+                "Utilization",
+                "Speed",
+                "Highest logical processor",
+                "Processes",
+                "Threads",
+                "Handles",
+                "Up time",
+                "Highest recorded speed"
+            ],
+            statistics.Take(8).Select(static statistic => statistic.Label));
+        Assert.DoesNotContain(statistics, static statistic => statistic.Label is
+            "Maximum speed" or "Cores" or "Logical cores" or "Highest logical core");
+    }
+
+    [Fact]
     public void NetworkGraphUsesTheBusiestDirectionRelativeToLinkSpeed()
     {
         NetworkPerformanceSnapshot network = new(

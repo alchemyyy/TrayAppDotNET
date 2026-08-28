@@ -79,7 +79,7 @@ public sealed class PerformanceSnapshotServiceTests
     {
         using PerformanceSnapshotService service = new();
 
-        _ = service.SampleNow();
+        PerformanceSnapshot initialSnapshot = service.SampleNow();
         Thread.Sleep(25);
         PerformanceSnapshot snapshot = service.SampleNow();
 
@@ -92,6 +92,13 @@ public sealed class PerformanceSnapshotServiceTests
             snapshot.CPU.LogicalProcessorCount,
             snapshot.CPU.LogicalProcessorUtilizationPercents.Length);
         Assert.InRange(snapshot.CPU.UtilizationPercent, 0, 100);
+        Assert.True(snapshot.CPU.HasFrequencyData);
+        Assert.True(snapshot.CPU.HighestCurrentSpeedHertz > 0);
+        Assert.True(snapshot.CPU.BaseSpeedHertz > 0);
+        Assert.True(snapshot.CPU.HighestRecordedSpeedHertz >= snapshot.CPU.HighestCurrentSpeedHertz);
+        Assert.True(
+            snapshot.CPU.HighestRecordedSpeedHertz
+            >= initialSnapshot.CPU.HighestRecordedSpeedHertz);
         Assert.Equal(MemoryPerformanceSnapshot.StableDeviceID, snapshot.Memory.DeviceID);
         Assert.Equal(PerformanceDeviceKind.Memory, snapshot.Memory.Kind);
         Assert.True(snapshot.Memory.HasMemoryData);

@@ -133,10 +133,11 @@ internal static class PerformanceDevicePresentationFactory
     {
         string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Name);
         string utilization = FormatPercent(sample.HasUtilizationSample, sample.UtilizationPercent);
-        string speed = sample.HasFrequencyData
-            ? FormatHertz(sample.CurrentSpeedHertz)
+        bool hasCurrentSpeed = sample.HasFrequencyData && sample.HighestCurrentSpeedHertz > 0;
+        string speed = hasCurrentSpeed
+            ? FormatHertz(sample.HighestCurrentSpeedHertz)
             : "Unavailable";
-        string summary = sample.HasFrequencyData
+        string summary = hasCurrentSpeed
             ? string.Concat(utilization, "  ", speed)
             : utilization;
         PerformanceStatistic[] statistics =
@@ -150,16 +151,23 @@ internal static class PerformanceDevicePresentationFactory
             new("Threads", sample.ThreadCount.ToString("N0", CultureInfo.CurrentCulture)),
             new("Handles", sample.HandleCount.ToString("N0", CultureInfo.CurrentCulture)),
             new("Up time", FormatUptime(sample.Uptime)),
+            new(
+                "Highest recorded speed",
+                sample.HighestRecordedSpeedHertz > 0
+                    ? FormatHertz(sample.HighestRecordedSpeedHertz)
+                    : "Unavailable"),
             new("Sockets", FormatCount(sample.SocketCount)),
-            new("Cores", FormatCount(sample.CoreCount)),
+            new("Physical cores", FormatCount(sample.CoreCount)),
             new("Logical processors", FormatCount(sample.LogicalProcessorCount)),
             new("Virtualization", sample.IsVirtualizationFirmwareEnabled ? "Enabled" : "Disabled"),
             new("L1 cache", FormatOptionalBytes(sample.L1CacheBytes)),
             new("L2 cache", FormatOptionalBytes(sample.L2CacheBytes)),
             new("L3 cache", FormatOptionalBytes(sample.L3CacheBytes)),
             new(
-                "Maximum speed",
-                sample.HasFrequencyData ? FormatHertz(sample.MaximumSpeedHertz) : "Unavailable")
+                "Base speed",
+                sample.HasFrequencyData && sample.BaseSpeedHertz > 0
+                    ? FormatHertz(sample.BaseSpeedHertz)
+                    : "Unavailable")
         ];
         return new PerformanceDevicePresentation(
             sample.DeviceID,
