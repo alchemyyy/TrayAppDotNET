@@ -24,8 +24,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private PerformanceHistory _history;
     private Color _accent;
     private Pen _linePen;
-    private double _hoverPointerPositionX;
-    private int _hoveredSampleIndex = -1;
+    private Point _hoverPointerPosition;
     private bool _isPointerOver;
 
     public PerformanceHistoryGraph(
@@ -78,7 +77,6 @@ internal sealed class PerformanceHistoryGraph : Control
     {
         ArgumentNullException.ThrowIfNull(history);
         _history = history;
-        SynchronizeHoveredSample();
         InvalidateVisual();
     }
 
@@ -94,20 +92,19 @@ internal sealed class PerformanceHistoryGraph : Control
     /// <summary>Schedules a repaint after the current history receives a sample.</summary>
     public void Refresh()
     {
-        SynchronizeHoveredSample();
         InvalidateVisual();
     }
 
     protected override void OnPointerEntered(PointerEventArgs eventArgs)
     {
         base.OnPointerEntered(eventArgs);
-        UpdateHover(eventArgs.GetPosition(this).X);
+        UpdateHover(eventArgs.GetPosition(this));
     }
 
     protected override void OnPointerMoved(PointerEventArgs eventArgs)
     {
         base.OnPointerMoved(eventArgs);
-        UpdateHover(eventArgs.GetPosition(this).X);
+        UpdateHover(eventArgs.GetPosition(this));
     }
 
     protected override void OnPointerExited(PointerEventArgs eventArgs)
@@ -116,7 +113,6 @@ internal sealed class PerformanceHistoryGraph : Control
         if (!_isPointerOver) return;
 
         _isPointerOver = false;
-        _hoveredSampleIndex = -1;
         InvalidateVisual();
     }
 
@@ -161,29 +157,14 @@ internal sealed class PerformanceHistoryGraph : Control
         DrawHover(context, width, height);
     }
 
-    /// <summary>Updates the selected sample when the pointer crosses a sample boundary.</summary>
-    private void UpdateHover(double pointerPositionX)
+    /// <summary>Tracks the pointer so the metric label follows it within the graph.</summary>
+    private void UpdateHover(Point pointerPosition)
     {
-        bool wasPointerOver = _isPointerOver;
-        int previousSampleIndex = _hoveredSampleIndex;
-        _isPointerOver = true;
-        _hoverPointerPositionX = pointerPositionX;
-        SynchronizeHoveredSample();
-        if (!wasPointerOver || previousSampleIndex != _hoveredSampleIndex)
-            InvalidateVisual();
-    }
+        if (_isPointerOver && _hoverPointerPosition == pointerPosition) return;
 
-    /// <summary>Synchronizes the cached hover index after history or pointer changes.</summary>
-    private void SynchronizeHoveredSample()
-    {
-        _hoveredSampleIndex = _isPointerOver
-                              && PerformanceHistoryGraphLayout.TryGetHoverSample(
-                                  _history,
-                                  _hoverPointerPositionX,
-                                  Bounds.Width,
-                                  out PerformanceHistoryGraphHoverSample sample)
-            ? sample.ChronologicalIndex
-            : -1;
+        _isPointerOver = true;
+        _hoverPointerPosition = pointerPosition;
+        InvalidateVisual();
     }
 
     /// <summary>Draws the hovered sample marker and its bounded percentage label.</summary>
@@ -192,20 +173,22 @@ internal sealed class PerformanceHistoryGraph : Control
         if (!_isPointerOver
             || !PerformanceHistoryGraphLayout.TryGetHoverSample(
                 _history,
-                _hoverPointerPositionX,
+                _hoverPointerPosition.X,
                 width,
                 out PerformanceHistoryGraphHoverSample sample))
         {
             return;
         }
 
-        context.DrawLine(
-            _hoverLinePen,
-            new Point(sample.PositionX, 0),
-            new Point(sample.PositionX, height));
-
         double maximumTextWidth = Math.Max(0, width - _hoverTextInset * 2);
-        if (maximumTextWidth <= 0) return;
+        if (maximumTextWidth <= 0)
+        {
+            context.DrawLine(
+                _hoverLinePen,
+                new Point(sample.PositionX, 0),
+                new Point(sample.PositionX, height));
+            return;
+        }
 
         string metric = string.Concat(
             sample.Value.ToString("N0", CultureInfo.CurrentCulture),
@@ -220,24 +203,60 @@ internal sealed class PerformanceHistoryGraph : Control
             maxWidth: maximumTextWidth,
             maxLines: 1);
 
-        double preferredTextLeft = sample.PositionX + _hoverTextInset;
-        if (preferredTextLeft + metricText.Width > width - _hoverTextInset)
-            preferredTextLeft = sample.PositionX - _hoverTextInset - metricText.Width;
-
-        double maximumTextLeft = Math.Max(
-            _hoverTextInset,
-            width - _hoverTextInset - metricText.Width);
-        double textLeft = Math.Clamp(
+        double preferredTextLeft = sample.PositionX - metricText.Width / 2;
+        double textLeft = ClampMetricCoordinate(
             preferredTextLeft,
-            _hoverTextInset,
-            maximumTextLeft);
-        double textTop = Math.Clamp(
-            _hoverTextInset,
-            0,
-            Math.Max(0, height - metricText.Height));
+            width,
+            metricText.Width);
+        double preferredTextTop = _hoverPointerPosition.Y
+                                  - _hoverTextInset
+                                  - metricText.Height;
+        double textTop = ClampMetricCoordinate(
+            preferredTextTop,
+            height,
+            metricText.Height);
         Rect textBounds = new(textLeft, textTop, metricText.Width, metricText.Height);
-        context.DrawRectangle(_backgroundBrush, null, textBounds);
+        DrawHoverLineAroundMetric(context, sample.PositionX, height, textBounds);
         metricText.Draw(context, textBounds.TopLeft);
+    }
+
+    /// <summary>Clamps one label coordinate while preserving an edge inset when space permits.</summary>
+    private double ClampMetricCoordinate(
+        double preferredCoordinate,
+        double availableLength,
+        double metricLength)
+    {
+        double maximumCoordinate = Math.Max(0, availableLength - metricLength);
+        double edgeInset = Math.Min(_hoverTextInset, maximumCoordinate / 2);
+        return Math.Clamp(
+            preferredCoordinate,
+            edgeInset,
+            maximumCoordinate - edgeInset);
+    }
+
+    /// <summary>Draws the indicator above and below a transparent gap around the metric text.</summary>
+    private void DrawHoverLineAroundMetric(
+        DrawingContext context,
+        double positionX,
+        double height,
+        Rect metricBounds)
+    {
+        double upperLineEnd = Math.Clamp(metricBounds.Top - _hoverTextInset, 0, height);
+        double lowerLineStart = Math.Clamp(metricBounds.Bottom + _hoverTextInset, 0, height);
+        if (upperLineEnd > 0)
+        {
+            context.DrawLine(
+                _hoverLinePen,
+                new Point(positionX, 0),
+                new Point(positionX, upperLineEnd));
+        }
+        if (lowerLineStart < height)
+        {
+            context.DrawLine(
+                _hoverLinePen,
+                new Point(positionX, lowerLineStart),
+                new Point(positionX, height));
+        }
     }
 
     /// <summary>Maps one history sample onto the graph's fixed-duration timeline.</summary>
