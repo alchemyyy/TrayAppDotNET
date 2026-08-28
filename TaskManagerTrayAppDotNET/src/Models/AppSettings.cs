@@ -136,6 +136,12 @@ public sealed class AppSettings : AppSettingsCommon
             PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(value));
     } = PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds;
 
+    public bool ShowMemoryModuleSerialNumbers
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     [XmlArray("ProcessHeaderButtonOrder")]
     [XmlArrayItem("Button")]
     public List<ProcessHeaderButtonKind> ProcessHeaderButtonOrder

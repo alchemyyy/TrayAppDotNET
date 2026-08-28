@@ -223,6 +223,15 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             " ms",
             ["performance refresh update rate frequency milliseconds"]));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Memory", palette));
+        stack.Children.Add(BoolCard(
+            "Show memory module serial numbers",
+            "Display each physical memory module's serial number in the Memory performance details. "
+            + "Serial numbers are hidden by default.",
+            _settings.ShowMemoryModuleSerialNumbers,
+            value => _settings.ShowMemoryModuleSerialNumbers = value,
+            palette,
+            searchKeywords: ["RAM DIMM privacy serial number"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Device column", palette));
         stack.Children.Add(BuildDevicePriorityCard(palette));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Hardware names", palette));

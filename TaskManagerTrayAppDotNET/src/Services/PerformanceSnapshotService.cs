@@ -6,50 +6,71 @@ namespace TaskManagerTrayAppDotNET.Services;
 /// <summary>Retains and publishes direct-OS performance snapshots for the application lifetime.</summary>
 internal sealed class PerformanceSnapshotService : IDisposable
 {
+    private const int DiskMetadataRefreshSeconds = 30;
+
+    private static readonly long DiskMetadataRefreshIntervalTicks =
+        checked(Stopwatch.Frequency * DiskMetadataRefreshSeconds);
+
     private readonly Lock _lifecycleGate = new();
     private readonly Lock _samplingGate = new();
     private readonly Lock _historyGate = new();
     private readonly AutoResetEvent _refreshWake = new(false);
     private readonly SystemPerformanceSampler _systemSampler = new();
     private readonly SystemPerformanceMetadataReader _metadataReader = new();
+    private readonly MemoryCompositionSampler _memoryCompositionSampler = new();
+    private readonly PhysicalMemoryMetadataReader _physicalMemoryMetadataReader = new();
     private readonly NetworkPerformanceSampler _networkSampler = new();
     private readonly DiskPerformanceSampler _diskSampler = new();
+    private readonly DiskDeviceMetadataReader _diskMetadataReader = new();
     private readonly GPUPerformanceSampler _gpuSampler = new();
+    private readonly GPUPerformanceDetailsReader _gpuDetailsReader = new();
     private readonly Thread _samplingThread;
     private readonly Action _notifySnapshotUpdated;
     private PerformanceSnapshot[] _snapshotHistory;
+    private DiskDeviceMetadataSnapshot[] _diskMetadata = [];
     private PerformanceSnapshot _latestSnapshot = PerformanceSnapshot.Empty;
     private int _historyStartIndex;
     private int _historyCount;
     private int _sampleIntervalMilliseconds;
+    private int _includeMemorySerialNumbers;
     private int _notificationPending;
     private int _refreshRequested;
     private int _resetBaselinesPending;
     private int _started;
     private int _disposed;
     private int _resourcesDisposed;
+    private long _nextDiskMetadataRefreshTimestamp;
     private ulong _highestRecordedCPUSpeedHertz;
     private bool _systemFailureLogged;
     private bool _metadataFailureLogged;
+    private bool _memoryCompositionFailureLogged;
+    private bool _physicalMemoryFailureLogged;
     private bool _networkFailureLogged;
     private bool _diskFailureLogged;
+    private bool _diskMetadataFailureLogged;
     private bool _gpuFailureLogged;
+    private bool _gpuDetailsFailureLogged;
 
     public PerformanceSnapshotService()
         : this(
             PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds,
             PerformanceSamplingSettings.CalculateMaximumHistoryCount(
                 PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
-                PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds))
+                PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds),
+            includeMemorySerialNumbers: false)
     {
     }
 
-    public PerformanceSnapshotService(int sampleIntervalMilliseconds, int maximumHistoryCount)
+    public PerformanceSnapshotService(
+        int sampleIntervalMilliseconds,
+        int maximumHistoryCount,
+        bool includeMemorySerialNumbers = false)
     {
         ValidateMaximumHistoryCount(maximumHistoryCount);
         _sampleIntervalMilliseconds =
             PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
                 sampleIntervalMilliseconds);
+        _includeMemorySerialNumbers = includeMemorySerialNumbers ? 1 : 0;
         _snapshotHistory = CreateHistoryBuffer(maximumHistoryCount);
         _notifySnapshotUpdated = NotifySnapshotUpdated;
         _samplingThread = new Thread(SamplingLoop)
@@ -138,7 +159,17 @@ internal sealed class PerformanceSnapshotService : IDisposable
     }
 
     /// <summary>Applies live sampling and retention settings without discarding retained data.</summary>
-    public void UpdateConfiguration(int sampleIntervalMilliseconds, int maximumHistoryCount)
+    public void UpdateConfiguration(int sampleIntervalMilliseconds, int maximumHistoryCount) =>
+        UpdateConfiguration(
+            sampleIntervalMilliseconds,
+            maximumHistoryCount,
+            Volatile.Read(ref _includeMemorySerialNumbers) != 0);
+
+    /// <summary>Applies live sampling, retention, and memory-privacy settings.</summary>
+    public void UpdateConfiguration(
+        int sampleIntervalMilliseconds,
+        int maximumHistoryCount,
+        bool includeMemorySerialNumbers)
     {
         ValidateMaximumHistoryCount(maximumHistoryCount);
         int normalizedSampleInterval =
@@ -153,8 +184,17 @@ internal sealed class PerformanceSnapshotService : IDisposable
             int previousSampleInterval = Interlocked.Exchange(
                 ref _sampleIntervalMilliseconds,
                 normalizedSampleInterval);
-            if (_started != 0 && previousSampleInterval != normalizedSampleInterval)
+            int serialNumberSetting = includeMemorySerialNumbers ? 1 : 0;
+            int previousSerialNumberSetting = Interlocked.Exchange(
+                ref _includeMemorySerialNumbers,
+                serialNumberSetting);
+            if (_started != 0
+                && (previousSampleInterval != normalizedSampleInterval
+                    || previousSerialNumberSetting != serialNumberSetting))
+            {
+                Interlocked.Exchange(ref _refreshRequested, 1);
                 _refreshWake.Set();
+            }
         }
     }
 
@@ -238,11 +278,16 @@ internal sealed class PerformanceSnapshotService : IDisposable
     {
         SystemPerformanceSample systemSample = SampleSystem();
         SystemPerformanceMetadataSample metadata = SampleMetadata();
+        MemoryCompositionSample memoryComposition = SampleMemoryComposition();
+        PhysicalMemoryHardwareMetadata physicalMemory = SamplePhysicalMemoryMetadata();
         CPUPerformanceSnapshot cpu = CreateCPUSnapshot(systemSample, metadata);
-        MemoryPerformanceSnapshot memory = CreateMemorySnapshot(metadata);
+        MemoryPerformanceSnapshot memory = CreateMemorySnapshot(
+            metadata,
+            memoryComposition,
+            physicalMemory);
         GPUPerformanceSnapshot[] gpus = SampleGPUs();
         NetworkPerformanceSnapshot[] networks = SampleNetworks();
-        DiskPerformanceSnapshot[] disks = SampleDisks();
+        DiskPerformanceSnapshot[] disks = SampleDisks(samplingTimestamp);
         return new PerformanceSnapshot(
             DateTimeOffset.UtcNow,
             samplingTimestamp,
@@ -260,6 +305,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
         _networkSampler.ResetCounterBaselines();
         _diskSampler.ResetCounterBaselines();
         _gpuSampler.ResetCounterBaseline();
+        _gpuDetailsReader.Clear();
     }
 
     private SystemPerformanceSample SampleSystem()
@@ -292,12 +338,77 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
     }
 
+    private MemoryCompositionSample SampleMemoryComposition()
+    {
+        try
+        {
+            MemoryCompositionSample sample = _memoryCompositionSampler.Sample();
+            _memoryCompositionFailureLogged = false;
+            return sample;
+        }
+        catch (Exception exception) when (IsRecoverableProviderException(exception))
+        {
+            LogFailureOnce(ref _memoryCompositionFailureLogged, "memory composition", exception);
+            return default;
+        }
+    }
+
+    private PhysicalMemoryHardwareMetadata SamplePhysicalMemoryMetadata()
+    {
+        bool includeSerialNumbers = Volatile.Read(ref _includeMemorySerialNumbers) != 0;
+        PhysicalMemoryHardwareMetadata metadata = _physicalMemoryMetadataReader.Get(
+            includeSerialNumbers,
+            out string? error);
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            _physicalMemoryFailureLogged = false;
+            return metadata;
+        }
+
+        if (!_physicalMemoryFailureLogged)
+        {
+            _physicalMemoryFailureLogged = true;
+            TADNLog.Log($"PerformanceSnapshotService physical memory provider: {error}");
+        }
+        return metadata;
+    }
+
     private GPUPerformanceSnapshot[] SampleGPUs()
     {
         try
         {
             GPUPerformanceSnapshot[] snapshots = _gpuSampler.Sample();
             _gpuFailureLogged = false;
+            bool hasDetailFailure = false;
+            for (int GPUIndex = 0; GPUIndex < snapshots.Length; GPUIndex++)
+            {
+                GPUPerformanceSnapshot snapshot = snapshots[GPUIndex];
+                try
+                {
+                    GPUPerformanceDetailsSnapshot details = _gpuDetailsReader.Sample(
+                        snapshot,
+                        out string? error);
+                    snapshots[GPUIndex] = snapshot with { Details = details };
+                    if (string.IsNullOrWhiteSpace(error)) continue;
+
+                    hasDetailFailure = true;
+                    if (!_gpuDetailsFailureLogged)
+                    {
+                        _gpuDetailsFailureLogged = true;
+                        TADNLog.Log($"PerformanceSnapshotService GPU details provider: {error}");
+                    }
+                }
+                catch (Exception exception) when (IsRecoverableProviderException(exception))
+                {
+                    hasDetailFailure = true;
+                    snapshots[GPUIndex] = snapshot with
+                    {
+                        Details = GPUPerformanceDetailsSnapshot.Empty
+                    };
+                    LogFailureOnce(ref _gpuDetailsFailureLogged, "GPU details", exception);
+                }
+            }
+            if (!hasDetailFailure) _gpuDetailsFailureLogged = false;
             return snapshots;
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
@@ -322,19 +433,70 @@ internal sealed class PerformanceSnapshotService : IDisposable
         }
     }
 
-    private DiskPerformanceSnapshot[] SampleDisks()
+    private DiskPerformanceSnapshot[] SampleDisks(long samplingTimestamp)
     {
+        DiskPerformanceSnapshot[] snapshots;
         try
         {
-            DiskPerformanceSnapshot[] snapshots = _diskSampler.Sample();
+            snapshots = _diskSampler.Sample();
             _diskFailureLogged = false;
-            return snapshots;
         }
         catch (Exception exception) when (IsRecoverableProviderException(exception))
         {
             LogFailureOnce(ref _diskFailureLogged, "disk", exception);
             return [];
         }
+
+        DiskDeviceMetadataSnapshot[] metadata = ReadDiskMetadata(samplingTimestamp);
+        for (int diskIndex = 0; diskIndex < snapshots.Length; diskIndex++)
+        {
+            DiskPerformanceSnapshot snapshot = snapshots[diskIndex];
+            DiskDeviceMetadataSnapshot matchingMetadata = FindDiskMetadata(
+                metadata,
+                snapshot.SortKey);
+            snapshots[diskIndex] = snapshot with
+            {
+                Details = DiskPerformanceDetailsFactory.Create(snapshot, matchingMetadata)
+            };
+        }
+        return snapshots;
+    }
+
+    private DiskDeviceMetadataSnapshot[] ReadDiskMetadata(long samplingTimestamp)
+    {
+        if (samplingTimestamp < _nextDiskMetadataRefreshTimestamp)
+            return _diskMetadata;
+
+        _nextDiskMetadataRefreshTimestamp = samplingTimestamp
+                                            <= long.MaxValue - DiskMetadataRefreshIntervalTicks
+            ? samplingTimestamp + DiskMetadataRefreshIntervalTicks
+            : long.MaxValue;
+        try
+        {
+            _diskMetadata = _diskMetadataReader.Read();
+            _diskMetadataFailureLogged = false;
+        }
+        catch (Exception exception) when (IsRecoverableProviderException(exception))
+        {
+            LogFailureOnce(ref _diskMetadataFailureLogged, "disk metadata", exception);
+        }
+        return _diskMetadata;
+    }
+
+    private static DiskDeviceMetadataSnapshot FindDiskMetadata(
+        ReadOnlySpan<DiskDeviceMetadataSnapshot> metadata,
+        int physicalDiskNumber)
+    {
+        if (physicalDiskNumber < 0)
+            return DiskDeviceMetadataSnapshot.Unavailable(0);
+
+        uint expectedDiskNumber = checked((uint)physicalDiskNumber);
+        for (int metadataIndex = 0; metadataIndex < metadata.Length; metadataIndex++)
+        {
+            if (metadata[metadataIndex].PhysicalDiskNumber == expectedDiskNumber)
+                return metadata[metadataIndex];
+        }
+        return DiskDeviceMetadataSnapshot.Unavailable(expectedDiskNumber);
     }
 
     private CPUPerformanceSnapshot CreateCPUSnapshot(
@@ -384,28 +546,58 @@ internal sealed class PerformanceSnapshotService : IDisposable
             metadata.Uptime);
     }
 
-    private MemoryPerformanceSnapshot CreateMemorySnapshot(SystemPerformanceMetadataSample metadata)
+    private MemoryPerformanceSnapshot CreateMemorySnapshot(
+        SystemPerformanceMetadataSample metadata,
+        MemoryCompositionSample compositionSample,
+        PhysicalMemoryHardwareMetadata physicalMemory)
     {
         SystemMemoryStatus memoryStatus = _systemSampler.GetLastMemoryStatus();
-        ulong usedPhysicalBytes = memoryStatus.TotalPhysicalBytes >= memoryStatus.AvailablePhysicalBytes
-            ? memoryStatus.TotalPhysicalBytes - memoryStatus.AvailablePhysicalBytes
+        NormalizedMemoryComposition composition = MemoryCompositionSampler.Normalize(
+            memoryStatus.TotalPhysicalBytes,
+            memoryStatus.AvailablePhysicalBytes,
+            compositionSample);
+        double utilizationPercent = memoryStatus.TotalPhysicalBytes > 0
+            ? composition.InUseBytes / (double)memoryStatus.TotalPhysicalBytes * 100.0
             : 0;
         SystemPerformanceInformation information = metadata.PerformanceInformation;
+        ulong cachedBytes = composition.HasCompositionData
+            ? composition.CachedBytes
+            : metadata.HasPerformanceInformation ? information.CachedBytes : 0;
+        ulong hardwareReservedBytes = metadata.InstalledPhysicalMemoryBytes
+                                      >= memoryStatus.TotalPhysicalBytes
+            ? metadata.InstalledPhysicalMemoryBytes - memoryStatus.TotalPhysicalBytes
+            : 0;
         return new MemoryPerformanceSnapshot(
             MemoryPerformanceSnapshot.StableDeviceID,
             PerformanceDeviceKind.Memory,
             0,
             _systemSampler.LastMemorySampleAvailable,
-            memoryStatus.UtilizationPercent,
+            utilizationPercent,
             memoryStatus.TotalPhysicalBytes,
-            memoryStatus.AvailablePhysicalBytes,
-            usedPhysicalBytes,
+            composition.AvailableBytes,
+            composition.InUseBytes,
             metadata.InstalledPhysicalMemoryBytes,
             metadata.HasPerformanceInformation ? information.CommittedBytes : 0,
             metadata.HasPerformanceInformation ? information.CommitLimitBytes : 0,
-            metadata.HasPerformanceInformation ? information.CachedBytes : 0,
+            cachedBytes,
             metadata.HasPerformanceInformation ? information.PagedPoolBytes : 0,
-            metadata.HasPerformanceInformation ? information.NonPagedPoolBytes : 0);
+            metadata.HasPerformanceInformation ? information.NonPagedPoolBytes : 0,
+            hardwareReservedBytes,
+            new MemoryCompositionSnapshot(
+                composition.HasCompositionData,
+                composition.ModifiedBytes,
+                composition.StandbyBytes,
+                composition.FreeBytes,
+                composition.HasCompressionData,
+                composition.CompressedBytes,
+                composition.EstimatedDataBytes,
+                composition.SavedBytes),
+            new PhysicalMemoryHardwareSnapshot(
+                physicalMemory.SpeedMegatransfersPerSecond,
+                physicalMemory.UsedSlotCount,
+                physicalMemory.TotalSlotCount,
+                physicalMemory.FormFactor,
+                physicalMemory.Modules));
     }
 
     private void Publish(PerformanceSnapshot snapshot)
@@ -581,6 +773,15 @@ internal sealed class PerformanceSnapshotService : IDisposable
             catch (Exception exception)
             {
                 TADNLog.Log($"PerformanceSnapshotService system disposal: {exception}");
+            }
+
+            try
+            {
+                _memoryCompositionSampler.Dispose();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"PerformanceSnapshotService memory composition disposal: {exception}");
             }
 
             try

@@ -184,7 +184,27 @@ public sealed class PerformanceDevicePresentationTests
             QueueDepth: 1,
             CapacityBytes: 4_000_000_000_000,
             FormattedCapacityBytes: 3_900_000_000_000,
-            AvailableBytes: 1_000_000_000_000);
+            AvailableBytes: 1_000_000_000_000)
+        {
+            Details = new DiskPerformanceDetailsSnapshot(
+                "disk:test",
+                12,
+                "Samsung SSD 990 PRO 4TB",
+                "C:, D:",
+                "SSD (NVMe)",
+                true,
+                25,
+                3_000,
+                1_000,
+                2_000,
+                0.5,
+                4_000_000_000_000,
+                3_900_000_000_000,
+                true,
+                true,
+                true,
+                false)
+        };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
             Disks = new DiskPerformanceSnapshot[] { disk }
@@ -198,6 +218,106 @@ public sealed class PerformanceDevicePresentationTests
         Assert.Equal("Samsung SSD 990 PRO 4TB", device.HardwareName);
         Assert.Equal("25%", device.Summary);
         Assert.DoesNotContain("NVMe", device.Subtitle, StringComparison.Ordinal);
+        Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
+            static statistic => statistic.Label,
+            static statistic => statistic.Value);
+        Assert.Equal("Yes", valuesByLabel["System disk"]);
+        Assert.Equal("No", valuesByLabel["Page file"]);
+        Assert.Equal("SSD (NVMe)", valuesByLabel["Type"]);
+        Assert.Equal(
+            ["Active time", "Average response time", "Read speed", "Write speed"],
+            device.Statistics.Span[..4].ToArray().Select(static statistic => statistic.Label));
+    }
+
+    [Fact]
+    public void GPUUsesInstalledVRAMAndOfficialDetailMetrics()
+    {
+        const ulong Gibibyte = 1_073_741_824;
+        GPUPerformanceSnapshot GPU = new(
+            "gpu:test",
+            PerformanceDeviceKind.GPU,
+            0,
+            "NVIDIA GeForce RTX Test",
+            123,
+            0,
+            true,
+            31,
+            ReadOnlyMemory<GPUPerformanceEngineSnapshot>.Empty,
+            true,
+            3 * Gibibyte,
+            15 * Gibibyte,
+            true,
+            Gibibyte / 2,
+            64 * Gibibyte)
+        {
+            Details = new GPUPerformanceDetailsSnapshot(
+                true,
+                ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot>.Empty,
+                true,
+                32,
+                "32.0.15.9660",
+                new DateOnly(2026, 5, 22),
+                "12",
+                "12.2",
+                "PCI bus 33, device 0, function 0",
+                true,
+                Gibibyte)
+        };
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
+        {
+            GPUs = new GPUPerformanceSnapshot[] { GPU }
+        };
+
+        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
+            .Single(static candidate => candidate.DeviceID == "gpu:test");
+        Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
+            static statistic => statistic.Label,
+            static statistic => statistic.Value);
+
+        Assert.Equal("3.0/16.0 GB", valuesByLabel["Dedicated GPU memory"]);
+        Assert.Equal("3.5/80.0 GB", valuesByLabel["GPU Memory"]);
+        Assert.Equal("0.5/64.0 GB", valuesByLabel["Shared GPU memory"]);
+        Assert.Equal("32 \u00B0C", valuesByLabel["Temperature"]);
+        Assert.Equal("32.0.15.9660", valuesByLabel["Driver version"]);
+        Assert.Equal("12 (FL 12.2)", valuesByLabel["DirectX version"]);
+        Assert.Equal("PCI bus 33, device 0, function 0", valuesByLabel["Physical location"]);
+        Assert.Equal("1.0 GB", valuesByLabel["Hardware reserved memory"]);
+    }
+
+    [Fact]
+    public void GPUTotalMemoryIsUnavailableWhenEitherUsageCounterIsMissing()
+    {
+        const ulong Gibibyte = 1_073_741_824;
+        GPUPerformanceSnapshot GPU = new(
+            "gpu:test",
+            PerformanceDeviceKind.GPU,
+            0,
+            "GPU",
+            1,
+            0,
+            true,
+            0,
+            ReadOnlyMemory<GPUPerformanceEngineSnapshot>.Empty,
+            true,
+            Gibibyte,
+            8 * Gibibyte,
+            false,
+            0,
+            16 * Gibibyte);
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
+        {
+            GPUs = new GPUPerformanceSnapshot[] { GPU }
+        };
+
+        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
+            .Single(static candidate => candidate.DeviceID == "gpu:test");
+        Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
+            static statistic => statistic.Label,
+            static statistic => statistic.Value);
+
+        Assert.NotEqual("Unavailable", valuesByLabel["Dedicated GPU memory"]);
+        Assert.Equal("Unavailable", valuesByLabel["Shared GPU memory"]);
+        Assert.Equal("Unavailable", valuesByLabel["GPU Memory"]);
     }
 
     [Fact]
@@ -218,7 +338,27 @@ public sealed class PerformanceDevicePresentationTests
             QueueDepth: 0,
             CapacityBytes: 1_000_000_000,
             FormattedCapacityBytes: 0,
-            AvailableBytes: 0);
+            AvailableBytes: 0)
+        {
+            Details = new DiskPerformanceDetailsSnapshot(
+                "disk:test",
+                4,
+                "Microsoft Storage Space Device",
+                string.Empty,
+                "Storage Spaces",
+                false,
+                0,
+                0,
+                0,
+                0,
+                0,
+                1_000_000_000,
+                0,
+                false,
+                false,
+                false,
+                false)
+        };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with
         {
             Disks = new DiskPerformanceSnapshot[] { disk }
@@ -230,6 +370,11 @@ public sealed class PerformanceDevicePresentationTests
         Assert.Equal("Disk 4", device.Title);
         Assert.Equal("Microsoft Storage Space Device", device.Subtitle);
         Assert.Equal("Microsoft Storage Space Device", device.HardwareName);
+        Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
+            static statistic => statistic.Label,
+            static statistic => statistic.Value);
+        Assert.Equal("Unavailable", valuesByLabel["System disk"]);
+        Assert.Equal("Unavailable", valuesByLabel["Page file"]);
     }
 
     [Theory]

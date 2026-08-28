@@ -29,7 +29,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock _detailHardwareName;
     private readonly TextBlock _detailGraphLabel;
     private readonly TextBlock _graphWindowLabel;
+    private readonly Grid _genericGraphHeader;
+    private readonly Grid _genericGraphFooter;
     private readonly PerformanceHistoryGraph _detailGraph;
+    private readonly MemoryCompositionView _memoryCompositionView;
+    private readonly MemoryModuleDetailsPanel _memoryModuleDetailsPanel;
+    private readonly DiskPerformanceDetailsView _diskPerformanceDetailsView;
+    private readonly GPUPerformanceDetailsView _gpuPerformanceDetailsView;
     private readonly Grid _cpuLogicalProcessorGrid;
     private readonly List<PerformanceHistory> _cpuLogicalProcessorHistories = [];
     private readonly List<PerformanceHistoryGraph> _cpuLogicalProcessorGraphs = [];
@@ -39,12 +45,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock[] _statisticLabels = new TextBlock[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
     private PerformanceHardwareNameResolver _hardwareNameResolver;
+    private MemoryPerformanceSnapshot _latestMemorySnapshot = MemoryPerformanceSnapshot.Empty;
     private string? _selectedDeviceID;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
     private long _lastProcessedTimestamp;
     private int _configuredStatisticCount = -1;
     private int _configuredPrimaryStatisticCount = -1;
+    private PerformanceDeviceKind? _configuredStatisticDeviceKind;
     private bool _hasProcessedSnapshot;
     private bool _disposed;
 
@@ -97,6 +105,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             {
                 new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Star),
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Auto)
             }
         };
@@ -144,7 +154,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             FontWeight.Normal);
         graphMaximumLabel.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid graphHeader = new()
+        _genericGraphHeader = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphLabelMargin,
             ColumnDefinitions =
@@ -153,9 +163,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 new ColumnDefinition(GridLength.Auto)
             }
         };
-        graphHeader.Children.Add(_detailGraphLabel);
+        _genericGraphHeader.Children.Add(_detailGraphLabel);
         Grid.SetColumn(graphMaximumLabel, 1);
-        graphHeader.Children.Add(graphMaximumLabel);
+        _genericGraphHeader.Children.Add(graphMaximumLabel);
         PerformanceHistory initialHistory = CreateHistory();
         _detailGraph = new PerformanceHistoryGraph(
             initialHistory,
@@ -174,6 +184,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             VerticalAlignment = VerticalAlignment.Stretch,
             IsVisible = false
         };
+        _gpuPerformanceDetailsView = new GPUPerformanceDetailsView(
+            palette,
+            resources,
+            _historyLengthMinutes,
+            _sampleIntervalMilliseconds);
         Grid graphSurface = new()
         {
             MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
@@ -182,7 +197,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Children =
             {
                 _detailGraph,
-                _cpuLogicalProcessorGrid
+                _cpuLogicalProcessorGrid,
+                _gpuPerformanceDetailsView
             }
         };
         Grid graphArea = new()
@@ -197,7 +213,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 new RowDefinition(GridLength.Auto)
             }
         };
-        graphArea.Children.Add(graphHeader);
+        graphArea.Children.Add(_genericGraphHeader);
         Grid.SetRow(graphSurface, 1);
         graphArea.Children.Add(graphSurface);
         _graphWindowLabel = TrayAppDotNETSettingsUI.Text(
@@ -211,7 +227,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
             FontWeight.Normal);
         graphMinimumLabel.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid graphFooter = new()
+        _genericGraphFooter = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphScaleMargin,
             ColumnDefinitions =
@@ -220,13 +236,25 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 new ColumnDefinition(GridLength.Auto)
             }
         };
-        graphFooter.Children.Add(_graphWindowLabel);
+        _genericGraphFooter.Children.Add(_graphWindowLabel);
         Grid.SetColumn(graphMinimumLabel, 1);
-        graphFooter.Children.Add(graphMinimumLabel);
-        Grid.SetRow(graphFooter, 2);
-        graphArea.Children.Add(graphFooter);
+        _genericGraphFooter.Children.Add(graphMinimumLabel);
+        Grid.SetRow(_genericGraphFooter, 2);
+        graphArea.Children.Add(_genericGraphFooter);
         Grid.SetRow(graphArea, 1);
         details.Children.Add(graphArea);
+
+        _memoryCompositionView = new MemoryCompositionView(palette, resources);
+        Grid.SetRow(_memoryCompositionView, 2);
+        details.Children.Add(_memoryCompositionView);
+
+        _diskPerformanceDetailsView = new DiskPerformanceDetailsView(
+            palette,
+            resources,
+            _historyLengthMinutes,
+            _sampleIntervalMilliseconds);
+        Grid.SetRow(_diskPerformanceDetailsView, 2);
+        details.Children.Add(_diskPerformanceDetailsView);
 
         _primaryStatistics = new WrapPanel
         {
@@ -277,8 +305,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         statistics.Children.Add(_primaryStatistics);
         Grid.SetColumn(_metadataStatistics, 1);
         statistics.Children.Add(_metadataStatistics);
-        Grid.SetRow(statistics, 2);
+        Grid.SetRow(statistics, 3);
         details.Children.Add(statistics);
+
+        _memoryModuleDetailsPanel = new MemoryModuleDetailsPanel(palette, resources);
+        Grid.SetRow(_memoryModuleDetailsPanel, 4);
+        details.Children.Add(_memoryModuleDetailsPanel);
 
         _settings.PropertyChanged += OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated += OnSnapshotUpdated;
@@ -309,6 +341,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _hardwareNameResolver = PerformanceHardwareNameResolver.Create(
                 _settings.PerformanceHardwareNameReplacementRules);
             ApplySnapshotPresentation(_snapshotService.GetLatestSnapshot());
+            return;
+        }
+
+        if (eventArgs.PropertyName == nameof(AppSettings.ShowMemoryModuleSerialNumbers))
+        {
+            UpdateSelectionAndDetails();
             return;
         }
 
@@ -423,6 +461,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     /// <summary>Appends one raw snapshot without reconciling live cards or removing stale histories.</summary>
     private void AppendSnapshotHistories(PerformanceSnapshot snapshot)
     {
+        _diskPerformanceDetailsView.Append(snapshot);
+        _gpuPerformanceDetailsView.Append(snapshot);
         long capturedTimestamp = snapshot.CapturedTimestamp;
         AppendDeviceHistory(
             snapshot.CPU.DeviceID,
@@ -488,6 +528,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
     private void ApplySnapshotPresentation(PerformanceSnapshot snapshot)
     {
+        _latestMemorySnapshot = snapshot.Memory;
         List<PerformanceDevicePresentation> liveDevices =
             PerformanceDevicePresentationFactory.Create(
                 snapshot,
@@ -751,6 +792,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _detailGraphLabel.Text = string.Empty;
             _detailGraph.IsVisible = false;
             _cpuLogicalProcessorGrid.IsVisible = false;
+            _gpuPerformanceDetailsView.Hide();
+            _genericGraphHeader.IsVisible = true;
+            _genericGraphFooter.IsVisible = true;
+            _memoryCompositionView.IsVisible = false;
+            _memoryModuleDetailsPanel.IsVisible = false;
+            _diskPerformanceDetailsView.Hide();
             SetStatistics(null, ReadOnlySpan<PerformanceStatistic>.Empty);
             return;
         }
@@ -762,8 +809,61 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _detailGraph.SetHistory(_histories[selectedDevice.DeviceID]);
         bool showLogicalProcessors = selectedDevice.Kind == PerformanceDeviceKind.CPU
                                      && _cpuLogicalProcessorHistories.Count > 0;
-        _detailGraph.IsVisible = !showLogicalProcessors;
+        bool showGPUDetails = selectedDevice.Kind == PerformanceDeviceKind.GPU;
+        _detailGraph.IsVisible = !showLogicalProcessors && !showGPUDetails;
         _cpuLogicalProcessorGrid.IsVisible = showLogicalProcessors;
+        _genericGraphHeader.IsVisible = !showGPUDetails;
+        _genericGraphFooter.IsVisible = !showGPUDetails;
+        if (showGPUDetails)
+        {
+            if (!_gpuPerformanceDetailsView.IsShowing(
+                    selectedDevice.DeviceID,
+                    _historyLengthMinutes,
+                    _sampleIntervalMilliseconds))
+            {
+                _gpuPerformanceDetailsView.Show(
+                    selectedDevice.DeviceID,
+                    _historyLengthMinutes,
+                    _sampleIntervalMilliseconds,
+                    _snapshotService.GetSnapshotHistory());
+            }
+        }
+        else
+        {
+            _gpuPerformanceDetailsView.Hide();
+        }
+        bool showMemoryDetails = selectedDevice.Kind == PerformanceDeviceKind.Memory;
+        _memoryCompositionView.IsVisible = showMemoryDetails;
+        if (showMemoryDetails)
+        {
+            _memoryCompositionView.Update(_latestMemorySnapshot);
+            _memoryModuleDetailsPanel.Update(
+                _latestMemorySnapshot.Hardware.Modules,
+                _settings.ShowMemoryModuleSerialNumbers);
+        }
+        else
+        {
+            _memoryModuleDetailsPanel.IsVisible = false;
+        }
+        bool showDiskDetails = selectedDevice.Kind == PerformanceDeviceKind.Disk;
+        if (showDiskDetails)
+        {
+            if (!_diskPerformanceDetailsView.IsShowing(
+                    selectedDevice.DeviceID,
+                    _historyLengthMinutes,
+                    _sampleIntervalMilliseconds))
+            {
+                _diskPerformanceDetailsView.Show(
+                    selectedDevice.DeviceID,
+                    _historyLengthMinutes,
+                    _sampleIntervalMilliseconds,
+                    _snapshotService.GetSnapshotHistory());
+            }
+        }
+        else
+        {
+            _diskPerformanceDetailsView.Hide();
+        }
         SetStatistics(selectedDevice.Kind, selectedDevice.Statistics.Span);
     }
 
@@ -773,7 +873,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     {
         int visibleCount = Math.Min(statistics.Length, MaximumDetailStatistics);
         int primaryStatisticCount = GetPrimaryStatisticCount(deviceKind, visibleCount);
-        ConfigureStatisticsLayout(visibleCount, primaryStatisticCount);
+        ConfigureStatisticsLayout(deviceKind, visibleCount, primaryStatisticCount);
         for (int statisticIndex = 0; statisticIndex < MaximumDetailStatistics; statisticIndex++)
         {
             TextBlock label = _statisticLabels[statisticIndex];
@@ -787,16 +887,21 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     }
 
     /// <summary>Splits prominent values from compact metadata without rebuilding it every sample.</summary>
-    private void ConfigureStatisticsLayout(int visibleCount, int primaryStatisticCount)
+    private void ConfigureStatisticsLayout(
+        PerformanceDeviceKind? deviceKind,
+        int visibleCount,
+        int primaryStatisticCount)
     {
         if (_configuredStatisticCount == visibleCount
-            && _configuredPrimaryStatisticCount == primaryStatisticCount)
+            && _configuredPrimaryStatisticCount == primaryStatisticCount
+            && _configuredStatisticDeviceKind == deviceKind)
         {
             return;
         }
 
         _configuredStatisticCount = visibleCount;
         _configuredPrimaryStatisticCount = primaryStatisticCount;
+        _configuredStatisticDeviceKind = deviceKind;
         _primaryStatistics.Children.Clear();
         _metadataStatistics.Children.Clear();
         for (int statisticIndex = 0; statisticIndex < MaximumDetailStatistics; statisticIndex++)
@@ -811,7 +916,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             bool isPrimary = statisticIndex < primaryStatisticCount;
             statistic.Orientation = isPrimary ? Orientation.Vertical : Orientation.Horizontal;
             statistic.Width = isPrimary
-                ? _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticWidth
+                ? deviceKind == PerformanceDeviceKind.Memory
+                    ? _resources.AxamlTaskManagerPerformance.MemoryPrimaryStatisticWidth
+                    : _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticWidth
                 : double.NaN;
             statistic.Margin = isPrimary
                 ? _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticMargin
@@ -837,10 +944,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         int requestedCount = deviceKind switch
         {
             PerformanceDeviceKind.CPU => 8,
-            PerformanceDeviceKind.Memory => 2,
-            PerformanceDeviceKind.GPU => 3,
+            PerformanceDeviceKind.Memory => 6,
+            PerformanceDeviceKind.GPU => 5,
             PerformanceDeviceKind.Network => 2,
-            PerformanceDeviceKind.Disk => 3,
+            PerformanceDeviceKind.Disk => 4,
             _ => 0
         };
         return Math.Min(requestedCount, visibleCount);

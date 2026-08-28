@@ -104,15 +104,33 @@ public sealed class PerformanceSnapshotServiceTests
         Assert.True(snapshot.Memory.HasMemoryData);
         Assert.True(snapshot.Memory.TotalPhysicalBytes > 0);
         Assert.True(snapshot.Memory.AvailablePhysicalBytes <= snapshot.Memory.TotalPhysicalBytes);
+        Assert.True(snapshot.Memory.Composition.HasCompositionData);
         Assert.Equal(
-            snapshot.Memory.TotalPhysicalBytes - snapshot.Memory.AvailablePhysicalBytes,
-            snapshot.Memory.UsedPhysicalBytes);
+            snapshot.Memory.TotalPhysicalBytes,
+            snapshot.Memory.UsedPhysicalBytes
+            + snapshot.Memory.Composition.ModifiedBytes
+            + snapshot.Memory.Composition.StandbyBytes
+            + snapshot.Memory.Composition.FreeBytes);
+        Assert.Equal(
+            snapshot.Memory.AvailablePhysicalBytes,
+            snapshot.Memory.Composition.StandbyBytes + snapshot.Memory.Composition.FreeBytes);
+        Assert.True(snapshot.Memory.Composition.HasCompressionData);
+        Assert.True(snapshot.Memory.Composition.EstimatedDataBytes
+                    >= snapshot.Memory.Composition.CompressedBytes);
+        Assert.Equal(
+            snapshot.Memory.Composition.EstimatedDataBytes
+            - snapshot.Memory.Composition.CompressedBytes,
+            snapshot.Memory.Composition.SavedBytes);
+        Assert.All(
+            snapshot.Memory.Hardware.Modules.ToArray(),
+            static module => Assert.Empty(module.SerialNumber));
 
         Assert.All(snapshot.GPUs.ToArray(), static gpu =>
         {
             Assert.StartsWith("gpu:", gpu.DeviceID, StringComparison.Ordinal);
             Assert.Equal(PerformanceDeviceKind.GPU, gpu.Kind);
             Assert.InRange(gpu.UtilizationPercent, 0, 100);
+            Assert.NotNull(gpu.Details);
         });
         Assert.All(snapshot.Networks.ToArray(), static network =>
         {
@@ -127,6 +145,7 @@ public sealed class PerformanceSnapshotServiceTests
             Assert.StartsWith("disk:", disk.DeviceID, StringComparison.Ordinal);
             Assert.Equal(PerformanceDeviceKind.Disk, disk.Kind);
             Assert.InRange(disk.ActiveTimePercent, 0, 100);
+            Assert.NotNull(disk.Details);
         });
     }
 }

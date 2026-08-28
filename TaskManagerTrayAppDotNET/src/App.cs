@@ -99,7 +99,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             settings.PerformanceSampleIntervalMilliseconds,
             PerformanceSamplingSettings.CalculateMaximumHistoryCount(
                 settings.PerformanceHistoryLengthMinutes,
-                settings.PerformanceSampleIntervalMilliseconds));
+                settings.PerformanceSampleIntervalMilliseconds),
+            settings.ShowMemoryModuleSerialNumbers);
         _trayIconRenderer = new TaskManagerTrayIcon();
         CreateTaskManagerWindow();
         _snapshotService.Start();
@@ -331,7 +332,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
                     _settings.PerformanceSampleIntervalMilliseconds,
                     PerformanceSamplingSettings.CalculateMaximumHistoryCount(
                         _settings.PerformanceHistoryLengthMinutes,
-                        _settings.PerformanceSampleIntervalMilliseconds));
+                        _settings.PerformanceSampleIntervalMilliseconds),
+                    _settings.ShowMemoryModuleSerialNumbers);
             }
 
             _taskManagerWindow?.RefreshTheme();

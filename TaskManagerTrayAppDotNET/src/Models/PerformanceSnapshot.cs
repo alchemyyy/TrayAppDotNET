@@ -89,7 +89,10 @@ internal sealed record MemoryPerformanceSnapshot(
     ulong CommitLimitBytes,
     ulong CachedBytes,
     ulong PagedPoolBytes,
-    ulong NonPagedPoolBytes)
+    ulong NonPagedPoolBytes,
+    ulong HardwareReservedBytes,
+    MemoryCompositionSnapshot Composition,
+    PhysicalMemoryHardwareSnapshot Hardware)
 {
     public const string StableDeviceID = "memory";
 
@@ -107,8 +110,56 @@ internal sealed record MemoryPerformanceSnapshot(
         0,
         0,
         0,
+        0,
+        0,
+        MemoryCompositionSnapshot.Empty,
+        PhysicalMemoryHardwareSnapshot.Empty);
+}
+
+/// <summary>Physical-memory list and compression-store values used by the composition bar.</summary>
+internal readonly record struct MemoryCompositionSnapshot(
+    bool HasCompositionData,
+    ulong ModifiedBytes,
+    ulong StandbyBytes,
+    ulong FreeBytes,
+    bool HasCompressionData,
+    ulong CompressedBytes,
+    ulong EstimatedDataBytes,
+    ulong SavedBytes)
+{
+    public static MemoryCompositionSnapshot Empty { get; } = new(
+        false,
+        0,
+        0,
+        0,
+        false,
+        0,
+        0,
         0);
 }
+
+/// <summary>Static physical-memory array and module metadata read from CIM/WMI.</summary>
+internal readonly record struct PhysicalMemoryHardwareSnapshot(
+    ulong SpeedMegatransfersPerSecond,
+    int UsedSlotCount,
+    int TotalSlotCount,
+    string FormFactor,
+    ReadOnlyMemory<PhysicalMemoryModuleSnapshot> Modules)
+{
+    public static PhysicalMemoryHardwareSnapshot Empty { get; } = new(
+        0,
+        0,
+        0,
+        "Unknown",
+        ReadOnlyMemory<PhysicalMemoryModuleSnapshot>.Empty);
+}
+
+/// <summary>Identity and capacity for one installed physical-memory module.</summary>
+internal sealed record PhysicalMemoryModuleSnapshot(
+    string BankLabel,
+    ulong CapacityBytes,
+    string PartNumber,
+    string SerialNumber);
 
 /// <summary>One GPU engine's aggregate utilization across all owning processes.</summary>
 internal readonly record struct GPUPerformanceEngineSnapshot(
@@ -132,7 +183,11 @@ internal sealed record GPUPerformanceSnapshot(
     ulong DedicatedMemoryCapacityBytes,
     bool HasSharedMemoryData,
     ulong SharedMemoryBytes,
-    ulong SharedMemoryCapacityBytes);
+    ulong SharedMemoryCapacityBytes)
+{
+    /// <summary>Optional adapter details gathered after the high-frequency PDH sample.</summary>
+    public GPUPerformanceDetailsSnapshot? Details { get; init; }
+}
 
 /// <summary>One network adapter sampled from cumulative interface byte counters.</summary>
 internal sealed record NetworkPerformanceSnapshot(
@@ -166,4 +221,8 @@ internal sealed record DiskPerformanceSnapshot(
     uint QueueDepth,
     ulong CapacityBytes,
     ulong FormattedCapacityBytes,
-    ulong AvailableBytes);
+    ulong AvailableBytes)
+{
+    /// <summary>Optional storage-role and media details gathered after the kernel counter sample.</summary>
+    public DiskPerformanceDetailsSnapshot? Details { get; init; }
+}
