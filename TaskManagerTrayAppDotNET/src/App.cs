@@ -106,8 +106,26 @@ internal sealed class TaskManagerAvaloniaApp : Application
         _snapshotService.Start();
         _performanceSnapshotService.Start();
         CreateTrayIcon();
-        _taskManagerWindow!.ShowAtDefaultPositionAndActivateAfterFirstFrame();
+        TaskManagerWindow taskManagerWindow = _taskManagerWindow!;
+        Task firstFrameReveal = taskManagerWindow.ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
         base.OnFrameworkInitializationCompleted();
+        _ = StartInitialElevationAfterWindowRevealAsync(taskManagerWindow, firstFrameReveal);
+    }
+
+    private async Task StartInitialElevationAfterWindowRevealAsync(
+        TaskManagerWindow taskManagerWindow,
+        Task firstFrameReveal)
+    {
+        try
+        {
+            await firstFrameReveal;
+            if (_shuttingDown || !ReferenceEquals(_taskManagerWindow, taskManagerWindow)) return;
+            taskManagerWindow.StartInitialElevatedTerminationAttempt();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Task Manager initial window reveal failed: {exception}");
+        }
     }
 
     private void LoadSettingsAndTheme()

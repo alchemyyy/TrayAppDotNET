@@ -28,6 +28,10 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private const string EndTaskConfirmationMessage =
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
         "If you end a system process, it might result in system instability. Are you sure you want to continue?";
+    private const string ElevatedTerminationExplanation =
+        "Task Manager can start TaskManagerTrayAppDotNET.KillHelper.exe with administrator privileges so it can " +
+        "end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, Task " +
+        "Manager will continue running with standard process permissions.";
 
     private static readonly Glyph ProcessesGlyph = Glyph.Fluent("\uECAA");
     private static readonly Glyph PerformanceGlyph = Glyph.Fluent("\uE9D9");
@@ -48,6 +52,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private ProcessDetailsPage? _processDetailsPage;
     private TaskManagerSettingsWindow? _settingsWindow;
     private bool _allowClose;
+    private bool _initialElevationAttemptConsumed;
+    private bool _manualElevationPromptPending;
     private bool _exitRequested;
 
     public TaskManagerWindow(
@@ -155,6 +161,22 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             RebuildShell(TaskManagerPage.Processes);
     }
 
+    /// <summary>Starts one silent elevation attempt after normal startup is complete.</summary>
+    internal void StartInitialElevatedTerminationAttempt()
+    {
+        if (_initialElevationAttemptConsumed ||
+            _manualElevationPromptPending ||
+            _allowClose ||
+            !IsVisible)
+        {
+            return;
+        }
+
+        _initialElevationAttemptConsumed = true;
+        IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        _ = RunInitialElevatedTerminationAttemptAsync(ownerWindowHandle);
+    }
+
     /// <summary>Allows app shutdown to close the otherwise warm, hide-on-close window.</summary>
     internal void RequestPermanentClose()
     {
@@ -206,6 +228,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _taskManagerResources,
             _processTerminationService.Arm,
             TryTerminateProcess,
+            _processTerminationService.GetElevatedHelperStatus,
+            RequestManualElevatedTermination,
             ConfirmEndTaskAsync,
             ReportMessage,
             StartProcess);
@@ -314,6 +338,83 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
         _processTerminationService.TryTerminate(target, out errorMessage);
+
+    private async Task RunInitialElevatedTerminationAttemptAsync(IntPtr ownerWindowHandle)
+    {
+        try
+        {
+            _ = await _processTerminationService.EnableElevatedHelperAsync(ownerWindowHandle);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Task Manager initial elevated termination attempt failed: {exception}");
+        }
+    }
+
+    private void RequestManualElevatedTermination()
+    {
+        // Manual choice owns elevation once its explanation starts, including a later Not now result
+        _initialElevationAttemptConsumed = true;
+        _ = PromptForManualElevatedTerminationAsync();
+    }
+
+    private async Task PromptForManualElevatedTerminationAsync()
+    {
+        if (_allowClose || _manualElevationPromptPending || !IsVisible) return;
+
+        ElevatedHelperStatus currentStatus = _processTerminationService.GetElevatedHelperStatus();
+        if (currentStatus.State is ElevatedHelperState.Starting or
+            ElevatedHelperState.Ready or
+            ElevatedHelperState.Disposed)
+        {
+            return;
+        }
+
+        _manualElevationPromptPending = true;
+        try
+        {
+            bool enable = await ConfirmAsync(
+                "Enable elevated process termination?",
+                ElevatedTerminationExplanation,
+                "Enable",
+                "Not now");
+            if (!enable || _allowClose || !IsVisible) return;
+
+            if (WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+            Activate();
+
+            IntPtr ownerWindowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            ElevatedHelperStatus completedStatus = await _processTerminationService
+                .EnableElevatedHelperAsync(ownerWindowHandle);
+            if (_allowClose || !IsVisible) return;
+
+            switch (completedStatus.State)
+            {
+                case ElevatedHelperState.Declined:
+                    await ShowMessage(
+                        "Elevated termination not enabled",
+                        "Windows administrator approval was canceled. Task Manager will continue with standard " +
+                        "process permissions.");
+                    break;
+                case ElevatedHelperState.Failed:
+                    await ShowMessage(
+                        "Elevated termination failed",
+                        string.IsNullOrWhiteSpace(completedStatus.ErrorMessage)
+                            ? "The elevated termination helper could not be started."
+                            : completedStatus.ErrorMessage);
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Task Manager manual elevated termination prompt failed: {exception}");
+        }
+        finally
+        {
+            _manualElevationPromptPending = false;
+        }
+    }
 
     private Task<bool> ConfirmEndTaskAsync(ProcessEndTaskRequest request)
     {

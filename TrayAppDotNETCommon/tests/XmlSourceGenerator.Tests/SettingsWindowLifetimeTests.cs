@@ -15,6 +15,27 @@ namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 public sealed class SettingsWindowLifetimeTests
 {
     [Fact]
+    public void FirstFrameShowTaskCompletesAfterTheWindowIsRevealed() =>
+        AvaloniaTestHost.RunAsync(async () =>
+        {
+            TestSettingsWindow window = new();
+            double restoredOpacity = window.Opacity;
+            try
+            {
+                Task firstFrameReveal = window.ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
+
+                await firstFrameReveal.WaitAsync(TimeSpan.FromSeconds(5));
+
+                Assert.True(window.IsVisible);
+                Assert.Equal(restoredOpacity, window.Opacity);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+
+    [Fact]
     public void FullWorkAreaAxisUsesSharpCorners()
     {
         PixelRect workArea = new(0, 0, 1920, 1040);

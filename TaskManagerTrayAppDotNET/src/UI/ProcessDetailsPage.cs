@@ -18,6 +18,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private readonly ProcessSnapshotService _snapshotService;
     private readonly Action<ProcessTerminationTarget?> _armTerminationTarget;
     private readonly TryTerminateProcessAction _terminateProcess;
+    private readonly Func<ElevatedHelperStatus> _getElevatedHelperStatus;
+    private readonly Action _requestElevatedTermination;
     private readonly Func<ProcessEndTaskRequest, Task<bool>> _confirmEndTask;
     private readonly Action<string, string> _reportMessage;
     private readonly Func<string, bool> _startProcess;
@@ -59,6 +61,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         TaskManagerWindowResources resources,
         Action<ProcessTerminationTarget?> armTerminationTarget,
         TryTerminateProcessAction terminateProcess,
+        Func<ElevatedHelperStatus> getElevatedHelperStatus,
+        Action requestElevatedTermination,
         Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
@@ -70,6 +74,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _resources = resources;
         _armTerminationTarget = armTerminationTarget;
         _terminateProcess = terminateProcess;
+        _getElevatedHelperStatus = getElevatedHelperStatus;
+        _requestElevatedTermination = requestElevatedTermination;
         _confirmEndTask = confirmEndTask;
         _reportMessage = reportMessage;
         _startProcess = startProcess;
@@ -439,6 +445,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         CloseHeaderActionsMenu();
         TrayMenuEntryBuilder entries = new();
         entries.Add("Arrange buttons", ShowHeaderButtonArrangement);
+        entries.AddSeparator();
+        AddElevatedHelperMenuEntry(entries);
         TaskManagerContextMenuWindow menuWindow = new(
             entries.ToList(),
             _palette,
@@ -447,6 +455,30 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _headerActionsMenuWindow = menuWindow;
         menuWindow.Closed += OnHeaderActionsMenuClosed;
         menuWindow.ShowOver(_moreActionsButton, _moreActionsButton, owner);
+    }
+
+    private void AddElevatedHelperMenuEntry(TrayMenuEntryBuilder entries)
+    {
+        ElevatedHelperStatus status = _getElevatedHelperStatus();
+        switch (status.State)
+        {
+            case ElevatedHelperState.NotRequested:
+                entries.Add("Enable elevated termination...", _requestElevatedTermination);
+                break;
+            case ElevatedHelperState.Declined:
+            case ElevatedHelperState.Failed:
+                entries.Add("Retry elevated termination...", _requestElevatedTermination);
+                break;
+            case ElevatedHelperState.Starting:
+                entries.Add("Waiting for Windows approval", static () => { });
+                break;
+            case ElevatedHelperState.Ready:
+                entries.Add("Elevated termination enabled", static () => { });
+                break;
+            case ElevatedHelperState.Disposed:
+                entries.Add("Elevated termination unavailable", static () => { });
+                break;
+        }
     }
 
     private void CloseHeaderActionsMenu()

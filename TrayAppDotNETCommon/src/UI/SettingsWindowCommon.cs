@@ -255,12 +255,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     }
 
     /// <summary>Shows a cold window only after its first compositor frame contains the completed shell.</summary>
-    public void ShowAtDefaultPositionAndActivateAfterFirstFrame()
+    public void ShowAtDefaultPositionAndActivateAfterFirstFrame() =>
+        _ = ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
+
+    /// <summary>Shows and activates the window, completing after its first-frame reveal and foreground sequence.</summary>
+    public Task ShowAtDefaultPositionAndActivateAfterFirstFrameAsync()
     {
         if (IsVisible)
         {
             ShowAtDefaultPositionAndActivate();
-            return;
+            return Task.CompletedTask;
         }
 
         IntPtr windowHandle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
@@ -281,7 +285,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             throw;
         }
 
-        _ = RevealAfterFirstFrameAsync(windowHandle, isCloaked, restoredOpacity);
+        return RevealAfterFirstFrameAsync(windowHandle, isCloaked, restoredOpacity);
     }
 
     private async Task RevealAfterFirstFrameAsync(
