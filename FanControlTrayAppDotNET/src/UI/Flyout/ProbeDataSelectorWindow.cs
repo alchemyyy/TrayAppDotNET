@@ -45,6 +45,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private readonly HashSet<string> _expandedTransformKeys = new(StringComparer.OrdinalIgnoreCase);
     private ProbeSelectorVisualGeneration? _activeVisualGeneration;
     private TextBox? _focusedTransformTextBox;
+    private ProbeKeyboardNavigationIdentity? _keyboardSelectionIdentity;
+    private ProbeKeyboardNavigationTarget? _keyboardEditingTarget;
     private ProbeSelectorAxamlProperties? _layout;
     private StackPanel? _selectedProbeDragPanel;
     private ProbeCardProbe? _draggedSelectedProbe;
@@ -65,6 +67,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private IPointer? _capturedNicknameRulePointer;
     private bool _isResettingGestures;
     private bool _isPublishingContentGeneration;
+    private bool _isKeyboardNavigationActive;
 
     /// <summary>
     /// Initializes the XAML designer constructor.
@@ -82,9 +85,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             InitializeComponent();
             InitializeComponentState();
-            AddHandler(PointerPressedEvent, OnSelectorPointerPressed, RoutingStrategies.Tunnel,
-                handledEventsToo: true);
-            _windowResources.Add(() => RemoveHandler(PointerPressedEvent, OnSelectorPointerPressed));
+            AttachSelectorInputHandlers();
         }
         catch
         {
@@ -112,10 +113,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             InitializeComponent();
             InitializeComponentState();
-            AddHandler(PointerPressedEvent, OnSelectorPointerPressed, RoutingStrategies.Tunnel,
-                handledEventsToo: true);
-            _windowResources.Add(() => RemoveHandler(PointerPressedEvent, OnSelectorPointerPressed));
-            Title = $"Probe Data: {_probeCard.DisplayName}";
+            AttachSelectorInputHandlers();
+            Title = $"Probe Card Editor: {_probeCard.DisplayName}";
             if (_subscribedLHMService != null)
             {
                 _subscribedLHMService.PollTickCompleted += OnPollTickCompleted;
@@ -147,6 +146,19 @@ public sealed partial class ProbeDataSelectorWindow : Window
         MinHeight = Layout.WindowHeight;
         MaxWidth = Layout.WindowWidth;
         MaxHeight = Layout.WindowHeight;
+    }
+
+    /// <summary>
+    /// Installs window-level pointer and keyboard routing for editor navigation.
+    /// </summary>
+    private void AttachSelectorInputHandlers()
+    {
+        AddHandler(PointerPressedEvent, OnSelectorPointerPressed, RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        _windowResources.Add(() => RemoveHandler(PointerPressedEvent, OnSelectorPointerPressed));
+        AddHandler(KeyDownEvent, OnSelectorKeyDown, RoutingStrategies.Tunnel,
+            handledEventsToo: true);
+        _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnSelectorKeyDown));
     }
 
     private ControlNameScope ControlNames => _controlNames;
@@ -271,9 +283,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
         try
         {
             _activeVisualGeneration = replacement;
+            _keyboardEditingTarget = null;
             try
             {
                 Content = replacement.ContentGeneration.Root;
+                RestoreKeyboardSelection(replacement);
             }
             catch (Exception exception)
             {
@@ -422,6 +436,335 @@ public sealed partial class ProbeDataSelectorWindow : Window
     }
 
     /// <summary>
+    /// Routes editor-wide keyboard commands before individual controls consume them.
+    /// </summary>
+    private void OnSelectorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_windowResources.IsDisposed || _activeVisualGeneration == null) return;
+
+        if (_keyboardEditingTarget is { } editingTarget)
+        {
+            if (!IsActiveGenerationVisual(editingTarget.Control))
+            {
+                _keyboardEditingTarget = null;
+            }
+            else
+            {
+                switch (e.Key)
+                {
+                    case Key.Enter:
+                    case Key.Escape:
+                        FinishKeyboardEdit(editingTarget);
+                        e.Handled = true;
+                        return;
+                    case Key.Tab:
+                        FinishKeyboardEdit(editingTarget);
+                        CycleKeyboardTab(e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? -1 : 1);
+                        e.Handled = true;
+                        return;
+                    default:
+                        return;
+                }
+            }
+        }
+
+        if (e.Key == Key.Tab)
+        {
+            ActivateKeyboardNavigation();
+            CycleKeyboardTab(e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            ActivateKeyboardNavigation();
+            ProbeKeyboardNavigationTarget? target = EnsureKeyboardSelection();
+            if (target?.MoveInScope is { } moveInScope)
+                moveInScope(e.Key == Key.Up ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
+
+        ProbeCardEditorNavigationDirection? direction = e.Key switch
+        {
+            Key.Left => ProbeCardEditorNavigationDirection.Left,
+            Key.Right => ProbeCardEditorNavigationDirection.Right,
+            Key.Up => ProbeCardEditorNavigationDirection.Up,
+            Key.Down => ProbeCardEditorNavigationDirection.Down,
+            _ => null
+        };
+        if (direction is { } navigationDirection)
+        {
+            ActivateKeyboardNavigation();
+            MoveKeyboardSelection(navigationDirection);
+            e.Handled = true;
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Enter:
+            {
+                ActivateKeyboardNavigation();
+                ProbeKeyboardNavigationTarget? target = EnsureKeyboardSelection();
+                if (target?.Editor != null)
+                    BeginKeyboardEdit(target);
+                else
+                    target?.PrimaryAction?.Invoke();
+                e.Handled = true;
+                break;
+            }
+            case Key.Space:
+            {
+                ActivateKeyboardNavigation();
+                ProbeKeyboardNavigationTarget? target = EnsureKeyboardSelection();
+                Action? action = target?.StateAction ?? target?.PrimaryAction;
+                action?.Invoke();
+                e.Handled = true;
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enables keyboard selection visuals and restores the current target.
+    /// </summary>
+    private void ActivateKeyboardNavigation()
+    {
+        if (_isKeyboardNavigationActive) return;
+
+        _isKeyboardNavigationActive = true;
+        RestoreKeyboardSelection(_activeVisualGeneration);
+    }
+
+    /// <summary>
+    /// Selects the first available control if keyboard navigation has no current target.
+    /// </summary>
+    private ProbeKeyboardNavigationTarget? EnsureKeyboardSelection()
+    {
+        ProbeSelectorVisualGeneration? generation = _activeVisualGeneration;
+        if (generation == null) return null;
+
+        ProbeKeyboardNavigationTarget? current = FindKeyboardTarget(
+            generation,
+            _keyboardSelectionIdentity);
+        if (current != null) return current;
+
+        ProbeKeyboardNavigationTarget? first = generation.NavigationTargets
+            .FirstOrDefault(IsKeyboardTargetAvailable);
+        if (first != null) SelectKeyboardTarget(first);
+        return first;
+    }
+
+    /// <summary>
+    /// Moves the white keyboard selection border to the nearest directional target.
+    /// </summary>
+    private void MoveKeyboardSelection(ProbeCardEditorNavigationDirection direction)
+    {
+        ProbeSelectorVisualGeneration? generation = _activeVisualGeneration;
+        if (generation == null) return;
+
+        ProbeKeyboardNavigationTarget? current = EnsureKeyboardSelection();
+        if (current == null) return;
+
+        List<ProbeKeyboardNavigationTarget> targets =
+        [
+            .. generation.NavigationTargets.Where(IsKeyboardTargetAvailable)
+        ];
+        int currentIndex = targets.IndexOf(current);
+        if (currentIndex < 0) return;
+
+        List<ProbeCardEditorNavigationPoint> points = [];
+        foreach (ProbeKeyboardNavigationTarget target in targets)
+            points.Add(KeyboardTargetCenter(target.Control, generation.ContentGeneration.Root));
+
+        int targetIndex = ProbeCardEditorKeyboardNavigation.FindDirectionalTarget(
+            points,
+            currentIndex,
+            direction);
+        if (targetIndex < 0) return;
+
+        SelectKeyboardTarget(targets[targetIndex]);
+    }
+
+    /// <summary>
+    /// Changes the active editor tab and wraps at either end.
+    /// </summary>
+    private void CycleKeyboardTab(int offset)
+    {
+        int currentIndex = Array.IndexOf(Tabs, SelectedTab);
+        int nextIndex = ProbeCardEditorKeyboardNavigation.WrapIndex(currentIndex, offset, Tabs.Length);
+        if (nextIndex < 0) return;
+
+        RebuildContent(Tabs[nextIndex]);
+    }
+
+    /// <summary>
+    /// Begins editing the selected text control.
+    /// </summary>
+    private void BeginKeyboardEdit(ProbeKeyboardNavigationTarget target)
+    {
+        TextBox? editor = target.Editor;
+        if (editor == null || !IsKeyboardTargetAvailable(target)) return;
+
+        _keyboardEditingTarget = target;
+        editor.Focus();
+        editor.SelectAll();
+    }
+
+    /// <summary>
+    /// Commits an active text edit and returns focus to the navigation sink.
+    /// </summary>
+    private void FinishKeyboardEdit(ProbeKeyboardNavigationTarget target)
+    {
+        ProbeKeyboardNavigationIdentity identity = target.Identity;
+        _keyboardEditingTarget = null;
+        target.CommitEdit?.Invoke();
+        _keyboardSelectionIdentity = identity;
+        RestoreKeyboardSelection(_activeVisualGeneration);
+        _activeVisualGeneration?.FocusSink.Focus();
+    }
+
+    /// <summary>
+    /// Restores selection state after a content rebuild.
+    /// </summary>
+    private void RestoreKeyboardSelection(ProbeSelectorVisualGeneration? generation)
+    {
+        if (!_isKeyboardNavigationActive || generation == null) return;
+
+        ProbeKeyboardNavigationTarget? target = FindKeyboardTarget(
+            generation,
+            _keyboardSelectionIdentity)
+            ?? generation.NavigationTargets.FirstOrDefault(IsKeyboardTargetAvailable);
+        if (target == null)
+        {
+            _keyboardSelectionIdentity = null;
+            return;
+        }
+
+        SelectKeyboardTarget(target);
+    }
+
+    /// <summary>
+    /// Applies keyboard selection visual state to one target.
+    /// </summary>
+    private void SelectKeyboardTarget(ProbeKeyboardNavigationTarget target)
+    {
+        ProbeSelectorVisualGeneration? generation = _activeVisualGeneration;
+        if (generation == null) return;
+
+        ProbeKeyboardNavigationTarget? previous = FindKeyboardTarget(
+            generation,
+            _keyboardSelectionIdentity);
+        if (previous != null && !ReferenceEquals(previous, target))
+            previous.SetSelected(false);
+
+        _keyboardSelectionIdentity = target.Identity;
+        target.SetSelected(_isKeyboardNavigationActive);
+        target.Control.BringIntoView();
+        generation.FocusSink.Focus();
+    }
+
+    /// <summary>
+    /// Finds a target by its stable identity in one visual generation.
+    /// </summary>
+    private static ProbeKeyboardNavigationTarget? FindKeyboardTarget(
+        ProbeSelectorVisualGeneration generation,
+        ProbeKeyboardNavigationIdentity? identity)
+    {
+        if (identity is null) return null;
+        return generation.NavigationTargets.FirstOrDefault(
+            target => target.Identity.Equals(identity.Value) && IsKeyboardTargetAvailable(target));
+    }
+
+    /// <summary>
+    /// Determines whether a navigation target can currently receive commands.
+    /// </summary>
+    private static bool IsKeyboardTargetAvailable(ProbeKeyboardNavigationTarget target) =>
+        target.Control.IsVisible && target.Control.IsEnabled;
+
+    /// <summary>
+    /// Resolves a target center in root coordinates for spatial arrow navigation.
+    /// </summary>
+    private static ProbeCardEditorNavigationPoint KeyboardTargetCenter(Control control, Visual root)
+    {
+        Point localCenter = new(control.Bounds.Width / 2.0, control.Bounds.Height / 2.0);
+        Point center = control.TranslatePoint(localCenter, root) ?? localCenter;
+        return new ProbeCardEditorNavigationPoint(center.X, center.Y);
+    }
+
+    /// <summary>
+    /// Registers keyboard behavior and a white selection border for a border control.
+    /// </summary>
+    private void RegisterBorderKeyboardTarget(
+        ProbeSelectorVisualGeneration generation,
+        Border control,
+        ProbeKeyboardNavigationIdentity identity,
+        Action? primaryAction,
+        Action? stateAction)
+    {
+        IBrush? baseBorderBrush = control.BorderBrush;
+        Thickness baseBorderThickness = control.BorderThickness;
+        generation.NavigationTargets.Add(new ProbeKeyboardNavigationTarget(
+            identity,
+            control,
+            primaryAction,
+            stateAction,
+            null,
+            null,
+            isSelected =>
+            {
+                control.BorderBrush = isSelected ? Brushes.White : baseBorderBrush;
+                control.BorderThickness = isSelected
+                    ? new Thickness(Layout.KeyboardSelectionBorderThickness)
+                    : baseBorderThickness;
+            }));
+    }
+
+    /// <summary>
+    /// Registers keyboard editing behavior and a white selection border for a text box.
+    /// </summary>
+    private void RegisterTextBoxKeyboardTarget(
+        ProbeSelectorVisualGeneration generation,
+        TextBox control,
+        ProbeKeyboardNavigationIdentity identity,
+        Action commitEdit)
+    {
+        IBrush? baseBorderBrush = control.BorderBrush;
+        Thickness baseBorderThickness = control.BorderThickness;
+        generation.NavigationTargets.Add(new ProbeKeyboardNavigationTarget(
+            identity,
+            control,
+            null,
+            null,
+            control,
+            commitEdit,
+            isSelected =>
+            {
+                control.BorderBrush = isSelected ? Brushes.White : baseBorderBrush;
+                control.BorderThickness = isSelected
+                    ? new Thickness(Layout.KeyboardSelectionBorderThickness)
+                    : baseBorderThickness;
+            }));
+    }
+
+    /// <summary>
+    /// Assigns Ctrl+Up and Ctrl+Down scope movement to every target within a row.
+    /// </summary>
+    private static void AssignKeyboardScopeMove(
+        ProbeSelectorVisualGeneration generation,
+        Border row,
+        Action<int> moveInScope)
+    {
+        foreach (ProbeKeyboardNavigationTarget target in generation.NavigationTargets)
+        {
+            if (!IsSelfOrDescendant(row, target.Control)) continue;
+            target.MoveInScope = moveInScope;
+        }
+    }
+
+    /// <summary>
     /// Builds the active tab body.
     /// </summary>
     private Control BuildTabBody(ProbeSelectorVisualGeneration generation)
@@ -541,7 +884,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             "SelectedProbes");
         section.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         section.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        section.Children.Add(BuildSelectedProbesHeader());
+        section.Children.Add(BuildSelectedProbesHeader(generation));
 
         StackPanel selectedProbeList = ControlNames.Assign(
             new StackPanel
@@ -559,9 +902,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
         {
             DataSource? source = DataSource.Find(probe.DataSourceKey);
             Border card = source is null
-                ? BuildMissingProbeCard(probe)
+                ? BuildMissingProbeCard(probe, generation)
                 : BuildProbeChoiceCard(source, generation);
             WireSelectedProbeDrag(card, probe, selectedProbeList);
+            AssignKeyboardScopeMove(
+                generation,
+                card,
+                direction => MoveSelectedProbeByKeyboard(probe, direction));
             selectedProbeList.Children.Add(card);
         }
 
@@ -578,7 +925,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the selected-probes column header.
     /// </summary>
-    private Grid BuildSelectedProbesHeader()
+    private Grid BuildSelectedProbesHeader(ProbeSelectorVisualGeneration generation)
     {
         Grid header = new();
         header.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -597,6 +944,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
         clearDeadSensors.Padding = Layout.HomeActionButtonPadding;
         clearDeadSensors.Margin = Layout.HomeActionButtonTrailingMargin;
         clearDeadSensors.Click += (_, _) => ClearDeadSensors();
+        RegisterBorderKeyboardTarget(
+            generation,
+            clearDeadSensors,
+            new ProbeKeyboardNavigationIdentity(
+                ProbeKeyboardNavigationEntity.ClearDeadSensors,
+                ProbeKeyboardNavigationRole.Action),
+            ClearDeadSensors,
+            ClearDeadSensors);
         Grid.SetColumn(clearDeadSensors, 1);
         header.Children.Add(clearDeadSensors);
         return header;
@@ -632,6 +987,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         row.PointerPressed += (_, e) =>
         {
             if (!e.GetCurrentPoint(row).Properties.IsLeftButtonPressed) return;
+            if (e.ClickCount == 2) return;
             if (HasCapturedGesturePointer)
             {
                 e.Handled = true;
@@ -694,6 +1050,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (!ReferenceEquals(_capturedSelectedProbePointer, e.Pointer)) return;
             pointerPressed = false;
             EndSelectedProbeDrag(e.Pointer);
+            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
         };
         row.PointerCaptureLost += (_, e) =>
         {
@@ -701,6 +1058,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (!ReferenceEquals(_capturedSelectedProbePointer, e.Pointer)) return;
             pointerPressed = false;
             EndSelectedProbeDrag(e.Pointer);
+            UpdateSelectedProbeDragVisual(row, probe, pointerOver, pointerPressed);
         };
         row.KeyDown += (_, e) =>
         {
@@ -728,12 +1086,30 @@ public sealed partial class ProbeDataSelectorWindow : Window
             ? _palette.Pressed
             : showHover
                 ? _palette.Hover
-                : _palette.CardBackground;
+                : _palette.SearchListItemSelected;
         row.Background = TrayAppDotNETSettingsUI.Brush(background);
-        row.BorderBrush = TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
-        row.BorderThickness = Layout.RootBorderThickness;
+        bool hasKeyboardSelection = IsKeyboardControlSelected(row);
+        row.BorderBrush = hasKeyboardSelection
+            ? Brushes.White
+            : TrayAppDotNETSettingsUI.Brush(dragging ? _palette.Accent : _palette.Border);
+        row.BorderThickness = hasKeyboardSelection
+            ? new Thickness(Layout.KeyboardSelectionBorderThickness)
+            : Layout.RootBorderThickness;
         row.Opacity = dragging ? Layout.ReorderDraggingOpacity : Layout.FullOpacity;
         row.SetValue(ZIndexProperty, dragging ? Layout.ReorderDraggingZIndex : Layout.ReorderNormalZIndex);
+    }
+
+    /// <summary>
+    /// Determines whether a control owns the active keyboard selection border.
+    /// </summary>
+    private bool IsKeyboardControlSelected(Control control)
+    {
+        if (!_isKeyboardNavigationActive || _activeVisualGeneration == null) return false;
+
+        ProbeKeyboardNavigationTarget? target = FindKeyboardTarget(
+            _activeVisualGeneration,
+            _keyboardSelectionIdentity);
+        return target != null && ReferenceEquals(target.Control, control);
     }
 
     /// <summary>
@@ -827,13 +1203,15 @@ public sealed partial class ProbeDataSelectorWindow : Window
     {
         ProbeCardProbe? dragged = _draggedSelectedProbe;
         int targetIndex = _draggedSelectedProbeTargetIndex;
-        bool hadDrag = dragged is not null;
+        bool orderChanged = dragged is not null
+            && targetIndex >= 0
+            && SelectedProbeIndex(dragged) != targetIndex;
         ResetSelectedProbeGesture(pointer);
 
-        if (dragged is not null && targetIndex >= 0)
+        if (dragged is not null && orderChanged)
             ApplySelectedProbeOrder(dragged, targetIndex);
 
-        if (hadDrag) RebuildContent();
+        if (orderChanged) RebuildContent();
     }
 
     /// <summary>
@@ -895,6 +1273,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             LoadDefaultDeviceNicknames,
             AddDeviceNicknameRule,
             DeleteDeviceNicknameRule,
+            ProbeKeyboardNavigationEntity.LoadDefaultDeviceNicknames,
+            ProbeKeyboardNavigationEntity.AddDeviceNickname,
             generation);
     }
 
@@ -909,6 +1289,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             LoadDefaultProbeNicknames,
             AddProbeNicknameRule,
             DeleteProbeNicknameRule,
+            ProbeKeyboardNavigationEntity.LoadDefaultProbeNicknames,
+            ProbeKeyboardNavigationEntity.AddProbeNickname,
             generation);
     }
 
@@ -921,6 +1303,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Action loadDefaultRules,
         Action addRule,
         Action<DeviceNicknameRule> deleteRule,
+        ProbeKeyboardNavigationEntity loadDefaultsEntity,
+        ProbeKeyboardNavigationEntity addEntity,
         ProbeSelectorVisualGeneration generation)
     {
         Grid section = ControlNames.Assign(
@@ -952,6 +1336,12 @@ public sealed partial class ProbeDataSelectorWindow : Window
         loadDefaultButton.Padding = Layout.HomeActionButtonPadding;
         loadDefaultButton.Margin = Layout.HomeActionButtonMargin;
         loadDefaultButton.Click += (_, _) => loadDefaultRules();
+        RegisterBorderKeyboardTarget(
+            generation,
+            loadDefaultButton,
+            new ProbeKeyboardNavigationIdentity(loadDefaultsEntity, ProbeKeyboardNavigationRole.Action),
+            loadDefaultRules,
+            loadDefaultRules);
         Grid.SetColumn(loadDefaultButton, 1);
         header.Children.Add(loadDefaultButton);
 
@@ -964,13 +1354,24 @@ public sealed partial class ProbeDataSelectorWindow : Window
         addButton.Padding = Layout.NicknameAddButtonPadding;
         addButton.Margin = Layout.HomeActionButtonTrailingMargin;
         addButton.Click += (_, _) => addRule();
+        RegisterBorderKeyboardTarget(
+            generation,
+            addButton,
+            new ProbeKeyboardNavigationIdentity(addEntity, ProbeKeyboardNavigationRole.Action),
+            addRule,
+            addRule);
         Grid.SetColumn(addButton, 2);
         header.Children.Add(addButton);
         section.Children.Add(header);
 
         StackPanel rules = ControlNames.Assign(new StackPanel(), titleText);
         foreach (DeviceNicknameRule rule in rulesList)
-            rules.Children.Add(BuildNicknameRuleCard(rule, rulesList, rules, deleteRule));
+            rules.Children.Add(BuildNicknameRuleCard(
+                rule,
+                rulesList,
+                rules,
+                deleteRule,
+                generation));
 
         Border rulesHost = new()
         {
@@ -1016,7 +1417,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         DeviceNicknameRule rule,
         List<DeviceNicknameRule> rulesList,
         StackPanel rulesPanel,
-        Action<DeviceNicknameRule> deleteRule)
+        Action<DeviceNicknameRule> deleteRule,
+        ProbeSelectorVisualGeneration generation)
     {
         Grid row = ControlNames.Assign(
             new Grid
@@ -1037,6 +1439,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
         target.Tag = new NicknameRuleEditorTag(rule, NicknameRuleField.Target);
         target.LostFocus += NicknameRuleLostFocus;
         target.KeyDown += NicknameRuleKeyDown;
+        RegisterTextBoxKeyboardTarget(
+            generation,
+            target,
+            new ProbeKeyboardNavigationIdentity(rule, ProbeKeyboardNavigationRole.NicknameTargetEditor),
+            () => CommitNicknameRuleTextBox(target));
         row.Children.Add(target);
 
         TextBlock arrow = TrayAppDotNETSettingsUI.Text(
@@ -1056,16 +1463,32 @@ public sealed partial class ProbeDataSelectorWindow : Window
         replacement.Tag = new NicknameRuleEditorTag(rule, NicknameRuleField.Replacement);
         replacement.LostFocus += NicknameRuleLostFocus;
         replacement.KeyDown += NicknameRuleKeyDown;
+        RegisterTextBoxKeyboardTarget(
+            generation,
+            replacement,
+            new ProbeKeyboardNavigationIdentity(rule, ProbeKeyboardNavigationRole.NicknameReplacementEditor),
+            () => CommitNicknameRuleTextBox(replacement));
         Grid.SetColumn(replacement, 2);
         row.Children.Add(replacement);
 
         SettingsButton delete = BuildNicknameDeleteButton();
         delete.Click += (_, _) => deleteRule(rule);
+        Action deleteAction = () => deleteRule(rule);
+        RegisterBorderKeyboardTarget(
+            generation,
+            delete,
+            new ProbeKeyboardNavigationIdentity(rule, ProbeKeyboardNavigationRole.Delete),
+            deleteAction,
+            deleteAction);
         Grid.SetColumn(delete, 3);
         row.Children.Add(delete);
 
         Border card = ControlNames.Assign(WrapNicknameCard(row), "NicknameRule");
         WireNicknameRuleDrag(card, arrow, rule, rulesList, rulesPanel);
+        AssignKeyboardScopeMove(
+            generation,
+            card,
+            direction => MoveNicknameRuleByKeyboard(rule, rulesList, direction));
         return card;
     }
 
@@ -1199,6 +1622,37 @@ public sealed partial class ProbeDataSelectorWindow : Window
         if (source is not Grid) return false;
 
         return ReferenceEquals(source.GetVisualParent(), row);
+    }
+
+    /// <summary>
+    /// Toggles a probe when its card chrome or descriptive text is double-clicked.
+    /// </summary>
+    private static void WireProbeCardDoubleClick(Border card, Action toggleProbe)
+    {
+        card.PointerPressed += (_, e) =>
+        {
+            if (e.ClickCount != 2) return;
+            if (!e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) return;
+            if (!IsProbeCardActivationSource(card, e.Source as Visual)) return;
+
+            toggleProbe();
+            e.Handled = true;
+        };
+    }
+
+    /// <summary>
+    /// Excludes embedded buttons, toggles, and editors from card double-click activation.
+    /// </summary>
+    private static bool IsProbeCardActivationSource(Border card, Visual? source)
+    {
+        Visual? current = source;
+        while (current != null && !ReferenceEquals(current, card))
+        {
+            if (current is SettingsButton or SettingsMiniToggle or TextBox) return false;
+            current = current.GetVisualParent();
+        }
+
+        return ReferenceEquals(current, card);
     }
 
     /// <summary>
@@ -1547,6 +2001,18 @@ public sealed partial class ProbeDataSelectorWindow : Window
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
+        Border choiceCard = ControlNames.Assign(WrapCard(card, isSelected), "ProbeChoice");
+        Action toggleProbeAction = () => ToggleProbe(source, !isSelected);
+        RegisterBorderKeyboardTarget(
+            generation,
+            choiceCard,
+            new ProbeKeyboardNavigationIdentity(
+                source.DataSourceKey,
+                ProbeKeyboardNavigationRole.Card),
+            null,
+            toggleProbeAction);
+        WireProbeCardDoubleClick(choiceCard, toggleProbeAction);
+
         TextBlock deviceName = TrayAppDotNETSettingsUI.Text(generation.DeviceNicknameResolver.Resolve(source),
             _palette, Layout.CardTitleFontSize, FontWeight.SemiBold);
         deviceName.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -1565,23 +2031,51 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid.SetRow(valueRow, 1);
         card.Children.Add(valueRow);
 
-        Border enableToggle = BuildProbeEnableToggle(source, isSelected);
-        Border truncateToggle = BuildProbeTruncateToggle(source, probeSettings);
+        SettingsMiniToggle enableToggle = BuildProbeEnableToggle(source, isSelected);
+        SettingsMiniToggle truncateToggle = BuildProbeTruncateToggle(source, probeSettings);
 
         SettingsButton gear = ControlNames.Assign(
             BuildGearButton(isExpanded || ProbeTransformIsActive(probeSettings)),
             "ProbeTransform");
         gear.Margin = Layout.ActionButtonMargin;
         gear.Click += (_, _) => ToggleTransform(source);
+        Action toggleTransformAction = () => ToggleTransform(source);
+        RegisterBorderKeyboardTarget(
+            generation,
+            gear,
+            new ProbeKeyboardNavigationIdentity(
+                source.DataSourceKey,
+                ProbeKeyboardNavigationRole.TransformButton),
+            toggleTransformAction,
+            toggleTransformAction);
 
-        AddProbeControls(card, enableToggle, truncateToggle, gear, probeSettings, isExpanded);
-        return ControlNames.Assign(WrapCard(card), "ProbeChoice");
+        RegisterBorderKeyboardTarget(
+            generation,
+            enableToggle,
+            new ProbeKeyboardNavigationIdentity(
+                source.DataSourceKey,
+                ProbeKeyboardNavigationRole.Enable),
+            null,
+            () => enableToggle.IsChecked = !enableToggle.IsChecked);
+        RegisterBorderKeyboardTarget(
+            generation,
+            truncateToggle,
+            new ProbeKeyboardNavigationIdentity(
+                source.DataSourceKey,
+                ProbeKeyboardNavigationRole.Truncate),
+            null,
+            () => truncateToggle.IsChecked = !truncateToggle.IsChecked);
+
+        AddProbeControls(card, enableToggle, truncateToggle, gear, probeSettings, isExpanded, generation);
+        return choiceCard;
     }
 
     /// <summary>
     /// Builds a home-tab card for a selected source that is not currently live.
     /// </summary>
-    private Border BuildMissingProbeCard(ProbeCardProbe probe)
+    private Border BuildMissingProbeCard(
+        ProbeCardProbe probe,
+        ProbeSelectorVisualGeneration generation)
     {
         Grid card = ControlNames.Assign(new Grid(), "MissingProbe");
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -1589,6 +2083,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
         card.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         card.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        Border missingCard = ControlNames.Assign(WrapCard(card, true), "MissingProbe");
 
         TextBlock title = TrayAppDotNETSettingsUI.Text(probe.DataSourceKey, _palette, Layout.CardTitleFontSize,
             FontWeight.SemiBold);
@@ -1604,11 +2100,38 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Grid.SetRow(valueRow, 1);
         card.Children.Add(valueRow);
 
-        Border enableToggle = BuildMissingProbeEnableToggle(probe);
-        Border truncateToggle = BuildMissingProbeTruncateToggle(probe);
+        SettingsMiniToggle enableToggle = BuildMissingProbeEnableToggle(probe);
+        SettingsMiniToggle truncateToggle = BuildMissingProbeTruncateToggle(probe);
 
-        AddProbeControls(card, enableToggle, truncateToggle, null, null, false);
-        return ControlNames.Assign(WrapCard(card), "MissingProbe");
+        RegisterBorderKeyboardTarget(
+            generation,
+            enableToggle,
+            new ProbeKeyboardNavigationIdentity(
+                probe.DataSourceKey,
+                ProbeKeyboardNavigationRole.Enable),
+            null,
+            () => enableToggle.IsChecked = !enableToggle.IsChecked);
+        RegisterBorderKeyboardTarget(
+            generation,
+            truncateToggle,
+            new ProbeKeyboardNavigationIdentity(
+                probe.DataSourceKey,
+                ProbeKeyboardNavigationRole.Truncate),
+            null,
+            () => truncateToggle.IsChecked = !truncateToggle.IsChecked);
+
+        AddProbeControls(card, enableToggle, truncateToggle, null, null, false, generation);
+        Action disableProbeAction = () => enableToggle.IsChecked = false;
+        RegisterBorderKeyboardTarget(
+            generation,
+            missingCard,
+            new ProbeKeyboardNavigationIdentity(
+                probe.DataSourceKey,
+                ProbeKeyboardNavigationRole.Card),
+            null,
+            disableProbeAction);
+        WireProbeCardDoubleClick(missingCard, disableProbeAction);
+        return missingCard;
     }
 
     /// <summary>
@@ -1645,9 +2168,14 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Control truncateToggle,
         SettingsButton? gear,
         ProbeCardProbe? selectedProbe,
-        bool isExpanded)
+        bool isExpanded,
+        ProbeSelectorVisualGeneration generation)
     {
-        Control? transformColumn = BuildProbeTransformColumn(gear, selectedProbe, isExpanded);
+        Control? transformColumn = BuildProbeTransformColumn(
+            gear,
+            selectedProbe,
+            isExpanded,
+            generation);
         if (transformColumn is not null)
         {
             Grid.SetColumn(transformColumn, 1);
@@ -1667,7 +2195,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
     private Grid? BuildProbeTransformColumn(
         SettingsButton? gear,
         ProbeCardProbe? selectedProbe,
-        bool isExpanded)
+        bool isExpanded,
+        ProbeSelectorVisualGeneration generation)
     {
         if (gear is null) return null;
 
@@ -1686,7 +2215,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             return row;
         }
 
-        Grid transformControls = BuildTransformControls(selectedProbe);
+        Grid transformControls = BuildTransformControls(selectedProbe, generation);
         row.Children.Add(transformControls);
 
         Grid.SetColumn(gear, 1);
@@ -1833,7 +2362,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Builds the inline transform editor for a selected probe.
     /// </summary>
-    private Grid BuildTransformControls(ProbeCardProbe probe)
+    private Grid BuildTransformControls(
+        ProbeCardProbe probe,
+        ProbeSelectorVisualGeneration generation)
     {
         Grid row = new();
         row.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
@@ -1850,6 +2381,13 @@ public sealed partial class ProbeDataSelectorWindow : Window
         textBox.GotFocus += TransformTextBoxGotFocus;
         textBox.KeyDown += TransformTextBoxKeyDown;
         textBox.LostFocus += TransformTextBoxLostFocus;
+        RegisterTextBoxKeyboardTarget(
+            generation,
+            textBox,
+            new ProbeKeyboardNavigationIdentity(
+                probe.DataSourceKey,
+                ProbeKeyboardNavigationRole.TransformEditor),
+            () => CommitTransformTextBox(textBox));
         Grid.SetColumn(textBox, 1);
         row.Children.Add(textBox);
         return row;
@@ -1975,7 +2513,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// <summary>
     /// Wraps a selector card in the common card chrome.
     /// </summary>
-    private Border WrapCard(Control content)
+    private Border WrapCard(Control content, bool isSelected)
     {
         content.VerticalAlignment = VerticalAlignment.Top;
         return new Border
@@ -1983,7 +2521,8 @@ public sealed partial class ProbeDataSelectorWindow : Window
             Width = Layout.GridCardWidth,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = TrayAppDotNETSettingsUI.Brush(_palette.CardBackground),
+            Background = TrayAppDotNETSettingsUI.Brush(
+                isSelected ? _palette.SearchListItemSelected : _palette.CardBackground),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(_palette.Border),
             BorderThickness = Layout.RootBorderThickness,
             CornerRadius = _settings.EnableRoundedCorners ? Layout.CardCornerRadius : Layout.ZeroCornerRadius,
@@ -2329,10 +2868,37 @@ public sealed partial class ProbeDataSelectorWindow : Window
     /// </summary>
     private void OnSelectorPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        UpdateKeyboardSelectionFromPointer(e.Source as Visual);
         if (_focusedTransformTextBox is null) return;
         if (IsSelfOrDescendant(_focusedTransformTextBox, e.Source as Visual)) return;
 
         DropTransformTextBoxFocus(_focusedTransformTextBox);
+    }
+
+    /// <summary>
+    /// Hides keyboard-only selection chrome while retaining the clicked control as an arrow-navigation anchor.
+    /// </summary>
+    private void UpdateKeyboardSelectionFromPointer(Visual? source)
+    {
+        ProbeSelectorVisualGeneration? generation = _activeVisualGeneration;
+        if (generation == null) return;
+
+        ProbeKeyboardNavigationTarget? selected = FindKeyboardTarget(
+            generation,
+            _keyboardSelectionIdentity);
+        selected?.SetSelected(false);
+        _isKeyboardNavigationActive = false;
+
+        ProbeKeyboardNavigationTarget? pointerTarget = null;
+        foreach (ProbeKeyboardNavigationTarget target in generation.NavigationTargets)
+        {
+            if (source == null || !IsSelfOrDescendant(target.Control, source)) continue;
+            if (pointerTarget == null || IsSelfOrDescendant(pointerTarget.Control, target.Control))
+                pointerTarget = target;
+        }
+
+        _keyboardSelectionIdentity = pointerTarget?.Identity;
+        _keyboardEditingTarget = pointerTarget?.Editor != null ? pointerTarget : null;
     }
 
     /// <summary>
@@ -2440,6 +3006,15 @@ public sealed partial class ProbeDataSelectorWindow : Window
         RefreshVisibleValues();
     }
 
+    /// <summary>
+    /// Places initial focus on the editor navigation sink.
+    /// </summary>
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        _activeVisualGeneration?.FocusSink.Focus();
+    }
+
     /// <summary>Detaches external publishers before retiring candidate-owned controls.</summary>
     protected override void OnClosed(EventArgs e)
     {
@@ -2477,6 +3052,9 @@ public sealed partial class ProbeDataSelectorWindow : Window
         }
 
         _focusedTransformTextBox = null;
+        _keyboardEditingTarget = null;
+        _keyboardSelectionIdentity = null;
+        _isKeyboardNavigationActive = false;
     }
 
     /// <summary>
@@ -2509,7 +3087,55 @@ public sealed partial class ProbeDataSelectorWindow : Window
         Replacement
     }
 
+    private enum ProbeKeyboardNavigationEntity
+    {
+        ClearDeadSensors,
+        LoadDefaultDeviceNicknames,
+        AddDeviceNickname,
+        LoadDefaultProbeNicknames,
+        AddProbeNickname
+    }
+
+    private enum ProbeKeyboardNavigationRole
+    {
+        Card,
+        Enable,
+        Truncate,
+        TransformButton,
+        TransformEditor,
+        NicknameTargetEditor,
+        NicknameReplacementEditor,
+        Delete,
+        Action
+    }
+
     private sealed record NicknameRuleEditorTag(DeviceNicknameRule Rule, NicknameRuleField Field);
+
+    private readonly record struct ProbeKeyboardNavigationIdentity(
+        object Entity,
+        ProbeKeyboardNavigationRole Role);
+
+    /// <summary>
+    /// Describes one keyboard-selectable control in the current visual generation.
+    /// </summary>
+    private sealed class ProbeKeyboardNavigationTarget(
+        ProbeKeyboardNavigationIdentity identity,
+        Control control,
+        Action? primaryAction,
+        Action? stateAction,
+        TextBox? editor,
+        Action? commitEdit,
+        Action<bool> setSelected)
+    {
+        public ProbeKeyboardNavigationIdentity Identity { get; } = identity;
+        public Control Control { get; } = control;
+        public Action? PrimaryAction { get; } = primaryAction;
+        public Action? StateAction { get; } = stateAction;
+        public TextBox? Editor { get; } = editor;
+        public Action? CommitEdit { get; } = commitEdit;
+        public Action<bool> SetSelected { get; } = setSelected;
+        public Action<int>? MoveInScope { get; set; }
+    }
 
     /// <summary>Owns the maps, resolvers, panels, and root for one selector rebuild.</summary>
     private sealed class ProbeSelectorVisualGeneration(
@@ -2527,6 +3153,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
         public UIResourceScope Resources { get; } = resources;
         public Dictionary<string, List<TextBlock>> ValueTextByKey { get; } =
             new(StringComparer.OrdinalIgnoreCase);
+        public List<ProbeKeyboardNavigationTarget> NavigationTargets { get; } = [];
         public Control FocusSink { get; set; } = null!;
         public StackPanel? SelectedProbeListPanel { get; set; }
 
@@ -2547,6 +3174,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
             if (_retired) return;
             _retired = true;
             ValueTextByKey.Clear();
+            NavigationTargets.Clear();
             SelectedProbeListPanel?.Children.Clear();
             SelectedProbeListPanel = null;
             FocusSink?.DataContext = null;

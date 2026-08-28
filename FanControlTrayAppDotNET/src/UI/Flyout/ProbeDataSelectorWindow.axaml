@@ -3,7 +3,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
-    Title="Probe Data Selector"
+    Title="Probe Card Editor"
     CanResize="False"
     Background="Transparent"
     ShowInTaskbar="False"
@@ -69,6 +69,7 @@
         <sys:Int32 x:Key="ProbeSelector.ReorderNormalZIndex">0</sys:Int32>
         <sys:Double x:Key="ProbeSelector.ControlDisabledOpacity">0.45</sys:Double>
         <sys:Double x:Key="ProbeSelector.FullOpacity">1</sys:Double>
+        <sys:Double x:Key="ProbeSelector.KeyboardSelectionBorderThickness">1</sys:Double>
 
         <!-- Window, tabs, and cards -->
         <Thickness x:Key="ProbeSelector.ZeroThickness">0</Thickness>

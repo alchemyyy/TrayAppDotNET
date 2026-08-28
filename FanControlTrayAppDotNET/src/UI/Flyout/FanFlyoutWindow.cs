@@ -1011,7 +1011,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
             Layout.ProbeButtonHeight,
             Layout.ProbeButtonFontSize,
             margin: Layout.ProbeButtonMargin,
-            tooltip: "Probe data selector");
+            tooltip: "Probe Card Editor");
         probeButton.VerticalAlignment = VerticalAlignment.Center;
         SuppressNextAutoHideWhenPressed(probeButton);
         row.Children.Add(probeButton);
