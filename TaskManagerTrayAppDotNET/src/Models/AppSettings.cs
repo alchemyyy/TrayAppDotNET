@@ -317,6 +317,7 @@ public sealed class AppSettings : AppSettingsCommon
     protected override void RequestSave()
     {
         if (!Autosave) return;
+        if (!CanAutosaveToDefaultPath(AppServices.Settings)) return;
 
         AppSettings settings = this;
         _ = SaveThrottle.RunAsync(settings, _ =>
@@ -325,6 +326,10 @@ public sealed class AppSettings : AppSettingsCommon
             return Task.CompletedTask;
         });
     }
+
+    /// <summary>Restricts implicit default-path writes to the application's live settings instance.</summary>
+    internal bool CanAutosaveToDefaultPath(AppSettings? activeSettings) =>
+        Autosave && ReferenceEquals(this, activeSettings);
 
     public static string GetDefaultPath()
     {

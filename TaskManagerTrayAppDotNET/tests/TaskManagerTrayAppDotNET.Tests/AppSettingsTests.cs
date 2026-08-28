@@ -154,7 +154,7 @@ public sealed class AppSettingsTests
     [Fact]
     public void PerformanceSamplingSettingsDefaultAndClampAtAssignment()
     {
-        AppSettings settings = new();
+        AppSettings settings = new() { Autosave = false };
 
         Assert.Equal(
             PerformanceSamplingSettings.DefaultHistoryLengthMinutes,
@@ -172,6 +172,21 @@ public sealed class AppSettingsTests
         Assert.Equal(
             PerformanceSamplingSettings.MaximumSampleIntervalMilliseconds,
             settings.PerformanceSampleIntervalMilliseconds);
+    }
+
+    [Fact]
+    public void OnlyTheLiveAppSettingsInstanceCanAutosaveToTheDefaultPath()
+    {
+        AppSettings settings = new();
+        AppSettings otherSettings = new();
+
+        Assert.False(settings.CanAutosaveToDefaultPath(null));
+        Assert.False(settings.CanAutosaveToDefaultPath(otherSettings));
+        Assert.True(settings.CanAutosaveToDefaultPath(settings));
+
+        settings.Autosave = false;
+
+        Assert.False(settings.CanAutosaveToDefaultPath(settings));
     }
 
     [Fact]
