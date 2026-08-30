@@ -7,6 +7,23 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class ProcessTableLayoutTests
 {
     [Theory]
+    [InlineData(ProcessTableColumnKind.Name, false)]
+    [InlineData(ProcessTableColumnKind.CommandLine, false)]
+    [InlineData(ProcessTableColumnKind.ProcessID, true)]
+    [InlineData(ProcessTableColumnKind.Disk, true)]
+    [InlineData(ProcessTableColumnKind.Network, true)]
+    [InlineData(ProcessTableColumnKind.CPU, true)]
+    [InlineData(ProcessTableColumnKind.PrivateMemory, true)]
+    public void DefaultSortDirectionFollowsColumnAlignment(
+        ProcessTableColumnKind column,
+        bool expectedDescending)
+    {
+        Assert.Equal(
+            expectedDescending,
+            ProcessTableColumnCatalog.SortsDescendingByDefault(column));
+    }
+
+    [Theory]
     [InlineData(43.2, 0, 43.2)]
     [InlineData(10.8, 0, 10.8)]
     [InlineData(10.8, 3.5, 14.3)]

@@ -199,6 +199,10 @@ internal static class ProcessTableColumnCatalog
 
     public static ProcessTableColumnDefinition Get(ProcessTableColumnKind kind) => Definitions[(int)kind];
 
+    /// <summary>Returns whether a column's primary sort places its highest value first.</summary>
+    public static bool SortsDescendingByDefault(ProcessTableColumnKind kind) =>
+        Get(kind).Alignment == ProcessTableColumnAlignment.Right;
+
     public static ulong GetMask(ProcessTableColumnKind kind) => 1UL << (int)kind;
 
     public static bool Contains(ulong mask, ProcessTableColumnKind kind) =>

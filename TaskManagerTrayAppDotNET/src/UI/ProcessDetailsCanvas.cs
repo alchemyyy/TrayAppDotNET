@@ -1684,8 +1684,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
             double textLeft = column.Left + _metrics.CellPadding;
             bool isSortedColumn = column.Kind == _sortColumn;
+            bool useDescendingCaret = isSortedColumn
+                                      && _sortDescending
+                                      != ProcessTableColumnCatalog.SortsDescendingByDefault(column.Kind);
             TextLayout? caret = isSortedColumn
-                ? _sortDescending ? _descendingCaretText : _ascendingCaretText
+                ? useDescendingCaret ? _descendingCaretText : _ascendingCaretText
                 : null;
             double caretX = caret == null
                 ? column.Right
@@ -1702,7 +1705,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                     ? CreateHeaderText(column, headerTextWidth)
                     : null;
                 TextLayout headerText = liveResizeText
-                                        ?? _headerTexts[columnIndex].Get(isSortedColumn, _sortDescending);
+                                        ?? _headerTexts[columnIndex].Get(
+                                            isSortedColumn,
+                                            useDescendingCaret);
                 double textTop = top + Math.Max(0, (_metrics.HeaderHeight - headerText.Height) / 2);
                 Rect headerClip = new(
                     textLeft,
@@ -2710,7 +2715,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (FindColumn(columns, _sortColumn) >= 0) return;
 
         _sortColumn = columns[0].Kind;
-        _sortDescending = false;
+        _sortDescending = ProcessTableColumnCatalog.SortsDescendingByDefault(_sortColumn);
     }
 
     private void ApplyDisplayColumnLayout(ProcessTableColumn[] columns)
@@ -2742,7 +2747,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         else
         {
             _sortColumn = nextColumn;
-            _sortDescending = false;
+            _sortDescending = ProcessTableColumnCatalog.SortsDescendingByDefault(nextColumn);
         }
 
         RebuildVisibleRows();
@@ -3430,10 +3435,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double fontSize,
         IBrush brush)
     {
-        TextLayout ascending = CreateGlyphText("\uE96D", fontSize, brush);
+        TextLayout ascending = CreateGlyphText("\uE96E", fontSize, brush);
         try
         {
-            TextLayout descending = CreateGlyphText("\uE96E", fontSize, brush);
+            TextLayout descending = CreateGlyphText("\uE96D", fontSize, brush);
             return (ascending, descending);
         }
         catch
@@ -3537,10 +3542,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         private TextLayout AscendingSort { get; } = ascendingSort;
         private TextLayout DescendingSort { get; } = descendingSort;
 
-        public TextLayout Get(bool isSorted, bool isDescending)
+        public TextLayout Get(bool isSorted, bool useDescendingCaret)
         {
             if (!isSorted) return Normal;
-            return isDescending ? DescendingSort : AscendingSort;
+            return useDescendingCaret ? DescendingSort : AscendingSort;
         }
 
         public void Dispose()
