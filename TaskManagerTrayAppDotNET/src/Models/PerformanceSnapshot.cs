@@ -48,6 +48,9 @@ internal sealed record CPUPerformanceSnapshot(
 {
     public const string StableDeviceID = "cpu";
 
+    /// <summary>Gets exact AMD core-to-CCD membership when the platform exposes it.</summary>
+    public CPUCCDTopology CCDTopology { get; init; } = CPUCCDTopology.Empty;
+
     public static CPUPerformanceSnapshot Empty { get; } = new(
         StableDeviceID,
         PerformanceDeviceKind.CPU,
