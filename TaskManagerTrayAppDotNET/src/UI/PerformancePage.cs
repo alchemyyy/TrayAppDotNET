@@ -331,6 +331,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         Grid.SetRow(_memoryModuleDetailsPanel, 4);
         details.Children.Add(_memoryModuleDetailsPanel);
 
+        UpdateGraphUnderfillVisibility();
+
         _settings.PropertyChanged += OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated += OnSnapshotUpdated;
         try
@@ -379,6 +381,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             UpdateSelectionAndDetails();
             RefreshVisibleCPUGraphs();
+            return;
+        }
+
+        if (eventArgs.PropertyName == nameof(AppSettings.ShowPerformanceGraphUnderfill))
+        {
+            UpdateGraphUnderfillVisibility();
             return;
         }
 
@@ -691,6 +699,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 && _settings.ShowCPUHighestCoreTrace
                     ? _cpuHighestCoreHistory
                     : null);
+            card.SetGraphUnderfillVisible(_settings.ShowPerformanceGraphUnderfill);
             rows.Add(new PerformanceDeviceColumnRow(orderItem.ID, card));
         }
 
@@ -1055,6 +1064,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch
             };
+            graph.SetUnderfillVisible(_settings.ShowPerformanceGraphUnderfill);
             int graphColumn = processorIndex % columnCount;
             int graphRow = processorIndex / columnCount;
             double trailingHitTestWidth = graphColumn < columnCount - 1 ? graphSpacing : 0;
@@ -1355,6 +1365,21 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _settings.ShowCPUHighestCoreTrace ? _cpuHighestCoreHistory : null);
     }
 
+    /// <summary>Applies the underfill toggle to every Performance graph surface.</summary>
+    private void UpdateGraphUnderfillVisibility()
+    {
+        bool isVisible = _settings.ShowPerformanceGraphUnderfill;
+        _detailGraph.SetUnderfillVisible(isVisible);
+        for (int graphIndex = 0; graphIndex < _cpuLogicalProcessorGraphs.Count; graphIndex++)
+            _cpuLogicalProcessorGraphs[graphIndex].SetUnderfillVisible(isVisible);
+
+        _cpuDetailedView.SetGraphUnderfillVisible(isVisible);
+        _diskPerformanceDetailsView.SetGraphUnderfillVisible(isVisible);
+        _gpuPerformanceDetailsView.SetGraphUnderfillVisible(isVisible);
+        foreach (PerformanceDeviceCard card in _deviceCards.Values)
+            card.SetGraphUnderfillVisible(isVisible);
+    }
+
     private void SetStatistics(
         PerformanceDeviceKind? deviceKind,
         ReadOnlySpan<PerformanceStatistic> statistics)
@@ -1590,6 +1615,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         /// <summary>Forwards an optional aggregate overlay to the card graph.</summary>
         public void SetSecondaryHistory(PerformanceHistory? history) =>
             _graph.SetSecondaryHistory(history);
+
+        /// <summary>Shows or hides the graph's translucent area fill.</summary>
+        public void SetGraphUnderfillVisible(bool isVisible) =>
+            _graph.SetUnderfillVisible(isVisible);
 
         public void SetSelected(bool isSelected)
         {

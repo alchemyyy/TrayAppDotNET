@@ -223,6 +223,14 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             " ms",
             ["performance refresh update rate frequency milliseconds"]));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Graphs", palette));
+        stack.Children.Add(BoolCard(
+            "Fill graph areas",
+            "Draw a translucent shaded area beneath Performance graph lines.",
+            _settings.ShowPerformanceGraphUnderfill,
+            value => _settings.ShowPerformanceGraphUnderfill = value,
+            palette,
+            searchKeywords: ["performance graph underfill shade translucent area"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("CPU", palette));
         stack.Children.Add(BoolCard(
             "Show highest core trace",

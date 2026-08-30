@@ -7,7 +7,7 @@ using Avalonia.Media.TextFormatting;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Paints an allocation-light, Task Manager-style utilization history.</summary>
+/// <summary>Paints a Task Manager-style utilization history.</summary>
 internal sealed class PerformanceHistoryGraph : Control
 {
     private const double HoverLineDashGapLength = 2;
@@ -27,6 +27,8 @@ internal sealed class PerformanceHistoryGraph : Control
     private readonly double _lineThickness;
     private readonly double _secondaryLineThickness;
     private readonly double _secondaryLineOpacity;
+    private readonly double _underfillOpacity;
+    private readonly int _underfillDarkenAmount;
     private readonly int _gridColumns;
     private readonly int _gridRows;
     private readonly Func<long, string?>? _hoverMetricProvider;
@@ -35,8 +37,10 @@ internal sealed class PerformanceHistoryGraph : Control
     private Color _accent;
     private Pen _linePen;
     private Pen _secondaryLinePen;
+    private IBrush _underfillBrush;
     private Point _hoverPointerPosition;
     private bool _isPointerOver;
+    private bool _showUnderfill = true;
 
     public PerformanceHistoryGraph(
         PerformanceHistory history,
@@ -90,8 +94,12 @@ internal sealed class PerformanceHistoryGraph : Control
             resources.AxamlTaskManagerPerformance.GraphSecondaryLineOpacity,
             0,
             1);
+        _underfillOpacity = resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity;
+        _underfillDarkenAmount =
+            resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount;
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
         _secondaryLinePen = CreateSecondaryLinePen(accent);
+        _underfillBrush = CreateUnderfillBrush(accent);
         _gridColumns = resources.AxamlTaskManagerPerformance.GraphGridColumns;
         _gridRows = resources.AxamlTaskManagerPerformance.GraphGridRows;
         _hoverMetricProvider = hoverMetricProvider;
@@ -116,6 +124,15 @@ internal sealed class PerformanceHistoryGraph : Control
         InvalidateVisual();
     }
 
+    /// <summary>Shows or hides the translucent area beneath the primary trace.</summary>
+    public void SetUnderfillVisible(bool isVisible)
+    {
+        if (_showUnderfill == isVisible) return;
+
+        _showUnderfill = isVisible;
+        InvalidateVisual();
+    }
+
     /// <summary>Changes the device accent used for the utilization trace.</summary>
     public void SetAccent(Color accent)
     {
@@ -123,6 +140,7 @@ internal sealed class PerformanceHistoryGraph : Control
         _accent = accent;
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
         _secondaryLinePen = CreateSecondaryLinePen(accent);
+        _underfillBrush = CreateUnderfillBrush(accent);
         InvalidateVisual();
     }
 
@@ -178,6 +196,8 @@ internal sealed class PerformanceHistoryGraph : Control
 
         Rect graphBounds = new(0, 0, width, height);
         context.DrawRectangle(_backgroundBrush, _borderPen, graphBounds);
+        if (_showUnderfill)
+            DrawHistoryUnderfill(context, _history, _underfillBrush, width, height);
         for (int columnIndex = 1; columnIndex < _gridColumns; columnIndex++)
         {
             double positionX = width * columnIndex / _gridColumns;
@@ -340,6 +360,47 @@ internal sealed class PerformanceHistoryGraph : Control
         }
     }
 
+    /// <summary>Fills the polygon bounded by a history trace and the graph baseline.</summary>
+    private static void DrawHistoryUnderfill(
+        DrawingContext context,
+        PerformanceHistory history,
+        IBrush brush,
+        double width,
+        double height)
+    {
+        int sampleCount = history.Count;
+        if (sampleCount < 2) return;
+
+        double windowStartTimestamp = history.CurrentTimestamp
+                                      - (double)history.WindowDurationTicks;
+        Point firstPoint = PointForSample(
+            history,
+            0,
+            width,
+            height,
+            windowStartTimestamp);
+        Point lastPoint = firstPoint;
+        StreamGeometry geometry = new();
+        using (StreamGeometryContext geometryContext = geometry.Open())
+        {
+            geometryContext.BeginFigure(new Point(firstPoint.X, height), isFilled: true);
+            geometryContext.LineTo(firstPoint);
+            for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
+            {
+                lastPoint = PointForSample(
+                    history,
+                    sampleIndex,
+                    width,
+                    height,
+                    windowStartTimestamp);
+                geometryContext.LineTo(lastPoint);
+            }
+            geometryContext.LineTo(new Point(lastPoint.X, height));
+            geometryContext.EndFigure(isClosed: true);
+        }
+        context.DrawGeometry(brush, null, geometry);
+    }
+
     /// <summary>Maps one history sample onto the graph's fixed-duration timeline.</summary>
     private static Point PointForSample(
         PerformanceHistory history,
@@ -365,4 +426,10 @@ internal sealed class PerformanceHistoryGraph : Control
             new SolidColorBrush(dimAccent),
             _secondaryLineThickness);
     }
+
+    private IBrush CreateUnderfillBrush(Color accent) =>
+        new SolidColorBrush(PerformanceGraphRendering.CreateUnderfillColor(
+            accent,
+            _underfillOpacity,
+            _underfillDarkenAmount));
 }

@@ -14,6 +14,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     private readonly Pen _gridPen;
     private readonly Pen _hoverLinePen;
     private readonly IBrush _hoverTextBrush;
+    private readonly IBrush _underfillBrush;
     private readonly Typeface _hoverTypeface;
     private readonly double _hoverFontSize;
     private readonly double _hoverTextInset;
@@ -28,6 +29,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     private double _maximumValue = 1;
     private Point _hoverPointerPosition;
     private bool _isPointerOver;
+    private bool _showUnderfill = true;
 
     public PerformanceMetricHistoryGraph(
         PerformanceMetricHistory primaryHistory,
@@ -64,6 +66,11 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             accentBrush,
             resources.AxamlTaskManagerPerformance.GraphLineThickness,
             DashStyle.Dash);
+        _underfillBrush = new SolidColorBrush(
+            PerformanceGraphRendering.CreateUnderfillColor(
+                accent,
+                resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity,
+                resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount));
         Color hoverLineColor = Color.FromArgb(
             148,
             byte.MaxValue,
@@ -103,6 +110,15 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     {
         _primaryLabel = primaryLabel;
         _secondaryLabel = secondaryLabel;
+    }
+
+    /// <summary>Shows or hides translucent areas beneath the metric traces.</summary>
+    public void SetUnderfillVisible(bool isVisible)
+    {
+        if (_showUnderfill == isVisible) return;
+
+        _showUnderfill = isVisible;
+        InvalidateVisual();
     }
 
     /// <summary>Changes the raw value represented by the top edge of the graph.</summary>
@@ -148,7 +164,6 @@ internal sealed class PerformanceMetricHistoryGraph : Control
 
         Rect graphBounds = new(0, 0, width, height);
         context.DrawRectangle(_backgroundBrush, _borderPen, graphBounds);
-        DrawGrid(context, width, height);
         long currentTimestamp = Math.Max(
             _primaryHistory.CurrentTimestamp,
             _secondaryHistory?.CurrentTimestamp ?? 0);
@@ -156,6 +171,27 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             _primaryHistory.WindowDurationTicks,
             _secondaryHistory?.WindowDurationTicks ?? 0);
         double windowStartTimestamp = currentTimestamp - (double)durationTicks;
+        if (_showUnderfill)
+        {
+            if (_secondaryHistory != null)
+            {
+                DrawHistoryUnderfill(
+                    context,
+                    _secondaryHistory,
+                    width,
+                    height,
+                    windowStartTimestamp,
+                    durationTicks);
+            }
+            DrawHistoryUnderfill(
+                context,
+                _primaryHistory,
+                width,
+                height,
+                windowStartTimestamp,
+                durationTicks);
+        }
+        DrawGrid(context, width, height);
         DrawHistory(
             context,
             _primaryHistory,
@@ -229,6 +265,48 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             context.DrawLine(pen, previousPoint, currentPoint);
             previousPoint = currentPoint;
         }
+    }
+
+    /// <summary>Fills the polygon bounded by one metric trace and the graph baseline.</summary>
+    private void DrawHistoryUnderfill(
+        DrawingContext context,
+        PerformanceMetricHistory history,
+        double width,
+        double height,
+        double windowStartTimestamp,
+        long durationTicks)
+    {
+        int sampleCount = history.Count;
+        if (sampleCount < 2 || durationTicks <= 0) return;
+
+        Point firstPoint = PointForSample(
+            history,
+            0,
+            width,
+            height,
+            windowStartTimestamp,
+            durationTicks);
+        Point lastPoint = firstPoint;
+        StreamGeometry geometry = new();
+        using (StreamGeometryContext geometryContext = geometry.Open())
+        {
+            geometryContext.BeginFigure(new Point(firstPoint.X, height), isFilled: true);
+            geometryContext.LineTo(firstPoint);
+            for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
+            {
+                lastPoint = PointForSample(
+                    history,
+                    sampleIndex,
+                    width,
+                    height,
+                    windowStartTimestamp,
+                    durationTicks);
+                geometryContext.LineTo(lastPoint);
+            }
+            geometryContext.LineTo(new Point(lastPoint.X, height));
+            geometryContext.EndFigure(isClosed: true);
+        }
+        context.DrawGeometry(_underfillBrush, null, geometry);
     }
 
     private Point PointForSample(

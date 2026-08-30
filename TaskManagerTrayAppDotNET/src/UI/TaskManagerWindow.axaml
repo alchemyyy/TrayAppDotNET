@@ -87,6 +87,8 @@
   <sys:Double x:Key="TaskManagerPerformance.GraphLineThickness">0.85</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphSecondaryLineThickness">0.65</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphSecondaryLineOpacity">0.30</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphUnderfillOpacity">0.12</sys:Double>
+  <sys:Int32 x:Key="TaskManagerPerformance.GraphUnderfillDarkenAmount">20</sys:Int32>
   <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">0.75</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineThickness">1</sys:Double>

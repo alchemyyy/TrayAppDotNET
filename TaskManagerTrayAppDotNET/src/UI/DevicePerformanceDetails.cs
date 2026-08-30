@@ -77,6 +77,10 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
         Children.Add(CreateScaleRow(_historyWindowLabel, minimumLabel));
     }
 
+    /// <summary>Shows or hides the translucent areas beneath the disk transfer traces.</summary>
+    public void SetGraphUnderfillVisible(bool isVisible) =>
+        _graph.SetUnderfillVisible(isVisible);
+
     /// <summary>Rebuilds the selected disk history when selection or sampling settings change.</summary>
     public void Show(
         string deviceID,
@@ -312,6 +316,16 @@ internal sealed class GPUPerformanceDetailsView : Grid
         Grid.SetRow(sharedCell, 3);
         Grid.SetColumnSpan(sharedCell, 2);
         Children.Add(sharedCell);
+    }
+
+    /// <summary>Shows or hides the translucent areas beneath every GPU graph.</summary>
+    public void SetGraphUnderfillVisible(bool isVisible)
+    {
+        for (int engineIndex = 0; engineIndex < _engineGraphs.Length; engineIndex++)
+            _engineGraphs[engineIndex].SetUnderfillVisible(isVisible);
+
+        _dedicatedMemoryGraph.SetUnderfillVisible(isVisible);
+        _sharedMemoryGraph.SetUnderfillVisible(isVisible);
     }
 
     /// <summary>Rebuilds the selected adapter histories when selection or sampling settings change.</summary>

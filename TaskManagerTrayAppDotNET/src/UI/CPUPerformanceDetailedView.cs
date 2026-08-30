@@ -14,6 +14,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
     private CPUCCDTopology _topology = CPUCCDTopology.Empty;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
+    private bool _showGraphUnderfill = true;
 
     public CPUPerformanceDetailedView(
         SettingsPalette palette,
@@ -111,6 +112,14 @@ internal sealed class CPUPerformanceDetailedView : Grid
 
         for (int graphIndex = 0; graphIndex < _graphs.Count; graphIndex++)
             _graphs[graphIndex].Refresh();
+    }
+
+    /// <summary>Shows or hides the translucent area beneath every detailed CPU graph.</summary>
+    public void SetGraphUnderfillVisible(bool isVisible)
+    {
+        _showGraphUnderfill = isVisible;
+        for (int graphIndex = 0; graphIndex < _graphs.Count; graphIndex++)
+            _graphs[graphIndex].SetUnderfillVisible(isVisible);
     }
 
     /// <summary>Releases retained graph and history references.</summary>
@@ -244,6 +253,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch
         };
+        graph.SetUnderfillVisible(_showGraphUnderfill);
         Grid tile = new()
         {
             Background = Brushes.Transparent,

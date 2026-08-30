@@ -259,6 +259,30 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void PerformanceGraphUnderfillDefaultsEnabledAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.True(settings.ShowPerformanceGraphUnderfill);
+
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.ShowPerformanceGraphUnderfill = false;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.False(loaded.ShowPerformanceGraphUnderfill);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void CPUPerformanceGraphViewDefaultsToLogicalProcessorsAndRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

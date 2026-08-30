@@ -169,6 +169,12 @@ public sealed class AppSettings : AppSettingsCommon
             PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(value));
     } = PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds;
 
+    public bool ShowPerformanceGraphUnderfill
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
     public bool ShowCPUHighestCoreTrace
     {
         get;
