@@ -59,6 +59,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private TaskManagerPageLayout? _activePageLayout;
     private ProcessDetailsPage? _processDetailsPage;
     private TaskManagerSettingsWindow? _settingsWindow;
+    private string? _selectedPerformanceDeviceID;
     private bool _windowDragWndProcHookAttached;
     private bool _avoidSearchBoxDuringRestoreDrag;
     private bool _restoreDragSearchRangeResolved;
@@ -209,6 +210,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     internal void RefreshTheme()
     {
         Topmost = _settings.AlwaysOnTop;
+        PerformancePage? performancePage = _activePageLayout as PerformancePage;
+        if (performancePage != null)
+            _selectedPerformanceDeviceID = performancePage.SelectedDeviceID;
         RebuildShell(CurrentPageKey);
     }
 
@@ -302,7 +306,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _settings,
             Palette,
             _taskManagerResources,
-            _performanceSnapshotService);
+            _performanceSnapshotService,
+            _selectedPerformanceDeviceID);
         _activePageLayout = page;
         AddPageCleanup(() =>
         {

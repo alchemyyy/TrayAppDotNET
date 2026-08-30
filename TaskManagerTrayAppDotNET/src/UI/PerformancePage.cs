@@ -73,13 +73,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
-        PerformanceSnapshotService snapshotService)
+        PerformanceSnapshotService snapshotService,
+        string? initialSelectedDeviceID)
         : base("Performance", palette, resources)
     {
         _settings = settings;
         _palette = palette;
         _resources = resources;
         _snapshotService = snapshotService;
+        _selectedDeviceID = initialSelectedDeviceID;
         _historyLengthMinutes = PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
             settings.PerformanceHistoryLengthMinutes);
         _sampleIntervalMilliseconds = PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
@@ -346,6 +348,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             throw;
         }
     }
+
+    /// <summary>Gets the device selection to restore if the page is reconstructed.</summary>
+    internal string? SelectedDeviceID => _selectedDeviceID;
 
     private void OnSnapshotUpdated(object? sender, PerformanceSnapshot snapshot)
     {
