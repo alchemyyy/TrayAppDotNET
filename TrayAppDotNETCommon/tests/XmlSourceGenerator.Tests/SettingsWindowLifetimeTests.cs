@@ -92,6 +92,29 @@ public sealed class SettingsWindowLifetimeTests
     });
 
     [Theory]
+    [InlineData(true, 900.0, false)]
+    [InlineData(true, 749.0, true)]
+    [InlineData(false, 900.0, false)]
+    public void PageOverlayCanTrackTheVisibleContentArea(
+        bool alignToContentArea,
+        double windowWidth,
+        bool expectedCollapsed) => AvaloniaTestHost.Run(() =>
+    {
+        OverlaySettingsWindow window = new(alignToContentArea, windowWidth);
+        Border root = Assert.IsType<Border>(window.Content);
+        Border contentSurface = Assert.IsType<Border>(root.Child);
+        Grid shell = Assert.IsType<Grid>(contentSurface.Child);
+        Grid overlayHost = Assert.Single(
+            shell.Children.OfType<Grid>(),
+            candidate => candidate.Children.Contains(window.Overlay));
+        double expectedLeftInset = alignToContentArea && !expectedCollapsed
+            ? window.ConfiguredSidebarWidth
+            : 0;
+
+        Assert.Equal(expectedLeftInset, overlayHost.Margin.Left);
+    });
+
+    [Theory]
     [InlineData(0, 230, 230)]
     [InlineData(double.NaN, 230, 230)]
     [InlineData(90, 230, 140)]
@@ -538,6 +561,46 @@ public sealed class SettingsWindowLifetimeTests
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
         protected override SettingsPalette ResolvePalette() => TestPalette;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+        ];
+
+        protected override void Save()
+        {
+        }
+    }
+
+    private sealed class OverlaySettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly bool _alignToContentArea;
+
+        public OverlaySettingsWindow(bool alignToContentArea, double width)
+        {
+            _alignToContentArea = alignToContentArea;
+            Overlay = new Border();
+            ConfigureSettingsWindow("Overlay Test", null);
+            MinWidth = 0;
+            Width = width;
+            ClientSize = new Size(width, 600);
+            InitializeSettingsShell();
+        }
+
+        public Border Overlay { get; }
+        public double ConfiguredSidebarWidth => SidebarWidth;
+
+        protected override bool EnableRoundedCorners => false;
+        protected override bool EnableResponsiveSidebarCollapse => true;
+        protected override double SidebarCollapseThreshold => 750;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Overlay Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override Control? ResolvePageOverlay(Control pageRoot) => Overlay;
+        protected override bool PageOverlayAlignsToContentArea(Control pageRoot) => _alignToContentArea;
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [

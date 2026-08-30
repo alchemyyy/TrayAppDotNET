@@ -624,6 +624,28 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void ProcessSearchBarAlignmentDefaultsCenteredAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.False(settings.LeftAlignProcessSearchBar);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.LeftAlignProcessSearchBar = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.True(loaded.LeftAlignProcessSearchBar);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void SettingsSidebarWidthDefaultsToSentinelAndRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

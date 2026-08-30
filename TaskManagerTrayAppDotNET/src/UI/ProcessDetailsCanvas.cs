@@ -74,7 +74,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly ProcessIconService _processIconService;
     private ProcessDataSchema _schema;
     private readonly TaskManagerWindowResources _resources;
-    private readonly Typeface _tableTypeface;
+    private readonly int _baseTableFontWeight;
+    private Typeface _tableTypeface;
+    private int _tableFontWeight;
     private readonly ProcessTableRenderLayer _staticRowsLayer;
     private readonly ProcessTableRenderLayer _dynamicRowsLayer;
     private readonly ProcessTableRenderLayer _iconsLayer;
@@ -195,10 +197,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _processIconService.IconsChanged += OnIconsChanged;
         _schema = schema;
         _resources = resources;
-        _tableTypeface = new Typeface(
-            DefaultTableTypeface.FontFamily,
-            FontStyle.Normal,
-            (FontWeight)(int)gridFontWeight);
+        _baseTableFontWeight = (int)gridFontWeight;
+        _tableFontWeight = CalculateTableFontWeight(gridFontSize);
+        _tableTypeface = CreateTableTypeface(_tableFontWeight);
         _metrics = CreateTableMetrics(resources, gridFontSize, gridRowHeight);
         _visualMetrics = CreateVisualMetrics(resources);
         _axamlColumnWidths = CreateAXAMLColumnWidths(resources);
@@ -736,8 +737,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     protected override void ApplyDetailsGridMetrics(double fontSize, double rowHeight)
     {
+        int nextTableFontWeight = CalculateTableFontWeight(fontSize);
+        bool tableTypefaceChanged = nextTableFontWeight != _tableFontWeight;
         AdvanceGridMetricsGeneration();
         _metrics = CreateTableMetrics(_resources, fontSize, rowHeight);
+        if (!tableTypefaceChanged) return;
+
+        _tableFontWeight = nextTableFontWeight;
+        _tableTypeface = CreateTableTypeface(nextTableFontWeight);
+        ReplaceHeaderTexts(_columns);
     }
 
     protected override void OnDetailsGridMetricsChanged()
@@ -1051,17 +1059,25 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             nextVisualMetrics);
         bool rebuildCaretText = _visualMetrics.SortCaretFontSize
                                 != nextVisualMetrics.SortCaretFontSize;
+        int nextTableFontWeight = CalculateTableFontWeight(nextFontSize);
+        bool rebuildTableTypeface = _tableFontWeight != nextTableFontWeight;
         bool rebuildHeaderText = _metrics.HeaderFontSize != nextMetrics.HeaderFontSize
                                  || _metrics.CellPadding != nextMetrics.CellPadding
                                  || _visualMetrics.SortCaretRightMargin
                                  != nextVisualMetrics.SortCaretRightMargin
-                                 || rebuildCaretText;
+                                 || rebuildCaretText
+                                 || rebuildTableTypeface;
         bool gridMetricsChanged = _metrics.FontSize != nextMetrics.FontSize
                                   || _metrics.RowHeight != nextMetrics.RowHeight;
 
         _metrics = nextMetrics;
         _visualMetrics = nextVisualMetrics;
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
+        if (rebuildTableTypeface)
+        {
+            _tableFontWeight = nextTableFontWeight;
+            _tableTypeface = CreateTableTypeface(nextTableFontWeight);
+        }
         RecreatePens();
         if (rebuildCaretText) RecreateSortCaretTexts();
         bool rebuiltForColumnWidths = ApplyHotReloadedColumnWidths(
@@ -3118,6 +3134,18 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             processIconSize,
             resources.AxamlProcessTable.ProcessIconGap);
     }
+
+    private int CalculateTableFontWeight(double fontSize) =>
+        ProcessTableLayout.CalculateZoomFontWeight(
+            _baseTableFontWeight,
+            AppSettings.GridFontSizeDefault,
+            fontSize);
+
+    private static Typeface CreateTableTypeface(int fontWeight) =>
+        new(
+            DefaultTableTypeface.FontFamily,
+            FontStyle.Normal,
+            (FontWeight)fontWeight);
 
     private static ProcessTableVisualMetrics CreateVisualMetrics(
         TaskManagerWindowResources resources) =>

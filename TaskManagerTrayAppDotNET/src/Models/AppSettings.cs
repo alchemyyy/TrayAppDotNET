@@ -66,6 +66,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     } = true;
 
+    public bool LeftAlignProcessSearchBar
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public bool GroupProcesses
     {
         get;

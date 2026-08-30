@@ -1,0 +1,94 @@
+using TaskManagerTrayAppDotNET.UI;
+using Xunit;
+
+namespace TaskManagerTrayAppDotNET.Tests;
+
+public sealed class RestoredWindowDragGeometryTests
+{
+    [Theory]
+    [InlineData(false, 250, 285)]
+    [InlineData(true, 250, 250)]
+    [InlineData(true, 0, 0)]
+    public void SearchRangeTracksConfiguredAlignment(
+        bool alignToPageArea,
+        int pageContentLeft,
+        int expectedLeft)
+    {
+        int left = RestoredWindowDragGeometry.CalculateSearchLeftWithinWindow(
+            proposedWindowWidth: 1000,
+            searchWidth: 430,
+            alignToPageArea,
+            pageContentLeft);
+
+        Assert.Equal(expectedLeft, left);
+    }
+
+    [Theory]
+    [InlineData(399)]
+    [InlineData(800)]
+    public void CursorOutsideSearchBoxDoesNotMoveWindow(int cursorScreenX)
+    {
+        int offset = RestoredWindowDragGeometry.CalculateHorizontalWindowOffset(
+            cursorScreenX,
+            proposedWindowLeft: 100,
+            searchLeftWithinWindow: 300,
+            searchRightWithinWindow: 700,
+            outsideMarginPixels: 8);
+
+        Assert.Equal(0, offset);
+    }
+
+    [Fact]
+    public void CursorNearLeftEdgeMovesWindowRight()
+    {
+        int offset = RestoredWindowDragGeometry.CalculateHorizontalWindowOffset(
+            cursorScreenX: 450,
+            proposedWindowLeft: 100,
+            searchLeftWithinWindow: 300,
+            searchRightWithinWindow: 700,
+            outsideMarginPixels: 8);
+
+        Assert.Equal(58, offset);
+        Assert.Equal(292, 450 - (100 + offset));
+    }
+
+    [Fact]
+    public void CursorNearRightEdgeMovesWindowLeft()
+    {
+        int offset = RestoredWindowDragGeometry.CalculateHorizontalWindowOffset(
+            cursorScreenX: 750,
+            proposedWindowLeft: 100,
+            searchLeftWithinWindow: 300,
+            searchRightWithinWindow: 700,
+            outsideMarginPixels: 8);
+
+        Assert.Equal(-58, offset);
+        Assert.Equal(708, 750 - (100 + offset));
+    }
+
+    [Fact]
+    public void EquidistantCursorUsesLeftSide()
+    {
+        int offset = RestoredWindowDragGeometry.CalculateHorizontalWindowOffset(
+            cursorScreenX: 600,
+            proposedWindowLeft: 100,
+            searchLeftWithinWindow: 300,
+            searchRightWithinWindow: 700,
+            outsideMarginPixels: 8);
+
+        Assert.Equal(208, offset);
+    }
+
+    [Fact]
+    public void InvalidSearchRangeDoesNotMoveWindow()
+    {
+        int offset = RestoredWindowDragGeometry.CalculateHorizontalWindowOffset(
+            cursorScreenX: 500,
+            proposedWindowLeft: 100,
+            searchLeftWithinWindow: 700,
+            searchRightWithinWindow: 300,
+            outsideMarginPixels: 8);
+
+        Assert.Equal(0, offset);
+    }
+}

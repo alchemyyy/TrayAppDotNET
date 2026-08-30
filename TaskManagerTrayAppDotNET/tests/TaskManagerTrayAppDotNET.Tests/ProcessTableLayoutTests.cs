@@ -1,3 +1,4 @@
+using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI;
 using Xunit;
 
@@ -5,6 +6,69 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class ProcessTableLayoutTests
 {
+    [Fact]
+    public void ZoomFontWeightUsesConfiguredWeightAtReferenceZoom()
+    {
+        int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
+            baseFontWeight: 400,
+            referenceFontSize: AppSettings.GridFontSizeDefault,
+            fontSize: AppSettings.GridFontSizeDefault);
+
+        Assert.Equal(400, fontWeight);
+    }
+
+    [Theory]
+    [InlineData(5.75, 230)]
+    [InlineData(17.25, 570)]
+    public void ZoomFontWeightUsesMonotonicCubicPolynomial(
+        double fontSize,
+        int expectedFontWeight)
+    {
+        int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
+            baseFontWeight: 400,
+            referenceFontSize: AppSettings.GridFontSizeDefault,
+            fontSize);
+
+        Assert.Equal(expectedFontWeight, fontWeight);
+    }
+
+    [Fact]
+    public void ZoomFontWeightIsMonotonicAcrossSupportedZoomRange()
+    {
+        int previousFontWeight = ProcessTableLayout.CalculateZoomFontWeight(
+            baseFontWeight: 400,
+            referenceFontSize: AppSettings.GridFontSizeDefault,
+            fontSize: AppSettings.GridFontSizeMinimum);
+
+        for (double fontSize = AppSettings.GridFontSizeMinimum + 0.5;
+             fontSize <= AppSettings.GridFontSizeMaximum;
+             fontSize += 0.5)
+        {
+            int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
+                baseFontWeight: 400,
+                referenceFontSize: AppSettings.GridFontSizeDefault,
+                fontSize);
+            Assert.True(fontWeight >= previousFontWeight);
+            previousFontWeight = fontWeight;
+        }
+    }
+
+    [Theory]
+    [InlineData(100, 0.01, ProcessTableLayout.MinimumZoomFontWeight)]
+    [InlineData(900, 100, ProcessTableLayout.MaximumZoomFontWeight)]
+    public void ZoomFontWeightClampsToSupportedRange(
+        int baseFontWeight,
+        double fontSize,
+        int expectedFontWeight)
+    {
+        int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
+            baseFontWeight,
+            referenceFontSize: AppSettings.GridFontSizeDefault,
+            fontSize);
+
+        Assert.Equal(expectedFontWeight, fontWeight);
+    }
+
     [Theory]
     [InlineData(11.5, 19, 10)]
     [InlineData(23, 38, 20)]

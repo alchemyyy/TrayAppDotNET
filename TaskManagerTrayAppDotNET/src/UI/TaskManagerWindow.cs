@@ -26,6 +26,9 @@ public enum TaskManagerPage
 /// <summary>The Task Manager shell, built on the shared TrayAppDotNET settings-window chrome.</summary>
 internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 {
+    private const uint WindowMessageMoving = 0x0216;
+    private const uint WindowMessageExitSizeMove = 0x0232;
+    private const int SearchDragOutsideMarginPixels = 8;
     private const string EndTaskConfirmationMessage =
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
         "If you end a system process, it might result in system instability. Are you sure you want to continue?";
@@ -52,9 +55,15 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private readonly ProcessTerminationService _processTerminationService;
     private readonly Action _exitApplication;
     private readonly TaskManagerWindowResources _taskManagerResources = TaskManagerWindowResources.Current;
+    private readonly Win32Properties.CustomWndProcHookCallback _windowDragWndProcHook;
     private TaskManagerPageLayout? _activePageLayout;
     private ProcessDetailsPage? _processDetailsPage;
     private TaskManagerSettingsWindow? _settingsWindow;
+    private bool _windowDragWndProcHookAttached;
+    private bool _avoidSearchBoxDuringRestoreDrag;
+    private bool _restoreDragSearchRangeResolved;
+    private int _restoreDragSearchLeftWithinWindow;
+    private int _restoreDragSearchRightWithinWindow;
     private bool _allowClose;
     private bool _initialElevationAttemptConsumed;
     private bool _manualElevationPromptPending;
@@ -76,6 +85,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _processIconService = processIconService;
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
+        _windowDragWndProcHook = WindowDragWndProcHook;
         Resources.MergedDictionaries.Add(_taskManagerResources);
 
         ConfigureSettingsWindow(Constants.DisplayName, icon: null);
@@ -84,6 +94,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         MinWidth = _taskManagerResources.AxamlTaskManagerWindow.MinWidth;
         MinHeight = _taskManagerResources.AxamlTaskManagerWindow.MinHeight;
         Topmost = settings.AlwaysOnTop;
+        Closed += OnWindowClosedForDragHook;
         Closing += OnWindowClosing;
         PropertyChanged += OnWindowPropertyChanged;
         AddHandler(
@@ -107,6 +118,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         pageKey is TaskManagerPage.Processes or TaskManagerPage.Performance;
     protected override Control? ResolvePageOverlay(Control pageRoot) =>
         pageRoot is TaskManagerPageLayout page ? page.PageOverlay : null;
+    protected override bool PageOverlayAlignsToContentArea(Control pageRoot) =>
+        _settings.LeftAlignProcessSearchBar && pageRoot is ProcessDetailsPage;
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
@@ -124,6 +137,18 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override string SettingsFolderPath => AppSettings.GetDefaultDirectory();
     protected override Color ConfirmOverlayBackdrop =>
         _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
+
+    protected override void OnOpened(EventArgs eventArgs)
+    {
+        // Register before the shared shell hook so its handled-message return value remains last
+        if (!_windowDragWndProcHookAttached && OperatingSystem.IsWindows())
+        {
+            Win32Properties.AddWndProcHookCallback(this, _windowDragWndProcHook);
+            _windowDragWndProcHookAttached = true;
+        }
+
+        base.OnOpened(eventArgs);
+    }
 
     protected override Control BuildSidebarHeader(TextBlock title, SettingsPalette palette)
     {
@@ -303,12 +328,148 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         }
 
         if (eventArgs.ClickCount == 2)
+        {
+            ResetRestoredWindowDrag();
             WindowState = WindowState == WindowState.Maximized
                 ? WindowState.Normal
                 : WindowState.Maximized;
+        }
         else
+        {
+            PrepareRestoredWindowDrag();
             BeginMoveDrag(eventArgs);
+        }
         eventArgs.Handled = true;
+    }
+
+    private void PrepareRestoredWindowDrag()
+    {
+        ResetRestoredWindowDrag();
+        _avoidSearchBoxDuringRestoreDrag = WindowState == WindowState.Maximized
+                                           && _processDetailsPage != null;
+    }
+
+    private IntPtr WindowDragWndProcHook(
+        IntPtr windowHandle,
+        uint message,
+        IntPtr wParam,
+        IntPtr lParam,
+        ref bool handled)
+    {
+        try
+        {
+            switch (message)
+            {
+                case WindowMessageMoving:
+                    ApplyRestoredWindowDragOffset(windowHandle, lParam);
+                    break;
+
+                case WindowMessageExitSizeMove:
+                    ResetRestoredWindowDrag();
+                    break;
+            }
+        }
+        catch (Exception exception)
+        {
+            ResetRestoredWindowDrag();
+            TADNLog.Log($"Task Manager restored-window drag adjustment failed: {exception}");
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private unsafe void ApplyRestoredWindowDragOffset(
+        IntPtr windowHandle,
+        IntPtr rectanglePointer)
+    {
+        ProcessDetailsPage? processDetailsPage = _processDetailsPage;
+        if (!_avoidSearchBoxDuringRestoreDrag
+            || processDetailsPage == null
+            || rectanglePointer == IntPtr.Zero)
+        {
+            return;
+        }
+
+        RECT* proposedBounds = (RECT*)rectanglePointer;
+        if (!_restoreDragSearchRangeResolved)
+        {
+            if (!processDetailsPage.TryGetSearchBoxPixelWidth(out int searchWidth)) return;
+
+            int proposedWidth = proposedBounds->Right - proposedBounds->Left;
+            if (proposedWidth <= searchWidth) return;
+
+            int pageContentLeft = 0;
+            if (_settings.LeftAlignProcessSearchBar)
+            {
+                double renderScaling = RenderScaling;
+                if (!double.IsFinite(renderScaling) || renderScaling <= 0)
+                    renderScaling = 1;
+                double proposedWidthDips = proposedWidth / renderScaling;
+                double pageContentLeftDips = ResolvePageContentLeftInset(proposedWidthDips);
+                pageContentLeft = (int)Math.Round(
+                    pageContentLeftDips * renderScaling,
+                    MidpointRounding.AwayFromZero);
+                pageContentLeft += ResolveClientLeftInset(windowHandle);
+            }
+
+            _restoreDragSearchLeftWithinWindow =
+                RestoredWindowDragGeometry.CalculateSearchLeftWithinWindow(
+                    proposedWidth,
+                    searchWidth,
+                    _settings.LeftAlignProcessSearchBar,
+                    pageContentLeft);
+            _restoreDragSearchRightWithinWindow =
+                _restoreDragSearchLeftWithinWindow + searchWidth;
+            _restoreDragSearchRangeResolved = true;
+        }
+
+        if (!User32.GetCursorPos(out User32.POINT cursorPosition)) return;
+
+        int horizontalOffset = RestoredWindowDragGeometry.CalculateHorizontalWindowOffset(
+            cursorPosition.X,
+            proposedBounds->Left,
+            _restoreDragSearchLeftWithinWindow,
+            _restoreDragSearchRightWithinWindow,
+            SearchDragOutsideMarginPixels);
+        // Adjust the proposed rectangle so the native move loop retains the active cursor grab
+        proposedBounds->Left += horizontalOffset;
+        proposedBounds->Right += horizontalOffset;
+    }
+
+    /// <summary>Gets the horizontal native-frame inset between the window and client origins.</summary>
+    private static int ResolveClientLeftInset(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero
+            || !User32.GetWindowRect(windowHandle, out RECT windowBounds))
+        {
+            return 0;
+        }
+
+        User32.POINT screenOriginInClientCoordinates = default;
+        if (!User32.ScreenToClient(windowHandle, ref screenOriginInClientCoordinates)) return 0;
+
+        int clientOriginScreenX = -screenOriginInClientCoordinates.X;
+        return clientOriginScreenX - windowBounds.Left;
+    }
+
+    private void ResetRestoredWindowDrag()
+    {
+        _avoidSearchBoxDuringRestoreDrag = false;
+        _restoreDragSearchRangeResolved = false;
+        _restoreDragSearchLeftWithinWindow = 0;
+        _restoreDragSearchRightWithinWindow = 0;
+    }
+
+    private void OnWindowClosedForDragHook(object? sender, EventArgs eventArgs)
+    {
+        ResetRestoredWindowDrag();
+        if (_windowDragWndProcHookAttached && OperatingSystem.IsWindows())
+        {
+            Win32Properties.RemoveWndProcHookCallback(this, _windowDragWndProcHook);
+            _windowDragWndProcHookAttached = false;
+        }
+
+        Closed -= OnWindowClosedForDragHook;
     }
 
     private static bool IsInteractiveHeaderControl(object? source)

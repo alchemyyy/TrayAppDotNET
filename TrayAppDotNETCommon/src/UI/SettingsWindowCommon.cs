@@ -56,6 +56,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private ColumnDefinition? _sidebarColumn;
     private SettingsSidebarResizeHandle? _sidebarResizeHandle;
     private Grid? _pageOverlayHost;
+    private bool _pageOverlayAlignsToContentArea;
     private Border? _titleBarDragZone;
     private double _currentSidebarWidth;
     private TaskCompletionSource<bool>? _confirmTcs;
@@ -114,8 +115,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected virtual bool IsFooterNavigationPage(TPageKey pageKey) => false;
     protected virtual bool PageOwnsScrolling(TPageKey pageKey) => false;
 
-    /// <summary>Returns page content that must render above the full window instead of its content column.</summary>
+    /// <summary>Returns page content that must render in the shell overlay instead of its content column.</summary>
     protected virtual Control? ResolvePageOverlay(Control pageRoot) => null;
+
+    /// <summary>Returns whether the page overlay should exclude the visible navigation sidebar.</summary>
+    protected virtual bool PageOverlayAlignsToContentArea(Control pageRoot) => false;
 
     /// <summary>Gets whether the navigation sidebar automatically hides below its collapse threshold.</summary>
     protected virtual bool EnableResponsiveSidebarCollapse => false;
@@ -789,6 +793,10 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (overlayHost == null) return;
 
         Control? overlay = pageRoot == null ? null : ResolvePageOverlay(pageRoot);
+        _pageOverlayAlignsToContentArea = overlay != null
+                                          && pageRoot != null
+                                          && PageOverlayAlignsToContentArea(pageRoot);
+        UpdatePageOverlayLayout();
         overlayHost.Children.Clear();
         if (overlay != null)
         {
@@ -996,6 +1004,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         ColumnDefinition? previousSidebarColumn = _sidebarColumn;
         SettingsSidebarResizeHandle? previousSidebarResizeHandle = _sidebarResizeHandle;
         Grid? previousPageOverlayHost = _pageOverlayHost;
+        bool previousPageOverlayAlignsToContentArea = _pageOverlayAlignsToContentArea;
         Border? previousTitleBarDragZone = _titleBarDragZone;
         double previousCurrentSidebarWidth = _currentSidebarWidth;
         SettingsSearchBox? previousSettingsSearchBox = _settingsSearchBox;
@@ -1026,6 +1035,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebarColumn = null;
             _sidebarResizeHandle = null;
             _pageOverlayHost = null;
+            _pageOverlayAlignsToContentArea = false;
             _titleBarDragZone = null;
             _settingsSearchBox = null;
             _confirmOverlay = null;
@@ -1093,6 +1103,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _sidebarColumn = previousSidebarColumn;
             _sidebarResizeHandle = previousSidebarResizeHandle;
             _pageOverlayHost = previousPageOverlayHost;
+            _pageOverlayAlignsToContentArea = previousPageOverlayAlignsToContentArea;
             _titleBarDragZone = previousTitleBarDragZone;
             _currentSidebarWidth = previousCurrentSidebarWidth;
             _settingsSearchBox = previousSettingsSearchBox;
@@ -1520,6 +1531,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _sidebarColumn = null;
         _sidebarResizeHandle = null;
         _pageOverlayHost = null;
+        _pageOverlayAlignsToContentArea = false;
         _titleBarDragZone = null;
         _currentSidebarWidth = 0;
         _confirmOverlay = null;
@@ -1543,22 +1555,43 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         if (sidebar == null || sidebarColumn == null) return;
 
         bool isCollapsed = EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold;
-        double maximumWidth = GetAvailableSidebarMaximumWidth(windowWidth);
-        double displayedWidth = SettingsSidebarWidthLayout.ResolvePersistedWidth(
-            _currentSidebarWidth,
-            SidebarWidth,
-            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
-            maximumWidth);
+        double pageContentLeftInset = ResolvePageContentLeftInset(windowWidth);
         sidebar.IsVisible = !isCollapsed;
         if (_sidebarResizeHandle != null)
             _sidebarResizeHandle.IsVisible = !isCollapsed;
-        sidebarColumn.Width = new GridLength(isCollapsed ? 0 : displayedWidth);
+        sidebarColumn.Width = new GridLength(pageContentLeftInset);
         if (_titleBarDragZone != null)
         {
             _titleBarDragZone.Width = isCollapsed
                 ? _settingsResources.AxamlSettingsWindow.TitleBarHeight
-                : displayedWidth;
+                : pageContentLeftInset;
         }
+        UpdatePageOverlayLayout();
+    }
+
+    /// <summary>Resolves the page area's left inset for a candidate window width.</summary>
+    protected double ResolvePageContentLeftInset(double windowWidth)
+    {
+        if (EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold)
+            return 0;
+
+        double maximumWidth = GetAvailableSidebarMaximumWidth(windowWidth);
+        return SettingsSidebarWidthLayout.ResolvePersistedWidth(
+            _currentSidebarWidth,
+            SidebarWidth,
+            _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
+            maximumWidth);
+    }
+
+    private void UpdatePageOverlayLayout()
+    {
+        Grid? overlayHost = _pageOverlayHost;
+        if (overlayHost == null) return;
+
+        double leftInset = _pageOverlayAlignsToContentArea
+            ? _sidebarColumn?.Width.Value ?? 0
+            : 0;
+        overlayHost.Margin = new Thickness(leftInset, 0, 0, 0);
     }
 
     private double ResolveWindowWidth()

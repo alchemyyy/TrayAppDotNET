@@ -271,6 +271,41 @@ internal static class ProcessTableColumnCatalog
 /// <summary>Provides Processes-specific column geometry.</summary>
 internal static class ProcessTableLayout
 {
+    public const int MinimumZoomFontWeight = 100;
+    public const int MaximumZoomFontWeight = 900;
+
+    private const double ZoomFontWeightLinearCoefficient = 320;
+    private const double ZoomFontWeightCubicCoefficient = 80;
+
+    /// <summary>
+    /// Resolves font weight from w(z) = w0 + 320z + 80z^3, where z is normalized zoom.
+    /// The derivative is always positive before the explicit supported-weight clamps.
+    /// </summary>
+    public static int CalculateZoomFontWeight(
+        int baseFontWeight,
+        double referenceFontSize,
+        double fontSize)
+    {
+        if (baseFontWeight is < MinimumZoomFontWeight or > MaximumZoomFontWeight)
+            throw new ArgumentOutOfRangeException(nameof(baseFontWeight));
+        if (!double.IsFinite(referenceFontSize) || referenceFontSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(referenceFontSize));
+        if (!double.IsFinite(fontSize) || fontSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(fontSize));
+
+        double normalizedZoom = fontSize / referenceFontSize - 1;
+        double squaredZoom = normalizedZoom * normalizedZoom;
+        double polynomialWeight = baseFontWeight
+                                  + normalizedZoom
+                                  * (ZoomFontWeightLinearCoefficient
+                                     + ZoomFontWeightCubicCoefficient * squaredZoom);
+        double clampedWeight = Math.Clamp(
+            polynomialWeight,
+            MinimumZoomFontWeight,
+            MaximumZoomFontWeight);
+        return (int)Math.Round(clampedWeight, MidpointRounding.AwayFromZero);
+    }
+
     /// <summary>Scales process icons by the smaller text or row zoom factor.</summary>
     public static double ScaleProcessIconSize(
         double baseIconSize,

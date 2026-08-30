@@ -722,6 +722,13 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             value => _settings.EnableLiveDetailsColumnResizing = value,
             palette,
             searchKeywords: ["column resize preview"]));
+        stack.Children.Add(BoolCard(
+            "Left-align search bar",
+            "Align the Processes search bar with the left edge of the page area instead of centering it in the window.",
+            _settings.LeftAlignProcessSearchBar,
+            value => _settings.LeftAlignProcessSearchBar = value,
+            palette,
+            searchKeywords: ["process search position", "search alignment"]));
 
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Theme", palette));
         stack.Children.Add(ComboCard(

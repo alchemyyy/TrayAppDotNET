@@ -147,7 +147,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
         _searchBox.PlaceholderText = "Search by name, PID, or enter an expression";
-        _searchBox.HorizontalAlignment = HorizontalAlignment.Center;
+        _searchBox.HorizontalAlignment = settings.LeftAlignProcessSearchBar
+            ? HorizontalAlignment.Left
+            : HorizontalAlignment.Center;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         _searchBox.TextChanged += OnSearchTextChanged;
@@ -225,8 +227,25 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.RefreshFrom(_snapshotService);
     }
 
-    /// <summary>Gets the search box rendered by the full-window page overlay.</summary>
+    /// <summary>Gets the search controls rendered by the shell-level page overlay.</summary>
     internal override Control? PageOverlay => _searchOverlay;
+
+    /// <summary>Gets the search box's rendered width in screen pixels while it is rooted and visible.</summary>
+    internal bool TryGetSearchBoxPixelWidth(out int width)
+    {
+        width = 0;
+        if (!_searchBox.IsEffectivelyVisible
+            || _searchBox.Bounds.Width <= 0
+            || TopLevel.GetTopLevel(_searchBox) == null)
+        {
+            return false;
+        }
+
+        PixelPoint screenLeft = _searchBox.PointToScreen(default);
+        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, 0));
+        width = Math.Abs(screenRight.X - screenLeft.X);
+        return width > 0;
+    }
 
     private StackPanel BuildGroupProcessesHeaderControl(
         SettingsPalette palette,
