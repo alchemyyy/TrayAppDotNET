@@ -167,6 +167,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool _groupProcesses;
     private double _axamlFontSize;
     private double _axamlRowHeight;
+    private PendingColumnLayout? _pendingColumnLayout;
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
     private ProcessSnapshotService? _snapshotService;
@@ -320,9 +321,39 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ArgumentNullException.ThrowIfNull(snapshotService);
 
         _snapshotService ??= snapshotService;
-        int count = snapshotService.CopyLatest(_snapshot, _schema.VisibleMask, out long version);
+        if (_pendingColumnLayout is { } pendingColumnLayout)
+        {
+            if (!snapshotService.TryCopyLatest(
+                    _snapshot,
+                    pendingColumnLayout.Schema.VisibleMask,
+                    out int pendingCount,
+                    out long pendingVersion))
+            {
+                return;
+            }
+
+            CommitPendingColumnLayout(
+                pendingColumnLayout,
+                pendingCount,
+                pendingVersion);
+            return;
+        }
+
+        if (!snapshotService.TryCopyLatest(
+                _snapshot,
+                _schema.VisibleMask,
+                out int count,
+                out long version))
+        {
+            return;
+        }
         if (version == _snapshotVersion) return;
 
+        RebuildFromCopiedSnapshot(count, version);
+    }
+
+    private void RebuildFromCopiedSnapshot(int count, long version)
+    {
         _snapshotVersion = version;
         _rowCount = count;
         EnsureRowCapacity(count);
@@ -344,6 +375,31 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
         _filterText = nextFilter;
+        if (_pendingColumnLayout is { } pendingColumnLayout)
+        {
+            ProcessSearchQuery pendingFilterQuery = ProcessSearchQuery.Parse(
+                nextFilter,
+                pendingColumnLayout.Settings);
+            ProcessDataSchema pendingSchema = ProcessDataSchema.Create(
+                pendingColumnLayout.Settings,
+                pendingFilterQuery.RequiredColumnMask);
+            PendingColumnLayout nextPendingColumnLayout = pendingColumnLayout with
+            {
+                FilterQuery = pendingFilterQuery,
+                Schema = pendingSchema
+            };
+            _pendingColumnLayout = nextPendingColumnLayout;
+            _snapshotService?.SetActiveSchema(pendingSchema);
+            if (pendingSchema.VisibleMask == _schema.VisibleMask)
+            {
+                CommitPendingColumnLayout(
+                    nextPendingColumnLayout,
+                    _snapshot.Count,
+                    _snapshotVersion);
+            }
+            return;
+        }
+
         _filterQuery = ProcessSearchQuery.Parse(nextFilter, _columnSettings);
         ProcessDataSchema nextSchema = ProcessDataSchema.Create(
             _columnSettings,
@@ -363,26 +419,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         if (_schema.VisibleMask == schema.VisibleMask) return false;
 
-        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
-            ReleaseRenderCache(cache);
-        _renderCaches.Clear();
-        foreach (SharedCellLayout sharedCell in _sharedCellLayouts.Values)
-            sharedCell.Dispose();
-        _sharedCellLayouts.Clear();
-
+        ClearSnapshotPresentationState();
         _schema = schema;
         _rowComparer.SetSchema(schema);
         _snapshot.Reset();
         _snapshotVersion = -1;
-        _rowCount = 0;
-        _visibleRowCount = 0;
-        _cacheGeneration = 0;
-        _retainedFirstVisibleIndex = -1;
-        _retainedLastVisibleIndexExclusive = -1;
-        _warmRefreshCursor = 0;
-        _warmRefreshEnd = 0;
-        _rowIndexByProcessID.Clear();
-        Array.Clear(_contextCopyValuesByColumn);
 
         _snapshotService?.SetActiveSchema(schema);
         PublishWarmProcesses();
@@ -392,6 +433,26 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         PublishRowHoverGeometry();
         InvalidateLayers(RenderLayerMask.All);
         return true;
+    }
+
+    private void ClearSnapshotPresentationState()
+    {
+        foreach (ProcessRowRenderCache cache in _renderCaches.Values)
+            ReleaseRenderCache(cache);
+        _renderCaches.Clear();
+        foreach (SharedCellLayout sharedCell in _sharedCellLayouts.Values)
+            sharedCell.Dispose();
+        _sharedCellLayouts.Clear();
+
+        _rowCount = 0;
+        _visibleRowCount = 0;
+        _cacheGeneration = 0;
+        _retainedFirstVisibleIndex = -1;
+        _retainedLastVisibleIndexExclusive = -1;
+        _warmRefreshCursor = 0;
+        _warmRefreshEnd = 0;
+        _rowIndexByProcessID.Clear();
+        Array.Clear(_contextCopyValuesByColumn);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -709,7 +770,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ApplyColumnLayout(ProcessColumnSettings.WithProperties(_columnSettings, replacement));
     }
 
-    /// <summary>Applies column visibility and order without rebuilding the Processes page.</summary>
+    /// <summary>Stages column visibility and order, then swaps after compatible data is ready.</summary>
     public void ApplyColumnSettings(IReadOnlyList<ProcessColumnSetting> settings)
     {
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
@@ -2477,14 +2538,58 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(settings);
         ProcessTableColumn[] columns = CreateColumns(normalized);
-        PrepareColumnLayout(columns);
+        ProcessSearchQuery filterQuery = ProcessSearchQuery.Parse(_filterText, normalized);
+        ProcessDataSchema schema = ProcessDataSchema.Create(
+            normalized,
+            filterQuery.RequiredColumnMask);
+        if (schema.VisibleMask != _schema.VisibleMask && _snapshotService != null)
+        {
+            _pendingColumnLayout = new PendingColumnLayout(
+                normalized,
+                columns,
+                filterQuery,
+                schema);
+            _snapshotService.SetActiveSchema(schema);
+            ColumnLayoutChanged?.Invoke(normalized);
+            return;
+        }
 
+        _pendingColumnLayout = null;
+        _snapshotService?.SetActiveSchema(schema);
+        PrepareColumnLayout(columns);
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
-        _filterQuery = ProcessSearchQuery.Parse(_filterText, normalized);
-        ApplySearchSchema(ProcessDataSchema.Create(normalized, _filterQuery.RequiredColumnMask));
+        _filterQuery = filterQuery;
+        if (_schema.VisibleMask != schema.VisibleMask)
+        {
+            ApplySearchSchema(schema);
+        }
+        else
+        {
+            _schema = schema;
+            _rowComparer.SetSchema(schema);
+        }
         ApplyDisplayColumnLayout(columns);
         ColumnLayoutChanged?.Invoke(normalized);
+    }
+
+    private void CommitPendingColumnLayout(
+        PendingColumnLayout pendingColumnLayout,
+        int count,
+        long version)
+    {
+        _pendingColumnLayout = null;
+        PrepareColumnLayout(pendingColumnLayout.Columns);
+        ClearSnapshotPresentationState();
+        _schema = pendingColumnLayout.Schema;
+        _rowComparer.SetSchema(pendingColumnLayout.Schema);
+        _columnSettings = pendingColumnLayout.Settings;
+        _settingsByColumn = CreateColumnSettingsIndex(pendingColumnLayout.Settings);
+        _filterQuery = pendingColumnLayout.FilterQuery;
+        _columns = pendingColumnLayout.Columns;
+        ReplaceHeaderTexts(pendingColumnLayout.Columns);
+        UpdateHeaderHoverVisual();
+        RebuildFromCopiedSnapshot(count, version);
     }
 
     private void PrepareColumnLayout(ProcessTableColumn[] columns)
@@ -3224,6 +3329,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ColumnLayoutChanged = null;
         EndTaskRequested = null;
         RowContextMenuRequested = null;
+        _pendingColumnLayout = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
         _renderCaches.Clear();
@@ -3243,6 +3349,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _headerHoverLayer.Dispose();
         _snapshot.Reset();
     }
+
+    private sealed record PendingColumnLayout(
+        List<ProcessColumnSetting> Settings,
+        ProcessTableColumn[] Columns,
+        ProcessSearchQuery FilterQuery,
+        ProcessDataSchema Schema);
 
     private sealed class ProcessTableRenderLayer : Control
     {

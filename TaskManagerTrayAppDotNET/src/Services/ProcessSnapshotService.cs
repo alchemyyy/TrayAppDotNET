@@ -187,13 +187,34 @@ internal sealed class ProcessSnapshotService : IDisposable
         ulong expectedSchemaMask,
         out long version)
     {
+        _ = TryCopyLatest(
+            destination,
+            expectedSchemaMask,
+            out int count,
+            out version);
+        return count;
+    }
+
+    /// <summary>Copies the latest snapshot only when its schema matches the caller.</summary>
+    public bool TryCopyLatest(
+        ProcessSnapshotBuffer destination,
+        ulong expectedSchemaMask,
+        out int count,
+        out long version)
+    {
         ArgumentNullException.ThrowIfNull(destination);
         lock (_publishGate)
         {
             version = _publishedVersion;
-            if (_publishedBuffer.Schema?.VisibleMask != expectedSchemaMask) return 0;
+            if (_publishedBuffer.Schema?.VisibleMask != expectedSchemaMask)
+            {
+                count = 0;
+                return false;
+            }
+
             destination.CopyFrom(_publishedBuffer);
-            return destination.Count;
+            count = destination.Count;
+            return true;
         }
     }
 

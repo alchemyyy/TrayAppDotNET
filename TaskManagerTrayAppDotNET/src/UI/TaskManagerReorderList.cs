@@ -40,8 +40,10 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     private Point _lastDragPointerPosition;
     private double[] _dragMidpoints = [];
     private int _dropInsertionIndex = -1;
+    private int _publishedPreviewTargetIndex = -1;
     private int _autoScrollDirection;
     private bool _isDragging;
+    private bool _hasPublishedOrderPreview;
     private bool _isResettingCapture;
     private SettingsVerticalScrollViewport? _scrollViewport;
     private double _lastViewportOffset;
@@ -95,6 +97,9 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
 
     /// <summary>Raised after a pointer or button action mutates item order or state.</summary>
     public event Action? ItemsChanged;
+
+    /// <summary>Raised with the prospective order whenever an active drag changes slots.</summary>
+    public event Action<IReadOnlyList<TItem>>? OrderPreviewChanged;
 
     /// <summary>Enables edge auto-scroll while a row is dragged inside the supplied viewport.</summary>
     public void AttachScrollViewport(SettingsVerticalScrollViewport scrollViewport)
@@ -345,6 +350,10 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _dropInsertionIndex = CalculateInsertionIndex(
             _dragMidpoints,
             DraggedRowMidpoint(_dragStart.Y));
+        _publishedPreviewTargetIndex = TaskManagerReorderListLogic.IndexOfReference(
+            _visibleItems,
+            item);
+        _hasPublishedOrderPreview = false;
         try
         {
             eventArgs.Pointer.Capture(slot);
@@ -421,6 +430,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     {
         TItem? draggedItem = _draggedItem;
         bool hadActiveDrag = _isDragging;
+        bool hadPublishedOrderPreview = _hasPublishedOrderPreview;
         int insertionIndex = _dropInsertionIndex;
         List<TItem> visibleItems = _visibleItems;
         ResetDraggedSlotVisual();
@@ -439,7 +449,11 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             }
         }
 
-        if (!commit || draggedItem == null) return;
+        if (!commit || draggedItem == null)
+        {
+            if (hadPublishedOrderPreview) PublishCurrentOrder();
+            return;
+        }
         if (!hadActiveDrag)
         {
             if (activateOnClick)
@@ -455,7 +469,11 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         }
 
         int sourceVisibleIndex = TaskManagerReorderListLogic.IndexOfReference(visibleItems, draggedItem);
-        if (sourceVisibleIndex < 0) return;
+        if (sourceVisibleIndex < 0)
+        {
+            if (hadPublishedOrderPreview) PublishCurrentOrder();
+            return;
+        }
 
         int targetVisibleIndex = TaskManagerReorderListLogic.ResolveDropTargetIndex(
             sourceVisibleIndex,
@@ -467,6 +485,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
                 draggedItem,
                 targetVisibleIndex))
         {
+            if (hadPublishedOrderPreview) PublishCurrentOrder();
             return;
         }
 
@@ -512,10 +531,52 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             _dragMidpoints,
             DraggedRowMidpoint(pointerPosition.Y));
         ApplyDragPreview();
+        PublishDragPreview();
         draggedSlot.RenderTransform = new TranslateTransform(
             0,
             pointerPosition.Y - _dragStart.Y);
     }
+
+    private void PublishDragPreview()
+    {
+        TItem? draggedItem = _draggedItem;
+        if (!_isDragging || draggedItem == null) return;
+
+        int sourceVisibleIndex = TaskManagerReorderListLogic.IndexOfReference(
+            _visibleItems,
+            draggedItem);
+        if (sourceVisibleIndex < 0) return;
+
+        int targetVisibleIndex = TaskManagerReorderListLogic.ResolveDropTargetIndex(
+            sourceVisibleIndex,
+            _dropInsertionIndex,
+            _visibleItems.Count);
+        if (targetVisibleIndex == _publishedPreviewTargetIndex) return;
+
+        _publishedPreviewTargetIndex = targetVisibleIndex;
+        if (targetVisibleIndex == sourceVisibleIndex)
+        {
+            bool restoreCurrentOrder = _hasPublishedOrderPreview;
+            _hasPublishedOrderPreview = false;
+            if (restoreCurrentOrder) PublishCurrentOrder();
+            return;
+        }
+
+        List<TItem> previewItems = [.. _items];
+        if (!TaskManagerReorderListLogic.MoveVisibleItem(
+                previewItems,
+                _visibleItems,
+                draggedItem,
+                targetVisibleIndex))
+        {
+            return;
+        }
+
+        _hasPublishedOrderPreview = true;
+        OrderPreviewChanged?.Invoke(previewItems);
+    }
+
+    private void PublishCurrentOrder() => OrderPreviewChanged?.Invoke([.. _items]);
 
     private void ApplyDragPreview()
     {
@@ -658,19 +719,23 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     private void CancelDrag()
     {
         IPointer? pointer = _capturedPointer;
+        bool restorePublishedOrderPreview = _hasPublishedOrderPreview;
         ResetDraggedSlotVisual();
         ClearDragState();
-        if (pointer == null) return;
+        if (pointer != null)
+        {
+            _isResettingCapture = true;
+            try
+            {
+                pointer.Capture(null);
+            }
+            finally
+            {
+                _isResettingCapture = false;
+            }
+        }
 
-        _isResettingCapture = true;
-        try
-        {
-            pointer.Capture(null);
-        }
-        finally
-        {
-            _isResettingCapture = false;
-        }
+        if (restorePublishedOrderPreview) PublishCurrentOrder();
     }
 
     private void ClearDragState()
@@ -684,7 +749,16 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _lastDragPointerPosition = default;
         _dragMidpoints = [];
         _dropInsertionIndex = -1;
+        _publishedPreviewTargetIndex = -1;
         _isDragging = false;
+        _hasPublishedOrderPreview = false;
+    }
+
+    /// <summary>Cancels an active drag and restores any externally published preview.</summary>
+    public void CancelActiveDrag()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        CancelDrag();
     }
 
     private void OnResourcesReloaded()
@@ -719,6 +793,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _visibleItems.Clear();
         _visibleRows.Clear();
         ItemsChanged = null;
+        OrderPreviewChanged = null;
     }
 
     private sealed class ReorderRow(TItem item, Border slot, Border highlightSurface)

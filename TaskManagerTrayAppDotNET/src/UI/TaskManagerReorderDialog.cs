@@ -97,6 +97,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             enableRoundedCorners,
             activateItem);
         _reorderList.ItemsChanged += OnItemsChanged;
+        _reorderList.OrderPreviewChanged += OnOrderPreviewChanged;
 
         _searchBox = showSearch
             ? TrayAppDotNETSettingsUI.SearchTextBox(
@@ -295,6 +296,11 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         if (Volatile.Read(ref _disposed) == 0) PublishItemsChanged();
     }
 
+    private void OnOrderPreviewChanged(IReadOnlyList<TItem> items)
+    {
+        if (Volatile.Read(ref _disposed) == 0) _itemsChanged(items);
+    }
+
     private void OnItemChanged()
     {
         if (Volatile.Read(ref _disposed) != 0) return;
@@ -353,6 +359,8 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     /// <summary>Releases the reorder list, scrollbar, and window event handlers.</summary>
     public void Dispose()
     {
+        if (Volatile.Read(ref _disposed) != 0) return;
+        _reorderList.CancelActiveDrag();
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
         Closed -= OnClosed;
@@ -364,6 +372,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _cancelButton.Click -= OnCancelClick;
         _doneButton.Click -= OnDoneClick;
         _reorderList.ItemsChanged -= OnItemsChanged;
+        _reorderList.OrderPreviewChanged -= OnOrderPreviewChanged;
         if (_searchBox != null) _searchBox.TextChanged -= OnSearchTextChanged;
         _reorderList.Dispose();
         _scrollViewport?.Dispose();
