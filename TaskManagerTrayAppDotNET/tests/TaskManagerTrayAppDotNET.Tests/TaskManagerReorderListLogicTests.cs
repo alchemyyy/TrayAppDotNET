@@ -24,6 +24,24 @@ public sealed class TaskManagerReorderListLogicTests
     }
 
     [Fact]
+    public void FilterItemsCombinesTextAndItemPredicates()
+    {
+        ReorderItem includedMatch = new("alpha", isIncluded: true);
+        ReorderItem excludedMatch = new("alphabet", isIncluded: false);
+        ReorderItem includedMismatch = new("beta", isIncluded: true);
+        List<ReorderItem> items = [includedMatch, excludedMatch, includedMismatch];
+
+        List<ReorderItem> filtered = TaskManagerReorderListLogic.FilterItems(
+            items,
+            "alpha",
+            static item => item.Name,
+            static item => item.IsIncluded);
+
+        Assert.Single(filtered);
+        Assert.Same(includedMatch, filtered[0]);
+    }
+
+    [Fact]
     public void MoveVisibleItemPreservesEveryUnmatchedSlot()
     {
         ReorderItem first = new("First");
@@ -122,8 +140,9 @@ public sealed class TaskManagerReorderListLogicTests
         Assert.Equal(expectedOffset, offset);
     }
 
-    private sealed class ReorderItem(string name)
+    private sealed class ReorderItem(string name, bool isIncluded = true)
     {
         public string Name { get; } = name;
+        public bool IsIncluded { get; } = isIncluded;
     }
 }

@@ -51,7 +51,8 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         string searchPlaceholder,
         SettingsScrollBarStyle? scrollBarStyle = null,
         TrayMenuWindowOptions? scrollBarContextMenuOptions = null,
-        Action<TItem>? activateItem = null)
+        Action<TItem>? activateItem = null,
+        Control? headerTrailingControl = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentNullException.ThrowIfNull(description);
@@ -169,7 +170,13 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         };
         content.Children.Add(_titleBar);
 
-        Border header = BuildHeader(description, palette, background, resources, _searchBox);
+        Border header = BuildHeader(
+            description,
+            palette,
+            background,
+            resources,
+            _searchBox,
+            headerTrailingControl);
         Grid.SetRow(header, 1);
         content.Children.Add(header);
 
@@ -230,14 +237,32 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         SettingsPalette palette,
         Color background,
         TaskManagerWindowResources resources,
-        TextBox? searchBox)
+        TextBox? searchBox,
+        Control? trailingControl)
     {
         StackPanel content = new();
         if (searchBox != null) content.Children.Add(searchBox);
 
         TextBlock descriptionText = TrayAppDotNETSettingsUI.DescriptionText(description, palette);
         descriptionText.TextWrapping = TextWrapping.Wrap;
-        content.Children.Add(descriptionText);
+        descriptionText.VerticalAlignment = VerticalAlignment.Center;
+        Grid descriptionRow = new()
+        {
+            ColumnSpacing = resources.AxamlTaskManagerReorderDialog.DescriptionOptionSpacing,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Star),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        descriptionRow.Children.Add(descriptionText);
+        if (trailingControl != null)
+        {
+            trailingControl.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(trailingControl, 1);
+            descriptionRow.Children.Add(trailingControl);
+        }
+        content.Children.Add(descriptionRow);
         return new Border
         {
             Background = TrayAppDotNETSettingsUI.Brush(background),
@@ -308,6 +333,13 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 
     /// <summary>Confirms a reset when the specialized reorder dialog requires it.</summary>
     protected virtual Task<bool> ConfirmResetAsync() => Task.FromResult(true);
+
+    /// <summary>Applies an additional item filter without changing the caller-owned list.</summary>
+    protected void SetItemFilter(Func<TItem, bool>? includeItem)
+    {
+        _reorderList.SetItemFilter(includeItem);
+        _scrollViewport?.SetVerticalOffset(0);
+    }
 
     private void OnCancelClick(object? sender, EventArgs eventArgs)
     {

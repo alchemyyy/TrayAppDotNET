@@ -23,6 +23,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     private readonly IReadOnlyList<TItem> _readOnlyItems;
     private readonly Func<TItem, string> _getSearchText;
     private readonly Func<TItem, Control> _buildPrimaryContent;
+    private Func<TItem, bool>? _includeItem;
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
     private readonly Action<TItem>? _activateItem;
@@ -127,6 +128,15 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         RebuildRows();
     }
 
+    /// <summary>Applies an optional item predicate in addition to the text filter.</summary>
+    public void SetItemFilter(Func<TItem, bool>? includeItem)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        CancelDrag();
+        _includeItem = includeItem;
+        RebuildRows();
+    }
+
     /// <summary>Rebuilds row content from the caller-owned list and current filter.</summary>
     public void Refresh()
     {
@@ -146,7 +156,8 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         List<TItem> visibleItems = TaskManagerReorderListLogic.FilterItems(
             _items,
             _filter,
-            _getSearchText);
+            _getSearchText,
+            _includeItem);
         List<ReorderRow> visibleRows = new(visibleItems.Count);
         TaskManagerReorderResources resources = TaskManagerReorderResources.Current;
 
@@ -823,7 +834,8 @@ internal static class TaskManagerReorderListLogic
     internal static List<TItem> FilterItems<TItem>(
         IEnumerable<TItem> items,
         string? filter,
-        Func<TItem, string> getSearchText)
+        Func<TItem, string> getSearchText,
+        Func<TItem, bool>? includeItem = null)
         where TItem : class
     {
         ArgumentNullException.ThrowIfNull(items);
@@ -832,6 +844,7 @@ internal static class TaskManagerReorderListLogic
         List<TItem> visibleItems = [];
         foreach (TItem item in items)
         {
+            if (includeItem != null && !includeItem(item)) continue;
             SearchMatch match = SearchMatcher.Score(getSearchText(item), filter);
             if (match.IsMatch) visibleItems.Add(item);
         }

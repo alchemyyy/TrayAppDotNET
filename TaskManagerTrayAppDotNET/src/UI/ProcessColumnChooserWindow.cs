@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -13,6 +14,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     private const int LuminanceDivisor = 1000;
     private const int LightSurfaceThreshold = 128;
 
+    private readonly CheckBox _hideUnusedColumns;
+
     public ProcessColumnChooserWindow(
         AppSettings settings,
         SettingsPalette palette,
@@ -24,6 +27,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             palette ?? throw new ArgumentNullException(nameof(palette)),
             resources ?? throw new ArgumentNullException(nameof(resources)),
             ResolveBackground(palette),
+            CreateHideUnusedColumnsCheckBox(palette),
             columnsChanged)
     {
     }
@@ -34,6 +38,7 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         SettingsPalette palette,
         TaskManagerWindowResources resources,
         Color background,
+        CheckBox hideUnusedColumns,
         Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : base(
             "Select Processes columns",
@@ -62,11 +67,39 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
                 palette,
                 settings.EnableRoundedCorners,
                 settings),
-            setting => ToggleVisibility(items, setting))
+            setting => ToggleVisibility(items, setting),
+            headerTrailingControl: hideUnusedColumns)
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(columnsChanged);
+
+        _hideUnusedColumns = hideUnusedColumns;
+        _hideUnusedColumns.IsCheckedChanged += OnHideUnusedColumnsChanged;
+        Closed += OnChooserClosed;
+    }
+
+    private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette) => new()
+    {
+        Content = "Hide unused columns",
+        Foreground = TrayAppDotNETSettingsUI.Brush(palette.Foreground),
+        IsChecked = false,
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+
+    private void OnHideUnusedColumnsChanged(object? sender, RoutedEventArgs eventArgs)
+    {
+        Func<ProcessColumnSetting, bool>? includeItem = _hideUnusedColumns.IsChecked == true
+            ? static setting => setting.Visible
+            : null;
+        SetItemFilter(includeItem);
+    }
+
+    private void OnChooserClosed(object? sender, EventArgs eventArgs)
+    {
+        Closed -= OnChooserClosed;
+        _hideUnusedColumns.IsCheckedChanged -= OnHideUnusedColumnsChanged;
     }
 
     private static string GetSearchText(ProcessColumnSetting setting)

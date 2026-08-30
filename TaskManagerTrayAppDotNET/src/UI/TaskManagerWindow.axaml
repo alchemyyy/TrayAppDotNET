@@ -45,6 +45,7 @@
   <Thickness x:Key="TaskManagerReorderDialog.TitleMargin">16,0,8,0</Thickness>
   <Thickness x:Key="TaskManagerReorderDialog.HeaderPadding">16,12,16,12</Thickness>
   <Thickness x:Key="TaskManagerReorderDialog.SearchMargin">0,0,0,10</Thickness>
+  <sys:Double x:Key="TaskManagerReorderDialog.DescriptionOptionSpacing">16</sys:Double>
   <Thickness x:Key="TaskManagerReorderDialog.CheckBoxLabelMargin">8,0,0,0</Thickness>
   <Thickness x:Key="TaskManagerReorderDialog.ListPadding">16,0,8,0</Thickness>
   <Thickness x:Key="TaskManagerReorderDialog.UnscrolledListMargin">16,0,16,0</Thickness>
