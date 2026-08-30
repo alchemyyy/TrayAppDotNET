@@ -13,7 +13,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 {
     private const double GridFontZoomStep = 0.5;
-    private const int GridRowHeightZoomStep = 1;
+    private const int GridRowHeightStep = 1;
 
     private readonly ProcessSnapshotService _snapshotService;
     private readonly Action<ProcessTerminationTarget?> _armTerminationTarget;
@@ -104,6 +104,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.GridMetricsChanged += OnGridMetricsChanged;
         _processCanvas.GridZoomRequested += OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested += OnGridZoomResetRequested;
+        _processCanvas.GridRowSpacingRequested += OnGridRowSpacingRequested;
+        _processCanvas.GridRowSpacingResetRequested += OnGridRowSpacingResetRequested;
         _processCanvas.EndTaskRequested += RequestEndTask;
         _processCanvas.RowContextMenuRequested += OnRowContextMenuRequested;
 
@@ -354,12 +356,14 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     {
         if (direction == 0) return;
 
+        int rowSpacingOffset = _settings.GridRowHeight
+                               - ResolveZoomAdjustedRowHeight(_settings.GridFontSize);
         double fontSize = Math.Clamp(
             _settings.GridFontSize + Math.Sign(direction) * GridFontZoomStep,
             AppSettings.GridFontSizeMinimum,
             AppSettings.GridFontSizeMaximum);
         int rowHeight = Math.Clamp(
-            _settings.GridRowHeight + Math.Sign(direction) * GridRowHeightZoomStep,
+            ResolveZoomAdjustedRowHeight(fontSize) + rowSpacingOffset,
             AppSettings.GridRowHeightMinimum,
             AppSettings.GridRowHeightMaximum);
         _processCanvas.SetGridMetrics(fontSize, rowHeight);
@@ -368,8 +372,46 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 
     private void OnGridZoomResetRequested()
     {
-        _processCanvas.SetGridMetrics(AppSettings.GridFontSizeDefault, AppSettings.GridRowHeightDefault);
-        _settings.UpdateGridMetrics(AppSettings.GridFontSizeDefault, AppSettings.GridRowHeightDefault);
+        int rowSpacingOffset = _settings.GridRowHeight
+                               - ResolveZoomAdjustedRowHeight(_settings.GridFontSize);
+        int rowHeight = Math.Clamp(
+            AppSettings.GridRowHeightDefault + rowSpacingOffset,
+            AppSettings.GridRowHeightMinimum,
+            AppSettings.GridRowHeightMaximum);
+        _processCanvas.SetGridMetrics(AppSettings.GridFontSizeDefault, rowHeight);
+        _settings.UpdateGridMetrics(AppSettings.GridFontSizeDefault, rowHeight);
+    }
+
+    private void OnGridRowSpacingRequested(int direction)
+    {
+        if (direction == 0) return;
+
+        int rowHeight = Math.Clamp(
+            _settings.GridRowHeight + Math.Sign(direction) * GridRowHeightStep,
+            AppSettings.GridRowHeightMinimum,
+            AppSettings.GridRowHeightMaximum);
+        _processCanvas.SetGridMetrics(_settings.GridFontSize, rowHeight);
+        _settings.UpdateGridMetrics(_settings.GridFontSize, rowHeight);
+    }
+
+    private void OnGridRowSpacingResetRequested()
+    {
+        int rowHeight = ResolveZoomAdjustedRowHeight(_settings.GridFontSize);
+        _processCanvas.SetGridMetrics(_settings.GridFontSize, rowHeight);
+        _settings.UpdateGridMetrics(_settings.GridFontSize, rowHeight);
+    }
+
+    /// <summary>Returns row height contributed by font zoom before Shift spacing is applied.</summary>
+    private static int ResolveZoomAdjustedRowHeight(double fontSize)
+    {
+        double zoomSteps = (fontSize - AppSettings.GridFontSizeDefault) / GridFontZoomStep;
+        int rowHeight = AppSettings.GridRowHeightDefault
+                        + (int)Math.Round(zoomSteps, MidpointRounding.AwayFromZero)
+                        * GridRowHeightStep;
+        return Math.Clamp(
+            rowHeight,
+            AppSettings.GridRowHeightMinimum,
+            AppSettings.GridRowHeightMaximum);
     }
 
     private void OnGroupProcessesChanged(object? sender, bool groupProcesses)
@@ -685,6 +727,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.GridMetricsChanged -= OnGridMetricsChanged;
         _processCanvas.GridZoomRequested -= OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested -= OnGridZoomResetRequested;
+        _processCanvas.GridRowSpacingRequested -= OnGridRowSpacingRequested;
+        _processCanvas.GridRowSpacingResetRequested -= OnGridRowSpacingResetRequested;
         _processCanvas.EndTaskRequested -= RequestEndTask;
         _processCanvas.RowContextMenuRequested -= OnRowContextMenuRequested;
         _groupProcessesToggle.CheckedChanged -= OnGroupProcessesChanged;

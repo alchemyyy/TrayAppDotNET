@@ -35,6 +35,8 @@ internal abstract class DetailsGridControl : Control, IDisposable
     public event Action<double, double>? GridMetricsChanged;
     public event Action<int>? GridZoomRequested;
     public event Action? GridZoomResetRequested;
+    public event Action<int>? GridRowSpacingRequested;
+    public event Action? GridRowSpacingResetRequested;
 
     protected bool IsDetailsGridDisposed => _disposed;
     protected bool IsDetailsGridZoomActive => _isZoomActive;
@@ -102,15 +104,15 @@ internal abstract class DetailsGridControl : Control, IDisposable
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
     {
         base.OnPointerWheelChanged(eventArgs);
-        if (_disposed
-            || eventArgs.Handled
-            || !eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control)
-            || eventArgs.Delta.Y == 0)
-        {
-            return;
-        }
+        if (_disposed || eventArgs.Handled || eventArgs.Delta.Y == 0) return;
 
-        GridZoomRequested?.Invoke(eventArgs.Delta.Y > 0 ? 1 : -1);
+        int direction = eventArgs.Delta.Y > 0 ? 1 : -1;
+        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            GridRowSpacingRequested?.Invoke(direction);
+        else if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
+            GridZoomRequested?.Invoke(direction);
+        else
+            return;
         eventArgs.Handled = true;
     }
 
@@ -120,13 +122,14 @@ internal abstract class DetailsGridControl : Control, IDisposable
         if (_disposed || eventArgs.Handled || !CanResetDetailsGridZoom) return;
 
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
-        if (!pointerPoint.Properties.IsMiddleButtonPressed
-            || !eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
-        {
-            return;
-        }
+        if (!pointerPoint.Properties.IsMiddleButtonPressed) return;
 
-        GridZoomResetRequested?.Invoke();
+        if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            GridRowSpacingResetRequested?.Invoke();
+        else if (eventArgs.KeyModifiers.HasFlag(KeyModifiers.Control))
+            GridZoomResetRequested?.Invoke();
+        else
+            return;
         eventArgs.Handled = true;
     }
 
@@ -354,6 +357,8 @@ internal abstract class DetailsGridControl : Control, IDisposable
         GridMetricsChanged = null;
         GridZoomRequested = null;
         GridZoomResetRequested = null;
+        GridRowSpacingRequested = null;
+        GridRowSpacingResetRequested = null;
         DisposeDetailsGridResources();
         GC.SuppressFinalize(this);
     }
