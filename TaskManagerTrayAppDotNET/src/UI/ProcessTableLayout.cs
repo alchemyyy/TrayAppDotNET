@@ -267,6 +267,29 @@ internal static class ProcessTableColumnCatalog
 /// <summary>Provides Processes-specific column geometry.</summary>
 internal static class ProcessTableLayout
 {
+    /// <summary>Scales process icons by the smaller text or row zoom factor.</summary>
+    public static double ScaleProcessIconSize(
+        double baseIconSize,
+        double baseFontSize,
+        double baseRowHeight,
+        double fontSize,
+        double rowHeight)
+    {
+        if (!double.IsFinite(baseIconSize) || baseIconSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(baseIconSize));
+        if (!double.IsFinite(baseFontSize) || baseFontSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(baseFontSize));
+        if (!double.IsFinite(baseRowHeight) || baseRowHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(baseRowHeight));
+        if (!double.IsFinite(fontSize) || fontSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(fontSize));
+        if (!double.IsFinite(rowHeight) || rowHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(rowHeight));
+
+        double zoomScale = Math.Min(fontSize / baseFontSize, rowHeight / baseRowHeight);
+        return baseIconSize * zoomScale;
+    }
+
     public static int HitTestColumn(double x, ProcessTableColumn[] columns)
     {
         if (!double.IsFinite(x) || x < 0) return -1;

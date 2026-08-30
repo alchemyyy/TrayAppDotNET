@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -12,6 +13,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 {
     private const int MaximumDetailStatistics = 16;
+    private const double BytesPerGibibyte = 1_073_741_824;
 
     private readonly AppSettings _settings;
     private readonly SettingsPalette _palette;
@@ -23,6 +25,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly Dictionary<string, PerformanceDeviceCard> _deviceCards =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, PerformanceHistory> _histories =
+        new(StringComparer.Ordinal);
+    private readonly Dictionary<string, NetworkTransferRateHistories> _networkTransferRateHistories =
         new(StringComparer.Ordinal);
     private readonly List<string> _staleDeviceIDs = [];
     private readonly TextBlock _detailTitle;
@@ -46,6 +50,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
     private PerformanceHardwareNameResolver _hardwareNameResolver;
     private MemoryPerformanceSnapshot _latestMemorySnapshot = MemoryPerformanceSnapshot.Empty;
+    private PerformanceMetricHistory _memoryUsedHistory;
     private string? _selectedDeviceID;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
@@ -71,6 +76,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             settings.PerformanceHistoryLengthMinutes);
         _sampleIntervalMilliseconds = PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
             settings.PerformanceSampleIntervalMilliseconds);
+        _memoryUsedHistory = CreateMetricHistory();
         _hardwareNameResolver = PerformanceHardwareNameResolver.Create(
             settings.PerformanceHardwareNameReplacementRules);
 
@@ -171,7 +177,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             initialHistory,
             PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU),
             palette,
-            resources)
+            resources,
+            FormatDetailGraphHoverMetric)
         {
             MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -435,6 +442,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 
         _histories.Clear();
+        _memoryUsedHistory = CreateMetricHistory();
+        _networkTransferRateHistories.Clear();
         RebuildCPULogicalProcessorGraphs(logicalProcessorCount);
         _hasProcessedSnapshot = false;
         _lastProcessedTimestamp = 0;
@@ -474,6 +483,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             capturedTimestamp,
             snapshot.Memory.HasMemoryData,
             snapshot.Memory.UtilizationPercent);
+        _memoryUsedHistory.AdvanceTo(capturedTimestamp);
+        if (snapshot.Memory.HasMemoryData)
+            _memoryUsedHistory.Add(capturedTimestamp, snapshot.Memory.UsedPhysicalBytes);
 
         ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
         for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
@@ -490,6 +502,16 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
         {
             NetworkPerformanceSnapshot network = networks[networkIndex];
+            NetworkTransferRateHistories transferRateHistories =
+                GetOrCreateNetworkTransferRateHistories(network.DeviceID);
+            transferRateHistories.Send.AdvanceTo(capturedTimestamp);
+            transferRateHistories.Receive.AdvanceTo(capturedTimestamp);
+            if (network.HasThroughputSample)
+            {
+                transferRateHistories.Send.Add(capturedTimestamp, network.SendBytesPerSecond);
+                transferRateHistories.Receive.Add(capturedTimestamp, network.ReceiveBytesPerSecond);
+            }
+
             bool hasUtilization = PerformanceDevicePresentationFactory.TryGetNetworkUtilization(
                 network,
                 out double utilizationPercent);
@@ -556,7 +578,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceHistory history = _histories[orderItem.ID];
             if (!_deviceCards.TryGetValue(orderItem.ID, out PerformanceDeviceCard? card))
             {
-                card = new PerformanceDeviceCard(device, history, _palette, _resources);
+                string deviceID = device.DeviceID;
+                card = new PerformanceDeviceCard(
+                    device,
+                    history,
+                    _palette,
+                    _resources,
+                    sampleTimestamp => FormatDeviceColumnGraphHoverMetric(
+                        deviceID,
+                        sampleTimestamp));
                 _deviceCards.Add(orderItem.ID, card);
             }
             else
@@ -593,8 +623,135 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         return history;
     }
 
+    private NetworkTransferRateHistories GetOrCreateNetworkTransferRateHistories(
+        string deviceID)
+    {
+        if (_networkTransferRateHistories.TryGetValue(
+                deviceID,
+                out NetworkTransferRateHistories? histories))
+        {
+            return histories;
+        }
+
+        histories = new NetworkTransferRateHistories(
+            CreateMetricHistory(),
+            CreateMetricHistory());
+        _networkTransferRateHistories.Add(deviceID, histories);
+        return histories;
+    }
+
     private PerformanceHistory CreateHistory() =>
         new(_historyLengthMinutes, _sampleIntervalMilliseconds);
+
+    private PerformanceMetricHistory CreateMetricHistory() =>
+        new(_historyLengthMinutes, _sampleIntervalMilliseconds);
+
+    private string? FormatDetailGraphHoverMetric(long sampleTimestamp)
+    {
+        if (_selectedDeviceID == null
+            || !_devices.TryGetValue(
+                _selectedDeviceID,
+                out PerformanceDevicePresentation? selectedDevice))
+        {
+            return null;
+        }
+
+        switch (selectedDevice.Kind)
+        {
+            case PerformanceDeviceKind.Memory:
+                if (!_memoryUsedHistory.TryGetExact(sampleTimestamp, out double usedBytes))
+                    return null;
+                return PerformanceDevicePresentationFactory.FormatBytes(usedBytes);
+
+            case PerformanceDeviceKind.Network:
+                if (!_networkTransferRateHistories.TryGetValue(
+                        selectedDevice.DeviceID,
+                        out NetworkTransferRateHistories? histories)
+                    || !histories.Send.TryGetExact(sampleTimestamp, out double sendBytesPerSecond)
+                    || !histories.Receive.TryGetExact(
+                        sampleTimestamp,
+                        out double receiveBytesPerSecond))
+                {
+                    return null;
+                }
+
+                return FormatNetworkTransferHoverMetric(
+                    sendBytesPerSecond,
+                    receiveBytesPerSecond);
+
+            default:
+                return null;
+        }
+    }
+
+    private string? FormatDeviceColumnGraphHoverMetric(
+        string deviceID,
+        long sampleTimestamp)
+    {
+        if (!_devices.TryGetValue(
+                deviceID,
+                out PerformanceDevicePresentation? device))
+        {
+            return null;
+        }
+
+        switch (device.Kind)
+        {
+            case PerformanceDeviceKind.Memory:
+                if (!_memoryUsedHistory.TryGetExact(sampleTimestamp, out double usedBytes))
+                    return null;
+                return FormatMemoryDeviceColumnHoverMetric(usedBytes);
+
+            case PerformanceDeviceKind.Network:
+                if (!_networkTransferRateHistories.TryGetValue(
+                        deviceID,
+                        out NetworkTransferRateHistories? histories)
+                    || !histories.Send.TryGetExact(sampleTimestamp, out double sendBytesPerSecond)
+                    || !histories.Receive.TryGetExact(
+                        sampleTimestamp,
+                        out double receiveBytesPerSecond))
+                {
+                    return null;
+                }
+
+                return FormatNetworkDeviceColumnHoverMetric(
+                    sendBytesPerSecond,
+                    receiveBytesPerSecond);
+
+            default:
+                return null;
+        }
+    }
+
+    internal static string FormatNetworkTransferHoverMetric(
+        double sendBytesPerSecond,
+        double receiveBytesPerSecond) =>
+        string.Concat(
+            "Send: ",
+            PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
+            "\nReceive: ",
+            PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
+
+    internal static string FormatNetworkDeviceColumnHoverMetric(
+        double sendBytesPerSecond,
+        double receiveBytesPerSecond) =>
+        string.Concat(
+            "S: ",
+            PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
+            "\nR: ",
+            PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
+
+    internal static string FormatMemoryDeviceColumnHoverMetric(double usedBytes)
+    {
+        if (!double.IsFinite(usedBytes) || usedBytes < 0) return "Unavailable";
+
+        double usedGigabytes = usedBytes / BytesPerGibibyte;
+        return string.Concat(
+            usedGigabytes.ToString(
+                usedGigabytes >= 100 ? "N0" : "N1",
+                CultureInfo.CurrentCulture),
+            " G");
+    }
 
     private bool RequiresFullHistoryRebuild(IReadOnlyList<PerformanceSnapshot> snapshots)
     {
@@ -757,6 +914,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             string deviceID = _staleDeviceIDs[staleIndex];
             _deviceCards.Remove(deviceID);
             _histories.Remove(deviceID);
+            _networkTransferRateHistories.Remove(deviceID);
         }
     }
 
@@ -964,10 +1122,16 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _devices.Clear();
         _deviceCards.Clear();
         _histories.Clear();
+        _networkTransferRateHistories.Clear();
+        _memoryUsedHistory.Clear();
         _cpuLogicalProcessorGrid.Children.Clear();
         _cpuLogicalProcessorGraphs.Clear();
         _cpuLogicalProcessorHistories.Clear();
     }
+
+    private sealed record NetworkTransferRateHistories(
+        PerformanceMetricHistory Send,
+        PerformanceMetricHistory Receive);
 
     private sealed class PerformanceDeviceCard : Border
     {
@@ -986,7 +1150,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDevicePresentation device,
             PerformanceHistory history,
             SettingsPalette palette,
-            TaskManagerWindowResources resources)
+            TaskManagerWindowResources resources,
+            Func<long, string?> hoverMetricProvider)
         {
             _palette = palette;
             _accent = device.Accent;
@@ -998,7 +1163,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Background = Brushes.Transparent;
             Cursor = TrayAppDotNETCursors.Hand;
 
-            _graph = new PerformanceHistoryGraph(history, device.Accent, palette, resources)
+            _graph = new PerformanceHistoryGraph(
+                history,
+                device.Accent,
+                palette,
+                resources,
+                hoverMetricProvider)
             {
                 Width = resources.AxamlTaskManagerPerformance.DeviceGraphWidth,
                 Height = resources.AxamlTaskManagerPerformance.DeviceGraphHeight,

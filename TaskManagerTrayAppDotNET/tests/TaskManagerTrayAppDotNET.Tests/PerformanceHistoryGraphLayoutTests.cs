@@ -24,6 +24,7 @@ public sealed class PerformanceHistoryGraphLayoutTests
 
         Assert.True(wasFound);
         Assert.Equal(1, sample.ChronologicalIndex);
+        Assert.Equal(history.GetTimestampChronological(1), sample.Timestamp);
         Assert.Equal(50, sample.Value);
         Assert.Equal(100, sample.PositionX, precision: 6);
     }

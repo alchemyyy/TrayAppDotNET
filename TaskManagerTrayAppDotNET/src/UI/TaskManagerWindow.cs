@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -39,6 +40,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private static readonly Glyph StartupAppsGlyph = Glyph.Fluent("\uE768");
     private static readonly Glyph UsersGlyph = Glyph.Fluent("\uE716");
     private static readonly Glyph ServicesGlyph = Glyph.Fluent("\uEA86");
+    private static readonly Glyph GlobalNavigationButtonGlyph = Glyph.Fluent(
+        "\uE700",
+        FontWeight.Normal);
 
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
@@ -121,6 +125,35 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override Color ConfirmOverlayBackdrop =>
         _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
 
+    protected override Control BuildSidebarHeader(TextBlock title, SettingsPalette palette)
+    {
+        title.VerticalAlignment = VerticalAlignment.Center;
+        double buttonSize =
+            _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonSize;
+        SettingsButton globalNavigationButton = new(
+            GlobalNavigationButtonGlyph,
+            palette,
+            transparentBase: true)
+        {
+            Width = buttonSize,
+            Height = buttonSize,
+            MinHeight = buttonSize,
+            Padding =
+                _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonPadding
+        };
+        globalNavigationButton.Label.FontSize =
+            _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonGlyphFontSize;
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing =
+                _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonSpacing,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children = { title, globalNavigationButton }
+        };
+    }
+
     protected override SettingsPalette ResolvePalette() =>
         VolumeSettingsPalette.Create(_theme, _settings, ResolveEffectiveIsLight());
 
@@ -152,13 +185,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     {
         Topmost = _settings.AlwaysOnTop;
         RebuildShell(CurrentPageKey);
-    }
-
-    /// <summary>Rebuilds the Processes drawing DAG after its visible schema or order changes.</summary>
-    internal void RefreshProcessColumns()
-    {
-        if (CurrentPageKey == TaskManagerPage.Processes)
-            RebuildShell(TaskManagerPage.Processes);
     }
 
     /// <summary>Starts one silent elevation attempt after normal startup is complete.</summary>

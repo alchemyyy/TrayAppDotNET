@@ -144,7 +144,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _searchBox = TrayAppDotNETSettingsUI.SearchTextBox(
             palette,
             resources.AxamlTaskManagerDetails.SearchWidth);
-        _searchBox.PlaceholderText = "Search name/PID or enter an expression";
+        _searchBox.PlaceholderText = "Search by name, PID, or enter an expression";
         _searchBox.HorizontalAlignment = HorizontalAlignment.Center;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
@@ -512,7 +512,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             _settings,
             _palette,
             _resources,
-            ApplyHeaderButtonOrder);
+            UpdateHeaderButtonOrder);
         _headerButtonArrangementWindow = arrangementWindow;
         arrangementWindow.Closed += OnHeaderButtonArrangementClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)
@@ -529,7 +529,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             _headerButtonArrangementWindow = null;
     }
 
-    private void ApplyHeaderButtonOrder(IReadOnlyList<ProcessHeaderButtonKind> buttonOrder)
+    private void UpdateHeaderButtonOrder(IReadOnlyList<ProcessHeaderButtonKind> buttonOrder)
     {
         if (_disposed) return;
 
@@ -551,7 +551,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             _settings,
             _palette,
             _resources,
-            ApplyColumnSettings);
+            UpdateColumnSettings);
         _columnChooserWindow.Closed += OnColumnChooserClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)
             _ = _columnChooserWindow.ShowDialog(owner);
@@ -567,17 +567,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             _columnChooserWindow = null;
     }
 
-    private void ApplyColumnSettings(List<ProcessColumnSetting> settings)
-    {
-        _settings.UpdateDetailsColumnLayout(settings);
-        Dispatcher.UIThread.Post(RefreshColumnsAfterApply, DispatcherPriority.Background);
-    }
-
-    private void RefreshColumnsAfterApply()
+    private void UpdateColumnSettings(IReadOnlyList<ProcessColumnSetting> settings)
     {
         if (_disposed) return;
-        if (TopLevel.GetTopLevel(this) is TaskManagerWindow window)
-            window.RefreshProcessColumns();
+        _processCanvas.ApplyColumnSettings(settings);
     }
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs) =>

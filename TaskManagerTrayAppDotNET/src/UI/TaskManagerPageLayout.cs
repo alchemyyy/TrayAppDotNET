@@ -15,7 +15,6 @@ internal class TaskManagerPageLayout : Grid
         TaskManagerWindowResources resources)
     {
         RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
         Grid headerOverlaySpace = new()
@@ -42,6 +41,7 @@ internal class TaskManagerPageLayout : Grid
 
         Grid header = new()
         {
+            Height = resources.AxamlTaskManagerPage.HeaderContentHeight,
             Margin = resources.AxamlTaskManagerPage.HeaderMargin,
             ColumnDefinitions =
             {
@@ -52,12 +52,39 @@ internal class TaskManagerPageLayout : Grid
         header.Children.Add(titleText);
         Grid.SetColumn(HeaderActions, 1);
         header.Children.Add(HeaderActions);
-        Grid.SetRow(header, 1);
-        Children.Add(header);
 
         MainContent = new Grid();
-        Grid.SetRow(MainContent, 2);
-        Children.Add(MainContent);
+        Border headerFrame = new()
+        {
+            BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
+            BorderThickness = new Thickness(
+                0,
+                0,
+                0,
+                resources.AxamlProcessTable.GridLineThickness),
+            Child = header
+        };
+        Grid surfaceLayout = new()
+        {
+            RowDefinitions =
+            {
+                new RowDefinition(GridLength.Auto),
+                new RowDefinition(GridLength.Star)
+            },
+            Children = { headerFrame, MainContent }
+        };
+        Grid.SetRow(MainContent, 1);
+
+        Border pageSurface = new()
+        {
+            Background = TrayAppDotNETSettingsUI.Brush(
+                TaskManagerWindowResources.ProcessGridBackgroundColor),
+            CornerRadius = resources.AxamlTaskManagerPage.SurfaceCornerRadius,
+            ClipToBounds = true,
+            Child = surfaceLayout
+        };
+        Grid.SetRow(pageSurface, 1);
+        Children.Add(pageSurface);
     }
 
     /// <summary>Gets the right-aligned page-specific header actions.</summary>

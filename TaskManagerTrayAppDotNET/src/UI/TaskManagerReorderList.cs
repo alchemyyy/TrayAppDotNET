@@ -93,8 +93,8 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     /// <summary>Gets a live read-only view over the caller-owned order.</summary>
     public IReadOnlyList<TItem> Items => _readOnlyItems;
 
-    /// <summary>Raised after a pointer or button action mutates the caller-owned order.</summary>
-    public event Action? OrderChanged;
+    /// <summary>Raised after a pointer or button action mutates item order or state.</summary>
+    public event Action? ItemsChanged;
 
     /// <summary>Enables edge auto-scroll while a row is dragged inside the supplied viewport.</summary>
     public void AttachScrollViewport(SettingsVerticalScrollViewport scrollViewport)
@@ -284,7 +284,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         }
 
         RebuildRows();
-        OrderChanged?.Invoke();
+        ItemsChanged?.Invoke();
     }
 
     private void OnRowPointerEntered(ReorderRow row)
@@ -445,7 +445,11 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
             if (activateOnClick)
             {
                 _activateItem?.Invoke(draggedItem);
-                if (_activateItem != null) RebuildRows();
+                if (_activateItem != null)
+                {
+                    RebuildRows();
+                    ItemsChanged?.Invoke();
+                }
             }
             return;
         }
@@ -467,7 +471,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         }
 
         RebuildRows();
-        OrderChanged?.Invoke();
+        ItemsChanged?.Invoke();
     }
 
     private double[] SnapshotRowMidpoints()
@@ -714,7 +718,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         Children.Clear();
         _visibleItems.Clear();
         _visibleRows.Clear();
-        OrderChanged = null;
+        ItemsChanged = null;
     }
 
     private sealed class ReorderRow(TItem item, Border slot, Border highlightSurface)

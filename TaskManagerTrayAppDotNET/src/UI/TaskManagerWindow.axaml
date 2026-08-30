@@ -11,13 +11,19 @@
   <sys:Double x:Key="TaskManagerWindow.MinHeight">600</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarWidth">250</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarCollapseThreshold">750</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonSize">32</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonGlyphFontSize">16</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonSpacing">8</sys:Double>
+  <Thickness x:Key="TaskManagerWindow.GlobalNavigationButtonPadding">0</Thickness>
 
   <!-- General page layout -->
   <sys:Double x:Key="TaskManagerPage.HeaderOverlayHeight">32</sys:Double>
+  <sys:Double x:Key="TaskManagerPage.HeaderContentHeight">32</sys:Double>
   <sys:Double x:Key="TaskManagerPage.TitleFontSize">20</sys:Double>
   <sys:Double x:Key="TaskManagerPage.HeaderSpacing">8</sys:Double>
-  <Thickness x:Key="TaskManagerPage.HeaderOverlayMargin">0,4,0,0</Thickness>
-  <Thickness x:Key="TaskManagerPage.HeaderMargin">0,8,20,0</Thickness>
+  <Thickness x:Key="TaskManagerPage.HeaderOverlayMargin">0,4,0,10</Thickness>
+  <Thickness x:Key="TaskManagerPage.HeaderMargin">8,4,20,4</Thickness>
+  <CornerRadius x:Key="TaskManagerPage.SurfaceCornerRadius">8,0,0,0</CornerRadius>
 
   <!-- Details page -->
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
@@ -31,7 +37,7 @@
   <Thickness x:Key="TaskManagerDetails.SearchMargin">0,8,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.ActionsMargin">0,8,20,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.RunPanelMargin">24,10,20,0</Thickness>
-  <Thickness x:Key="TaskManagerDetails.TableMargin">0,10,0,0</Thickness>
+  <Thickness x:Key="TaskManagerDetails.TableMargin">0</Thickness>
   <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
 
   <!-- Reorder dialogs -->

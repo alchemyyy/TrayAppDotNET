@@ -129,6 +129,31 @@ internal sealed class PerformanceMetricHistory
         return true;
     }
 
+    /// <summary>Finds the sample at an exact timestamp without returning stale nearby data.</summary>
+    public bool TryGetExact(long timestamp, out double value)
+    {
+        value = 0;
+        int lowerBound = 0;
+        int upperBound = Count - 1;
+        while (lowerBound <= upperBound)
+        {
+            int middleIndex = lowerBound + (upperBound - lowerBound) / 2;
+            long sampleTimestamp = GetTimestampChronological(middleIndex);
+            if (sampleTimestamp == timestamp)
+            {
+                value = GetChronological(middleIndex);
+                return true;
+            }
+
+            if (sampleTimestamp < timestamp)
+                lowerBound = middleIndex + 1;
+            else
+                upperBound = middleIndex - 1;
+        }
+
+        return false;
+    }
+
     private int PhysicalIndex(int chronologicalIndex) =>
         (_oldestIndex + chronologicalIndex) % _samples.Length;
 

@@ -11,6 +11,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 internal sealed class PerformanceHistoryGraph : Control
 {
     private const double HoverLineDashGapLength = 2;
+    private const int MaximumHoverMetricLines = 2;
 
     private readonly IBrush _backgroundBrush;
     private readonly Pen _borderPen;
@@ -26,6 +27,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private readonly double _lineThickness;
     private readonly int _gridColumns;
     private readonly int _gridRows;
+    private readonly Func<long, string?>? _hoverMetricProvider;
     private PerformanceHistory _history;
     private Color _accent;
     private Pen _linePen;
@@ -36,7 +38,8 @@ internal sealed class PerformanceHistoryGraph : Control
         PerformanceHistory history,
         Color accent,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        Func<long, string?>? hoverMetricProvider = null)
     {
         _history = history;
         _accent = accent;
@@ -80,6 +83,7 @@ internal sealed class PerformanceHistoryGraph : Control
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
         _gridColumns = resources.AxamlTaskManagerPerformance.GraphGridColumns;
         _gridRows = resources.AxamlTaskManagerPerformance.GraphGridRows;
+        _hoverMetricProvider = hoverMetricProvider;
         ClipToBounds = true;
         IsHitTestVisible = true;
     }
@@ -185,7 +189,7 @@ internal sealed class PerformanceHistoryGraph : Control
         DrawHover(context, width, height);
     }
 
-    /// <summary>Draws the hovered sample marker and its bounded percentage label.</summary>
+    /// <summary>Draws the hovered sample marker and its bounded metric label.</summary>
     private void DrawHover(DrawingContext context, double width, double height)
     {
         if (!_isPointerOver
@@ -208,9 +212,12 @@ internal sealed class PerformanceHistoryGraph : Control
             return;
         }
 
-        string metric = string.Concat(
-            sample.Value.ToString("N0", CultureInfo.CurrentCulture),
-            "%");
+        string? providedMetric = _hoverMetricProvider?.Invoke(sample.Timestamp);
+        string metric = string.IsNullOrEmpty(providedMetric)
+            ? string.Concat(
+                sample.Value.ToString("N0", CultureInfo.CurrentCulture),
+                "%")
+            : providedMetric;
         using TextLayout metricText = new(
             metric,
             _hoverTypeface,
@@ -219,7 +226,7 @@ internal sealed class PerformanceHistoryGraph : Control
             textWrapping: TextWrapping.NoWrap,
             textTrimming: TextTrimming.CharacterEllipsis,
             maxWidth: maximumTextWidth,
-            maxLines: 1);
+            maxLines: MaximumHoverMetricLines);
 
         double preferredTextLeft = sample.PositionX - metricText.Width / 2;
         double textLeft = ClampMetricCoordinate(

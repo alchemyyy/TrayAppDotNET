@@ -17,14 +17,14 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
-        Action<List<ProcessColumnSetting>> apply)
+        Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : this(
             ProcessColumnSettings.CloneList(settings?.DetailsColumns),
             settings ?? throw new ArgumentNullException(nameof(settings)),
             palette ?? throw new ArgumentNullException(nameof(palette)),
             resources ?? throw new ArgumentNullException(nameof(resources)),
             ResolveBackground(palette),
-            apply)
+            columnsChanged)
     {
     }
 
@@ -34,15 +34,20 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         SettingsPalette palette,
         TaskManagerWindowResources resources,
         Color background,
-        Action<List<ProcessColumnSetting>> apply)
+        Action<IReadOnlyList<ProcessColumnSetting>> columnsChanged)
         : base(
             "Select Processes columns",
             "Choose visible columns and arrange their left-to-right order.",
             items,
             GetSearchText,
-            setting => BuildVisibilityCheckBox(setting, palette, resources),
+            (setting, itemChanged) => BuildVisibilityCheckBox(
+                setting,
+                items,
+                palette,
+                resources,
+                itemChanged),
             ProcessColumnSettings.CreateDefault,
-            orderedItems => apply(ProcessColumnSettings.CloneList(orderedItems)),
+            orderedItems => columnsChanged(ProcessColumnSettings.CloneList(orderedItems)),
             palette,
             settings.EnableRoundedCorners,
             resources,
@@ -57,11 +62,11 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
                 palette,
                 settings.EnableRoundedCorners,
                 settings),
-            ToggleVisibility)
+            setting => ToggleVisibility(items, setting))
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
-        ArgumentNullException.ThrowIfNull(apply);
+        ArgumentNullException.ThrowIfNull(columnsChanged);
     }
 
     private static string GetSearchText(ProcessColumnSetting setting)
@@ -74,8 +79,10 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
 
     private static Control BuildVisibilityCheckBox(
         ProcessColumnSetting setting,
+        IReadOnlyList<ProcessColumnSetting> settings,
         SettingsPalette palette,
-        TaskManagerWindowResources resources)
+        TaskManagerWindowResources resources,
+        Action itemChanged)
     {
         ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
         CheckBox visibility = new()
@@ -85,7 +92,19 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center
         };
-        visibility.IsCheckedChanged += (_, _) => setting.Visible = visibility.IsChecked == true;
+        visibility.IsCheckedChanged += (_, _) =>
+        {
+            bool isVisible = visibility.IsChecked == true;
+            if (setting.Visible == isVisible) return;
+            if (!isVisible && !HasOtherVisibleColumn(settings, setting))
+            {
+                visibility.IsChecked = true;
+                return;
+            }
+
+            setting.Visible = isVisible;
+            itemChanged();
+        };
 
         TextBlock label = TrayAppDotNETSettingsUI.Text(definition.Title, palette);
         label.IsHitTestVisible = false;
@@ -107,7 +126,26 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         return content;
     }
 
-    private static void ToggleVisibility(ProcessColumnSetting setting) => setting.Visible = !setting.Visible;
+    private static void ToggleVisibility(
+        IReadOnlyList<ProcessColumnSetting> settings,
+        ProcessColumnSetting setting)
+    {
+        if (setting.Visible && !HasOtherVisibleColumn(settings, setting)) return;
+        setting.Visible = !setting.Visible;
+    }
+
+    private static bool HasOtherVisibleColumn(
+        IReadOnlyList<ProcessColumnSetting> settings,
+        ProcessColumnSetting excludedSetting)
+    {
+        for (int settingIndex = 0; settingIndex < settings.Count; settingIndex++)
+        {
+            ProcessColumnSetting candidate = settings[settingIndex];
+            if (!ReferenceEquals(candidate, excludedSetting) && candidate.Visible) return true;
+        }
+
+        return false;
+    }
 
     private static Color ResolveBackground(SettingsPalette palette)
     {

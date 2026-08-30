@@ -3,6 +3,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Identifies the history sample nearest a horizontal graph position.</summary>
 internal readonly record struct PerformanceHistoryGraphHoverSample(
     int ChronologicalIndex,
+    long Timestamp,
     double Value,
     double PositionX);
 
@@ -40,6 +41,7 @@ internal static class PerformanceHistoryGraphLayout
         double samplePositionX = Math.Clamp(elapsedWindowFraction, 0, 1) * graphWidth;
         sample = new PerformanceHistoryGraphHoverSample(
             sampleIndex,
+            sampleTimestamp,
             history.GetChronological(sampleIndex),
             samplePositionX);
         return true;

@@ -94,6 +94,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected abstract IReadOnlyList<SettingsPageDescriptor<TPageKey>> CreatePageDescriptors();
     protected abstract void Save();
 
+    /// <summary>Builds the content shown in the sidebar's application-header row.</summary>
+    protected virtual Control BuildSidebarHeader(TextBlock title, SettingsPalette palette) => title;
+
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     protected virtual bool UseProminentConfirmationDialog => false;
@@ -604,11 +607,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Grid.SetColumn(_sidebar, 0);
         body.Children.Add(_sidebar);
 
-        TextBlock header = TrayAppDotNETSettingsUI.Text(
+        TextBlock headerTitle = TrayAppDotNETSettingsUI.Text(
             HeaderText,
             palette,
             _settingsResources.AxamlSettingsWindow.HeaderFontSize,
             FontWeight.SemiBold);
+        Control header = BuildSidebarHeader(headerTitle, palette);
         header.Margin = _settingsResources.AxamlSettingsWindow.HeaderMargin;
         Grid.SetRow(header, 0);
         _sidebar.Children.Add(header);

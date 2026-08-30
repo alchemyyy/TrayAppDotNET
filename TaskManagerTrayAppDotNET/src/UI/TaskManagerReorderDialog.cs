@@ -12,7 +12,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 {
     private readonly List<TItem> _items;
     private readonly Func<List<TItem>> _createDefaultItems;
-    private readonly Action<IReadOnlyList<TItem>> _apply;
+    private readonly Action<IReadOnlyList<TItem>> _itemsChanged;
     private readonly TaskManagerReorderList<TItem> _reorderList;
     private readonly SettingsVerticalScrollViewport? _scrollViewport;
     private readonly TextBox? _searchBox;
@@ -20,7 +20,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     private readonly TrayAppDotNETCaptionCloseButton _closeButton;
     private readonly SettingsButton _resetButton;
     private readonly SettingsButton _cancelButton;
-    private readonly SettingsButton _applyButton;
+    private readonly SettingsButton _doneButton;
     private readonly double _workAreaMargin;
     private readonly double _searchWidthRatio;
     private int _disposed;
@@ -30,9 +30,9 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         string description,
         List<TItem> items,
         Func<TItem, string> getSearchText,
-        Func<TItem, Control> buildPrimaryContent,
+        Func<TItem, Action, Control> buildPrimaryContent,
         Func<List<TItem>> createDefaultItems,
-        Action<IReadOnlyList<TItem>> apply,
+        Action<IReadOnlyList<TItem>> itemsChanged,
         SettingsPalette palette,
         bool enableRoundedCorners,
         TaskManagerWindowResources resources,
@@ -52,7 +52,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         ArgumentNullException.ThrowIfNull(getSearchText);
         ArgumentNullException.ThrowIfNull(buildPrimaryContent);
         ArgumentNullException.ThrowIfNull(createDefaultItems);
-        ArgumentNullException.ThrowIfNull(apply);
+        ArgumentNullException.ThrowIfNull(itemsChanged);
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
         if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
@@ -68,7 +68,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
 
         _items = items;
         _createDefaultItems = createDefaultItems;
-        _apply = apply;
+        _itemsChanged = itemsChanged;
         _workAreaMargin = resources.AxamlTaskManagerReorderDialog.WorkAreaMargin;
         _searchWidthRatio = resources.AxamlTaskManagerReorderDialog.SearchWidthRatio;
         if (_searchWidthRatio <= 0 || _searchWidthRatio > 1)
@@ -92,10 +92,11 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _reorderList = new TaskManagerReorderList<TItem>(
             _items,
             getSearchText,
-            buildPrimaryContent,
+            item => buildPrimaryContent(item, OnItemChanged),
             palette,
             enableRoundedCorners,
             activateItem);
+        _reorderList.ItemsChanged += OnItemsChanged;
 
         _searchBox = showSearch
             ? TrayAppDotNETSettingsUI.SearchTextBox(
@@ -121,8 +122,8 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _resetButton.Click += OnResetClick;
         _cancelButton = TrayAppDotNETSettingsUI.Button("Cancel", palette);
         _cancelButton.Click += OnCancelClick;
-        _applyButton = TrayAppDotNETSettingsUI.Button("Apply", palette);
-        _applyButton.Click += OnApplyClick;
+        _doneButton = TrayAppDotNETSettingsUI.Button("Done", palette);
+        _doneButton.Click += OnDoneClick;
 
         Control listHost;
         if (scrollBarStyle is { } style)
@@ -165,7 +166,13 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         Grid.SetRow(listHost, 2);
         content.Children.Add(listHost);
 
-        Border footer = BuildFooter(palette, background, resources, _resetButton, _cancelButton, _applyButton);
+        Border footer = BuildFooter(
+            palette,
+            background,
+            resources,
+            _resetButton,
+            _cancelButton,
+            _doneButton);
         Grid.SetRow(footer, 3);
         content.Children.Add(footer);
 
@@ -235,14 +242,14 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         TaskManagerWindowResources resources,
         SettingsButton resetButton,
         SettingsButton cancelButton,
-        SettingsButton applyButton)
+        SettingsButton doneButton)
     {
         StackPanel buttons = new()
         {
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             Spacing = resources.AxamlTaskManagerReorderDialog.FooterButtonSpacing,
-            Children = { resetButton, cancelButton, applyButton }
+            Children = { resetButton, cancelButton, doneButton }
         };
         return new Border
         {
@@ -268,6 +275,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _items.Clear();
         _items.AddRange(defaultItems);
         _reorderList.Refresh();
+        PublishItemsChanged();
     }
 
     private void OnCancelClick(object? sender, EventArgs eventArgs)
@@ -275,13 +283,27 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         if (Volatile.Read(ref _disposed) == 0) Close();
     }
 
-    private void OnApplyClick(object? sender, EventArgs eventArgs)
+    private void OnDoneClick(object? sender, EventArgs eventArgs)
     {
         if (Volatile.Read(ref _disposed) != 0) return;
 
-        _apply([.. _items]);
-        if (Volatile.Read(ref _disposed) == 0) Close();
+        Close();
     }
+
+    private void OnItemsChanged()
+    {
+        if (Volatile.Read(ref _disposed) == 0) PublishItemsChanged();
+    }
+
+    private void OnItemChanged()
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+
+        _reorderList.Refresh();
+        PublishItemsChanged();
+    }
+
+    private void PublishItemsChanged() => _itemsChanged([.. _items]);
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
@@ -340,7 +362,8 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _closeButton.Click -= OnCancelClick;
         _resetButton.Click -= OnResetClick;
         _cancelButton.Click -= OnCancelClick;
-        _applyButton.Click -= OnApplyClick;
+        _doneButton.Click -= OnDoneClick;
+        _reorderList.ItemsChanged -= OnItemsChanged;
         if (_searchBox != null) _searchBox.TextChanged -= OnSearchTextChanged;
         _reorderList.Dispose();
         _scrollViewport?.Dispose();

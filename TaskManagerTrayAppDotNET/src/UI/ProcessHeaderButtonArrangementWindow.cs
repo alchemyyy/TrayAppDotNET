@@ -20,13 +20,13 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
-        Action<IReadOnlyList<ProcessHeaderButtonKind>> apply)
+        Action<IReadOnlyList<ProcessHeaderButtonKind>> orderChanged)
         : this(
             BuildItems(settings?.ProcessHeaderButtonOrder),
             settings ?? throw new ArgumentNullException(nameof(settings)),
             palette,
             resources,
-            apply)
+            orderChanged)
     {
     }
 
@@ -35,15 +35,15 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         AppSettings settings,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
-        Action<IReadOnlyList<ProcessHeaderButtonKind>> apply)
+        Action<IReadOnlyList<ProcessHeaderButtonKind>> orderChanged)
         : base(
             "Arrange buttons",
             "Drag buttons or use the arrows. The top item is the leftmost header button.",
             items,
             static item => item.Label,
-            item => BuildLabel(item, palette),
+            (item, notifyItemChanged) => BuildLabel(item, palette),
             static () => BuildItems(ProcessHeaderButtonSettings.CreateDefault()),
-            orderedItems => apply(GetKinds(orderedItems)),
+            orderedItems => orderChanged(GetKinds(orderedItems)),
             palette,
             settings.EnableRoundedCorners,
             resources,
@@ -56,7 +56,7 @@ internal sealed class ProcessHeaderButtonArrangementWindow
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(resources);
-        ArgumentNullException.ThrowIfNull(apply);
+        ArgumentNullException.ThrowIfNull(orderChanged);
     }
 
     private static List<ProcessHeaderButtonArrangementItem> BuildItems(

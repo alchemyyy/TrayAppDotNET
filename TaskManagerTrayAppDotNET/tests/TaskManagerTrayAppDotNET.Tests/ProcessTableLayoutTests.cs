@@ -5,6 +5,27 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class ProcessTableLayoutTests
 {
+    [Theory]
+    [InlineData(11.5, 19, 10)]
+    [InlineData(23, 38, 20)]
+    [InlineData(17.25, 19, 10)]
+    [InlineData(11.5, 28.5, 10)]
+    [InlineData(8, 14, 6.956521739130435)]
+    public void ProcessIconScaleFollowsTheLimitingZoomMetric(
+        double fontSize,
+        double rowHeight,
+        double expectedIconSize)
+    {
+        double iconSize = ProcessTableLayout.ScaleProcessIconSize(
+            baseIconSize: 10,
+            baseFontSize: 11.5,
+            baseRowHeight: 19,
+            fontSize,
+            rowHeight);
+
+        Assert.Equal(expectedIconSize, iconSize, precision: 10);
+    }
+
     [Fact]
     public void HitTestColumnRejectsUnusedTrailingWidth()
     {

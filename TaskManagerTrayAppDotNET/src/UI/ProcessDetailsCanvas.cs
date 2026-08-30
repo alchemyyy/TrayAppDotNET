@@ -85,7 +85,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private ProcessTableMetrics _metrics;
     private ProcessTableVisualMetrics _visualMetrics;
     private ProcessTableColumnWidths _axamlColumnWidths;
-    private readonly bool _hasDynamicColumns;
+    private bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
     private readonly Dictionary<ProcessInstanceKey, ProcessRowRenderCache> _renderCaches = new(256);
@@ -111,8 +111,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly long _totalPhysicalMemoryBytes;
     private readonly Action _refreshWarmDynamicDrawings;
     private readonly ProcessSearchValueResolver _resolveSearchValue;
-    private readonly ProcessTableColumn[]? _liveResizeColumns;
-    private readonly TextUnderlineSegment[] _textUnderlineSegments;
+    private ProcessTableColumn[]? _liveResizeColumns;
+    private TextUnderlineSegment[] _textUnderlineSegments;
     private readonly string?[] _contextCopyValuesByColumn;
     private List<ProcessColumnSetting> _columnSettings;
     private ProcessColumnSetting[] _settingsByColumn;
@@ -674,7 +674,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     protected override void ApplyDetailsGridMetrics(double fontSize, double rowHeight)
     {
         AdvanceGridMetricsGeneration();
-        _metrics = _metrics with { FontSize = fontSize, RowHeight = rowHeight };
+        _metrics = CreateTableMetrics(_resources, fontSize, rowHeight);
     }
 
     protected override void OnDetailsGridMetricsChanged()
@@ -707,6 +707,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         ArgumentNullException.ThrowIfNull(replacement);
         ApplyColumnLayout(ProcessColumnSettings.WithProperties(_columnSettings, replacement));
+    }
+
+    /// <summary>Applies column visibility and order without rebuilding the Processes page.</summary>
+    public void ApplyColumnSettings(IReadOnlyList<ProcessColumnSetting> settings)
+    {
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
+        ApplyColumnLayout(ProcessColumnSettings.CloneList(settings));
     }
 
     /// <summary>Returns an independent copy of one current column setting.</summary>
@@ -2469,11 +2477,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(settings);
         ProcessTableColumn[] columns = CreateColumns(normalized);
-        if (columns.Length != _columns.Length)
-        {
-            TADNLog.Log("ProcessDetailsCanvas rejected a width/order update that changed column visibility.");
-            return;
-        }
+        PrepareColumnLayout(columns);
 
         _columnSettings = normalized;
         _settingsByColumn = CreateColumnSettingsIndex(normalized);
@@ -2481,6 +2485,27 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ApplySearchSchema(ProcessDataSchema.Create(normalized, _filterQuery.RequiredColumnMask));
         ApplyDisplayColumnLayout(columns);
         ColumnLayoutChanged?.Invoke(normalized);
+    }
+
+    private void PrepareColumnLayout(ProcessTableColumn[] columns)
+    {
+        ResetHeaderInteraction();
+        _hasDynamicColumns = ContainsLifetime(columns, ProcessTableColumnLifetime.Dynamic);
+        if (_enableLiveColumnResizing
+            && (_liveResizeColumns == null || _liveResizeColumns.Length != columns.Length))
+        {
+            _liveResizeColumns = new ProcessTableColumn[columns.Length];
+        }
+        if (_textUnderlineSegments.Length != columns.Length)
+            _textUnderlineSegments = new TextUnderlineSegment[columns.Length];
+
+        _textUnderlineSegmentCount = 0;
+        _textPreviewVisibleIndex = -1;
+        _hoveredHeaderColumnIndex = -1;
+        if (FindColumn(columns, _sortColumn) >= 0) return;
+
+        _sortColumn = columns[0].Kind;
+        _sortDescending = false;
     }
 
     private void ApplyDisplayColumnLayout(ProcessTableColumn[] columns)
@@ -2908,15 +2933,23 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private static ProcessTableMetrics CreateTableMetrics(
         TaskManagerWindowResources resources,
         double fontSize,
-        double rowHeight) =>
-        new(
+        double rowHeight)
+    {
+        double processIconSize = ProcessTableLayout.ScaleProcessIconSize(
+            resources.AxamlProcessTable.ProcessIconSize,
+            resources.AxamlProcessTable.FontSize,
+            resources.AxamlProcessTable.RowHeight,
+            fontSize,
+            rowHeight);
+        return new ProcessTableMetrics(
             resources.AxamlProcessTable.HeaderHeight,
             rowHeight,
             resources.AxamlProcessTable.CellPadding,
             fontSize,
             resources.AxamlProcessTable.HeaderFontSize,
-            resources.AxamlProcessTable.ProcessIconSize,
+            processIconSize,
             resources.AxamlProcessTable.ProcessIconGap);
+    }
 
     private static ProcessTableVisualMetrics CreateVisualMetrics(
         TaskManagerWindowResources resources) =>
