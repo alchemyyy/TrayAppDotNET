@@ -16,6 +16,12 @@ public enum TrayGraphDataSource
     Memory
 }
 
+public enum CPUPerformanceGraphView
+{
+    LogicalProcessors,
+    OverallUtilization
+}
+
 public enum DetailsGridFontWeight
 {
     Thin = 100,
@@ -36,13 +42,21 @@ public sealed class AppSettings : AppSettingsCommon
     public const double GridFontSizeDefault = 11.5;
     public const double GridFontSizeMinimum = 8.0;
     public const double GridFontSizeMaximum = 32.0;
+    public const double GridRowSpacingDefault = 3.5;
+    public const double GridRowSpacingMinimum = 0;
+    public const double GridRowSpacingMaximum = 32;
     public const int GridRowHeightDefault = 19;
     public const int GridRowHeightMinimum = 14;
     public const int GridRowHeightMaximum = 64;
 
+    private const double LegacyGridRowTextHeightMultiplier = 1.35;
+
     private static readonly AsyncThrottler<AppSettings> SaveThrottle = new(
         TimeConstants.SettingsSaveDebounceMs,
         drainPollIntervalMs: TimeConstants.DrainPollIntervalMs);
+
+    private double _gridRowSpacing = GridRowSpacingDefault;
+    private bool _gridRowSpacingWasDeserialized;
 
     public AppSettings()
         : base(
@@ -120,11 +134,23 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, NormalizeGridFontWeight(value));
     } = DetailsGridFontWeight.Normal;
 
+    /// <summary>Retains absolute row height for compatibility with older settings files.</summary>
     public int GridRowHeight
     {
         get;
         set => SetField(ref field, Math.Clamp(value, GridRowHeightMinimum, GridRowHeightMaximum));
     } = GridRowHeightDefault;
+
+    /// <summary>Gets the visible gap added to the measured process-row text height.</summary>
+    public double GridRowSpacing
+    {
+        get => _gridRowSpacing;
+        set
+        {
+            _gridRowSpacingWasDeserialized = true;
+            SetField(ref _gridRowSpacing, NormalizeGridRowSpacing(value));
+        }
+    }
 
     public int PerformanceHistoryLengthMinutes
     {
@@ -146,7 +172,13 @@ public sealed class AppSettings : AppSettingsCommon
     {
         get;
         set => SetField(ref field, value);
-    } = true;
+    }
+
+    public CPUPerformanceGraphView CPUPerformanceGraphView
+    {
+        get;
+        set => SetField(ref field, NormalizeCPUPerformanceGraphView(value));
+    } = CPUPerformanceGraphView.LogicalProcessors;
 
     public bool ShowMemoryModuleSerialNumbers
     {
@@ -194,8 +226,19 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, PerformanceHardwareNameReplacementRuleCollection.Normalize(value));
     } = [];
 
+    public override void OnTrayXmlDeserializing()
+    {
+        _gridRowSpacingWasDeserialized = false;
+        base.OnTrayXmlDeserializing();
+    }
+
     public override void OnTrayXmlDeserialized()
     {
+        if (!_gridRowSpacingWasDeserialized)
+        {
+            GridRowSpacing = GridRowHeight
+                             - GridFontSize * LegacyGridRowTextHeightMultiplier;
+        }
         PerformanceHistoryLengthMinutes =
             PerformanceSamplingSettings.NormalizeHistoryLengthMinutes(
                 PerformanceHistoryLengthMinutes);
@@ -271,6 +314,26 @@ public sealed class AppSettings : AppSettingsCommon
         if (!wasSuppressed) RequestSave();
     }
 
+    /// <summary>Persists the live CPU graph view without rebuilding the application shell.</summary>
+    internal void UpdateCPUPerformanceGraphView(CPUPerformanceGraphView graphView)
+    {
+        CPUPerformanceGraphView normalized = NormalizeCPUPerformanceGraphView(graphView);
+        if (CPUPerformanceGraphView == normalized) return;
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            CPUPerformanceGraphView = normalized;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+
+        if (!wasSuppressed) RequestSave();
+    }
+
     /// <summary>Persists live Performance hardware-name rules without rebuilding the app shell.</summary>
     internal void UpdatePerformanceHardwareNameReplacementRules(
         List<PerformanceHardwareNameReplacementRule> rules)
@@ -308,15 +371,16 @@ public sealed class AppSettings : AppSettingsCommon
         if (!wasSuppressed) RequestSave();
     }
 
-    /// <summary>Persists an already-applied grid zoom without rebuilding the app shell.</summary>
-    internal void UpdateGridMetrics(double fontSize, int rowHeight)
+    /// <summary>Persists already-applied grid typography without rebuilding the app shell.</summary>
+    internal void UpdateGridMetrics(double fontSize, double rowHeight, double rowSpacing)
     {
         bool wasSuppressed = SuppressChangeNotification;
         SuppressChangeNotification = true;
         try
         {
             GridFontSize = fontSize;
-            GridRowHeight = rowHeight;
+            GridRowHeight = (int)Math.Round(rowHeight, MidpointRounding.AwayFromZero);
+            GridRowSpacing = rowSpacing;
         }
         finally
         {
@@ -371,6 +435,11 @@ public sealed class AppSettings : AppSettingsCommon
             ? Math.Clamp(value, GridFontSizeMinimum, GridFontSizeMaximum)
             : GridFontSizeDefault;
 
+    private static double NormalizeGridRowSpacing(double value) =>
+        double.IsFinite(value)
+            ? Math.Clamp(value, GridRowSpacingMinimum, GridRowSpacingMaximum)
+            : GridRowSpacingDefault;
+
     private static DetailsGridFontWeight NormalizeGridFontWeight(DetailsGridFontWeight value) =>
         Enum.IsDefined(value) ? value : DetailsGridFontWeight.Normal;
 
@@ -379,4 +448,8 @@ public sealed class AppSettings : AppSettingsCommon
 
     private static TrayGraphDataSource NormalizeTrayGraphDataSource(TrayGraphDataSource value) =>
         Enum.IsDefined(value) ? value : TrayGraphDataSource.CPUAverage;
+
+    private static CPUPerformanceGraphView NormalizeCPUPerformanceGraphView(
+        CPUPerformanceGraphView value) =>
+        Enum.IsDefined(value) ? value : CPUPerformanceGraphView.LogicalProcessors;
 }

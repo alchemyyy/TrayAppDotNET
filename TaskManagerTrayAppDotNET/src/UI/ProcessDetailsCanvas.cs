@@ -60,6 +60,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private const int DynamicRefreshBatchSize = 16;
     private const int MaximumTextLayoutCharacters = 2_048;
+    private const string RowTextMeasurementText = "Ag";
     private const string TextEllipsis = "\u2026";
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
@@ -74,7 +75,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly ProcessIconService _processIconService;
     private ProcessDataSchema _schema;
     private readonly TaskManagerWindowResources _resources;
-    private readonly int _baseTableFontWeight;
+    private readonly DetailsGridFontWeight _baseTableFontWeight;
+    private readonly double _rowTextHeightScale;
     private Typeface _tableTypeface;
     private int _tableFontWeight;
     private readonly ProcessTableRenderLayer _staticRowsLayer;
@@ -170,7 +172,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
     private double _axamlFontSize;
-    private double _axamlRowHeight;
+    private double _axamlRowSpacing;
     private PendingColumnLayout? _pendingColumnLayout;
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
@@ -183,7 +185,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         bool enableLiveColumnResizing,
         double gridFontSize,
         DetailsGridFontWeight gridFontWeight,
-        double gridRowHeight,
+        double gridRowSpacing,
         SettingsPalette palette,
         TaskManagerWindowResources resources)
     {
@@ -197,14 +199,21 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _processIconService.IconsChanged += OnIconsChanged;
         _schema = schema;
         _resources = resources;
-        _baseTableFontWeight = (int)gridFontWeight;
+        _baseTableFontWeight = gridFontWeight;
         _tableFontWeight = CalculateTableFontWeight(gridFontSize);
         _tableTypeface = CreateTableTypeface(_tableFontWeight);
-        _metrics = CreateTableMetrics(resources, gridFontSize, gridRowHeight);
+        Typeface referenceTypeface = CreateTableTypeface((int)gridFontWeight);
+        _rowTextHeightScale = MeasureRowTextHeightScale(referenceTypeface);
+        double gridRowHeight = CalculateRowHeight(gridFontSize, gridRowSpacing);
+        _metrics = CreateTableMetrics(
+            resources,
+            gridFontSize,
+            gridRowHeight,
+            _rowTextHeightScale);
         _visualMetrics = CreateVisualMetrics(resources);
         _axamlColumnWidths = CreateAXAMLColumnWidths(resources);
         _axamlFontSize = resources.AxamlProcessTable.FontSize;
-        _axamlRowHeight = resources.AxamlProcessTable.RowHeight;
+        _axamlRowSpacing = resources.AxamlProcessTable.RowSpacing;
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
         _filterQuery = ProcessSearchQuery.Parse(null, _columnSettings);
@@ -283,6 +292,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     /// <summary>Returns the fixed retained visual stack rendered beneath the input canvas.</summary>
     public IReadOnlyList<Control> RenderLayers => _renderLayers;
+
+    /// <summary>Returns the effective row height derived from rendered text and spacing.</summary>
+    public double RowHeight => _metrics.RowHeight;
+
+    /// <summary>Applies font size and the requested gap between rendered text lines.</summary>
+    public void SetGridTypography(double fontSize, double rowSpacing) =>
+        SetGridMetrics(fontSize, CalculateRowHeight(fontSize, rowSpacing));
 
     protected override int DetailsGridRowCount => _visibleRowCount;
     protected override double DetailsGridHeaderHeight => _metrics.HeaderHeight;
@@ -740,7 +756,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         int nextTableFontWeight = CalculateTableFontWeight(fontSize);
         bool tableTypefaceChanged = nextTableFontWeight != _tableFontWeight;
         AdvanceGridMetricsGeneration();
-        _metrics = CreateTableMetrics(_resources, fontSize, rowHeight);
+        _metrics = CreateTableMetrics(
+            _resources,
+            fontSize,
+            rowHeight,
+            _rowTextHeightScale);
         if (!tableTypefaceChanged) return;
 
         _tableFontWeight = nextTableFontWeight;
@@ -1030,21 +1050,24 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (IsDetailsGridDisposed) return;
 
         double nextAXAMLFontSize = _resources.AxamlProcessTable.FontSize;
-        double nextAXAMLRowHeight = _resources.AxamlProcessTable.RowHeight;
+        double nextAXAMLRowSpacing = _resources.AxamlProcessTable.RowSpacing;
         double nextFontSize = Math.Abs(nextAXAMLFontSize - _axamlFontSize) >= 0.01
             ? nextAXAMLFontSize
             : _metrics.FontSize;
-        double nextRowHeight = Math.Abs(nextAXAMLRowHeight - _axamlRowHeight) >= 0.01
-            ? nextAXAMLRowHeight
-            : _metrics.RowHeight;
+        double currentRowSpacing = _metrics.RowHeight - _metrics.RowTextHeight;
+        double nextRowSpacing = Math.Abs(nextAXAMLRowSpacing - _axamlRowSpacing) >= 0.01
+            ? nextAXAMLRowSpacing
+            : currentRowSpacing;
+        double nextRowHeight = CalculateRowHeight(nextFontSize, nextRowSpacing);
         ProcessTableMetrics nextMetrics = CreateTableMetrics(
             _resources,
             nextFontSize,
-            nextRowHeight);
+            nextRowHeight,
+            _rowTextHeightScale);
         ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
         ProcessTableColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
         _axamlFontSize = nextAXAMLFontSize;
-        _axamlRowHeight = nextAXAMLRowHeight;
+        _axamlRowSpacing = nextAXAMLRowSpacing;
         if (nextMetrics == _metrics
             && nextVisualMetrics == _visualMetrics
             && nextColumnWidths == _axamlColumnWidths)
@@ -1185,8 +1208,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         || currentMetrics.FontSize != nextMetrics.FontSize
         || currentMetrics.ProcessIconSize != nextMetrics.ProcessIconSize
         || currentMetrics.ProcessIconGap != nextMetrics.ProcessIconGap
-        || currentVisualMetrics.RowTextHeightMultiplier
-        != nextVisualMetrics.RowTextHeightMultiplier
         || currentVisualMetrics.TreeIndentWidth != nextVisualMetrics.TreeIndentWidth
         || currentVisualMetrics.TreeExpanderWidth != nextVisualMetrics.TreeExpanderWidth;
 
@@ -2054,7 +2075,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         double textTop = Math.Max(
             0,
-            (_metrics.RowHeight - _metrics.FontSize * _visualMetrics.RowTextHeightMultiplier) / 2);
+            (_metrics.RowHeight - _metrics.RowTextHeight) / 2);
         double leftInset = column.Kind == ProcessTableColumnKind.Name
             ? _metrics.CellPadding
               + GetHierarchyInset(treeLayoutKey)
@@ -3114,20 +3135,36 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private static bool HasTreeExpanderSlot(int treeLayoutKey) => treeLayoutKey != 0;
 
+    private double CalculateRowHeight(double fontSize, double rowSpacing) =>
+        ProcessTableLayout.CalculateRowHeight(
+            ProcessTableLayout.CalculateRowTextHeight(fontSize, _rowTextHeightScale),
+            rowSpacing);
+
     private static ProcessTableMetrics CreateTableMetrics(
         TaskManagerWindowResources resources,
         double fontSize,
-        double rowHeight)
+        double rowHeight,
+        double rowTextHeightScale)
     {
+        double rowTextHeight = ProcessTableLayout.CalculateRowTextHeight(
+            fontSize,
+            rowTextHeightScale);
+        double effectiveRowHeight = Math.Max(rowHeight, rowTextHeight);
+        double baseRowHeight = ProcessTableLayout.CalculateRowHeight(
+            ProcessTableLayout.CalculateRowTextHeight(
+                resources.AxamlProcessTable.FontSize,
+                rowTextHeightScale),
+            resources.AxamlProcessTable.RowSpacing);
         double processIconSize = ProcessTableLayout.ScaleProcessIconSize(
             resources.AxamlProcessTable.ProcessIconSize,
             resources.AxamlProcessTable.FontSize,
-            resources.AxamlProcessTable.RowHeight,
+            baseRowHeight,
             fontSize,
-            rowHeight);
+            effectiveRowHeight);
         return new ProcessTableMetrics(
             resources.AxamlProcessTable.HeaderHeight,
-            rowHeight,
+            effectiveRowHeight,
+            rowTextHeight,
             resources.AxamlProcessTable.CellPadding,
             fontSize,
             resources.AxamlProcessTable.HeaderFontSize,
@@ -3147,11 +3184,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             FontStyle.Normal,
             (FontWeight)fontWeight);
 
+    private static double MeasureRowTextHeightScale(Typeface typeface)
+    {
+        using TextLayout measurement = new(
+            RowTextMeasurementText,
+            typeface,
+            AppSettings.GridFontSizeDefault,
+            Brushes.White,
+            textWrapping: TextWrapping.NoWrap,
+            maxLines: 1);
+        return measurement.Height / AppSettings.GridFontSizeDefault;
+    }
+
     private static ProcessTableVisualMetrics CreateVisualMetrics(
         TaskManagerWindowResources resources) =>
         new(
             resources.AxamlProcessTable.DefaultViewportHeight,
-            resources.AxamlProcessTable.RowTextHeightMultiplier,
             resources.AxamlProcessTable.GridLineThickness,
             resources.AxamlProcessTable.ColumnResizeHitRadius,
             resources.AxamlProcessTable.HeaderDragThreshold,
@@ -3510,7 +3558,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private readonly record struct ProcessTableVisualMetrics(
         double DefaultViewportHeight,
-        double RowTextHeightMultiplier,
         double GridLineThickness,
         double ColumnResizeHitRadius,
         double HeaderDragThreshold,

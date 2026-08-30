@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
@@ -12,6 +13,7 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Displays direct-OS CPU, memory, GPU, network, and disk performance snapshots.</summary>
 internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 {
+    private const string SelectedGraphViewGlyph = "\uE73E";
     private const int MaximumDetailStatistics = 16;
     private const double BytesPerGibibyte = 1_073_741_824;
 
@@ -37,6 +39,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock _graphWindowLabel;
     private readonly Grid _genericGraphHeader;
     private readonly Grid _genericGraphFooter;
+    private readonly Grid _graphSurface;
     private readonly PerformanceHistoryGraph _detailGraph;
     private readonly MemoryCompositionView _memoryCompositionView;
     private readonly MemoryModuleDetailsPanel _memoryModuleDetailsPanel;
@@ -54,6 +57,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private MemoryPerformanceSnapshot _latestMemorySnapshot = MemoryPerformanceSnapshot.Empty;
     private PerformanceHistory _cpuHighestCoreHistory;
     private PerformanceMetricHistory _memoryUsedHistory;
+    private TaskManagerContextMenuWindow? _cpuGraphContextMenuWindow;
     private string? _selectedDeviceID;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
@@ -200,7 +204,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             resources,
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
-        Grid graphSurface = new()
+        _graphSurface = new Grid
         {
             MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -212,6 +216,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _gpuPerformanceDetailsView
             }
         };
+        _graphSurface.PointerPressed += OnGraphSurfacePointerPressed;
         Grid graphArea = new()
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphMargin,
@@ -225,8 +230,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         };
         graphArea.Children.Add(_genericGraphHeader);
-        Grid.SetRow(graphSurface, 1);
-        graphArea.Children.Add(graphSurface);
+        Grid.SetRow(_graphSurface, 1);
+        graphArea.Children.Add(_graphSurface);
         _graphWindowLabel = TrayAppDotNETSettingsUI.Text(
             PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes),
             palette,
@@ -364,6 +369,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (eventArgs.PropertyName == nameof(AppSettings.ShowCPUHighestCoreTrace))
         {
             UpdateCPUHighestCoreTraceVisibility();
+            return;
+        }
+
+        if (eventArgs.PropertyName == nameof(AppSettings.CPUPerformanceGraphView))
+        {
+            UpdateSelectionAndDetails();
+            RefreshVisibleLogicalProcessorGraphs();
             return;
         }
 
@@ -736,6 +748,24 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
         switch (selectedDevice.Kind)
         {
+            case PerformanceDeviceKind.CPU:
+                if (!_histories.TryGetValue(
+                        selectedDevice.DeviceID,
+                        out PerformanceHistory? overallHistory)
+                    || !overallHistory.TryGetExact(
+                        sampleTimestamp,
+                        out double overallUtilizationPercent)
+                    || !_cpuHighestCoreHistory.TryGetExact(
+                        sampleTimestamp,
+                        out double highestCPUUtilizationPercent))
+                {
+                    return null;
+                }
+
+                return FormatCPUOverallHoverMetric(
+                    highestCPUUtilizationPercent,
+                    overallUtilizationPercent);
+
             case PerformanceDeviceKind.Memory:
                 if (!_memoryUsedHistory.TryGetExact(sampleTimestamp, out double usedBytes))
                     return null;
@@ -845,6 +875,19 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
             "\nReceive: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
+
+    internal static string FormatCPUOverallHoverMetric(
+        double highestCPUUtilizationPercent,
+        double overallUtilizationPercent) =>
+        string.Concat(
+            "Highest CPU: ",
+            PerformanceDevicePresentationFactory.FormatPercent(
+                true,
+                highestCPUUtilizationPercent),
+            "\nOverall util: ",
+            PerformanceDevicePresentationFactory.FormatPercent(
+                true,
+                overallUtilizationPercent));
 
     internal static string FormatNetworkDeviceColumnHoverMetric(
         double sendBytesPerSecond,
@@ -1049,6 +1092,94 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         UpdateSelectionAndDetails();
     }
 
+    private void OnGraphSurfacePointerPressed(
+        object? sender,
+        PointerPressedEventArgs eventArgs)
+    {
+        if (_disposed
+            || !eventArgs.GetCurrentPoint(_graphSurface).Properties.IsRightButtonPressed
+            || !IsCPUSelected()
+            || TopLevel.GetTopLevel(this) is not Window owner)
+        {
+            return;
+        }
+
+        PixelPoint screenPosition = _graphSurface.PointToScreen(
+            eventArgs.GetPosition(_graphSurface));
+        eventArgs.Handled = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_disposed && IsCPUSelected())
+                ShowCPUGraphContextMenu(owner, screenPosition);
+        });
+    }
+
+    private bool IsCPUSelected() =>
+        _selectedDeviceID != null
+        && _devices.TryGetValue(
+            _selectedDeviceID,
+            out PerformanceDevicePresentation? selectedDevice)
+        && selectedDevice.Kind == PerformanceDeviceKind.CPU;
+
+    private void ShowCPUGraphContextMenu(Window owner, PixelPoint screenPosition)
+    {
+        CloseCPUGraphContextMenu();
+        TrayMenuEntryBuilder entries = new();
+        entries.Add(new TrayMenuEntry(
+            "Logical processors",
+            () => SetCPUGraphView(CPUPerformanceGraphView.LogicalProcessors))
+        {
+            TrailingGlyph = _settings.CPUPerformanceGraphView
+                            == CPUPerformanceGraphView.LogicalProcessors
+                ? SelectedGraphViewGlyph
+                : null
+        });
+        entries.Add(new TrayMenuEntry(
+            "Overall utilization",
+            () => SetCPUGraphView(CPUPerformanceGraphView.OverallUtilization))
+        {
+            TrailingGlyph = _settings.CPUPerformanceGraphView
+                            == CPUPerformanceGraphView.OverallUtilization
+                ? SelectedGraphViewGlyph
+                : null
+        });
+        entries.Add("Detailed view", static () => { });
+
+        TaskManagerContextMenuWindow menuWindow = new(
+            entries.ToList(),
+            _palette,
+            _settings.EnableRoundedCorners,
+            _settings);
+        _cpuGraphContextMenuWindow = menuWindow;
+        menuWindow.Closed += OnCPUGraphContextMenuClosed;
+        menuWindow.ShowAt(owner, screenPosition);
+    }
+
+    private void SetCPUGraphView(CPUPerformanceGraphView graphView)
+    {
+        if (_disposed) return;
+
+        _settings.UpdateCPUPerformanceGraphView(graphView);
+    }
+
+    private void CloseCPUGraphContextMenu()
+    {
+        TaskManagerContextMenuWindow? menuWindow = _cpuGraphContextMenuWindow;
+        if (menuWindow == null) return;
+
+        _cpuGraphContextMenuWindow = null;
+        menuWindow.Closed -= OnCPUGraphContextMenuClosed;
+        menuWindow.Close();
+    }
+
+    private void OnCPUGraphContextMenuClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is TaskManagerContextMenuWindow menuWindow)
+            menuWindow.Closed -= OnCPUGraphContextMenuClosed;
+        if (ReferenceEquals(sender, _cpuGraphContextMenuWindow))
+            _cpuGraphContextMenuWindow = null;
+    }
+
     private void OnDeviceOrderChanged(IReadOnlyList<string> visibleDeviceIDs)
     {
         if (_disposed) return;
@@ -1092,6 +1223,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _detailGraph.SetHistory(_histories[selectedDevice.DeviceID]);
         UpdateDetailGraphSecondaryHistory();
         bool showLogicalProcessors = selectedDevice.Kind == PerformanceDeviceKind.CPU
+                                     && _settings.CPUPerformanceGraphView
+                                     == CPUPerformanceGraphView.LogicalProcessors
                                      && _cpuLogicalProcessorHistories.Count > 0;
         bool showGPUDetails = selectedDevice.Kind == PerformanceDeviceKind.GPU;
         _detailGraph.IsVisible = !showLogicalProcessors && !showGPUDetails;
@@ -1270,6 +1403,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_disposed) return;
 
         _disposed = true;
+        CloseCPUGraphContextMenu();
+        _graphSurface.PointerPressed -= OnGraphSurfacePointerPressed;
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
         _deviceColumn.Dispose();

@@ -51,6 +51,14 @@ public sealed class PerformancePageTests
     }
 
     [Fact]
+    public void CPUOverallHoverMetricShowsHighestThenOverall()
+    {
+        string metric = PerformancePage.FormatCPUOverallHoverMetric(82, 37);
+
+        Assert.Equal("Highest CPU: 82%\nOverall util: 37%", metric);
+    }
+
+    [Fact]
     public void NetworkHoverMetricShowsSendThenReceive()
     {
         string metric = PerformancePage.FormatNetworkTransferHoverMetric(100, 200);

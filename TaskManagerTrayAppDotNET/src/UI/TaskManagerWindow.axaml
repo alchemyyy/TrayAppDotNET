@@ -166,12 +166,11 @@
 
   <!-- Painted process table -->
   <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>
-  <sys:Double x:Key="ProcessTable.RowHeight">19</sys:Double>
+  <sys:Double x:Key="ProcessTable.RowSpacing">3.5</sys:Double>
   <sys:Double x:Key="ProcessTable.DefaultViewportHeight">900</sys:Double>
   <sys:Double x:Key="ProcessTable.CellPadding">7</sys:Double>
   <sys:Double x:Key="ProcessTable.FontSize">11.5</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderFontSize">13</sys:Double>
-  <sys:Double x:Key="ProcessTable.RowTextHeightMultiplier">1.35</sys:Double>
   <sys:Double x:Key="ProcessTable.GridLineThickness">1</sys:Double>
   <sys:Double x:Key="ProcessTable.ColumnResizeHitRadius">4</sys:Double>
   <sys:Double x:Key="ProcessTable.HeaderDragThreshold">4</sys:Double>

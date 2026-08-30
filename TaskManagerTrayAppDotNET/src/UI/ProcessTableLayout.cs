@@ -79,6 +79,7 @@ internal enum ProcessTableColumnAlignment : byte
 internal readonly record struct ProcessTableMetrics(
     double HeaderHeight,
     double RowHeight,
+    double RowTextHeight,
     double CellPadding,
     double FontSize,
     double HeaderFontSize,
@@ -272,38 +273,100 @@ internal static class ProcessTableColumnCatalog
 internal static class ProcessTableLayout
 {
     public const int MinimumZoomFontWeight = 100;
-    public const int MaximumZoomFontWeight = 900;
+    public const int MaximumZoomFontWeight = 630;
 
-    private const double ZoomFontWeightLinearCoefficient = 320;
-    private const double ZoomFontWeightCubicCoefficient = 80;
+    private const int ReferenceMaximumZoomFontWeight = 900;
+    private const double ReferenceZoomFontWeightLinearCoefficient = 320;
+    private const double ReferenceZoomFontWeightCubicCoefficient = 80;
+    private const double ZoomFontWeightClampDistanceScale = 0.75;
+
+    /// <summary>Calculates one rendered line height from its measured font-size ratio.</summary>
+    public static double CalculateRowTextHeight(double fontSize, double textHeightScale)
+    {
+        if (!double.IsFinite(fontSize) || fontSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(fontSize));
+        if (!double.IsFinite(textHeightScale) || textHeightScale <= 0)
+            throw new ArgumentOutOfRangeException(nameof(textHeightScale));
+
+        return fontSize * textHeightScale;
+    }
+
+    /// <summary>Builds row height from rendered text height plus the requested visible gap.</summary>
+    public static double CalculateRowHeight(double rowTextHeight, double rowSpacing)
+    {
+        if (!double.IsFinite(rowTextHeight) || rowTextHeight <= 0)
+            throw new ArgumentOutOfRangeException(nameof(rowTextHeight));
+        if (!double.IsFinite(rowSpacing))
+            throw new ArgumentOutOfRangeException(nameof(rowSpacing));
+
+        return rowTextHeight + Math.Max(0, rowSpacing);
+    }
 
     /// <summary>
-    /// Resolves font weight from w(z) = w0 + 320z + 80z^3, where z is normalized zoom.
-    /// The derivative is always positive before the explicit supported-weight clamps.
+    /// Resolves font weight with a monotonic smoothstep sigmoid.
+    /// The configured weight remains fixed at default zoom while the reduced output range is
+    /// stretched across the previous clamp span.
     /// </summary>
     public static int CalculateZoomFontWeight(
-        int baseFontWeight,
+        DetailsGridFontWeight baseFontWeight,
         double referenceFontSize,
         double fontSize)
     {
-        if (baseFontWeight is < MinimumZoomFontWeight or > MaximumZoomFontWeight)
+        if (!Enum.IsDefined(baseFontWeight))
             throw new ArgumentOutOfRangeException(nameof(baseFontWeight));
         if (!double.IsFinite(referenceFontSize) || referenceFontSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(referenceFontSize));
         if (!double.IsFinite(fontSize) || fontSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(fontSize));
 
+        int baseFontWeightValue = (int)baseFontWeight;
+        int effectiveMaximumFontWeight = Math.Max(
+            MaximumZoomFontWeight,
+            baseFontWeightValue);
         double normalizedZoom = fontSize / referenceFontSize - 1;
-        double squaredZoom = normalizedZoom * normalizedZoom;
-        double polynomialWeight = baseFontWeight
-                                  + normalizedZoom
-                                  * (ZoomFontWeightLinearCoefficient
-                                     + ZoomFontWeightCubicCoefficient * squaredZoom);
-        double clampedWeight = Math.Clamp(
-            polynomialWeight,
-            MinimumZoomFontWeight,
-            MaximumZoomFontWeight);
-        return (int)Math.Round(clampedWeight, MidpointRounding.AwayFromZero);
+        double referenceLowerClampZoom = SolveReferenceZoom(
+            MinimumZoomFontWeight - baseFontWeightValue);
+        double referenceUpperClampZoom = SolveReferenceZoom(
+            ReferenceMaximumZoomFontWeight - baseFontWeightValue);
+        double clampZoomSpan = ZoomFontWeightClampDistanceScale
+                               * (referenceUpperClampZoom - referenceLowerClampZoom);
+        double baseWeightPosition = (double)(baseFontWeightValue - MinimumZoomFontWeight)
+                                    / (effectiveMaximumFontWeight - MinimumZoomFontWeight);
+        double baseSigmoidPosition = InverseSmoothstep(baseWeightPosition);
+        double lowerClampZoom = -baseSigmoidPosition * clampZoomSpan;
+        double upperClampZoom = lowerClampZoom + clampZoomSpan;
+        if (normalizedZoom <= lowerClampZoom) return MinimumZoomFontWeight;
+        if (normalizedZoom >= upperClampZoom) return effectiveMaximumFontWeight;
+
+        double sigmoidPosition = (normalizedZoom - lowerClampZoom) / clampZoomSpan;
+        double weightPosition = Smoothstep(sigmoidPosition);
+        double fontWeight = MinimumZoomFontWeight
+                            + weightPosition
+                            * (effectiveMaximumFontWeight - MinimumZoomFontWeight);
+        return (int)Math.Round(fontWeight, MidpointRounding.AwayFromZero);
+    }
+
+    private static double InverseSmoothstep(double position)
+    {
+        if (position <= 0) return 0;
+        if (position >= 1) return 1;
+
+        return 0.5 - Math.Sin(Math.Asin(1 - 2 * position) / 3);
+    }
+
+    private static double Smoothstep(double position) =>
+        position * position * (3 - 2 * position);
+
+    private static double SolveReferenceZoom(double weightOffset)
+    {
+        // Retain the previous cubic response only as calibration for the clamp positions
+        double halfOffset = weightOffset / (2 * ReferenceZoomFontWeightCubicCoefficient);
+        double linearRatio = ReferenceZoomFontWeightLinearCoefficient
+                             / (3 * ReferenceZoomFontWeightCubicCoefficient);
+        double discriminantRoot = Math.Sqrt(
+            halfOffset * halfOffset + linearRatio * linearRatio * linearRatio);
+        return Math.Cbrt(halfOffset + discriminantRoot)
+               + Math.Cbrt(halfOffset - discriminantRoot);
     }
 
     /// <summary>Scales process icons by the smaller text or row zoom factor.</summary>

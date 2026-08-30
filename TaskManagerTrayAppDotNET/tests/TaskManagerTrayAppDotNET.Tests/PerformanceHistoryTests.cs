@@ -132,4 +132,21 @@ public sealed class PerformanceHistoryTests
         Assert.Equal(1, history.GetChronological(0));
         Assert.Equal(4, history.GetChronological(3));
     }
+
+    [Fact]
+    public void ExactLookupSupportsReplacementAndWrappedStorage()
+    {
+        PerformanceHistory history = new(2);
+        history.Add(100, 10);
+        history.Add(200, 20);
+        history.Add(200, 25);
+        history.Add(300, 30);
+
+        Assert.False(history.TryGetExact(100, out double _));
+        Assert.True(history.TryGetExact(200, out double replacedValue));
+        Assert.Equal(25, replacedValue);
+        Assert.True(history.TryGetExact(300, out double newestValue));
+        Assert.Equal(30, newestValue);
+        Assert.False(history.TryGetExact(250, out double _));
+    }
 }

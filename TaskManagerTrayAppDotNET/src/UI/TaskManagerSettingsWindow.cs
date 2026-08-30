@@ -713,16 +713,18 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             },
             palette,
             searchKeywords: ["grid text thickness", "bold"]));
-        stack.Children.Add(IntCard(
-            "Row height",
-            "Set the height of each process row.",
-            _settings.GridRowHeight,
-            AppSettings.GridRowHeightMinimum,
-            AppSettings.GridRowHeightMaximum,
-            value => _settings.GridRowHeight = value,
+        stack.Children.Add(DoubleCard(
+            "Row spacing",
+            "Set the visible vertical gap between process rows.",
+            _settings.GridRowSpacing,
+            AppSettings.GridRowSpacingMinimum,
+            AppSettings.GridRowSpacingMaximum,
+            value => _settings.GridRowSpacing = value,
             palette,
             " DIP",
-            ["grid spacing", "zoom"]));
+            ["grid height", "zoom"],
+            decimalPlaces: 1,
+            step: 0.5));
         stack.Children.Add(BoolCard(
             "Live column resizing",
             "Resize column contents while dragging instead of applying the new width on release.",

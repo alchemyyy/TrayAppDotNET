@@ -6,26 +6,72 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class ProcessTableLayoutTests
 {
-    [Fact]
-    public void ZoomFontWeightUsesConfiguredWeightAtReferenceZoom()
+    [Theory]
+    [InlineData(43.2, 0, 43.2)]
+    [InlineData(10.8, 0, 10.8)]
+    [InlineData(10.8, 3.5, 14.3)]
+    [InlineData(10.8, -20, 10.8)]
+    public void RowHeightUsesRenderedTextHeightAndVisibleSpacing(
+        double rowTextHeight,
+        double rowSpacing,
+        double expectedRowHeight)
     {
-        int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
-            baseFontWeight: 400,
-            referenceFontSize: AppSettings.GridFontSizeDefault,
-            fontSize: AppSettings.GridFontSizeDefault);
+        double rowHeight = ProcessTableLayout.CalculateRowHeight(
+            rowTextHeight,
+            rowSpacing);
 
-        Assert.Equal(400, fontWeight);
+        Assert.Equal(expectedRowHeight, rowHeight, precision: 10);
     }
 
     [Theory]
-    [InlineData(5.75, 230)]
-    [InlineData(17.25, 570)]
-    public void ZoomFontWeightUsesMonotonicCubicPolynomial(
+    [InlineData(8, 1.35, 10.8)]
+    [InlineData(32, 1.35, 43.2)]
+    public void RowTextHeightScalesFromOneMeasuredFontRatio(
+        double fontSize,
+        double textHeightScale,
+        double expectedTextHeight)
+    {
+        double rowTextHeight = ProcessTableLayout.CalculateRowTextHeight(
+            fontSize,
+            textHeightScale);
+
+        Assert.Equal(expectedTextHeight, rowTextHeight, precision: 10);
+    }
+
+    [Theory]
+    [InlineData(DetailsGridFontWeight.Thin, 100)]
+    [InlineData(DetailsGridFontWeight.ExtraLight, 200)]
+    [InlineData(DetailsGridFontWeight.Light, 300)]
+    [InlineData(DetailsGridFontWeight.SemiLight, 350)]
+    [InlineData(DetailsGridFontWeight.Normal, 400)]
+    [InlineData(DetailsGridFontWeight.Medium, 500)]
+    [InlineData(DetailsGridFontWeight.SemiBold, 600)]
+    [InlineData(DetailsGridFontWeight.Bold, 700)]
+    [InlineData(DetailsGridFontWeight.ExtraBold, 800)]
+    [InlineData(DetailsGridFontWeight.Black, 900)]
+    public void ZoomFontWeightUsesConfiguredWeightAtReferenceZoom(
+        DetailsGridFontWeight baseFontWeight,
+        int expectedFontWeight)
+    {
+        int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
+            baseFontWeight,
+            referenceFontSize: AppSettings.GridFontSizeDefault,
+            fontSize: AppSettings.GridFontSizeDefault);
+
+        Assert.Equal(expectedFontWeight, fontWeight);
+    }
+
+    [Theory]
+    [InlineData(5.75, 158)]
+    [InlineData(8, 241)]
+    [InlineData(17.25, 610)]
+    [InlineData(20, ProcessTableLayout.MaximumZoomFontWeight)]
+    public void ZoomFontWeightUsesSigmoidResponse(
         double fontSize,
         int expectedFontWeight)
     {
         int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
-            baseFontWeight: 400,
+            DetailsGridFontWeight.Normal,
             referenceFontSize: AppSettings.GridFontSizeDefault,
             fontSize);
 
@@ -33,10 +79,32 @@ public sealed class ProcessTableLayoutTests
     }
 
     [Fact]
-    public void ZoomFontWeightIsMonotonicAcrossSupportedZoomRange()
+    public void ZoomFontWeightSigmoidFlattensTowardBothClamps()
+    {
+        int lowerIncrement = CalculateNormalFontWeight(6) - CalculateNormalFontWeight(5);
+        int middleIncrement = CalculateNormalFontWeight(13) - CalculateNormalFontWeight(12);
+        int upperIncrement = CalculateNormalFontWeight(21) - CalculateNormalFontWeight(20);
+
+        Assert.True(lowerIncrement < middleIncrement);
+        Assert.True(upperIncrement < middleIncrement);
+    }
+
+    [Theory]
+    [InlineData(DetailsGridFontWeight.Thin)]
+    [InlineData(DetailsGridFontWeight.ExtraLight)]
+    [InlineData(DetailsGridFontWeight.Light)]
+    [InlineData(DetailsGridFontWeight.SemiLight)]
+    [InlineData(DetailsGridFontWeight.Normal)]
+    [InlineData(DetailsGridFontWeight.Medium)]
+    [InlineData(DetailsGridFontWeight.SemiBold)]
+    [InlineData(DetailsGridFontWeight.Bold)]
+    [InlineData(DetailsGridFontWeight.ExtraBold)]
+    [InlineData(DetailsGridFontWeight.Black)]
+    public void ZoomFontWeightIsMonotonicAcrossSupportedZoomRange(
+        DetailsGridFontWeight baseFontWeight)
     {
         int previousFontWeight = ProcessTableLayout.CalculateZoomFontWeight(
-            baseFontWeight: 400,
+            baseFontWeight,
             referenceFontSize: AppSettings.GridFontSizeDefault,
             fontSize: AppSettings.GridFontSizeMinimum);
 
@@ -45,7 +113,7 @@ public sealed class ProcessTableLayoutTests
              fontSize += 0.5)
         {
             int fontWeight = ProcessTableLayout.CalculateZoomFontWeight(
-                baseFontWeight: 400,
+                baseFontWeight,
                 referenceFontSize: AppSettings.GridFontSizeDefault,
                 fontSize);
             Assert.True(fontWeight >= previousFontWeight);
@@ -54,10 +122,12 @@ public sealed class ProcessTableLayoutTests
     }
 
     [Theory]
-    [InlineData(100, 0.01, ProcessTableLayout.MinimumZoomFontWeight)]
-    [InlineData(900, 100, ProcessTableLayout.MaximumZoomFontWeight)]
+    [InlineData(DetailsGridFontWeight.Normal, 2, ProcessTableLayout.MinimumZoomFontWeight)]
+    [InlineData(DetailsGridFontWeight.Normal, 20, ProcessTableLayout.MaximumZoomFontWeight)]
+    [InlineData(DetailsGridFontWeight.Thin, 0.01, ProcessTableLayout.MinimumZoomFontWeight)]
+    [InlineData(DetailsGridFontWeight.Black, 100, (int)DetailsGridFontWeight.Black)]
     public void ZoomFontWeightClampsToSupportedRange(
-        int baseFontWeight,
+        DetailsGridFontWeight baseFontWeight,
         double fontSize,
         int expectedFontWeight)
     {
@@ -150,4 +220,10 @@ public sealed class ProcessTableLayoutTests
         new(ProcessTableColumnKind.ProcessID, "PID", 100, 50, ProcessTableColumnAlignment.Right),
         new(ProcessTableColumnKind.CPU, "CPU", 150, 75, ProcessTableColumnAlignment.Right)
     ];
+
+    private static int CalculateNormalFontWeight(double fontSize) =>
+        ProcessTableLayout.CalculateZoomFontWeight(
+            DetailsGridFontWeight.Normal,
+            AppSettings.GridFontSizeDefault,
+            fontSize);
 }

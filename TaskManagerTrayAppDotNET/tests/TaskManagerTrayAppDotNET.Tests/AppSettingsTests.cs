@@ -259,6 +259,54 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void CPUPerformanceGraphViewDefaultsToLogicalProcessorsAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.Equal(
+            CPUPerformanceGraphView.LogicalProcessors,
+            settings.CPUPerformanceGraphView);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.CPUPerformanceGraphView = CPUPerformanceGraphView.OverallUtilization;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(
+                CPUPerformanceGraphView.OverallUtilization,
+                loaded.CPUPerformanceGraphView);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LiveCPUPerformanceGraphViewUpdateAvoidsGlobalShellNotification()
+    {
+        AppSettings settings = new() { Autosave = false };
+        int propertyChangedCount = 0;
+        int changedCount = 0;
+        settings.PropertyChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName == nameof(AppSettings.CPUPerformanceGraphView))
+                propertyChangedCount++;
+        };
+        settings.Changed += () => changedCount++;
+
+        settings.UpdateCPUPerformanceGraphView(CPUPerformanceGraphView.OverallUtilization);
+
+        Assert.Equal(1, propertyChangedCount);
+        Assert.Equal(0, changedCount);
+        Assert.Equal(
+            CPUPerformanceGraphView.OverallUtilization,
+            settings.CPUPerformanceGraphView);
+    }
+
+    [Fact]
     public void PerformanceSamplingSettingsNormalizeOutOfRangeXml()
     {
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
@@ -588,6 +636,54 @@ public sealed class AppSettingsTests
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
             Assert.Equal(DetailsGridFontWeight.SemiBold, loaded.GridFontWeight);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void GridRowSpacingDefaultsAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.Equal(AppSettings.GridRowSpacingDefault, settings.GridRowSpacing);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.GridRowSpacing = 7.25;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(7.25, loaded.GridRowSpacing);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LegacyOverlappingGridRowHeightMigratesToZeroSpacing()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <AppSettings>
+                  <GridFontSize>32</GridFontSize>
+                  <GridRowHeight>14</GridRowHeight>
+                </AppSettings>
+                """);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal(AppSettings.GridRowSpacingMinimum, loaded.GridRowSpacing);
         }
         finally
         {
