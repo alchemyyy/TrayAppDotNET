@@ -13,6 +13,7 @@ internal sealed class SystemProcessSnapshot : IDisposable
     private const int InitialBufferSize = 1024 * 1024;
     private const int BufferGrowthSlack = 64 * 1024;
     private const int MaximumBufferSize = 64 * 1024 * 1024;
+    private const int DiskCountersPrefixSize = sizeof(long) * 2;
     private const uint WaitingThreadState = 5;
     private const uint SuspendedWaitReason = 5;
 
@@ -30,7 +31,9 @@ internal sealed class SystemProcessSnapshot : IDisposable
 
     public bool HasJobObjectIDs => _hasJobObjectIDs;
 
-    public bool TryCapture(Dictionary<int, SystemProcessData> destination, bool includeJobObjectIDs = false)
+    public bool TryCapture(
+        Dictionary<int, SystemProcessData> destination,
+        bool includeJobObjectIDs = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(destination);
@@ -42,12 +45,18 @@ internal sealed class SystemProcessSnapshot : IDisposable
         }
 
         if (includeJobObjectIDs
-            && TryCaptureCore(destination, SystemFullProcessInformation, true))
+            && TryCaptureCore(
+                destination,
+                SystemFullProcessInformation,
+                true))
         {
             return true;
         }
 
-        return TryCaptureCore(destination, SystemProcessInformation, false);
+        return TryCaptureCore(
+            destination,
+            SystemProcessInformation,
+            false);
     }
 
     private bool TryCaptureCore(
@@ -111,6 +120,12 @@ internal sealed class SystemProcessSnapshot : IDisposable
                     : ThreadEntrySize;
                 int availableThreadCount = Math.Max(0, (entryLength - ProcessHeaderSize) / threadEntrySize);
                 int threadCount = (int)Math.Min(process.NumberOfThreads, (uint)availableThreadCount);
+                bool hasDiskCounters = TryReadDiskBytes(
+                    entryAddress,
+                    entryLength,
+                    threadEntrySize,
+                    threadCount,
+                    out ulong diskBytes);
                 long jobObjectID = hasFullProcessInformation
                     ? ReadJobObjectID(entryAddress, entryLength, threadCount)
                     : -1;
@@ -137,6 +152,8 @@ internal sealed class SystemProcessSnapshot : IDisposable
                     ToNonNegativeUInt64(process.ReadTransferCount),
                     ToNonNegativeUInt64(process.WriteTransferCount),
                     ToNonNegativeUInt64(process.OtherTransferCount),
+                    diskBytes,
+                    hasDiskCounters,
                     jobObjectID);
             }
 
@@ -154,6 +171,26 @@ internal sealed class SystemProcessSnapshot : IDisposable
 
         destination.Clear();
         return false;
+    }
+
+    private static bool TryReadDiskBytes(
+        IntPtr entryAddress,
+        int entryLength,
+        int threadEntrySize,
+        int threadCount,
+        out ulong diskBytes)
+    {
+        diskBytes = 0;
+        // Windows appends PROCESS_DISK_COUNTERS immediately after the process thread array
+        long extensionOffset = ProcessHeaderSize + (long)threadCount * threadEntrySize;
+        if (extensionOffset < 0 || extensionOffset > entryLength - DiskCountersPrefixSize)
+            return false;
+
+        IntPtr extensionAddress = IntPtr.Add(entryAddress, (int)extensionOffset);
+        ulong bytesRead = unchecked((ulong)Marshal.ReadInt64(extensionAddress));
+        ulong bytesWritten = unchecked((ulong)Marshal.ReadInt64(extensionAddress, sizeof(long)));
+        diskBytes = SaturatingAdd(bytesRead, bytesWritten);
+        return true;
     }
 
     private static long ReadJobObjectID(IntPtr entryAddress, int entryLength, int threadCount)
@@ -255,6 +292,9 @@ internal sealed class SystemProcessSnapshot : IDisposable
         if (right <= 0) return left;
         return left > long.MaxValue - right ? long.MaxValue : left + right;
     }
+
+    private static ulong SaturatingAdd(ulong left, ulong right) =>
+        ulong.MaxValue - left < right ? ulong.MaxValue : left + right;
 
     public void Dispose()
     {
@@ -386,4 +426,6 @@ internal readonly record struct SystemProcessData(
     ulong IOReadBytes,
     ulong IOWriteBytes,
     ulong IOOtherBytes,
+    ulong DiskBytes,
+    bool HasDiskCounters,
     long JobObjectID);

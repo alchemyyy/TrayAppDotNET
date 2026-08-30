@@ -25,6 +25,7 @@ public sealed class SystemProcessSnapshotTests
         Assert.True(current.HandleCount > 0);
         Assert.True(current.SessionID >= 0);
         Assert.True(current.ThreadCount > 0);
+        Assert.True(current.HasDiskCounters);
         Assert.False(string.IsNullOrWhiteSpace(snapshot.ReadImageName(current)));
 
         using Process process = Process.GetCurrentProcess();

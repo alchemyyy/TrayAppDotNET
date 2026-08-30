@@ -64,6 +64,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private const string ZeroText = "0";
     private const string ZeroMemoryText = "0 K";
     private const string ZeroCPUTimeText = "0:00:00";
+    private const double BytesPerMebibyte = 1_048_576;
+    private const double BytesPerMegabit = 1_000_000.0 / 8;
 
     private static readonly Typeface DefaultTableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
     private static readonly Typeface GlyphTypeface = new(TADNFontResolver.SegoeFluentIconsFamilyName);
@@ -2090,6 +2092,16 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                         BitConverter.Int64BitsToDouble(value),
                         setting.ShowDecimalUsage));
                     break;
+                case ProcessTableColumnKind.Disk:
+                    hash.Add(QuantizeTransferRate(
+                        BitConverter.Int64BitsToDouble(value),
+                        BytesPerMebibyte));
+                    break;
+                case ProcessTableColumnKind.Network:
+                    hash.Add(QuantizeTransferRate(
+                        BitConverter.Int64BitsToDouble(value),
+                        BytesPerMegabit));
+                    break;
                 case ProcessTableColumnKind.CPUTime:
                     hash.Add(value / TimeSpan.TicksPerSecond);
                     break;
@@ -2162,6 +2174,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 or ProcessTableColumnKind.GPU
                 or ProcessTableColumnKind.NPU
                 or ProcessTableColumnKind.CPUUtility => CreatePercentageSearchValue(displayText, numericValue),
+            ProcessTableColumnKind.Disk => CreateTransferRateSearchValue(
+                displayText,
+                numericValue,
+                false),
+            ProcessTableColumnKind.Network => CreateTransferRateSearchValue(
+                displayText,
+                numericValue,
+                true),
             ProcessTableColumnKind.CPUTime
                 or ProcessTableColumnKind.Lifetime
                 or ProcessTableColumnKind.JobObjectID => CreateSignedSearchValue(
@@ -2198,6 +2218,19 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         return double.IsFinite(percentage) && percentage >= 0
             ? ProcessSearchColumnValue.Numeric(displayText, percentage)
             : ProcessSearchColumnValue.TextOnly(displayText);
+    }
+
+    private static ProcessSearchColumnValue CreateTransferRateSearchValue(
+        string displayText,
+        long value,
+        bool convertToBits)
+    {
+        double bytesPerSecond = BitConverter.Int64BitsToDouble(value);
+        if (!double.IsFinite(bytesPerSecond) || bytesPerSecond < 0)
+            return ProcessSearchColumnValue.TextOnly(displayText);
+
+        double numericValue = convertToBits ? bytesPerSecond * 8 : bytesPerSecond;
+        return ProcessSearchColumnValue.Numeric(displayText, numericValue);
     }
 
     private static ProcessSearchColumnValue CreateSignedSearchValue(
@@ -2277,6 +2310,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessTableColumnKind.ActivePrivateWorkingSet => FormatMemory(value, setting, false),
             ProcessTableColumnKind.PrivateMemory => FormatMemory(value, setting, false),
             ProcessTableColumnKind.SharedWorkingSet => FormatMemory(value, setting, false),
+            ProcessTableColumnKind.Disk => FormatTransferRate(
+                BitConverter.Int64BitsToDouble(value),
+                BytesPerMebibyte,
+                "MB/s"),
+            ProcessTableColumnKind.Network => FormatTransferRate(
+                BitConverter.Int64BitsToDouble(value),
+                BytesPerMegabit,
+                "Mbps"),
             ProcessTableColumnKind.CommitSize => FormatMemory(value, setting, false),
             ProcessTableColumnKind.PagedPool => FormatMemory(value, setting, false),
             ProcessTableColumnKind.NonPagedPool => FormatMemory(value, setting, false),
@@ -2374,11 +2415,33 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ? ZeroText
         : unchecked((ulong)value).ToString("N0", TableCulture);
 
+    private string FormatTransferRate(
+        double bytesPerSecond,
+        double bytesPerDisplayUnit,
+        string suffix)
+    {
+        long quantized = QuantizeTransferRate(bytesPerSecond, bytesPerDisplayUnit);
+        if (quantized < 0) return _unavailableText;
+        if (quantized == 0) return string.Concat(ZeroText, " ", suffix);
+        return string.Concat((quantized / 10.0).ToString("N1", TableCulture), " ", suffix);
+    }
+
     private static long QuantizePercent(double value, bool showDecimalUsage)
     {
         if (!double.IsFinite(value) || value < 0) return -1;
         double scale = showDecimalUsage ? 10 : 1;
         return (long)Math.Round(Math.Max(0, value) * scale, MidpointRounding.AwayFromZero);
+    }
+
+    private static long QuantizeTransferRate(double bytesPerSecond, double bytesPerDisplayUnit)
+    {
+        if (!double.IsFinite(bytesPerSecond) || bytesPerSecond < 0) return -1;
+        if (bytesPerSecond == 0) return 0;
+
+        double scaledTenths = bytesPerSecond / bytesPerDisplayUnit * 10;
+        if (scaledTenths >= long.MaxValue) return long.MaxValue;
+        long quantized = (long)Math.Round(scaledTenths, MidpointRounding.AwayFromZero);
+        return Math.Max(1, quantized);
     }
 
     private long QuantizeMemory(long bytes, ProcessMemoryUnit unit, bool isDelta)
@@ -3622,7 +3685,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 rightValue = snapshot.GetDynamicNumeric(rightIndex, column);
             }
 
-            if (IsPercentColumn(column))
+            if (IsDoubleColumn(column))
             {
                 return BitConverter.Int64BitsToDouble(leftValue)
                     .CompareTo(BitConverter.Int64BitsToDouble(rightValue));
@@ -3665,12 +3728,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _ => false
         };
 
-        private static bool IsPercentColumn(ProcessTableColumnKind column) => column switch
+        private static bool IsDoubleColumn(ProcessTableColumnKind column) => column switch
         {
             ProcessTableColumnKind.CPU
                 or ProcessTableColumnKind.GPU
                 or ProcessTableColumnKind.NPU
-                or ProcessTableColumnKind.CPUUtility => true,
+                or ProcessTableColumnKind.CPUUtility
+                or ProcessTableColumnKind.Disk
+                or ProcessTableColumnKind.Network => true,
             _ => false
         };
 

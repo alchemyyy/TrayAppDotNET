@@ -34,6 +34,20 @@ public sealed class ProcessColumnSettingsTests
     }
 
     [Fact]
+    public void DiskAndNetworkAreDefaultDynamicColumns()
+    {
+        ProcessTableColumnDefinition disk =
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Disk);
+        ProcessTableColumnDefinition network =
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Network);
+
+        Assert.True(disk.DefaultVisible);
+        Assert.Equal(ProcessTableColumnLifetime.Dynamic, disk.Lifetime);
+        Assert.True(network.DefaultVisible);
+        Assert.Equal(ProcessTableColumnLifetime.Dynamic, network.Lifetime);
+    }
+
+    [Fact]
     public void VisibleMaskSupportsInterleavedColumnLifetimes()
     {
         List<ProcessColumnSetting> settings =

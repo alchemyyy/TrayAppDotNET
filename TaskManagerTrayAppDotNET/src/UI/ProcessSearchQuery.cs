@@ -613,6 +613,10 @@ internal sealed class ProcessSearchQuery
             return TryParseDuration(literal, out numericValue);
         if (IsPercentageColumn(column))
             return TryParsePercentage(literal, out numericValue);
+        if (column == ProcessTableColumnKind.Disk)
+            return TryParseRate(literal, true, out numericValue);
+        if (column == ProcessTableColumnKind.Network)
+            return TryParseRate(literal, false, out numericValue);
         if (IsByteColumn(column))
             return TryParseScaledNumber(literal, true, out numericValue);
         return TryParseScaledNumber(literal, false, out numericValue);
@@ -642,6 +646,20 @@ internal sealed class ProcessSearchQuery
         if (normalized.EndsWith('%'))
             normalized = normalized[..^1].TrimEnd();
         return TryParseFiniteDouble(normalized, out numericValue);
+    }
+
+    private static bool TryParseRate(
+        string literal,
+        bool useBinaryUnits,
+        out double numericValue)
+    {
+        string normalized = literal.Replace(" ", string.Empty, StringComparison.Ordinal);
+        if (normalized.EndsWith("/s", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[..^2];
+        else if (normalized.EndsWith("ps", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[..^2];
+
+        return TryParseScaledNumber(normalized, useBinaryUnits, out numericValue);
     }
 
     private static bool TryParseDuration(string literal, out double numericValue)

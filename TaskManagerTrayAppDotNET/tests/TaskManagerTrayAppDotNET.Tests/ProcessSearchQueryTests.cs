@@ -102,6 +102,26 @@ public sealed class ProcessSearchQueryTests
     }
 
     [Fact]
+    public void DiskRateExpressionsUseBinaryMegabytesPerSecond()
+    {
+        ProcessSearchQuery query = Parse("{Disk}>=1 MB/s&&{Disk}<2 MB/s");
+        SearchRow row = new();
+        row.SetNumeric(ProcessTableColumnKind.Disk, "1.5 MB/s", 1.5 * 1_048_576);
+
+        Assert.True(query.Matches(0, row.Resolve));
+    }
+
+    [Fact]
+    public void NetworkRateExpressionsUseDecimalMegabitsPerSecond()
+    {
+        ProcessSearchQuery query = Parse("{Network}>=10 Mbps&&{Network}<20 Mbps");
+        SearchRow row = new();
+        row.SetNumeric(ProcessTableColumnKind.Network, "12.0 Mbps", 12_000_000);
+
+        Assert.True(query.Matches(0, row.Resolve));
+    }
+
+    [Fact]
     public void RegexOperatorsAreExplicitAndCaseInsensitive()
     {
         SearchRow row = new();

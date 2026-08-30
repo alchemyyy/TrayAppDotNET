@@ -87,6 +87,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private readonly StringBuilder _applicationUserModelIDBuffer = new(IconExtraction.MAX_AUMID_LEN);
     private AcceleratorPerformanceSampler? _acceleratorSampler;
     private EnterpriseContextReader? _enterpriseContextReader;
+    private ProcessNetworkUsageSampler? _networkUsageSampler;
     private ProcessSnapshotBuffer _publishedBuffer = new();
     private ProcessSnapshotBuffer _stagingBuffer = new();
     private SystemPerformanceSample _latestSystemPerformanceSample = SystemPerformanceSample.Empty;
@@ -520,6 +521,15 @@ internal sealed class ProcessSnapshotService : IDisposable
         {
             _nominalProcessorCycleCapacity = 0;
         }
+
+        bool needsNetworkUsage = schema.IsVisible(ProcessTableColumnKind.Network);
+        if (needsNetworkUsage && _networkUsageSampler == null)
+            _networkUsageSampler = new ProcessNetworkUsageSampler();
+        else if (!needsNetworkUsage && _networkUsageSampler != null)
+        {
+            _networkUsageSampler.Dispose();
+            _networkUsageSampler = null;
+        }
     }
 
     private ProcessHistoryEntry ResolveHistory(
@@ -837,6 +847,63 @@ internal sealed class ProcessSnapshotService : IDisposable
             history.PageFaultCount = memory.PageFaultCount;
             history.LastMemorySampleTimestamp = sampleTimestamp;
             history.HasMemorySample = true;
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.Disk))
+        {
+            double bytesPerSecond = -1;
+            if (hasSystemProcessData && systemProcessData.HasDiskCounters)
+            {
+                bytesPerSecond = CalculateTransferRate(
+                    history.HasDiskSample,
+                    history.DiskBytes,
+                    history.LastDiskSampleTimestamp,
+                    systemProcessData.DiskBytes,
+                    sampleTimestamp);
+                history.DiskBytes = systemProcessData.DiskBytes;
+                history.LastDiskSampleTimestamp = sampleTimestamp;
+                history.HasDiskSample = true;
+            }
+            else
+            {
+                history.HasDiskSample = false;
+            }
+
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.Disk, bytesPerSecond);
+        }
+
+        if (schema.IsVisible(ProcessTableColumnKind.Network))
+        {
+            if (_networkUsageSampler?.TryReadSample(
+                    history.StaticData.ProcessID,
+                    out ProcessNetworkUsageSample networkSample) == true)
+            {
+                if (!history.HasNetworkSample)
+                {
+                    SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, 0);
+                    UpdateNetworkBaseline(history, networkSample);
+                }
+                else if (networkSample.Generation != history.LastNetworkSampleGeneration)
+                {
+                    double bytesPerSecond = CalculateTransferRate(
+                        true,
+                        history.NetworkBytes,
+                        history.LastNetworkSampleTimestamp,
+                        networkSample.CumulativeBytes,
+                        networkSample.Timestamp);
+                    SetDynamicDouble(
+                        schema,
+                        history,
+                        ProcessTableColumnKind.Network,
+                        bytesPerSecond);
+                    UpdateNetworkBaseline(history, networkSample);
+                }
+            }
+            else
+            {
+                history.HasNetworkSample = false;
+                SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, -1);
+            }
         }
 
         if (HasAnyColumn(activeMask, ThreadColumnsMask))
@@ -1402,6 +1469,36 @@ internal sealed class ProcessSnapshotService : IDisposable
         return Math.Clamp(utility, 0, 1_000);
     }
 
+    /// <summary>Calculates a byte rate while treating first samples and counter resets as baselines.</summary>
+    internal static double CalculateTransferRate(
+        bool hasPreviousSample,
+        ulong previousBytes,
+        long previousTimestamp,
+        ulong currentBytes,
+        long currentTimestamp)
+    {
+        if (!hasPreviousSample
+            || currentTimestamp <= previousTimestamp
+            || currentBytes < previousBytes)
+        {
+            return 0;
+        }
+
+        double elapsedSeconds = (currentTimestamp - previousTimestamp)
+                                / (double)Stopwatch.Frequency;
+        return (currentBytes - previousBytes) / elapsedSeconds;
+    }
+
+    private static void UpdateNetworkBaseline(
+        ProcessHistoryEntry history,
+        ProcessNetworkUsageSample sample)
+    {
+        history.NetworkBytes = sample.CumulativeBytes;
+        history.LastNetworkSampleTimestamp = sample.Timestamp;
+        history.LastNetworkSampleGeneration = sample.Generation;
+        history.HasNetworkSample = true;
+    }
+
     private void RemoveStaleHistory(int generation)
     {
         _staleProcessIDs.Clear();
@@ -1553,6 +1650,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         _refreshWake.Dispose();
         _acceleratorSampler?.Dispose();
         _enterpriseContextReader?.Dispose();
+        _networkUsageSampler?.Dispose();
         _systemPerformanceSampler.Dispose();
         _systemProcessSnapshot.Dispose();
         _history.Clear();
@@ -1573,11 +1671,18 @@ internal sealed class ProcessSnapshotService : IDisposable
         public long WorkingSetBytes;
         public long PageFaultCount;
         public long LastMemorySampleTimestamp;
+        public ulong DiskBytes;
+        public long LastDiskSampleTimestamp;
+        public ulong NetworkBytes;
+        public long LastNetworkSampleTimestamp;
+        public long LastNetworkSampleGeneration;
         public int LastSeenGeneration;
         public bool HasDynamicSample;
         public bool HasProcessorSample;
         public bool HasCycleSample;
         public bool HasMemorySample;
+        public bool HasDiskSample;
+        public bool HasNetworkSample;
     }
 
     private sealed class SharedUserName(string value)
