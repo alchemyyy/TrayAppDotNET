@@ -46,6 +46,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly DiskPerformanceDetailsView _diskPerformanceDetailsView;
     private readonly GPUPerformanceDetailsView _gpuPerformanceDetailsView;
     private readonly Grid _cpuLogicalProcessorGrid;
+    private readonly CPUPerformanceDetailedView _cpuDetailedView;
     private readonly List<PerformanceHistory> _cpuLogicalProcessorHistories = [];
     private readonly List<PerformanceHistoryGraph> _cpuLogicalProcessorGraphs = [];
     private readonly WrapPanel _primaryStatistics;
@@ -199,6 +200,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             VerticalAlignment = VerticalAlignment.Stretch,
             IsVisible = false
         };
+        _cpuDetailedView = new CPUPerformanceDetailedView(palette, resources);
         _gpuPerformanceDetailsView = new GPUPerformanceDetailsView(
             palette,
             resources,
@@ -213,6 +215,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             {
                 _detailGraph,
                 _cpuLogicalProcessorGrid,
+                _cpuDetailedView,
                 _gpuPerformanceDetailsView
             }
         };
@@ -375,7 +378,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (eventArgs.PropertyName == nameof(AppSettings.CPUPerformanceGraphView))
         {
             UpdateSelectionAndDetails();
-            RefreshVisibleLogicalProcessorGraphs();
+            RefreshVisibleCPUGraphs();
             return;
         }
 
@@ -451,6 +454,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 
         int logicalProcessorCount = GetLogicalProcessorCount(latestSnapshot.CPU);
+        CPUCCDTopology CCDTopology = latestSnapshot.CPU.CCDTopology;
         if (logicalProcessorCount == 0)
         {
             for (int snapshotIndex = archivedSnapshots.Count - 1;
@@ -462,6 +466,19 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 if (logicalProcessorCount > 0) break;
             }
         }
+        if (!CCDTopology.IsAvailable)
+        {
+            for (int snapshotIndex = archivedSnapshots.Count - 1;
+                 snapshotIndex >= 0;
+                 snapshotIndex--)
+            {
+                CPUCCDTopology archivedTopology = archivedSnapshots[snapshotIndex].CPU.CCDTopology;
+                if (!archivedTopology.IsAvailable) continue;
+
+                CCDTopology = archivedTopology;
+                break;
+            }
+        }
 
         _histories.Clear();
         _cpuHighestCoreHistory = CreateHistory();
@@ -469,6 +486,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _networkTransferRateHistories.Clear();
         _diskTransferRateHistories.Clear();
         RebuildCPULogicalProcessorGraphs(logicalProcessorCount);
+        _cpuDetailedView.Rebuild(
+            GetOrCreateHistory(CPUPerformanceSnapshot.StableDeviceID),
+            _cpuHighestCoreHistory,
+            CCDTopology,
+            _historyLengthMinutes,
+            _sampleIntervalMilliseconds);
         _hasProcessedSnapshot = false;
         _lastProcessedTimestamp = 0;
 
@@ -502,6 +525,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _cpuHighestCoreHistory,
             snapshot.CPU,
             capturedTimestamp);
+        _cpuDetailedView.Append(snapshot.CPU, capturedTimestamp);
         AppendDeviceHistory(
             snapshot.Memory.DeviceID,
             capturedTimestamp,
@@ -676,16 +700,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _selectedDeviceID = orderedItems.Count == 0 ? null : orderedItems[0].ID;
 
         UpdateSelectionAndDetails();
-        RefreshVisibleLogicalProcessorGraphs();
+        RefreshVisibleCPUGraphs();
     }
 
-    /// <summary>Repaints expanded CPU graphs after their shared history batch changes.</summary>
-    private void RefreshVisibleLogicalProcessorGraphs()
+    /// <summary>Repaints the active expanded CPU view after its shared histories change.</summary>
+    private void RefreshVisibleCPUGraphs()
     {
-        if (!_cpuLogicalProcessorGrid.IsVisible) return;
-
-        for (int graphIndex = 0; graphIndex < _cpuLogicalProcessorGraphs.Count; graphIndex++)
-            _cpuLogicalProcessorGraphs[graphIndex].Refresh();
+        if (_cpuLogicalProcessorGrid.IsVisible)
+        {
+            for (int graphIndex = 0;
+                 graphIndex < _cpuLogicalProcessorGraphs.Count;
+                 graphIndex++)
+            {
+                _cpuLogicalProcessorGraphs[graphIndex].Refresh();
+            }
+        }
+        _cpuDetailedView.Refresh();
     }
 
     private PerformanceHistory GetOrCreateHistory(string deviceID)
@@ -880,7 +910,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         double highestCPUUtilizationPercent,
         double overallUtilizationPercent) =>
         string.Concat(
-            "Highest CPU: ",
+            "Highest LP: ",
             PerformanceDevicePresentationFactory.FormatPercent(
                 true,
                 highestCPUUtilizationPercent),
@@ -1143,7 +1173,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 ? SelectedGraphViewGlyph
                 : null
         });
-        entries.Add("Detailed view", static () => { });
+        entries.Add(new TrayMenuEntry(
+            "Detailed view",
+            () => SetCPUGraphView(CPUPerformanceGraphView.DetailedView))
+        {
+            TrailingGlyph = _settings.CPUPerformanceGraphView
+                            == CPUPerformanceGraphView.DetailedView
+                ? SelectedGraphViewGlyph
+                : null
+        });
 
         TaskManagerContextMenuWindow menuWindow = new(
             entries.ToList(),
@@ -1206,6 +1244,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _detailGraph.SetSecondaryHistory(null);
             _detailGraph.IsVisible = false;
             _cpuLogicalProcessorGrid.IsVisible = false;
+            _cpuDetailedView.IsVisible = false;
             _gpuPerformanceDetailsView.Hide();
             _genericGraphHeader.IsVisible = true;
             _genericGraphFooter.IsVisible = true;
@@ -1226,9 +1265,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                                      && _settings.CPUPerformanceGraphView
                                      == CPUPerformanceGraphView.LogicalProcessors
                                      && _cpuLogicalProcessorHistories.Count > 0;
+        bool showDetailedCPU = selectedDevice.Kind == PerformanceDeviceKind.CPU
+                               && _settings.CPUPerformanceGraphView
+                               == CPUPerformanceGraphView.DetailedView;
         bool showGPUDetails = selectedDevice.Kind == PerformanceDeviceKind.GPU;
-        _detailGraph.IsVisible = !showLogicalProcessors && !showGPUDetails;
+        _detailGraph.IsVisible = !showLogicalProcessors && !showDetailedCPU && !showGPUDetails;
         _cpuLogicalProcessorGrid.IsVisible = showLogicalProcessors;
+        _cpuDetailedView.IsVisible = showDetailedCPU;
         _genericGraphHeader.IsVisible = !showGPUDetails;
         _genericGraphFooter.IsVisible = !showGPUDetails;
         if (showGPUDetails)
@@ -1418,6 +1461,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _cpuLogicalProcessorGrid.Children.Clear();
         _cpuLogicalProcessorGraphs.Clear();
         _cpuLogicalProcessorHistories.Clear();
+        _cpuDetailedView.Clear();
     }
 
     private sealed record NetworkTransferRateHistories(

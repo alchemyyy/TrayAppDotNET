@@ -269,13 +269,13 @@ public sealed class AppSettingsTests
         string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
         try
         {
-            settings.CPUPerformanceGraphView = CPUPerformanceGraphView.OverallUtilization;
+            settings.CPUPerformanceGraphView = CPUPerformanceGraphView.DetailedView;
             settings.Save(path);
 
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
             Assert.Equal(
-                CPUPerformanceGraphView.OverallUtilization,
+                CPUPerformanceGraphView.DetailedView,
                 loaded.CPUPerformanceGraphView);
         }
         finally
@@ -297,12 +297,12 @@ public sealed class AppSettingsTests
         };
         settings.Changed += () => changedCount++;
 
-        settings.UpdateCPUPerformanceGraphView(CPUPerformanceGraphView.OverallUtilization);
+        settings.UpdateCPUPerformanceGraphView(CPUPerformanceGraphView.DetailedView);
 
         Assert.Equal(1, propertyChangedCount);
         Assert.Equal(0, changedCount);
         Assert.Equal(
-            CPUPerformanceGraphView.OverallUtilization,
+            CPUPerformanceGraphView.DetailedView,
             settings.CPUPerformanceGraphView);
     }
 

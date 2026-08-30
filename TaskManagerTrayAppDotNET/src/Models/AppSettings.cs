@@ -19,7 +19,8 @@ public enum TrayGraphDataSource
 public enum CPUPerformanceGraphView
 {
     LogicalProcessors,
-    OverallUtilization
+    OverallUtilization,
+    DetailedView
 }
 
 public enum DetailsGridFontWeight

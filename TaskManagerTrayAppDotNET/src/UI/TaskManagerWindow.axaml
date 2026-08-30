@@ -135,6 +135,8 @@
   <sys:Double x:Key="TaskManagerPerformance.GPUDetailGraphRowSpacing">7</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGraphSpacing">5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGridAspectRatio">1.3333333333333333</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailedCPUGraphSpacing">8</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailedCPUGridAspectRatio">1.3333333333333333</sys:Double>
   <Thickness x:Key="TaskManagerPerformance.BodyMargin">8,8,16,16</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceColumnPadding">4,0,12,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceCardPadding">7,5</Thickness>
