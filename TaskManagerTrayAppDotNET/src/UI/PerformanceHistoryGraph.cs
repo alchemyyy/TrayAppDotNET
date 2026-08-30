@@ -25,12 +25,16 @@ internal sealed class PerformanceHistoryGraph : Control
     private readonly double _hoverTextCursorGap;
     private readonly double _hoverTextInset;
     private readonly double _lineThickness;
+    private readonly double _secondaryLineThickness;
+    private readonly double _secondaryLineOpacity;
     private readonly int _gridColumns;
     private readonly int _gridRows;
     private readonly Func<long, string?>? _hoverMetricProvider;
     private PerformanceHistory _history;
+    private PerformanceHistory? _secondaryHistory;
     private Color _accent;
     private Pen _linePen;
+    private Pen _secondaryLinePen;
     private Point _hoverPointerPosition;
     private bool _isPointerOver;
 
@@ -80,7 +84,14 @@ internal sealed class PerformanceHistoryGraph : Control
         _hoverTextCursorGap = resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap;
         _hoverTextInset = resources.AxamlTaskManagerPerformance.GraphHoverTextInset;
         _lineThickness = resources.AxamlTaskManagerPerformance.GraphLineThickness;
+        _secondaryLineThickness =
+            resources.AxamlTaskManagerPerformance.GraphSecondaryLineThickness;
+        _secondaryLineOpacity = Math.Clamp(
+            resources.AxamlTaskManagerPerformance.GraphSecondaryLineOpacity,
+            0,
+            1);
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
+        _secondaryLinePen = CreateSecondaryLinePen(accent);
         _gridColumns = resources.AxamlTaskManagerPerformance.GraphGridColumns;
         _gridRows = resources.AxamlTaskManagerPerformance.GraphGridRows;
         _hoverMetricProvider = hoverMetricProvider;
@@ -96,12 +107,22 @@ internal sealed class PerformanceHistoryGraph : Control
         InvalidateVisual();
     }
 
+    /// <summary>Changes the optional history drawn beneath the primary utilization trace.</summary>
+    public void SetSecondaryHistory(PerformanceHistory? history)
+    {
+        if (ReferenceEquals(_secondaryHistory, history)) return;
+
+        _secondaryHistory = history;
+        InvalidateVisual();
+    }
+
     /// <summary>Changes the device accent used for the utilization trace.</summary>
     public void SetAccent(Color accent)
     {
         if (_accent == accent) return;
         _accent = accent;
         _linePen = new Pen(new SolidColorBrush(accent), _lineThickness);
+        _secondaryLinePen = CreateSecondaryLinePen(accent);
         InvalidateVisual();
     }
 
@@ -168,23 +189,9 @@ internal sealed class PerformanceHistoryGraph : Control
             context.DrawLine(_gridPen, new Point(0, positionY), new Point(width, positionY));
         }
 
-        int sampleCount = _history.Count;
-        if (sampleCount >= 2)
-        {
-            double windowStartTimestamp = _history.CurrentTimestamp
-                                          - (double)_history.WindowDurationTicks;
-            Point previousPoint = PointForSample(0, width, height, windowStartTimestamp);
-            for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
-            {
-                Point currentPoint = PointForSample(
-                    sampleIndex,
-                    width,
-                    height,
-                    windowStartTimestamp);
-                context.DrawLine(_linePen, previousPoint, currentPoint);
-                previousPoint = currentPoint;
-            }
-        }
+        if (_secondaryHistory != null)
+            DrawHistoryTrace(context, _secondaryHistory, _secondaryLinePen, width, height);
+        DrawHistoryTrace(context, _history, _linePen, width, height);
 
         DrawHover(context, width, height);
     }
@@ -301,19 +308,61 @@ internal sealed class PerformanceHistoryGraph : Control
         }
     }
 
+    /// <summary>Draws one history against its fixed-duration timeline.</summary>
+    private static void DrawHistoryTrace(
+        DrawingContext context,
+        PerformanceHistory history,
+        Pen pen,
+        double width,
+        double height)
+    {
+        int sampleCount = history.Count;
+        if (sampleCount < 2) return;
+
+        double windowStartTimestamp = history.CurrentTimestamp
+                                      - (double)history.WindowDurationTicks;
+        Point previousPoint = PointForSample(
+            history,
+            0,
+            width,
+            height,
+            windowStartTimestamp);
+        for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
+        {
+            Point currentPoint = PointForSample(
+                history,
+                sampleIndex,
+                width,
+                height,
+                windowStartTimestamp);
+            context.DrawLine(pen, previousPoint, currentPoint);
+            previousPoint = currentPoint;
+        }
+    }
+
     /// <summary>Maps one history sample onto the graph's fixed-duration timeline.</summary>
-    private Point PointForSample(
+    private static Point PointForSample(
+        PerformanceHistory history,
         int sampleIndex,
         double width,
         double height,
         double windowStartTimestamp)
     {
-        double value = _history.GetChronological(sampleIndex);
-        long timestamp = _history.GetTimestampChronological(sampleIndex);
+        double value = history.GetChronological(sampleIndex);
+        long timestamp = history.GetTimestampChronological(sampleIndex);
         double elapsedWindowFraction = (timestamp - windowStartTimestamp)
-                                       / _history.WindowDurationTicks;
+                                       / history.WindowDurationTicks;
         double positionX = Math.Clamp(elapsedWindowFraction, 0, 1) * width;
         double positionY = height - value / 100.0 * height;
         return new Point(positionX, positionY);
+    }
+
+    private Pen CreateSecondaryLinePen(Color accent)
+    {
+        byte alpha = (byte)Math.Round(accent.A * _secondaryLineOpacity);
+        Color dimAccent = Color.FromArgb(alpha, accent.R, accent.G, accent.B);
+        return new Pen(
+            new SolidColorBrush(dimAccent),
+            _secondaryLineThickness);
     }
 }

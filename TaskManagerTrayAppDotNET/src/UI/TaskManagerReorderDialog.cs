@@ -23,7 +23,14 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     private readonly SettingsButton _doneButton;
     private readonly double _workAreaMargin;
     private readonly double _searchWidthRatio;
+    private int _resetConfirmationPending;
     private int _disposed;
+
+    /// <summary>Gets the palette shared by the dialog and any owned prompts.</summary>
+    protected SettingsPalette Palette { get; }
+
+    /// <summary>Gets whether owned surfaces should use rounded corners.</summary>
+    protected bool RoundedCornersEnabled { get; }
 
     protected TaskManagerReorderDialog(
         string title,
@@ -69,6 +76,8 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _items = items;
         _createDefaultItems = createDefaultItems;
         _itemsChanged = itemsChanged;
+        Palette = palette;
+        RoundedCornersEnabled = enableRoundedCorners;
         _workAreaMargin = resources.AxamlTaskManagerReorderDialog.WorkAreaMargin;
         _searchWidthRatio = resources.AxamlTaskManagerReorderDialog.SearchWidthRatio;
         if (_searchWidthRatio <= 0 || _searchWidthRatio > 1)
@@ -152,7 +161,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         {
             RowDefinitions =
             {
-                new RowDefinition(new GridLength(resources.AxamlTaskManagerReorderDialog.TitleBarHeight)),
+                new RowDefinition(new GridLength(_closeButton.Height)),
                 new RowDefinition(GridLength.Auto),
                 new RowDefinition(GridLength.Star),
                 new RowDefinition(GridLength.Auto)
@@ -268,9 +277,27 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _scrollViewport?.SetVerticalOffset(0);
     }
 
-    private void OnResetClick(object? sender, EventArgs eventArgs)
+    private async void OnResetClick(object? sender, EventArgs eventArgs)
     {
         if (Volatile.Read(ref _disposed) != 0) return;
+        if (Interlocked.Exchange(ref _resetConfirmationPending, 1) != 0) return;
+
+        bool confirmed;
+        try
+        {
+            confirmed = await ConfirmResetAsync();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"{GetType().Name} reset confirmation failed: {exception}");
+            return;
+        }
+        finally
+        {
+            Volatile.Write(ref _resetConfirmationPending, 0);
+        }
+
+        if (!confirmed || Volatile.Read(ref _disposed) != 0) return;
 
         List<TItem> defaultItems = _createDefaultItems();
         _items.Clear();
@@ -278,6 +305,9 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         _reorderList.Refresh();
         PublishItemsChanged();
     }
+
+    /// <summary>Confirms a reset when the specialized reorder dialog requires it.</summary>
+    protected virtual Task<bool> ConfirmResetAsync() => Task.FromResult(true);
 
     private void OnCancelClick(object? sender, EventArgs eventArgs)
     {

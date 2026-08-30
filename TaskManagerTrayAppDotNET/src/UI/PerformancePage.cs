@@ -28,6 +28,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, NetworkTransferRateHistories> _networkTransferRateHistories =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DiskTransferRateHistories> _diskTransferRateHistories =
+        new(StringComparer.Ordinal);
     private readonly List<string> _staleDeviceIDs = [];
     private readonly TextBlock _detailTitle;
     private readonly TextBlock _detailHardwareName;
@@ -50,6 +52,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
     private PerformanceHardwareNameResolver _hardwareNameResolver;
     private MemoryPerformanceSnapshot _latestMemorySnapshot = MemoryPerformanceSnapshot.Empty;
+    private PerformanceHistory _cpuHighestCoreHistory;
     private PerformanceMetricHistory _memoryUsedHistory;
     private string? _selectedDeviceID;
     private int _historyLengthMinutes;
@@ -76,6 +79,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             settings.PerformanceHistoryLengthMinutes);
         _sampleIntervalMilliseconds = PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(
             settings.PerformanceSampleIntervalMilliseconds);
+        _cpuHighestCoreHistory = CreateHistory();
         _memoryUsedHistory = CreateMetricHistory();
         _hardwareNameResolver = PerformanceHardwareNameResolver.Create(
             settings.PerformanceHardwareNameReplacementRules);
@@ -357,6 +361,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             return;
         }
 
+        if (eventArgs.PropertyName == nameof(AppSettings.ShowCPUHighestCoreTrace))
+        {
+            UpdateCPUHighestCoreTraceVisibility();
+            return;
+        }
+
         if (eventArgs.PropertyName is not nameof(AppSettings.PerformanceHistoryLengthMinutes)
             and not nameof(AppSettings.PerformanceSampleIntervalMilliseconds)) return;
 
@@ -442,8 +452,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 
         _histories.Clear();
+        _cpuHighestCoreHistory = CreateHistory();
         _memoryUsedHistory = CreateMetricHistory();
         _networkTransferRateHistories.Clear();
+        _diskTransferRateHistories.Clear();
         RebuildCPULogicalProcessorGraphs(logicalProcessorCount);
         _hasProcessedSnapshot = false;
         _lastProcessedTimestamp = 0;
@@ -473,11 +485,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _diskPerformanceDetailsView.Append(snapshot);
         _gpuPerformanceDetailsView.Append(snapshot);
         long capturedTimestamp = snapshot.CapturedTimestamp;
-        AppendDeviceHistory(
-            snapshot.CPU.DeviceID,
-            capturedTimestamp,
-            snapshot.CPU.HasUtilizationSample,
-            snapshot.CPU.UtilizationPercent);
+        AppendCPUOverallHistories(
+            GetOrCreateHistory(snapshot.CPU.DeviceID),
+            _cpuHighestCoreHistory,
+            snapshot.CPU,
+            capturedTimestamp);
         AppendDeviceHistory(
             snapshot.Memory.DeviceID,
             capturedTimestamp,
@@ -526,6 +538,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         for (int diskIndex = 0; diskIndex < disks.Length; diskIndex++)
         {
             DiskPerformanceSnapshot disk = disks[diskIndex];
+            DiskTransferRateHistories transferRateHistories =
+                GetOrCreateDiskTransferRateHistories(disk.DeviceID);
+            AppendDiskTransferRateHistories(
+                transferRateHistories.Read,
+                transferRateHistories.Write,
+                disk,
+                capturedTimestamp);
             AppendDeviceHistory(
                 disk.DeviceID,
                 capturedTimestamp,
@@ -546,6 +565,44 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         history.AdvanceTo(capturedTimestamp);
         if (hasUtilizationSample)
             history.Add(capturedTimestamp, utilizationPercent);
+    }
+
+    /// <summary>Keeps aggregate and highest-logical-processor CPU histories on one timeline.</summary>
+    internal static void AppendCPUOverallHistories(
+        PerformanceHistory utilizationHistory,
+        PerformanceHistory highestCoreHistory,
+        CPUPerformanceSnapshot snapshot,
+        long capturedTimestamp)
+    {
+        ArgumentNullException.ThrowIfNull(utilizationHistory);
+        ArgumentNullException.ThrowIfNull(highestCoreHistory);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        utilizationHistory.AdvanceTo(capturedTimestamp);
+        highestCoreHistory.AdvanceTo(capturedTimestamp);
+        if (!snapshot.HasUtilizationSample) return;
+
+        utilizationHistory.Add(capturedTimestamp, snapshot.UtilizationPercent);
+        highestCoreHistory.Add(capturedTimestamp, snapshot.HighestLogicalProcessorPercent);
+    }
+
+    /// <summary>Keeps disk read and write rates on the active-time sample timeline.</summary>
+    internal static void AppendDiskTransferRateHistories(
+        PerformanceMetricHistory readHistory,
+        PerformanceMetricHistory writeHistory,
+        DiskPerformanceSnapshot snapshot,
+        long capturedTimestamp)
+    {
+        ArgumentNullException.ThrowIfNull(readHistory);
+        ArgumentNullException.ThrowIfNull(writeHistory);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        readHistory.AdvanceTo(capturedTimestamp);
+        writeHistory.AdvanceTo(capturedTimestamp);
+        if (!snapshot.HasPerformanceSample) return;
+
+        readHistory.Add(capturedTimestamp, snapshot.ReadBytesPerSecond);
+        writeHistory.Add(capturedTimestamp, snapshot.WriteBytesPerSecond);
     }
 
     private void ApplySnapshotPresentation(PerformanceSnapshot snapshot)
@@ -593,6 +650,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             {
                 card.Update(device, history);
             }
+            card.SetSecondaryHistory(
+                device.Kind == PerformanceDeviceKind.CPU
+                && _settings.ShowCPUHighestCoreTrace
+                    ? _cpuHighestCoreHistory
+                    : null);
             rows.Add(new PerformanceDeviceColumnRow(orderItem.ID, card));
         }
 
@@ -640,6 +702,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         return histories;
     }
 
+    private DiskTransferRateHistories GetOrCreateDiskTransferRateHistories(string deviceID)
+    {
+        if (_diskTransferRateHistories.TryGetValue(
+                deviceID,
+                out DiskTransferRateHistories? histories))
+        {
+            return histories;
+        }
+
+        histories = new DiskTransferRateHistories(
+            CreateMetricHistory(),
+            CreateMetricHistory());
+        _diskTransferRateHistories.Add(deviceID, histories);
+        return histories;
+    }
+
     private PerformanceHistory CreateHistory() =>
         new(_historyLengthMinutes, _sampleIntervalMilliseconds);
 
@@ -678,6 +756,24 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 return FormatNetworkTransferHoverMetric(
                     sendBytesPerSecond,
                     receiveBytesPerSecond);
+
+            case PerformanceDeviceKind.Disk:
+                if (!_diskTransferRateHistories.TryGetValue(
+                        selectedDevice.DeviceID,
+                        out DiskTransferRateHistories? diskHistories)
+                    || !diskHistories.Read.TryGetExact(
+                        sampleTimestamp,
+                        out double readBytesPerSecond)
+                    || !diskHistories.Write.TryGetExact(
+                        sampleTimestamp,
+                        out double writeBytesPerSecond))
+                {
+                    return null;
+                }
+
+                return FormatDiskTransferHoverMetric(
+                    readBytesPerSecond,
+                    writeBytesPerSecond);
 
             default:
                 return null;
@@ -718,6 +814,24 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     sendBytesPerSecond,
                     receiveBytesPerSecond);
 
+            case PerformanceDeviceKind.Disk:
+                if (!_diskTransferRateHistories.TryGetValue(
+                        deviceID,
+                        out DiskTransferRateHistories? diskHistories)
+                    || !diskHistories.Read.TryGetExact(
+                        sampleTimestamp,
+                        out double readBytesPerSecond)
+                    || !diskHistories.Write.TryGetExact(
+                        sampleTimestamp,
+                        out double writeBytesPerSecond))
+                {
+                    return null;
+                }
+
+                return FormatDiskTransferHoverMetric(
+                    readBytesPerSecond,
+                    writeBytesPerSecond);
+
             default:
                 return null;
         }
@@ -740,6 +854,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(sendBytesPerSecond),
             "\nR: ",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond(receiveBytesPerSecond));
+
+    internal static string FormatDiskTransferHoverMetric(
+        double readBytesPerSecond,
+        double writeBytesPerSecond) =>
+        string.Concat(
+            "R: ",
+            PerformanceDevicePresentationFactory.FormatBytesPerSecond(readBytesPerSecond),
+            "\nW: ",
+            PerformanceDevicePresentationFactory.FormatBytesPerSecond(writeBytesPerSecond));
 
     internal static string FormatMemoryDeviceColumnHoverMetric(double usedBytes)
     {
@@ -915,6 +1038,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _deviceCards.Remove(deviceID);
             _histories.Remove(deviceID);
             _networkTransferRateHistories.Remove(deviceID);
+            _diskTransferRateHistories.Remove(deviceID);
         }
     }
 
@@ -948,6 +1072,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _detailTitle.Text = "No devices";
             _detailHardwareName.Text = string.Empty;
             _detailGraphLabel.Text = string.Empty;
+            _detailGraph.SetSecondaryHistory(null);
             _detailGraph.IsVisible = false;
             _cpuLogicalProcessorGrid.IsVisible = false;
             _gpuPerformanceDetailsView.Hide();
@@ -965,6 +1090,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _detailGraphLabel.Text = selectedDevice.GraphLabel;
         _detailGraph.SetAccent(selectedDevice.Accent);
         _detailGraph.SetHistory(_histories[selectedDevice.DeviceID]);
+        UpdateDetailGraphSecondaryHistory();
         bool showLogicalProcessors = selectedDevice.Kind == PerformanceDeviceKind.CPU
                                      && _cpuLogicalProcessorHistories.Count > 0;
         bool showGPUDetails = selectedDevice.Kind == PerformanceDeviceKind.GPU;
@@ -1023,6 +1149,34 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _diskPerformanceDetailsView.Hide();
         }
         SetStatistics(selectedDevice.Kind, selectedDevice.Statistics.Span);
+    }
+
+    /// <summary>Shows the highest-core overlay only on the aggregate CPU graph.</summary>
+    private void UpdateDetailGraphSecondaryHistory()
+    {
+        bool showHighestCoreTrace = _settings.ShowCPUHighestCoreTrace
+                                    && _selectedDeviceID != null
+                                    && _devices.TryGetValue(
+                                        _selectedDeviceID,
+                                        out PerformanceDevicePresentation? selectedDevice)
+                                    && selectedDevice.Kind == PerformanceDeviceKind.CPU;
+        _detailGraph.SetSecondaryHistory(
+            showHighestCoreTrace ? _cpuHighestCoreHistory : null);
+    }
+
+    /// <summary>Applies the CPU overlay toggle to every reachable aggregate graph.</summary>
+    private void UpdateCPUHighestCoreTraceVisibility()
+    {
+        UpdateDetailGraphSecondaryHistory();
+        if (!_deviceCards.TryGetValue(
+                CPUPerformanceSnapshot.StableDeviceID,
+                out PerformanceDeviceCard? CPUCard))
+        {
+            return;
+        }
+
+        CPUCard.SetSecondaryHistory(
+            _settings.ShowCPUHighestCoreTrace ? _cpuHighestCoreHistory : null);
     }
 
     private void SetStatistics(
@@ -1123,6 +1277,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _deviceCards.Clear();
         _histories.Clear();
         _networkTransferRateHistories.Clear();
+        _diskTransferRateHistories.Clear();
+        _cpuHighestCoreHistory.Clear();
         _memoryUsedHistory.Clear();
         _cpuLogicalProcessorGrid.Children.Clear();
         _cpuLogicalProcessorGraphs.Clear();
@@ -1132,6 +1288,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private sealed record NetworkTransferRateHistories(
         PerformanceMetricHistory Send,
         PerformanceMetricHistory Receive);
+
+    private sealed record DiskTransferRateHistories(
+        PerformanceMetricHistory Read,
+        PerformanceMetricHistory Write);
 
     private sealed class PerformanceDeviceCard : Border
     {
@@ -1247,6 +1407,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _graph.SetHistory(history);
             UpdateSurface();
         }
+
+        /// <summary>Forwards an optional aggregate overlay to the card graph.</summary>
+        public void SetSecondaryHistory(PerformanceHistory? history) =>
+            _graph.SetSecondaryHistory(history);
 
         public void SetSelected(bool isSelected)
         {

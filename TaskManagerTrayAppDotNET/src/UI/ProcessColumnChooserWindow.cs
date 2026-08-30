@@ -147,6 +147,24 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         return false;
     }
 
+    /// <summary>Asks before restoring every column property to its default value.</summary>
+    protected override async Task<bool> ConfirmResetAsync()
+    {
+        using TrayAppDotNETUpdateConfirmationWindow confirmation = new(
+            "Reset process columns?",
+            "This will restore the default column visibility, order, widths, and display options.",
+            "Reset",
+            Palette,
+            RoundedCornersEnabled,
+            cancelText: "Cancel")
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        TrayAppDotNETUpdatePromptResult result =
+            await confirmation.ShowDialog<TrayAppDotNETUpdatePromptResult>(this);
+        return result == TrayAppDotNETUpdatePromptResult.Confirmed;
+    }
+
     private static Color ResolveBackground(SettingsPalette palette)
     {
         Color paletteBackground = palette.Background;

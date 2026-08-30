@@ -64,7 +64,7 @@ public sealed class AppSettings : AppSettingsCommon
     {
         get;
         set => SetField(ref field, value);
-    } = true;
+    }
 
     public bool LeftAlignProcessSearchBar
     {
@@ -141,6 +141,12 @@ public sealed class AppSettings : AppSettingsCommon
             ref field,
             PerformanceSamplingSettings.NormalizeSampleIntervalMilliseconds(value));
     } = PerformanceSamplingSettings.DefaultSampleIntervalMilliseconds;
+
+    public bool ShowCPUHighestCoreTrace
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
 
     public bool ShowMemoryModuleSerialNumbers
     {

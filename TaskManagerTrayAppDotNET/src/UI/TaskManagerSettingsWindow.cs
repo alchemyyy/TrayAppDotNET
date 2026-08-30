@@ -223,6 +223,14 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             " ms",
             ["performance refresh update rate frequency milliseconds"]));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("CPU", palette));
+        stack.Children.Add(BoolCard(
+            "Show highest core trace",
+            "Draw a thinner, dimmer highest-logical-processor trace behind the overall CPU graph.",
+            _settings.ShowCPUHighestCoreTrace,
+            value => _settings.ShowCPUHighestCoreTrace = value,
+            palette,
+            searchKeywords: ["CPU core logical processor utilization graph overlay"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Memory", palette));
         stack.Children.Add(BoolCard(
             "Show memory module serial numbers",

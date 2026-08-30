@@ -51,8 +51,8 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
         _graph = new PerformanceMetricHistoryGraph(
             _readHistory,
             _writeHistory,
-            "Read",
-            "Write",
+            "R",
+            "W",
             PerformanceDevicePresentationFactory.FormatBytesPerSecond,
             accent,
             palette,
