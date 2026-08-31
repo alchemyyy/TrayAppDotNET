@@ -4,12 +4,23 @@ using System.Runtime.InteropServices;
 
 namespace TaskManagerTrayAppDotNET.Services;
 
+internal delegate bool TryTerminateProcessAction(
+    ProcessTerminationTarget target,
+    out string errorMessage);
+
+internal readonly record struct ExplorerRestartResult(
+    bool Succeeded,
+    string ErrorMessage);
+
 /// <summary>Small native-backed process actions kept independent from the sampling pipeline.</summary>
 internal static class CriticalProcessActions
 {
     private const int ErrorAccessDenied = 5;
     private const int ErrorInvalidParameter = 87;
     private const int ErrorNotFound = 1168;
+    private const int ExplorerExitTimeoutMilliseconds = 5_000;
+    private const string ExplorerExecutableName = "explorer.exe";
+    private const string ExplorerProcessName = "explorer";
     private const uint TerminationExitCode = 1;
 
     public static bool TryTerminate(int processID, out string errorMessage) =>
@@ -175,5 +186,137 @@ internal static class CriticalProcessActions
             errorMessage = exception.Message;
             return false;
         }
+    }
+
+    /// <summary>Terminates every Explorer process captured at invocation, then starts a fresh shell.</summary>
+    public static ExplorerRestartResult RestartExplorer(
+        TryTerminateProcessAction terminateProcess)
+    {
+        ArgumentNullException.ThrowIfNull(terminateProcess);
+
+        Process[] explorerProcesses;
+        try
+        {
+            explorerProcesses = Process.GetProcessesByName(ExplorerProcessName);
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or Win32Exception or NotSupportedException)
+        {
+            return new ExplorerRestartResult(
+                false,
+                $"Windows Explorer processes could not be enumerated: {exception.Message}");
+        }
+
+        List<Process> terminatedProcesses = new(explorerProcesses.Length);
+        List<string> failures = [];
+        try
+        {
+            foreach (Process process in explorerProcesses)
+            {
+                int processID = -1;
+                try
+                {
+                    processID = process.Id;
+                    if (process.HasExited) continue;
+
+                    ProcessTerminationTarget target = new(
+                        processID,
+                        process.StartTime.ToFileTimeUtc());
+                    if (!terminateProcess(target, out string errorMessage))
+                    {
+                        if (process.HasExited) continue;
+
+                        failures.Add(FormatExplorerFailure(processID, errorMessage));
+                        continue;
+                    }
+
+                    terminatedProcesses.Add(process);
+                }
+                catch (Exception exception) when (
+                    exception is InvalidOperationException or Win32Exception or NotSupportedException)
+                {
+                    failures.Add(FormatExplorerFailure(processID, exception.Message));
+                }
+            }
+
+            foreach (Process process in terminatedProcesses)
+            {
+                int processID = -1;
+                try
+                {
+                    processID = process.Id;
+                    if (!process.WaitForExit(ExplorerExitTimeoutMilliseconds))
+                    {
+                        failures.Add(FormatExplorerFailure(
+                            processID,
+                            "The process did not exit before the timeout."));
+                    }
+                }
+                catch (Exception exception) when (
+                    exception is InvalidOperationException or Win32Exception or NotSupportedException)
+                {
+                    failures.Add(FormatExplorerFailure(processID, exception.Message));
+                }
+            }
+        }
+        finally
+        {
+            foreach (Process process in explorerProcesses)
+                process.Dispose();
+        }
+
+        ExplorerRestartResult startResult = StartExplorer();
+        if (!startResult.Succeeded)
+            failures.Add($"Starting {ExplorerExecutableName}: {startResult.ErrorMessage}");
+        if (failures.Count > 0)
+        {
+            return new ExplorerRestartResult(
+                false,
+                string.Join(Environment.NewLine, failures));
+        }
+
+        return startResult;
+    }
+
+    private static ExplorerRestartResult StartExplorer()
+    {
+        string windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (string.IsNullOrWhiteSpace(windowsDirectory))
+            windowsDirectory = Environment.GetEnvironmentVariable("SystemRoot") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(windowsDirectory))
+        {
+            return new ExplorerRestartResult(
+                false,
+                "The Windows directory could not be resolved.");
+        }
+
+        string explorerPath = Path.Combine(windowsDirectory, ExplorerExecutableName);
+        try
+        {
+            using Process? process = Process.Start(new ProcessStartInfo
+            {
+                FileName = explorerPath,
+                WorkingDirectory = windowsDirectory,
+                UseShellExecute = false
+            });
+            return process == null
+                ? new ExplorerRestartResult(
+                    false,
+                    "Windows did not create a new Explorer process.")
+                : new ExplorerRestartResult(true, string.Empty);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
+        {
+            return new ExplorerRestartResult(false, exception.Message);
+        }
+    }
+
+    private static string FormatExplorerFailure(int processID, string errorMessage)
+    {
+        string identity = processID > 0 ? $"explorer.exe (PID {processID})" : ExplorerExecutableName;
+        string detail = string.IsNullOrWhiteSpace(errorMessage)
+            ? "The process could not be terminated."
+            : errorMessage;
+        return $"{identity}: {detail}";
     }
 }

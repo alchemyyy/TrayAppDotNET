@@ -93,6 +93,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    public bool SkipRestartExplorerConfirmation
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public bool AlwaysOnTop
     {
         get;

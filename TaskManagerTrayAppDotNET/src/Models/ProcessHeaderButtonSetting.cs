@@ -5,7 +5,8 @@ public enum ProcessHeaderButtonKind
 {
     RunNewTask,
     Columns,
-    EndTask
+    EndTask,
+    RestartExplorer
 }
 
 /// <summary>Creates and normalizes the persisted Processes header-button order.</summary>
@@ -15,7 +16,8 @@ internal static class ProcessHeaderButtonSettings
     [
         ProcessHeaderButtonKind.RunNewTask,
         ProcessHeaderButtonKind.Columns,
-        ProcessHeaderButtonKind.EndTask
+        ProcessHeaderButtonKind.EndTask,
+        ProcessHeaderButtonKind.RestartExplorer
     ];
 
     /// <summary>Returns a new list containing the default left-to-right button order.</summary>

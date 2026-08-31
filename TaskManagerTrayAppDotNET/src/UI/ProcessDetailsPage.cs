@@ -21,6 +21,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private readonly Func<ElevatedHelperStatus> _getElevatedHelperStatus;
     private readonly Action _requestElevatedTermination;
     private readonly Func<ProcessEndTaskRequest, Task<bool>> _confirmEndTask;
+    private readonly Func<Task<bool>> _confirmRestartExplorer;
+    private readonly Func<Task<ExplorerRestartResult>> _restartExplorer;
     private readonly Action<string, string> _reportMessage;
     private readonly Func<string, bool> _startProcess;
     private readonly AppSettings _settings;
@@ -37,6 +39,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
     private readonly SettingsButton _runTaskButton;
+    private readonly SettingsButton _restartExplorerButton;
     private readonly SettingsButton _columnsButton;
     private readonly SettingsButton _endTaskButton;
     private readonly SettingsButton _moreActionsButton;
@@ -54,6 +57,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private ProcessHeaderButtonArrangementWindow? _headerButtonArrangementWindow;
     private TaskManagerContextMenuWindow? _headerActionsMenuWindow;
     private bool _isEndTaskConfirmationPending;
+    private bool _isRestartExplorerPending;
     private bool _disposed;
 
     public ProcessDetailsPage(
@@ -67,7 +71,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         Func<ElevatedHelperStatus> getElevatedHelperStatus,
         Action requestElevatedTermination,
         Func<ProcessEndTaskRequest, Task<bool>> confirmEndTask,
+        Func<Task<bool>> confirmRestartExplorer,
         Func<ProcessSavedSearch, Task<bool>> confirmDeleteSavedSearch,
+        Func<Task<ExplorerRestartResult>> restartExplorer,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
         : base("Processes", palette, resources)
@@ -81,6 +87,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _getElevatedHelperStatus = getElevatedHelperStatus;
         _requestElevatedTermination = requestElevatedTermination;
         _confirmEndTask = confirmEndTask;
+        _confirmRestartExplorer = confirmRestartExplorer;
+        _restartExplorer = restartExplorer;
         _reportMessage = reportMessage;
         _startProcess = startProcess;
         ProcessDataSchema schema = ProcessDataSchema.Create(
@@ -126,6 +134,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 
         _runTaskButton = TrayAppDotNETSettingsUI.Button("Run new task", palette);
         _runTaskButton.Click += OnRunTaskClick;
+        _restartExplorerButton = TrayAppDotNETSettingsUI.Button("Restart explorer", palette);
+        _restartExplorerButton.Click += OnRestartExplorerClick;
         _columnsButton = TrayAppDotNETSettingsUI.Button("Columns", palette);
         _columnsButton.Click += OnColumnsClick;
         _endTaskButton = TrayAppDotNETSettingsUI.Button("End task", palette);
@@ -360,6 +370,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
                 ProcessHeaderButtonKind.RunNewTask => _runTaskButton,
                 ProcessHeaderButtonKind.Columns => _columnsButton,
                 ProcessHeaderButtonKind.EndTask => _endTaskButton,
+                ProcessHeaderButtonKind.RestartExplorer => _restartExplorerButton,
                 _ => throw new ArgumentOutOfRangeException(
                     nameof(buttonKind),
                     buttonKind,
@@ -736,6 +747,46 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             RequestEndTask(request);
     }
 
+    private void OnRestartExplorerClick(object? sender, EventArgs eventArgs) =>
+        _ = RestartExplorerAsync();
+
+    private async Task RestartExplorerAsync()
+    {
+        if (_disposed || _isRestartExplorerPending) return;
+
+        _isRestartExplorerPending = true;
+        _restartExplorerButton.IsEnabled = false;
+        try
+        {
+            bool confirmed = await _confirmRestartExplorer();
+            if (_disposed || !confirmed) return;
+
+            ExplorerRestartResult result = await _restartExplorer();
+            if (_disposed) return;
+            if (!result.Succeeded)
+            {
+                _reportMessage("Restart explorer failed", result.ErrorMessage);
+                return;
+            }
+
+            _snapshotService.RequestRefresh();
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Restart Explorer failed: {exception}");
+            if (!_disposed) _reportMessage("Restart explorer failed", exception.Message);
+        }
+        finally
+        {
+            _isRestartExplorerPending = false;
+            if (!_disposed)
+            {
+                _armTerminationTarget(_processCanvas.SelectedTerminationTarget);
+                _restartExplorerButton.IsEnabled = true;
+            }
+        }
+    }
+
     private void RequestEndTask(ProcessEndTaskRequest request) => _ = EndTaskAsync(request);
 
     private async Task EndTaskAsync(ProcessEndTaskRequest request)
@@ -828,6 +879,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _searchAutocomplete.Dispose();
         _runInput.KeyDown -= OnRunInputKeyDown;
         _runTaskButton.Click -= OnRunTaskClick;
+        _restartExplorerButton.Click -= OnRestartExplorerClick;
         _columnsButton.Click -= OnColumnsClick;
         _endTaskButton.Click -= OnEndTaskClick;
         _moreActionsButton.Click -= OnMoreActionsClick;

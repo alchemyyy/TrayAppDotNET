@@ -120,6 +120,14 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             searchKeywords: ["save settings automatically"]));
         stack.Children.Add(BuildWindowManagementCard(palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader("Processes", palette));
+        stack.Children.Add(BoolCard(
+            "Skip Explorer restart confirmation",
+            "Restart Windows Explorer immediately from the Processes page without asking for confirmation.",
+            _settings.SkipRestartExplorerConfirmation,
+            value => _settings.SkipRestartExplorerConfirmation = value,
+            palette,
+            searchKeywords: ["restart explorer confirmation prompt warning"]));
 
         commonSection.AddInstallationSection(
             stack,

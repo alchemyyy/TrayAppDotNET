@@ -92,6 +92,7 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         ProcessHeaderButtonKind.RunNewTask => "Run new task",
         ProcessHeaderButtonKind.Columns => "Columns",
         ProcessHeaderButtonKind.EndTask => "End task",
+        ProcessHeaderButtonKind.RestartExplorer => "Restart explorer",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown header button kind.")
     };
 }

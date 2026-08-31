@@ -9,10 +9,6 @@ using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
-internal delegate bool TryTerminateProcessAction(
-    ProcessTerminationTarget target,
-    out string errorMessage);
-
 /// <summary>Owns transient row menus and dispatches process actions away from the UI thread.</summary>
 internal sealed class ProcessRowContextMenuController : IDisposable
 {

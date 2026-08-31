@@ -32,7 +32,8 @@ public sealed class AppSettingsTests
             [
                 ProcessHeaderButtonKind.RunNewTask,
                 ProcessHeaderButtonKind.Columns,
-                ProcessHeaderButtonKind.EndTask
+                ProcessHeaderButtonKind.EndTask,
+                ProcessHeaderButtonKind.RestartExplorer
             ],
             settings.ProcessHeaderButtonOrder);
     }
@@ -51,7 +52,8 @@ public sealed class AppSettingsTests
             [
                 ProcessHeaderButtonKind.EndTask,
                 ProcessHeaderButtonKind.RunNewTask,
-                ProcessHeaderButtonKind.Columns
+                ProcessHeaderButtonKind.Columns,
+                ProcessHeaderButtonKind.RestartExplorer
             ],
             normalized);
     }
@@ -84,7 +86,8 @@ public sealed class AppSettingsTests
         [
             ProcessHeaderButtonKind.EndTask,
             ProcessHeaderButtonKind.Columns,
-            ProcessHeaderButtonKind.RunNewTask
+            ProcessHeaderButtonKind.RunNewTask,
+            ProcessHeaderButtonKind.RestartExplorer
         ]);
 
         Assert.Equal(1, propertyChangedCount);
@@ -103,7 +106,8 @@ public sealed class AppSettingsTests
             [
                 ProcessHeaderButtonKind.EndTask,
                 ProcessHeaderButtonKind.Columns,
-                ProcessHeaderButtonKind.RunNewTask
+                ProcessHeaderButtonKind.RunNewTask,
+                ProcessHeaderButtonKind.RestartExplorer
             ];
             settings.Save(path);
 
@@ -780,6 +784,28 @@ public sealed class AppSettingsTests
             AppSettings loaded = AppSettings.LoadOrDefault(path);
 
             Assert.True(loaded.LeftAlignProcessSearchBar);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ExplorerRestartConfirmationDefaultsEnabledAndSkipPreferenceRoundTrips()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.False(settings.SkipRestartExplorerConfirmation);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.SkipRestartExplorerConfirmation = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.True(loaded.SkipRestartExplorerConfirmation);
         }
         finally
         {

@@ -32,6 +32,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private const string EndTaskConfirmationMessage =
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
         "If you end a system process, it might result in system instability. Are you sure you want to continue?";
+    private const string RestartExplorerConfirmationMessage =
+        "This will close every running explorer.exe process, including the desktop, taskbar, and open File " +
+        "Explorer windows, and then start a fresh explorer.exe process.";
     private const string ElevatedTerminationExplanation =
         "Task Manager can start TaskManagerTrayAppDotNET.KillHelper.exe with administrator privileges so it can " +
         "end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, Task " +
@@ -286,7 +289,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             _processTerminationService.GetElevatedHelperStatus,
             RequestManualElevatedTermination,
             ConfirmEndTaskAsync,
+            ConfirmRestartExplorerAsync,
             ConfirmDeleteSavedSearchAsync,
+            RestartExplorerAsync,
             ReportMessage,
             StartProcess);
         _processDetailsPage = page;
@@ -640,6 +645,20 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             "Delete",
             "Cancel");
     }
+
+    private Task<bool> ConfirmRestartExplorerAsync()
+    {
+        if (_settings.SkipRestartExplorerConfirmation) return Task.FromResult(true);
+
+        return ConfirmAsync(
+            "Restart Windows Explorer?",
+            RestartExplorerConfirmationMessage,
+            "Restart explorer",
+            "Cancel");
+    }
+
+    private Task<ExplorerRestartResult> RestartExplorerAsync() =>
+        Task.Run(() => CriticalProcessActions.RestartExplorer(TryTerminateProcess));
 
     private void ReportMessage(string title, string message) => _ = ShowMessage(title, message);
 
