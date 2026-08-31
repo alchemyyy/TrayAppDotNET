@@ -54,6 +54,19 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         _workerThread.Start();
     }
 
+    /// <summary>Gets whether registration has published its initial sample.</summary>
+    public bool IsSampleAvailable
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (Volatile.Read(ref _available) == 0) return false;
+
+            lock (_counterGate)
+                return _sampleGeneration != 0;
+        }
+    }
+
     /// <summary>Reads the latest cumulative SRUM bytes and provider-driven sample identity.</summary>
     public bool TryReadSample(int processID, out ProcessNetworkUsageSample sample)
     {
@@ -159,6 +172,12 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
                 return false;
             }
 
+            if (!TryPublishInitialSample(initialRecordSet))
+            {
+                LogFailureOnce("The initial SRUM record set was invalid.");
+                return false;
+            }
+
             Volatile.Write(ref _available, value: 1);
             return WaitForShutdownWithMessagePump();
         }
@@ -210,6 +229,19 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
             _cumulativeBytes.Clear();
             _sampleGeneration = 0;
             _sampleTimestamp = 0;
+        }
+    }
+
+    /// <summary>Publishes registration's one-time poll as the baseline for every process.</summary>
+    private bool TryPublishInitialSample(IntPtr recordSetAddress)
+    {
+        lock (_counterGate)
+        {
+            if (!AccumulateInitialRecordSet(recordSetAddress, _cumulativeBytes)) return false;
+
+            _sampleTimestamp = Stopwatch.GetTimestamp();
+            _sampleGeneration++;
+            return true;
         }
     }
 
@@ -338,6 +370,16 @@ internal sealed unsafe class ProcessNetworkUsageSampler : IDisposable
         }
 
         return true;
+    }
+
+    /// <summary>Treats a successful registration without records as an empty initial poll.</summary>
+    internal static bool AccumulateInitialRecordSet(
+        IntPtr recordSetAddress,
+        Dictionary<int, ulong> cumulativeBytes)
+    {
+        ArgumentNullException.ThrowIfNull(cumulativeBytes);
+        return recordSetAddress == IntPtr.Zero
+               || AccumulateRecordSet(recordSetAddress, cumulativeBytes);
     }
 
     private static bool IsElevated()

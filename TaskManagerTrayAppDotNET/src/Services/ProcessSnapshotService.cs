@@ -93,6 +93,7 @@ internal sealed class ProcessSnapshotService : IDisposable
 
     private readonly Dictionary<int, SystemProcessData> _systemProcessData = new(1_024);
     private readonly List<int> _staleProcessIDs = new(256);
+    private readonly ProcessNetworkRateCache _networkRateCache = new();
     private readonly StringBuilder _processPathBuffer = new(InitialProcessPathCapacity);
     private readonly StringBuilder _applicationUserModelIDBuffer = new(IconExtraction.MAX_AUMID_LEN);
     private AcceleratorPerformanceSampler? _acceleratorSampler;
@@ -115,6 +116,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private int _disposed;
     private bool _sampleEveryProcess;
     private bool _acceleratorSamplesEveryProcess;
+    private bool _networkUsageNeedsInitialFullSample;
     private bool _capacityWarningLogged;
 
     public ProcessSnapshotService()
@@ -301,6 +303,11 @@ internal sealed class ProcessSnapshotService : IDisposable
             return;
         }
 
+        // Refresh cold rows once after asynchronous SRUM registration publishes its baseline
+        bool initializeNetworkUsageForEveryProcess =
+            schema.IsVisible(ProcessTableColumnKind.Network)
+            && _networkUsageNeedsInitialFullSample
+            && _networkUsageSampler?.IsSampleAvailable == true;
         _enterpriseContextReader?.BeginSample();
         _acceleratorSamplesEveryProcess = schemaChanged || sampleEveryProcess;
         _acceleratorSampler?.Sample(
@@ -317,6 +324,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 schema,
                 warmProcessCount,
                 sampleEveryProcess,
+                initializeNetworkUsageForEveryProcess,
                 sampleTimestamp,
                 sampleTimeTicks,
                 generation)
@@ -324,19 +332,24 @@ internal sealed class ProcessSnapshotService : IDisposable
                 schema,
                 warmProcessCount,
                 sampleEveryProcess,
+                initializeNetworkUsageForEveryProcess,
                 sampleTimestamp,
                 sampleTimeTicks,
                 generation);
 
         _stagingBuffer.CompleteWrite(count);
         RemoveStaleHistory(generation);
+        _networkRateCache.RemoveStale(generation);
         Publish(systemPerformanceSample);
+        if (initializeNetworkUsageForEveryProcess)
+            _networkUsageNeedsInitialFullSample = false;
     }
 
     private int RefreshFromSystemSnapshot(
         ProcessDataSchema schema,
         int warmProcessCount,
         bool sampleEveryProcess,
+        bool sampleNetworkForEveryProcess,
         long sampleTimestamp,
         long sampleTimeTicks,
         int generation)
@@ -360,6 +373,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                     schema,
                     warmProcessCount,
                     sampleEveryProcess,
+                    sampleNetworkForEveryProcess,
                     sampleTimestamp,
                     sampleTimeTicks,
                     generation,
@@ -374,6 +388,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         ProcessDataSchema schema,
         int warmProcessCount,
         bool sampleEveryProcess,
+        bool sampleNetworkForEveryProcess,
         long sampleTimestamp,
         long sampleTimeTicks,
         int generation)
@@ -405,6 +420,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                         schema,
                         warmProcessCount,
                         sampleEveryProcess,
+                        sampleNetworkForEveryProcess,
                         sampleTimestamp,
                         sampleTimeTicks,
                         generation,
@@ -429,6 +445,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         ProcessDataSchema schema,
         int warmProcessCount,
         bool sampleEveryProcess,
+        bool sampleNetworkForEveryProcess,
         long sampleTimestamp,
         long sampleTimeTicks,
         int generation,
@@ -468,6 +485,7 @@ internal sealed class ProcessSnapshotService : IDisposable
                 systemProcessData,
                 schema,
                 generation);
+            _networkRateCache.MarkSeen(history.StaticData.InstanceKey, generation);
             if (!history.HasDynamicSample || isWarm)
             {
                 SampleDynamicValues(
@@ -481,6 +499,8 @@ internal sealed class ProcessSnapshotService : IDisposable
                     schema,
                     isWarm);
             }
+            else if (sampleNetworkForEveryProcess)
+                SampleNetworkUsage(history, schema);
 
             history.LastSeenGeneration = generation;
             _stagingBuffer.SetRow(
@@ -561,11 +581,15 @@ internal sealed class ProcessSnapshotService : IDisposable
 
         bool needsNetworkUsage = schema.IsVisible(ProcessTableColumnKind.Network);
         if (needsNetworkUsage && _networkUsageSampler == null)
+        {
             _networkUsageSampler = new ProcessNetworkUsageSampler();
+            _networkUsageNeedsInitialFullSample = true;
+        }
         else if (!needsNetworkUsage && _networkUsageSampler != null)
         {
             _networkUsageSampler.Dispose();
             _networkUsageSampler = null;
+            _networkUsageNeedsInitialFullSample = false;
         }
     }
 
@@ -915,38 +939,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
 
         if (schema.IsVisible(ProcessTableColumnKind.Network))
-        {
-            if (_networkUsageSampler?.TryReadSample(
-                    history.StaticData.ProcessID,
-                    out ProcessNetworkUsageSample networkSample) == true)
-            {
-                if (!history.HasNetworkSample)
-                {
-                    SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, value: 0);
-                    UpdateNetworkBaseline(history, networkSample);
-                }
-                else if (networkSample.Generation != history.LastNetworkSampleGeneration)
-                {
-                    double bytesPerSecond = CalculateTransferRate(
-                        hasPreviousSample: true,
-                        history.NetworkBytes,
-                        history.LastNetworkSampleTimestamp,
-                        networkSample.CumulativeBytes,
-                        networkSample.Timestamp);
-                    SetDynamicDouble(
-                        schema,
-                        history,
-                        ProcessTableColumnKind.Network,
-                        bytesPerSecond);
-                    UpdateNetworkBaseline(history, networkSample);
-                }
-            }
-            else
-            {
-                history.HasNetworkSample = false;
-                SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, value: -1);
-            }
-        }
+            SampleNetworkUsage(history, schema);
 
         if (HasAnyColumn(activeMask, ThreadColumnsMask))
         {
@@ -1130,6 +1123,57 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
 
         history.HasDynamicSample = true;
+    }
+
+    /// <summary>Updates one process from the latest shared SRUM sample.</summary>
+    private void SampleNetworkUsage(ProcessHistoryEntry history, ProcessDataSchema schema)
+    {
+        bool hasCachedRate = _networkRateCache.TryGet(
+            history.StaticData.InstanceKey,
+            out double cachedBytesPerSecond);
+        if (_networkUsageSampler?.TryReadSample(
+                history.StaticData.ProcessID,
+                out ProcessNetworkUsageSample networkSample) != true)
+        {
+            history.HasNetworkSample = false;
+            SetDynamicDouble(
+                schema,
+                history,
+                ProcessTableColumnKind.Network,
+                hasCachedRate ? cachedBytesPerSecond : -1);
+            return;
+        }
+
+        if (!history.HasNetworkSample)
+        {
+            double initialBytesPerSecond = hasCachedRate ? cachedBytesPerSecond : 0;
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.Network, initialBytesPerSecond);
+            UpdateNetworkBaseline(history, networkSample);
+            _networkRateCache.Set(
+                history.StaticData.InstanceKey,
+                initialBytesPerSecond,
+                history.LastSeenGeneration);
+            return;
+        }
+
+        if (networkSample.Generation == history.LastNetworkSampleGeneration) return;
+
+        double bytesPerSecond = CalculateTransferRate(
+            hasPreviousSample: true,
+            history.NetworkBytes,
+            history.LastNetworkSampleTimestamp,
+            networkSample.CumulativeBytes,
+            networkSample.Timestamp);
+        SetDynamicDouble(
+            schema,
+            history,
+            ProcessTableColumnKind.Network,
+            bytesPerSecond);
+        UpdateNetworkBaseline(history, networkSample);
+        _networkRateCache.Set(
+            history.StaticData.InstanceKey,
+            bytesPerSecond,
+            history.LastSeenGeneration);
     }
 
     private ProcessImageIdentity AcquireImageIdentity(
@@ -1696,6 +1740,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         _acceleratorSampler?.Dispose();
         _enterpriseContextReader?.Dispose();
         _networkUsageSampler?.Dispose();
+        _networkRateCache.Clear();
         _systemPerformanceSampler.Dispose();
         _systemProcessSnapshot.Dispose();
         _history.Clear();

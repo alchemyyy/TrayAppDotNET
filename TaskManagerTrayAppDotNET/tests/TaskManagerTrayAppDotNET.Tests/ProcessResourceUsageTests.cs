@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
 using Xunit;
 
@@ -55,7 +56,7 @@ public sealed class ProcessResourceUsageTests
     }
 
     [Fact]
-    public void SRUMRecordsAccumulateSentAndReceivedBytesByProcess()
+    public void InitialAndCallbackSRUMRecordsAccumulateSentAndReceivedBytesByProcess()
     {
         IntPtr recordSet = AllocateZeroed(SRUMRecordSetSize);
         IntPtr record = AllocateZeroed(SRUMRecordSize);
@@ -73,15 +74,15 @@ public sealed class ProcessResourceUsageTests
             Marshal.WriteIntPtr(recordSet, ofs: 8, record);
             Dictionary<int, ulong> cumulativeBytes = [];
 
-            bool firstAccepted = ProcessNetworkUsageSampler.AccumulateRecordSet(
+            bool initialAccepted = ProcessNetworkUsageSampler.AccumulateInitialRecordSet(
                 recordSet,
                 cumulativeBytes);
-            bool secondAccepted = ProcessNetworkUsageSampler.AccumulateRecordSet(
+            bool callbackAccepted = ProcessNetworkUsageSampler.AccumulateRecordSet(
                 recordSet,
                 cumulativeBytes);
 
-            Assert.True(firstAccepted);
-            Assert.True(secondAccepted);
+            Assert.True(initialAccepted);
+            Assert.True(callbackAccepted);
             Assert.Equal(expected: 6_000UL, cumulativeBytes[processID]);
         }
         finally
@@ -90,6 +91,47 @@ public sealed class ProcessResourceUsageTests
             Marshal.FreeHGlobal(record);
             Marshal.FreeHGlobal(recordSet);
         }
+    }
+
+    [Fact]
+    public void MissingInitialSRUMRecordSetCreatesAnEmptyBaseline()
+    {
+        Dictionary<int, ulong> cumulativeBytes = [];
+
+        bool accepted = ProcessNetworkUsageSampler.AccumulateInitialRecordSet(
+            IntPtr.Zero,
+            cumulativeBytes);
+
+        Assert.True(accepted);
+        Assert.Empty(cumulativeBytes);
+    }
+
+    [Fact]
+    public void NetworkRateCacheRetainsLatestValueAcrossProcessWalks()
+    {
+        ProcessNetworkRateCache cache = new();
+        ProcessInstanceKey instanceKey = new(ProcessID: 4_242, CreationTimeTicks: 100);
+        cache.Set(instanceKey, bytesPerSecond: 12_345, generation: 1);
+
+        cache.MarkSeen(instanceKey, generation: 2);
+        cache.RemoveStale(generation: 2);
+
+        Assert.True(cache.TryGet(instanceKey, out double bytesPerSecond));
+        Assert.Equal(expected: 12_345.0, bytesPerSecond);
+    }
+
+    [Fact]
+    public void NetworkRateCacheRejectsReusedProcessIDs()
+    {
+        ProcessNetworkRateCache cache = new();
+        ProcessInstanceKey previousInstance = new(ProcessID: 4_242, CreationTimeTicks: 100);
+        ProcessInstanceKey reusedInstance = new(ProcessID: 4_242, CreationTimeTicks: 200);
+        cache.Set(previousInstance, bytesPerSecond: 12_345, generation: 1);
+
+        bool found = cache.TryGet(reusedInstance, out double bytesPerSecond);
+
+        Assert.False(found);
+        Assert.Equal(expected: 0.0, bytesPerSecond);
     }
 
     [Fact]
