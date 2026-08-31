@@ -10,7 +10,7 @@ using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Builds the Processes toolbar around the allocation-light painted process table.</summary>
-internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
+internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSearchOverlayPage, IDisposable
 {
     private const double GridFontZoomStep = 0.5;
     private const double GridRowSpacingStep = 1;
@@ -59,6 +59,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     private TaskManagerContextMenuWindow? _headerActionsMenuWindow;
     private bool _isEndTaskConfirmationPending;
     private bool _isRestartExplorerPending;
+    private bool _isPageActive;
     private bool _disposed;
 
     public ProcessDetailsPage(
@@ -95,7 +96,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         ProcessDataSchema schema = ProcessDataSchema.Create(
             settings.DetailsColumns,
             ProcessTableColumnKind.Name);
-        _snapshotService.SetActiveSchema(schema);
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         MainContent.RowDefinitions.Add(new RowDefinition(GridLength.Star));
 
@@ -283,14 +283,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         MainContent.Children.Add(_tableScrollViewport);
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
-        _processCanvas.RefreshFrom(_snapshotService);
         _processCanvas.AttachExternalSubscriptions();
 #if DEBUG
         _searchAutocomplete.AttachAXAMLHotReload();
         _savedSearches.AttachAXAMLHotReload();
         TaskManagerContextMenuResources.ResourcesReloaded += OnContextMenuAXAMLResourcesReloaded;
 #endif
-        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
     }
 
     /// <summary>Gets the search controls rendered by the shell-level page overlay.</summary>
@@ -334,6 +332,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         leadingActionWidth = Math.Max(0, searchLeft - actionLeftX);
         return true;
     }
+
+    bool ITaskManagerSearchOverlayPage.TryGetSearchDragRegionPixelWidths(
+        out int searchWidth,
+        out int leadingActionWidth) =>
+        TryGetSearchDragRegionPixelWidths(out searchWidth, out leadingActionWidth);
 
     private void UpdateSearchControlsPosition()
     {
@@ -430,8 +433,25 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 
     private void OnSnapshotAvailable()
     {
-        if (_disposed) return;
+        if (_disposed || !_isPageActive) return;
         _processCanvas.RefreshFrom(_snapshotService);
+    }
+
+    internal override void SetPageActive(bool isActive)
+    {
+        if (_disposed || _isPageActive == isActive) return;
+
+        _isPageActive = isActive;
+        if (isActive)
+        {
+            _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
+            _processCanvas.ActivateSampling(_snapshotService);
+            _processCanvas.RefreshFrom(_snapshotService);
+            return;
+        }
+
+        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
+        _processCanvas.DeactivateSampling();
     }
 
 #if DEBUG
@@ -1006,12 +1026,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     {
         if (_disposed) return;
 
+        SetPageActive(false);
         _disposed = true;
         _armTerminationTarget(null);
 #if DEBUG
         TaskManagerContextMenuResources.ResourcesReloaded -= OnContextMenuAXAMLResourcesReloaded;
 #endif
-        _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged -= OnRowHoverGeometryChanged;
         _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;

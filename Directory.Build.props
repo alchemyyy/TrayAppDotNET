@@ -2,6 +2,7 @@
   <Import Project="$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.props" />
 
   <PropertyGroup>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\$(_TrayAppDotNETProjectExtensionsConfiguration)\</MSBuildProjectExtensionsPath>
     <Configurations Condition="'$(Configurations)' == ''">Debug;Prerelease;Release</Configurations>
     <Platforms Condition="'$(Platforms)' == ''">x64</Platforms>
     <PlatformTarget Condition="'$(PlatformTarget)' == ''">x64</PlatformTarget>

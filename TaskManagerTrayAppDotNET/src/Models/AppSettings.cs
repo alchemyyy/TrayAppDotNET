@@ -79,7 +79,7 @@ public sealed class AppSettings : AppSettingsCommon
     {
         get;
         set => SetField(ref field, value);
-    }
+    } = true;
 
     public bool LeftAlignProcessSearchBar
     {

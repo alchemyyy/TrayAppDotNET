@@ -9,13 +9,20 @@
   <sys:Double x:Key="TaskManagerWindow.Height">860</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.MinWidth">600</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.MinHeight">600</sys:Double>
-  <sys:Double x:Key="TaskManagerWindow.SidebarWidth">250</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.SidebarWidth">242</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.CollapsedSidebarWidth">52</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.CollapsedSidebarHeaderIconSize">20</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarCollapseThreshold">750</sys:Double>
   <sys:Int32 x:Key="TaskManagerWindow.SearchDragOutsideMarginPixels">8</sys:Int32>
-  <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonSize">32</sys:Double>
-  <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonGlyphFontSize">16</sys:Double>
-  <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonSpacing">8</sys:Double>
-  <Thickness x:Key="TaskManagerWindow.GlobalNavigationButtonPadding">0</Thickness>
+  <sys:Double x:Key="TaskManagerWindow.SidebarCaretButtonWidth">28</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.SidebarCaretButtonHeight">90</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.SidebarCaretGlyphFontSize">14</sys:Double>
+  <sys:Double x:Key="TaskManagerWindow.SidebarCaretGlyphOpacity">0.9</sys:Double>
+  <Thickness x:Key="TaskManagerWindow.SidebarCaretButtonPadding">0</Thickness>
+  <CornerRadius x:Key="TaskManagerWindow.SidebarCaretButtonCornerRadius">4,0,0,4</CornerRadius>
+  <Thickness x:Key="TaskManagerWindow.SidebarHeaderMargin">18,8,20,20</Thickness>
+  <Thickness x:Key="TaskManagerWindow.SidebarNavigationMargin">0,0,8,0</Thickness>
+  <Thickness x:Key="TaskManagerWindow.SidebarFooterMargin">0,0,8,12</Thickness>
 
   <!-- Tray menu -->
   <sys:Double x:Key="TaskManagerTrayMenu.FontSize">15</sys:Double>
@@ -48,7 +55,33 @@
   <Thickness x:Key="TaskManagerDetails.SearchMargin">0,8,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.RunPanelMargin">24,10,20,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.TableMargin">0</Thickness>
-  <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
+
+  <!-- Shared table pages -->
+  <Thickness x:Key="TaskManagerTable.InformationMargin">16,8,20,8</Thickness>
+  <sys:Double x:Key="TaskManagerTable.InformationSpacing">2</sys:Double>
+  <Thickness x:Key="TaskManagerTable.LinkButtonPadding">0,2</Thickness>
+  <sys:String x:Key="TaskManagerTable.FontFamily">Segoe UI Variable, Segoe UI</sys:String>
+  <sys:Int32 x:Key="TaskManagerTable.GroupFontWeightMinimum">600</sys:Int32>
+  <sys:Double x:Key="TaskManagerTable.MinimumColumnWidth">48</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.AppHistoryNameColumnWidth">280</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.AppHistoryCPUTimeColumnWidth">112</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.AppHistoryNetworkColumnWidth">112</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.AppHistoryNotificationsColumnWidth">112</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.UsersNameColumnWidth">280</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.UsersStatusColumnWidth">140</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.UsersCPUColumnWidth">90</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.UsersMemoryColumnWidth">120</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.UsersDiskColumnWidth">110</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.UsersNetworkColumnWidth">120</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.ServicesNameColumnWidth">220</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.ServicesPIDColumnWidth">82</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.ServicesDescriptionColumnWidth">320</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.ServicesStatusColumnWidth">110</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.ServicesGroupColumnWidth">180</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.StartupNameColumnWidth">280</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.StartupPublisherColumnWidth">220</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.StartupStatusColumnWidth">106</sys:Double>
+  <sys:Double x:Key="TaskManagerTable.StartupImpactColumnWidth">140</sys:Double>
 
   <!-- Reorder dialogs -->
   <sys:Double x:Key="TaskManagerReorderDialog.TitleFontSize">13</sys:Double>
@@ -206,6 +239,8 @@
   <sys:Double x:Key="ProcessTable.TextUnderlineThickness">1</sys:Double>
   <sys:Double x:Key="ProcessTable.SortCaretFontSize">10</sys:Double>
   <sys:Double x:Key="ProcessTable.SortCaretRightMargin">6</sys:Double>
+  <sys:Double x:Key="ProcessTable.PaintedSortCaretHalfWidth">3</sys:Double>
+  <sys:Double x:Key="ProcessTable.PaintedSortCaretHalfHeight">2</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconSize">10</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconGap">8</sys:Double>
   <sys:Double x:Key="ProcessTable.ProcessIconCornerRadius">2</sys:Double>

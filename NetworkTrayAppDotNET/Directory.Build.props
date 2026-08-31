@@ -10,6 +10,7 @@
          FormatProbe is a diagnostic harness with a different target framework, so it keeps
          its own local obj\ instead of sharing the app project's project.assets.json. -->
     <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\$(_TrayAppDotNETProjectExtensionsConfiguration)\</MSBuildProjectExtensionsPath>
 
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Prerelease;Release</Configurations>

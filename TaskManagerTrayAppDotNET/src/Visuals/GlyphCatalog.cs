@@ -17,6 +17,10 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
 #endif
 
+    public static Glyph PC1 => Glyph("PC1");
+
+    public static Glyph TASK_MANAGER_APP => Glyph("TaskManagerApp");
+
     public static Glyph MORE => Glyph("More");
 
     public static Glyph SAVE => Glyph("Save");
@@ -26,6 +30,10 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
     public new static Glyph CHEVRON_UP_BIG => Glyph("ChevronUpBig");
 
     public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");
+
+    public static Glyph CARET_LEFT => Glyph("CaretLeft");
+
+    public static Glyph CARET_RIGHT => Glyph("CaretRight");
 
     public static Glyph PROCESSES => Glyph("Processes");
 
@@ -39,20 +47,46 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph SERVICES => Glyph("Services");
 
-    public static Glyph GLOBAL_NAVIGATION => Glyph("GlobalNavigation");
-
     public static Glyph SELECTED => Glyph("Selected");
 
     public static Glyph SORT_ASCENDING => Glyph("SortAscending");
 
     public static Glyph SORT_DESCENDING => Glyph("SortDescending");
 
-    private static Glyph Glyph(string name)
+    /// <summary>
+    /// Returns the PC1 glyph with TaskManagerApp fitted to its monitor frame.
+    /// </summary>
+    public static CompositeGlyph TASK_MANAGER_APP_COMPOSITE
     {
-#if DEBUG
-        return Resources.Current.Glyph(name);
-#else
-        return Resources.Value.Glyph(name);
-#endif
+        get
+        {
+            GlyphCatalogResources resources = CurrentResources;
+            CompositeGlyphLayer[] layers = new CompositeGlyphLayer[2];
+            layers[0] = new CompositeGlyphLayer(PC1);
+            layers[1] = new CompositeGlyphLayer(
+                TASK_MANAGER_APP,
+                resources.AxamlGlyphCatalog.TaskManagerAppScaleX,
+                resources.AxamlGlyphCatalog.TaskManagerAppScaleY,
+                resources.AxamlGlyphCatalog.TaskManagerAppTranslateX,
+                resources.AxamlGlyphCatalog.TaskManagerAppTranslateY);
+            return new CompositeGlyph(
+                resources.AxamlGlyphCatalog.AppIconDesignCanvasSize,
+                resources.AxamlGlyphCatalog.AppIconOuterMarginFraction,
+                layers);
+        }
     }
+
+    private static GlyphCatalogResources CurrentResources
+    {
+        get
+        {
+#if DEBUG
+            return Resources.Current;
+#else
+            return Resources.Value;
+#endif
+        }
+    }
+
+    private static Glyph Glyph(string name) => CurrentResources.Glyph(name);
 }

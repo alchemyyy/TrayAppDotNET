@@ -10,6 +10,7 @@
          FormatProbe and xUnit tests keep their own local obj\ instead of sharing the app
          project's project.assets.json, because their package graphs differ from the app. -->
     <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' != 'FormatProbe' and '$(MSBuildProjectName)' != 'BrightnessTrayAppDotNET.Tests' and '$(MSBuildProjectName)' != 'WindowsBrightnessProbe'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\$(_TrayAppDotNETProjectExtensionsConfiguration)\</MSBuildProjectExtensionsPath>
 
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Prerelease;Release</Configurations>

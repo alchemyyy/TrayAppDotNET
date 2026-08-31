@@ -14,6 +14,8 @@
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == '' and '$(TrayAppDotNETAggregateBuild)' == 'true'">true</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETUseRootOutput Condition="'$(TrayAppDotNETUseRootOutput)' == ''">false</TrayAppDotNETUseRootOutput>
     <TrayAppDotNETPrereleaseProjectProperties Condition="'$(Configuration)' == 'Prerelease'">Optimize=true;DebugSymbols=false;DebugType=none;CheckForOverflowUnderflow=false</TrayAppDotNETPrereleaseProjectProperties>
+    <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' == ''">Debug</_TrayAppDotNETProjectExtensionsConfiguration>
+    <_TrayAppDotNETProjectExtensionsConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</_TrayAppDotNETProjectExtensionsConfiguration>
     <IlcTreatWarningsAsErrors Condition="'$(RuntimeIdentifier)' != ''">true</IlcTreatWarningsAsErrors>
     <CustomBeforeMicrosoftCommonTargets Condition="'$(CustomBeforeMicrosoftCommonTargets)' == ''">$(MSBuildThisFileDirectory)TrayAppDotNET.Parent.targets</CustomBeforeMicrosoftCommonTargets>
   </PropertyGroup>

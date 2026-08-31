@@ -156,6 +156,39 @@ public sealed class SettingsWindowLifetimeTests
         });
 
     [Fact]
+    public void DerivedWindowCanRetainAppOwnedDimensionsDuringCommonReload() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            const string widthKey = "SettingsWindow.StandardWindowWidth";
+            const string minWidthKey = "SettingsWindow.StandardWindowMinWidth";
+            SettingsWindowCommonResources resources = SettingsWindowCommonResources.Current;
+            double originalWidth = Assert.IsType<double>(resources[widthKey]);
+            double originalMinWidth = Assert.IsType<double>(resources[minWidthKey]);
+            DimensionReloadSettingsWindow window = new(
+                useCompactProfile: false,
+                applyCommonDimensionsOnReload: false);
+            window.Show();
+            try
+            {
+                window.Width = 1401;
+                window.MinWidth = 801;
+                resources[widthKey] = originalWidth + 23;
+                resources[minWidthKey] = originalMinWidth + 17;
+
+                CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+
+                Assert.Equal(1401, window.Width);
+                Assert.Equal(801, window.MinWidth);
+            }
+            finally
+            {
+                resources[widthKey] = originalWidth;
+                resources[minWidthKey] = originalMinWidth;
+                window.Close();
+            }
+        });
+
+    [Fact]
     public void CommonAXAMLReloadContinuesAfterSubscriberFailure()
     {
         int notificationCount = 0;
@@ -780,9 +813,13 @@ public sealed class SettingsWindowLifetimeTests
     private sealed class DimensionReloadSettingsWindow : SettingsWindowCommon<TestPage>
     {
         private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly bool _applyCommonDimensionsOnReload;
 
-        public DimensionReloadSettingsWindow(bool useCompactProfile)
+        public DimensionReloadSettingsWindow(
+            bool useCompactProfile,
+            bool applyCommonDimensionsOnReload = true)
         {
+            _applyCommonDimensionsOnReload = applyCommonDimensionsOnReload;
             if (useCompactProfile)
                 ConfigureCompactSettingsWindow("Compact test", null);
             else
@@ -791,6 +828,8 @@ public sealed class SettingsWindowLifetimeTests
         }
 
         protected override SettingsPalette ResolvePalette() => _testPalette;
+        protected override bool ApplyCommonAXAMLWindowDimensionsOnReload =>
+            _applyCommonDimensionsOnReload;
         protected override bool EnableRoundedCorners => false;
         protected override TestPage DefaultPageKey => TestPage.Stable;
         protected override string HeaderText => "Test";

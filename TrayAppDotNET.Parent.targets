@@ -11,6 +11,51 @@
     <TrayAppDotNETUnlockProcessNames Condition="'$(TrayAppDotNETAdditionalUnlockProcessNames)' != ''">$(TrayAppDotNETUnlockProcessNames);$(TrayAppDotNETAdditionalUnlockProcessNames)</TrayAppDotNETUnlockProcessNames>
   </PropertyGroup>
 
+  <!-- Debug owns the hot-reload graph and therefore cannot also be Native AOT. A Debug publish
+       with a RID remains self-contained JIT; ReleaseWithDebugging is the diagnostic AOT build. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(PublishAot)' == 'true'">
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+
+  <Target Name="RejectExplicitDebugNativeAOT"
+          BeforeTargets="PrepareForBuild;PrepareForPublish"
+          Condition="'$(Configuration)' == 'Debug' and '$(PublishAot)' == 'true'">
+    <Error Text="Debug Native AOT is unsupported because Debug includes hot reload. Use ReleaseWithDebugging for a debuggable Native AOT build." />
+  </Target>
+
+  <!-- Conditional Debug package references can remain in a shared NuGet assets file after a
+       configuration switch. Disable every injection path outside Debug even when that stale
+       build import is present. -->
+  <PropertyGroup Condition="'$(Configuration)' != 'Debug'">
+    <HotAvalonia>false</HotAvalonia>
+    <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
+    <HotAvaloniaInjections>disable</HotAvaloniaInjections>
+    <HotAvaloniaInitialPatching>disable</HotAvaloniaInitialPatching>
+    <HotAvaloniaRecompileResources>false</HotAvaloniaRecompileResources>
+    <HotAvaloniaMode />
+    <DisableFody Condition="'$(HotAvaloniaVersion)' != ''">true</DisableFody>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Compile Remove="@(Compile->WithMetadataValue('NuGetPackageId', 'HotAvalonia.Extensions'))" />
+  </ItemGroup>
+
+  <Target Name="RemoveHotAvaloniaRuntimeOptionsOutsideDebug"
+          AfterTargets="HotAvaloniaGenerateRuntimeConfig"
+          BeforeTargets="GenerateBuildRuntimeConfigurationFiles"
+          Condition="'$(Configuration)' != 'Debug'">
+    <ItemGroup>
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.InjectionType" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.SkipInitialPatching" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.MinLogLevel" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.Timeout" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.Mode" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.Hotkey" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.RemoteFileSystemAddress" />
+      <RuntimeHostConfigurationOption Remove="HotAvalonia.RemoteFileSystemSecret" />
+    </ItemGroup>
+  </Target>
+
   <!-- Prerelease is optimized JIT-compiled IL with an entirely loose-file output.
        Keep these overrides after project evaluation so an explicit RID cannot enable
        the Native AOT property groups in the app projects. -->
@@ -31,13 +76,6 @@
     <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
-
-    <HotAvalonia>false</HotAvalonia>
-    <HotAvaloniaAutoEnable>false</HotAvaloniaAutoEnable>
-    <HotAvaloniaInjections>disable</HotAvaloniaInjections>
-    <HotAvaloniaInitialPatching>disable</HotAvaloniaInitialPatching>
-    <HotAvaloniaRecompileResources>false</HotAvaloniaRecompileResources>
-    <HotAvaloniaMode />
 
     <TieredCompilation>true</TieredCompilation>
     <TieredCompilationQuickJit>true</TieredCompilationQuickJit>

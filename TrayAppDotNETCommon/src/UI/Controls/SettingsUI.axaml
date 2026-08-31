@@ -20,10 +20,11 @@
     <Thickness x:Key="SettingsUI.Windows11NavItemPadding">0,10</Thickness>
     <Thickness x:Key="SettingsUI.Windows11NavContentMargin">12,0,16,0</Thickness>
     <sys:Double x:Key="SettingsUI.Windows11NavIconSize">20</sys:Double>
-    <sys:Double x:Key="SettingsUI.Windows11NavIconFontSize">16</sys:Double>
+    <sys:Double x:Key="SettingsUI.Windows11NavIconFontSize">17</sys:Double>
     <sys:Double x:Key="SettingsUI.Windows11NavIconColumnWidth">20</sys:Double>
     <Thickness x:Key="SettingsUI.Windows11NavIconMargin">0,0,0,-4</Thickness>
     <Thickness x:Key="SettingsUI.Windows11NavLabelMargin">12,0,0,0</Thickness>
+    <sys:Double x:Key="SettingsUI.Windows11CompactNavItemWidth">44</sys:Double>
 
     <!-- Buttons and enabled states -->
     <CornerRadius x:Key="SettingsUI.ButtonCornerRadius">4</CornerRadius>

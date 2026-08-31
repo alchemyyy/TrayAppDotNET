@@ -52,8 +52,6 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
 
     protected override bool UseWindows11SettingsNavigation => _settings.UseWindows11SettingsNavigation;
 
-    protected override ISettingsSidebarWidthSettings SidebarWidthSettings => _settings;
-
     protected override TaskManagerSettingsPage DefaultPageKey => TaskManagerSettingsPage.General;
 
     protected override string HeaderText => "Task Manager";
@@ -808,7 +806,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             searchKeywords: ["square sharp corners"]));
         stack.Children.Add(BoolCard(
             "Collapse navigation when narrow",
-            "Hide the left navigation menu when the Task Manager window is narrower than 750 pixels.",
+            "Show only navigation icons when the Task Manager window is narrower than 750 pixels.",
             _settings.CollapseSidebarWhenNarrow,
             value => _settings.CollapseSidebarWhenNarrow = value,
             palette,

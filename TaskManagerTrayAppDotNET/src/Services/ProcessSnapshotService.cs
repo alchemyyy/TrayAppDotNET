@@ -219,6 +219,30 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
     }
 
+    /// <summary>Copies the latest snapshot when it contains every requested column.</summary>
+    public bool TryCopyLatestContaining(
+        ProcessSnapshotBuffer destination,
+        ulong requiredSchemaMask,
+        out int count,
+        out long version)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        lock (_publishGate)
+        {
+            version = _publishedVersion;
+            ProcessDataSchema? schema = _publishedBuffer.Schema;
+            if (schema == null || (schema.VisibleMask & requiredSchemaMask) != requiredSchemaMask)
+            {
+                count = 0;
+                return false;
+            }
+
+            destination.CopyFrom(_publishedBuffer);
+            count = destination.Count;
+            return true;
+        }
+    }
+
     /// <summary>Returns the system-performance sample published with the latest process snapshot.</summary>
     public SystemPerformanceSample GetLatestSystemPerformanceSample()
     {
@@ -258,6 +282,15 @@ internal sealed class ProcessSnapshotService : IDisposable
             ResetHistoryForSchema(schema.VisibleMask);
 
         ConfigureOptionalCollectors(schema);
+        if (schema.VisibleMask == 0)
+        {
+            // The tray graph needs the system sample, but hidden/non-process pages do not need a process walk
+            _stagingBuffer.BeginWrite(schema, 0);
+            _stagingBuffer.CompleteWrite(0);
+            Publish(systemPerformanceSample);
+            return;
+        }
+
         _enterpriseContextReader?.BeginSample();
         _acceleratorSamplesEveryProcess = schemaChanged || sampleEveryProcess;
         _acceleratorSampler?.Sample(

@@ -4,6 +4,7 @@
 
   <PropertyGroup>
     <BaseIntermediateOutputPath Condition="'$(MSBuildProjectName)' == 'TaskManagerTrayAppDotNET'">$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(MSBuildProjectDirectory)\obj\$(_TrayAppDotNETProjectExtensionsConfiguration)\</MSBuildProjectExtensionsPath>
     <BuildNumberFile>$(MSBuildThisFileDirectory)buildnumber.txt</BuildNumberFile>
     <Configurations>Debug;Prerelease;Release</Configurations>
     <Platforms>x64</Platforms>
