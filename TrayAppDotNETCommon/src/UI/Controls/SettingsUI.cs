@@ -1454,6 +1454,22 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     }
 #endif
 
+    /// <summary>Moves the vertical viewport by a clamped content-coordinate delta.</summary>
+    public void AdjustVerticalOffset(double offsetDelta)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (!double.IsFinite(offsetDelta))
+            throw new ArgumentOutOfRangeException(nameof(offsetDelta), "Offset delta must be finite.");
+
+        double verticalMaximum = Math.Max(
+            0,
+            _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double nextVerticalOffset = verticalMaximum <= 0
+            ? 0
+            : Math.Clamp(_scrollViewer.Offset.Y + offsetDelta, 0, verticalMaximum);
+        _scrollViewer.Offset = new Vector(_scrollViewer.Offset.X, nextVerticalOffset);
+    }
+
     /// <summary>Reserves space above the vertical scrollbar without moving the scroll viewport.</summary>
     public void SetVerticalScrollBarTopInset(double topInset)
     {

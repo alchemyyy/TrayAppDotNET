@@ -95,4 +95,24 @@ public sealed class ProcessRowHoverGeometryTests
         Assert.Equal(new Rect(0, 92, 1200, 20), geometry.GetRowBounds(3, 1200));
         Assert.Equal(default, geometry.GetRowBounds(10, 1200));
     }
+
+    [Theory]
+    [InlineData(4, false)]
+    [InlineData(5, true)]
+    [InlineData(13, true)]
+    [InlineData(14, false)]
+    public void IsRowVisibleExcludesStickyHeaderAndViewportClipping(
+        int visibleIndex,
+        bool expectedVisible)
+    {
+        ProcessRowHoverGeometry geometry = new(
+            new Rect(200, 100, 600, 200),
+            VisibleRowCount: 20,
+            HeaderHeight: 32,
+            RowHeight: 20,
+            StickyHeaderTop: 100,
+            IsEnabled: false);
+
+        Assert.Equal(expectedVisible, geometry.IsRowVisible(visibleIndex));
+    }
 }

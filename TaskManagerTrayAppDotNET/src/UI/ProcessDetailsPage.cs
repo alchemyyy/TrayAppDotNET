@@ -112,6 +112,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.SelectedProcessChanged += OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged += OnRowHoverGeometryChanged;
         _processCanvas.SelectionRowTopChanged += OnSelectionRowTopChanged;
+        _processCanvas.ViewportAnchorAdjustmentRequested += OnViewportAnchorAdjustmentRequested;
         _processCanvas.ColumnPropertiesRequested += OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged += OnColumnLayoutChanged;
         _processCanvas.GridMetricsChanged += OnGridMetricsChanged;
@@ -458,7 +459,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     {
         if (_disposed) return;
 
-        _hoverHighlight.SetSamplingEnabled(!isVisible);
+        bool isProcessPointerInputEnabled = !isVisible;
+        _processCanvas.SetHoverAnchoringEnabled(isProcessPointerInputEnabled);
+        _hoverHighlight.SetSamplingEnabled(isProcessPointerInputEnabled);
     }
 
 #if DEBUG
@@ -583,6 +586,14 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     {
         _selectionHighlight.IsVisible = rowTop.HasValue;
         if (rowTop.HasValue) _selectionTransform.Y = rowTop.Value;
+    }
+
+    private void OnViewportAnchorAdjustmentRequested(ProcessViewportAnchorAdjustment adjustment)
+    {
+        if (_disposed) return;
+
+        if (adjustment.ContentHeightChanged) _tableScrollViewport.UpdateLayout();
+        _tableScrollViewport.AdjustVerticalOffset(adjustment.VerticalOffsetDelta);
     }
 
     private void OnGridMetricsChanged(double fontSize, double rowHeight)
@@ -1026,6 +1037,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged -= OnRowHoverGeometryChanged;
         _processCanvas.SelectionRowTopChanged -= OnSelectionRowTopChanged;
+        _processCanvas.ViewportAnchorAdjustmentRequested -= OnViewportAnchorAdjustmentRequested;
         _processCanvas.ColumnPropertiesRequested -= OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
         _processCanvas.GridMetricsChanged -= OnGridMetricsChanged;

@@ -176,6 +176,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private ProcessCopyPreviewMode _copyPreviewMode;
     private bool _sortDescending;
     private bool _isLiveColumnResizeActive;
+    private bool _isHoverAnchoringEnabled = true;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
 #if DEBUG
@@ -183,6 +184,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private double _axamlRowSpacing;
 #endif
     private PendingColumnLayout? _pendingColumnLayout;
+    private ProcessViewportAnchor? _pendingViewportAnchor;
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
     private bool _externalSubscriptionsAttached;
@@ -310,6 +312,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     public event Action<ProcessTerminationTarget?>? SelectedProcessChanged;
     public event Action<ProcessRowHoverGeometry>? RowHoverGeometryChanged;
     public event Action<double?>? SelectionRowTopChanged;
+    public event Action<ProcessViewportAnchorAdjustment>? ViewportAnchorAdjustmentRequested;
     public event Action<ProcessTableColumnKind>? ColumnPropertiesRequested;
     public event Action<List<ProcessColumnSetting>>? ColumnLayoutChanged;
     public event Action<ProcessEndTaskRequest>? EndTaskRequested;
@@ -333,8 +336,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 #endif
 
     /// <summary>Applies font size and the requested gap between rendered text lines.</summary>
-    public void SetGridTypography(double fontSize, double rowSpacing) =>
+    public void SetGridTypography(double fontSize, double rowSpacing)
+    {
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         SetGridMetrics(fontSize, CalculateRowHeight(fontSize, rowSpacing));
+        RestoreViewportAnchor(viewportAnchor);
+    }
 
     protected override int DetailsGridRowCount => _visibleRowCount;
     protected override double DetailsGridHeaderHeight => _metrics.HeaderHeight;
@@ -404,6 +411,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ArgumentNullException.ThrowIfNull(snapshotService);
 
         _snapshotService ??= snapshotService;
+        ProcessViewportAnchor? viewportAnchor = _visibleRowCount > 0
+            ? CaptureViewportAnchor()
+            : _pendingViewportAnchor;
         if (_pendingColumnLayout is { } pendingColumnLayout)
         {
             if (!snapshotService.TryCopyLatest(
@@ -418,7 +428,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             CommitPendingColumnLayout(
                 pendingColumnLayout,
                 pendingCount,
-                pendingVersion);
+                pendingVersion,
+                viewportAnchor);
             return;
         }
 
@@ -432,22 +443,27 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
         if (version == _snapshotVersion) return;
 
-        RebuildFromCopiedSnapshot(count, version);
+        RebuildFromCopiedSnapshot(count, version, viewportAnchor);
     }
 
-    private void RebuildFromCopiedSnapshot(int count, long version)
+    private void RebuildFromCopiedSnapshot(
+        int count,
+        long version,
+        ProcessViewportAnchor? viewportAnchor)
     {
         _snapshotVersion = version;
         _rowCount = count;
         EnsureRowCapacity(count);
         SynchronizeRenderCacheMembership();
         RebuildVisibleRows();
-        PublishWarmProcesses();
         EnsureSelectedProcessStillExists();
+        InvalidateMeasure();
+        RestoreViewportAnchor(viewportAnchor);
+        _pendingViewportAnchor = null;
+        PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
-        InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
     }
 
@@ -470,12 +486,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     /// <summary>Stops this table from changing the shared process sampling policy.</summary>
     public void DeactivateSampling() => _samplingActive = false;
 
+    /// <summary>Enables hover fallback anchoring only while process rows own pointer input.</summary>
+    public void SetHoverAnchoringEnabled(bool isEnabled)
+    {
+        if (IsDetailsGridDisposed || _isHoverAnchoringEnabled == isEnabled) return;
+
+        _isHoverAnchoringEnabled = isEnabled;
+        if (!isEnabled && !_selectedProcess.HasValue) _pendingViewportAnchor = null;
+    }
+
     public void SetFilter(string? filterText)
     {
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         string nextFilter = filterText?.Trim() ?? string.Empty;
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         _filterText = nextFilter;
         if (_pendingColumnLayout is { } pendingColumnLayout)
         {
@@ -497,7 +523,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 CommitPendingColumnLayout(
                     nextPendingColumnLayout,
                     _snapshot.Count,
-                    _snapshotVersion);
+                    _snapshotVersion,
+                    viewportAnchor);
             }
             return;
         }
@@ -506,21 +533,25 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ProcessDataSchema nextSchema = ProcessDataSchema.Create(
             _columnSettings,
             _filterQuery.RequiredColumnMask);
-        if (ApplySearchSchema(nextSchema)) return;
+        if (ApplySearchSchema(nextSchema, viewportAnchor)) return;
 
         RebuildVisibleRows();
+        InvalidateMeasure();
+        RestoreViewportAnchor(viewportAnchor);
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
-        InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
     }
 
-    private bool ApplySearchSchema(ProcessDataSchema schema)
+    private bool ApplySearchSchema(
+        ProcessDataSchema schema,
+        ProcessViewportAnchor? viewportAnchor)
     {
         if (_schema.VisibleMask == schema.VisibleMask) return false;
 
+        _pendingViewportAnchor = viewportAnchor;
         ClearSnapshotPresentationState();
         _schema = schema;
         _rowComparer.SetSchema(schema);
@@ -814,13 +845,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
         if (_groupProcesses == groupProcesses) return;
 
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         _groupProcesses = groupProcesses;
         RebuildVisibleRows();
+        InvalidateMeasure();
+        RestoreViewportAnchor(viewportAnchor);
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
-        InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
     }
 
@@ -1143,6 +1176,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         if (IsDetailsGridDisposed) return null;
 
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         double nextAXAMLFontSize = _resources.AxamlProcessTable.FontSize;
         double nextAXAMLRowSpacing = _resources.AxamlProcessTable.RowSpacing;
         double nextFontSize = Math.Abs(nextAXAMLFontSize - _axamlFontSize) >= 0.01
@@ -1219,6 +1253,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         RebuildCopyPreview();
         PublishWarmProcesses();
         InvalidateMeasure();
+        RestoreViewportAnchor(viewportAnchor);
         UpdateHeaderHoverVisual();
         InvalidateLayers(RenderLayerMask.All);
         return hotReloadedColumnSettings;
@@ -1282,7 +1317,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (columns.Length != _columns.Length) return null;
         _columnSettings = nextSettings;
         _settingsByColumn = CreateColumnSettingsIndex(nextSettings);
-        ApplyDisplayColumnLayout(columns);
+        ApplyDisplayColumnLayout(columns, null);
 
         List<ProcessColumnSetting> authoritativeSettings = nextSettings;
         if (_pendingColumnLayout is { } pendingColumnLayout
@@ -1532,6 +1567,89 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             if (row?.InstanceKey == process) return visibleIndex;
         }
         return -1;
+    }
+
+    private ProcessViewportAnchor? CaptureViewportAnchor()
+    {
+        if (IsDetailsGridDisposed || _visibleRowCount <= 0) return null;
+
+        ProcessRowHoverGeometry geometry = CreateRowHoverGeometry();
+        int visibleIndex = -1;
+        ProcessInstanceKey? hoveredProcess = null;
+        if (_selectedProcess is { } selectedProcess)
+        {
+            visibleIndex = FindVisibleProcess(selectedProcess);
+        }
+        else if (_isHoverAnchoringEnabled)
+        {
+            visibleIndex = SampleHoveredVisibleIndex(geometry);
+            if ((uint)visibleIndex < (uint)_visibleRowCount)
+            {
+                ProcessStaticData? hoveredRow =
+                    _snapshot.StaticRows[_visibleRowIndexes[visibleIndex]];
+                hoveredProcess = hoveredRow?.InstanceKey;
+            }
+        }
+
+        ProcessInstanceKey? process = ProcessViewportAnchor.ResolveProcessIdentity(
+            _selectedProcess,
+            hoveredProcess);
+        if (!process.HasValue || !geometry.IsRowVisible(visibleIndex)) return null;
+
+        return new ProcessViewportAnchor(
+            process.Value,
+            _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight,
+            DetailsGridLayout.GetContentHeight(
+                _visibleRowCount,
+                _metrics.HeaderHeight,
+                _metrics.RowHeight));
+    }
+
+    private int SampleHoveredVisibleIndex(ProcessRowHoverGeometry geometry)
+    {
+        if (!OperatingSystem.IsWindows()) return -1;
+
+        TopLevel? topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return -1;
+
+        IntPtr windowHandle = topLevel.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+        if (windowHandle == IntPtr.Zero
+            || !User32.GetCursorPos(out User32.POINT cursorPosition))
+        {
+            return -1;
+        }
+
+        IntPtr pointedWindow = User32.WindowFromPoint(cursorPosition);
+        if (pointedWindow == IntPtr.Zero
+            || User32.GetAncestor(pointedWindow, User32.GA_ROOT) != windowHandle)
+        {
+            return -1;
+        }
+
+        Point localPosition = this.PointToClient(
+            new PixelPoint(cursorPosition.X, cursorPosition.Y));
+        return geometry.HitTest(localPosition);
+    }
+
+    private void RestoreViewportAnchor(ProcessViewportAnchor? viewportAnchor)
+    {
+        if (IsDetailsGridDisposed || viewportAnchor is not { } anchor) return;
+
+        int visibleIndex = FindVisibleProcess(anchor.Process);
+        if (visibleIndex < 0) return;
+
+        double nextRowTop = _metrics.HeaderHeight + visibleIndex * _metrics.RowHeight;
+        double nextContentHeight = DetailsGridLayout.GetContentHeight(
+            _visibleRowCount,
+            _metrics.HeaderHeight,
+            _metrics.RowHeight);
+        ProcessViewportAnchorAdjustment? adjustment = anchor.ResolveAdjustment(
+            nextRowTop,
+            nextContentHeight);
+        if (adjustment is not { } requestedAdjustment) return;
+
+        if (requestedAdjustment.ContentHeightChanged) InvalidateMeasure();
+        ViewportAnchorAdjustmentRequested?.Invoke(requestedAdjustment);
     }
 
     private void AddTextUnderlineSegment(
@@ -2758,6 +2876,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     private void ApplyColumnLayout(List<ProcessColumnSetting> settings)
     {
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(settings);
         ProcessTableColumn[] columns = CreateColumns(normalized);
         ProcessSearchQuery filterQuery = ProcessSearchQuery.Parse(_filterText, normalized);
@@ -2784,21 +2903,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _filterQuery = filterQuery;
         if (_schema.VisibleMask != schema.VisibleMask)
         {
-            ApplySearchSchema(schema);
+            ApplySearchSchema(schema, viewportAnchor);
         }
         else
         {
             _schema = schema;
             _rowComparer.SetSchema(schema);
         }
-        ApplyDisplayColumnLayout(columns);
+        ApplyDisplayColumnLayout(columns, viewportAnchor);
         ColumnLayoutChanged?.Invoke(normalized);
     }
 
     private void CommitPendingColumnLayout(
         PendingColumnLayout pendingColumnLayout,
         int count,
-        long version)
+        long version,
+        ProcessViewportAnchor? viewportAnchor)
     {
         _pendingColumnLayout = null;
         PrepareColumnLayout(pendingColumnLayout.Columns);
@@ -2811,7 +2931,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _columns = pendingColumnLayout.Columns;
         ReplaceHeaderTexts(pendingColumnLayout.Columns);
         UpdateHeaderHoverVisual();
-        RebuildFromCopiedSnapshot(count, version);
+        RebuildFromCopiedSnapshot(count, version, viewportAnchor);
     }
 
     private void PrepareColumnLayout(ProcessTableColumn[] columns)
@@ -2835,11 +2955,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _sortDescending = ProcessTableColumnCatalog.SortsDescendingByDefault(_sortColumn);
     }
 
-    private void ApplyDisplayColumnLayout(ProcessTableColumn[] columns)
+    private void ApplyDisplayColumnLayout(
+        ProcessTableColumn[] columns,
+        ProcessViewportAnchor? viewportAnchor)
     {
         _columns = columns;
         ReplaceHeaderTexts(columns);
         RebuildVisibleRows();
+        InvalidateMeasure();
+        RestoreViewportAnchor(viewportAnchor);
 
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
@@ -2848,7 +2972,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         PublishWarmProcesses();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
-        InvalidateMeasure();
         UpdateHeaderHoverVisual();
         InvalidateLayers(RenderLayerMask.All);
     }
@@ -2863,6 +2986,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         int columnIndex = ProcessTableLayout.HitTestColumn(x, _columns);
         if (columnIndex < 0) return;
 
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         ProcessTableColumnKind nextColumn = _columns[columnIndex].Kind;
         if (nextColumn == _sortColumn)
             _sortDescending = !_sortDescending;
@@ -2873,6 +2997,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
 
         RebuildVisibleRows();
+        RestoreViewportAnchor(viewportAnchor);
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
@@ -2922,14 +3047,16 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (row == null) return false;
 
         SelectVisibleRow(visibleIndex);
+        ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         if (!_collapsedProcesses.Add(row.InstanceKey))
             _collapsedProcesses.Remove(row.InstanceKey);
         RebuildVisibleRows();
+        InvalidateMeasure();
+        RestoreViewportAnchor(viewportAnchor);
         PublishWarmProcesses();
         UpdateRetainedDrawings();
         UpdateSelectionOverlay();
         RebuildCopyPreview();
-        InvalidateMeasure();
         InvalidateLayers(RenderLayerMask.All);
         return true;
     }
@@ -3617,11 +3744,13 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         SelectedProcessChanged = null;
         RowHoverGeometryChanged = null;
         SelectionRowTopChanged = null;
+        ViewportAnchorAdjustmentRequested = null;
         ColumnPropertiesRequested = null;
         ColumnLayoutChanged = null;
         EndTaskRequested = null;
         RowContextMenuRequested = null;
         _pendingColumnLayout = null;
+        _pendingViewportAnchor = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
             ReleaseRenderCache(cache);
         _renderCaches.Clear();

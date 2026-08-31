@@ -160,6 +160,30 @@ internal readonly record struct ProcessRowHoverGeometry(
             hostWidth,
             RowHeight);
     }
+
+    /// <summary>Reports whether any unobscured part of one row is inside the viewport.</summary>
+    public bool IsRowVisible(int visibleIndex)
+    {
+        if ((uint)visibleIndex >= (uint)VisibleRowCount
+            || !double.IsFinite(Viewport.X)
+            || !double.IsFinite(Viewport.Y)
+            || !double.IsFinite(Viewport.Width)
+            || !double.IsFinite(Viewport.Height)
+            || !double.IsFinite(HeaderHeight)
+            || !double.IsFinite(RowHeight)
+            || !double.IsFinite(StickyHeaderTop)
+            || Viewport.Width <= 0
+            || Viewport.Height <= 0
+            || HeaderHeight <= 0
+            || RowHeight <= 0)
+        {
+            return false;
+        }
+
+        double rowTop = HeaderHeight + visibleIndex * RowHeight;
+        double visibleTop = Math.Max(Viewport.Y, StickyHeaderTop + HeaderHeight);
+        return rowTop + RowHeight > visibleTop && rowTop < Viewport.Bottom;
+    }
 }
 
 /// <summary>Samples the Win32 cursor and paints the process-row hover on the render thread.</summary>
