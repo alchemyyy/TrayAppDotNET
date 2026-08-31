@@ -1400,7 +1400,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         using (context.PushTransform(Matrix.CreateTranslation(0, top)))
         {
             if (_isLiveColumnResizeActive && _liveResizeColumns != null)
-                DrawLiveResizedRow(context, cache, _liveResizeColumns, lifetime);
+                DrawLiveResizedRow(context, cache, rowIndex, _liveResizeColumns, lifetime);
             else
                 DrawRetainedRowDrawing(context, cache, lifetime);
         }
@@ -1700,10 +1700,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         destination.Append('"');
     }
 
-    /// <summary>Clips the resized cell and translates trailing retained cells without rebuilding the row DAG.</summary>
+    /// <summary>Relayouts the resized cell and translates trailing retained cells without rebuilding the row DAG.</summary>
     private void DrawLiveResizedRow(
         DrawingContext context,
         ProcessRowRenderCache cache,
+        int rowIndex,
         ProcessTableColumn[] liveColumns,
         ProcessTableColumnLifetime lifetime)
     {
@@ -1724,21 +1725,26 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             0,
             lifetime);
 
-        double sourceTranslation = committedColumn.Alignment == ProcessTableColumnAlignment.Right
-            ? offset
-            : 0;
-        double sourceClipLeft = Math.Max(liveColumn.Left, committedColumn.Left + sourceTranslation);
-        double sourceClipRight = Math.Min(liveColumn.Right, committedColumn.Right + sourceTranslation);
-        DrawRetainedRowSegment(
-            context,
-            cache,
-            new Rect(
-                sourceClipLeft,
-                0,
-                Math.Max(0, sourceClipRight - sourceClipLeft),
-                _metrics.RowHeight),
-            sourceTranslation,
-            lifetime);
+        ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(liveColumn.Kind);
+        if (definition.Lifetime == lifetime)
+        {
+            string display = GetCellDisplayValue(rowIndex, liveColumn.Kind);
+            if (display.Length > 0)
+            {
+                using CellTextLayout layout = CreateCellTextLayout(
+                    liveColumn,
+                    display,
+                    GetTreeLayoutKey(rowIndex));
+                using (context.PushClip(new Rect(
+                           liveColumn.Left,
+                           0,
+                           liveColumn.Width,
+                           _metrics.RowHeight)))
+                {
+                    layout.Draw(context);
+                }
+            }
+        }
 
         DrawRetainedRowSegment(
             context,
