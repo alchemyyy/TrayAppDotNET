@@ -274,6 +274,70 @@ public sealed class ContextMenuWindowTests
         });
 
     [Fact]
+    public void NonDismissingInlineActionCanReplaceEntriesWithoutClosingMenu() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            bool invoked = false;
+            EditableContextMenuWindow? menu = null;
+            menu = new EditableContextMenuWindow(
+                [
+                    new EditableContextMenuEntry("Saved Search 1", static () => { })
+                    {
+                        TrailingButton = new EditableContextMenuEntryButton(() =>
+                        {
+                            invoked = true;
+                            menu!.ReplaceEntries(
+                                [new EditableContextMenuEntry("Saved Search 2", static () => { })]);
+                        })
+                        {
+                            DismissMenuOnClick = false
+                        }
+                    }
+                ],
+                new EditableContextMenuWindowOptions
+                {
+                    Palette = Palette(),
+                    ItemHeight = 32,
+                    ItemMinWidth = 260,
+                    InvokeOnPointerReleased = true
+                });
+
+            try
+            {
+                menu.Show();
+                menu.UpdateLayout();
+                Point entryCenter = new(menu.Bounds.Width / 2, menu.Bounds.Height / 2);
+                menu.MouseMove(entryCenter, RawInputModifiers.None);
+
+                SettingsButton actionButton = menu.GetVisualDescendants()
+                    .OfType<SettingsButton>()
+                    .Single();
+                Point? actionCenter = actionButton.TranslatePoint(
+                    new Point(actionButton.Bounds.Width / 2, actionButton.Bounds.Height / 2),
+                    menu);
+                Assert.NotNull(actionCenter);
+                menu.MouseDown(actionCenter.Value, MouseButton.Left, RawInputModifiers.None);
+                menu.MouseUp(actionCenter.Value, MouseButton.Left, RawInputModifiers.None);
+                menu.UpdateLayout();
+
+                Assert.True(invoked);
+                Assert.True(menu.IsVisible);
+                Assert.False(menu.ClosedFromSelection);
+                Assert.DoesNotContain(
+                    menu.GetVisualDescendants().OfType<TextBlock>(),
+                    textBlock => textBlock.Text == "Saved Search 1");
+                Assert.Contains(
+                    menu.GetVisualDescendants().OfType<TextBlock>(),
+                    textBlock => textBlock.Text == "Saved Search 2");
+            }
+            finally
+            {
+                if (menu.IsVisible)
+                    menu.Close();
+            }
+        });
+
+    [Fact]
     public void EnteringAnotherItemClearsPreviousInlineActionHover() =>
         AvaloniaTestHost.Run(() =>
         {

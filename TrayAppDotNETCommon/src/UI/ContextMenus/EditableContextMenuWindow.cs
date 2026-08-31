@@ -54,6 +54,9 @@ public sealed class EditableContextMenuWindowOptions : ContextMenuWindowOptions
 public sealed class EditableContextMenuWindow : ContextMenuWindow
 {
     private readonly EditableContextMenuWindowOptions _options;
+    private readonly StackPanel _items;
+    private readonly UIResourceScope _contentResources;
+    private UIResourceScope _entryResources;
     private EditableMenuItemControl? _hoveredItem;
     private EditableMenuItemControl? _inlineEditingItem;
     private bool _suppressPendingDeactivationDismissal;
@@ -69,21 +72,11 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
         ArgumentNullException.ThrowIfNull(options);
 
         _options = options;
-        StackPanel items = new();
-        UIResourceScope contentResources = new($"{GetType().Name}.Content");
-        foreach (EditableContextMenuEntry entry in entries)
-        {
-            EditableMenuItemControl item = contentResources.Own(new EditableMenuItemControl(
-                entry,
-                options,
-                OnItemInvoked,
-                OnItemHoverChanged,
-                OnEntryButtonInvoked,
-                OnInlineEditStateChanged));
-            items.Children.Add(item);
-        }
-
-        InitializeMenuContent(items, contentResources);
+        _items = new StackPanel();
+        _contentResources = new UIResourceScope($"{GetType().Name}.Content");
+        _entryResources = _contentResources.CreateChild($"{GetType().Name}.Entries");
+        AddEntryControls(_items, BuildEntryControls(entries, _entryResources));
+        InitializeMenuContent(_items, _contentResources);
         AddHandler(
             InputElement.PointerPressedEvent,
             OnWindowPointerPressed,
@@ -94,6 +87,65 @@ public sealed class EditableContextMenuWindow : ContextMenuWindow
             OnWindowPointerReleased,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
+    }
+
+    /// <summary>Replaces the rendered entries without closing or recreating the menu window.</summary>
+    public void ReplaceEntries(IReadOnlyList<EditableContextMenuEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (_closed) return;
+
+        UIResourceScope replacementResources =
+            _contentResources.CreateChild($"{GetType().Name}.Entries");
+        List<EditableMenuItemControl> replacementControls;
+        try
+        {
+            replacementControls = BuildEntryControls(entries, replacementResources);
+        }
+        catch
+        {
+            replacementResources.Dispose();
+            throw;
+        }
+
+        _hoveredItem = null;
+        _inlineEditingItem = null;
+        _consumeNextPointerRelease = false;
+        _items.Children.Clear();
+
+        UIResourceScope previousResources = _entryResources;
+        _entryResources = replacementResources;
+        previousResources.Dispose();
+
+        AddEntryControls(_items, replacementControls);
+        ControlNameScope.For(this).AssignLogicalSubtree(_items, this);
+    }
+
+    private List<EditableMenuItemControl> BuildEntryControls(
+        IReadOnlyList<EditableContextMenuEntry> entries,
+        UIResourceScope resources)
+    {
+        List<EditableMenuItemControl> controls = [];
+        foreach (EditableContextMenuEntry entry in entries)
+        {
+            controls.Add(resources.Own(new EditableMenuItemControl(
+                entry,
+                _options,
+                OnItemInvoked,
+                OnItemHoverChanged,
+                OnEntryButtonInvoked,
+                OnInlineEditStateChanged)));
+        }
+
+        return controls;
+    }
+
+    private static void AddEntryControls(
+        StackPanel items,
+        IReadOnlyList<EditableMenuItemControl> controls)
+    {
+        for (int controlIndex = 0; controlIndex < controls.Count; controlIndex++)
+            items.Children.Add(controls[controlIndex]);
     }
 
     /// <summary>Commits the active entry edit without selecting an entry or closing the menu.</summary>

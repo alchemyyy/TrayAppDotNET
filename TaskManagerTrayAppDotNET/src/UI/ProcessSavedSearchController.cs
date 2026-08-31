@@ -211,6 +211,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
             {
                 Glyph = TaskManagerGlyphCatalog.CLOSE,
                 ToolTip = "Delete saved search",
+                DismissMenuOnClick = false,
                 Size = resources.AxamlTaskManagerContextMenu.SavedSearchButtonSize,
                 FontSize = resources.AxamlTaskManagerContextMenu.SavedSearchDeleteButtonFontSize,
                 Padding = resources.AxamlTaskManagerContextMenu.SavedSearchButtonPadding
@@ -435,6 +436,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         List<ProcessSavedSearch> updated = [.. _savedSearches];
         updated.RemoveAt(searchIndex);
         Persist(updated);
+        _menuWindow?.ReplaceEntries(BuildEntries());
     }
 
     private string RenameSavedSearch(int searchIndex, string name)
