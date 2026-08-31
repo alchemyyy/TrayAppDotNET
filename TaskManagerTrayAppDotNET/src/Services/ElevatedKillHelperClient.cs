@@ -230,11 +230,15 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             return ElevatedKillHelperStartOutcome.Failed;
         }
 
-        _mailbox = (KillHelperMailbox*)_mappingView;
-        _mailbox->Magic = KillHelperProtocol.MailboxMagic;
-        _mailbox->Version = KillHelperProtocol.ProtocolVersion;
-        _mailbox->HelperState = KillHelperProtocol.StateStarting;
-        _mailbox->ParentProcessID = (uint)Environment.ProcessId;
+        lock (_sync)
+        {
+            _mailbox = (KillHelperMailbox*)_mappingView;
+            _mailbox->Magic = KillHelperProtocol.MailboxMagic;
+            _mailbox->Version = KillHelperProtocol.ProtocolVersion;
+            _mailbox->HelperState = KillHelperProtocol.StateStarting;
+            _mailbox->ParentProcessID = (uint)Environment.ProcessId;
+        }
+
         _mappingViewLocked = KillHelperNativeMethods.VirtualLock(
             _mappingView,
             KillHelperProtocol.MailboxSize);
@@ -310,19 +314,21 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
             return ElevatedKillHelperStartOutcome.Failed;
         }
 
-        int helperState = Volatile.Read(ref _mailbox->HelperState);
-        if (helperState != KillHelperProtocol.StateReady)
+        lock (_sync)
         {
-            int startupError = Volatile.Read(ref _mailbox->HelperStartupError);
-            string startupMessage = startupError == 0
-                ? $"helper state {helperState} did not become ready"
-                : new Win32Exception(startupError).Message;
-            errorMessage = $"Elevated kill helper startup failed: {startupMessage}";
-            _log?.Invoke(errorMessage);
-            return ElevatedKillHelperStartOutcome.Failed;
+            int helperState = Volatile.Read(ref _mailbox->HelperState);
+            if (helperState != KillHelperProtocol.StateReady)
+            {
+                int startupError = Volatile.Read(ref _mailbox->HelperStartupError);
+                string startupMessage = startupError == 0
+                    ? $"helper state {helperState} did not become ready"
+                    : new Win32Exception(startupError).Message;
+                errorMessage = $"Elevated kill helper startup failed: {startupMessage}";
+                _log?.Invoke(errorMessage);
+                return ElevatedKillHelperStartOutcome.Failed;
+            }
+            LogHelperHardeningState(Volatile.Read(ref _mailbox->HelperFlags));
         }
-
-        LogHelperHardeningState(Volatile.Read(ref _mailbox->HelperFlags));
         return ElevatedKillHelperStartOutcome.Ready;
     }
 
@@ -343,7 +349,11 @@ internal sealed unsafe class ElevatedKillHelperClient : IDisposable
         const int requiredFlags = KillHelperProtocol.RequiredHardeningFlags;
         if ((flags & requiredFlags) == requiredFlags)
         {
-            _log?.Invoke($"Elevated kill helper ready, PID {_mailbox->HelperProcessID}; hardening 0x{flags:X8}.");
+            lock (_sync)
+            {
+                _log?.Invoke($"Elevated kill helper ready, PID {_mailbox->HelperProcessID}; hardening 0x{flags:X8}.");
+            }
+
             return;
         }
 
