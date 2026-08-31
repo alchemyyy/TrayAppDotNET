@@ -9,10 +9,10 @@ using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 
-namespace TrayAppDotNETCommon.UI.Tray;
+namespace TrayAppDotNETCommon.UI.ContextMenus;
 
 /// <summary>Describes an action button shown while an editable menu entry is hovered.</summary>
-public sealed record TrayEditableMenuEntryButton(Action Click)
+public sealed record EditableContextMenuEntryButton(Action Click)
 {
     public string? Text { get; init; }
     public Glyph? Glyph { get; init; }
@@ -24,10 +24,10 @@ public sealed record TrayEditableMenuEntryButton(Action Click)
 }
 
 /// <summary>Describes in-place editing for an editable menu entry's primary text.</summary>
-public sealed record TrayEditableMenuInlineTextEdit(Func<string, string> Commit);
+public sealed record EditableContextMenuInlineTextEdit(Func<string, string> Commit);
 
 /// <summary>Describes a menu entry with secondary text and optional hover actions.</summary>
-public sealed record TrayEditableMenuEntry(string Text, Action Click)
+public sealed record EditableContextMenuEntry(string Text, Action Click)
 {
     public string? SecondaryText { get; init; }
     public FontWeight SecondaryTextFontWeight { get; init; } = FontWeight.Normal;
@@ -35,34 +35,34 @@ public sealed record TrayEditableMenuEntry(string Text, Action Click)
     public double PrimaryTextMaximumWidth { get; init; } = double.PositiveInfinity;
     public double TextColumnSpacing { get; init; }
     public double LeadingContentSpacing { get; init; }
-    public TrayEditableMenuEntryButton? LeadingButton { get; init; }
-    public TrayEditableMenuEntryButton? TrailingButton { get; init; }
-    public TrayEditableMenuInlineTextEdit? InlineTextEdit { get; init; }
+    public EditableContextMenuEntryButton? LeadingButton { get; init; }
+    public EditableContextMenuEntryButton? TrailingButton { get; init; }
+    public EditableContextMenuInlineTextEdit? InlineTextEdit { get; init; }
     public Action<bool>? HoverChanged { get; init; }
     public bool IsEnabled { get; init; } = true;
 }
 
-/// <summary>Configures editable-menu behavior layered over the common tray-menu shell.</summary>
-public sealed class TrayEditableMenuWindowOptions : TrayMenuWindowOptions
+/// <summary>Configures editable-menu behavior layered over the common context-menu shell.</summary>
+public sealed class EditableContextMenuWindowOptions : ContextMenuWindowOptions
 {
     public SettingsPaletteColor? ItemHoverColor { get; init; }
     public double DisabledItemOpacity { get; init; } = 0.68;
     public bool KeepOpenWhenOwnerActivated { get; init; }
 }
 
-/// <summary>Tray-menu variant with secondary labels, hover actions, and in-place text editing.</summary>
-public sealed class TrayEditableMenuWindow : TrayMenuWindow
+/// <summary>Context-menu variant with secondary labels, hover actions, and in-place text editing.</summary>
+public sealed class EditableContextMenuWindow : ContextMenuWindow
 {
-    private readonly TrayEditableMenuWindowOptions _options;
+    private readonly EditableContextMenuWindowOptions _options;
     private EditableMenuItemControl? _hoveredItem;
     private EditableMenuItemControl? _inlineEditingItem;
     private bool _suppressPendingDeactivationDismissal;
     private bool _consumeNextPointerRelease;
     private bool _closed;
 
-    public TrayEditableMenuWindow(
-        IReadOnlyList<TrayEditableMenuEntry> entries,
-        TrayEditableMenuWindowOptions options)
+    public EditableContextMenuWindow(
+        IReadOnlyList<EditableContextMenuEntry> entries,
+        EditableContextMenuWindowOptions options)
         : base(options)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -71,7 +71,7 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
         _options = options;
         StackPanel items = new();
         UIResourceScope contentResources = new($"{GetType().Name}.Content");
-        foreach (TrayEditableMenuEntry entry in entries)
+        foreach (EditableContextMenuEntry entry in entries)
         {
             EditableMenuItemControl item = contentResources.Own(new EditableMenuItemControl(
                 entry,
@@ -109,14 +109,14 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
         return true;
     }
 
-    private void OnItemInvoked(EditableMenuItemControl item, TrayEditableMenuEntry entry)
+    private void OnItemInvoked(EditableMenuItemControl item, EditableContextMenuEntry entry)
     {
         if (_closed || !entry.IsEnabled || item.IsInlineEditing) return;
 
         InvokeAndClose(entry.Click);
     }
 
-    private void OnEntryButtonInvoked(TrayEditableMenuEntryButton button)
+    private void OnEntryButtonInvoked(EditableContextMenuEntryButton button)
     {
         if (_closed) return;
 
@@ -213,27 +213,27 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
 
     private sealed class EditableMenuItemControl : Border, IDisposable
     {
-        private readonly TrayEditableMenuEntry _entry;
-        private readonly TrayEditableMenuWindowOptions _options;
+        private readonly EditableContextMenuEntry _entry;
+        private readonly EditableContextMenuWindowOptions _options;
         private readonly Border _itemBorder;
         private readonly TextBlock _primaryLabel;
         private readonly SettingsButton? _leadingButton;
         private readonly SettingsButton? _trailingButton;
         private readonly TextBox? _inlineEditor;
-        private readonly Action<EditableMenuItemControl, TrayEditableMenuEntry> _invoke;
+        private readonly Action<EditableMenuItemControl, EditableContextMenuEntry> _invoke;
         private readonly Action<EditableMenuItemControl, bool> _itemHoverChanged;
-        private readonly Action<TrayEditableMenuEntryButton> _invokeButton;
+        private readonly Action<EditableContextMenuEntryButton> _invokeButton;
         private readonly Action<EditableMenuItemControl, bool> _inlineEditStateChanged;
         private bool _isPointerOver;
         private bool _isInlineEditing;
         private bool _disposed;
 
         public EditableMenuItemControl(
-            TrayEditableMenuEntry entry,
-            TrayEditableMenuWindowOptions options,
-            Action<EditableMenuItemControl, TrayEditableMenuEntry> invoke,
+            EditableContextMenuEntry entry,
+            EditableContextMenuWindowOptions options,
+            Action<EditableMenuItemControl, EditableContextMenuEntry> invoke,
             Action<EditableMenuItemControl, bool> itemHoverChanged,
-            Action<TrayEditableMenuEntryButton> invokeButton,
+            Action<EditableContextMenuEntryButton> invokeButton,
             Action<EditableMenuItemControl, bool> inlineEditStateChanged)
         {
             _entry = entry;
@@ -285,8 +285,8 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
             SettingsButton? TrailingButton,
             TextBox? InlineEditor,
             Control Content) BuildContent(
-                TrayEditableMenuEntry entry,
-                TrayEditableMenuWindowOptions options)
+                EditableContextMenuEntry entry,
+                EditableContextMenuWindowOptions options)
         {
             TextBlock primaryLabel = TrayAppDotNETSettingsUI.Text(
                 entry.Text,
@@ -360,8 +360,8 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
         }
 
         private static TextBox? CreateInlineEditor(
-            TrayEditableMenuEntry entry,
-            TrayEditableMenuWindowOptions options)
+            EditableContextMenuEntry entry,
+            EditableContextMenuWindowOptions options)
         {
             if (entry.InlineTextEdit == null) return null;
 
@@ -383,8 +383,8 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
         }
 
         private static SettingsButton? CreateEntryButton(
-            TrayEditableMenuEntryButton? definition,
-            TrayEditableMenuWindowOptions options)
+            EditableContextMenuEntryButton? definition,
+            EditableContextMenuWindowOptions options)
         {
             if (definition == null) return null;
 
@@ -442,7 +442,7 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
             }
             catch (Exception exception)
             {
-                TADNLog.Log($"Editable tray-menu commit failed: {exception}");
+                TADNLog.Log($"Editable context-menu commit failed: {exception}");
             }
 
             _primaryLabel.Text = resolvedText;
@@ -646,7 +646,7 @@ public sealed class TrayEditableMenuWindow : TrayMenuWindow
         }
 
         private static CornerRadius ResolveCornerRadius(
-            TrayEditableMenuWindowOptions options,
+            EditableContextMenuWindowOptions options,
             CornerRadius roundedRadius) =>
             options.Rounded ? roundedRadius : new CornerRadius(0);
     }

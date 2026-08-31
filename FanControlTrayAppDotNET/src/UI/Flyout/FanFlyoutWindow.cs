@@ -52,7 +52,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
     private readonly List<Control> _dragDebugVisuals = [];
 
     private FanFlyoutVisualGeneration? _activeVisualGeneration;
-    private TrayMenuWindow? _addItemMenu;
+    private ContextMenuWindow? _addItemMenu;
     private TrayAppDotNETShellTrayIcon? _lastTrayIcon;
     private FlyoutAxamlProperties? _layout;
     private Border? _dragGhost;
@@ -2281,19 +2281,19 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
         CloseAddItemMenu();
         bool isLight = AppTheme.ResolveEffectiveIsLightTheme(_settings);
         AppTheme theme = AppServices.Theme ?? AppTheme.Default;
-        List<TrayMenuEntry> entries =
+        List<ContextMenuEntry> entries =
         [
             new("Add Group Card", AddGroup) { LeadingGlyph = GlyphCatalog.GROUP },
             new("Add Probe Card", AddProbeCard) { LeadingGlyph = GlyphCatalog.PROBE }
         ];
-        TrayMenuWindow menu = new(
+        ContextMenuWindow menu = new(
             entries,
-            new TrayMenuWindowOptions
+            new ContextMenuWindowOptions
             {
                 Palette = FanSettingsWindow.CreatePalette(theme, _settings, isLight),
                 Rounded = _settings.EnableRoundedCorners,
                 FontSize = _settings.ContextMenuFontSize,
-                TrayMenuSettings = _settings,
+                ContextMenuSettings = _settings,
                 ShadowColor = theme.MenuShadow.For(isLight),
                 InvokeOnPointerReleased = true,
                 InvokeBeforeClose = true
@@ -2313,7 +2313,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void OnAddItemMenuClosed(object? sender, EventArgs e)
     {
-        if (sender is not TrayMenuWindow menu) return;
+        if (sender is not ContextMenuWindow menu) return;
 
         menu.Closed -= OnAddItemMenuClosed;
         if (!ReferenceEquals(_addItemMenu, menu)) return;
@@ -2338,7 +2338,7 @@ public sealed partial class FanFlyoutWindow : FlyoutWindowCommon, INotifyPropert
 
     private void CloseAddItemMenu()
     {
-        TrayMenuWindow? menu = Interlocked.Exchange(ref _addItemMenu, null);
+        ContextMenuWindow? menu = Interlocked.Exchange(ref _addItemMenu, null);
         if (menu == null) return;
 
         menu.Closed -= OnAddItemMenuClosed;

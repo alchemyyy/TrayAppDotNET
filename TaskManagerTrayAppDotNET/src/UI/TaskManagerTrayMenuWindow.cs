@@ -7,22 +7,22 @@ internal sealed class TaskManagerTrayMenuWindow(
     SettingsPalette palette,
     Action openTaskManager,
     Action exitApplication)
-    : TrayMenuWindow(
+    : ContextMenuWindow(
         BuildEntries(openTaskManager, exitApplication),
-        new TrayMenuWindowOptions
+        new ContextMenuWindowOptions
         {
             Palette = palette,
             Rounded = settings.EnableRoundedCorners,
             FontSize = 15,
-            TrayMenuSettings = settings
+            ContextMenuSettings = settings
         })
 {
     public void ShowAt(TrayAppDotNETShellTrayIcon trayIcon, PixelPoint cursorPoint) =>
-        base.ShowAt(trayIcon, cursorPoint, TrayMenuWindowPlacement.Modern);
+        base.ShowAt(trayIcon, cursorPoint, ContextMenuPlacement.Modern);
 
-    private static List<TrayMenuEntry> BuildEntries(Action openTaskManager, Action exitApplication)
+    private static List<ContextMenuEntry> BuildEntries(Action openTaskManager, Action exitApplication)
     {
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         entries.Add("Open Task Manager", openTaskManager);
         entries.AddSeparator();
         entries.Add("Exit", exitApplication);

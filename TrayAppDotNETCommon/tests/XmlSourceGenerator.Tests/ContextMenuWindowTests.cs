@@ -7,12 +7,12 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
-using TrayAppDotNETCommon.UI.Tray;
+using TrayAppDotNETCommon.UI.ContextMenus;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
-public sealed class TrayMenuWindowTests
+public sealed class ContextMenuWindowTests
 {
     [Fact]
     public void OverlayPositionUsesSpaceBelowTopMountedAnchor()
@@ -21,7 +21,7 @@ public sealed class TrayMenuWindowTests
         PixelRect anchorBounds = new(210, 100, 37, 38);
         PixelSize menuSize = new(180, 80);
 
-        PixelPoint position = TrayMenuWindow.ResolveOverlayPosition(
+        PixelPoint position = ContextMenuWindow.ResolveOverlayPosition(
             containingBounds,
             anchorBounds,
             menuSize);
@@ -29,7 +29,7 @@ public sealed class TrayMenuWindowTests
         Assert.Equal(new PixelPoint(210, 138), position);
         Assert.Equal(
             containingBounds.Bottom - anchorBounds.Bottom,
-            TrayMenuWindow.ResolveOverlayAvailableHeight(containingBounds, anchorBounds));
+            ContextMenuWindow.ResolveOverlayAvailableHeight(containingBounds, anchorBounds));
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class TrayMenuWindowTests
         PixelRect anchorBounds = new(430, 562, 37, 38);
         PixelSize menuSize = new(180, 80);
 
-        PixelPoint position = TrayMenuWindow.ResolveOverlayPosition(
+        PixelPoint position = ContextMenuWindow.ResolveOverlayPosition(
             containingBounds,
             anchorBounds,
             menuSize);
@@ -47,7 +47,7 @@ public sealed class TrayMenuWindowTests
         Assert.Equal(new PixelPoint(270, 482), position);
         Assert.Equal(
             anchorBounds.Y - containingBounds.Y,
-            TrayMenuWindow.ResolveOverlayAvailableHeight(containingBounds, anchorBounds));
+            ContextMenuWindow.ResolveOverlayAvailableHeight(containingBounds, anchorBounds));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class TrayMenuWindowTests
         PixelRect ownerBounds = new(200, 300, 160, 30);
         PixelSize menuSize = new(180, 200);
 
-        PixelPoint position = TrayMenuWindow.ResolveSubmenuPosition(
+        PixelPoint position = ContextMenuWindow.ResolveSubmenuPosition(
             workArea,
             ownerBounds,
             menuSize,
@@ -73,7 +73,7 @@ public sealed class TrayMenuWindowTests
         PixelRect ownerBounds = new(900, 750, 80, 30);
         PixelSize menuSize = new(180, 200);
 
-        PixelPoint position = TrayMenuWindow.ResolveSubmenuPosition(
+        PixelPoint position = ContextMenuWindow.ResolveSubmenuPosition(
             workArea,
             ownerBounds,
             menuSize,
@@ -88,12 +88,12 @@ public sealed class TrayMenuWindowTests
         PixelRect workArea = new(100, 100, 500, 400);
         PixelSize menuSize = new(180, 200);
 
-        PixelPoint insidePosition = TrayMenuWindow.ResolveScreenPointPosition(
+        PixelPoint insidePosition = ContextMenuWindow.ResolveScreenPointPosition(
             workArea,
             new PixelPoint(250, 180),
             menuSize,
             edgePadding: 8);
-        PixelPoint clampedPosition = TrayMenuWindow.ResolveScreenPointPosition(
+        PixelPoint clampedPosition = ContextMenuWindow.ResolveScreenPointPosition(
             workArea,
             new PixelPoint(590, 490),
             menuSize,
@@ -136,7 +136,7 @@ public sealed class TrayMenuWindowTests
                 DragThumbColor: Colors.White,
                 ArrowColor: Colors.White,
                 ShowButtonsOnHover: true);
-            TrayMenuWindowOptions options = new() { Palette = palette };
+            ContextMenuWindowOptions options = new() { Palette = palette };
             using SettingsScrollBar verticalScrollBar = new(
                 Orientation.Vertical,
                 style,
@@ -172,10 +172,10 @@ public sealed class TrayMenuWindowTests
         {
             bool invoked = false;
             bool wasVisibleDuringAction = false;
-            TrayMenuWindow? menu = null;
-            menu = new TrayMenuWindow(
+            ContextMenuWindow? menu = null;
+            menu = new ContextMenuWindow(
                 [
-                    new TrayMenuEntry(
+                    new ContextMenuEntry(
                         "Add Group Card",
                         () =>
                         {
@@ -183,7 +183,7 @@ public sealed class TrayMenuWindowTests
                             wasVisibleDuringAction = menu!.IsVisible;
                         })
                 ],
-                new TrayMenuWindowOptions
+                new ContextMenuWindowOptions
                 {
                     Palette = Palette(),
                     InvokeOnPointerReleased = true,
@@ -220,12 +220,12 @@ public sealed class TrayMenuWindowTests
     public void InlineActionKeepsParentEntryHoveredAcrossPointerTransitions() =>
         AvaloniaTestHost.Run(() =>
         {
-            TrayEditableMenuWindow menu = new(
+            EditableContextMenuWindow menu = new(
                 [
-                    new TrayEditableMenuEntry("Saved Search 1", static () => { })
+                    new EditableContextMenuEntry("Saved Search 1", static () => { })
                     {
                         SecondaryText = "{Name}=~\"browser\"",
-                        TrailingButton = new TrayEditableMenuEntryButton(static () => { })
+                        TrailingButton = new EditableContextMenuEntryButton(static () => { })
                         {
                             Text = "x",
                             Size = 24,
@@ -233,7 +233,7 @@ public sealed class TrayMenuWindowTests
                         }
                     }
                 ],
-                new TrayEditableMenuWindowOptions
+                new EditableContextMenuWindowOptions
                 {
                     Palette = Palette(),
                     ItemHeight = 32,
@@ -277,12 +277,12 @@ public sealed class TrayMenuWindowTests
     public void EnteringAnotherItemClearsPreviousInlineActionHover() =>
         AvaloniaTestHost.Run(() =>
         {
-            TrayEditableMenuWindow menu = new(
+            EditableContextMenuWindow menu = new(
                 [
                     Entry("Saved Search 1"),
                     Entry("Saved Search 2")
                 ],
-                new TrayEditableMenuWindowOptions
+                new EditableContextMenuWindowOptions
                 {
                     Palette = Palette(),
                     ItemHeight = 32,
@@ -318,10 +318,10 @@ public sealed class TrayMenuWindowTests
 
             return;
 
-            static TrayEditableMenuEntry Entry(string text) =>
+            static EditableContextMenuEntry Entry(string text) =>
                 new(text, static () => { })
                 {
-                    TrailingButton = new TrayEditableMenuEntryButton(static () => { })
+                    TrailingButton = new EditableContextMenuEntryButton(static () => { })
                 };
         });
 
@@ -331,19 +331,19 @@ public sealed class TrayMenuWindowTests
         {
             bool entryInvoked = false;
             string committedText = string.Empty;
-            TrayEditableMenuWindow menu = new(
+            EditableContextMenuWindow menu = new(
                 [
-                    new TrayEditableMenuEntry("Saved Search 1", () => entryInvoked = true)
+                    new EditableContextMenuEntry("Saved Search 1", () => entryInvoked = true)
                     {
-                        LeadingButton = new TrayEditableMenuEntryButton(static () => { }),
-                        InlineTextEdit = new TrayEditableMenuInlineTextEdit(text =>
+                        LeadingButton = new EditableContextMenuEntryButton(static () => { }),
+                        InlineTextEdit = new EditableContextMenuInlineTextEdit(text =>
                         {
                             committedText = text;
                             return text.Trim();
                         })
                     }
                 ],
-                new TrayEditableMenuWindowOptions
+                new EditableContextMenuWindowOptions
                 {
                     Palette = Palette(),
                     ItemHeight = 32,
@@ -393,20 +393,20 @@ public sealed class TrayMenuWindowTests
         {
             int selectedEntryIndex = -1;
             string committedText = string.Empty;
-            TrayEditableMenuWindow menu = new(
+            EditableContextMenuWindow menu = new(
                 [
-                    new TrayEditableMenuEntry("Saved Search 1", () => selectedEntryIndex = 0)
+                    new EditableContextMenuEntry("Saved Search 1", () => selectedEntryIndex = 0)
                     {
-                        LeadingButton = new TrayEditableMenuEntryButton(static () => { }),
-                        InlineTextEdit = new TrayEditableMenuInlineTextEdit(text =>
+                        LeadingButton = new EditableContextMenuEntryButton(static () => { }),
+                        InlineTextEdit = new EditableContextMenuInlineTextEdit(text =>
                         {
                             committedText = text;
                             return text;
                         })
                     },
-                    new TrayEditableMenuEntry("Saved Search 2", () => selectedEntryIndex = 1)
+                    new EditableContextMenuEntry("Saved Search 2", () => selectedEntryIndex = 1)
                 ],
-                new TrayEditableMenuWindowOptions
+                new EditableContextMenuWindowOptions
                 {
                     Palette = Palette(),
                     ItemHeight = 32,

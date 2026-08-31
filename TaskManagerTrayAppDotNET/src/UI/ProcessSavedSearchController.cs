@@ -22,7 +22,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
     private readonly InsetGlyphButton _clearButton;
     private readonly InsetGlyphButton _saveButton;
     private List<ProcessSavedSearch> _savedSearches;
-    private TrayEditableMenuWindow? _menuWindow;
+    private EditableContextMenuWindow? _menuWindow;
     private Window? _menuOwner;
     private bool _deleteConfirmationPending;
     private bool _disposed;
@@ -133,7 +133,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         Close();
         if (TopLevel.GetTopLevel(_textBox) is not Window owner) return;
 
-        TrayEditableMenuWindow menuWindow =
+        EditableContextMenuWindow menuWindow =
             TaskManagerContextMenuWindow.CreateSavedSearchMenu(
                 BuildEntries(),
                 _palette,
@@ -175,12 +175,12 @@ internal sealed class ProcessSavedSearchController : IDisposable
         }
     }
 
-    private IReadOnlyList<TrayEditableMenuEntry> BuildEntries()
+    private IReadOnlyList<EditableContextMenuEntry> BuildEntries()
     {
-        List<TrayEditableMenuEntry> entries = [];
+        List<EditableContextMenuEntry> entries = [];
         if (_savedSearches.Count == 0)
         {
-            entries.Add(new TrayEditableMenuEntry("No saved searches", static () => { })
+            entries.Add(new EditableContextMenuEntry("No saved searches", static () => { })
             {
                 IsEnabled = false
             });
@@ -192,7 +192,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         {
             ProcessSavedSearch savedSearch = _savedSearches[searchIndex];
             int capturedSearchIndex = searchIndex;
-            TrayEditableMenuEntryButton renameButton = new(static () => { })
+            EditableContextMenuEntryButton renameButton = new(static () => { })
             {
                 Glyph = TaskManagerGlyphCatalog.MORE,
                 ToolTip = "Rename saved search",
@@ -201,7 +201,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 FontSize = resources.AxamlTaskManagerContextMenu.SavedSearchButtonGlyphFontSize,
                 Padding = resources.AxamlTaskManagerContextMenu.SavedSearchButtonPadding
             };
-            TrayEditableMenuEntryButton deleteButton = new(() => RequestDeleteSavedSearch(capturedSearchIndex))
+            EditableContextMenuEntryButton deleteButton = new(() => RequestDeleteSavedSearch(capturedSearchIndex))
             {
                 Text = "x",
                 ToolTip = "Delete saved search",
@@ -209,7 +209,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 FontSize = resources.AxamlTaskManagerContextMenu.SavedSearchDeleteButtonFontSize,
                 Padding = resources.AxamlTaskManagerContextMenu.SavedSearchButtonPadding
             };
-            entries.Add(new TrayEditableMenuEntry(savedSearch.Name, () => RunSavedSearch(savedSearch.Query))
+            entries.Add(new EditableContextMenuEntry(savedSearch.Name, () => RunSavedSearch(savedSearch.Query))
             {
                 SecondaryText = savedSearch.Query,
                 SecondaryTextFontWeight = FontWeight.Light,
@@ -221,7 +221,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
                     resources.AxamlTaskManagerContextMenu.SavedSearchLeadingButtonTextSpacing,
                 LeadingButton = renameButton,
                 TrailingButton = deleteButton,
-                InlineTextEdit = new TrayEditableMenuInlineTextEdit(
+                InlineTextEdit = new EditableContextMenuInlineTextEdit(
                     name => RenameSavedSearch(capturedSearchIndex, name))
             });
         }
@@ -231,7 +231,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
     private void Close()
     {
-        TrayEditableMenuWindow? menuWindow = _menuWindow;
+        EditableContextMenuWindow? menuWindow = _menuWindow;
         _menuWindow = null;
         DetachMenuOwner();
         if (menuWindow == null) return;
@@ -242,7 +242,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
     private void OnMenuClosed(object? sender, EventArgs eventArgs)
     {
-        if (sender is not TrayEditableMenuWindow menuWindow) return;
+        if (sender is not EditableContextMenuWindow menuWindow) return;
 
         menuWindow.Closed -= OnMenuClosed;
         if (ReferenceEquals(_menuWindow, menuWindow))
@@ -276,7 +276,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
     private void OnMenuOwnerPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
-        TrayEditableMenuWindow? menuWindow = _menuWindow;
+        EditableContextMenuWindow? menuWindow = _menuWindow;
         if (menuWindow?.CommitInlineTextEdit(keepOpenAcrossPendingDeactivation: true) == true)
         {
             eventArgs.Handled = true;
@@ -289,7 +289,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
     private void OnMenuOwnerDeactivated(object? sender, EventArgs eventArgs)
     {
         Window? owner = _menuOwner;
-        TrayEditableMenuWindow? menuWindow = _menuWindow;
+        EditableContextMenuWindow? menuWindow = _menuWindow;
         if (owner == null || menuWindow == null) return;
 
         Dispatcher.UIThread.Post(() =>
@@ -309,7 +309,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
     private void OnTextBoxLostFocus(object? sender, RoutedEventArgs eventArgs)
     {
-        TrayEditableMenuWindow? menuWindow = _menuWindow;
+        EditableContextMenuWindow? menuWindow = _menuWindow;
         if (menuWindow == null) return;
 
         Dispatcher.UIThread.Post(() =>

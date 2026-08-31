@@ -11,13 +11,13 @@ public sealed class FanTrayMenuWindow(
     int fontSize,
     Action openSettings,
     Action exit)
-    : TrayMenuWindow(BuildEntries(openSettings, exit),
-        new TrayMenuWindowOptions
+    : ContextMenuWindow(BuildEntries(openSettings, exit),
+        new ContextMenuWindowOptions
         {
             Palette = palette,
             Rounded = rounded,
             FontSize = fontSize,
-            TrayMenuSettings = settings,
+            ContextMenuSettings = settings,
             ShadowColor = ResolveMenuShadowColor(settings)
         })
 {
@@ -27,9 +27,9 @@ public sealed class FanTrayMenuWindow(
         ContextMenuPosition placement) =>
         base.ShowAt(trayIcon, cursorPoint, ToCommonPlacement(placement));
 
-    private static List<TrayMenuEntry> BuildEntries(Action openSettings, Action exit)
+    private static List<ContextMenuEntry> BuildEntries(Action openSettings, Action exit)
     {
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         entries.Add(L(nameof(AppStrings.Tray_Settings)), openSettings);
         entries.AddSeparator();
         entries.Add(L(nameof(AppStrings.Tray_Exit)), exit);
@@ -42,10 +42,10 @@ public sealed class FanTrayMenuWindow(
         return (AppServices.Theme ?? AppTheme.Default).MenuShadow.For(isLight);
     }
 
-    private static TrayMenuWindowPlacement ToCommonPlacement(ContextMenuPosition placement) =>
+    private static ContextMenuPlacement ToCommonPlacement(ContextMenuPosition placement) =>
         placement == ContextMenuPosition.Modern
-            ? TrayMenuWindowPlacement.Modern
-            : TrayMenuWindowPlacement.Classic;
+            ? ContextMenuPlacement.Modern
+            : ContextMenuPlacement.Classic;
 
     private static string L(string key) => TrayLocalization.Instance[key];
 }

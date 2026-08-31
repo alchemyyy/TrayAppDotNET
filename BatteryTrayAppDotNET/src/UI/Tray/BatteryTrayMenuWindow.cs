@@ -4,7 +4,7 @@ using Avalonia.Media;
 
 namespace BatteryTrayAppDotNET.UI.Tray;
 
-public sealed class BatteryTrayMenuWindow : TrayMenuWindow
+public sealed class BatteryTrayMenuWindow : ContextMenuWindow
 {
     internal BatteryTrayMenuWindow(
         AppSettings settings,
@@ -15,12 +15,12 @@ public sealed class BatteryTrayMenuWindow : TrayMenuWindow
         Action exit)
         : base(
             BuildEntries(openPowerOptions, openBatteryReport, openSettings, exit),
-            new TrayMenuWindowOptions
+            new ContextMenuWindowOptions
             {
                 Palette = palette,
                 Rounded = settings.EnableRoundedCorners,
                 FontSize = settings.ContextMenuFontSize,
-                TrayMenuSettings = settings,
+                ContextMenuSettings = settings,
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
                 ScrollToBottom = true
@@ -34,13 +34,13 @@ public sealed class BatteryTrayMenuWindow : TrayMenuWindow
         ContextMenuPosition placement) =>
         base.ShowAt(trayIcon, cursorPoint, ToCommonPlacement(placement));
 
-    private static List<TrayMenuEntry> BuildEntries(
+    private static List<ContextMenuEntry> BuildEntries(
         Action openPowerOptions,
         Action openBatteryReport,
         Action openSettings,
         Action exit)
     {
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         entries.Add("Power options", openPowerOptions);
         entries.Add("Battery report", openBatteryReport);
         entries.AddSeparator();
@@ -76,8 +76,8 @@ public sealed class BatteryTrayMenuWindow : TrayMenuWindow
         return (AppServices.Theme ?? AppTheme.Default).MenuShadow.For(isLight);
     }
 
-    private static TrayMenuWindowPlacement ToCommonPlacement(ContextMenuPosition placement) =>
+    private static ContextMenuPlacement ToCommonPlacement(ContextMenuPosition placement) =>
         placement == ContextMenuPosition.Modern
-            ? TrayMenuWindowPlacement.Modern
-            : TrayMenuWindowPlacement.Classic;
+            ? ContextMenuPlacement.Modern
+            : ContextMenuPlacement.Classic;
 }

@@ -221,7 +221,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         MainContent.Children.Add(_runPanel);
 
         SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
-        TrayMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
+        ContextMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
             palette,
             settings.EnableRoundedCorners,
             settings);
@@ -563,7 +563,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         if (_disposed || TopLevel.GetTopLevel(this) is not Window owner) return;
 
         CloseHeaderActionsMenu();
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         entries.Add("Arrange buttons", ShowHeaderButtonArrangement);
         entries.AddSeparator();
         AddElevatedHelperMenuEntry(entries);
@@ -577,7 +577,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         menuWindow.ShowOver(_moreActionsButton, _moreActionsButton, owner);
     }
 
-    private void AddElevatedHelperMenuEntry(TrayMenuEntryBuilder entries)
+    private void AddElevatedHelperMenuEntry(ContextMenuEntryBuilder entries)
     {
         ElevatedHelperStatus status = _getElevatedHelperStatus();
         switch (status.State)

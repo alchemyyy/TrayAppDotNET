@@ -48,6 +48,7 @@
     <Using Include="TrayAppDotNETCommon.TADNLog" Alias="TADNLog" />
     <Using Include="TrayAppDotNETCommon" />
     <Using Include="TrayAppDotNETCommon.Interop" />
+    <Using Include="TrayAppDotNETCommon.UI.ContextMenus" />
     <Using Include="BrightnessTrayAppDotNET" />
     <Using Include="BrightnessTrayAppDotNET.Models" />
     <Using Include="BrightnessTrayAppDotNET.Services" />

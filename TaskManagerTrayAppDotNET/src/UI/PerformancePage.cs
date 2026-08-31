@@ -1169,8 +1169,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private void ShowCPUGraphContextMenu(Window owner, PixelPoint screenPosition)
     {
         CloseCPUGraphContextMenu();
-        TrayMenuEntryBuilder entries = new();
-        entries.Add(new TrayMenuEntry(
+        ContextMenuEntryBuilder entries = new();
+        entries.Add(new ContextMenuEntry(
             "Logical processors",
             () => SetCPUGraphView(CPUPerformanceGraphView.LogicalProcessors))
         {
@@ -1179,7 +1179,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 ? SelectedGraphViewGlyph
                 : null
         });
-        entries.Add(new TrayMenuEntry(
+        entries.Add(new ContextMenuEntry(
             "Overall utilization",
             () => SetCPUGraphView(CPUPerformanceGraphView.OverallUtilization))
         {
@@ -1188,7 +1188,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 ? SelectedGraphViewGlyph
                 : null
         });
-        entries.Add(new TrayMenuEntry(
+        entries.Add(new ContextMenuEntry(
             "Detailed view",
             () => SetCPUGraphView(CPUPerformanceGraphView.DetailedView))
         {

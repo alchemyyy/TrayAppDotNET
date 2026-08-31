@@ -51,6 +51,7 @@
     <Using Include="TrayAppDotNETCommon.Services" />
     <Using Include="TrayAppDotNETCommon.Services.Install" />
     <Using Include="TrayAppDotNETCommon.UI" />
+    <Using Include="TrayAppDotNETCommon.UI.ContextMenus" />
     <Using Include="TrayAppDotNETCommon.UI.Controls" />
     <Using Include="TrayAppDotNETCommon.UI.Hotkeys" />
     <Using Include="TrayAppDotNETCommon.UI.Models" />

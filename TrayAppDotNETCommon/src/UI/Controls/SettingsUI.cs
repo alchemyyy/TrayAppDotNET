@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using TrayAppDotNETCommon.UI.ContextMenus;
 using TrayAppDotNETCommon.UI.Debugging;
 using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.UI.Tray;
@@ -1162,7 +1163,7 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
         Thickness padding,
         Color background,
         SettingsScrollBarStyle scrollBarStyle,
-        TrayMenuWindowOptions contextMenuOptions)
+        ContextMenuWindowOptions contextMenuOptions)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
@@ -1280,7 +1281,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         Thickness padding,
         Color background,
         SettingsScrollBarStyle scrollBarStyle,
-        TrayMenuWindowOptions contextMenuOptions,
+        ContextMenuWindowOptions contextMenuOptions,
         Control? cornerContent = null)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -1428,7 +1429,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     private const string ScrollRightText = "Scroll Right";
 
     private readonly Orientation _orientation;
-    private readonly TrayMenuWindowOptions _contextMenuOptions;
+    private readonly ContextMenuWindowOptions _contextMenuOptions;
     private SettingsScrollBarStyle _style;
     private IBrush _trackBrush;
     private IBrush _idleThumbBrush;
@@ -1441,7 +1442,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     private bool _isExternallyExpanded;
     private double _dragOffset;
     private IPointer? _capturedPointer;
-    private TrayMenuWindow? _contextMenuWindow;
+    private ContextMenuWindow? _contextMenuWindow;
     private int _disposed;
 
     public SettingsScrollBar(SettingsPalette palette)
@@ -1457,7 +1458,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         Orientation orientation,
         SettingsScrollBarStyle style,
         Cursor cursor,
-        TrayMenuWindowOptions contextMenuOptions)
+        ContextMenuWindowOptions contextMenuOptions)
     {
         ArgumentNullException.ThrowIfNull(contextMenuOptions);
         if (style.TrackThickness <= 0)
@@ -1779,7 +1780,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         return thumbStart / available * maximumOffset;
     }
 
-    internal IReadOnlyList<TrayMenuEntry> BuildContextMenuEntries(double pointerAxis)
+    internal IReadOnlyList<ContextMenuEntry> BuildContextMenuEntries(double pointerAxis)
     {
         string startText;
         string endText;
@@ -1809,7 +1810,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
                 throw new InvalidOperationException($"Unsupported scrollbar orientation: {_orientation}.");
         }
 
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         entries.Add(ScrollHereText, () => ScrollHere(pointerAxis));
         entries.AddSeparator();
         entries.Add(startText, () => SetCurrentOffset(0));
@@ -1829,7 +1830,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
 
         PixelPoint screenPosition = this.PointToScreen(position);
         CloseContextMenu();
-        TrayMenuWindow menuWindow = new(BuildContextMenuEntries(Axis(position)), _contextMenuOptions);
+        ContextMenuWindow menuWindow = new(BuildContextMenuEntries(Axis(position)), _contextMenuOptions);
         _contextMenuWindow = menuWindow;
         menuWindow.Closed += OnContextMenuClosed;
         if (TopLevel.GetTopLevel(this) is Window owner)
@@ -1840,7 +1841,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
 
     private void CloseContextMenu()
     {
-        TrayMenuWindow? menuWindow = _contextMenuWindow;
+        ContextMenuWindow? menuWindow = _contextMenuWindow;
         if (menuWindow == null) return;
 
         _contextMenuWindow = null;
@@ -1850,7 +1851,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
 
     private void OnContextMenuClosed(object? sender, EventArgs eventArgs)
     {
-        if (sender is not TrayMenuWindow menuWindow) return;
+        if (sender is not ContextMenuWindow menuWindow) return;
 
         menuWindow.Closed -= OnContextMenuClosed;
         if (ReferenceEquals(menuWindow, _contextMenuWindow)) _contextMenuWindow = null;
@@ -1928,7 +1929,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
             ShowButtonsOnHover: false);
     }
 
-    private static TrayMenuWindowOptions CreateDefaultContextMenuOptions(SettingsPalette palette) =>
+    private static ContextMenuWindowOptions CreateDefaultContextMenuOptions(SettingsPalette palette) =>
         new() { Palette = palette };
 
     private void UpdateTrackThickness()

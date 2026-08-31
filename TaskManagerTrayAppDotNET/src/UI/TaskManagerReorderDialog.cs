@@ -50,7 +50,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
         bool showSearch,
         string searchPlaceholder,
         SettingsScrollBarStyle? scrollBarStyle = null,
-        TrayMenuWindowOptions? scrollBarContextMenuOptions = null,
+        ContextMenuWindowOptions? scrollBarContextMenuOptions = null,
         Action<TItem>? activateItem = null,
         Control? headerTrailingControl = null)
     {

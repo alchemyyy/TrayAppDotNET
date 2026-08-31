@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using TrayAppDotNETCommon.UI.Controls;
-using TrayAppDotNETCommon.UI.Tray;
+using TrayAppDotNETCommon.UI.ContextMenus;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
@@ -16,7 +16,7 @@ public sealed class SettingsVerticalScrollViewportTests
         Border content = new();
         Color background = Color.FromRgb(0x19, 0x19, 0x19);
         SettingsScrollBarStyle style = CreateStyle(trackThickness: 16, hoverThumbThickness: 9);
-        TrayMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+        ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
         using SettingsVerticalScrollViewport viewport = new(
             content,
             new Thickness(3),
@@ -48,7 +48,7 @@ public sealed class SettingsVerticalScrollViewportTests
     [Fact]
     public void StyleChangesPreserveTheReservedTrackStructure() => AvaloniaTestHost.Run(() =>
     {
-        TrayMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+        ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
         using SettingsVerticalScrollViewport viewport = new(
             new Border(),
             default,

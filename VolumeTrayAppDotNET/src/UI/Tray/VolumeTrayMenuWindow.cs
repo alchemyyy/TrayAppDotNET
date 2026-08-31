@@ -6,7 +6,7 @@ using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace VolumeTrayAppDotNET.UI.Tray;
 
-public sealed class VolumeTrayMenuWindow : TrayMenuWindow
+public sealed class VolumeTrayMenuWindow : ContextMenuWindow
 {
     private const string TrayMenuTruncationSuffix = "..";
 
@@ -20,12 +20,12 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         Action exit)
         : base(
             BuildEntries(devices, settings, openSettings, exit),
-            new TrayMenuWindowOptions
+            new ContextMenuWindowOptions
             {
                 Palette = palette,
                 Rounded = rounded,
                 FontSize = fontSize,
-                TrayMenuSettings = settings,
+                ContextMenuSettings = settings,
                 SeparatorColor = ResolveSeparatorColor(palette),
                 ShadowColor = ResolveMenuShadowColor(),
                 ScrollToBottom = true
@@ -39,13 +39,13 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         ContextMenuPosition placement) =>
         base.ShowAt(trayIcon, cursorPoint, ToCommonPlacement(placement));
 
-    private static List<TrayMenuEntry> BuildEntries(
+    private static List<ContextMenuEntry> BuildEntries(
         IReadOnlyList<AudioDevice> devices,
         AppSettings settings,
         Action openSettings,
         Action exit)
     {
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
 
         List<AudioDevice> orderedForFlyout = FlyoutDeviceOrdering.Build(
             devices,
@@ -139,10 +139,10 @@ public sealed class VolumeTrayMenuWindow : TrayMenuWindow
         return (AppServices.Theme ?? AppTheme.Default).MenuShadow.For(isLight);
     }
 
-    private static TrayMenuWindowPlacement ToCommonPlacement(ContextMenuPosition placement) =>
+    private static ContextMenuPlacement ToCommonPlacement(ContextMenuPosition placement) =>
         placement == ContextMenuPosition.Modern
-            ? TrayMenuWindowPlacement.Modern
-            : TrayMenuWindowPlacement.Classic;
+            ? ContextMenuPlacement.Modern
+            : ContextMenuPlacement.Classic;
 
     private static string L(string key) => TrayLocalization.Instance[key];
 }

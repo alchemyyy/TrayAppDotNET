@@ -21,7 +21,7 @@ internal sealed class BrightnessTrayMenuWindow(
     Action<MonitorInfo> powerOffMonitor,
     Action openSettings,
     Action exit)
-    : TrayMenuWindow(BuildEntries(
+    : ContextMenuWindow(BuildEntries(
             profiles,
             monitors,
             settings,
@@ -30,12 +30,12 @@ internal sealed class BrightnessTrayMenuWindow(
             powerOffMonitor,
             openSettings,
             exit),
-        new TrayMenuWindowOptions
+        new ContextMenuWindowOptions
         {
             Palette = palette,
             Rounded = rounded,
             FontSize = fontSize,
-            TrayMenuSettings = settings,
+            ContextMenuSettings = settings,
             ShadowColor = shadowColor
         })
 {
@@ -45,7 +45,7 @@ internal sealed class BrightnessTrayMenuWindow(
         ContextMenuPosition placement) =>
         base.ShowAt(trayIcon, cursorPoint, ToCommonPlacement(placement));
 
-    private static List<TrayMenuEntry> BuildEntries(
+    private static List<ContextMenuEntry> BuildEntries(
         IReadOnlyList<BrightnessTrayMenuProfile> profiles,
         IReadOnlyList<MonitorInfo> monitors,
         AppSettings settings,
@@ -55,7 +55,7 @@ internal sealed class BrightnessTrayMenuWindow(
         Action openSettings,
         Action exit)
     {
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
 
         if (settings.ShowProfileSelectorsInMenu && profiles.Count > 0)
         {
@@ -93,10 +93,10 @@ internal sealed class BrightnessTrayMenuWindow(
         return entries.ToList();
     }
 
-    private static TrayMenuWindowPlacement ToCommonPlacement(ContextMenuPosition placement) =>
+    private static ContextMenuPlacement ToCommonPlacement(ContextMenuPosition placement) =>
         placement == ContextMenuPosition.Modern
-            ? TrayMenuWindowPlacement.Modern
-            : TrayMenuWindowPlacement.Classic;
+            ? ContextMenuPlacement.Modern
+            : ContextMenuPlacement.Classic;
 
     private static string L(string key) => TrayLocalization.Instance[key];
 }

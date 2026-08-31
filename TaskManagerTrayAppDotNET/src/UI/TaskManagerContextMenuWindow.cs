@@ -3,10 +3,10 @@ using Avalonia.Media;
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Hosts Task Manager content context menus without changing the app's tray-menu visuals.</summary>
-internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
+internal sealed class TaskManagerContextMenuWindow : ContextMenuWindow
 {
     public TaskManagerContextMenuWindow(
-        IReadOnlyList<TrayMenuEntry> entries,
+        IReadOnlyList<ContextMenuEntry> entries,
         SettingsPalette palette,
         bool enableRoundedCorners,
         ITrayAppDotNETTrayMenuSettings trayMenuSettings)
@@ -15,8 +15,8 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
     }
 
     /// <summary>Creates the anchored menu used to present saved process searches.</summary>
-    internal static TrayEditableMenuWindow CreateSavedSearchMenu(
-        IReadOnlyList<TrayEditableMenuEntry> entries,
+    internal static EditableContextMenuWindow CreateSavedSearchMenu(
+        IReadOnlyList<EditableContextMenuEntry> entries,
         SettingsPalette palette,
         bool enableRoundedCorners,
         ITrayAppDotNETTrayMenuSettings trayMenuSettings)
@@ -26,9 +26,9 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
         ArgumentNullException.ThrowIfNull(trayMenuSettings);
 
         TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
-        return new TrayEditableMenuWindow(
+        return new EditableContextMenuWindow(
             entries,
-            new TrayEditableMenuWindowOptions
+            new EditableContextMenuWindowOptions
             {
                 Palette = palette,
                 Rounded = enableRoundedCorners,
@@ -36,7 +36,7 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
                 FontWeight = (FontWeight)resources.AxamlTaskManagerContextMenu.FontWeight,
                 ItemHeight = resources.AxamlTaskManagerContextMenu.SavedSearchItemHeight,
                 ItemHoverColor = palette.SearchListItemHover,
-                TrayMenuSettings = trayMenuSettings,
+                ContextMenuSettings = trayMenuSettings,
                 InvokeOnPointerReleased = true,
                 ActivateOnShow = false,
                 KeepOpenWhenOwnerActivated = true,
@@ -51,7 +51,7 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
             });
     }
 
-    internal static TrayMenuWindowOptions CreateOptions(
+    internal static ContextMenuWindowOptions CreateOptions(
         SettingsPalette palette,
         bool enableRoundedCorners,
         ITrayAppDotNETTrayMenuSettings trayMenuSettings)
@@ -60,14 +60,14 @@ internal sealed class TaskManagerContextMenuWindow : TrayMenuWindow
         ArgumentNullException.ThrowIfNull(trayMenuSettings);
 
         TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
-        return new TrayMenuWindowOptions
+        return new ContextMenuWindowOptions
         {
             Palette = palette,
             Rounded = enableRoundedCorners,
             FontSize = resources.AxamlTaskManagerContextMenu.FontSize,
             FontWeight = (FontWeight)resources.AxamlTaskManagerContextMenu.FontWeight,
             ItemHeight = resources.AxamlTaskManagerContextMenu.ItemHeight,
-            TrayMenuSettings = trayMenuSettings
+            ContextMenuSettings = trayMenuSettings
         };
     }
 }

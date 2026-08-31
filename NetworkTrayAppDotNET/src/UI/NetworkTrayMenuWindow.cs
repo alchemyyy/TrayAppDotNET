@@ -16,7 +16,7 @@ public sealed class NetworkTrayMenuWindow(
     Action openAdapterSettings,
     Action openSettings,
     Action exit)
-    : TrayMenuWindow(BuildEntries(
+    : ContextMenuWindow(BuildEntries(
             networkSettingsText,
             adapterSettingsText,
             settingsText,
@@ -25,12 +25,12 @@ public sealed class NetworkTrayMenuWindow(
             openAdapterSettings,
             openSettings,
             exit),
-        new TrayMenuWindowOptions
+        new ContextMenuWindowOptions
         {
             Palette = palette,
             Rounded = rounded,
             FontSize = fontSize,
-            TrayMenuSettings = settings
+            ContextMenuSettings = settings
         })
 {
     public void ShowAt(
@@ -39,7 +39,7 @@ public sealed class NetworkTrayMenuWindow(
         ContextMenuPosition placement) =>
         base.ShowAt(trayIcon, cursorPoint, ToCommonPlacement(placement));
 
-    private static List<TrayMenuEntry> BuildEntries(
+    private static List<ContextMenuEntry> BuildEntries(
         string networkSettingsText,
         string adapterSettingsText,
         string settingsText,
@@ -49,7 +49,7 @@ public sealed class NetworkTrayMenuWindow(
         Action openSettings,
         Action exit)
     {
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         entries.Add(networkSettingsText, openNetworkSettings);
         entries.Add(adapterSettingsText, openAdapterSettings);
         entries.AddSeparator();
@@ -59,8 +59,8 @@ public sealed class NetworkTrayMenuWindow(
         return entries.ToList();
     }
 
-    private static TrayMenuWindowPlacement ToCommonPlacement(ContextMenuPosition placement) =>
+    private static ContextMenuPlacement ToCommonPlacement(ContextMenuPosition placement) =>
         placement == ContextMenuPosition.Modern
-            ? TrayMenuWindowPlacement.Modern
-            : TrayMenuWindowPlacement.Classic;
+            ? ContextMenuPlacement.Modern
+            : ContextMenuPlacement.Classic;
 }

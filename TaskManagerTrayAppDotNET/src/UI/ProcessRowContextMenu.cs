@@ -73,19 +73,19 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         CloseMenu();
         _owner = owner;
         _menuPosition = request.ScreenPosition;
-        List<TrayMenuEntry> entries = BuildMainEntries(request);
+        List<ContextMenuEntry> entries = BuildMainEntries(request);
         ShowMenu(entries);
     }
 
-    private List<TrayMenuEntry> BuildMainEntries(ProcessRowContextMenuRequest request)
+    private List<ContextMenuEntry> BuildMainEntries(ProcessRowContextMenuRequest request)
     {
         ProcessTerminationTarget target = request.Target;
-        TrayMenuEntryBuilder entries = new();
-        entries.Add(new TrayMenuEntry("Copy", () => ExecuteCopy(request.CellCopyText))
+        ContextMenuEntryBuilder entries = new();
+        entries.Add(new ContextMenuEntry("Copy", () => ExecuteCopy(request.CellCopyText))
         {
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Cell, isHovered)
         });
-        entries.Add(new TrayMenuEntry("Copy row", () => ExecuteCopy(request.RowCopyText))
+        entries.Add(new ContextMenuEntry("Copy row", () => ExecuteCopy(request.RowCopyText))
         {
             HoverChanged = isHovered => SetCopyPreviewHover(ProcessCopyPreviewMode.Row, isHovered)
         });
@@ -174,7 +174,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         }
     }
 
-    private IReadOnlyList<TrayMenuEntry> BuildPriorityEntries(ProcessTerminationTarget target)
+    private IReadOnlyList<ContextMenuEntry> BuildPriorityEntries(ProcessTerminationTarget target)
     {
         if (!ProcessNativeActions.TryGetPriority(
                 target,
@@ -185,7 +185,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             return [];
         }
 
-        TrayMenuEntryBuilder entries = new();
+        ContextMenuEntryBuilder entries = new();
         AddPriorityEntry(entries, "Realtime", ProcessPriorityLevel.Realtime, currentPriority, target);
         AddPriorityEntry(entries, "High", ProcessPriorityLevel.High, currentPriority, target);
         AddPriorityEntry(entries, "Above normal", ProcessPriorityLevel.AboveNormal, currentPriority, target);
@@ -196,13 +196,13 @@ internal sealed class ProcessRowContextMenuController : IDisposable
     }
 
     private void AddPriorityEntry(
-        TrayMenuEntryBuilder entries,
+        ContextMenuEntryBuilder entries,
         string label,
         ProcessPriorityLevel priority,
         ProcessPriorityLevel currentPriority,
         ProcessTerminationTarget target)
     {
-        entries.Add(new TrayMenuEntry(
+        entries.Add(new ContextMenuEntry(
             label,
             () => ExecuteSetPriority(target, priority))
         {
@@ -352,7 +352,7 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         affinityWindow.Show(owner);
     }
 
-    private void ShowMenu(IReadOnlyList<TrayMenuEntry> entries)
+    private void ShowMenu(IReadOnlyList<ContextMenuEntry> entries)
     {
         Window? owner = _owner;
         if (owner == null) return;
