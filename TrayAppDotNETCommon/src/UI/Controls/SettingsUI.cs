@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Rendering;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ContextMenus;
 using TrayAppDotNETCommon.UI.Debugging;
@@ -1508,7 +1509,7 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
     }
 }
 
-internal sealed class SettingsScrollBar : Control, IDisposable
+internal sealed class SettingsScrollBar : Control, ICustomHitTest, IDisposable
 {
     private const string ScrollHereText = "Scroll Here";
     private const string TopText = "Top";
@@ -1574,7 +1575,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         _hoverThumbBrush = TrayAppDotNETSettingsUI.Brush(style.HoverThumbColor);
         _dragThumbBrush = TrayAppDotNETSettingsUI.Brush(style.DragThumbColor);
         _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), 1);
-        UpdateTrackThickness();
+        UpdateLayoutThickness();
         Cursor = cursor;
         Focusable = false;
         IsHitTestVisible = true;
@@ -1582,13 +1583,11 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         PointerEntered += (_, _) =>
         {
             _isPointerOver = true;
-            UpdateTrackThickness();
             InvalidateVisual();
         };
         PointerExited += (_, _) =>
         {
             _isPointerOver = false;
-            UpdateTrackThickness();
             InvalidateVisual();
         };
     }
@@ -1610,7 +1609,6 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         if (_isExternallyExpanded == isExpanded) return;
 
         _isExternallyExpanded = isExpanded;
-        UpdateTrackThickness();
         InvalidateVisual();
     }
 
@@ -1629,7 +1627,7 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         _hoverThumbBrush = TrayAppDotNETSettingsUI.Brush(style.HoverThumbColor);
         _dragThumbBrush = TrayAppDotNETSettingsUI.Brush(style.DragThumbColor);
         _arrowPen = new Pen(TrayAppDotNETSettingsUI.Brush(style.ArrowColor), 1);
-        UpdateTrackThickness();
+        UpdateLayoutThickness();
         InvalidateVisual();
     }
 
@@ -1647,7 +1645,12 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     public override void Render(DrawingContext context)
     {
         base.Render(context);
-        context.FillRectangle(_trackBrush, new Rect(0, 0, Bounds.Width, Bounds.Height));
+        double visualTrackThickness = VisualTrackThickness;
+        double expansionOrigin = ExpansionOrigin;
+        Rect track = _orientation == Orientation.Vertical
+            ? new Rect(expansionOrigin, 0, visualTrackThickness, Bounds.Height)
+            : new Rect(0, expansionOrigin, Bounds.Width, visualTrackThickness);
+        context.FillRectangle(_trackBrush, track);
         if (_viewer == null) return;
 
         double maxOffset = MaxOffset;
@@ -1662,6 +1665,16 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         double radius = ThumbThickness / 2;
         context.FillRectangle(thumbBrush, thumb, (float)radius);
         DrawHoverButtons(context);
+    }
+
+    bool ICustomHitTest.HitTest(Point point)
+    {
+        // Bounds stay collapsed so compositor readback never moves during pointer transitions
+        double pointerAxis = Axis(point);
+        if (pointerAxis < 0 || pointerAxis >= TrackLength) return false;
+
+        double pointerCrossAxis = _orientation == Orientation.Vertical ? point.X : point.Y;
+        return pointerCrossAxis >= ExpansionOrigin && pointerCrossAxis < CollapsedTrackThickness;
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -1704,7 +1717,6 @@ internal sealed class SettingsScrollBar : Control, IDisposable
 
         Rect thumb = ThumbRect();
         _isDragging = true;
-        UpdateTrackThickness();
         _dragOffset = thumb.Contains(position)
             ? pointerAxis - ThumbStart(thumb)
             : ThumbLength(thumb) / 2;
@@ -1743,7 +1755,6 @@ internal sealed class SettingsScrollBar : Control, IDisposable
             _isDragging = false;
             _capturedPointer = null;
             e.Pointer.Capture(null);
-            UpdateTrackThickness();
             InvalidateVisual();
             e.Handled = true;
             return;
@@ -1756,23 +1767,24 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     {
         _capturedPointer = null;
         _isDragging = false;
-        UpdateTrackThickness();
         InvalidateVisual();
         base.OnPointerCaptureLost(e);
     }
 
     private bool IsExpanded => _isPointerOver || _isDragging || _isExternallyExpanded;
 
-    private double TrackThickness => IsExpanded
-        ? _style.TrackThickness
-        : Math.Max(
-            _style.TrackThickness * Math.Clamp(
-                SettingsUILayout.ScrollBarExpansionHitTestDepthRatio,
-                0,
-                1),
-            Math.Max(
-                _style.IdleThumbThickness,
-                _style.TrackThickness - _style.HoverThumbThickness + _style.IdleThumbThickness));
+    private double CollapsedTrackThickness => Math.Max(
+        _style.TrackThickness * Math.Clamp(
+            SettingsUILayout.ScrollBarExpansionHitTestDepthRatio,
+            0,
+            1),
+        Math.Max(
+            _style.IdleThumbThickness,
+            _style.TrackThickness - _style.HoverThumbThickness + _style.IdleThumbThickness));
+
+    private double VisualTrackThickness => IsExpanded ? _style.TrackThickness : CollapsedTrackThickness;
+
+    private double ExpansionOrigin => CollapsedTrackThickness - VisualTrackThickness;
 
     private double ThumbThickness => Math.Min(
         _style.TrackThickness,
@@ -1815,10 +1827,11 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         double axisOffset = MaxOffset <= 0
             ? 0
             : Math.Clamp(CurrentOffset / MaxOffset * available, 0, available);
-        double crossOffset = Math.Clamp(
-            TrackThickness - ThumbThickness - _style.ThumbEndMargin,
+        double visualTrackThickness = VisualTrackThickness;
+        double crossOffset = ExpansionOrigin + Math.Clamp(
+            visualTrackThickness - ThumbThickness - _style.ThumbEndMargin,
             0,
-            Math.Max(0, TrackThickness - ThumbThickness));
+            Math.Max(0, visualTrackThickness - ThumbThickness));
         return _orientation == Orientation.Vertical
             ? new Rect(crossOffset, buttonLength + axisOffset, ThumbThickness, thumbLength)
             : new Rect(buttonLength + axisOffset, crossOffset, thumbLength, ThumbThickness);
@@ -1992,17 +2005,30 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         double buttonLength = ButtonLength;
         if (buttonLength <= 0) return;
 
-        double center = TrackThickness / 2;
+        double crossCenter = ExpansionOrigin + VisualTrackThickness / 2;
+        double buttonCenter = buttonLength / 2;
         const double arrowRadius = 2.5;
         if (_orientation == Orientation.Vertical)
         {
-            DrawChevron(context, center, center, arrowRadius, -1, isVertical: true);
-            DrawChevron(context, center, TrackLength - center, arrowRadius, 1, isVertical: true);
+            DrawChevron(context, crossCenter, buttonCenter, arrowRadius, -1, isVertical: true);
+            DrawChevron(
+                context,
+                crossCenter,
+                TrackLength - buttonCenter,
+                arrowRadius,
+                1,
+                isVertical: true);
             return;
         }
 
-        DrawChevron(context, center, center, arrowRadius, -1, isVertical: false);
-        DrawChevron(context, TrackLength - center, center, arrowRadius, 1, isVertical: false);
+        DrawChevron(context, buttonCenter, crossCenter, arrowRadius, -1, isVertical: false);
+        DrawChevron(
+            context,
+            TrackLength - buttonCenter,
+            crossCenter,
+            arrowRadius,
+            1,
+            isVertical: false);
     }
 
     private void DrawChevron(
@@ -2048,15 +2074,15 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     private static ContextMenuWindowOptions CreateDefaultContextMenuOptions(SettingsPalette palette) =>
         new() { Palette = palette };
 
-    private void UpdateTrackThickness()
+    private void UpdateLayoutThickness()
     {
         if (_orientation == Orientation.Vertical)
         {
-            Width = TrackThickness;
+            Width = CollapsedTrackThickness;
             return;
         }
 
-        Height = TrackThickness;
+        Height = CollapsedTrackThickness;
     }
 
     public void Dispose()

@@ -1,7 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.ContextMenus;
 using Xunit;
@@ -64,6 +68,102 @@ public sealed class SettingsVerticalScrollViewportTests
         Assert.Single(viewport.RowDefinitions);
         Assert.Equal(1, Grid.GetColumn(scrollBar));
     });
+
+    [Theory]
+    [InlineData(Orientation.Vertical)]
+    [InlineData(Orientation.Horizontal)]
+    public void ScrollbarKeepsAStableHitTestSurfaceAcrossRepeatedPointerEntries(Orientation orientation) =>
+        AvaloniaTestHost.Run(() =>
+    {
+        ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+        using Cursor cursor = new(StandardCursorType.Arrow);
+        using SettingsScrollBar scrollBar = new(
+            orientation,
+            CreateStyle(trackThickness: 16, hoverThumbThickness: 9),
+            cursor,
+            contextMenuOptions);
+        switch (orientation)
+        {
+            case Orientation.Vertical:
+                scrollBar.HorizontalAlignment = HorizontalAlignment.Right;
+                scrollBar.VerticalAlignment = VerticalAlignment.Stretch;
+                break;
+            case Orientation.Horizontal:
+                scrollBar.HorizontalAlignment = HorizontalAlignment.Stretch;
+                scrollBar.VerticalAlignment = VerticalAlignment.Bottom;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(orientation));
+        }
+
+        Window window = new()
+        {
+            Width = 200,
+            Height = 160,
+            Content = scrollBar
+        };
+
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+            Dispatcher.UIThread.RunJobs();
+
+            Point insideCollapsedTrack = PointAtTrackDepth(window.Bounds, orientation, 2);
+            Point insideExpandedTrack = PointAtTrackDepth(window.Bounds, orientation, 14);
+            Point outsideExpandedTrack = PointAtTrackDepth(window.Bounds, orientation, 40);
+            int pointerEntryCount = 0;
+            scrollBar.PointerEntered += (_, _) => pointerEntryCount++;
+            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+
+            window.MouseMove(insideCollapsedTrack, RawInputModifiers.None);
+            Assert.True(scrollBar.IsPointerOver);
+            Assert.Equal(1, pointerEntryCount);
+            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+            window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+            Dispatcher.UIThread.RunJobs();
+
+            window.MouseMove(insideExpandedTrack, RawInputModifiers.None);
+            Assert.True(scrollBar.IsPointerOver);
+            Assert.Equal(1, pointerEntryCount);
+            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+
+            window.MouseMove(outsideExpandedTrack, RawInputModifiers.None);
+            Assert.False(scrollBar.IsPointerOver);
+            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+            window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+            Dispatcher.UIThread.RunJobs();
+
+            window.MouseMove(insideCollapsedTrack, RawInputModifiers.None);
+
+            Assert.True(scrollBar.IsPointerOver);
+            Assert.Equal(2, pointerEntryCount);
+            Assert.Equal(12, CrossAxisThickness(scrollBar, orientation));
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    private static double CrossAxisThickness(SettingsScrollBar scrollBar, Orientation orientation) =>
+        orientation switch
+        {
+            Orientation.Vertical => scrollBar.Width,
+            Orientation.Horizontal => scrollBar.Height,
+            _ => throw new ArgumentOutOfRangeException(nameof(orientation))
+        };
+
+    private static Point PointAtTrackDepth(Rect windowBounds, Orientation orientation, double depth) =>
+        orientation switch
+        {
+            Orientation.Vertical => new Point(windowBounds.Width - depth, windowBounds.Height / 2),
+            Orientation.Horizontal => new Point(windowBounds.Width / 2, windowBounds.Height - depth),
+            _ => throw new ArgumentOutOfRangeException(nameof(orientation))
+        };
 
     private static SettingsScrollBarStyle CreateStyle(double trackThickness, double hoverThumbThickness) =>
         new(
