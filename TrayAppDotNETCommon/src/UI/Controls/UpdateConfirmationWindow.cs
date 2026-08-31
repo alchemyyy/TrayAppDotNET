@@ -180,9 +180,11 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         _windowResources.Add(() => KeyDown -= OnWindowKeyDown);
         Closed += OnWindowClosed;
         _windowResources.Add(() => Closed -= OnWindowClosed);
+#if DEBUG
         UpdateConfirmationWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
         _windowResources.Add(() =>
             UpdateConfirmationWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded);
+#endif
 
         try
         {
@@ -195,6 +197,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         }
     }
 
+#if DEBUG
     private void OnAXAMLResourcesReloaded()
     {
         if (_closed) return;
@@ -203,6 +206,7 @@ public sealed class TrayAppDotNETUpdateConfirmationWindow : Window, IDisposable
         RebuildContent();
         PositionOverOwnerUpperThird();
     }
+#endif
 
     /// <summary>Places this prompt over the upper third of a flyout owner after final layout.</summary>
     internal void PlaceOverOwnerUpperThird(Window owner)

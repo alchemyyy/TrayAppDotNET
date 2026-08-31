@@ -259,7 +259,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _tableScrollViewport = new SettingsScrollViewport(
             tableSurface,
             default,
-            TaskManagerWindowResources.ProcessGridBackgroundColor,
+            resources.AxamlProcessTable.GridBackgroundColor,
             scrollBarStyle,
             scrollBarContextMenuOptions,
             _resizeGrip,
@@ -283,9 +283,14 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         MainContent.Children.Add(_tableScrollViewport);
 
         _processCanvas.SetGroupProcesses(settings.GroupProcesses);
-        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
-        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
         _processCanvas.RefreshFrom(_snapshotService);
+        _processCanvas.AttachExternalSubscriptions();
+#if DEBUG
+        _searchAutocomplete.AttachAXAMLHotReload();
+        _savedSearches.AttachAXAMLHotReload();
+        TaskManagerContextMenuResources.ResourcesReloaded += OnContextMenuAXAMLResourcesReloaded;
+#endif
+        _snapshotService.SnapshotAvailable += OnSnapshotAvailable;
     }
 
     /// <summary>Gets the search controls rendered by the shell-level page overlay.</summary>
@@ -358,7 +363,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             "Group processes",
             palette,
             resources.AxamlTaskManagerDetails.ToolbarFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerDetails.ToolbarFontWeight);
         label.VerticalAlignment = VerticalAlignment.Center;
         return new StackPanel
         {
@@ -429,17 +434,100 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.RefreshFrom(_snapshotService);
     }
 
-    private void OnAXAMLResourcesReloaded()
+#if DEBUG
+    /// <summary>Applies Task Manager AXAML values without replacing Processes runtime state.</summary>
+    internal override void ApplyAXAMLResources(TaskManagerWindowResources resources)
+    {
+        if (_disposed) return;
+        ArgumentNullException.ThrowIfNull(resources);
+
+        base.ApplyAXAMLResources(resources);
+
+        List<ProcessColumnSetting>? hotReloadedColumnSettings = _processCanvas.ApplyAXAMLResources();
+        IReadOnlyList<ProcessColumnSetting> currentColumnSettings =
+            hotReloadedColumnSettings ?? _settings.DetailsColumns;
+        if (hotReloadedColumnSettings != null)
+        {
+            _settings.ApplyHotReloadedDetailsColumnLayout(hotReloadedColumnSettings);
+            _searchAutocomplete.SetColumnSettings(hotReloadedColumnSettings);
+        }
+
+        double moreButtonSize = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
+        _moreActionsButton.Width = moreButtonSize;
+        _moreActionsButton.Height = moreButtonSize;
+        _moreActionsButton.MinHeight = moreButtonSize;
+        _moreActionsButton.Padding = resources.AxamlTaskManagerReorderDialog.MoreButtonPadding;
+        _moreActionsButton.Label.FontSize = resources.AxamlTaskManagerReorderDialog.MoreGlyphFontSize;
+
+        TextBlock groupProcessesLabel = (TextBlock)_groupProcessesHeaderControl.Children[0];
+        groupProcessesLabel.FontSize = resources.AxamlTaskManagerDetails.ToolbarFontSize;
+        groupProcessesLabel.FontWeight = (FontWeight)resources.AxamlTaskManagerDetails.ToolbarFontWeight;
+        _groupProcessesHeaderControl.Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing;
+
+        _searchBox.Width = resources.AxamlTaskManagerDetails.SearchWidth;
+        Thickness searchActionMargin = new(
+            0,
+            0,
+            resources.AxamlTaskManagerDetails.SearchActionSpacing,
+            0);
+        _savedSearches.ClearButton.Margin = searchActionMargin;
+        _savedSearches.SaveButton.Margin = searchActionMargin;
+        _savedSearches.ApplyAXAMLResources(resources);
+        _searchControls.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
+        UpdateSearchControlsPosition();
+
+        Grid runActions = (Grid)_runPanel.Child!;
+        runActions.ColumnSpacing = resources.AxamlTaskManagerDetails.ToolbarSpacing;
+        runActions.ColumnDefinitions[0].MaxWidth = resources.AxamlTaskManagerDetails.RunInputWidth;
+        _runPanel.CornerRadius = resources.AxamlTaskManagerDetails.PanelCornerRadius;
+        _runPanel.Padding = resources.AxamlTaskManagerDetails.RunPanelPadding;
+        _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
+
+        _tableScrollViewport.Margin = resources.AxamlTaskManagerDetails.TableMargin;
+        _tableScrollViewport.Background = TrayAppDotNETSettingsUI.Brush(
+            resources.AxamlProcessTable.GridBackgroundColor);
+
+        _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(resources));
+        _tableScrollViewport.SetVerticalScrollBarTopInset(
+            GetProcessTableVerticalScrollBarTopInset(resources));
+        ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
+        _resizeGrip.ApplyResources(resources);
+        _selectionHighlight.BorderThickness = resources.AxamlProcessTable.SelectionBorderThickness;
+
+        foreach (ProcessColumnPropertiesWindow propertiesWindow in _columnPropertyWindows.Values)
+            propertiesWindow.ApplyAXAMLResources(currentColumnSettings);
+        _columnChooserWindow?.ApplyAXAMLResources(resources, currentColumnSettings);
+        _headerButtonArrangementWindow?.ApplyAXAMLResources(resources);
+        _rowContextMenuController.ApplyAXAMLResources(resources);
+    }
+
+    /// <summary>Captures user-editable Processes state before a shared shell rebuild.</summary>
+    internal ProcessDetailsHotReloadState CaptureHotReloadState() =>
+        new(
+            _searchBox.Text ?? string.Empty,
+            _tableScrollViewport.HorizontalOffset,
+            _tableScrollViewport.VerticalOffset,
+            _processCanvas.SelectedTerminationTarget,
+            _runPanel.IsVisible,
+            _runInput.Text ?? string.Empty,
+            _processCanvas.GridFontSize,
+            _processCanvas.GridRowSpacing);
+
+    /// <summary>Restores user-editable Processes state after a shared shell rebuild.</summary>
+    internal void RestoreHotReloadState(ProcessDetailsHotReloadState state)
     {
         if (_disposed) return;
 
-        _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(_resources));
-        _tableScrollViewport.SetVerticalScrollBarTopInset(
-            GetProcessTableVerticalScrollBarTopInset(_resources));
-        ApplyColumnHeaderBorderResources(_columnHeaderBorder, _resources);
-        _resizeGrip.ApplyResources(_resources);
-        _selectionHighlight.BorderThickness = _resources.AxamlProcessTable.SelectionBorderThickness;
+        _searchBox.Text = state.SearchText;
+        _runInput.Text = state.RunInputText;
+        _runPanel.IsVisible = state.IsRunPanelVisible;
+        _processCanvas.SetGridTypography(state.GridFontSize, state.GridRowSpacing);
+        _processCanvas.RestoreSelectedProcess(state.SelectedProcess);
+        UpdateLayout();
+        _tableScrollViewport.UpdateLayout();
+        _tableScrollViewport.SetOffsets(state.HorizontalOffset, state.VerticalOffset);
     }
+#endif
 
     private static SettingsScrollBarStyle CreateProcessTableScrollBarStyle(
         TaskManagerWindowResources resources) =>
@@ -449,11 +537,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
             resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
             resources.AxamlProcessTable.ScrollBarThumbEndMargin,
             resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
-            TaskManagerWindowResources.ProcessGridBackgroundColor,
-            TaskManagerWindowResources.ProcessGridScrollThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            resources.AxamlProcessTable.GridBackgroundColor,
+            resources.AxamlProcessTable.ScrollThumbColor,
+            resources.AxamlProcessTable.ScrollHoverThumbColor,
+            resources.AxamlProcessTable.ScrollHoverThumbColor,
+            resources.AxamlProcessTable.ScrollHoverThumbColor,
             ShowButtonsOnHover: true);
 
     private static double GetProcessTableVerticalScrollBarTopInset(
@@ -495,36 +583,62 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
     {
         if (direction == 0) return;
 
+#if DEBUG
+        double currentFontSize = _processCanvas.GridFontSize;
+        double currentRowSpacing = _processCanvas.GridRowSpacing;
+#else
+        double currentFontSize = _settings.GridFontSize;
+        double currentRowSpacing = _settings.GridRowSpacing;
+#endif
         double fontSize = Math.Clamp(
-            _settings.GridFontSize + Math.Sign(direction) * GridFontZoomStep,
+            currentFontSize + Math.Sign(direction) * GridFontZoomStep,
             AppSettings.GridFontSizeMinimum,
             AppSettings.GridFontSizeMaximum);
-        ApplyGridTypography(fontSize, _settings.GridRowSpacing);
+        ApplyGridTypography(fontSize, currentRowSpacing);
     }
 
     private void OnGridZoomResetRequested()
     {
+#if DEBUG
+        ApplyGridTypography(
+            _resources.AxamlProcessTable.FontSize,
+            _processCanvas.GridRowSpacing);
+#else
         ApplyGridTypography(
             AppSettings.GridFontSizeDefault,
             _settings.GridRowSpacing);
+#endif
     }
 
     private void OnGridRowSpacingRequested(int direction)
     {
         if (direction == 0) return;
 
+#if DEBUG
+        double currentRowSpacing = _processCanvas.GridRowSpacing;
+        double currentFontSize = _processCanvas.GridFontSize;
+#else
+        double currentRowSpacing = _settings.GridRowSpacing;
+        double currentFontSize = _settings.GridFontSize;
+#endif
         double rowSpacing = Math.Clamp(
-            _settings.GridRowSpacing + Math.Sign(direction) * GridRowSpacingStep,
+            currentRowSpacing + Math.Sign(direction) * GridRowSpacingStep,
             AppSettings.GridRowSpacingMinimum,
             AppSettings.GridRowSpacingMaximum);
-        ApplyGridTypography(_settings.GridFontSize, rowSpacing);
+        ApplyGridTypography(currentFontSize, rowSpacing);
     }
 
     private void OnGridRowSpacingResetRequested()
     {
+#if DEBUG
+        ApplyGridTypography(
+            _processCanvas.GridFontSize,
+            _resources.AxamlProcessTable.RowSpacing);
+#else
         ApplyGridTypography(
             _settings.GridFontSize,
             AppSettings.GridRowSpacingDefault);
+#endif
     }
 
     private void ApplyGridTypography(double fontSize, double rowSpacing)
@@ -740,6 +854,21 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         UpdateSearchControlsPosition();
     }
 
+#if DEBUG
+    /// <summary>Replaces cached scrollbar menu options without rebuilding Processes state.</summary>
+    private void OnContextMenuAXAMLResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        ContextMenuWindowOptions contextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
+            _palette,
+            _settings.EnableRoundedCorners,
+            _settings);
+        _tableScrollViewport.SetContextMenuOptions(contextMenuOptions);
+        _columnChooserWindow?.SetScrollBarContextMenuOptions(contextMenuOptions);
+    }
+#endif
+
     /// <summary>Gets the process-grid top edge in the requested control's coordinate space.</summary>
     internal bool TryGetTableTop(Control relativeTo, out double tableTop)
     {
@@ -879,7 +1008,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
 
         _disposed = true;
         _armTerminationTarget(null);
-        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+#if DEBUG
+        TaskManagerContextMenuResources.ResourcesReloaded -= OnContextMenuAXAMLResourcesReloaded;
+#endif
         _snapshotService.SnapshotAvailable -= OnSnapshotAvailable;
         _processCanvas.SelectedProcessChanged -= OnSelectedProcessChanged;
         _processCanvas.RowHoverGeometryChanged -= OnRowHoverGeometryChanged;
@@ -930,3 +1061,16 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, IDisposable
         _processCanvas.Dispose();
     }
 }
+
+#if DEBUG
+/// <summary>Processes state that survives Common or glyph-triggered shell reconstruction.</summary>
+internal readonly record struct ProcessDetailsHotReloadState(
+    string SearchText,
+    double HorizontalOffset,
+    double VerticalOffset,
+    ProcessTerminationTarget? SelectedProcess,
+    bool IsRunPanelVisible,
+    string RunInputText,
+    double GridFontSize,
+    double GridRowSpacing);
+#endif

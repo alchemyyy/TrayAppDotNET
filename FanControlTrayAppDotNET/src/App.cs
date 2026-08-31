@@ -13,8 +13,10 @@ using FanControlTrayAppDotNET.UI.Tray;
 using HotAvalonia;
 #endif
 using TrayAppDotNETCommon.UI.WarmWindows;
+#if DEBUG
 using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using FanHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using FanHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using FanHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
@@ -106,8 +108,10 @@ internal sealed class FanAvaloniaApp : Application
             return;
         }
 
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
+#endif
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -351,6 +355,7 @@ internal sealed class FanAvaloniaApp : Application
         _trayIconRenderer.TrayIconColorOverride = _settings?.TrayIconColor.Resolve(isLight);
     }
 
+#if DEBUG
     /// <summary>
     /// Invalidates the renderer so tray glyph edits are visible immediately.
     /// </summary>
@@ -361,6 +366,7 @@ internal sealed class FanAvaloniaApp : Application
     }
 
     private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+#endif
 
     private void RequestTrayRefresh()
     {
@@ -682,8 +688,10 @@ internal sealed class FanAvaloniaApp : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
+#endif
 
         try
         {

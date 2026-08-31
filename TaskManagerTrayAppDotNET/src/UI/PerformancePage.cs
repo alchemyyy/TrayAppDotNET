@@ -7,13 +7,13 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Displays direct-OS CPU, memory, GPU, network, and disk performance snapshots.</summary>
 internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 {
-    private const string SelectedGraphViewGlyph = "\uE73E";
     private const int MaximumDetailStatistics = 16;
     private const double BytesPerGibibyte = 1_073_741_824;
 
@@ -134,13 +134,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             "Performance",
             palette,
             resources.AxamlTaskManagerPerformance.DetailTitleFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         _detailTitle.VerticalAlignment = VerticalAlignment.Center;
         _detailHardwareName = TrayAppDotNETSettingsUI.Text(
             string.Empty,
             palette,
             resources.AxamlTaskManagerPerformance.DetailDeviceNameFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         _detailHardwareName.HorizontalAlignment = HorizontalAlignment.Right;
         _detailHardwareName.VerticalAlignment = VerticalAlignment.Center;
         _detailHardwareName.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -164,12 +164,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes)),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         TextBlock graphMaximumLabel = TrayAppDotNETSettingsUI.Text(
             "100%",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         graphMaximumLabel.HorizontalAlignment = HorizontalAlignment.Right;
         _genericGraphHeader = new Grid
         {
@@ -241,12 +241,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         TextBlock graphMinimumLabel = TrayAppDotNETSettingsUI.Text(
             "0",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         graphMinimumLabel.HorizontalAlignment = HorizontalAlignment.Right;
         _genericGraphFooter = new Grid
         {
@@ -293,14 +293,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 string.Empty,
                 palette,
                 resources.AxamlTaskManagerPerformance.DetailStatisticLabelFontSize,
-                FontWeight.Normal);
+                (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
             TextBlock value = TrayAppDotNETSettingsUI.Text(
                 string.Empty,
                 palette,
                 statisticIndex < 2
                     ? resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticValueFontSize
                     : resources.AxamlTaskManagerPerformance.DetailStatisticValueFontSize,
-                FontWeight.Normal);
+                (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
             StackPanel statistic = new()
             {
                 IsVisible = false,
@@ -1174,27 +1174,27 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             "Logical processors",
             () => SetCPUGraphView(CPUPerformanceGraphView.LogicalProcessors))
         {
-            TrailingGlyph = _settings.CPUPerformanceGraphView
+            TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
                             == CPUPerformanceGraphView.LogicalProcessors
-                ? SelectedGraphViewGlyph
+                ? TaskManagerGlyphCatalog.SELECTED
                 : null
         });
         entries.Add(new ContextMenuEntry(
             "Overall utilization",
             () => SetCPUGraphView(CPUPerformanceGraphView.OverallUtilization))
         {
-            TrailingGlyph = _settings.CPUPerformanceGraphView
+            TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
                             == CPUPerformanceGraphView.OverallUtilization
-                ? SelectedGraphViewGlyph
+                ? TaskManagerGlyphCatalog.SELECTED
                 : null
         });
         entries.Add(new ContextMenuEntry(
             "Detailed view",
             () => SetCPUGraphView(CPUPerformanceGraphView.DetailedView))
         {
-            TrailingGlyph = _settings.CPUPerformanceGraphView
+            TrailingGlyphMetadata = _settings.CPUPerformanceGraphView
                             == CPUPerformanceGraphView.DetailedView
-                ? SelectedGraphViewGlyph
+                ? TaskManagerGlyphCatalog.SELECTED
                 : null
         });
 
@@ -1548,20 +1548,20 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 device.Title,
                 palette,
                 resources.AxamlTaskManagerPerformance.DeviceTitleFontSize,
-                FontWeight.Normal);
+                (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
             _title.TextTrimming = TextTrimming.CharacterEllipsis;
             _subtitle = TrayAppDotNETSettingsUI.Text(
                 device.Subtitle,
                 palette,
                 resources.AxamlTaskManagerPerformance.DeviceSubtitleFontSize,
-                FontWeight.Normal);
+                (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
             _subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
             _subtitle.IsVisible = ShouldShowSubtitle(device);
             _summary = TrayAppDotNETSettingsUI.Text(
                 device.Summary,
                 palette,
                 resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize,
-                FontWeight.Normal);
+                (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
             _summary.TextTrimming = TextTrimming.CharacterEllipsis;
             _summary.IsVisible = !string.IsNullOrWhiteSpace(device.Summary);
 

@@ -5,9 +5,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 /// <summary>Provides typed access to shared installer and uninstaller layout resources.</summary>
 internal static class TrayAppDotNETDialogChromeLayout
 {
-    private static readonly Lazy<DialogChromeResources> Resources = new(static () => new DialogChromeResources());
-
-    private static DialogChromeResources AXAMLResources => Resources.Value;
+    private static DialogChromeResources AXAMLResources => DialogChromeResources.Current;
 
     public static double InstallerWindowWidth => AXAMLResources.AxamlDialogChrome.InstallerWindowWidth;
     public static double InstallerWindowHeight => AXAMLResources.AxamlDialogChrome.InstallerWindowHeight;

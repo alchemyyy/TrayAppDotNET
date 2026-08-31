@@ -75,8 +75,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         _activateItem = activateItem;
         _rows = new StackPanel
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Spacing = 0
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
         HorizontalAlignment = HorizontalAlignment.Stretch;
         Children.Add(_rows);
@@ -88,9 +87,11 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         };
         _autoScrollTimer.Tick += OnAutoScrollTick;
 
+        RebuildRows();
+#if DEBUG
         TaskManagerReorderResources.ResourcesReloaded += OnResourcesReloaded;
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphResourcesReloaded;
-        RebuildRows();
+#endif
     }
 
     /// <summary>Gets a live read-only view over the caller-owned order.</summary>
@@ -772,6 +773,7 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
         CancelDrag();
     }
 
+#if DEBUG
     private void OnResourcesReloaded()
     {
         if (Volatile.Read(ref _disposed) != 0) return;
@@ -785,14 +787,17 @@ internal sealed class TaskManagerReorderList<TItem> : Grid, IDisposable
     {
         if (Volatile.Read(ref _disposed) == 0) Refresh();
     }
+#endif
 
     /// <summary>Releases pointer capture, generated rows, and hot-reload subscriptions.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
 
+#if DEBUG
         TaskManagerReorderResources.ResourcesReloaded -= OnResourcesReloaded;
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphResourcesReloaded;
+#endif
         _autoScrollTimer.Stop();
         _autoScrollTimer.Tick -= OnAutoScrollTick;
         CancelDrag();

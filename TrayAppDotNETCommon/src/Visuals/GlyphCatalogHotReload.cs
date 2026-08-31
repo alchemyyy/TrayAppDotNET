@@ -1,8 +1,7 @@
+#if DEBUG
 using System.Runtime.CompilerServices;
 using TrayAppDotNETCommon.UI;
-#if DEBUG
 using Avalonia.Controls;
-#endif
 
 namespace TrayAppDotNETCommon.Visuals;
 
@@ -11,17 +10,8 @@ namespace TrayAppDotNETCommon.Visuals;
 /// </summary>
 public static class GlyphCatalogHotReload
 {
-#if DEBUG
     public static event Action? ResourcesReloaded;
-#else
-    public static event Action? ResourcesReloaded
-    {
-        add { }
-        remove { }
-    }
-#endif
 
-#if DEBUG
     /// <summary>
     /// Notifies each consumer independently so one failed refresh does not block the others.
     /// </summary>
@@ -43,10 +33,8 @@ public static class GlyphCatalogHotReload
             }
         }
     }
-#endif
 }
 
-#if DEBUG
 /// <summary>
 /// Keeps a compiled glyph dictionary and replaces it after successful source AXAML reloads.
 /// </summary>

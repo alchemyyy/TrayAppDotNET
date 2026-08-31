@@ -73,6 +73,32 @@ public sealed class AxamlPropertyLinkerGeneratorTests
         Assert.Equal(8, Get(windowAccessors, "EdgePadding"));
     }
 
+    [Fact]
+    public void CapturedAccessorsReadLatestOwnerValues()
+    {
+        AxamlGeneratedAssembly generated = AxamlGeneratorHost.CompileAndLoad(
+            SampleSource,
+            [
+                new AxamlTestFile("FlyoutButton.axaml", ResourceDictionaryAxaml),
+                new AxamlTestFile("SampleWindow.axaml", ControlAxaml)
+            ]);
+
+        Type resourcesType = generated.Assembly.GetRequiredType("Samples.FlyoutButtonResources");
+        object resources = Activator.CreateInstance(resourcesType)!;
+        object resourceAccessors = Get(resources, "AxamlFlyoutButton")!;
+        System.Collections.IDictionary dictionary =
+            Assert.IsAssignableFrom<System.Collections.IDictionary>(resources);
+        dictionary["FlyoutButton.Width"] = 73.25;
+        Assert.Equal(73.25, Get(resourceAccessors, "Width"));
+
+        Type windowType = generated.Assembly.GetRequiredType("Samples.SampleWindow");
+        object window = Activator.CreateInstance(windowType)!;
+        object windowAccessors = Get(window, "AxamlFlyout")!;
+        MethodInfo setResource = windowType.GetMethod("SetResource")!;
+        setResource.Invoke(window, ["Flyout.WindowWidth", 640.0]);
+        Assert.Equal(640.0, Get(windowAccessors, "WindowWidth"));
+    }
+
     private static object? Get(object target, string property) =>
         target.GetType()
             .GetProperty(property, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!

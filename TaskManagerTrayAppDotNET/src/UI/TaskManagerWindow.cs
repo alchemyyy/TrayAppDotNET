@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -28,7 +29,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 {
     private const uint WindowMessageMoving = 0x0216;
     private const uint WindowMessageExitSizeMove = 0x0232;
-    private const int SearchDragOutsideMarginPixels = 8;
     private const string EndTaskConfirmationMessage =
         "If an open program is associated with this process, it will close and you will lose any unsaved data. " +
         "If you end a system process, it might result in system instability. Are you sure you want to continue?";
@@ -39,16 +39,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         "Task Manager can start TaskManagerTrayAppDotNET.KillHelper.exe with administrator privileges so it can " +
         "end elevated processes. Windows may display a security warning and a UAC prompt. If you cancel, Task " +
         "Manager will continue running with standard process permissions.";
-
-    private static readonly Glyph ProcessesGlyph = Glyph.Fluent("\uECAA");
-    private static readonly Glyph PerformanceGlyph = Glyph.Fluent("\uE9D9");
-    private static readonly Glyph AppHistoryGlyph = Glyph.Fluent("\uE81C");
-    private static readonly Glyph StartupAppsGlyph = Glyph.Fluent("\uE768");
-    private static readonly Glyph UsersGlyph = Glyph.Fluent("\uE716");
-    private static readonly Glyph ServicesGlyph = Glyph.Fluent("\uEA86");
-    private static readonly Glyph GlobalNavigationButtonGlyph = Glyph.Fluent(
-        "\uE700",
-        FontWeight.Normal);
 
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
@@ -63,6 +53,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private ProcessDetailsPage? _processDetailsPage;
     private TaskManagerSettingsWindow? _settingsWindow;
     private string? _selectedPerformanceDeviceID;
+#if DEBUG
+    private double _axamlWindowWidth;
+    private double _axamlWindowHeight;
+    private double _axamlWindowMinWidth;
+    private double _axamlWindowMinHeight;
+    private ProcessDetailsHotReloadState? _processHotReloadState;
+#endif
     private bool _windowDragWndProcHookAttached;
     private bool _avoidSearchBoxDuringRestoreDrag;
     private bool _restoreDragSearchRangeResolved;
@@ -90,13 +87,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _processTerminationService = processTerminationService;
         _exitApplication = exitApplication;
         _windowDragWndProcHook = WindowDragWndProcHook;
-        Resources.MergedDictionaries.Add(_taskManagerResources);
-
         ConfigureSettingsWindow(Constants.DisplayName, icon: null);
-        Width = _taskManagerResources.AxamlTaskManagerWindow.Width;
-        Height = _taskManagerResources.AxamlTaskManagerWindow.Height;
-        MinWidth = _taskManagerResources.AxamlTaskManagerWindow.MinWidth;
-        MinHeight = _taskManagerResources.AxamlTaskManagerWindow.MinHeight;
+        ApplyInitialAXAMLWindowDimensions();
         Topmost = settings.AlwaysOnTop;
         Closed += OnWindowClosedForDragHook;
         Closing += OnWindowClosing;
@@ -107,6 +99,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
         InitializeSettingsShell();
+#if DEBUG
+        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+#endif
     }
 
     protected override bool EnableRoundedCorners => _settings.EnableRoundedCorners;
@@ -127,6 +122,31 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
+#if DEBUG
+    // AXAML hot-reload exception: Common and glyph dictionaries replace the shared shell, whose
+    // page cleanup closes open column, affinity, and reorder editors; their live controls cannot be
+    // safely reparented with active pointer, focus, and owner-window state
+    protected override void OnBeforeHotReloadShellRebuild()
+    {
+        CapturePerformancePageState();
+        _processHotReloadState = CurrentPageKey == TaskManagerPage.Processes
+            ? _processDetailsPage?.CaptureHotReloadState()
+            : null;
+    }
+
+    protected override void OnAfterHotReloadShellRebuild()
+    {
+        ProcessDetailsHotReloadState? state = _processHotReloadState;
+        _processHotReloadState = null;
+        if (state.HasValue
+            && CurrentPageKey == TaskManagerPage.Processes
+            && _processDetailsPage != null)
+        {
+            UpdateLayout();
+            _processDetailsPage.RestoreHotReloadState(state.Value);
+        }
+    }
+#endif
     protected override bool HandleNavigationRequest(TaskManagerPage pageKey)
     {
         if (pageKey != TaskManagerPage.Settings) return false;
@@ -160,7 +180,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         double buttonSize =
             _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonSize;
         SettingsButton globalNavigationButton = new(
-            GlobalNavigationButtonGlyph,
+            TaskManagerGlyphCatalog.GLOBAL_NAVIGATION,
             palette,
             transparentBase: true)
         {
@@ -190,12 +210,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override IReadOnlyList<SettingsPageDescriptor<TaskManagerPage>> CreatePageDescriptors() =>
     [
-        new(TaskManagerPage.Processes, "Processes", BuildProcessesPage, ProcessesGlyph),
-        new(TaskManagerPage.Performance, "Performance", BuildPerformancePage, PerformanceGlyph),
-        new(TaskManagerPage.AppHistory, "App history", () => BuildPlaceholderPage("App history"), AppHistoryGlyph),
-        new(TaskManagerPage.StartupApps, "Startup apps", () => BuildPlaceholderPage("Startup apps"), StartupAppsGlyph),
-        new(TaskManagerPage.Users, "Users", () => BuildPlaceholderPage("Users"), UsersGlyph),
-        new(TaskManagerPage.Services, "Services", () => BuildPlaceholderPage("Services"), ServicesGlyph),
+        new(TaskManagerPage.Processes, "Processes", BuildProcessesPage, TaskManagerGlyphCatalog.PROCESSES),
+        new(TaskManagerPage.Performance, "Performance", BuildPerformancePage, TaskManagerGlyphCatalog.PERFORMANCE),
+        new(TaskManagerPage.AppHistory, "App history", () => BuildPlaceholderPage("App history"), TaskManagerGlyphCatalog.APP_HISTORY),
+        new(TaskManagerPage.StartupApps, "Startup apps", () => BuildPlaceholderPage("Startup apps"), TaskManagerGlyphCatalog.STARTUP_APPS),
+        new(TaskManagerPage.Users, "Users", () => BuildPlaceholderPage("Users"), TaskManagerGlyphCatalog.USERS),
+        new(TaskManagerPage.Services, "Services", () => BuildPlaceholderPage("Services"), TaskManagerGlyphCatalog.SERVICES),
         new(TaskManagerPage.Settings, "Settings", BuildSettingsPage, SettingsNavigationGlyphs.Settings)
     ];
 
@@ -203,6 +223,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     protected override void OnSettingsWindowClosed()
     {
+#if DEBUG
+        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+#endif
         Closing -= OnWindowClosing;
         PropertyChanged -= OnWindowPropertyChanged;
         RemoveHandler(PointerPressedEvent, OnHeaderBackgroundPointerPressed);
@@ -213,10 +236,67 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     internal void RefreshTheme()
     {
         Topmost = _settings.AlwaysOnTop;
-        PerformancePage? performancePage = _activePageLayout as PerformancePage;
-        if (performancePage != null)
-            _selectedPerformanceDeviceID = performancePage.SelectedDeviceID;
+        CapturePerformancePageState();
         RebuildShell(CurrentPageKey);
+    }
+
+    private void CapturePerformancePageState()
+    {
+        if (_activePageLayout is PerformancePage performancePage)
+            _selectedPerformanceDeviceID = performancePage.SelectedDeviceID;
+    }
+
+#if DEBUG
+    /// <summary>Applies current-page resources or rebuilds stateless Task Manager surfaces.</summary>
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (IsClosing) return;
+
+        ApplyHotReloadedAXAMLWindowDimensions();
+        if (CurrentPageKey == TaskManagerPage.Processes && _processDetailsPage != null)
+        {
+            // AXAML hot-reload exception: SidebarWidth, SidebarCollapseThreshold, and the
+            // GlobalNavigationButton properties are owned by private Common shell controls;
+            // rebuilding those controls here would discard live Processes editors and input
+            _processDetailsPage.ApplyAXAMLResources(_taskManagerResources);
+            return;
+        }
+
+        // Rebuild intentionally: most Task Manager controls copy construction-time AXAML values
+        RefreshTheme();
+    }
+
+    private void ApplyHotReloadedAXAMLWindowDimensions()
+    {
+        double nextWidth = _taskManagerResources.AxamlTaskManagerWindow.Width;
+        double nextHeight = _taskManagerResources.AxamlTaskManagerWindow.Height;
+        double nextMinWidth = _taskManagerResources.AxamlTaskManagerWindow.MinWidth;
+        double nextMinHeight = _taskManagerResources.AxamlTaskManagerWindow.MinHeight;
+
+        if (nextWidth != _axamlWindowWidth) Width = nextWidth;
+        if (nextHeight != _axamlWindowHeight) Height = nextHeight;
+        if (nextMinWidth != _axamlWindowMinWidth) MinWidth = nextMinWidth;
+        if (nextMinHeight != _axamlWindowMinHeight) MinHeight = nextMinHeight;
+
+        _axamlWindowWidth = nextWidth;
+        _axamlWindowHeight = nextHeight;
+        _axamlWindowMinWidth = nextMinWidth;
+        _axamlWindowMinHeight = nextMinHeight;
+    }
+#endif
+
+    private void ApplyInitialAXAMLWindowDimensions()
+    {
+        Width = _taskManagerResources.AxamlTaskManagerWindow.Width;
+        Height = _taskManagerResources.AxamlTaskManagerWindow.Height;
+        MinWidth = _taskManagerResources.AxamlTaskManagerWindow.MinWidth;
+        MinHeight = _taskManagerResources.AxamlTaskManagerWindow.MinHeight;
+#if DEBUG
+        _axamlWindowWidth = Width;
+        _axamlWindowHeight = Height;
+        _axamlWindowMinWidth = MinWidth;
+        _axamlWindowMinHeight = MinHeight;
+#endif
     }
 
     /// <summary>Starts one silent elevation attempt after normal startup is complete.</summary>
@@ -447,7 +527,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             proposedBounds->Left,
             _restoreDragSearchLeftWithinWindow,
             _restoreDragSearchRightWithinWindow,
-            SearchDragOutsideMarginPixels);
+            _taskManagerResources.AxamlTaskManagerWindow.SearchDragOutsideMarginPixels);
         // Adjust the proposed rectangle so the native move loop retains the active cursor grab
         proposedBounds->Left += horizontalOffset;
         proposedBounds->Right += horizontalOffset;

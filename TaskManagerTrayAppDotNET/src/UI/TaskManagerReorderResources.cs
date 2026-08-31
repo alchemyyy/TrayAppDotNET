@@ -75,12 +75,6 @@ public sealed partial class TaskManagerReorderResources : ResourceDictionary
             }
         }
     }
-#else
-    internal static event Action? ResourcesReloaded
-    {
-        add { }
-        remove { }
-    }
 #endif
 
     internal double DragThreshold => Get<double>(DragThresholdKey);

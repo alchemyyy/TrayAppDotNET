@@ -24,6 +24,7 @@ public sealed record ContextMenuEntry(string Text, Action Click)
 {
     public Glyph? LeadingGlyph { get; init; }
     public string? TrailingGlyph { get; init; }
+    public Glyph? TrailingGlyphMetadata { get; init; }
     public Func<IReadOnlyList<ContextMenuEntry>>? SubmenuFactory { get; init; }
     public Action<bool>? HoverChanged { get; init; }
     public bool HasTopRule { get; init; }
@@ -952,9 +953,12 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
             label.FontWeight = options.FontWeight;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.TextTrimming = TextTrimming.CharacterEllipsis;
+            Glyph? trailingGlyphMetadata = entry.SubmenuFactory == null
+                ? entry.TrailingGlyphMetadata
+                : null;
             string? resolvedTrailingGlyph = entry.SubmenuFactory != null
                 ? options.SubmenuGlyph
-                : entry.TrailingGlyph;
+                : trailingGlyphMetadata?.Text ?? entry.TrailingGlyph;
 
             if (entry.LeadingGlyph == null && string.IsNullOrEmpty(resolvedTrailingGlyph))
                 return label;
@@ -995,7 +999,10 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
                 resolvedTrailingGlyph,
                 options.Palette,
                 options.TrailingGlyphFontSize);
-            trailingGlyphText.FontFamily = TrayAppDotNETSettingsUI.IconFont;
+            if (trailingGlyphMetadata != null)
+                GlyphApplicator.ApplyTo(trailingGlyphText, trailingGlyphMetadata);
+            else
+                trailingGlyphText.FontFamily = TrayAppDotNETSettingsUI.IconFont;
             trailingGlyphText.Margin = options.TrailingGlyphMargin;
             trailingGlyphText.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(trailingGlyphText, 2);

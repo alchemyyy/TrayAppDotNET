@@ -40,8 +40,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private const int WorkAreaEdgeTolerancePixels = 1;
 
     private ContentControl _content = new();
-    private readonly SettingsWindowCommonResources _settingsResources = new();
-    private readonly CommonBindingsResources _commonBindingResources = new();
+    private readonly SettingsWindowCommonResources _settingsResources;
+    private readonly CommonBindingsResources _commonBindingResources;
     private IReadOnlyList<SettingsPageDescriptor<TPageKey>> _pageDescriptors = [];
     private Dictionary<TPageKey, Func<Control>> _pages = [];
     private Dictionary<TPageKey, SettingsNavItem> _navItems = [];
@@ -78,6 +78,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Standard,
         Compact
     }
+
+#if DEBUG
+    private bool _hotReloadSubscriptionsAttached;
+    private bool _hasTrackedAXAMLWindowDimensions;
+    private SettingsWindowSizeProfile _hotReloadSizeProfile;
+    private double _axamlWindowWidth;
+    private double _axamlWindowHeight;
+    private double _axamlWindowMinWidth;
+    private double _axamlWindowMinHeight;
+#endif
 
     protected TPageKey CurrentPageKey { get; private set; } = default!;
     protected bool IsClosing { get; private set; }
@@ -127,11 +137,28 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     /// <summary>Gets the window width below which the navigation sidebar is hidden.</summary>
     protected virtual double SidebarCollapseThreshold => 0;
 
+#if DEBUG
+    /// <summary>Captures derived-window state before hot reload replaces the settings shell.</summary>
+    protected virtual void OnBeforeHotReloadShellRebuild()
+    {
+    }
+
+    /// <summary>Restores derived-window state after hot reload replaces the settings shell.</summary>
+    protected virtual void OnAfterHotReloadShellRebuild()
+    {
+    }
+#endif
+
     /// <summary>Returns true when a derived window handled navigation without replacing its content.</summary>
     protected virtual bool HandleNavigationRequest(TPageKey pageKey) => false;
 
     protected SettingsWindowCommon()
     {
+        _settingsResources = new SettingsWindowCommonResources();
+        _commonBindingResources = new CommonBindingsResources();
+#if DEBUG
+        SynchronizeCommonAXAMLResources();
+#endif
         _windowResources = new UIResourceScope(GetType().Name);
         ControlNames = ControlNameScope.For(this);
         Resources.MergedDictionaries.Add(_settingsResources);
@@ -146,8 +173,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         AddHandler(PointerMovedEvent, OnWindowPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnWindowKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
-        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
-        _windowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+#if DEBUG
+        _windowResources.Add(DetachHotReloadSubscriptions);
+#endif
         _windowResources.Add(() => RemoveHandler(KeyUpEvent, OnWindowKeyUp));
         _windowResources.Add(() => RemoveHandler(KeyDownEvent, OnWindowKeyDown));
         _windowResources.Add(() => RemoveHandler(PointerMovedEvent, OnWindowPointerMoved));
@@ -189,6 +217,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 Height = _settingsResources.AxamlSettingsWindow.StandardWindowHeight;
                 MinWidth = _settingsResources.AxamlSettingsWindow.StandardWindowMinWidth;
                 MinHeight = _settingsResources.AxamlSettingsWindow.StandardWindowMinHeight;
+#if DEBUG
+                TrackAXAMLWindowDimensions(sizeProfile);
+#endif
                 return;
 
             case SettingsWindowSizeProfile.Compact:
@@ -196,6 +227,9 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
                 Height = _settingsResources.AxamlSettingsWindow.CompactWindowHeight;
                 MinWidth = _settingsResources.AxamlSettingsWindow.CompactWindowMinWidth;
                 MinHeight = _settingsResources.AxamlSettingsWindow.CompactWindowMinHeight;
+#if DEBUG
+                TrackAXAMLWindowDimensions(sizeProfile);
+#endif
                 return;
 
             default:
@@ -207,8 +241,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         if (_shellInitialized) return;
 
-        _shellInitialized = true;
         BuildAndCommitShell(DefaultPageKey);
+        _shellInitialized = true;
+#if DEBUG
+        AttachHotReloadSubscriptions();
+#endif
     }
 
     protected virtual void OnSettingsWindowClosed()
@@ -387,6 +424,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             RestoreSettingsSearchAfterShellRebuild(searchQuery);
     }
 
+#if DEBUG
     /// <summary>
     /// Rebuilds code-created settings glyphs after a catalog source reload.
     /// </summary>
@@ -394,8 +432,126 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         if (IsClosing || !_shellInitialized) return;
 
+        OnBeforeHotReloadShellRebuild();
         RebuildShell(CurrentPageKey);
+        OnAfterHotReloadShellRebuild();
     }
+
+    /// <summary>Rebuilds the open shell after a common layout dictionary reloads.</summary>
+    private void OnCommonAXAMLResourcesReloaded()
+    {
+        if (IsClosing || !_shellInitialized) return;
+
+        SynchronizeCommonAXAMLResources();
+        ApplyChangedAXAMLWindowDimensions();
+        OnBeforeHotReloadShellRebuild();
+        RebuildShell(CurrentPageKey);
+        OnAfterHotReloadShellRebuild();
+    }
+
+    private void AttachHotReloadSubscriptions()
+    {
+        if (_hotReloadSubscriptionsAttached || IsClosing) return;
+
+        CommonAXAMLHotReload.ResourcesReloaded += OnCommonAXAMLResourcesReloaded;
+        try
+        {
+            GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+            _hotReloadSubscriptionsAttached = true;
+        }
+        catch
+        {
+            CommonAXAMLHotReload.ResourcesReloaded -= OnCommonAXAMLResourcesReloaded;
+            throw;
+        }
+    }
+
+    private void DetachHotReloadSubscriptions()
+    {
+        if (!_hotReloadSubscriptionsAttached) return;
+
+        _hotReloadSubscriptionsAttached = false;
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
+        CommonAXAMLHotReload.ResourcesReloaded -= OnCommonAXAMLResourcesReloaded;
+    }
+
+    private void TrackAXAMLWindowDimensions(SettingsWindowSizeProfile sizeProfile)
+    {
+        _hotReloadSizeProfile = sizeProfile;
+        _hasTrackedAXAMLWindowDimensions = true;
+        switch (sizeProfile)
+        {
+            case SettingsWindowSizeProfile.Standard:
+                _axamlWindowWidth = _settingsResources.AxamlSettingsWindow.StandardWindowWidth;
+                _axamlWindowHeight = _settingsResources.AxamlSettingsWindow.StandardWindowHeight;
+                _axamlWindowMinWidth = _settingsResources.AxamlSettingsWindow.StandardWindowMinWidth;
+                _axamlWindowMinHeight = _settingsResources.AxamlSettingsWindow.StandardWindowMinHeight;
+                return;
+
+            case SettingsWindowSizeProfile.Compact:
+                _axamlWindowWidth = _settingsResources.AxamlSettingsWindow.CompactWindowWidth;
+                _axamlWindowHeight = _settingsResources.AxamlSettingsWindow.CompactWindowHeight;
+                _axamlWindowMinWidth = _settingsResources.AxamlSettingsWindow.CompactWindowMinWidth;
+                _axamlWindowMinHeight = _settingsResources.AxamlSettingsWindow.CompactWindowMinHeight;
+                return;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(sizeProfile), sizeProfile, null);
+        }
+    }
+
+    private void ApplyChangedAXAMLWindowDimensions()
+    {
+        if (!_hasTrackedAXAMLWindowDimensions) return;
+
+        double width;
+        double height;
+        double minWidth;
+        double minHeight;
+        switch (_hotReloadSizeProfile)
+        {
+            case SettingsWindowSizeProfile.Standard:
+                width = _settingsResources.AxamlSettingsWindow.StandardWindowWidth;
+                height = _settingsResources.AxamlSettingsWindow.StandardWindowHeight;
+                minWidth = _settingsResources.AxamlSettingsWindow.StandardWindowMinWidth;
+                minHeight = _settingsResources.AxamlSettingsWindow.StandardWindowMinHeight;
+                break;
+
+            case SettingsWindowSizeProfile.Compact:
+                width = _settingsResources.AxamlSettingsWindow.CompactWindowWidth;
+                height = _settingsResources.AxamlSettingsWindow.CompactWindowHeight;
+                minWidth = _settingsResources.AxamlSettingsWindow.CompactWindowMinWidth;
+                minHeight = _settingsResources.AxamlSettingsWindow.CompactWindowMinHeight;
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(_hotReloadSizeProfile),
+                    _hotReloadSizeProfile,
+                    null);
+        }
+
+        if (!_axamlWindowWidth.Equals(width)) Width = width;
+        if (!_axamlWindowHeight.Equals(height)) Height = height;
+        if (!_axamlWindowMinWidth.Equals(minWidth)) MinWidth = minWidth;
+        if (!_axamlWindowMinHeight.Equals(minHeight)) MinHeight = minHeight;
+
+        _axamlWindowWidth = width;
+        _axamlWindowHeight = height;
+        _axamlWindowMinWidth = minWidth;
+        _axamlWindowMinHeight = minHeight;
+    }
+
+    private void SynchronizeCommonAXAMLResources()
+    {
+        CommonAXAMLHotReload.SynchronizeResources(
+            _settingsResources,
+            SettingsWindowCommonResources.Current);
+        CommonAXAMLHotReload.SynchronizeResources(
+            _commonBindingResources,
+            CommonBindingsResources.Current);
+    }
+#endif
 
     /// <summary>
     /// Applies current theme colors through the existing shared brushes.

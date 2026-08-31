@@ -63,11 +63,5 @@ public sealed partial class UpdateConfirmationWindowResources : ResourceDictiona
             }
         }
     }
-#else
-    internal static event Action? ResourcesReloaded
-    {
-        add { }
-        remove { }
-    }
 #endif
 }

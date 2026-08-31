@@ -12,7 +12,21 @@ internal sealed class TaskManagerContextMenuWindow : ContextMenuWindow
         ITrayAppDotNETTrayMenuSettings trayMenuSettings)
         : base(entries, CreateOptions(palette, enableRoundedCorners, trayMenuSettings))
     {
+#if DEBUG
+        TaskManagerContextMenuResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+        Closed += OnWindowClosed;
+#endif
     }
+
+#if DEBUG
+    private void OnAXAMLResourcesReloaded() => CloseForWarmEviction();
+
+    private void OnWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        TaskManagerContextMenuResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+        Closed -= OnWindowClosed;
+    }
+#endif
 
     /// <summary>Creates the anchored menu used to present saved process searches.</summary>
     internal static EditableContextMenuWindow CreateSavedSearchMenu(
@@ -45,9 +59,9 @@ internal sealed class TaskManagerContextMenuWindow : ContextMenuWindow
                 RootPadding = resources.AxamlTaskManagerContextMenu.AutocompletePadding,
                 ItemCornerRadius = resources.AxamlTaskManagerContextMenu.AutocompleteItemCornerRadius,
                 ItemPadding = resources.AxamlTaskManagerContextMenu.SavedSearchItemPadding,
-                ItemMargin = default,
-                ItemMinWidth = 0,
-                RowSpacing = 0
+                ItemMargin = resources.AxamlTaskManagerContextMenu.SavedSearchItemMargin,
+                ItemMinWidth = resources.AxamlTaskManagerContextMenu.SavedSearchItemMinWidth,
+                RowSpacing = resources.AxamlTaskManagerContextMenu.SavedSearchRowSpacing
             });
     }
 

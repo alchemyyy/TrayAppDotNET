@@ -1,25 +1,15 @@
+#if DEBUG
 using System.Runtime.CompilerServices;
 using TrayAppDotNETCommon.UI;
-#if DEBUG
 using Avalonia.Controls;
-#endif
 
 namespace TrayAppDotNETCommon.Visuals;
 
 /// <summary>Notifies live UI when a default theme-color catalog reloads.</summary>
 public static class AppThemeHotReload
 {
-#if DEBUG
     public static event Action? ResourcesReloaded;
-#else
-    public static event Action? ResourcesReloaded
-    {
-        add { }
-        remove { }
-    }
-#endif
 
-#if DEBUG
     internal static void NotifyResourcesReloaded(string catalogName)
     {
         Action? handlers = ResourcesReloaded;
@@ -43,10 +33,8 @@ public static class AppThemeHotReload
         // code-created visual trees, so theme reloads share that invalidation path
         GlyphCatalogHotReload.NotifyResourcesReloaded($"{catalogName} theme color");
     }
-#endif
 }
 
-#if DEBUG
 /// <summary>Keeps the latest successfully loaded theme-color dictionary.</summary>
 public sealed class AppThemeHotReloadStore<TResource>
     where TResource : ResourceDictionary

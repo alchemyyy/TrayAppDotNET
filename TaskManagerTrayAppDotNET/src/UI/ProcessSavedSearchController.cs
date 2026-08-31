@@ -26,6 +26,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
     private EditableContextMenuWindow? _menuWindow;
     private Window? _menuOwner;
     private bool _deleteConfirmationPending;
+#if DEBUG
+    private bool _hotReloadAttached;
+#endif
     private bool _disposed;
 
     public ProcessSavedSearchController(
@@ -78,7 +81,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
-            windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding)
+            windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
+            windowResources.AxamlTaskManagerDetails.SearchSaveGlyphOpacity)
         {
             IsVisible = HasQuery()
         };
@@ -99,6 +103,43 @@ internal sealed class ProcessSavedSearchController : IDisposable
     public Control ClearButton => _clearButton;
 
     public Control SaveButton => _saveButton;
+
+#if DEBUG
+    /// <summary>Attaches process-wide reload notifications after the owning page is fully built.</summary>
+    internal void AttachAXAMLHotReload()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_hotReloadAttached) return;
+
+        TaskManagerContextMenuResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+        _hotReloadAttached = true;
+    }
+
+    /// <summary>Applies search-action AXAML metrics without replacing the current query.</summary>
+    internal void ApplyAXAMLResources(TaskManagerWindowResources windowResources)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(windowResources);
+
+        double actionButtonSize = _textBox.Height;
+        _clearButton.ApplyAXAMLResources(
+            TaskManagerGlyphCatalog.CLOSE,
+            actionButtonSize,
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
+            windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
+            windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
+            windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
+            windowResources.AxamlTaskManagerDetails.SearchClearGlyphOpacity);
+        _saveButton.ApplyAXAMLResources(
+            TaskManagerGlyphCatalog.SAVE,
+            actionButtonSize,
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
+            windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
+            windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
+            windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
+            windowResources.AxamlTaskManagerDetails.SearchSaveGlyphOpacity);
+    }
+#endif
 
     private bool HasQuery() => !string.IsNullOrWhiteSpace(_textBox.Text);
 
@@ -219,7 +260,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
             entries.Add(new EditableContextMenuEntry(savedSearch.Name, () => RunSavedSearch(savedSearch.Query))
             {
                 SecondaryText = savedSearch.Query,
-                SecondaryTextFontWeight = FontWeight.Light,
+                SecondaryTextFontWeight =
+                    (FontWeight)resources.AxamlTaskManagerContextMenu.SavedSearchQueryFontWeight,
                 SecondaryTextOpacity = resources.AxamlTaskManagerContextMenu.SavedSearchQueryOpacity,
                 PrimaryTextMaximumWidth =
                     resources.AxamlTaskManagerContextMenu.SavedSearchNameMaximumWidth,
@@ -246,6 +288,14 @@ internal sealed class ProcessSavedSearchController : IDisposable
         menuWindow.Closed -= OnMenuClosed;
         menuWindow.Close();
     }
+
+#if DEBUG
+    /// <summary>Closes transient saved-search content so its next open uses reloaded metrics.</summary>
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (!_disposed) Close();
+    }
+#endif
 
     private void OnMenuClosed(object? sender, EventArgs eventArgs)
     {
@@ -481,6 +531,13 @@ internal sealed class ProcessSavedSearchController : IDisposable
         _textBox.RemoveHandler(InputElement.PointerPressedEvent, OnPointerPressed);
         _textBox.KeyDown -= OnKeyDown;
         _textBox.LostFocus -= OnTextBoxLostFocus;
+#if DEBUG
+        if (_hotReloadAttached)
+        {
+            TaskManagerContextMenuResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+            _hotReloadAttached = false;
+        }
+#endif
         _clearButton.Click -= OnClearClick;
         _saveButton.Click -= OnSaveClick;
         _clearButton.Dispose();
@@ -493,6 +550,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
     {
         private readonly SettingsPalette _palette;
         private readonly Border _surface;
+#if DEBUG
+        private readonly TextBlock _glyphText;
+#endif
         private bool _isPointerOver;
         private bool _isPressed;
         private bool _disposed;
@@ -527,6 +587,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 string.Empty,
                 palette,
                 Math.Max(0, glyphFontSize));
+#if DEBUG
+            _glyphText = glyphText;
+#endif
             GlyphApplicator.ApplyTo(glyphText, glyph);
             glyphText.HorizontalAlignment = HorizontalAlignment.Center;
             glyphText.VerticalAlignment = VerticalAlignment.Center;
@@ -552,6 +615,37 @@ internal sealed class ProcessSavedSearchController : IDisposable
         }
 
         public event EventHandler? Click;
+
+#if DEBUG
+        /// <summary>Applies current glyph-button metrics while retaining its input and pointer state.</summary>
+        internal void ApplyAXAMLResources(
+            Glyph glyph,
+            double hitTargetSize,
+            double glyphFontSize,
+            double visualInset,
+            CornerRadius cornerRadius,
+            Thickness visualPadding,
+            double glyphOpacity)
+        {
+            ArgumentNullException.ThrowIfNull(glyph);
+            if (_disposed) return;
+
+            double normalizedHitTargetSize = Math.Max(0, hitTargetSize);
+            double normalizedInset = Math.Clamp(
+                visualInset,
+                0,
+                normalizedHitTargetSize / 2);
+            Width = normalizedHitTargetSize;
+            Height = normalizedHitTargetSize;
+            MinHeight = normalizedHitTargetSize;
+            _surface.Margin = new Thickness(normalizedInset);
+            _surface.Padding = visualPadding;
+            _surface.CornerRadius = cornerRadius;
+            _glyphText.FontSize = Math.Max(0, glyphFontSize);
+            _glyphText.Opacity = Math.Clamp(glyphOpacity, 0, 1);
+            GlyphApplicator.ApplyTo(_glyphText, glyph);
+        }
+#endif
 
         private void OnPointerEntered(object? sender, PointerEventArgs eventArgs)
         {

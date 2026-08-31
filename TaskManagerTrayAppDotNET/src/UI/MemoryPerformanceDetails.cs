@@ -37,7 +37,7 @@ internal sealed class MemoryCompositionView : StackPanel
             "Memory composition",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         label.Margin = resources.AxamlTaskManagerPerformance.MemoryCompositionLabelMargin;
         Children.Add(label);
 
@@ -222,7 +222,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
             "Physical memory modules",
             palette,
             resources.AxamlTaskManagerPerformance.MemoryModuleHeadingFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         heading.Margin = resources.AxamlTaskManagerPerformance.MemoryModuleHeadingMargin;
         Children.Add(heading);
 
@@ -267,7 +267,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
             string.Concat("Bank: ", bankLabel),
             _palette,
             _resources.AxamlTaskManagerPerformance.MemoryModuleBankFontSize,
-            FontWeight.Normal);
+            (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
         bank.Margin = _resources.AxamlTaskManagerPerformance.MemoryModuleBankMargin;
         bank.TextWrapping = TextWrapping.Wrap;
 
@@ -316,13 +316,13 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
             labelText,
             _palette,
             _resources.AxamlTaskManagerPerformance.MemoryModuleLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
         label.Width = _resources.AxamlTaskManagerPerformance.MemoryModuleLabelWidth;
         TextBlock value = TrayAppDotNETSettingsUI.Text(
             valueText,
             _palette,
             _resources.AxamlTaskManagerPerformance.MemoryModuleValueFontSize,
-            FontWeight.Normal);
+            (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
         value.TextWrapping = TextWrapping.Wrap;
 
         Grid row = new()

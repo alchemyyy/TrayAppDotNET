@@ -41,6 +41,9 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
         ConfigureCompactSettingsWindow("Task Manager settings", icon: null);
         Topmost = settings.AlwaysOnTop;
         InitializeSettingsShell();
+#if DEBUG
+        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+#endif
     }
 
     internal new void SelectPage(TaskManagerSettingsPage page) => base.SelectPage(page);
@@ -100,10 +103,21 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
 
     protected override void OnSettingsWindowClosed()
     {
+#if DEBUG
+        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+#endif
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         _resetPerformanceDeviceOrderButton = null;
         base.OnSettingsWindowClosed();
     }
+
+#if DEBUG
+    /// <summary>Rebuilds the open classic settings surface after Task Manager AXAML reloads.</summary>
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (!IsClosing) RebuildShell(CurrentPageKey);
+    }
+#endif
 
     private StackPanel BuildGeneralPage()
     {
@@ -535,7 +549,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             (priorityIndex + 1).ToString(),
             palette,
             _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityFontSize,
-            FontWeight.Normal);
+            (FontWeight)_taskManagerResources.AxamlTaskManagerSettings.DevicePriorityRankFontWeight);
         rank.Width = _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityRankWidth;
         rank.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
 
@@ -543,7 +557,7 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             PerformanceDeviceLabel(kind),
             palette,
             _taskManagerResources.AxamlTaskManagerSettings.DevicePriorityFontSize,
-            FontWeight.SemiBold);
+            (FontWeight)_taskManagerResources.AxamlTaskManagerSettings.DevicePriorityLabelFontWeight);
         label.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
 
         SettingsButton moveUp = TrayAppDotNETSettingsUI.Button("Move up", palette);

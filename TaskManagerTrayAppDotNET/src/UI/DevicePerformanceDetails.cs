@@ -36,12 +36,12 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
             "Disk transfer rate",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         _maximumLabel = TrayAppDotNETSettingsUI.Text(
             "1 MB/s",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         _maximumLabel.HorizontalAlignment = HorizontalAlignment.Right;
         Grid header = CreateScaleRow(heading, _maximumLabel);
         header.Margin = resources.AxamlTaskManagerPerformance.SpecialGraphHeaderMargin;
@@ -67,12 +67,12 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
             PerformanceDevicePresentationFactory.FormatHistoryWindow(historyLengthMinutes),
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         TextBlock minimumLabel = TrayAppDotNETSettingsUI.Text(
             "0",
             palette,
             resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
         minimumLabel.HorizontalAlignment = HorizontalAlignment.Right;
         Children.Add(CreateScaleRow(_historyWindowLabel, minimumLabel));
     }
@@ -594,12 +594,12 @@ internal sealed class GPUPerformanceDetailsView : Grid
             title,
             _palette,
             _resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
         valueLabel = TrayAppDotNETSettingsUI.Text(
             initialValue,
             _palette,
             _resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
         valueLabel.HorizontalAlignment = HorizontalAlignment.Right;
         Grid header = new()
         {

@@ -11,8 +11,9 @@ public sealed partial class TaskManagerContextMenuResources : ResourceDictionary
         AXAMLResourceHotReloadStore<TaskManagerContextMenuResources>.Create(
             "Task Manager context menu resources",
             static () => new TaskManagerContextMenuResources(),
-            static () => { },
-            "TaskManagerContextMenuResources.axaml");
+            NotifyResourcesReloaded,
+            "TaskManagerContextMenuResources.axaml",
+            synchronizeReload: SynchronizeResources);
 #else
     private static readonly Lazy<TaskManagerContextMenuResources> Resources =
         new(static () => new TaskManagerContextMenuResources());
@@ -33,4 +34,37 @@ public sealed partial class TaskManagerContextMenuResources : ResourceDictionary
 #endif
         }
     }
+
+#if DEBUG
+    /// <summary>Notifies live Task Manager content menus after a successful AXAML reload.</summary>
+    internal static event Action? ResourcesReloaded;
+
+    private static void SynchronizeResources(
+        TaskManagerContextMenuResources currentResources,
+        TaskManagerContextMenuResources candidateResources)
+    {
+        currentResources.Clear();
+        foreach (KeyValuePair<object, object?> resource in candidateResources)
+            currentResources[resource.Key] = resource.Value;
+    }
+
+    private static void NotifyResourcesReloaded()
+    {
+        Action? handlers = ResourcesReloaded;
+        if (handlers == null) return;
+
+        foreach (Delegate handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                ((Action)handler)();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.LogDebug(
+                    $"Task Manager context-menu AXAML hot-reload notification failed: {exception.Message}");
+            }
+        }
+    }
+#endif
 }

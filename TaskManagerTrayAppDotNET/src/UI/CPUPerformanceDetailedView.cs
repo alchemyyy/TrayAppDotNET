@@ -239,7 +239,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             labelText,
             _palette,
             _resources.AxamlTaskManagerPerformance.DetailGraphLabelFontSize,
-            FontWeight.Normal);
+            (FontWeight)_resources.AxamlTaskManagerPerformance.TextFontWeight);
         label.Margin = _resources.AxamlTaskManagerPerformance.SpecialGraphHeaderMargin;
         label.TextTrimming = TextTrimming.CharacterEllipsis;
 

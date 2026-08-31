@@ -32,6 +32,16 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     /// <summary>Gets whether owned surfaces should use rounded corners.</summary>
     protected bool RoundedCornersEnabled { get; }
 
+#if DEBUG
+    /// <summary>Replaces cached scrollbar menu options without rebuilding the dialog.</summary>
+    internal void SetScrollBarContextMenuOptions(ContextMenuWindowOptions contextMenuOptions)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
+        _scrollViewport?.SetContextMenuOptions(contextMenuOptions);
+    }
+#endif
+
     protected TaskManagerReorderDialog(
         string title,
         string description,
@@ -223,7 +233,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
             title,
             palette,
             resources.AxamlTaskManagerReorderDialog.TitleFontSize,
-            FontWeight.SemiBold);
+            (FontWeight)resources.AxamlTaskManagerReorderDialog.TitleFontWeight);
         titleText.VerticalAlignment = VerticalAlignment.Center;
         titleText.Margin = resources.AxamlTaskManagerReorderDialog.TitleMargin;
         titleBar.Children.Add(titleText);

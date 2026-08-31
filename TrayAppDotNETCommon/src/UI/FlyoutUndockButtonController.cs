@@ -301,10 +301,7 @@ public sealed class FlyoutUndockButtonController : IDisposable
 
 internal static class FlyoutUndockButtonLayout
 {
-    private static readonly Lazy<FlyoutUndockButtonResources> Resources = new(
-        static () => new FlyoutUndockButtonResources());
-
-    private static FlyoutUndockButtonResources AXAMLResources => Resources.Value;
+    private static FlyoutUndockButtonResources AXAMLResources => FlyoutUndockButtonResources.Current;
 
     public static double Width => AXAMLResources.AxamlFlyoutUndockButton.Width;
 

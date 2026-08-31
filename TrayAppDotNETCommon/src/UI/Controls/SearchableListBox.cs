@@ -14,10 +14,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class SearchableListBoxLayout
 {
-    private static readonly Lazy<SearchableListBoxResources> Resources = new(
-        static () => new SearchableListBoxResources());
-
-    private static SearchableListBoxResources AXAMLResources => Resources.Value;
+    private static SearchableListBoxResources AXAMLResources => SearchableListBoxResources.Current;
 
     public static double Width => AXAMLResources.AxamlSearchableListBox.Width;
     public static double ListHeight => AXAMLResources.AxamlSearchableListBox.ListHeight;

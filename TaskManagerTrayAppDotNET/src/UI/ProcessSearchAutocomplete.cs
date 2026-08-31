@@ -212,18 +212,21 @@ internal static class ProcessSearchAutocompleteLogic
 /// <summary>Shows a focus-preserving TADN column-completion menu beneath a search box.</summary>
 internal sealed class ProcessSearchAutocompleteController : IDisposable
 {
-    private const int MaximumSuggestionCount = 8;
-
     private readonly TextBox _textBox;
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
     private readonly StackPanel _itemsPanel;
+    private readonly Border _popupBorder;
     private readonly List<Border> _itemBorders = [];
     private IReadOnlyList<ProcessColumnSetting> _columnSettings;
     private ProcessSearchColumnSuggestion[] _suggestions = [];
+    private int _maximumSuggestionCount = 1;
     private int _selectedIndex;
     private bool _updateScheduled;
     private bool _suppressUpdate;
+#if DEBUG
+    private bool _hotReloadAttached;
+#endif
     private bool _disposed;
 
     public ProcessSearchAutocompleteController(
@@ -242,28 +245,21 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
         _enableRoundedCorners = enableRoundedCorners;
         _itemsPanel = new StackPanel();
 
-        TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
-        Border popupBorder = new()
+        _popupBorder = new Border
         {
-            Width = resources.AxamlTaskManagerContextMenu.AutocompleteWidth,
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = resources.AxamlTaskManagerContextMenu.AutocompleteBorderThickness,
-            CornerRadius = enableRoundedCorners
-                ? resources.AxamlTaskManagerContextMenu.AutocompleteCornerRadius
-                : default,
-            Padding = resources.AxamlTaskManagerContextMenu.AutocompletePadding,
             Child = _itemsPanel
         };
         Popup = new Popup
         {
             PlacementTarget = textBox,
             Placement = PlacementMode.BottomEdgeAlignedLeft,
-            VerticalOffset = resources.AxamlTaskManagerContextMenu.AutocompleteVerticalOffset,
             IsLightDismissEnabled = false,
             Focusable = false,
-            Child = popupBorder
+            Child = _popupBorder
         };
+        ApplyAXAMLResources();
 
         _textBox.TextChanged += OnTextChanged;
         _textBox.KeyDown += OnKeyDown;
@@ -273,6 +269,18 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
     }
 
     public Popup Popup { get; }
+
+#if DEBUG
+    /// <summary>Attaches process-wide reload notifications after the owning page is fully built.</summary>
+    internal void AttachAXAMLHotReload()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_hotReloadAttached) return;
+
+        TaskManagerContextMenuResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+        _hotReloadAttached = true;
+    }
+#endif
 
     /// <summary>Refreshes aliases after column properties change.</summary>
     public void SetColumnSettings(IReadOnlyList<ProcessColumnSetting> columnSettings)
@@ -360,7 +368,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
             ProcessSearchAutocompleteLogic.RankSuggestions(
                 token.Fragment,
                 _columnSettings,
-                MaximumSuggestionCount);
+                _maximumSuggestionCount);
         if (nextSuggestions.Length == 0)
         {
             Close();
@@ -426,6 +434,34 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
         }
 
         UpdateItemVisuals();
+    }
+
+#if DEBUG
+    /// <summary>Reapplies popup chrome and live suggestion rows after context-menu AXAML reloads.</summary>
+    private void OnAXAMLResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        ApplyAXAMLResources();
+        UpdateSuggestions();
+        if (Popup.IsOpen) PositionPopupAtCaret();
+    }
+#endif
+
+    private void ApplyAXAMLResources()
+    {
+        TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
+        _popupBorder.Width = resources.AxamlTaskManagerContextMenu.AutocompleteWidth;
+        _popupBorder.BorderThickness =
+            resources.AxamlTaskManagerContextMenu.AutocompleteBorderThickness;
+        _popupBorder.CornerRadius = _enableRoundedCorners
+            ? resources.AxamlTaskManagerContextMenu.AutocompleteCornerRadius
+            : default;
+        _popupBorder.Padding = resources.AxamlTaskManagerContextMenu.AutocompletePadding;
+        Popup.VerticalOffset = resources.AxamlTaskManagerContextMenu.AutocompleteVerticalOffset;
+        _maximumSuggestionCount = Math.Max(
+            1,
+            resources.AxamlTaskManagerContextMenu.AutocompleteMaximumSuggestionCount);
     }
 
     private void PositionPopupAtCaret()
@@ -517,6 +553,13 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
         _textBox.PointerReleased -= OnPointerReleased;
         _textBox.PropertyChanged -= OnTextBoxPropertyChanged;
         _textBox.LostFocus -= OnLostFocus;
+#if DEBUG
+        if (_hotReloadAttached)
+        {
+            TaskManagerContextMenuResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+            _hotReloadAttached = false;
+        }
+#endif
         Close();
     }
 }

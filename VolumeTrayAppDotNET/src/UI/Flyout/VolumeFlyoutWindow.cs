@@ -13,7 +13,9 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -127,8 +129,10 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
 
         KeyDown += OnWindowKeyDown;
         WindowResources.Add(() => KeyDown -= OnWindowKeyDown);
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+#endif
 
         InitializeComponentState();
     }
@@ -141,10 +145,12 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         e.Handled = true;
     }
 
+#if DEBUG
     /// <summary>
     /// Rebuilds code-created flyout glyphs after a catalog source reload.
     /// </summary>
     private void OnGlyphCatalogResourcesReloaded() => QueueRebuild();
+#endif
 
     /// <summary>Refreshes AXAML-backed layout and root geometry after initialization or hot reload.</summary>
     private void InitializeComponentState()

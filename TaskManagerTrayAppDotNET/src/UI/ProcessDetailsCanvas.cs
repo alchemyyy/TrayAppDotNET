@@ -10,6 +10,7 @@ using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -69,7 +70,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private const double BytesPerMegabit = 1_000_000.0 / 8;
 
     private static readonly Typeface DefaultTableTypeface = new(TADNFontResolver.SegoeUIFamilyName);
-    private static readonly Typeface GlyphTypeface = new(TADNFontResolver.SegoeFluentIconsFamilyName);
     private static readonly CultureInfo TableCulture = CultureInfo.CurrentCulture;
 
     private readonly ProcessIconService _processIconService;
@@ -90,7 +90,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly Control[] _renderLayers;
     private ProcessTableMetrics _metrics;
     private ProcessTableVisualMetrics _visualMetrics;
-    private ProcessTableColumnWidths _axamlColumnWidths;
+#if DEBUG
+    private ProcessTableAXAMLColumnWidths _axamlColumnWidths;
+#endif
     private bool _hasDynamicColumns;
     private readonly bool _enableLiveColumnResizing;
     private readonly ProcessSnapshotBuffer _snapshot = new();
@@ -104,7 +106,12 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private readonly ProcessRowIndexComparer _rowComparer;
     private TextLayout _ascendingCaretText;
     private TextLayout _descendingCaretText;
+#if DEBUG
+    private Color _backgroundColor;
+    private IBrush _backgroundBrush;
+#else
     private readonly IBrush _backgroundBrush;
+#endif
     private readonly IBrush _foregroundBrush;
     private readonly IBrush _secondaryForegroundBrush;
     private readonly IBrush _accentBrush;
@@ -171,11 +178,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private bool _isLiveColumnResizeActive;
     private bool _dynamicRefreshScheduled;
     private bool _groupProcesses;
+#if DEBUG
     private double _axamlFontSize;
     private double _axamlRowSpacing;
+#endif
     private PendingColumnLayout? _pendingColumnLayout;
     private ProcessRowHoverGeometry _publishedRowHoverGeometry;
     private bool _hasPublishedRowHoverGeometry;
+    private bool _externalSubscriptionsAttached;
     private ProcessSnapshotService? _snapshotService;
 
     public ProcessDetailsCanvas(
@@ -196,7 +206,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         ArgumentNullException.ThrowIfNull(resources);
 
         _processIconService = processIconService;
-        _processIconService.IconsChanged += OnIconsChanged;
         _schema = schema;
         _resources = resources;
         _baseTableFontWeight = gridFontWeight;
@@ -211,9 +220,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             gridRowHeight,
             _rowTextHeightScale);
         _visualMetrics = CreateVisualMetrics(resources);
+#if DEBUG
         _axamlColumnWidths = CreateAXAMLColumnWidths(resources);
         _axamlFontSize = resources.AxamlProcessTable.FontSize;
         _axamlRowSpacing = resources.AxamlProcessTable.RowSpacing;
+#endif
         _columnSettings = ProcessColumnSettings.Normalize(columnSettings);
         _settingsByColumn = CreateColumnSettingsIndex(_columnSettings);
         _filterQuery = ProcessSearchQuery.Parse(null, _columnSettings);
@@ -232,7 +243,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         _refreshWarmDynamicDrawings = RefreshWarmDynamicDrawings;
         _unavailableText = ResolveUnavailableText();
 
-        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(TaskManagerWindowResources.ProcessGridBackgroundColor);
+#if DEBUG
+        _backgroundColor = resources.AxamlProcessTable.GridBackgroundColor;
+#endif
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(
+            resources.AxamlProcessTable.GridBackgroundColor);
         _foregroundBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
         _secondaryForegroundBrush = TrayAppDotNETSettingsUI.Brush(palette.SecondaryForeground);
         _accentBrush = TrayAppDotNETSettingsUI.Brush(palette.Accent);
@@ -275,8 +290,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         ClipToBounds = true;
         Focusable = true;
-        TaskManagerWindowResources.ResourcesReloaded += OnAXAMLResourcesReloaded;
+    }
+
+    /// <summary>Attaches external notifications after the owning page is fully constructed.</summary>
+    internal void AttachExternalSubscriptions()
+    {
+        ObjectDisposedException.ThrowIf(IsDetailsGridDisposed, this);
+        if (_externalSubscriptionsAttached) return;
+
+        _processIconService.IconsChanged += OnIconsChanged;
+#if DEBUG
+        GlyphCatalogHotReload.ResourcesReloaded += OnGlyphResourcesReloaded;
+#endif
         LocalizationManager.Instance.CultureChanged += OnCultureChanged;
+        _externalSubscriptionsAttached = true;
     }
 
     public event Action<ProcessTerminationTarget?>? SelectedProcessChanged;
@@ -295,6 +322,14 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
     /// <summary>Returns the effective row height derived from rendered text and spacing.</summary>
     public double RowHeight => _metrics.RowHeight;
+
+#if DEBUG
+    /// <summary>Returns the currently rendered font size rather than the persisted startup value.</summary>
+    public double GridFontSize => _metrics.FontSize;
+
+    /// <summary>Returns the currently rendered gap between adjacent row text.</summary>
+    public double GridRowSpacing => _metrics.RowHeight - _metrics.RowTextHeight;
+#endif
 
     /// <summary>Applies font size and the requested gap between rendered text lines.</summary>
     public void SetGridTypography(double fontSize, double rowSpacing) =>
@@ -332,6 +367,34 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             return null;
         }
     }
+
+#if DEBUG
+    /// <summary>Restores one identity-checked selection after a shared shell rebuild.</summary>
+    internal void RestoreSelectedProcess(ProcessTerminationTarget? target)
+    {
+        if (IsDetailsGridDisposed) return;
+
+        ProcessInstanceKey? selectedProcess = null;
+        if (target is { } selectedTarget)
+        {
+            ProcessInstanceKey candidate = new(
+                selectedTarget.ProcessID,
+                selectedTarget.CreationTimeFileTime);
+            for (int rowIndex = 0; rowIndex < _rowCount; rowIndex++)
+            {
+                if (_snapshot.StaticRows[rowIndex]?.InstanceKey != candidate) continue;
+
+                selectedProcess = candidate;
+                break;
+            }
+        }
+
+        _selectedProcess = selectedProcess;
+        SelectedProcessChanged?.Invoke(SelectedTerminationTarget);
+        UpdateSelectionOverlay();
+        InvalidateLayers(RenderLayerMask.All);
+    }
+#endif
 
     /// <summary>Copies the newest compact snapshot and updates only changed retained row roots.</summary>
     public void RefreshFrom(ProcessSnapshotService snapshotService)
@@ -1045,9 +1108,20 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         if (!IsDetailsGridDisposed) InvalidateLayers(RenderLayerMask.Icons);
     }
 
-    private void OnAXAMLResourcesReloaded()
+#if DEBUG
+    private void OnGlyphResourcesReloaded()
     {
         if (IsDetailsGridDisposed) return;
+
+        RecreateSortCaretTexts();
+        ReplaceHeaderTexts(_columns);
+        InvalidateLayers(RenderLayerMask.Header);
+    }
+
+    /// <summary>Applies the current ProcessTable AXAML values without replacing runtime table state.</summary>
+    internal List<ProcessColumnSetting>? ApplyAXAMLResources()
+    {
+        if (IsDetailsGridDisposed) return null;
 
         double nextAXAMLFontSize = _resources.AxamlProcessTable.FontSize;
         double nextAXAMLRowSpacing = _resources.AxamlProcessTable.RowSpacing;
@@ -1065,14 +1139,17 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             nextRowHeight,
             _rowTextHeightScale);
         ProcessTableVisualMetrics nextVisualMetrics = CreateVisualMetrics(_resources);
-        ProcessTableColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
+        ProcessTableAXAMLColumnWidths nextColumnWidths = CreateAXAMLColumnWidths(_resources);
+        Color nextBackgroundColor = _resources.AxamlProcessTable.GridBackgroundColor;
+        bool backgroundColorChanged = nextBackgroundColor != _backgroundColor;
         _axamlFontSize = nextAXAMLFontSize;
         _axamlRowSpacing = nextAXAMLRowSpacing;
         if (nextMetrics == _metrics
             && nextVisualMetrics == _visualMetrics
-            && nextColumnWidths == _axamlColumnWidths)
+            && nextColumnWidths == _axamlColumnWidths
+            && !backgroundColorChanged)
         {
-            return;
+            return null;
         }
 
         bool rebuildRetainedRows = RetainedRowGeometryChanged(
@@ -1095,6 +1172,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
 
         _metrics = nextMetrics;
         _visualMetrics = nextVisualMetrics;
+        _backgroundColor = nextBackgroundColor;
+        _backgroundBrush = TrayAppDotNETSettingsUI.Brush(nextBackgroundColor);
         _sortCaretRightMargin = nextVisualMetrics.SortCaretRightMargin;
         if (rebuildTableTypeface)
         {
@@ -1103,9 +1182,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
         RecreatePens();
         if (rebuildCaretText) RecreateSortCaretTexts();
-        bool rebuiltForColumnWidths = ApplyHotReloadedColumnWidths(
+        List<ProcessColumnSetting>? hotReloadedColumnSettings = ApplyHotReloadedColumnWidths(
             _axamlColumnWidths,
             nextColumnWidths);
+        bool rebuiltForColumnWidths = hotReloadedColumnSettings != null;
         _axamlColumnWidths = nextColumnWidths;
         if (rebuildHeaderText && !rebuiltForColumnWidths)
             ReplaceHeaderTexts(_columns);
@@ -1121,7 +1201,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         InvalidateMeasure();
         UpdateHeaderHoverVisual();
         InvalidateLayers(RenderLayerMask.All);
+        return hotReloadedColumnSettings;
     }
+#endif
 
     private void OnCultureChanged(object? sender, EventArgs eventArgs)
     {
@@ -1138,6 +1220,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             | RenderLayerMask.CopyPreview);
     }
 
+#if DEBUG
     private void RecreatePens()
     {
         _gridPen = new Pen(_borderBrush, _visualMetrics.GridLineThickness);
@@ -1151,6 +1234,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             _secondaryForegroundBrush,
             _visualMetrics.TreeExpanderLineThickness);
     }
+#endif
 
     private void RebuildRetainedRowDrawings()
     {
@@ -1160,35 +1244,50 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         UpdateRetainedDrawings();
     }
 
-    private bool ApplyHotReloadedColumnWidths(
-        ProcessTableColumnWidths currentWidths,
-        ProcessTableColumnWidths nextWidths)
+#if DEBUG
+    private List<ProcessColumnSetting>? ApplyHotReloadedColumnWidths(
+        ProcessTableAXAMLColumnWidths currentWidths,
+        ProcessTableAXAMLColumnWidths nextWidths)
     {
-        if (currentWidths == nextWidths) return false;
-
-        List<ProcessColumnSetting> nextSettings = ProcessColumnSettings.CloneList(_columnSettings);
-        bool changed = false;
-        for (int settingIndex = 0; settingIndex < nextSettings.Count; settingIndex++)
+        if (!ProcessTableAXAMLHotReload.TryApplyColumnWidths(
+                _columnSettings,
+                currentWidths,
+                nextWidths,
+                out List<ProcessColumnSetting> nextSettings))
         {
-            ProcessColumnSetting setting = nextSettings[settingIndex];
-            if (!currentWidths.TryGet(setting.Column, out double currentWidth)
-                || !nextWidths.TryGet(setting.Column, out double nextWidth)
-                || Math.Abs(currentWidth - nextWidth) < 0.01)
-            {
-                continue;
-            }
-
-            setting.Width = Math.Max(ProcessColumnSettings.MinimumWidth, nextWidth);
-            changed = true;
+            return null;
         }
 
-        if (!changed) return false;
-
         ProcessTableColumn[] columns = CreateColumns(nextSettings);
-        if (columns.Length != _columns.Length) return false;
+        if (columns.Length != _columns.Length) return null;
+        _columnSettings = nextSettings;
+        _settingsByColumn = CreateColumnSettingsIndex(nextSettings);
         ApplyDisplayColumnLayout(columns);
-        return true;
+
+        List<ProcessColumnSetting> authoritativeSettings = nextSettings;
+        if (_pendingColumnLayout is { } pendingColumnLayout
+            && ProcessTableAXAMLHotReload.TryApplyColumnWidths(
+                pendingColumnLayout.Settings,
+                currentWidths,
+                nextWidths,
+                out List<ProcessColumnSetting> nextPendingSettings))
+        {
+            ProcessTableColumn[] nextPendingColumns = CreateColumns(nextPendingSettings);
+            ProcessSearchQuery nextPendingFilterQuery = ProcessSearchQuery.Parse(
+                _filterText,
+                nextPendingSettings);
+            _pendingColumnLayout = pendingColumnLayout with
+            {
+                Settings = nextPendingSettings,
+                Columns = nextPendingColumns,
+                FilterQuery = nextPendingFilterQuery
+            };
+            authoritativeSettings = nextPendingSettings;
+        }
+
+        return ProcessColumnSettings.CloneList(authoritativeSettings);
     }
+#endif
 
     private string LocalizeUnavailableText(string value) =>
         string.Equals(value, NativeProcessInfo.Unavailable, StringComparison.Ordinal)
@@ -1198,6 +1297,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private static string ResolveUnavailableText() =>
         LocalizationManager.Instance[nameof(CommonStrings.Common_Unavailable)];
 
+#if DEBUG
     private static bool RetainedRowGeometryChanged(
         ProcessTableMetrics currentMetrics,
         ProcessTableMetrics nextMetrics,
@@ -1210,6 +1310,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         || currentMetrics.ProcessIconGap != nextMetrics.ProcessIconGap
         || currentVisualMetrics.TreeIndentWidth != nextVisualMetrics.TreeIndentWidth
         || currentVisualMetrics.TreeExpanderWidth != nextVisualMetrics.TreeExpanderWidth;
+#endif
 
     private Rect ResolveViewport() => ResolveDetailsGridViewport();
 
@@ -3176,8 +3277,22 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     private int CalculateTableFontWeight(double fontSize) =>
         ProcessTableLayout.CalculateZoomFontWeight(
             _baseTableFontWeight,
+#if DEBUG
+            ResolveReferenceTableFontSize(),
+#else
             AppSettings.GridFontSizeDefault,
+#endif
             fontSize);
+
+#if DEBUG
+    private double ResolveReferenceTableFontSize()
+    {
+        double referenceFontSize = _resources.AxamlProcessTable.FontSize;
+        return double.IsFinite(referenceFontSize) && referenceFontSize > 0
+            ? referenceFontSize
+            : AppSettings.GridFontSizeDefault;
+    }
+#endif
 
     private static Typeface CreateTableTypeface(int fontWeight) =>
         new(
@@ -3215,7 +3330,8 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             resources.AxamlProcessTable.TreeExpanderChevronHalfHeight,
             resources.AxamlProcessTable.TreeExpanderLineThickness);
 
-    private static ProcessTableColumnWidths CreateAXAMLColumnWidths(
+#if DEBUG
+    private static ProcessTableAXAMLColumnWidths CreateAXAMLColumnWidths(
         TaskManagerWindowResources resources) =>
         new(
             resources.AxamlProcessTable.NameColumnWidth,
@@ -3227,6 +3343,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             resources.AxamlProcessTable.PrivateMemoryColumnWidth,
             resources.AxamlProcessTable.WorkingSetColumnWidth,
             resources.AxamlProcessTable.CommandLineColumnWidth);
+#endif
 
     private static ProcessTableColumn[] CreateColumns(IReadOnlyList<ProcessColumnSetting> source)
     {
@@ -3314,6 +3431,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         DisposeHeaderTexts(previousHeaderTexts);
     }
 
+#if DEBUG
     private void RecreateSortCaretTexts()
     {
         (TextLayout nextAscendingCaretText, TextLayout nextDescendingCaretText) =
@@ -3328,6 +3446,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         previousAscendingCaretText.Dispose();
         previousDescendingCaretText.Dispose();
     }
+#endif
 
     private static bool ContainsLifetime(
         ProcessTableColumn[] columns,
@@ -3418,10 +3537,15 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             TextEllipsis.AsSpan());
     }
 
-    private static TextLayout CreateGlyphText(string text, double fontSize, IBrush brush) =>
+    // AXAML hot-reload exception: Painted sort TextLayouts cannot apply optional Glyph scale or
+    // translation metadata without replacing their drawing geometry and hit placement
+    private static TextLayout CreateGlyphText(Glyph glyph, double fontSize, IBrush brush) =>
         new(
-            text,
-            GlyphTypeface,
+            glyph.Text,
+            new Typeface(
+                TADNFontResolver.ResolveFontFamily(glyph.Font),
+                FontStyle.Normal,
+                glyph.FontWeight ?? FontWeight.Normal),
             fontSize,
             brush,
             textWrapping: TextWrapping.NoWrap,
@@ -3431,10 +3555,10 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double fontSize,
         IBrush brush)
     {
-        TextLayout ascending = CreateGlyphText("\uE96E", fontSize, brush);
+        TextLayout ascending = CreateGlyphText(TaskManagerGlyphCatalog.SORT_ASCENDING, fontSize, brush);
         try
         {
-            TextLayout descending = CreateGlyphText("\uE96D", fontSize, brush);
+            TextLayout descending = CreateGlyphText(TaskManagerGlyphCatalog.SORT_DESCENDING, fontSize, brush);
             return (ascending, descending);
         }
         catch
@@ -3460,8 +3584,11 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
     {
         if (_capturedHeaderPointer != null) ResetHeaderInteraction();
         _processIconService.IconsChanged -= OnIconsChanged;
-        TaskManagerWindowResources.ResourcesReloaded -= OnAXAMLResourcesReloaded;
+#if DEBUG
+        GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphResourcesReloaded;
+#endif
         LocalizationManager.Instance.CultureChanged -= OnCultureChanged;
+        _externalSubscriptionsAttached = false;
         SelectedProcessChanged = null;
         RowHoverGeometryChanged = null;
         SelectionRowTopChanged = null;
@@ -3572,36 +3699,6 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         double TreeExpanderChevronHalfWidth,
         double TreeExpanderChevronHalfHeight,
         double TreeExpanderLineThickness);
-
-    private readonly record struct ProcessTableColumnWidths(
-        double Name,
-        double ProcessID,
-        double Status,
-        double UserName,
-        double CPU,
-        double Lifetime,
-        double PrivateMemory,
-        double WorkingSet,
-        double CommandLine)
-    {
-        public bool TryGet(ProcessTableColumnKind column, out double width)
-        {
-            width = column switch
-            {
-                ProcessTableColumnKind.Name => Name,
-                ProcessTableColumnKind.ProcessID => ProcessID,
-                ProcessTableColumnKind.Status => Status,
-                ProcessTableColumnKind.UserName => UserName,
-                ProcessTableColumnKind.CPU => CPU,
-                ProcessTableColumnKind.Lifetime => Lifetime,
-                ProcessTableColumnKind.PrivateMemory => PrivateMemory,
-                ProcessTableColumnKind.WorkingSet or ProcessTableColumnKind.SharedWorkingSet => WorkingSet,
-                ProcessTableColumnKind.CommandLine => CommandLine,
-                _ => double.NaN
-            };
-            return double.IsFinite(width);
-        }
-    }
 
     private enum HeaderInteractionMode : byte
     {

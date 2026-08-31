@@ -10,7 +10,9 @@ using FanControlTrayAppDotNET.Services;
 using FanControlTrayAppDotNET.UI;
 using FanControlTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -125,9 +127,11 @@ public sealed partial class ProbeDataSelectorWindow : Window
             RebuildContent(ProbeSelectorTab.Home);
             _settings.Changed += OnSettingsChanged;
             _windowResources.Add(() => _settings.Changed -= OnSettingsChanged);
+#if DEBUG
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             _windowResources.Add(() =>
                 GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+#endif
         }
         catch
         {
@@ -163,6 +167,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
     private ControlNameScope ControlNames => _controlNames;
 
+#if DEBUG
     /// <summary>
     /// Rebuilds code-created selector glyphs after a catalog source reload.
     /// </summary>
@@ -172,6 +177,7 @@ public sealed partial class ProbeDataSelectorWindow : Window
 
         RebuildContent();
     }
+#endif
 
     private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
     {

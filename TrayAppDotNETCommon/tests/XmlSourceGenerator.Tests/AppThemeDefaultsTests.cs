@@ -28,6 +28,7 @@ public sealed class AppThemeDefaultsTests
             AppTheme.TextSelectionHighlightAlpha);
     }
 
+#if DEBUG
     [Fact]
     public void ThemeColorReloadPreservesExistingResourceReferences()
     {
@@ -69,7 +70,6 @@ public sealed class AppThemeDefaultsTests
         Assert.Equal(Colors.Red, currentResources["VolumeAppTheme.MeterPeakColorDefault"]);
     }
 
-#if DEBUG
     [Fact]
     public void AxamlReloadUpdatesExistingThemeColorsAndNotifiesConsumers() => AvaloniaTestHost.Run(() =>
     {

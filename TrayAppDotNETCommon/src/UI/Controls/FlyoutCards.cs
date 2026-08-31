@@ -12,9 +12,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class FlyoutCardsLayout
 {
-    private static readonly Lazy<FlyoutCardsResources> Resources = new(static () => new FlyoutCardsResources());
-
-    private static FlyoutCardsResources AXAMLResources => Resources.Value;
+    private static FlyoutCardsResources AXAMLResources => FlyoutCardsResources.Current;
 
     public static Thickness ZeroThickness => AXAMLResources.AxamlFlyoutCards.ZeroThickness;
     public static CornerRadius IconButtonCornerRadius => AXAMLResources.AxamlFlyoutCards.IconButtonCornerRadius;

@@ -8,12 +8,198 @@ using System.Reflection;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
+using TrayAppDotNETCommon.Visuals;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class SettingsWindowLifetimeTests
 {
+#if DEBUG
+    [Fact]
+    public void CommonAXAMLReloadRebuildsOpenShellAndUnsubscribesOnClose() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            CommonAXAMLReloadSettingsWindow window = new();
+            window.Show();
+            object? initialContent = window.Content;
+            try
+            {
+                Assert.Equal(1, window.PageBuildCount);
+                Assert.Equal(0, window.HotReloadPreparationCount);
+                Assert.Equal(0, window.HotReloadRestorationCount);
+
+                window.HotReloadEvents.Clear();
+                CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+
+                Assert.Equal(2, window.PageBuildCount);
+                Assert.Equal(1, window.HotReloadPreparationCount);
+                Assert.Equal(1, window.HotReloadRestorationCount);
+                Assert.Equal(new[] { "before", "build", "after" }, window.HotReloadEvents);
+                Assert.NotSame(initialContent, window.Content);
+
+                window.HotReloadEvents.Clear();
+                GlyphCatalogHotReload.NotifyResourcesReloaded("Test glyph resources");
+
+                Assert.Equal(3, window.PageBuildCount);
+                Assert.Equal(2, window.HotReloadPreparationCount);
+                Assert.Equal(2, window.HotReloadRestorationCount);
+                Assert.Equal(new[] { "before", "build", "after" }, window.HotReloadEvents);
+            }
+            finally
+            {
+                window.Close();
+            }
+
+            CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+            GlyphCatalogHotReload.NotifyResourcesReloaded("Test glyph resources");
+            Assert.Equal(3, window.PageBuildCount);
+            Assert.Equal(2, window.HotReloadPreparationCount);
+            Assert.Equal(2, window.HotReloadRestorationCount);
+        });
+
+    [Fact]
+    public void FailedShellInitializationDoesNotAttachStaticReloadHandlers() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            FailedInitializationSettingsWindow window = new();
+
+            Assert.True(window.InitializationFailed);
+
+            CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+            GlyphCatalogHotReload.NotifyResourcesReloaded("Test glyph resources");
+
+            Assert.Equal(0, window.HotReloadPreparationCount);
+            Assert.Equal(0, window.HotReloadRestorationCount);
+        });
+
+    [Fact]
+    public void StandardWindowReloadChangesOnlyChangedDimensionBaselines() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            const string widthKey = "SettingsWindow.StandardWindowWidth";
+            const string heightKey = "SettingsWindow.StandardWindowHeight";
+            const string minWidthKey = "SettingsWindow.StandardWindowMinWidth";
+            const string minHeightKey = "SettingsWindow.StandardWindowMinHeight";
+            SettingsWindowCommonResources resources = SettingsWindowCommonResources.Current;
+            double originalWidth = Assert.IsType<double>(resources[widthKey]);
+            double originalHeight = Assert.IsType<double>(resources[heightKey]);
+            double originalMinWidth = Assert.IsType<double>(resources[minWidthKey]);
+            double originalMinHeight = Assert.IsType<double>(resources[minHeightKey]);
+            DimensionReloadSettingsWindow window = new(useCompactProfile: false);
+            window.Show();
+            try
+            {
+                window.Width = 1201;
+                window.Height = 901;
+                window.MinWidth = 701;
+                window.MinHeight = 501;
+                resources[widthKey] = originalWidth + 17;
+                resources[minHeightKey] = originalMinHeight + 11;
+
+                CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+
+                Assert.Equal(originalWidth + 17, window.Width);
+                Assert.Equal(901, window.Height);
+                Assert.Equal(701, window.MinWidth);
+                Assert.Equal(originalMinHeight + 11, window.MinHeight);
+            }
+            finally
+            {
+                resources[widthKey] = originalWidth;
+                resources[heightKey] = originalHeight;
+                resources[minWidthKey] = originalMinWidth;
+                resources[minHeightKey] = originalMinHeight;
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public void CompactWindowReloadChangesOnlyChangedDimensionBaselines() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            const string widthKey = "SettingsWindow.CompactWindowWidth";
+            const string heightKey = "SettingsWindow.CompactWindowHeight";
+            const string minWidthKey = "SettingsWindow.CompactWindowMinWidth";
+            const string minHeightKey = "SettingsWindow.CompactWindowMinHeight";
+            SettingsWindowCommonResources resources = SettingsWindowCommonResources.Current;
+            double originalWidth = Assert.IsType<double>(resources[widthKey]);
+            double originalHeight = Assert.IsType<double>(resources[heightKey]);
+            double originalMinWidth = Assert.IsType<double>(resources[minWidthKey]);
+            double originalMinHeight = Assert.IsType<double>(resources[minHeightKey]);
+            DimensionReloadSettingsWindow window = new(useCompactProfile: true);
+            window.Show();
+            try
+            {
+                window.Width = 1202;
+                window.Height = 902;
+                window.MinWidth = 702;
+                window.MinHeight = 502;
+                resources[heightKey] = originalHeight + 19;
+                resources[minWidthKey] = originalMinWidth + 13;
+
+                CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+
+                Assert.Equal(1202, window.Width);
+                Assert.Equal(originalHeight + 19, window.Height);
+                Assert.Equal(originalMinWidth + 13, window.MinWidth);
+                Assert.Equal(502, window.MinHeight);
+            }
+            finally
+            {
+                resources[widthKey] = originalWidth;
+                resources[heightKey] = originalHeight;
+                resources[minWidthKey] = originalMinWidth;
+                resources[minHeightKey] = originalMinHeight;
+                window.Close();
+            }
+        });
+
+    [Fact]
+    public void CommonAXAMLReloadContinuesAfterSubscriberFailure()
+    {
+        int notificationCount = 0;
+        Action failingHandler = static () => throw new InvalidOperationException("expected failure");
+        Action successfulHandler = () => notificationCount++;
+        CommonAXAMLHotReload.ResourcesReloaded += failingHandler;
+        CommonAXAMLHotReload.ResourcesReloaded += successfulHandler;
+        try
+        {
+            CommonAXAMLHotReload.NotifyResourcesReloaded("Test common resources");
+
+            Assert.Equal(1, notificationCount);
+        }
+        finally
+        {
+            CommonAXAMLHotReload.ResourcesReloaded -= successfulHandler;
+            CommonAXAMLHotReload.ResourcesReloaded -= failingHandler;
+        }
+    }
+#endif
+
+#if DEBUG
+    [Fact]
+    public void CommonAXAMLSynchronizationReplacesEntriesInPlace()
+    {
+        ResourceDictionary currentResources = new()
+        {
+            ["Existing"] = 1,
+            ["Removed"] = 2
+        };
+        ResourceDictionary candidateResources = new()
+        {
+            ["Existing"] = 3,
+            ["Added"] = 4
+        };
+
+        CommonAXAMLHotReload.SynchronizeResources(currentResources, candidateResources);
+
+        Assert.Equal(3, currentResources["Existing"]);
+        Assert.Equal(4, currentResources["Added"]);
+        Assert.False(currentResources.ContainsKey("Removed"));
+    }
+#endif
+
     [Fact]
     public void FirstFrameShowTaskCompletesAfterTheWindowIsRevealed() =>
         AvaloniaTestHost.RunAsync(async () =>
@@ -457,7 +643,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class TestSettingsWindow : SettingsWindowCommon<TestPage>
     {
-        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
 
         public TestSettingsWindow()
         {
@@ -472,7 +658,7 @@ public sealed class SettingsWindowLifetimeTests
 
         public int FailedPageCleanupCount { get; private set; }
 
-        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
         protected override bool EnableRoundedCorners => false;
         protected override TestPage DefaultPageKey => TestPage.Stable;
         protected override string HeaderText => "Test";
@@ -497,6 +683,130 @@ public sealed class SettingsWindowLifetimeTests
             throw new InvalidOperationException("expected page failure");
         }
     }
+
+    private sealed class CommonAXAMLReloadSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public CommonAXAMLReloadSettingsWindow() => InitializeSettingsShell();
+
+        public int PageBuildCount { get; private set; }
+        public int HotReloadPreparationCount { get; private set; }
+        public int HotReloadRestorationCount { get; private set; }
+        public List<string> HotReloadEvents { get; } = [];
+
+        protected override SettingsPalette ResolvePalette() => _testPalette;
+        protected override bool EnableRoundedCorners => false;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+
+#if DEBUG
+        protected override void OnBeforeHotReloadShellRebuild()
+        {
+            HotReloadPreparationCount++;
+            HotReloadEvents.Add("before");
+        }
+
+        protected override void OnAfterHotReloadShellRebuild()
+        {
+            HotReloadRestorationCount++;
+            HotReloadEvents.Add("after");
+        }
+#endif
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", BuildPage)
+        ];
+
+        protected override void Save()
+        {
+        }
+
+        private TextBlock BuildPage()
+        {
+            PageBuildCount++;
+            HotReloadEvents.Add("build");
+            return new TextBlock { Text = "stable" };
+        }
+    }
+
+#if DEBUG
+    private sealed class FailedInitializationSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public FailedInitializationSettingsWindow()
+        {
+            try
+            {
+                InitializeSettingsShell();
+            }
+            catch (InvalidOperationException exception)
+                when (exception.Message == "expected initialization failure")
+            {
+                InitializationFailed = true;
+            }
+        }
+
+        public bool InitializationFailed { get; }
+        public int HotReloadPreparationCount { get; private set; }
+        public int HotReloadRestorationCount { get; private set; }
+
+        protected override SettingsPalette ResolvePalette() => _testPalette;
+        protected override bool EnableRoundedCorners => false;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+        protected override void OnBeforeHotReloadShellRebuild() => HotReloadPreparationCount++;
+        protected override void OnAfterHotReloadShellRebuild() => HotReloadRestorationCount++;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", BuildFailingPage)
+        ];
+
+        protected override void Save()
+        {
+        }
+
+        private static Control BuildFailingPage() =>
+            throw new InvalidOperationException("expected initialization failure");
+    }
+
+    private sealed class DimensionReloadSettingsWindow : SettingsWindowCommon<TestPage>
+    {
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
+
+        public DimensionReloadSettingsWindow(bool useCompactProfile)
+        {
+            if (useCompactProfile)
+                ConfigureCompactSettingsWindow("Compact test", null);
+            else
+                ConfigureSettingsWindow("Standard test", null);
+            InitializeSettingsShell();
+        }
+
+        protected override SettingsPalette ResolvePalette() => _testPalette;
+        protected override bool EnableRoundedCorners => false;
+        protected override TestPage DefaultPageKey => TestPage.Stable;
+        protected override string HeaderText => "Test";
+        protected override string OpenSettingsFolderText => "Open";
+        protected override string SettingsFolderPath => Environment.CurrentDirectory;
+
+        protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
+        [
+            new SettingsPageDescriptor<TestPage>(TestPage.Stable, "Stable", static () => new TextBlock())
+        ];
+
+        protected override void Save()
+        {
+        }
+    }
+#endif
 
     private sealed class PaletteRefreshSettingsWindow : SettingsWindowCommon<TestPage>
     {
@@ -538,7 +848,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class ResponsiveSettingsWindow : SettingsWindowCommon<TestPage>
     {
-        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
         private readonly bool _enableResponsiveSidebarCollapse;
 
         public ResponsiveSettingsWindow(bool enableResponsiveSidebarCollapse, double width)
@@ -560,7 +870,7 @@ public sealed class SettingsWindowLifetimeTests
         protected override string HeaderText => "Responsive Test";
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
-        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
@@ -574,7 +884,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class OverlaySettingsWindow : SettingsWindowCommon<TestPage>
     {
-        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
         private readonly bool _alignToContentArea;
 
         public OverlaySettingsWindow(bool alignToContentArea, double width)
@@ -598,7 +908,7 @@ public sealed class SettingsWindowLifetimeTests
         protected override string HeaderText => "Overlay Test";
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
-        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
         protected override Control? ResolvePageOverlay(Control pageRoot) => Overlay;
         protected override bool PageOverlayAlignsToContentArea(Control pageRoot) => _alignToContentArea;
 
@@ -614,7 +924,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class SidebarResizeSettingsWindow : SettingsWindowCommon<TestPage>
     {
-        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
         private readonly TestSidebarWidthSettings _settings = new();
 
         public SidebarResizeSettingsWindow()
@@ -633,7 +943,7 @@ public sealed class SettingsWindowLifetimeTests
         protected override string HeaderText => "Test";
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
-        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
@@ -653,7 +963,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class EditorSettingsWindow : SettingsWindowCommon<TestPage>
     {
-        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
 
         public EditorSettingsWindow()
         {
@@ -671,7 +981,7 @@ public sealed class SettingsWindowLifetimeTests
         protected override string HeaderText => "Test";
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
-        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
 
         protected override IReadOnlyList<SettingsPageDescriptor<TestPage>> CreatePageDescriptors() =>
         [
@@ -713,7 +1023,7 @@ public sealed class SettingsWindowLifetimeTests
 
     private sealed class SearchSettingsWindow : SettingsWindowCommon<SearchPage>
     {
-        private static readonly SettingsPalette TestPalette = CreatePalette(Colors.Black, Colors.White);
+        private readonly SettingsPalette _testPalette = CreatePalette(Colors.Black, Colors.White);
 
         public SearchSettingsWindow()
         {
@@ -734,7 +1044,7 @@ public sealed class SettingsWindowLifetimeTests
         protected override string HeaderText => "Search Test";
         protected override string OpenSettingsFolderText => "Open";
         protected override string SettingsFolderPath => Environment.CurrentDirectory;
-        protected override SettingsPalette ResolvePalette() => TestPalette;
+        protected override SettingsPalette ResolvePalette() => _testPalette;
 
         protected override IReadOnlyList<SettingsPageDescriptor<SearchPage>> CreatePageDescriptors() =>
         [

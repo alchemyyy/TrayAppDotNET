@@ -21,7 +21,9 @@ using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Models;
 using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.UI.WarmWindows;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using BrightnessAppTheme = BrightnessTrayAppDotNET.Visuals.AppTheme;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
@@ -157,9 +159,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             InitializeComponent();
 
+#if DEBUG
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             _externalResources.Add(() =>
                 GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+#endif
 
             _profileManager.EnsureProfileCount(Math.Max(1, _theme.ProfileButtons.ButtonCount));
             RestoreInitialProfileState();
@@ -249,12 +253,14 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         RebuildVisual();
     }
 
+#if DEBUG
     private void OnGlyphCatalogResourcesReloaded()
     {
         if (!IsWindowAlive) return;
 
         QueueRebuildVisual();
     }
+#endif
 
     private FlyoutAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Brightness flyout layout resources have not been loaded.");

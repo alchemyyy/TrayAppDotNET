@@ -317,6 +317,25 @@ public sealed class AppSettings : AppSettingsCommon
         if (!wasSuppressed) RequestSave();
     }
 
+#if DEBUG
+    /// <summary>Updates live AXAML-backed widths in memory without persisting a development-time edit.</summary>
+    internal void ApplyHotReloadedDetailsColumnLayout(List<ProcessColumnSetting> columns)
+    {
+        ArgumentNullException.ThrowIfNull(columns);
+
+        bool wasSuppressed = SuppressChangeNotification;
+        SuppressChangeNotification = true;
+        try
+        {
+            DetailsColumns = columns;
+        }
+        finally
+        {
+            SuppressChangeNotification = wasSuppressed;
+        }
+    }
+#endif
+
     /// <summary>Persists an already-applied Performance device reorder without rebuilding the app shell.</summary>
     internal void UpdatePerformanceDeviceOrder(List<string> deviceIDs)
     {

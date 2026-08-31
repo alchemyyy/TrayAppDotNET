@@ -14,8 +14,10 @@ using HotAvalonia;
 #endif
 using Microsoft.Win32;
 using TrayAppDotNETCommon.UI.WarmWindows;
+#if DEBUG
 using AppThemeHotReload = TrayAppDotNETCommon.Visuals.AppThemeHotReload;
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using BatteryHotkeyAction = TrayAppDotNETCommon.Models.HotkeyAction;
 using BatteryHotkeyFiredEventArgs = TrayAppDotNETCommon.Services.HotkeyFiredEventArgs;
 using BatteryHotkeyService = TrayAppDotNETCommon.Services.GlobalHotkeyService;
@@ -100,8 +102,10 @@ internal sealed class BatteryAvaloniaApp : Application
             return;
         }
 
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded += OnAppThemeResourcesReloaded;
+#endif
         LoadSettingsAndTheme();
         StartServices();
         CreateTrayIcon();
@@ -345,6 +349,7 @@ internal sealed class BatteryAvaloniaApp : Application
         _trayIconRenderer.TrayIconColorOverride = _settings?.TrayIconColor.Resolve(isLight);
     }
 
+#if DEBUG
     /// <summary>
     /// Invalidates the renderer so tray glyph edits are visible immediately.
     /// </summary>
@@ -355,6 +360,7 @@ internal sealed class BatteryAvaloniaApp : Application
     }
 
     private void OnAppThemeResourcesReloaded() => _settings?.RaiseChanged();
+#endif
 
     private void RequestTrayRefresh()
     {
@@ -630,8 +636,10 @@ internal sealed class BatteryAvaloniaApp : Application
     {
         if (_shuttingDown) return;
         _shuttingDown = true;
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
         AppThemeHotReload.ResourcesReloaded -= OnAppThemeResourcesReloaded;
+#endif
 
         try
         {

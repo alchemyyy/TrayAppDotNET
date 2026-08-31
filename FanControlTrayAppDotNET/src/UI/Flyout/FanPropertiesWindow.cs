@@ -8,7 +8,9 @@ using Avalonia.Threading;
 using FanControlTrayAppDotNET.UI.Curves;
 using FanControlTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -204,9 +206,11 @@ public sealed partial class FanPropertiesWindow : Window
             _windowResources.Add(() => _fan.PropertyChanged -= OnFanPropertyChanged);
             _settings.Changed += OnSettingsChanged;
             _windowResources.Add(() => _settings.Changed -= OnSettingsChanged);
+#if DEBUG
             GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
             _windowResources.Add(() =>
                 GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+#endif
         }
         catch
         {
@@ -229,6 +233,7 @@ public sealed partial class FanPropertiesWindow : Window
 
     private ControlNameScope ControlNames => _controlNames;
 
+#if DEBUG
     /// <summary>
     /// Reapplies glyph metadata to the persistent caption buttons.
     /// </summary>
@@ -241,6 +246,7 @@ public sealed partial class FanPropertiesWindow : Window
         GlyphApplicator.ApplyTo(_pinButton.Label, IsPinned ? GlyphCatalog.PINNED : GlyphCatalog.PIN);
         GlyphApplicator.ApplyTo(_closeButton.Label, GlyphCatalog.EXIT);
     }
+#endif
 
     private FanPropertiesAxamlProperties Layout =>
         _layout ?? throw new InvalidOperationException("Fan properties layout resources have not been loaded.");

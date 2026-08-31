@@ -12,6 +12,7 @@
 
   <!-- Process-search column autocomplete -->
   <sys:Double x:Key="TaskManagerContextMenu.AutocompleteWidth">252</sys:Double>
+  <sys:Int32 x:Key="TaskManagerContextMenu.AutocompleteMaximumSuggestionCount">8</sys:Int32>
   <sys:Double x:Key="TaskManagerContextMenu.AutocompleteFontSize">12</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.AutocompleteItemHeight">22</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.AutocompleteVerticalOffset">3</sys:Double>
@@ -31,6 +32,10 @@
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchColumnSpacing">5</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchLeadingButtonTextSpacing">1</sys:Double>
   <sys:Double x:Key="TaskManagerContextMenu.SavedSearchQueryOpacity">0.68</sys:Double>
+  <sys:Int32 x:Key="TaskManagerContextMenu.SavedSearchQueryFontWeight">300</sys:Int32>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchItemMinWidth">0</sys:Double>
+  <sys:Double x:Key="TaskManagerContextMenu.SavedSearchRowSpacing">0</sys:Double>
   <Thickness x:Key="TaskManagerContextMenu.SavedSearchItemPadding">3,0,4,0</Thickness>
+  <Thickness x:Key="TaskManagerContextMenu.SavedSearchItemMargin">0</Thickness>
   <Thickness x:Key="TaskManagerContextMenu.SavedSearchButtonPadding">0</Thickness>
 </ResourceDictionary>

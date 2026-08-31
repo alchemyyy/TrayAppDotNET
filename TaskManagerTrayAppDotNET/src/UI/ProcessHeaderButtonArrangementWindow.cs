@@ -59,6 +59,23 @@ internal sealed class ProcessHeaderButtonArrangementWindow
         ArgumentNullException.ThrowIfNull(orderChanged);
     }
 
+#if DEBUG
+    // AXAML hot-reload exception: The generic reorder dialog keeps its mutable unsaved rows in
+    // private visual state, so rebuilding its chrome would discard the active edit
+    /// <summary>Applies safe window dimensions while retaining the current unsaved button order.</summary>
+    internal void ApplyAXAMLResources(TaskManagerWindowResources resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+
+        Width = resources.AxamlTaskManagerReorderDialog.HeaderWindowWidth;
+        MinWidth = Width;
+        MaxWidth = Width;
+        Height = resources.AxamlTaskManagerReorderDialog.HeaderWindowHeight;
+        MinHeight = Height;
+        MaxHeight = Height;
+    }
+#endif
+
     private static List<ProcessHeaderButtonArrangementItem> BuildItems(
         IEnumerable<ProcessHeaderButtonKind>? order)
     {

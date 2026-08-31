@@ -8,12 +8,51 @@ using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.ContextMenus;
+using TrayAppDotNETCommon.Visuals;
 using Xunit;
 
 namespace TrayAppDotNETCommon.XmlSourceGenerator.Tests;
 
 public sealed class ContextMenuWindowTests
 {
+    [Fact]
+    public void TrailingGlyphMetadataAppliesFontWeightAndTransform() =>
+        AvaloniaTestHost.Run(() =>
+        {
+            const string GlyphText = "\uE73E";
+            Glyph trailingGlyph = Glyph.MDL2(
+                GlyphText,
+                FontWeight.Bold,
+                translateX: 1);
+            ContextMenuWindow menu = new(
+                [
+                    new ContextMenuEntry("Selected", static () => { })
+                    {
+                        TrailingGlyphMetadata = trailingGlyph
+                    }
+                ],
+                new ContextMenuWindowOptions { Palette = Palette() });
+
+            try
+            {
+                menu.Show();
+                menu.UpdateLayout();
+                TextBlock glyphText = Assert.Single(
+                    menu.GetVisualDescendants().OfType<TextBlock>(),
+                    textBlock => textBlock.Text == GlyphText);
+
+                Assert.Equal(
+                    TADNFontResolver.ResolveFontFamily(TADNFont.SegoeMDL2Assets),
+                    glyphText.FontFamily);
+                Assert.Equal(FontWeight.Bold, glyphText.FontWeight);
+                Assert.IsType<TransformGroup>(glyphText.RenderTransform);
+            }
+            finally
+            {
+                menu.Close();
+            }
+        });
+
     [Fact]
     public void OverlayPositionUsesSpaceBelowTopMountedAnchor()
     {

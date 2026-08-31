@@ -107,6 +107,8 @@ internal readonly record struct ProcessTableColumnDefinition(
 /// <summary>Complete Processes-column catalog for the current Windows Task Manager surface.</summary>
 internal static class ProcessTableColumnCatalog
 {
+    // AXAML hot-reload exception: These model defaults seed persisted column settings before
+    // Avalonia resources are available; runtime-tunable displayed widths live in TaskManagerWindow.axaml
     private const double NarrowWidth = 76;
     private const double BooleanWidth = 104;
     private const double CounterWidth = 112;

@@ -106,6 +106,25 @@ public sealed class SettingsVerticalScrollViewportTests
 
 public sealed class SettingsScrollViewportTests
 {
+#if DEBUG
+    [Fact]
+    public void HotReloadOffsetsClampWhenViewportHasNoOverflow() => AvaloniaTestHost.Run(() =>
+    {
+        ContextMenuWindowOptions contextMenuOptions = new() { Palette = CreatePalette() };
+        using SettingsScrollViewport viewport = new(
+            new Border(),
+            default,
+            Colors.Black,
+            CreateStyle(),
+            contextMenuOptions);
+
+        viewport.SetOffsets(75, 80);
+
+        Assert.Equal(0, viewport.HorizontalOffset);
+        Assert.Equal(0, viewport.VerticalOffset);
+    });
+#endif
+
     [Fact]
     public void VerticalScrollbarTopInsetDoesNotMoveTheViewportOrHorizontalTrack() =>
         AvaloniaTestHost.Run(() =>

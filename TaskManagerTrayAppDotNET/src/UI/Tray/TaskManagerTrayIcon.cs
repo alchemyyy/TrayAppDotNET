@@ -11,6 +11,8 @@ internal sealed class TaskManagerTrayIcon : IDisposable
 {
     public const int HistoryCapacity = 16;
 
+    // AXAML hot-reload exception: Tray icon rendering runs on the background render queue and
+    // cannot safely read mutable Avalonia resource dictionaries
     private const int CurveSamplesPerPixel = 4;
     private const float GridOpacity = 0.27f;
 

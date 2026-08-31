@@ -6,14 +6,13 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
 /// <summary>Owns transient row menus and dispatches process actions away from the UI thread.</summary>
 internal sealed class ProcessRowContextMenuController : IDisposable
 {
-    private const string SelectedGlyph = "\uE73E";
-
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
     private readonly ITrayAppDotNETTrayMenuSettings _trayMenuSettings;
@@ -202,7 +201,9 @@ internal sealed class ProcessRowContextMenuController : IDisposable
             label,
             () => ExecuteSetPriority(target, priority))
         {
-            TrailingGlyph = priority == currentPriority ? SelectedGlyph : null
+            TrailingGlyphMetadata = priority == currentPriority
+                ? TaskManagerGlyphCatalog.SELECTED
+                : null
         });
     }
 
@@ -390,6 +391,19 @@ internal sealed class ProcessRowContextMenuController : IDisposable
         _actionWindows.Remove(window);
     }
 
+#if DEBUG
+    /// <summary>Applies current AXAML metrics to open action editors without replacing their input state.</summary>
+    internal void ApplyAXAMLResources(TaskManagerWindowResources resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        foreach (Window actionWindow in _actionWindows)
+        {
+            if (actionWindow is ProcessAffinityWindow affinityWindow)
+                affinityWindow.ApplyAXAMLResources(resources);
+        }
+    }
+#endif
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -421,16 +435,22 @@ internal sealed class ProcessRowContextMenuController : IDisposable
 /// <summary>Nonmodal processor-affinity editor for one identity-checked process instance.</summary>
 internal sealed class ProcessAffinityWindow : Window
 {
-    private const double WindowWidth = 420;
-    private const double WindowHeight = 520;
-    private const double ContentPadding = 16;
-    private const double ItemSpacing = 8;
-    private const double ProcessorItemWidth = 88;
-
     private readonly ProcessTerminationTarget _target;
     private readonly ProcessAffinityInfo _affinity;
     private readonly Action<string, string> _reportError;
     private readonly List<CheckBox> _processorChecks = [];
+#if DEBUG
+    private Grid? _root;
+    private TextBlock? _explanation;
+    private WrapPanel? _processorPanel;
+    private Grid? _actions;
+    private SettingsButton? _clearButton;
+    private SettingsButton? _applyButton;
+    private double _axamlWidth;
+    private double _axamlHeight;
+    private double _axamlMinWidth;
+    private double _axamlMinHeight;
+#endif
 
     public ProcessAffinityWindow(
         ProcessTerminationTarget target,
@@ -444,22 +464,31 @@ internal sealed class ProcessAffinityWindow : Window
         _target = target;
         _affinity = affinity;
         _reportError = reportError;
+        TaskManagerWindowResources resources = TaskManagerWindowResources.Current;
         Title = $"Processor affinity - PID {target.ProcessID}";
-        Width = WindowWidth;
-        Height = WindowHeight;
-        MinWidth = WindowWidth;
-        MinHeight = 360;
+        Width = resources.AxamlProcessAffinity.WindowWidth;
+        Height = resources.AxamlProcessAffinity.WindowHeight;
+        MinWidth = resources.AxamlProcessAffinity.WindowWidth;
+        MinHeight = resources.AxamlProcessAffinity.WindowMinHeight;
+#if DEBUG
+        _axamlWidth = Width;
+        _axamlHeight = Height;
+        _axamlMinWidth = MinWidth;
+        _axamlMinHeight = MinHeight;
+#endif
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = TrayAppDotNETSettingsUI.Brush(palette.Background);
-        Content = BuildContent(palette);
+        Content = BuildContent(palette, resources);
     }
 
-    private Control BuildContent(SettingsPalette palette)
+    private Control BuildContent(
+        SettingsPalette palette,
+        TaskManagerWindowResources resources)
     {
         Grid root = new()
         {
-            Margin = new Thickness(ContentPadding),
+            Margin = resources.AxamlProcessAffinity.ContentMargin,
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
@@ -467,20 +496,29 @@ internal sealed class ProcessAffinityWindow : Window
                 new RowDefinition(GridLength.Auto)
             }
         };
+#if DEBUG
+        _root = root;
+#endif
 
         TextBlock explanation = TrayAppDotNETSettingsUI.Text(
             "Select the processors on which this process may run.",
             palette,
-            14);
-        explanation.Margin = new Thickness(0, 0, 0, ContentPadding);
+            resources.AxamlProcessAffinity.ExplanationFontSize);
+        explanation.Margin = resources.AxamlProcessAffinity.ExplanationMargin;
+#if DEBUG
+        _explanation = explanation;
+#endif
         root.Children.Add(explanation);
 
         WrapPanel processorPanel = new()
         {
             Orientation = Orientation.Horizontal,
-            ItemWidth = ProcessorItemWidth,
-            ItemHeight = 32
+            ItemWidth = resources.AxamlProcessAffinity.ProcessorItemWidth,
+            ItemHeight = resources.AxamlProcessAffinity.ProcessorItemHeight
         };
+#if DEBUG
+        _processorPanel = processorPanel;
+#endif
         for (int processorIndex = 0; processorIndex < 64; processorIndex++)
         {
             ulong processorBit = 1UL << processorIndex;
@@ -509,7 +547,7 @@ internal sealed class ProcessAffinityWindow : Window
 
         Grid actions = new()
         {
-            Margin = new Thickness(0, ContentPadding, 0, 0),
+            Margin = resources.AxamlProcessAffinity.ActionsMargin,
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Auto),
@@ -519,12 +557,22 @@ internal sealed class ProcessAffinityWindow : Window
                 new ColumnDefinition(GridLength.Auto)
             }
         };
+#if DEBUG
+        _actions = actions;
+#endif
         SettingsButton selectAllButton = TrayAppDotNETSettingsUI.Button("Select all", palette);
         selectAllButton.Click += OnSelectAllClick;
         actions.Children.Add(selectAllButton);
         SettingsButton clearButton = TrayAppDotNETSettingsUI.Button("Clear", palette);
-        clearButton.Margin = new Thickness(ItemSpacing, 0, 0, 0);
+        clearButton.Margin = new Thickness(
+            resources.AxamlProcessAffinity.ActionButtonSpacing,
+            0,
+            0,
+            0);
         clearButton.Click += OnClearClick;
+#if DEBUG
+        _clearButton = clearButton;
+#endif
         Grid.SetColumn(clearButton, 1);
         actions.Children.Add(clearButton);
         SettingsButton cancelButton = TrayAppDotNETSettingsUI.Button("Cancel", palette);
@@ -532,14 +580,59 @@ internal sealed class ProcessAffinityWindow : Window
         Grid.SetColumn(cancelButton, 3);
         actions.Children.Add(cancelButton);
         SettingsButton applyButton = TrayAppDotNETSettingsUI.Button("Apply", palette);
-        applyButton.Margin = new Thickness(ItemSpacing, 0, 0, 0);
+        applyButton.Margin = new Thickness(
+            resources.AxamlProcessAffinity.ActionButtonSpacing,
+            0,
+            0,
+            0);
         applyButton.Click += OnApplyClick;
+#if DEBUG
+        _applyButton = applyButton;
+#endif
         Grid.SetColumn(applyButton, 4);
         actions.Children.Add(applyButton);
         Grid.SetRow(actions, 2);
         root.Children.Add(actions);
         return root;
     }
+
+#if DEBUG
+    /// <summary>Applies current affinity AXAML metrics while retaining checked processors.</summary>
+    internal void ApplyAXAMLResources(TaskManagerWindowResources resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+
+        double nextWidth = resources.AxamlProcessAffinity.WindowWidth;
+        double nextHeight = resources.AxamlProcessAffinity.WindowHeight;
+        double nextMinWidth = resources.AxamlProcessAffinity.WindowWidth;
+        double nextMinHeight = resources.AxamlProcessAffinity.WindowMinHeight;
+        if (nextWidth != _axamlWidth) Width = nextWidth;
+        if (nextHeight != _axamlHeight) Height = nextHeight;
+        if (nextMinWidth != _axamlMinWidth) MinWidth = nextMinWidth;
+        if (nextMinHeight != _axamlMinHeight) MinHeight = nextMinHeight;
+        _axamlWidth = nextWidth;
+        _axamlHeight = nextHeight;
+        _axamlMinWidth = nextMinWidth;
+        _axamlMinHeight = nextMinHeight;
+
+        _root!.Margin = resources.AxamlProcessAffinity.ContentMargin;
+        _explanation!.FontSize = resources.AxamlProcessAffinity.ExplanationFontSize;
+        _explanation.Margin = resources.AxamlProcessAffinity.ExplanationMargin;
+        _processorPanel!.ItemWidth = resources.AxamlProcessAffinity.ProcessorItemWidth;
+        _processorPanel.ItemHeight = resources.AxamlProcessAffinity.ProcessorItemHeight;
+        _actions!.Margin = resources.AxamlProcessAffinity.ActionsMargin;
+        _clearButton!.Margin = new Thickness(
+            resources.AxamlProcessAffinity.ActionButtonSpacing,
+            0,
+            0,
+            0);
+        _applyButton!.Margin = new Thickness(
+            resources.AxamlProcessAffinity.ActionButtonSpacing,
+            0,
+            0,
+            0);
+    }
+#endif
 
     private void OnSelectAllClick(object? sender, EventArgs eventArgs)
     {

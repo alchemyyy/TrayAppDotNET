@@ -9,6 +9,14 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Provides the shared Task Manager page header and main-content frame.</summary>
 internal class TaskManagerPageLayout : Grid
 {
+#if DEBUG
+    private readonly Grid _headerOverlaySpace;
+    private readonly TextBlock _titleText;
+    private readonly Grid _header;
+    private readonly Border _headerFrame;
+    private readonly Border _pageSurface;
+#endif
+
     internal TaskManagerPageLayout(
         string title,
         SettingsPalette palette,
@@ -22,14 +30,20 @@ internal class TaskManagerPageLayout : Grid
             Height = resources.AxamlTaskManagerPage.HeaderOverlayHeight,
             Margin = resources.AxamlTaskManagerPage.HeaderOverlayMargin
         };
+#if DEBUG
+        _headerOverlaySpace = headerOverlaySpace;
+#endif
         Children.Add(headerOverlaySpace);
 
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(
             title,
             palette,
             resources.AxamlTaskManagerPage.TitleFontSize,
-            FontWeight.SemiBold);
+            (FontWeight)resources.AxamlTaskManagerPage.TitleFontWeight);
         titleText.VerticalAlignment = VerticalAlignment.Center;
+#if DEBUG
+        _titleText = titleText;
+#endif
 
         HeaderActions = new StackPanel
         {
@@ -49,6 +63,9 @@ internal class TaskManagerPageLayout : Grid
                 new ColumnDefinition(GridLength.Auto)
             }
         };
+#if DEBUG
+        _header = header;
+#endif
         header.Children.Add(titleText);
         Grid.SetColumn(HeaderActions, 1);
         header.Children.Add(HeaderActions);
@@ -64,6 +81,9 @@ internal class TaskManagerPageLayout : Grid
                 resources.AxamlProcessTable.GridLineThickness),
             Child = header
         };
+#if DEBUG
+        _headerFrame = headerFrame;
+#endif
         Grid surfaceLayout = new()
         {
             RowDefinitions =
@@ -78,11 +98,14 @@ internal class TaskManagerPageLayout : Grid
         Border pageSurface = new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(
-                TaskManagerWindowResources.ProcessGridBackgroundColor),
+                resources.AxamlProcessTable.GridBackgroundColor),
             CornerRadius = resources.AxamlTaskManagerPage.SurfaceCornerRadius,
             ClipToBounds = true,
             Child = surfaceLayout
         };
+#if DEBUG
+        _pageSurface = pageSurface;
+#endif
         Grid.SetRow(pageSurface, 1);
         Children.Add(pageSurface);
     }
@@ -95,6 +118,30 @@ internal class TaskManagerPageLayout : Grid
 
     /// <summary>Gets the control rendered in the shell-level title-bar overlay.</summary>
     internal virtual Control? PageOverlay => null;
+
+#if DEBUG
+    /// <summary>Applies shared Task Manager page resources without replacing page-owned runtime state.</summary>
+    internal virtual void ApplyAXAMLResources(TaskManagerWindowResources resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+
+        _headerOverlaySpace.Height = resources.AxamlTaskManagerPage.HeaderOverlayHeight;
+        _headerOverlaySpace.Margin = resources.AxamlTaskManagerPage.HeaderOverlayMargin;
+        _titleText.FontSize = resources.AxamlTaskManagerPage.TitleFontSize;
+        _titleText.FontWeight = (FontWeight)resources.AxamlTaskManagerPage.TitleFontWeight;
+        HeaderActions.Spacing = resources.AxamlTaskManagerPage.HeaderSpacing;
+        _header.Height = resources.AxamlTaskManagerPage.HeaderContentHeight;
+        _header.Margin = resources.AxamlTaskManagerPage.HeaderMargin;
+        _headerFrame.BorderThickness = new Thickness(
+            0,
+            0,
+            0,
+            resources.AxamlProcessTable.GridLineThickness);
+        _pageSurface.Background = TrayAppDotNETSettingsUI.Brush(
+            resources.AxamlProcessTable.GridBackgroundColor);
+        _pageSurface.CornerRadius = resources.AxamlTaskManagerPage.SurfaceCornerRadius;
+    }
+#endif
 
     /// <summary>Gets the main-content top edge in another control's coordinate space.</summary>
     internal bool TryGetMainContentTop(Control relativeTo, out double contentTop)

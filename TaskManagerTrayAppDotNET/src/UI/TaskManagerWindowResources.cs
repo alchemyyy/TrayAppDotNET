@@ -1,6 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using Avalonia.Media;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -18,13 +17,6 @@ public sealed partial class TaskManagerWindowResources : ResourceDictionary
     private static readonly Lazy<TaskManagerWindowResources> Resources =
         new(static () => new TaskManagerWindowResources());
 #endif
-
-    public static readonly Color ProcessGridBackgroundColor = Color.FromRgb(0x19, 0x19, 0x19);
-    public static readonly Color ProcessColumnChooserDarkBackgroundColor = Color.FromRgb(0x16, 0x16, 0x16);
-    public static readonly Color ProcessColumnChooserLightBackgroundColor = Color.FromRgb(0xE8, 0xE8, 0xE8);
-    public static readonly Color ProcessGridScrollThumbColor = Color.FromRgb(0x8A, 0x8A, 0x8A);
-    public static readonly Color ProcessGridScrollHoverThumbColor = Color.FromRgb(0xA6, 0xA6, 0xA6);
-    public static readonly Color ProcessGridResizeGripColor = Color.FromRgb(0x8A, 0x8A, 0x8A);
 
     /// <summary>Initializes the compiled Task Manager window resource dictionary.</summary>
     public TaskManagerWindowResources() => AvaloniaXamlLoader.Load(this);
@@ -72,12 +64,6 @@ public sealed partial class TaskManagerWindowResources : ResourceDictionary
                     $"Task Manager AXAML hot-reload notification failed: {exception.Message}");
             }
         }
-    }
-#else
-    public static event Action? ResourcesReloaded
-    {
-        add { }
-        remove { }
     }
 #endif
 }

@@ -66,7 +66,8 @@ public sealed class TrayAppDotNETAboutPageOptions
 public sealed class TrayAppDotNETAboutPage : IDisposable
 {
     private const string DevelopmentBuildLabel = "dev";
-    private static readonly TrayAppDotNETAboutPageResources LayoutResources = new();
+    private static TrayAppDotNETAboutPageResources LayoutResources =>
+        TrayAppDotNETAboutPageResources.Current;
 
     private readonly TrayAppDotNETAboutPageOptions _options;
     private UpdateCheckService? _updateService;

@@ -11,15 +11,20 @@
   <sys:Double x:Key="TaskManagerWindow.MinHeight">600</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarWidth">250</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.SidebarCollapseThreshold">750</sys:Double>
+  <sys:Int32 x:Key="TaskManagerWindow.SearchDragOutsideMarginPixels">8</sys:Int32>
   <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonSize">32</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonGlyphFontSize">16</sys:Double>
   <sys:Double x:Key="TaskManagerWindow.GlobalNavigationButtonSpacing">8</sys:Double>
   <Thickness x:Key="TaskManagerWindow.GlobalNavigationButtonPadding">0</Thickness>
 
+  <!-- Tray menu -->
+  <sys:Double x:Key="TaskManagerTrayMenu.FontSize">15</sys:Double>
+
   <!-- General page layout -->
   <sys:Double x:Key="TaskManagerPage.HeaderOverlayHeight">32</sys:Double>
   <sys:Double x:Key="TaskManagerPage.HeaderContentHeight">32</sys:Double>
   <sys:Double x:Key="TaskManagerPage.TitleFontSize">20</sys:Double>
+  <sys:Int32 x:Key="TaskManagerPage.TitleFontWeight">600</sys:Int32>
   <sys:Double x:Key="TaskManagerPage.HeaderSpacing">8</sys:Double>
   <Thickness x:Key="TaskManagerPage.HeaderOverlayMargin">0,4,0,10</Thickness>
   <Thickness x:Key="TaskManagerPage.HeaderMargin">8,4,20,4</Thickness>
@@ -28,26 +33,26 @@
   <!-- Details page -->
   <sys:Double x:Key="TaskManagerDetails.ToolbarSpacing">8</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.ToolbarFontSize">13</sys:Double>
+  <sys:Int32 x:Key="TaskManagerDetails.ToolbarFontWeight">400</sys:Int32>
   <sys:Double x:Key="TaskManagerDetails.SearchWidth">430</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchActionGlyphFontSize">16</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchClearGlyphOpacity">0.6</sys:Double>
+  <sys:Double x:Key="TaskManagerDetails.SearchSaveGlyphOpacity">1</sys:Double>
   <sys:Double x:Key="TaskManagerDetails.SearchActionVisualInset">3</sys:Double>
   <CornerRadius x:Key="TaskManagerDetails.SearchActionVisualCornerRadius">4</CornerRadius>
   <sys:Double x:Key="TaskManagerDetails.SearchActionSpacing">6</sys:Double>
   <Thickness x:Key="TaskManagerDetails.SearchActionButtonPadding">0</Thickness>
   <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
-  <sys:Double x:Key="TaskManagerDetails.TitleFontSize">20</sys:Double>
   <Thickness x:Key="TaskManagerDetails.RunPanelPadding">12</Thickness>
   <CornerRadius x:Key="TaskManagerDetails.PanelCornerRadius">6</CornerRadius>
-  <Thickness x:Key="TaskManagerDetails.HeaderMargin">0,4,0,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.SearchMargin">0,8,0,0</Thickness>
-  <Thickness x:Key="TaskManagerDetails.ActionsMargin">0,8,20,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.RunPanelMargin">24,10,20,0</Thickness>
   <Thickness x:Key="TaskManagerDetails.TableMargin">0</Thickness>
   <Thickness x:Key="TaskManagerDetails.PlaceholderMargin">24,4,30,28</Thickness>
 
   <!-- Reorder dialogs -->
   <sys:Double x:Key="TaskManagerReorderDialog.TitleFontSize">13</sys:Double>
+  <sys:Int32 x:Key="TaskManagerReorderDialog.TitleFontWeight">600</sys:Int32>
   <Thickness x:Key="TaskManagerReorderDialog.TitleMargin">16,0,8,0</Thickness>
   <Thickness x:Key="TaskManagerReorderDialog.HeaderPadding">16,12,16,12</Thickness>
   <Thickness x:Key="TaskManagerReorderDialog.SearchMargin">0,0,0,10</Thickness>
@@ -79,6 +84,8 @@
   <sys:Double x:Key="TaskManagerSettings.DevicePriorityButtonSpacing">6</sys:Double>
   <sys:Double x:Key="TaskManagerSettings.DevicePriorityRankWidth">24</sys:Double>
   <sys:Double x:Key="TaskManagerSettings.DevicePriorityFontSize">13</sys:Double>
+  <sys:Int32 x:Key="TaskManagerSettings.DevicePriorityRankFontWeight">400</sys:Int32>
+  <sys:Int32 x:Key="TaskManagerSettings.DevicePriorityLabelFontWeight">600</sys:Int32>
   <Thickness x:Key="TaskManagerSettings.HardwareNameRulesActionMargin">0,10,0,0</Thickness>
   <Thickness x:Key="TaskManagerSettings.HardwareNameRulesContentMargin">0,8,0,0</Thickness>
   <Thickness x:Key="TaskManagerSettings.HardwareNameRuleRowPadding">8</Thickness>
@@ -92,17 +99,22 @@
 
   <!-- Performance graphs -->
   <sys:Double x:Key="TaskManagerPerformance.GraphLineThickness">0.85</sys:Double>
+  <sys:Int32 x:Key="TaskManagerPerformance.TextFontWeight">400</sys:Int32>
   <sys:Double x:Key="TaskManagerPerformance.GraphSecondaryLineThickness">0.65</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphSecondaryLineOpacity">0.30</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphUnderfillOpacity">0.12</sys:Double>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphUnderfillDarkenAmount">20</sys:Int32>
   <sys:Double x:Key="TaskManagerPerformance.GraphGridLineThickness">0.75</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GraphGridLineOpacity">0.3607843137254902</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphBorderThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineThickness">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineOpacity">0.58</sys:Double>
+  <Color x:Key="TaskManagerPerformance.GraphHoverLineColor">#FFFFFF</Color>
+  <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineDashGapLength">2</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverLineClipPadding">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverTextCursorGap">7</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GraphHoverTextInset">3</sys:Double>
+  <sys:Int32 x:Key="TaskManagerPerformance.GraphHoverMaximumTextLines">2</sys:Int32>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridColumns">10</sys:Int32>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridRows">4</sys:Int32>
   <sys:Double x:Key="TaskManagerPerformance.DeviceColumnWidth">207</sys:Double>
@@ -146,6 +158,11 @@
   <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGridAspectRatio">1.3333333333333333</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailedCPUGraphSpacing">8</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailedCPUGridAspectRatio">1.3333333333333333</sys:Double>
+  <Color x:Key="TaskManagerPerformance.CPUAccentColor">#32B5E5</Color>
+  <Color x:Key="TaskManagerPerformance.MemoryAccentColor">#5883D0</Color>
+  <Color x:Key="TaskManagerPerformance.GPUAccentColor">#A94FC4</Color>
+  <Color x:Key="TaskManagerPerformance.NetworkAccentColor">#D04780</Color>
+  <Color x:Key="TaskManagerPerformance.DiskAccentColor">#8BAD3C</Color>
   <Thickness x:Key="TaskManagerPerformance.BodyMargin">8,8,16,16</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceColumnPadding">4,0,12,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceCardPadding">7,5</Thickness>
@@ -214,5 +231,40 @@
   <sys:Double x:Key="ProcessTable.ResizeGripDotSize">2</sys:Double>
   <sys:Double x:Key="ProcessTable.ResizeGripDotStep">4</sys:Double>
   <sys:Int32 x:Key="ProcessTable.ResizeGripDotRows">3</sys:Int32>
+  <Color x:Key="ProcessTable.GridBackgroundColor">#191919</Color>
+  <Color x:Key="ProcessTable.ScrollThumbColor">#8A8A8A</Color>
+  <Color x:Key="ProcessTable.ScrollHoverThumbColor">#A6A6A6</Color>
+  <Color x:Key="ProcessTable.ResizeGripColor">#8A8A8A</Color>
   <Thickness x:Key="ProcessTable.SelectionBorderThickness">3,0,0,0</Thickness>
+
+  <!-- Process column chooser -->
+  <Color x:Key="ProcessColumnChooser.DarkBackgroundColor">#161616</Color>
+  <Color x:Key="ProcessColumnChooser.LightBackgroundColor">#E8E8E8</Color>
+
+  <!-- Process column properties -->
+  <sys:Double x:Key="ProcessColumnProperties.WindowWidth">460</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.DefaultWindowHeight">280</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.CPUWindowHeight">410</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.MemoryWindowHeight">410</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.UserNameWindowHeight">330</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.ControlWidth">190</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.TitleBarHeight">32</sys:Double>
+  <sys:Double x:Key="ProcessColumnProperties.TitleFontSize">13</sys:Double>
+  <sys:Int32 x:Key="ProcessColumnProperties.TitleFontWeight">600</sys:Int32>
+  <Thickness x:Key="ProcessColumnProperties.ContentPadding">16</Thickness>
+  <Thickness x:Key="ProcessColumnProperties.RootBorderThickness">1</Thickness>
+  <CornerRadius x:Key="ProcessColumnProperties.RootCornerRadius">8</CornerRadius>
+  <Thickness x:Key="ProcessColumnProperties.TitleMargin">12,0,8,0</Thickness>
+
+  <!-- Process affinity -->
+  <sys:Double x:Key="ProcessAffinity.WindowWidth">420</sys:Double>
+  <sys:Double x:Key="ProcessAffinity.WindowHeight">520</sys:Double>
+  <sys:Double x:Key="ProcessAffinity.WindowMinHeight">360</sys:Double>
+  <sys:Double x:Key="ProcessAffinity.ExplanationFontSize">14</sys:Double>
+  <sys:Double x:Key="ProcessAffinity.ProcessorItemWidth">88</sys:Double>
+  <sys:Double x:Key="ProcessAffinity.ProcessorItemHeight">32</sys:Double>
+  <sys:Double x:Key="ProcessAffinity.ActionButtonSpacing">8</sys:Double>
+  <Thickness x:Key="ProcessAffinity.ContentMargin">16</Thickness>
+  <Thickness x:Key="ProcessAffinity.ExplanationMargin">0,0,0,16</Thickness>
+  <Thickness x:Key="ProcessAffinity.ActionsMargin">0,16,0,0</Thickness>
 </ResourceDictionary>

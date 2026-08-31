@@ -11,10 +11,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class ColorPickerLayout
 {
-    private static readonly Lazy<ColorPickerWindowResources> Resources = new(
-        static () => new ColorPickerWindowResources());
-
-    private static ColorPickerWindowResources AXAMLResources => Resources.Value;
+    private static ColorPickerWindowResources AXAMLResources => ColorPickerWindowResources.Current;
 
     public static double WindowWidth => AXAMLResources.AxamlColorPicker.WindowWidth;
     public static double WindowMinWidth => AXAMLResources.AxamlColorPicker.WindowMinWidth;

@@ -15,6 +15,9 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
     private const int LightSurfaceThreshold = 128;
 
     private readonly CheckBox _hideUnusedColumns;
+#if DEBUG
+    private readonly List<ProcessColumnSetting> _items;
+#endif
 
     public ProcessColumnChooserWindow(
         AppSettings settings,
@@ -51,7 +54,11 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
                 palette,
                 resources,
                 itemChanged),
+#if DEBUG
+            () => CreateDefaultItems(resources),
+#else
             ProcessColumnSettings.CreateDefault,
+#endif
             orderedItems => columnsChanged(ProcessColumnSettings.CloneList(orderedItems)),
             palette,
             settings.EnableRoundedCorners,
@@ -75,9 +82,45 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         ArgumentNullException.ThrowIfNull(columnsChanged);
 
         _hideUnusedColumns = hideUnusedColumns;
+#if DEBUG
+        _items = items;
+#endif
         _hideUnusedColumns.IsCheckedChanged += OnHideUnusedColumnsChanged;
         Closed += OnChooserClosed;
     }
+
+#if DEBUG
+    // AXAML hot-reload exception: The generic reorder dialog keeps its mutable unsaved rows in
+    // private visual state, so rebuilding its chrome would discard the active edit
+    /// <summary>Applies safe window metrics and authoritative widths while retaining unsaved row state.</summary>
+    internal void ApplyAXAMLResources(
+        TaskManagerWindowResources resources,
+        IReadOnlyList<ProcessColumnSetting> currentSettings)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+        ArgumentNullException.ThrowIfNull(currentSettings);
+
+        Width = resources.AxamlTaskManagerReorderDialog.ColumnWindowWidth;
+        MinWidth = Width;
+        MaxWidth = Width;
+        Height = resources.AxamlTaskManagerReorderDialog.ColumnWindowHeight;
+        MinHeight = resources.AxamlTaskManagerReorderDialog.ColumnWindowMinHeight;
+        MaxHeight = Height;
+
+        for (int itemIndex = 0; itemIndex < _items.Count; itemIndex++)
+        {
+            ProcessColumnSetting item = _items[itemIndex];
+            for (int settingIndex = 0; settingIndex < currentSettings.Count; settingIndex++)
+            {
+                ProcessColumnSetting currentSetting = currentSettings[settingIndex];
+                if (currentSetting.Column != item.Column) continue;
+
+                item.Width = currentSetting.Width;
+                break;
+            }
+        }
+    }
+#endif
 
     private static CheckBox CreateHideUnusedColumnsCheckBox(SettingsPalette palette) => new()
     {
@@ -167,6 +210,40 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
         setting.Visible = !setting.Visible;
     }
 
+#if DEBUG
+    private static List<ProcessColumnSetting> CreateDefaultItems(
+        TaskManagerWindowResources resources)
+    {
+        List<ProcessColumnSetting> defaults = ProcessColumnSettings.CreateDefault();
+        ProcessTableAXAMLColumnWidths currentWidths = new(
+            Name: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Name).DefaultWidth,
+            ProcessID: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.ProcessID).DefaultWidth,
+            Status: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Status).DefaultWidth,
+            UserName: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.UserName).DefaultWidth,
+            CPU: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CPU).DefaultWidth,
+            Lifetime: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.Lifetime).DefaultWidth,
+            PrivateMemory: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.PrivateMemory).DefaultWidth,
+            WorkingSet: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.SharedWorkingSet).DefaultWidth,
+            CommandLine: ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CommandLine).DefaultWidth);
+        ProcessTableAXAMLColumnWidths nextWidths = new(
+            resources.AxamlProcessTable.NameColumnWidth,
+            resources.AxamlProcessTable.PIDColumnWidth,
+            resources.AxamlProcessTable.StatusColumnWidth,
+            resources.AxamlProcessTable.UserNameColumnWidth,
+            resources.AxamlProcessTable.CPUColumnWidth,
+            resources.AxamlProcessTable.LifetimeColumnWidth,
+            resources.AxamlProcessTable.PrivateMemoryColumnWidth,
+            resources.AxamlProcessTable.WorkingSetColumnWidth,
+            resources.AxamlProcessTable.CommandLineColumnWidth);
+        _ = ProcessTableAXAMLHotReload.TryApplyColumnWidths(
+            defaults,
+            currentWidths,
+            nextWidths,
+            out defaults);
+        return defaults;
+    }
+#endif
+
     private static bool HasOtherVisibleColumn(
         IReadOnlyList<ProcessColumnSetting> settings,
         ProcessColumnSetting excludedSetting)
@@ -206,8 +283,8 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
                          + paletteBackground.B * BlueLuminanceWeight)
                         / LuminanceDivisor;
         return luminance >= LightSurfaceThreshold
-            ? TaskManagerWindowResources.ProcessColumnChooserLightBackgroundColor
-            : TaskManagerWindowResources.ProcessColumnChooserDarkBackgroundColor;
+            ? TaskManagerWindowResources.Current.AxamlProcessColumnChooser.LightBackgroundColor
+            : TaskManagerWindowResources.Current.AxamlProcessColumnChooser.DarkBackgroundColor;
     }
 
     private static SettingsScrollBarStyle CreateScrollBarStyle(
@@ -220,9 +297,9 @@ internal sealed class ProcessColumnChooserWindow : TaskManagerReorderDialog<Proc
             resources.AxamlProcessTable.ScrollBarThumbEndMargin,
             resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
             background,
-            TaskManagerWindowResources.ProcessGridScrollThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
-            TaskManagerWindowResources.ProcessGridScrollHoverThumbColor,
+            resources.AxamlProcessTable.ScrollThumbColor,
+            resources.AxamlProcessTable.ScrollHoverThumbColor,
+            resources.AxamlProcessTable.ScrollHoverThumbColor,
+            resources.AxamlProcessTable.ScrollHoverThumbColor,
             ShowButtonsOnHover: true);
 }

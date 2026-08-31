@@ -50,8 +50,13 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         _borderPen = new Pen(
             TrayAppDotNETSettingsUI.Brush(palette.Border),
             resources.AxamlTaskManagerPerformance.GraphBorderThickness);
+        byte gridAlpha = (byte)Math.Round(
+            byte.MaxValue * Math.Clamp(
+                resources.AxamlTaskManagerPerformance.GraphGridLineOpacity,
+                0,
+                1));
         Color gridColor = Color.FromArgb(
-            92,
+            gridAlpha,
             palette.Border.R,
             palette.Border.G,
             palette.Border.B);
@@ -62,6 +67,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         PrimaryPen = new Pen(
             accentBrush,
             resources.AxamlTaskManagerPerformance.GraphLineThickness);
+        // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so
+        // the immutable Pens retain Avalonia's built-in Dash preset
         SecondaryPen = new Pen(
             accentBrush,
             resources.AxamlTaskManagerPerformance.GraphLineThickness,
@@ -71,11 +78,18 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 accent,
                 resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity,
                 resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount));
+        Color configuredHoverLineColor =
+            resources.AxamlTaskManagerPerformance.GraphHoverLineColor;
+        byte hoverLineAlpha = (byte)Math.Round(
+            configuredHoverLineColor.A * Math.Clamp(
+                resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,
+                0,
+                1));
         Color hoverLineColor = Color.FromArgb(
-            148,
-            byte.MaxValue,
-            byte.MaxValue,
-            byte.MaxValue);
+            hoverLineAlpha,
+            configuredHoverLineColor.R,
+            configuredHoverLineColor.G,
+            configuredHoverLineColor.B);
         _hoverLinePen = new Pen(
             new SolidColorBrush(hoverLineColor),
             resources.AxamlTaskManagerPerformance.GraphHoverLineThickness,

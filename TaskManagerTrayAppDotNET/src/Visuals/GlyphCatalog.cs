@@ -8,13 +8,6 @@ namespace TaskManagerTrayAppDotNET.Visuals;
 /// </summary>
 internal abstract class GlyphCatalog : CommonGlyphCatalog
 {
-    private const int AppIconDesignCanvasSize = 1024;
-    private const double AppIconOuterMarginFraction = 0.055;
-    private const double TaskManagerAppScaleX = 0.625;
-    private const double TaskManagerAppScaleY = 2.0 / 3.0;
-    private const double TaskManagerAppTranslateX = 384.0;
-    private const double TaskManagerAppTranslateY = 704.0 / 3.0;
-
 #if DEBUG
     private static readonly GlyphCatalogHotReloadStore<GlyphCatalogResources> Resources =
         GlyphCatalogHotReloadStore<GlyphCatalogResources>.Create(
@@ -23,10 +16,6 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 #else
     private static readonly Lazy<GlyphCatalogResources> Resources = new(static () => new GlyphCatalogResources());
 #endif
-
-    public static Glyph PC1 => Glyph("PC1");
-
-    public static Glyph TASK_MANAGER_APP => Glyph("TaskManagerApp");
 
     public static Glyph MORE => Glyph("More");
 
@@ -38,24 +27,25 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");
 
-    /// <summary>
-    /// Returns the PC1 glyph with TaskManagerApp fitted to its monitor frame.
-    /// </summary>
-    public static CompositeGlyph TASK_MANAGER_APP_COMPOSITE
-    {
-        get
-        {
-            CompositeGlyphLayer[] layers = new CompositeGlyphLayer[2];
-            layers[0] = new CompositeGlyphLayer(PC1);
-            layers[1] = new CompositeGlyphLayer(
-                TASK_MANAGER_APP,
-                TaskManagerAppScaleX,
-                TaskManagerAppScaleY,
-                TaskManagerAppTranslateX,
-                TaskManagerAppTranslateY);
-            return new CompositeGlyph(AppIconDesignCanvasSize, AppIconOuterMarginFraction, layers);
-        }
-    }
+    public static Glyph PROCESSES => Glyph("Processes");
+
+    public static Glyph PERFORMANCE => Glyph("Performance");
+
+    public static Glyph APP_HISTORY => Glyph("AppHistory");
+
+    public static Glyph STARTUP_APPS => Glyph("StartupApps");
+
+    public static Glyph USERS => Glyph("Users");
+
+    public static Glyph SERVICES => Glyph("Services");
+
+    public static Glyph GLOBAL_NAVIGATION => Glyph("GlobalNavigation");
+
+    public static Glyph SELECTED => Glyph("Selected");
+
+    public static Glyph SORT_ASCENDING => Glyph("SortAscending");
+
+    public static Glyph SORT_DESCENDING => Glyph("SortDescending");
 
     private static Glyph Glyph(string name)
     {

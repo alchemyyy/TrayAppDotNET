@@ -1,3 +1,4 @@
+#if DEBUG
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -63,3 +64,4 @@ public sealed class HotReloadResourceReader(Control owner, string prefix)
     private InvalidOperationException InvalidType(string name, string expectedType) =>
         new($"Hot-reload resource '{_prefix}{name}' is not a {expectedType}.");
 }
+#endif

@@ -9,9 +9,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class SettingsCardsLayout
 {
-    private static readonly Lazy<CardsResources> Resources = new(static () => new CardsResources());
-
-    private static CardsResources AXAMLResources => Resources.Value;
+    private static CardsResources AXAMLResources => CardsResources.Current;
 
     public static double NumberBoxWidth => AXAMLResources.AxamlSettingsCards.NumberBoxWidth;
     public static Thickness RightControlMargin => AXAMLResources.AxamlSettingsCards.RightControlMargin;

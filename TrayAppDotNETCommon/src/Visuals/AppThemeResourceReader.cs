@@ -28,6 +28,7 @@ public static class AppThemeResourceReader
         throw new InvalidOperationException($"Theme color resource '{key}' is missing or not a Color.");
     }
 
+#if DEBUG
     /// <summary>
     /// Applies present reloaded entries while preserving existing references and omitted fallbacks.
     /// </summary>
@@ -45,4 +46,5 @@ public static class AppThemeResourceReader
             currentResources[key] = candidateValue;
         }
     }
+#endif
 }

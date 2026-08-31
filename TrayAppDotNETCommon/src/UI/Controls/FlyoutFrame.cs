@@ -6,9 +6,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class FlyoutFrameLayout
 {
-    private static readonly Lazy<FlyoutFrameResources> Resources = new(static () => new FlyoutFrameResources());
-
-    private static FlyoutFrameResources AXAMLResources => Resources.Value;
+    private static FlyoutFrameResources AXAMLResources => FlyoutFrameResources.Current;
 
     public static Thickness ZeroThickness => AXAMLResources.AxamlFlyoutFrame.ZeroThickness;
     public static CornerRadius ZeroCornerRadius => AXAMLResources.AxamlFlyoutFrame.ZeroCornerRadius;

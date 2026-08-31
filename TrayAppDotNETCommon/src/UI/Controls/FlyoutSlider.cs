@@ -10,9 +10,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class FlyoutSliderLayout
 {
-    private static readonly Lazy<FlyoutSliderResources> Resources = new(static () => new FlyoutSliderResources());
-
-    private static FlyoutSliderResources AXAMLResources => Resources.Value;
+    private static FlyoutSliderResources AXAMLResources => FlyoutSliderResources.Current;
 
     public static double TrackHeight => AXAMLResources.AxamlFlyoutSlider.TrackHeight;
     public static CornerRadius CapsuleCornerRadius => AXAMLResources.AxamlFlyoutSlider.CapsuleCornerRadius;

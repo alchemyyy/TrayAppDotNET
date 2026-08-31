@@ -8,7 +8,9 @@ using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -88,7 +90,9 @@ public sealed class EnvironmentalMapPickerWindow : Window
         _controlNames.AssignLogicalSubtree(content, nameof(EnvironmentalMapPickerWindow));
         Content = content;
         _settings.Changed += OnSettingsChanged;
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+#endif
         UpdateCoordinateText();
     }
 
@@ -304,6 +308,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
         _glyphBindings.Add((button.Label, resolveGlyph));
     }
 
+#if DEBUG
     /// <summary>
     /// Reapplies glyph metadata to controls that remain alive while the picker is hidden.
     /// </summary>
@@ -318,6 +323,7 @@ public sealed class EnvironmentalMapPickerWindow : Window
             GlyphApplicator.ApplyTo(target, resolve());
         }
     }
+#endif
 
     private void OnSettingsChanged() => Dispatcher.UIThread.Post(() =>
     {
@@ -394,7 +400,9 @@ public sealed class EnvironmentalMapPickerWindow : Window
     {
         Closing -= OnClosing;
         _settings.Changed -= OnSettingsChanged;
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
+#endif
         _glyphBindings.Clear();
         Applied = null;
         try

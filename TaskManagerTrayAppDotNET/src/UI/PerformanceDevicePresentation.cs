@@ -36,12 +36,6 @@ internal static class PerformanceDevicePresentationFactory
     private const double HertzPerGigahertz = 1_000_000_000;
     private const string NetworkDeviceNameSeparator = " - ";
 
-    private static readonly Color CPUAccent = Color.FromRgb(0x32, 0xB5, 0xE5);
-    private static readonly Color MemoryAccent = Color.FromRgb(0x58, 0x83, 0xD0);
-    private static readonly Color GPUAccent = Color.FromRgb(0xA9, 0x4F, 0xC4);
-    private static readonly Color NetworkAccent = Color.FromRgb(0xD0, 0x47, 0x80);
-    private static readonly Color DiskAccent = Color.FromRgb(0x8B, 0xAD, 0x3C);
-
     /// <summary>Projects one immutable snapshot into the complete live device list.</summary>
     public static List<PerformanceDevicePresentation> Create(PerformanceSnapshot snapshot) =>
         Create(
@@ -86,15 +80,19 @@ internal static class PerformanceDevicePresentationFactory
     }
 
     /// <summary>Gets the Task Manager-style graph accent for a device category.</summary>
-    public static Color GetAccent(PerformanceDeviceKind kind) => kind switch
+    public static Color GetAccent(PerformanceDeviceKind kind)
     {
-        PerformanceDeviceKind.CPU => CPUAccent,
-        PerformanceDeviceKind.Memory => MemoryAccent,
-        PerformanceDeviceKind.GPU => GPUAccent,
-        PerformanceDeviceKind.Network => NetworkAccent,
-        PerformanceDeviceKind.Disk => DiskAccent,
-        _ => CPUAccent
-    };
+        TaskManagerWindowResources resources = TaskManagerWindowResources.Current;
+        return kind switch
+        {
+            PerformanceDeviceKind.CPU => resources.AxamlTaskManagerPerformance.CPUAccentColor,
+            PerformanceDeviceKind.Memory => resources.AxamlTaskManagerPerformance.MemoryAccentColor,
+            PerformanceDeviceKind.GPU => resources.AxamlTaskManagerPerformance.GPUAccentColor,
+            PerformanceDeviceKind.Network => resources.AxamlTaskManagerPerformance.NetworkAccentColor,
+            PerformanceDeviceKind.Disk => resources.AxamlTaskManagerPerformance.DiskAccentColor,
+            _ => resources.AxamlTaskManagerPerformance.CPUAccentColor
+        };
+    }
 
     /// <summary>Formats the configured graph duration for detail labels.</summary>
     public static string FormatHistoryWindow(int historyLengthMinutes)
@@ -180,7 +178,7 @@ internal static class PerformanceDevicePresentationFactory
             string.Concat("% Utilization over ", graphWindow),
             sample.HasUtilizationSample,
             sample.UtilizationPercent,
-            CPUAccent,
+            GetAccent(PerformanceDeviceKind.CPU),
             statistics);
     }
 
@@ -259,7 +257,7 @@ internal static class PerformanceDevicePresentationFactory
             string.Concat("Memory use over ", graphWindow),
             sample.HasMemoryData,
             sample.UtilizationPercent,
-            MemoryAccent,
+            GetAccent(PerformanceDeviceKind.Memory),
             statistics);
     }
 
@@ -346,7 +344,7 @@ internal static class PerformanceDevicePresentationFactory
             string.Concat("% Utilization over ", graphWindow),
             sample.HasUtilizationSample,
             sample.UtilizationPercent,
-            GPUAccent,
+            GetAccent(PerformanceDeviceKind.GPU),
             statistics);
     }
 
@@ -389,7 +387,7 @@ internal static class PerformanceDevicePresentationFactory
             string.Concat("% Link utilization over ", graphWindow),
             hasNormalizedUtilization,
             utilizationPercent,
-            NetworkAccent,
+            GetAccent(PerformanceDeviceKind.Network),
             statistics);
     }
 
@@ -458,7 +456,7 @@ internal static class PerformanceDevicePresentationFactory
             string.Concat("% Active time over ", graphWindow),
             hasPerformanceSample,
             activeTimePercent,
-            DiskAccent,
+            GetAccent(PerformanceDeviceKind.Disk),
             statistics);
     }
 

@@ -9,7 +9,9 @@ using BrightnessTrayAppDotNET.UI;
 using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Controls.Maps;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 
 namespace BrightnessTrayAppDotNET.UI.Settings.Environmental;
@@ -70,7 +72,9 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         PointerReleased += OnPointerReleased;
         PointerWheelChanged += OnPointerWheelChanged;
         PointerCaptureLost += OnPointerCaptureLost;
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
+#endif
     }
 
     public event EventHandler? CoordinateChanged;
@@ -175,6 +179,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         text.Draw(context, origin);
     }
 
+#if DEBUG
     /// <summary>
     /// Invalidates the map so its drawn pin uses the reloaded glyph.
     /// </summary>
@@ -184,6 +189,7 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
 
         InvalidateVisual();
     }
+#endif
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -410,7 +416,9 @@ internal sealed class EnvironmentalMapPickerCanvas : Control, IDisposable
         PointerReleased -= OnPointerReleased;
         PointerWheelChanged -= OnPointerWheelChanged;
         PointerCaptureLost -= OnPointerCaptureLost;
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded;
+#endif
         CoordinateChanged = null;
         Cursor = null;
     }

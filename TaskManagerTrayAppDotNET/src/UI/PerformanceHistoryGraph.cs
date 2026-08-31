@@ -10,9 +10,6 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Paints a Task Manager-style utilization history.</summary>
 internal sealed class PerformanceHistoryGraph : Control
 {
-    private const double HoverLineDashGapLength = 2;
-    private const int MaximumHoverMetricLines = 2;
-
     private readonly IBrush _backgroundBrush;
     private readonly Pen _borderPen;
     private readonly Pen _gridPen;
@@ -22,8 +19,10 @@ internal sealed class PerformanceHistoryGraph : Control
     private readonly Typeface _hoverTypeface;
     private readonly double _hoverFontSize;
     private readonly double _hoverLineClipPadding;
+    private readonly double _hoverLineDashGapLength;
     private readonly double _hoverTextCursorGap;
     private readonly double _hoverTextInset;
+    private readonly int _hoverMaximumTextLines;
     private readonly double _lineThickness;
     private readonly double _secondaryLineThickness;
     private readonly double _secondaryLineOpacity;
@@ -55,26 +54,34 @@ internal sealed class PerformanceHistoryGraph : Control
         _borderPen = new Pen(
             TrayAppDotNETSettingsUI.Brush(palette.Border),
             resources.AxamlTaskManagerPerformance.GraphBorderThickness);
+        byte gridAlpha = (byte)Math.Round(
+            byte.MaxValue * Math.Clamp(
+                resources.AxamlTaskManagerPerformance.GraphGridLineOpacity,
+                0,
+                1));
         Color gridColor = Color.FromArgb(
-            92,
+            gridAlpha,
             palette.Border.R,
             palette.Border.G,
             palette.Border.B);
         _gridPen = new Pen(
             new SolidColorBrush(gridColor),
             resources.AxamlTaskManagerPerformance.GraphGridLineThickness);
+        Color hoverLineColor = resources.AxamlTaskManagerPerformance.GraphHoverLineColor;
         byte hoverLineAlpha = (byte)Math.Round(
-            byte.MaxValue * Math.Clamp(
+            hoverLineColor.A * Math.Clamp(
                 resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,
                 0,
                 1));
         IBrush hoverLineBrush = new SolidColorBrush(Color.FromArgb(
             hoverLineAlpha,
-            byte.MaxValue,
-            byte.MaxValue,
-            byte.MaxValue));
+            hoverLineColor.R,
+            hoverLineColor.G,
+            hoverLineColor.B));
         double hoverLineThickness =
             resources.AxamlTaskManagerPerformance.GraphHoverLineThickness;
+        // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so
+        // the immutable Pen retains Avalonia's built-in Dash preset
         _hoverLinePen = new Pen(
             hoverLineBrush,
             hoverLineThickness,
@@ -85,8 +92,13 @@ internal sealed class PerformanceHistoryGraph : Control
         _hoverFontSize = resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize;
         _hoverLineClipPadding =
             resources.AxamlTaskManagerPerformance.GraphHoverLineClipPadding;
+        _hoverLineDashGapLength =
+            resources.AxamlTaskManagerPerformance.GraphHoverLineDashGapLength;
         _hoverTextCursorGap = resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap;
         _hoverTextInset = resources.AxamlTaskManagerPerformance.GraphHoverTextInset;
+        _hoverMaximumTextLines = Math.Max(
+            1,
+            resources.AxamlTaskManagerPerformance.GraphHoverMaximumTextLines);
         _lineThickness = resources.AxamlTaskManagerPerformance.GraphLineThickness;
         _secondaryLineThickness =
             resources.AxamlTaskManagerPerformance.GraphSecondaryLineThickness;
@@ -253,7 +265,7 @@ internal sealed class PerformanceHistoryGraph : Control
             textWrapping: TextWrapping.NoWrap,
             textTrimming: TextTrimming.CharacterEllipsis,
             maxWidth: maximumTextWidth,
-            maxLines: MaximumHoverMetricLines);
+            maxLines: _hoverMaximumTextLines);
 
         double preferredTextLeft = sample.PositionX - metricText.Width / 2;
         double textLeft = ClampMetricCoordinate(
@@ -313,7 +325,7 @@ internal sealed class PerformanceHistoryGraph : Control
                 new Point(positionX, upperLineEnd));
             double terminalStart = Math.Max(
                 0,
-                upperLineEnd - _hoverLineTerminalPen.Thickness * HoverLineDashGapLength);
+                upperLineEnd - _hoverLineTerminalPen.Thickness * _hoverLineDashGapLength);
             context.DrawLine(
                 _hoverLineTerminalPen,
                 new Point(positionX, terminalStart),

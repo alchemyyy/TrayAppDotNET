@@ -9,18 +9,17 @@ namespace TaskManagerTrayAppDotNET.UI;
 /// <summary>Base window for live editing of one Processes column's display properties.</summary>
 internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
 {
-    private const double WindowWidth = 460;
-    private const double DefaultWindowHeight = 280;
-    private const double ControlWidth = 190;
-    private const double ContentPadding = 16;
-    private const double TitleBarHeight = 32;
-    private const double TitleFontSize = 13;
-    private const double RootCornerRadius = 8;
-
     private readonly List<IDisposable> _ownedControls = [];
     private readonly TextBox _nicknameTextBox;
     private readonly Grid _titleBar;
     private readonly TrayAppDotNETCaptionCloseButton _closeButton;
+#if DEBUG
+    private readonly bool _enableRoundedCorners;
+    private readonly Border _rootBorder;
+    private readonly Border _body;
+    private readonly Grid _chrome;
+    private readonly TextBlock _titleText;
+#endif
     private Action<ProcessColumnSetting>? _apply;
     private int _disposed;
 
@@ -38,14 +37,18 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
 
         Setting = ProcessColumnSettings.Clone(setting);
         Palette = palette;
+        WindowResources = TaskManagerWindowResources.Current;
+#if DEBUG
+        _enableRoundedCorners = enableRoundedCorners;
+#endif
         _apply = apply;
 
         ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Get(setting.Column);
         Title = definition.Title;
-        Width = WindowWidth;
-        MinWidth = WindowWidth;
-        MaxWidth = WindowWidth;
-        SetFixedHeight(DefaultWindowHeight);
+        Width = WindowResources.AxamlProcessColumnProperties.WindowWidth;
+        MinWidth = WindowResources.AxamlProcessColumnProperties.WindowWidth;
+        MaxWidth = WindowResources.AxamlProcessColumnProperties.WindowWidth;
+        SetFixedHeight(WindowResources.AxamlProcessColumnProperties.DefaultWindowHeight);
         WindowDecorations = WindowDecorations.None;
         CanResize = false;
         ShowInTaskbar = false;
@@ -55,7 +58,10 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
 
         ContentStack = new StackPanel();
-        _nicknameTextBox = TrayAppDotNETSettingsUI.TextBox(palette, ControlWidth, Setting.Nickname);
+        _nicknameTextBox = TrayAppDotNETSettingsUI.TextBox(
+            palette,
+            WindowResources.AxamlProcessColumnProperties.ControlWidth,
+            Setting.Nickname);
         _nicknameTextBox.PlaceholderText = definition.Title;
         _nicknameTextBox.TextChanged += OnNicknameTextChanged;
         AddCard(
@@ -68,10 +74,22 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         TrayAppDotNETToolTip.SetTip(_closeButton, "Close");
         TrayAppDotNETToolTip.SuppressWhileEngaged(_closeButton);
 
-        _titleBar = BuildTitleBar(definition.Title, palette, _closeButton);
+        _titleBar = BuildTitleBar(definition.Title, palette, WindowResources, _closeButton);
         _titleBar.PointerPressed += OnTitleBarPointerPressed;
 
-        Content = BuildRoot(palette, enableRoundedCorners, _titleBar, ContentStack);
+        Border rootBorder = BuildRoot(
+            palette,
+            enableRoundedCorners,
+            WindowResources,
+            _titleBar,
+            ContentStack);
+        Content = rootBorder;
+#if DEBUG
+        _rootBorder = rootBorder;
+        _chrome = (Grid)rootBorder.Child!;
+        _body = (Border)_chrome.Children[1];
+        _titleText = (TextBlock)_titleBar.Children[0];
+#endif
         KeyDown += OnWindowKeyDown;
         Closed += OnClosed;
     }
@@ -79,6 +97,8 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
     protected ProcessColumnSetting Setting { get; }
 
     protected SettingsPalette Palette { get; }
+
+    protected TaskManagerWindowResources WindowResources { get; }
 
     protected StackPanel ContentStack { get; }
 
@@ -121,6 +141,60 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         _apply?.Invoke(ProcessColumnSettings.Clone(Setting));
     }
 
+#if DEBUG
+    /// <summary>Applies current AXAML metrics without replacing the editor's live controls.</summary>
+    internal void ApplyAXAMLResources(IReadOnlyList<ProcessColumnSetting> currentSettings)
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+        ArgumentNullException.ThrowIfNull(currentSettings);
+
+        for (int settingIndex = 0; settingIndex < currentSettings.Count; settingIndex++)
+        {
+            ProcessColumnSetting currentSetting = currentSettings[settingIndex];
+            if (currentSetting.Column != Setting.Column) continue;
+
+            Setting.Width = currentSetting.Width;
+            break;
+        }
+
+        double width = WindowResources.AxamlProcessColumnProperties.WindowWidth;
+        Width = width;
+        MinWidth = width;
+        MaxWidth = width;
+        SetFixedHeight(ResolveWindowHeight(WindowResources, Setting.Column));
+        _nicknameTextBox.Width = WindowResources.AxamlProcessColumnProperties.ControlWidth;
+        _body.Padding = WindowResources.AxamlProcessColumnProperties.ContentPadding;
+        _chrome.RowDefinitions[0].Height = new GridLength(
+            WindowResources.AxamlProcessColumnProperties.TitleBarHeight);
+        _rootBorder.BorderThickness = WindowResources.AxamlProcessColumnProperties.RootBorderThickness;
+        _rootBorder.CornerRadius = _enableRoundedCorners
+            ? WindowResources.AxamlProcessColumnProperties.RootCornerRadius
+            : default;
+        _titleText.FontSize = WindowResources.AxamlProcessColumnProperties.TitleFontSize;
+        _titleText.FontWeight = (FontWeight)WindowResources.AxamlProcessColumnProperties.TitleFontWeight;
+        _titleText.Margin = WindowResources.AxamlProcessColumnProperties.TitleMargin;
+        ApplySpecializedAXAMLResources(WindowResources);
+    }
+
+    protected virtual void ApplySpecializedAXAMLResources(TaskManagerWindowResources resources)
+    {
+    }
+
+    private static double ResolveWindowHeight(
+        TaskManagerWindowResources resources,
+        ProcessTableColumnKind column) =>
+        column switch
+        {
+            ProcessTableColumnKind.CPU or ProcessTableColumnKind.CPUUtility =>
+                resources.AxamlProcessColumnProperties.CPUWindowHeight,
+            ProcessTableColumnKind.UserName =>
+                resources.AxamlProcessColumnProperties.UserNameWindowHeight,
+            _ when ProcessColumnSettings.IsMemoryColumn(column) =>
+                resources.AxamlProcessColumnProperties.MemoryWindowHeight,
+            _ => resources.AxamlProcessColumnProperties.DefaultWindowHeight
+        };
+#endif
+
     private void OnNicknameTextChanged(object? sender, TextChangedEventArgs eventArgs)
     {
         Setting.Nickname = _nicknameTextBox.Text ?? string.Empty;
@@ -130,17 +204,19 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
     private static Border BuildRoot(
         SettingsPalette palette,
         bool enableRoundedCorners,
+        TaskManagerWindowResources resources,
         Grid titleBar,
         StackPanel contentStack)
     {
         Border body = new()
         {
-            Padding = new Thickness(ContentPadding),
+            Padding = resources.AxamlProcessColumnProperties.ContentPadding,
             Child = contentStack
         };
 
         Grid chrome = new();
-        chrome.RowDefinitions.Add(new RowDefinition(new GridLength(TitleBarHeight)));
+        chrome.RowDefinitions.Add(new RowDefinition(
+            new GridLength(resources.AxamlProcessColumnProperties.TitleBarHeight)));
         chrome.RowDefinitions.Add(new RowDefinition(GridLength.Star));
         chrome.Children.Add(titleBar);
         Grid.SetRow(body, 1);
@@ -150,9 +226,9 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         {
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
-            BorderThickness = new Thickness(1),
+            BorderThickness = resources.AxamlProcessColumnProperties.RootBorderThickness,
             CornerRadius = enableRoundedCorners
-                ? new CornerRadius(RootCornerRadius)
+                ? resources.AxamlProcessColumnProperties.RootCornerRadius
                 : default,
             Child = chrome
         };
@@ -161,6 +237,7 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
     private static Grid BuildTitleBar(
         string title,
         SettingsPalette palette,
+        TaskManagerWindowResources resources,
         TrayAppDotNETCaptionCloseButton closeButton)
     {
         Grid titleBar = new() { Background = Brushes.Transparent };
@@ -170,10 +247,10 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         TextBlock titleText = TrayAppDotNETSettingsUI.Text(
             title,
             palette,
-            TitleFontSize,
-            FontWeight.SemiBold);
+            resources.AxamlProcessColumnProperties.TitleFontSize,
+            (FontWeight)resources.AxamlProcessColumnProperties.TitleFontWeight);
         titleText.VerticalAlignment = VerticalAlignment.Center;
-        titleText.Margin = new Thickness(12, 0, 8, 0);
+        titleText.Margin = resources.AxamlProcessColumnProperties.TitleMargin;
         titleText.TextTrimming = TextTrimming.CharacterEllipsis;
         titleBar.Children.Add(titleText);
 
@@ -237,8 +314,6 @@ internal sealed class DefaultProcessColumnPropertiesWindow : ProcessColumnProper
 
 internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnPropertiesWindow
 {
-    private const double WindowHeight = 410;
-
     public CPUProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
@@ -246,7 +321,7 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
         Action<ProcessColumnSetting> apply)
         : base(setting, palette, enableRoundedCorners, apply)
     {
-        SetFixedHeight(WindowHeight);
+        SetFixedHeight(WindowResources.AxamlProcessColumnProperties.CPUWindowHeight);
 
         SettingsToggle percentSuffixToggle = TrayAppDotNETSettingsUI.Toggle(
             palette,
@@ -278,9 +353,6 @@ internal sealed class CPUProcessColumnPropertiesWindow : ProcessColumnProperties
 
 internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropertiesWindow
 {
-    private const double WindowHeight = 410;
-    private const double ControlWidth = 190;
-
     private readonly SettingsComboBox _unitComboBox;
     private readonly TextBox _suffixTextBox;
     private bool _isSynchronizingControls;
@@ -292,9 +364,11 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
         Action<ProcessColumnSetting> apply)
         : base(setting, palette, enableRoundedCorners, apply)
     {
-        SetFixedHeight(WindowHeight);
+        SetFixedHeight(WindowResources.AxamlProcessColumnProperties.MemoryWindowHeight);
 
-        _unitComboBox = TrayAppDotNETSettingsUI.ComboBox(palette, ControlWidth);
+        _unitComboBox = TrayAppDotNETSettingsUI.ComboBox(
+            palette,
+            WindowResources.AxamlProcessColumnProperties.ControlWidth);
         AddUnit(ProcessMemoryUnit.Kilobytes, "Kilobytes");
         AddUnit(ProcessMemoryUnit.Megabytes, "Megabytes");
         AddUnit(ProcessMemoryUnit.Gigabytes, "Gigabytes");
@@ -307,7 +381,10 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
             "Choose the divisor used to display memory values.",
             _unitComboBox);
 
-        _suffixTextBox = TrayAppDotNETSettingsUI.TextBox(palette, ControlWidth, Setting.MemorySuffix);
+        _suffixTextBox = TrayAppDotNETSettingsUI.TextBox(
+            palette,
+            WindowResources.AxamlProcessColumnProperties.ControlWidth,
+            Setting.MemorySuffix);
         _suffixTextBox.TextChanged += OnSuffixTextChanged;
         AddCard(
             "Memory suffix",
@@ -317,6 +394,14 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
 
     private void AddUnit(ProcessMemoryUnit unit, string label) =>
         _unitComboBox.Items.Add(new SettingsComboBoxItem(unit, label, Palette));
+
+#if DEBUG
+    protected override void ApplySpecializedAXAMLResources(TaskManagerWindowResources resources)
+    {
+        _unitComboBox.Width = resources.AxamlProcessColumnProperties.ControlWidth;
+        _suffixTextBox.Width = resources.AxamlProcessColumnProperties.ControlWidth;
+    }
+#endif
 
     private void SelectUnit(ProcessMemoryUnit unit)
     {
@@ -359,8 +444,6 @@ internal sealed class MemoryProcessColumnPropertiesWindow : ProcessColumnPropert
 
 internal sealed class UserNameProcessColumnPropertiesWindow : ProcessColumnPropertiesWindow
 {
-    private const double WindowHeight = 330;
-
     public UserNameProcessColumnPropertiesWindow(
         ProcessColumnSetting setting,
         SettingsPalette palette,
@@ -368,7 +451,7 @@ internal sealed class UserNameProcessColumnPropertiesWindow : ProcessColumnPrope
         Action<ProcessColumnSetting> apply)
         : base(setting, palette, enableRoundedCorners, apply)
     {
-        SetFixedHeight(WindowHeight);
+        SetFixedHeight(WindowResources.AxamlProcessColumnProperties.UserNameWindowHeight);
 
         SettingsToggle prefixToggle = TrayAppDotNETSettingsUI.Toggle(
             palette,

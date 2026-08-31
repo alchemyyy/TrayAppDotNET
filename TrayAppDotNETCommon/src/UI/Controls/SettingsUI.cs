@@ -18,9 +18,7 @@ namespace TrayAppDotNETCommon.UI.Controls;
 
 internal static class SettingsUILayout
 {
-    private static readonly Lazy<SettingsUIResources> Resources = new(static () => new SettingsUIResources());
-
-    private static SettingsUIResources AXAMLResources => Resources.Value;
+    private static SettingsUIResources AXAMLResources => SettingsUIResources.Current;
 
     public static Thickness NavItemMargin => AXAMLResources.AxamlSettingsUI.NavItemMargin;
     public static Thickness NavActionMargin => AXAMLResources.AxamlSettingsUI.NavActionMargin;
@@ -1229,6 +1227,16 @@ public sealed class SettingsVerticalScrollViewport : Grid, IDisposable
         _scrollBar.SetStyle(scrollBarStyle);
     }
 
+#if DEBUG
+    /// <summary>Replaces immutable scrollbar menu options and closes a menu using the old snapshot.</summary>
+    public void SetContextMenuOptions(ContextMenuWindowOptions contextMenuOptions)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
+        _scrollBar.SetContextMenuOptions(contextMenuOptions);
+    }
+#endif
+
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
     {
         double maximumOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
@@ -1347,6 +1355,29 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         Children.Add(_cornerHost);
     }
 
+#if DEBUG
+    /// <summary>Gets the current horizontal offset for a hot-reload state snapshot.</summary>
+    public double HorizontalOffset => _scrollViewer.Offset.X;
+
+    /// <summary>Gets the current vertical offset for a hot-reload state snapshot.</summary>
+    public double VerticalOffset => _scrollViewer.Offset.Y;
+
+    /// <summary>Restores clamped offsets after a hot-reload content rebuild.</summary>
+    public void SetOffsets(double horizontalOffset, double verticalOffset)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        double horizontalMaximum = Math.Max(0, _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width);
+        double verticalMaximum = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        double nextHorizontalOffset = horizontalMaximum <= 0
+            ? 0
+            : Math.Clamp(horizontalOffset, 0, horizontalMaximum);
+        double nextVerticalOffset = verticalMaximum <= 0
+            ? 0
+            : Math.Clamp(verticalOffset, 0, verticalMaximum);
+        _scrollViewer.Offset = new Vector(nextHorizontalOffset, nextVerticalOffset);
+    }
+#endif
+
     protected override void OnPointerWheelChanged(PointerWheelEventArgs eventArgs)
     {
         bool useHorizontal =
@@ -1388,6 +1419,17 @@ public sealed class SettingsScrollViewport : Grid, IDisposable
         _horizontalScrollBar.SetStyle(scrollBarStyle);
         _cornerHost.Background = TrayAppDotNETSettingsUI.Brush(scrollBarStyle.TrackColor);
     }
+
+#if DEBUG
+    /// <summary>Replaces immutable scrollbar menu options and closes menus using the old snapshot.</summary>
+    public void SetContextMenuOptions(ContextMenuWindowOptions contextMenuOptions)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
+        _verticalScrollBar.SetContextMenuOptions(contextMenuOptions);
+        _horizontalScrollBar.SetContextMenuOptions(contextMenuOptions);
+    }
+#endif
 
     /// <summary>Reserves space above the vertical scrollbar without moving the scroll viewport.</summary>
     public void SetVerticalScrollBarTopInset(double topInset)
@@ -1444,7 +1486,11 @@ internal sealed class SettingsScrollBar : Control, IDisposable
     private const string ScrollRightText = "Scroll Right";
 
     private readonly Orientation _orientation;
+#if DEBUG
+    private ContextMenuWindowOptions _contextMenuOptions;
+#else
     private readonly ContextMenuWindowOptions _contextMenuOptions;
+#endif
     private SettingsScrollBarStyle _style;
     private IBrush _trackBrush;
     private IBrush _idleThumbBrush;
@@ -1547,6 +1593,17 @@ internal sealed class SettingsScrollBar : Control, IDisposable
         UpdateTrackThickness();
         InvalidateVisual();
     }
+
+#if DEBUG
+    /// <summary>Replaces immutable menu options and closes any menu built from the prior snapshot.</summary>
+    internal void SetContextMenuOptions(ContextMenuWindowOptions contextMenuOptions)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(contextMenuOptions);
+        CloseContextMenu();
+        _contextMenuOptions = contextMenuOptions;
+    }
+#endif
 
     public override void Render(DrawingContext context)
     {

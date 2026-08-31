@@ -9,7 +9,9 @@ using Avalonia.Threading;
 using BatteryTrayAppDotNET.Models;
 using BatteryTrayAppDotNET.Services;
 using Microsoft.Win32;
+#if DEBUG
 using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
+#endif
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
@@ -103,8 +105,10 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         WindowResources.Add(() => _settings.Changed -= OnSettingsChanged);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         WindowResources.Add(() => SystemEvents.PowerModeChanged -= OnPowerModeChanged);
+#if DEBUG
         GlyphCatalogHotReload.ResourcesReloaded += OnGlyphCatalogResourcesReloaded;
         WindowResources.Add(() => GlyphCatalogHotReload.ResourcesReloaded -= OnGlyphCatalogResourcesReloaded);
+#endif
         Rebuild();
     }
 
@@ -176,6 +180,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
         QueueRebuild();
     }
 
+#if DEBUG
     /// <summary>
     /// Rebuilds code-created flyout glyphs after a catalog source reload.
     /// </summary>
@@ -185,6 +190,7 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
 
         QueueRebuild();
     }
+#endif
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {

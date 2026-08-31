@@ -78,7 +78,8 @@
                       PrivateAssets="all" />
     <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True" />
+    <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="$(AvaloniaVersion)" PrivateAssets="All" Publish="True"
+                      Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="HotAvalonia" Version="$(HotAvaloniaPackageVersion)" PrivateAssets="All" Publish="True"
                       Condition="'$(Configuration)' == 'Debug'" />
