@@ -38,6 +38,10 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public new static Glyph CHEVRON_DOWN_BIG => Glyph("ChevronDownBig");
 
+    public static Glyph CARET_LEFT => Glyph("CaretLeft");
+
+    public static Glyph CARET_RIGHT => Glyph("CaretRight");
+
     /// <summary>
     /// Returns the PC1 glyph with TaskManagerApp fitted to its monitor frame.
     /// </summary>

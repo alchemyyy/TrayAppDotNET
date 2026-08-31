@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Visuals;
+using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;
 
@@ -46,9 +47,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private static readonly Glyph StartupAppsGlyph = Glyph.Fluent("\uE768");
     private static readonly Glyph UsersGlyph = Glyph.Fluent("\uE716");
     private static readonly Glyph ServicesGlyph = Glyph.Fluent("\uEA86");
-    private static readonly Glyph GlobalNavigationButtonGlyph = Glyph.Fluent(
-        "\uE700",
-        FontWeight.Normal);
 
     private readonly AppSettings _settings;
     private readonly AppTheme _theme;
@@ -127,6 +125,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override bool EnableResponsiveSidebarCollapse => _settings.CollapseSidebarWhenNarrow;
     protected override double SidebarCollapseThreshold =>
         _taskManagerResources.AxamlTaskManagerWindow.SidebarCollapseThreshold;
+    protected override double CollapsedSidebarWidth =>
+        _taskManagerResources.AxamlTaskManagerWindow.CollapsedSidebarWidth;
     protected override bool HandleNavigationRequest(TaskManagerPage pageKey)
     {
         if (pageKey != TaskManagerPage.Settings) return false;
@@ -142,6 +142,36 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     protected override Color ConfirmOverlayBackdrop =>
         _theme.FlyoutOverlayBackdrop.For(ResolveEffectiveIsLight());
 
+    protected override SettingsSidebar BuildSidebar() => new TaskManagerSidebar(_taskManagerResources);
+
+    protected override Control BuildSidebarHeader(TextBlock title, SettingsPalette palette)
+    {
+        double iconSize =
+            _taskManagerResources.AxamlTaskManagerWindow.CollapsedSidebarHeaderIconSize;
+        SkiaCompositeGlyphIcon icon = new(TaskManagerGlyphCatalog.TASK_MANAGER_APP_COMPOSITE)
+        {
+            Width = iconSize,
+            Height = iconSize,
+            IconColor = palette.Foreground,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0,
+            IsHitTestVisible = false
+        };
+        return new TaskManagerSidebarHeader(title, icon);
+    }
+
+    protected override void UpdateSidebarHeader(Control sidebarHeader, bool usesCompactRail)
+    {
+        if (sidebarHeader is TaskManagerSidebarHeader taskManagerHeader)
+        {
+            taskManagerHeader.SetCompact(usesCompactRail);
+            return;
+        }
+
+        base.UpdateSidebarHeader(sidebarHeader, usesCompactRail);
+    }
+
     protected override void OnOpened(EventArgs eventArgs)
     {
         // Register before the shared shell hook so its handled-message return value remains last
@@ -154,32 +184,63 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         base.OnOpened(eventArgs);
     }
 
-    protected override Control BuildSidebarHeader(TextBlock title, SettingsPalette palette)
+    protected override Control? BuildSidebarOverlay(SettingsPalette palette)
     {
-        title.VerticalAlignment = VerticalAlignment.Center;
-        double buttonSize =
-            _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonSize;
-        SettingsButton globalNavigationButton = new(
-            GlobalNavigationButtonGlyph,
-            palette,
-            transparentBase: true)
+        double buttonWidth = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonWidth;
+        double buttonHeight = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonHeight;
+        SettingsButton sidebarCaretButton = new(string.Empty, palette, transparentBase: true)
         {
-            Width = buttonSize,
-            Height = buttonSize,
-            MinHeight = buttonSize,
-            Padding =
-                _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonPadding
+            Width = buttonWidth,
+            Height = buttonHeight,
+            MinHeight = buttonHeight,
+            Padding = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonPadding,
+            CornerRadius = _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretButtonCornerRadius,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        globalNavigationButton.Label.FontSize =
-            _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonGlyphFontSize;
+        sidebarCaretButton.Click += OnSidebarCaretButtonClick;
+        TrayAppDotNETToolTip.SuppressWhileEngaged(sidebarCaretButton);
+        return sidebarCaretButton;
+    }
 
-        return new StackPanel
+    protected override void UpdateSidebarOverlay(Control sidebarOverlay, bool isCollapsed)
+    {
+        if (sidebarOverlay is not SettingsButton sidebarCaretButton) return;
+
+        Glyph glyph = isCollapsed
+            ? TaskManagerGlyphCatalog.CARET_RIGHT
+            : TaskManagerGlyphCatalog.CARET_LEFT;
+        sidebarCaretButton.HorizontalAlignment = HorizontalAlignment.Right;
+        sidebarCaretButton.Child = BuildRotatedSidebarCaret(
+            glyph,
+            Palette,
+            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphFontSize,
+            _taskManagerResources.AxamlTaskManagerWindow.SidebarCaretGlyphOpacity);
+        TrayAppDotNETToolTip.SetTip(
+            sidebarCaretButton,
+            isCollapsed ? "Expand navigation" : "Collapse navigation");
+    }
+
+    private void OnSidebarCaretButtonClick(object? sender, EventArgs eventArgs) => ToggleSidebarCollapse();
+
+    private static Control BuildRotatedSidebarCaret(
+        Glyph glyph,
+        SettingsPalette palette,
+        double fontSize,
+        double opacity)
+    {
+        TextBlock caret = TrayAppDotNETSettingsUI.Text(string.Empty, palette, fontSize);
+        caret.HorizontalAlignment = HorizontalAlignment.Center;
+        caret.VerticalAlignment = VerticalAlignment.Center;
+        caret.Opacity = opacity;
+        GlyphApplicator.ApplyTo(caret, glyph);
+
+        return new Grid
         {
-            Orientation = Orientation.Horizontal,
-            Spacing =
-                _taskManagerResources.AxamlTaskManagerWindow.GlobalNavigationButtonSpacing,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { title, globalNavigationButton }
+            IsHitTestVisible = false,
+            RenderTransformOrigin = RelativePoint.Center,
+            RenderTransform = new RotateTransform(90),
+            Children = { caret }
         };
     }
 
@@ -706,5 +767,37 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (_exitRequested) return;
         _exitRequested = true;
         Dispatcher.UIThread.Post(_exitApplication);
+    }
+
+    private sealed class TaskManagerSidebarHeader : Grid
+    {
+        private readonly TextBlock _title;
+        private readonly Control _icon;
+
+        public TaskManagerSidebarHeader(TextBlock title, Control icon)
+        {
+            _title = title;
+            _icon = icon;
+            Children.Add(_title);
+            Children.Add(_icon);
+        }
+
+        public void SetCompact(bool isCompact)
+        {
+            _title.Opacity = isCompact ? 0 : 1;
+            _title.IsHitTestVisible = !isCompact;
+            _icon.Opacity = isCompact ? 1 : 0;
+        }
+    }
+
+    private sealed class TaskManagerSidebar : SettingsSidebar
+    {
+        public TaskManagerSidebar(TaskManagerWindowResources resources)
+            : base(
+                resources.AxamlTaskManagerWindow.SidebarHeaderMargin,
+                resources.AxamlTaskManagerWindow.SidebarNavigationMargin,
+                resources.AxamlTaskManagerWindow.SidebarFooterMargin)
+        {
+        }
     }
 }

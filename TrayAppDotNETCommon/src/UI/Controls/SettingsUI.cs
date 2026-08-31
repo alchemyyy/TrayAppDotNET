@@ -40,6 +40,8 @@ internal static class SettingsUILayout
     public static double Windows11NavIconColumnWidth => AXAMLResources.AxamlSettingsUI.Windows11NavIconColumnWidth;
     public static Thickness Windows11NavIconMargin => AXAMLResources.AxamlSettingsUI.Windows11NavIconMargin;
     public static Thickness Windows11NavLabelMargin => AXAMLResources.AxamlSettingsUI.Windows11NavLabelMargin;
+    public static double Windows11CompactNavItemWidth =>
+        AXAMLResources.AxamlSettingsUI.Windows11CompactNavItemWidth;
     public static CornerRadius ButtonCornerRadius => AXAMLResources.AxamlSettingsUI.ButtonCornerRadius;
     public static double ButtonMinHeight => AXAMLResources.AxamlSettingsUI.ButtonMinHeight;
     public static Thickness ButtonPadding => AXAMLResources.AxamlSettingsUI.ButtonPadding;
@@ -343,12 +345,16 @@ public interface ISettingsNavigationIcon
 public sealed class SettingsNavItem : Border
 {
     private readonly SettingsPalette _palette;
+    private readonly string _text;
     private readonly Border _outer;
     private readonly Border _indicator;
+    private readonly TextBlock _label;
     private readonly IBrush _selectedIndicatorBrush;
     private readonly ISettingsNavigationIcon? _customNavigationIcon;
+    private readonly bool _useWindows11Style;
     private bool _isPointerOver;
     private bool _isSelected;
+    private bool _isCompact;
 
     public SettingsNavItem(
         string text,
@@ -362,6 +368,8 @@ public sealed class SettingsNavItem : Border
         ITransform? navigationIconTransform = null)
     {
         _palette = palette;
+        _text = text;
+        _useWindows11Style = useWindows11Style;
         Background = Brushes.Transparent;
         Margin = SettingsUILayout.NavItemMargin;
         Cursor = TrayAppDotNETCursors.Hand;
@@ -382,9 +390,9 @@ public sealed class SettingsNavItem : Border
             ? TrayAppDotNETSettingsUI.Brush(SettingsUILayout.Windows11NavIndicatorColor)
             : TrayAppDotNETSettingsUI.Brush(_palette.Foreground);
 
-        TextBlock label = TrayAppDotNETSettingsUI.Text(text, palette);
-        label.VerticalAlignment = VerticalAlignment.Center;
-        label.HorizontalAlignment = HorizontalAlignment.Left;
+        _label = TrayAppDotNETSettingsUI.Text(text, palette);
+        _label.VerticalAlignment = VerticalAlignment.Center;
+        _label.HorizontalAlignment = HorizontalAlignment.Left;
 
         Grid row;
         Thickness itemPadding;
@@ -393,7 +401,7 @@ public sealed class SettingsNavItem : Border
             Control? navigationIcon = customNavigationIcon ?? CreateNavigationGlyph(navigationGlyph, palette);
             _customNavigationIcon = navigationIcon as ISettingsNavigationIcon;
             row = CreateWindows11Content(
-                label,
+                _label,
                 navigationIcon,
                 navigationIconScale,
                 navigationIconTransform);
@@ -403,7 +411,7 @@ public sealed class SettingsNavItem : Border
         {
             _indicator.Margin = SettingsUILayout.NavIndicatorMargin;
             DebugUIProvenance.RecordBuilder(_indicator);
-            row = CreateClassicContent(label);
+            row = CreateClassicContent(_label);
             itemPadding = SettingsUILayout.NavItemPadding;
         }
 
@@ -447,7 +455,7 @@ public sealed class SettingsNavItem : Border
         };
 
         DebugUIProvenance.RecordBuilder(this);
-        DebugUIProvenance.RecordBuilder(label);
+        DebugUIProvenance.RecordBuilder(_label);
         DebugUIProvenance.RecordBuilder(_outer);
     }
 
@@ -462,6 +470,21 @@ public sealed class SettingsNavItem : Border
             _isSelected = value;
             UpdateVisual();
         }
+    }
+
+    /// <summary>Switches Windows 11 navigation between labeled rows and square glyph buttons.</summary>
+    internal void SetCompact(bool isCompact)
+    {
+        if (!_useWindows11Style || _isCompact == isCompact) return;
+
+        _isCompact = isCompact;
+        _label.IsVisible = true;
+        _label.Opacity = isCompact ? 0 : 1;
+        Width = isCompact ? SettingsUILayout.Windows11CompactNavItemWidth : double.NaN;
+        HorizontalAlignment = isCompact
+            ? HorizontalAlignment.Left
+            : HorizontalAlignment.Stretch;
+        TrayAppDotNETToolTip.SetTip(this, isCompact ? _text : null);
     }
 
     /// <summary>Refreshes custom icon colors that cannot bind to the shared palette brush.</summary>

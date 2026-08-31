@@ -13,4 +13,6 @@
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Save" Text="&#xE74E;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronUpBig" Text="&#xE96D;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="1" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.ChevronDownBig" Text="&#xE96E;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CaretLeft" Text="&#xE96E;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.CaretRight" Text="&#xE96D;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="1" />
 </ResourceDictionary>

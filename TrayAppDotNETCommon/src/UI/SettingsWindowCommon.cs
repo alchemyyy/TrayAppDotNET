@@ -52,13 +52,17 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private UIContentGeneration? _pageGeneration;
     private UIResourceScope? _buildingPageResources;
     private SettingsScrollHost? _scrollHost;
-    private Grid? _sidebar;
+    private SettingsSidebar? _sidebar;
+    private Control? _sidebarHeader;
     private ColumnDefinition? _sidebarColumn;
     private SettingsSidebarResizeHandle? _sidebarResizeHandle;
+    private Control? _sidebarOverlay;
     private Grid? _pageOverlayHost;
     private bool _pageOverlayAlignsToContentArea;
     private Border? _titleBarDragZone;
     private double _currentSidebarWidth;
+    private bool? _sidebarCollapseOverride;
+    private bool? _sidebarOverlayCollapsedState;
     private TaskCompletionSource<bool>? _confirmTcs;
     private Border? _confirmOverlay;
     private TextBlock? _confirmTitle;
@@ -95,13 +99,37 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected abstract IReadOnlyList<SettingsPageDescriptor<TPageKey>> CreatePageDescriptors();
     protected abstract void Save();
 
+    /// <summary>Builds the navigation sidebar for this window.</summary>
+    protected virtual SettingsSidebar BuildSidebar() => new(
+        _settingsResources.AxamlSettingsWindow.HeaderMargin,
+        _settingsResources.AxamlSettingsWindow.NavMargin,
+        _settingsResources.AxamlSettingsWindow.FooterMargin);
+
     /// <summary>Builds the content shown in the sidebar's application-header row.</summary>
     protected virtual Control BuildSidebarHeader(TextBlock title, SettingsPalette palette) => title;
+
+    /// <summary>Updates the sidebar header without changing its measured geometry.</summary>
+    protected virtual void UpdateSidebarHeader(Control sidebarHeader, bool usesCompactRail)
+    {
+        sidebarHeader.Opacity = usesCompactRail ? 0 : 1;
+        sidebarHeader.IsHitTestVisible = !usesCompactRail;
+    }
+
+    /// <summary>Builds optional content floated over the sidebar column without affecting its layout.</summary>
+    protected virtual Control? BuildSidebarOverlay(SettingsPalette palette) => null;
+
+    /// <summary>Updates floated sidebar content after its effective collapse state changes.</summary>
+    protected virtual void UpdateSidebarOverlay(Control sidebarOverlay, bool isCollapsed)
+    {
+    }
 
     protected virtual Color ConfirmOverlayBackdrop =>
         AppTheme.Default.FlyoutOverlayBackdrop.For(AppTheme.Default.IsLightTheme);
     protected virtual bool UseProminentConfirmationDialog => false;
     protected virtual double SidebarWidth => _settingsResources.AxamlSettingsWindow.DefaultSidebarWidth;
+
+    /// <summary>Gets the retained navigation-rail width while the sidebar is collapsed.</summary>
+    protected virtual double CollapsedSidebarWidth => 0;
 
     /// <summary>Gets the app settings object that owns the optional custom navigation width.</summary>
     protected virtual ISettingsSidebarWidthSettings? SidebarWidthSettings => null;
@@ -121,11 +149,18 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     /// <summary>Returns whether the page overlay should exclude the visible navigation sidebar.</summary>
     protected virtual bool PageOverlayAlignsToContentArea(Control pageRoot) => false;
 
-    /// <summary>Gets whether the navigation sidebar automatically hides below its collapse threshold.</summary>
+    /// <summary>Gets whether the navigation sidebar automatically collapses below its threshold.</summary>
     protected virtual bool EnableResponsiveSidebarCollapse => false;
 
-    /// <summary>Gets the window width below which the navigation sidebar is hidden.</summary>
+    /// <summary>Gets the window width below which the navigation sidebar is collapsed.</summary>
     protected virtual double SidebarCollapseThreshold => 0;
+
+    /// <summary>Toggles an explicit sidebar state that overrides responsive collapsing for this window.</summary>
+    protected void ToggleSidebarCollapse()
+    {
+        _sidebarCollapseOverride = !ResolveSidebarCollapsed(ResolveWindowWidth());
+        UpdateSidebarLayout();
+    }
 
     /// <summary>Returns true when a derived window handled navigation without replacing its content.</summary>
     protected virtual bool HandleNavigationRequest(TPageKey pageKey) => false;
@@ -601,16 +636,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             Grid.SetRowSpan(body, 2);
         root.Children.Add(body);
 
-        _sidebar = new Grid
-        {
-            Background = Brushes.Transparent,
-            Margin = PageContentExtendsIntoTitleBar
-                ? new Thickness(0, _settingsResources.AxamlSettingsWindow.TitleBarHeight, 0, 0)
-                : default
-        };
-        _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-        _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Star));
-        _sidebar.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        _sidebar = BuildSidebar();
+        _sidebar.Background = Brushes.Transparent;
+        _sidebar.Margin = PageContentExtendsIntoTitleBar
+            ? new Thickness(0, _settingsResources.AxamlSettingsWindow.TitleBarHeight, 0, 0)
+            : default;
         Grid.SetColumn(_sidebar, 0);
         body.Children.Add(_sidebar);
 
@@ -619,22 +649,16 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             palette,
             _settingsResources.AxamlSettingsWindow.HeaderFontSize,
             FontWeight.SemiBold);
-        Control header = BuildSidebarHeader(headerTitle, palette);
-        header.Margin = _settingsResources.AxamlSettingsWindow.HeaderMargin;
-        Grid.SetRow(header, 0);
-        _sidebar.Children.Add(header);
+        _sidebarHeader = BuildSidebarHeader(headerTitle, palette);
+        _sidebar.SetHeader(_sidebarHeader);
 
-        StackPanel nav = new() { Margin = _settingsResources.AxamlSettingsWindow.NavMargin };
-        StackPanel footer = new() { Margin = _settingsResources.AxamlSettingsWindow.FooterMargin };
+        StackPanel nav = _sidebar.Navigation;
+        StackPanel footer = _sidebar.Footer;
         foreach (SettingsPageDescriptor<TPageKey> page in _pageDescriptors)
         {
             _pages[page.Key] = page.BuildPage;
             AddNavItem(IsFooterNavigationPage(page.Key) ? footer : nav, page, palette);
         }
-
-        Grid.SetRow(nav, 1);
-        _sidebar.Children.Add(nav);
-
         if (ShowSettingsSearchBox)
         {
             _settingsSearchBox = new SettingsSearchBox(
@@ -643,9 +667,6 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _settingsSearchBox.SearchTextChanged += OnSettingsSearchTextChanged;
             footer.Children.Add(_settingsSearchBox);
         }
-        Grid.SetRow(footer, 2);
-        _sidebar.Children.Add(footer);
-
         _scrollHost = TrayAppDotNETSettingsUI.ScrollHost(
             _content,
             palette,
@@ -675,6 +696,15 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             }
             Grid.SetColumn(_sidebarResizeHandle, 0);
             body.Children.Add(_sidebarResizeHandle);
+        }
+
+        _sidebarOverlay = BuildSidebarOverlay(palette);
+        _sidebarOverlayCollapsedState = null;
+        if (_sidebarOverlay != null)
+        {
+            _sidebarOverlay.Margin = _sidebar.Margin;
+            Grid.SetColumn(_sidebarOverlay, 0);
+            body.Children.Add(_sidebarOverlay);
         }
 
         _pageOverlayHost = new Grid();
@@ -1003,9 +1033,12 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         Dictionary<TPageKey, Func<Control>> previousPages = _pages;
         Dictionary<TPageKey, SettingsNavItem> previousNavItems = _navItems;
         SettingsScrollHost? previousScrollHost = _scrollHost;
-        Grid? previousSidebar = _sidebar;
+        SettingsSidebar? previousSidebar = _sidebar;
+        Control? previousSidebarHeader = _sidebarHeader;
         ColumnDefinition? previousSidebarColumn = _sidebarColumn;
         SettingsSidebarResizeHandle? previousSidebarResizeHandle = _sidebarResizeHandle;
+        Control? previousSidebarOverlay = _sidebarOverlay;
+        bool? previousSidebarOverlayCollapsedState = _sidebarOverlayCollapsedState;
         Grid? previousPageOverlayHost = _pageOverlayHost;
         bool previousPageOverlayAlignsToContentArea = _pageOverlayAlignsToContentArea;
         Border? previousTitleBarDragZone = _titleBarDragZone;
@@ -1035,8 +1068,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _navItems = replacementNavItems;
             _scrollHost = null;
             _sidebar = null;
+            _sidebarHeader = null;
             _sidebarColumn = null;
             _sidebarResizeHandle = null;
+            _sidebarOverlay = null;
+            _sidebarOverlayCollapsedState = null;
             _pageOverlayHost = null;
             _pageOverlayAlignsToContentArea = false;
             _titleBarDragZone = null;
@@ -1103,8 +1139,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             _navItems = previousNavItems;
             _scrollHost = previousScrollHost;
             _sidebar = previousSidebar;
+            _sidebarHeader = previousSidebarHeader;
             _sidebarColumn = previousSidebarColumn;
             _sidebarResizeHandle = previousSidebarResizeHandle;
+            _sidebarOverlay = previousSidebarOverlay;
+            _sidebarOverlayCollapsedState = previousSidebarOverlayCollapsedState;
             _pageOverlayHost = previousPageOverlayHost;
             _pageOverlayAlignsToContentArea = previousPageOverlayAlignsToContentArea;
             _titleBarDragZone = previousTitleBarDragZone;
@@ -1531,8 +1570,11 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
         _pageScrollOffsets.Clear();
         _scrollHost = null;
         _sidebar = null;
+        _sidebarHeader = null;
         _sidebarColumn = null;
         _sidebarResizeHandle = null;
+        _sidebarOverlay = null;
+        _sidebarOverlayCollapsedState = null;
         _pageOverlayHost = null;
         _pageOverlayAlignsToContentArea = false;
         _titleBarDragZone = null;
@@ -1553,21 +1595,36 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
     private void UpdateSidebarLayout(double windowWidth)
     {
-        Grid? sidebar = _sidebar;
+        SettingsSidebar? sidebar = _sidebar;
         ColumnDefinition? sidebarColumn = _sidebarColumn;
         if (sidebar == null || sidebarColumn == null) return;
 
-        bool isCollapsed = EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold;
+        bool isCollapsed = ResolveSidebarCollapsed(windowWidth);
         double pageContentLeftInset = ResolvePageContentLeftInset(windowWidth);
-        sidebar.IsVisible = !isCollapsed;
+        bool usesCompactRail = isCollapsed && pageContentLeftInset > 0;
+        sidebar.IsVisible = !isCollapsed || usesCompactRail;
+        sidebar.ClipToBounds = usesCompactRail;
+        if (_sidebarHeader != null)
+            UpdateSidebarHeader(_sidebarHeader, usesCompactRail);
+        foreach (SettingsNavItem navigationItem in _navItems.Values)
+            navigationItem.SetCompact(usesCompactRail);
+        if (_settingsSearchBox != null)
+            _settingsSearchBox.IsVisible = !usesCompactRail;
         if (_sidebarResizeHandle != null)
             _sidebarResizeHandle.IsVisible = !isCollapsed;
         sidebarColumn.Width = new GridLength(pageContentLeftInset);
         if (_titleBarDragZone != null)
         {
             _titleBarDragZone.Width = isCollapsed
-                ? _settingsResources.AxamlSettingsWindow.TitleBarHeight
+                ? Math.Max(
+                    _settingsResources.AxamlSettingsWindow.TitleBarHeight,
+                    pageContentLeftInset)
                 : pageContentLeftInset;
+        }
+        if (_sidebarOverlay != null && _sidebarOverlayCollapsedState != isCollapsed)
+        {
+            UpdateSidebarOverlay(_sidebarOverlay, isCollapsed);
+            _sidebarOverlayCollapsedState = isCollapsed;
         }
         UpdatePageOverlayLayout();
     }
@@ -1575,8 +1632,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     /// <summary>Resolves the page area's left inset for a candidate window width.</summary>
     protected double ResolvePageContentLeftInset(double windowWidth)
     {
-        if (EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold)
-            return 0;
+        if (ResolveSidebarCollapsed(windowWidth))
+            return Math.Min(Math.Max(0, CollapsedSidebarWidth), Math.Max(0, windowWidth));
 
         double maximumWidth = GetAvailableSidebarMaximumWidth(windowWidth);
         return SettingsSidebarWidthLayout.ResolvePersistedWidth(
@@ -1584,6 +1641,14 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             SidebarWidth,
             _settingsResources.AxamlSettingsWindow.SidebarMinimumWidth,
             maximumWidth);
+    }
+
+    private bool ResolveSidebarCollapsed(double windowWidth)
+    {
+        if (_sidebarCollapseOverride.HasValue)
+            return _sidebarCollapseOverride.Value;
+
+        return EnableResponsiveSidebarCollapse && windowWidth < SidebarCollapseThreshold;
     }
 
     private void UpdatePageOverlayLayout()
