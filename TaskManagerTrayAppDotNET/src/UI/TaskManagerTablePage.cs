@@ -137,7 +137,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             tableSurface,
             default,
             resources.AxamlProcessTable.GridBackgroundColor,
-            CreateTableScrollBarStyle(resources),
+            TaskManagerScrollBarStyles.CreateProcessGrid(resources),
             TaskManagerContextMenuWindow.CreateOptions(
                 palette,
                 settings.EnableRoundedCorners,
@@ -442,21 +442,6 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _runPanel.IsVisible = false;
         _runTaskButton.Focus();
     }
-
-    private static SettingsScrollBarStyle CreateTableScrollBarStyle(
-        TaskManagerWindowResources resources) =>
-        new(
-            resources.AxamlProcessTable.ScrollBarTrackThickness,
-            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
-            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
-            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
-            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
-            resources.AxamlProcessTable.GridBackgroundColor,
-            resources.AxamlProcessTable.ScrollThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            ShowButtonsOnHover: true);
 
     private void ApplyColumnHeaderBorderResources()
     {

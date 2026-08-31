@@ -58,15 +58,17 @@ internal sealed class ProcessSavedSearchController : IDisposable
         _savedSearches = ProcessSavedSearchCollection.Normalize(savedSearches);
 
         double actionButtonSize = textBox.Height;
+        double actionGlyphFontSize =
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize;
         _clearButton = new InsetGlyphButton(
             TaskManagerGlyphCatalog.CLOSE,
             palette,
             actionButtonSize,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
+            actionGlyphFontSize * windowResources.AxamlTaskManagerDetails.SearchClearGlyphScale,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchClearGlyphOpacity)
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity)
         {
             IsVisible = HasQuery()
         };
@@ -78,11 +80,11 @@ internal sealed class ProcessSavedSearchController : IDisposable
             TaskManagerGlyphCatalog.SAVE,
             palette,
             actionButtonSize,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
+            actionGlyphFontSize,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchSaveGlyphOpacity)
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity)
         {
             IsVisible = HasQuery()
         };
@@ -122,22 +124,24 @@ internal sealed class ProcessSavedSearchController : IDisposable
         ArgumentNullException.ThrowIfNull(windowResources);
 
         double actionButtonSize = _textBox.Height;
+        double actionGlyphFontSize =
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize;
         _clearButton.ApplyAXAMLResources(
             TaskManagerGlyphCatalog.CLOSE,
             actionButtonSize,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
+            actionGlyphFontSize * windowResources.AxamlTaskManagerDetails.SearchClearGlyphScale,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchClearGlyphOpacity);
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity);
         _saveButton.ApplyAXAMLResources(
             TaskManagerGlyphCatalog.SAVE,
             actionButtonSize,
-            windowResources.AxamlTaskManagerDetails.SearchActionGlyphFontSize,
+            actionGlyphFontSize,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualInset,
             windowResources.AxamlTaskManagerDetails.SearchActionVisualCornerRadius,
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
-            windowResources.AxamlTaskManagerDetails.SearchSaveGlyphOpacity);
+            windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity);
     }
 #endif
 

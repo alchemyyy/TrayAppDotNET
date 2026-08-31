@@ -22,6 +22,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly TaskManagerWindowResources _resources;
     private readonly PerformanceSnapshotService _snapshotService;
     private readonly PerformanceDeviceColumn _deviceColumn;
+    private readonly SettingsVerticalScrollViewport _deviceScrollViewport;
     private readonly Dictionary<string, PerformanceDevicePresentation> _devices =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, PerformanceDeviceCard> _deviceCards =
@@ -97,18 +98,20 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         MainContent.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
         _deviceColumn = new PerformanceDeviceColumn(OnDeviceSelected, OnDeviceOrderChanged);
-        ScrollViewer deviceScroll = new()
-        {
-            Content = _deviceColumn,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        };
+        _deviceScrollViewport = new SettingsVerticalScrollViewport(
+            _deviceColumn,
+            resources.AxamlTaskManagerPerformance.DeviceColumnPadding,
+            resources.AxamlProcessTable.GridBackgroundColor,
+            TaskManagerScrollBarStyles.CreateProcessGrid(resources),
+            TaskManagerContextMenuWindow.CreateOptions(
+                palette,
+                settings.EnableRoundedCorners,
+                settings));
         Border deviceColumnFrame = new()
         {
             BorderBrush = TrayAppDotNETSettingsUI.Brush(palette.Border),
             BorderThickness = resources.AxamlTaskManagerPerformance.DeviceColumnBorderThickness,
-            Padding = resources.AxamlTaskManagerPerformance.DeviceColumnPadding,
-            Child = deviceScroll
+            Child = _deviceScrollViewport
         };
         MainContent.Children.Add(deviceColumnFrame);
 
@@ -347,10 +350,26 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _settings.PropertyChanged -= OnSettingsPropertyChanged;
             throw;
         }
+#if DEBUG
+        TaskManagerContextMenuResources.ResourcesReloaded += OnContextMenuAXAMLResourcesReloaded;
+#endif
     }
 
     /// <summary>Gets the device selection to restore if the page is reconstructed.</summary>
     internal string? SelectedDeviceID => _selectedDeviceID;
+
+#if DEBUG
+    /// <summary>Refreshes the device-list scrollbar menu after its standalone AXAML reloads.</summary>
+    private void OnContextMenuAXAMLResourcesReloaded()
+    {
+        if (_disposed) return;
+
+        _deviceScrollViewport.SetContextMenuOptions(TaskManagerContextMenuWindow.CreateOptions(
+            _palette,
+            _settings.EnableRoundedCorners,
+            _settings));
+    }
+#endif
 
     private void OnSnapshotUpdated(object? sender, PerformanceSnapshot snapshot)
     {
@@ -1480,6 +1499,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _graphSurface.PointerPressed -= OnGraphSurfacePointerPressed;
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
+#if DEBUG
+        TaskManagerContextMenuResources.ResourcesReloaded -= OnContextMenuAXAMLResourcesReloaded;
+#endif
+        _deviceScrollViewport.Dispose();
         _deviceColumn.Dispose();
         _devices.Clear();
         _deviceCards.Clear();

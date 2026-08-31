@@ -137,7 +137,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runTaskButton.Click += OnRunTaskClick;
         _restartExplorerButton = TrayAppDotNETSettingsUI.Button("Restart explorer", palette);
         _restartExplorerButton.Click += OnRestartExplorerClick;
-        _columnsButton = TrayAppDotNETSettingsUI.Button("Columns", palette);
+        _columnsButton = TrayAppDotNETSettingsUI.Button("Columns..", palette);
         _columnsButton.Click += OnColumnsClick;
         _endTaskButton = TrayAppDotNETSettingsUI.Button("End task", palette);
         _endTaskButton.IsEnabled = false;
@@ -183,13 +183,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             settings,
             settings.UpdateProcessSavedSearches,
             confirmDeleteSavedSearch);
-        Thickness searchActionMargin = new(
+        _savedSearches.ClearButton.Margin = default;
+        _savedSearches.SaveButton.Margin = new Thickness(
             0,
             0,
             resources.AxamlTaskManagerDetails.SearchActionSpacing,
             0);
-        _savedSearches.ClearButton.Margin = searchActionMargin;
-        _savedSearches.SaveButton.Margin = searchActionMargin;
         _searchControls = new Grid
         {
             HorizontalAlignment = settings.LeftAlignProcessSearchBar
@@ -231,7 +230,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _runPanel.Margin = resources.AxamlTaskManagerDetails.RunPanelMargin;
         MainContent.Children.Add(_runPanel);
 
-        SettingsScrollBarStyle scrollBarStyle = CreateProcessTableScrollBarStyle(resources);
+        SettingsScrollBarStyle scrollBarStyle = TaskManagerScrollBarStyles.CreateProcessGrid(resources);
         ContextMenuWindowOptions scrollBarContextMenuOptions = TaskManagerContextMenuWindow.CreateOptions(
             palette,
             settings.EnableRoundedCorners,
@@ -356,7 +355,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private double GetLeadingSearchActionWidth() =>
         _savedSearches.ClearButton.Width
         + _savedSearches.SaveButton.Width
-        + (2 * _resources.AxamlTaskManagerDetails.SearchActionSpacing);
+        + _resources.AxamlTaskManagerDetails.SearchActionSpacing;
 
     private StackPanel BuildGroupProcessesHeaderControl(
         SettingsPalette palette,
@@ -493,13 +492,12 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _groupProcessesHeaderControl.Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing;
 
         _searchBox.Width = resources.AxamlTaskManagerDetails.SearchWidth;
-        Thickness searchActionMargin = new(
+        _savedSearches.ClearButton.Margin = default;
+        _savedSearches.SaveButton.Margin = new Thickness(
             0,
             0,
             resources.AxamlTaskManagerDetails.SearchActionSpacing,
             0);
-        _savedSearches.ClearButton.Margin = searchActionMargin;
-        _savedSearches.SaveButton.Margin = searchActionMargin;
         _savedSearches.ApplyAXAMLResources(resources);
         _searchControls.Margin = resources.AxamlTaskManagerDetails.SearchMargin;
         UpdateSearchControlsPosition();
@@ -515,7 +513,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _tableScrollViewport.Background = TrayAppDotNETSettingsUI.Brush(
             resources.AxamlProcessTable.GridBackgroundColor);
 
-        _tableScrollViewport.SetScrollBarStyle(CreateProcessTableScrollBarStyle(resources));
+        _tableScrollViewport.SetScrollBarStyle(TaskManagerScrollBarStyles.CreateProcessGrid(resources));
         _tableScrollViewport.SetVerticalScrollBarTopInset(
             GetProcessTableVerticalScrollBarTopInset(resources));
         ApplyColumnHeaderBorderResources(_columnHeaderBorder, resources);
@@ -556,21 +554,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _tableScrollViewport.SetOffsets(state.HorizontalOffset, state.VerticalOffset);
     }
 #endif
-
-    private static SettingsScrollBarStyle CreateProcessTableScrollBarStyle(
-        TaskManagerWindowResources resources) =>
-        new(
-            resources.AxamlProcessTable.ScrollBarTrackThickness,
-            resources.AxamlProcessTable.ScrollBarIdleThumbThickness,
-            resources.AxamlProcessTable.ScrollBarHoverThumbThickness,
-            resources.AxamlProcessTable.ScrollBarThumbEndMargin,
-            resources.AxamlProcessTable.ScrollBarMinimumThumbLength,
-            resources.AxamlProcessTable.GridBackgroundColor,
-            resources.AxamlProcessTable.ScrollThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            resources.AxamlProcessTable.ScrollHoverThumbColor,
-            ShowButtonsOnHover: true);
 
     private static double GetProcessTableVerticalScrollBarTopInset(
         TaskManagerWindowResources resources) =>

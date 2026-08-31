@@ -219,7 +219,7 @@ internal sealed class MemoryModuleDetailsPanel : StackPanel
         Margin = resources.AxamlTaskManagerPerformance.MemoryModulesMargin;
 
         TextBlock heading = TrayAppDotNETSettingsUI.Text(
-            "Physical memory modules",
+            "Physical memory layout",
             palette,
             resources.AxamlTaskManagerPerformance.MemoryModuleHeadingFontSize,
             (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
