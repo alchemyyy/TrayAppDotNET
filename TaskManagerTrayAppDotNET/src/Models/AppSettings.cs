@@ -98,6 +98,12 @@ public sealed class AppSettings : AppSettingsCommon
         set => SetField(ref field, value);
     }
 
+    public bool OverrideWindowsTaskManagerHotkey
+    {
+        get;
+        set => SetField(ref field, value);
+    }
+
     public bool AlwaysOnTop
     {
         get;

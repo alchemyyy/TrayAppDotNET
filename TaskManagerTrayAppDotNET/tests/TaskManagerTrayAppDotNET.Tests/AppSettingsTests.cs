@@ -820,6 +820,28 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void WindowsTaskManagerHotkeyOverrideDefaultsDisabledAndRoundTrips()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.False(settings.OverrideWindowsTaskManagerHotkey);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.OverrideWindowsTaskManagerHotkey = true;
+            settings.Save(path);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.True(loaded.OverrideWindowsTaskManagerHotkey);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void SettingsSidebarWidthDefaultsToSentinelAndRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

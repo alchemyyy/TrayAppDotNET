@@ -132,6 +132,15 @@ public sealed class TaskManagerSettingsWindow : SettingsWindowCommon<TaskManager
             palette,
             searchKeywords: ["save settings automatically"]));
         stack.Children.Add(BuildWindowManagementCard(palette));
+        stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Keyboard", palette));
+        stack.Children.Add(BoolCard(
+            title: "Replace Ctrl+Shift+Esc shortcut",
+            description:
+            "While this app is running, open it instead of Windows Task Manager when Ctrl+Shift+Esc is pressed.",
+            _settings.OverrideWindowsTaskManagerHotkey,
+            value => _settings.OverrideWindowsTaskManagerHotkey = value,
+            palette,
+            searchKeywords: ["Windows Task Manager hotkey shortcut control shift escape"]));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(text: "Processes", palette));
         stack.Children.Add(BoolCard(
             title: "Skip Explorer restart confirmation",

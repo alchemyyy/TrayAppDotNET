@@ -41,6 +41,7 @@ internal sealed class TaskManagerAvaloniaApp : Application
     private ProcessSnapshotService? _snapshotService;
     private PerformanceSnapshotService? _performanceSnapshotService;
     private ProcessTerminationService? _processTerminationService;
+    private WindowsTaskManagerHotkeyOverride? _windowsTaskManagerHotkeyOverride;
     private TaskManagerWindow? _taskManagerWindow;
     private TaskManagerTrayMenuWindow? _trayMenuWindow;
     private TrayAppDotNETShellTrayIcon? _trayIcon;
@@ -103,6 +104,10 @@ internal sealed class TaskManagerAvaloniaApp : Application
             settings.ShowMemoryModuleSerialNumbers);
         _trayIconRenderer = new TaskManagerTrayIcon();
         CreateTaskManagerWindow();
+        _windowsTaskManagerHotkeyOverride = new WindowsTaskManagerHotkeyOverride(
+            () => Dispatcher.UIThread.Post(ShowTaskManager),
+            TADNLog.Log);
+        _windowsTaskManagerHotkeyOverride.SetEnabled(settings.OverrideWindowsTaskManagerHotkey);
         _snapshotService.Start();
         _performanceSnapshotService.Start();
         CreateTrayIcon();
@@ -340,6 +345,8 @@ internal sealed class TaskManagerAvaloniaApp : Application
             {
                 TrayAppDotNETAnimationPolicy.Apply(this, _settings.AnimationMode);
                 TrayAppDotNETToolTip.ShowDelayMs = _settings.ToolTipShowDelayMs;
+                _windowsTaskManagerHotkeyOverride?.SetEnabled(
+                    _settings.OverrideWindowsTaskManagerHotkey);
                 _performanceSnapshotService?.UpdateConfiguration(
                     _settings.PerformanceSampleIntervalMilliseconds,
                     PerformanceSamplingSettings.CalculateMaximumHistoryCount(
@@ -374,6 +381,9 @@ internal sealed class TaskManagerAvaloniaApp : Application
 
         try
         {
+            Safe.Dispose(_windowsTaskManagerHotkeyOverride);
+            _windowsTaskManagerHotkeyOverride = null;
+
             if (_trayMenuWindow != null)
             {
                 _trayMenuWindow.Closed -= OnTrayMenuClosed;
