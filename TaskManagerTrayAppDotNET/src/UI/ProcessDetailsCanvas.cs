@@ -375,6 +375,9 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         }
     }
 
+    /// <summary>Clears the selected process and its keyboard-driven action target.</summary>
+    internal void ClearSelection() => SelectVisibleRow(visibleIndex: -1);
+
 #if DEBUG
     /// <summary>Restores one identity-checked selection after a shared shell rebuild.</summary>
     internal void RestoreSelectedProcess(ProcessTerminationTarget? target)
@@ -2347,6 +2350,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             switch (kind)
             {
                 case ProcessTableColumnKind.CPU:
+                case ProcessTableColumnKind.CPUSingle:
                 case ProcessTableColumnKind.GPU:
                 case ProcessTableColumnKind.NPU:
                 case ProcessTableColumnKind.CPUUtility:
@@ -2434,6 +2438,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
                 or ProcessTableColumnKind.PowerThrottling
                 or ProcessTableColumnKind.DPIAwareness => ProcessSearchColumnValue.TextOnly(displayText),
             ProcessTableColumnKind.CPU
+                or ProcessTableColumnKind.CPUSingle
                 or ProcessTableColumnKind.GPU
                 or ProcessTableColumnKind.NPU
                 or ProcessTableColumnKind.CPUUtility => CreatePercentageSearchValue(displayText, numericValue),
@@ -2564,6 +2569,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
             ProcessTableColumnKind.Status => FormatDisplayCode(value),
             ProcessTableColumnKind.JobObjectID => FormatJobObjectID(value),
             ProcessTableColumnKind.CPU => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
+            ProcessTableColumnKind.CPUSingle => FormatPercent(BitConverter.Int64BitsToDouble(value), setting),
             ProcessTableColumnKind.CPUTime => FormatCPUTime(value),
             ProcessTableColumnKind.Lifetime => value < 0
                 ? _unavailableText
@@ -4027,6 +4033,7 @@ internal sealed class ProcessDetailsCanvas : DetailsGridControl
         private static bool IsDoubleColumn(ProcessTableColumnKind column) => column switch
         {
             ProcessTableColumnKind.CPU
+                or ProcessTableColumnKind.CPUSingle
                 or ProcessTableColumnKind.GPU
                 or ProcessTableColumnKind.NPU
                 or ProcessTableColumnKind.CPUUtility

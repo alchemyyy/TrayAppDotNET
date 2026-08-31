@@ -19,6 +19,134 @@ public sealed class ProcessResourceUsageTests
     private const ushort SRUMProcessIDColumnID = 6;
 
     [Fact]
+    public void CPUPercentageReportsTotalLogicalProcessorCapacity()
+    {
+        const int logicalProcessorCount = 8;
+        const long previousTimestamp = 100;
+        long currentTimestamp = previousTimestamp + Stopwatch.Frequency;
+        long currentProcessorTicks = TimeSpan.TicksPerSecond / 2;
+
+        double cpuPercent = ProcessSnapshotService.CalculateCPUPercent(
+            hasPreviousSample: true,
+            previousProcessorTicks: 0,
+            previousTimestamp,
+            currentProcessorTicks,
+            currentTimestamp,
+            logicalProcessorCount);
+
+        Assert.Equal(expected: 6.25, cpuPercent);
+    }
+
+    [Theory]
+    [InlineData(false, 1_000L, 2_000L, 100L, 200L)]
+    [InlineData(true, 2_000L, 1_000L, 100L, 200L)]
+    [InlineData(true, 1_000L, 2_000L, 200L, 200L)]
+    public void CPUPercentageTreatsFirstSamplesResetsAndRepeatedTimestampsAsBaselines(
+        bool hasPreviousSample,
+        long previousProcessorTicks,
+        long currentProcessorTicks,
+        long previousTimestamp,
+        long currentTimestamp)
+    {
+        double cpuPercent = ProcessSnapshotService.CalculateCPUPercent(
+            hasPreviousSample,
+            previousProcessorTicks,
+            previousTimestamp,
+            currentProcessorTicks,
+            currentTimestamp,
+            logicalProcessorCount: 8);
+
+        Assert.Equal(expected: 0.0, cpuPercent);
+    }
+
+    [Fact]
+    public void ThreadCPUTrackerReportsTheBusiestThread()
+    {
+        const long baselineTimestamp = 100;
+        ProcessThreadCPUTracker tracker = new();
+        SystemThreadCPUSample[] baseline =
+        [
+            new(ThreadID: 10, CreationTimeTicks: 1_000, TotalProcessorTicks: 10_000),
+            new(ThreadID: 11, CreationTimeTicks: 2_000, TotalProcessorTicks: 20_000)
+        ];
+        SystemThreadCPUSample[] current =
+        [
+            new(ThreadID: 10, CreationTimeTicks: 1_000,
+                TotalProcessorTicks: 10_000 + TimeSpan.TicksPerSecond / 4),
+            new(ThreadID: 11, CreationTimeTicks: 2_000,
+                TotalProcessorTicks: 20_000 + TimeSpan.TicksPerSecond * 4 / 5)
+        ];
+        _ = tracker.Update(baseline, baselineTimestamp);
+
+        double cpuPercent = tracker.Update(
+            current,
+            baselineTimestamp + Stopwatch.Frequency);
+
+        Assert.Equal(expected: 80.0, cpuPercent, precision: 8);
+    }
+
+    [Fact]
+    public void ThreadCPUTrackerCapsOneThreadAtOneLogicalProcessor()
+    {
+        const long baselineTimestamp = 100;
+        ProcessThreadCPUTracker tracker = new();
+        SystemThreadCPUSample[] baseline =
+        [new(ThreadID: 10, CreationTimeTicks: 1_000, TotalProcessorTicks: 10_000)];
+        SystemThreadCPUSample[] current =
+        [
+            new(ThreadID: 10, CreationTimeTicks: 1_000,
+                TotalProcessorTicks: 10_000 + TimeSpan.TicksPerSecond * 2)
+        ];
+        _ = tracker.Update(baseline, baselineTimestamp);
+
+        double cpuPercent = tracker.Update(
+            current,
+            baselineTimestamp + Stopwatch.Frequency);
+
+        Assert.Equal(expected: 100.0, cpuPercent);
+    }
+
+    [Fact]
+    public void ThreadCPUTrackerBaselinesReusedThreadIDs()
+    {
+        const long baselineTimestamp = 100;
+        ProcessThreadCPUTracker tracker = new();
+        SystemThreadCPUSample[] original =
+        [new(ThreadID: 10, CreationTimeTicks: 1_000, TotalProcessorTicks: 10_000)];
+        SystemThreadCPUSample[] replacement =
+        [new(ThreadID: 10, CreationTimeTicks: 2_000, TotalProcessorTicks: TimeSpan.TicksPerSecond)];
+        _ = tracker.Update(original, baselineTimestamp);
+
+        double cpuPercent = tracker.Update(
+            replacement,
+            baselineTimestamp + Stopwatch.Frequency);
+
+        Assert.Equal(expected: 0.0, cpuPercent);
+    }
+
+    [Fact]
+    public void ThreadCPUTrackerDropsExitedThreadBaselines()
+    {
+        const long baselineTimestamp = 100;
+        ProcessThreadCPUTracker tracker = new();
+        SystemThreadCPUSample[] thread =
+        [new(ThreadID: 10, CreationTimeTicks: 1_000, TotalProcessorTicks: 10_000)];
+        _ = tracker.Update(thread, baselineTimestamp);
+        _ = tracker.Update([], baselineTimestamp + Stopwatch.Frequency);
+
+        double cpuPercent = tracker.Update(
+            [
+                new SystemThreadCPUSample(
+                    ThreadID: 10,
+                    CreationTimeTicks: 1_000,
+                    TotalProcessorTicks: TimeSpan.TicksPerSecond)
+            ],
+            baselineTimestamp + Stopwatch.Frequency * 2);
+
+        Assert.Equal(expected: 0.0, cpuPercent);
+    }
+
+    [Fact]
     public void TransferRateUsesCounterDeltaAndElapsedTime()
     {
         const long previousTimestamp = 100;

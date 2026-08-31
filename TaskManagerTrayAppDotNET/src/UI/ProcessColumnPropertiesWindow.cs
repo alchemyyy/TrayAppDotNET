@@ -112,7 +112,9 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
 
         return setting.Column switch
         {
-            ProcessTableColumnKind.CPU or ProcessTableColumnKind.CPUUtility =>
+            ProcessTableColumnKind.CPU
+                or ProcessTableColumnKind.CPUSingle
+                or ProcessTableColumnKind.CPUUtility =>
                 new CPUProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
             ProcessTableColumnKind.UserName =>
                 new UserNameProcessColumnPropertiesWindow(setting, palette, enableRoundedCorners, apply),
@@ -184,7 +186,9 @@ internal abstract class ProcessColumnPropertiesWindow : Window, IDisposable
         ProcessTableColumnKind column) =>
         column switch
         {
-            ProcessTableColumnKind.CPU or ProcessTableColumnKind.CPUUtility =>
+            ProcessTableColumnKind.CPU
+                or ProcessTableColumnKind.CPUSingle
+                or ProcessTableColumnKind.CPUUtility =>
                 resources.AxamlProcessColumnProperties.CPUWindowHeight,
             ProcessTableColumnKind.UserName =>
                 resources.AxamlProcessColumnProperties.UserNameWindowHeight,

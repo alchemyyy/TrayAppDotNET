@@ -215,6 +215,43 @@ internal sealed class SystemProcessSnapshot : IDisposable
             : ProcessExecutionState.Running;
     }
 
+    /// <summary>Copies cumulative CPU counters for the threads belonging to one process.</summary>
+    public int ReadThreadCPUSamples(
+        SystemProcessData process,
+        Span<SystemThreadCPUSample> destination)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (process.NativeEntryOffset < 0
+            || process.NativeEntryOffset > _bufferSize - ProcessHeaderSize
+            || process.ThreadCount <= 0
+            || destination.IsEmpty)
+            return 0;
+
+        int maximumSampleCount = Math.Min(process.ThreadCount, destination.Length);
+        IntPtr threadAddress = IntPtr.Add(
+            IntPtr.Add(_buffer, process.NativeEntryOffset),
+            ProcessHeaderSize);
+        int sampleCount = 0;
+        for (int threadIndex = 0; threadIndex < maximumSampleCount; threadIndex++)
+        {
+            SYSTEM_THREAD_INFORMATION thread =
+                Marshal.PtrToStructure<SYSTEM_THREAD_INFORMATION>(threadAddress);
+            long threadID = thread.ClientID.UniqueThread.ToInt64();
+            if (threadID > 0)
+            {
+                destination[sampleCount] = new SystemThreadCPUSample(
+                    threadID,
+                    thread.CreateTime,
+                    SaturatingAdd(thread.KernelTime, thread.UserTime));
+                sampleCount++;
+            }
+
+            threadAddress = IntPtr.Add(threadAddress, _activeThreadEntrySize);
+        }
+
+        return sampleCount;
+    }
+
     private bool AreAllThreadsSuspended(IntPtr processAddress, int threadCount)
     {
         if (threadCount <= 0) return false;

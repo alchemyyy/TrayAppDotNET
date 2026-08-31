@@ -19,6 +19,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private const uint ProcessVMRead = 0x0010;
 
     private static readonly ulong ProcessorColumnsMask = ColumnMask(ProcessTableColumnKind.CPU)
+                                                         | ColumnMask(ProcessTableColumnKind.CPUSingle)
                                                          | ColumnMask(ProcessTableColumnKind.CPUTime);
 
     private static readonly ulong ThreadColumnsMask = ColumnMask(ProcessTableColumnKind.Status)
@@ -105,6 +106,7 @@ internal sealed class ProcessSnapshotService : IDisposable
     private ProcessDataSchema _activeSchema = ProcessDataSchema.Create([]);
     private int[] _warmProcessIDs = [];
     private int[] _sampleWarmProcessIDs = [];
+    private SystemThreadCPUSample[] _threadCPUSamples = [];
     private int _warmProcessCount;
     private long _publishedVersion;
     private ulong _historySchemaMask = ulong.MaxValue;
@@ -823,8 +825,25 @@ internal sealed class ProcessSnapshotService : IDisposable
             long totalProcessorTicks = hasSystemProcessData
                 ? systemProcessData.TotalProcessorTicks
                 : ReadTotalProcessorTicks(process);
-            double cpuPercent = CalculateCPUPercent(history, totalProcessorTicks, sampleTimestamp);
+            double cpuPercent = CalculateCPUPercent(
+                history.HasProcessorSample,
+                history.TotalProcessorTicks,
+                history.LastProcessorSampleTimestamp,
+                totalProcessorTicks,
+                sampleTimestamp,
+                Environment.ProcessorCount);
             SetDynamicDouble(schema, history, ProcessTableColumnKind.CPU, cpuPercent);
+            if (schema.IsVisible(ProcessTableColumnKind.CPUSingle))
+            {
+                double singleCPUPercent = SampleSingleCPUPercent(
+                    process,
+                    history,
+                    hasSystemProcessData,
+                    systemProcessData,
+                    sampleTimestamp);
+                SetDynamicDouble(schema, history, ProcessTableColumnKind.CPUSingle, singleCPUPercent);
+            }
+
             SetDynamicNumeric(schema, history, ProcessTableColumnKind.CPUTime, totalProcessorTicks);
             history.TotalProcessorTicks = totalProcessorTicks;
             history.LastProcessorSampleTimestamp = sampleTimestamp;
@@ -1525,22 +1544,113 @@ internal sealed class ProcessSnapshotService : IDisposable
         }
     }
 
-    private static double CalculateCPUPercent(
-        ProcessHistoryEntry history,
+    /// <summary>Calculates aggregate process CPU usage against total logical-processor capacity.</summary>
+    internal static double CalculateCPUPercent(
+        bool hasPreviousSample,
+        long previousProcessorTicks,
+        long previousTimestamp,
         long totalProcessorTicks,
-        long sampleTimestamp)
+        long sampleTimestamp,
+        int logicalProcessorCount)
     {
-        if (!history.HasProcessorSample
-            || sampleTimestamp <= history.LastProcessorSampleTimestamp
-            || totalProcessorTicks < history.TotalProcessorTicks)
+        if (logicalProcessorCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(logicalProcessorCount));
+        if (!hasPreviousSample
+            || sampleTimestamp <= previousTimestamp
+            || totalProcessorTicks < previousProcessorTicks)
             return 0;
 
-        double elapsedSeconds = (sampleTimestamp - history.LastProcessorSampleTimestamp)
+        double elapsedSeconds = (sampleTimestamp - previousTimestamp)
                                 / (double)Stopwatch.Frequency;
-        long processorTickDelta = totalProcessorTicks - history.TotalProcessorTicks;
+        long processorTickDelta = totalProcessorTicks - previousProcessorTicks;
         double processorSeconds = processorTickDelta / (double)TimeSpan.TicksPerSecond;
-        double normalized = processorSeconds / elapsedSeconds / Environment.ProcessorCount * 100;
-        return Math.Clamp(normalized, min: 0, max: 100);
+        double cpuPercent = processorSeconds / elapsedSeconds / logicalProcessorCount * 100;
+        return Math.Clamp(cpuPercent, min: 0, max: 100);
+    }
+
+    private double SampleSingleCPUPercent(
+        Process? process,
+        ProcessHistoryEntry history,
+        bool hasSystemProcessData,
+        SystemProcessData systemProcessData,
+        long sampleTimestamp)
+    {
+        int sampleCount;
+        if (hasSystemProcessData)
+        {
+            EnsureThreadCPUSampleCapacity(systemProcessData.ThreadCount);
+            sampleCount = _systemProcessSnapshot.ReadThreadCPUSamples(
+                systemProcessData,
+                _threadCPUSamples);
+        }
+        else
+            sampleCount = ReadThreadCPUSamples(process);
+
+        ProcessThreadCPUTracker tracker = history.ThreadCPUTracker ??= new ProcessThreadCPUTracker();
+        return tracker.Update(_threadCPUSamples.AsSpan(start: 0, sampleCount), sampleTimestamp);
+    }
+
+    private int ReadThreadCPUSamples(Process? process)
+    {
+        if (process == null) return 0;
+
+        ProcessThreadCollection threads;
+        try
+        {
+            threads = process.Threads;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+                                              or Win32Exception
+                                              or NotSupportedException
+                                              or PlatformNotSupportedException)
+        {
+            return 0;
+        }
+
+        EnsureThreadCPUSampleCapacity(threads.Count);
+        int sampleCount = 0;
+        try
+        {
+            for (int threadIndex = 0; threadIndex < threads.Count; threadIndex++)
+            {
+                using ProcessThread thread = threads[threadIndex];
+                if (!TryReadThreadCPUSample(thread, out SystemThreadCPUSample sample)) continue;
+
+                _threadCPUSamples[sampleCount] = sample;
+                sampleCount++;
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+                                              or Win32Exception
+                                              or NotSupportedException
+                                              or PlatformNotSupportedException)
+        {
+            return sampleCount;
+        }
+
+        return sampleCount;
+    }
+
+    private static bool TryReadThreadCPUSample(
+        ProcessThread thread,
+        out SystemThreadCPUSample sample)
+    {
+        try
+        {
+            sample = new SystemThreadCPUSample(
+                thread.Id,
+                thread.StartTime.ToFileTimeUtc(),
+                thread.TotalProcessorTime.Ticks);
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+                                              or Win32Exception
+                                              or NotSupportedException
+                                              or PlatformNotSupportedException)
+        {
+            sample = default;
+            return false;
+        }
     }
 
     private static double CalculateCPUUtility(
@@ -1651,6 +1761,16 @@ internal sealed class ProcessSnapshotService : IDisposable
         while (capacity < count)
             capacity = checked(capacity * 2);
         Array.Resize(ref values, capacity);
+    }
+
+    private void EnsureThreadCPUSampleCapacity(int count)
+    {
+        if (_threadCPUSamples.Length >= count) return;
+
+        int capacity = Math.Max(val1: 64, _threadCPUSamples.Length);
+        while (capacity < count)
+            capacity = checked(capacity * 2);
+        Array.Resize(ref _threadCPUSamples, capacity);
     }
 
     private static void SetStaticNumeric(
@@ -1767,6 +1887,7 @@ internal sealed class ProcessSnapshotService : IDisposable
         public long LastNetworkSampleTimestamp;
         public long LastNetworkSampleGeneration;
         public int LastSeenGeneration;
+        public ProcessThreadCPUTracker? ThreadCPUTracker;
         public bool HasDynamicSample;
         public bool HasProcessorSample;
         public bool HasCycleSample;

@@ -27,6 +27,15 @@ public sealed class SystemProcessSnapshotTests
         Assert.True(current.ThreadCount > 0);
         Assert.True(current.HasDiskCounters);
         Assert.False(string.IsNullOrWhiteSpace(snapshot.ReadImageName(current)));
+        SystemThreadCPUSample[] threadSamples = new SystemThreadCPUSample[current.ThreadCount];
+        int threadSampleCount = snapshot.ReadThreadCPUSamples(current, threadSamples);
+        Assert.True(threadSampleCount > 0);
+        Assert.All(threadSamples[..threadSampleCount], static sample =>
+        {
+            Assert.True(sample.ThreadID > 0);
+            Assert.True(sample.CreationTimeTicks > 0);
+            Assert.True(sample.TotalProcessorTicks >= 0);
+        });
 
         using Process process = Process.GetCurrentProcess();
         Assert.InRange(current.ThreadCount, low: 1, process.Threads.Count + 8);
@@ -47,6 +56,8 @@ public sealed class SystemProcessSnapshotTests
         else
             Assert.Equal(expected: -1, current.JobObjectID);
         Assert.NotEqual(ProcessExecutionState.Suspended, snapshot.ReadExecutionState(current));
+        SystemThreadCPUSample[] threadSamples = new SystemThreadCPUSample[current.ThreadCount];
+        Assert.True(snapshot.ReadThreadCPUSamples(current, threadSamples) > 0);
     }
 
     [Fact]

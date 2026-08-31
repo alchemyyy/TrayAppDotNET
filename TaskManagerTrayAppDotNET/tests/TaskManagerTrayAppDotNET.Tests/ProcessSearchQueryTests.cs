@@ -56,6 +56,20 @@ public sealed class ProcessSearchQueryTests
     }
 
     [Fact]
+    public void CPUSingleSupportsPercentageExpressions()
+    {
+        ProcessSearchQuery query = Parse("{CPU (single)}>=75%");
+        SearchRow row = new();
+        row.SetNumeric(ProcessTableColumnKind.CPUSingle, text: "80.0%", value: 80);
+
+        Assert.True(query.IsValid, query.ErrorMessage);
+        Assert.True(query.Matches(rowIndex: 0, row.Resolve));
+        Assert.Equal(
+            ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.CPUSingle),
+            query.RequiredColumnMask);
+    }
+
+    [Fact]
     public void LifetimeUnitsSelectProcessesBetweenOneAndTwoHours()
     {
         ProcessSearchQuery query = Parse("{Lifetime}>=1h&&{Lifetime}<2h");

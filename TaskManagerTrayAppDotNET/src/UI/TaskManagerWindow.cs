@@ -109,7 +109,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         PropertyChanged += OnWindowPropertyChanged;
         AddHandler(
             PointerPressedEvent,
-            OnHeaderBackgroundPointerPressed,
+            OnWindowPointerPressed,
             RoutingStrategies.Tunnel,
             handledEventsToo: true);
         InitializeSettingsShell();
@@ -341,7 +341,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         ApplyIdleProcessSamplingPolicy();
         Closing -= OnWindowClosing;
         PropertyChanged -= OnWindowPropertyChanged;
-        RemoveHandler(PointerPressedEvent, OnHeaderBackgroundPointerPressed);
+        RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
         base.OnSettingsWindowClosed();
     }
 
@@ -622,10 +622,13 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             sampleEveryProcess: false);
     }
 
-    private void OnHeaderBackgroundPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs eventArgs)
     {
         TaskManagerPageLayout? page = _activePageLayout;
         PointerPoint pointerPoint = eventArgs.GetCurrentPoint(this);
+        if (pointerPoint.Properties.IsLeftButtonPressed)
+            _processDetailsPage?.ClearSelectionForExternalPointerSource(eventArgs.Source);
+
         if (eventArgs.Handled
             || page == null
             || !pointerPoint.Properties.IsLeftButtonPressed

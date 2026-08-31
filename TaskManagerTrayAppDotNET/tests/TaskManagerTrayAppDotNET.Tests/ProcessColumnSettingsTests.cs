@@ -48,6 +48,18 @@ public sealed class ProcessColumnSettingsTests
     }
 
     [Fact]
+    public void CPUSingleIsAnOptionalDynamicPercentageColumn()
+    {
+        ProcessTableColumnDefinition definition =
+            ProcessTableColumnCatalog.Get(ProcessTableColumnKind.CPUSingle);
+
+        Assert.Equal(expected: "CPU (single)", definition.Title);
+        Assert.Equal(ProcessTableColumnLifetime.Dynamic, definition.Lifetime);
+        Assert.Equal(ProcessTableColumnAlignment.Right, definition.Alignment);
+        Assert.False(definition.DefaultVisible);
+    }
+
+    [Fact]
     public void VisibleMaskSupportsInterleavedColumnLifetimes()
     {
         List<ProcessColumnSetting> settings =

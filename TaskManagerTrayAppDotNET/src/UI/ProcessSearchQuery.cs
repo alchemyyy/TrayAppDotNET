@@ -619,6 +619,7 @@ internal sealed class ProcessSearchQuery
     private static bool IsPercentageColumn(ProcessTableColumnKind column) => column switch
     {
         ProcessTableColumnKind.CPU
+            or ProcessTableColumnKind.CPUSingle
             or ProcessTableColumnKind.GPU
             or ProcessTableColumnKind.NPU
             or ProcessTableColumnKind.CPUUtility => true,

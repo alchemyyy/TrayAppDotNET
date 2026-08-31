@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
@@ -447,6 +448,19 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.DeactivateSampling();
     }
 
+    /// <summary>Clears the selected row when a left click begins outside the process grid.</summary>
+    internal void ClearSelectionForExternalPointerSource(object? source)
+    {
+        if (_disposed || IsSelfOrDescendant(_tableScrollViewport, source as Visual)) return;
+
+        // End task still needs the selected row until its Click handler captures the request
+        if (IsSelfOrDescendant(_endTaskButton, source as Visual)) return;
+
+        _processCanvas.ClearSelection();
+        if (_processCanvas.IsKeyboardFocusWithin)
+            TopLevel.GetTopLevel(_processCanvas)?.FocusManager.Focus(null);
+    }
+
     /// <summary>Stops compositor-owned row hover while a same-window modal overlay owns input.</summary>
     internal void SetConfirmationOverlayVisible(bool isVisible)
     {
@@ -554,6 +568,11 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private static double GetProcessTableVerticalScrollBarTopInset(
         TaskManagerWindowResources resources) =>
         resources.AxamlProcessTable.HeaderHeight;
+
+    private static bool IsSelfOrDescendant(Visual boundary, Visual? source) =>
+        source != null
+        && (ReferenceEquals(source, boundary)
+            || source.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, boundary)));
 
     private static void ApplyColumnHeaderBorderResources(
         Border columnHeaderBorder,
@@ -901,8 +920,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
 
     private void OnEndTaskClick(object? sender, EventArgs eventArgs)
     {
-        if (_processCanvas.SelectedEndTaskRequest is { } request)
-            RequestEndTask(request);
+        ProcessEndTaskRequest? request = _processCanvas.SelectedEndTaskRequest;
+        _processCanvas.ClearSelection();
+        if (request is { } selectedRequest)
+            RequestEndTask(selectedRequest);
     }
 
     private void OnRestartExplorerClick(object? sender, EventArgs eventArgs) =>
